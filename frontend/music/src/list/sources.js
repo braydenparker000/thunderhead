@@ -345,6 +345,7 @@ export function categorySource(ctx, list, nav, cat) {
       ? withOptions(new GroupSource(ctx, list, nav, title, groups), list, {key: 'cat:' + cat.kind, zoomKind: 'groups', sortKind: GROUP_SORT_KIND[cat.kind] ?? 'names'})
       : new TrackSource(ctx, list, nav, title, []);
     src.groupKind = cat.kind;
+    src.homeCat = {id: cat.id, title: cat.title, icon: cat.icon, kind: cat.kind}; // found again after a restart (category-ref.js)
   }
   src.icon = cat.icon;
   src.rebuild = () => categorySource(ctx, list, nav, cat);

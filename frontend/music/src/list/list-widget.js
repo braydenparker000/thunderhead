@@ -25,6 +25,7 @@ import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {alertDialog, editNameDialog} from '../widgets/dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
+import {homeOf} from './category-ref.js';
 import {openResortDialog} from '../widgets/resort-dialog.js';
 import {exportPlaylists} from '../library/playlist-files.js';
 import {LyricsPage} from './lyrics.js';
@@ -1716,7 +1717,7 @@ export class ListWidget extends FastLayout {
   categoriesOf(list, index) {
     const ctx = this.ctx, pl = this.libList, nav = this.nav, groups = list.groups;
     const tracksAt = j => (groups[j]?.pl ? playlistSource(ctx, pl, nav, groups[j].pl) : groups[j] ? groupTracksSource(ctx, pl, nav, groups[j], list.icon) : null)?.tracks ?? [];
-    return {source: {count: groups.length, groups, tracksAt}, index};
+    return {source: {count: groups.length, groups, tracksAt, home: homeOf(list)}, index};
   }
 
   /**

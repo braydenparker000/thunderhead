@@ -41,6 +41,7 @@ import {openLyricsDialog} from './widgets/lyrics-dialog.js';
 import {installSubAAEditor} from './widgets/subaa-edit.js';
 import {installScreenPrefs} from './widgets/screen.js';
 import {installSession, readSession, restore} from './player/session.js';
+import {installCategoryRestore} from './list/category-ref.js';
 import './list/list-widget.js';
 import './list/selection.js';
 
@@ -187,6 +188,7 @@ export async function boot() {
   }
   if (params.has('demo')) { /* demo queue set above */ } else if (library.tracks.length) {
     // Where the player was: the list that was playing with its order, the Queue, the song and its place (player/session.js).
+    installCategoryRestore(ctx);
     const {saved, savedList} = await readSession(library);
     restore(player, library, saved, savedList);
     // The song left off: its start on the phone, so the first play starts at once.
