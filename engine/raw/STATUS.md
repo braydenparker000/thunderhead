@@ -4,6 +4,7 @@ The working note for whoever continues (a person, or an agent after its context 
 first, then [../../docs/engineering/ENGINE-RESEARCH.md](../../docs/engineering/ENGINE-RESEARCH.md) for the reasoning.
 [REVIEW.md](REVIEW.md) (2026-11-11) is the talk with the owner about how good the editor is, what the forums and the
 science say is best, and what would close the gaps: nothing in it is to be built before the owner says so.
+[ROADMAP.md](ROADMAP.md) is the road proposed from there to the end game.
 It lives in `engine/raw/`, not under `docs/`, so that updating it stays a lab-only change (the fast checks:
 `scripts/lab-scope.mjs` counts only `frontend/lab/<page>/` and `engine/<crate>/`).
 `docs/engineering/ENGINE-STATUS.md` is older (it stops before white balance presets); this note replaces it.
