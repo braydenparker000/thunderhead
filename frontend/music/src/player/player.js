@@ -419,9 +419,46 @@ export class Player {
     this.category = category;
     // Another list leaves queue mode (the files entity is no longer the Queue).
     if (!this.enteringQueue) { this.queueMode = false; this.savedNP = null; }
+    this.index = Math.max(0, Math.min(index, tracks.length - 1));
+    if (!this.enteringQueue) this.widenForShuffleAll(false);
     this.post('msg_player_category_changed');
     this.order = null;
-    this.load(Math.max(0, Math.min(index, tracks.length - 1)), autoplay);
+    this.load(this.index, autoplay);
+  }
+
+  /**
+   * Shuffle All plays every song of every category of the playing list (the reference's "Shuffle All
+   * Available Songs"; the other modes stay inside a category or go through them in turn): the list
+   * widens to all of them around the playing song. Leaving the mode narrows it to the category that
+   * song is in. Playback goes on either way.
+   */
+  widenForShuffleAll(tell = true) {
+    const c = this.category, t = this.track;
+    if (this.queueMode || !c?.source?.tracksAt || !t) return;
+    const told = () => { this.order = null; if (tell) { this.post('msg_player_category_changed'); this.post('msg_player_track_changed', {track: t, meta: true}); } };
+    if (this.shuffle === SHUFFLE_ALL && !c.spans) {
+      const parts = [];
+      for (let i = 0; i < c.source.count; i++) parts.push(c.source.tracksAt(i) ?? []);
+      const all = parts.flat();
+      if (all.length <= this.queue.length) return;
+      let at = this.index;
+      for (let i = 0; i < c.index; i++) at += parts[i].length;
+      if (all[at] !== t) at = all.indexOf(t);
+      if (at < 0) return;
+      this.queue = all;
+      this.index = at;
+      this.category = {...c, spans: parts.map(p => p.length)};
+      told();
+    } else if (this.shuffle !== SHUFFLE_ALL && c.spans) {
+      let i = 0, start = 0;
+      while (i < c.spans.length - 1 && this.index >= start + c.spans[i]) start += c.spans[i++];
+      const tracks = c.source.tracksAt(i) ?? [], at = tracks.indexOf(t);
+      if (at < 0) return;
+      this.queue = tracks;
+      this.index = at;
+      this.category = {source: c.source, index: i};
+      told();
+    }
   }
 
   /**
@@ -452,6 +489,7 @@ export class Player {
     this.order = null;
     this.queueMode = false;
     this.savedNP = null;
+    this.widenForShuffleAll(false);
     this.post('msg_player_category_changed');
     this.post('msg_player_track_changed', {track: this.track, meta: true});
   }
@@ -479,6 +517,8 @@ export class Player {
     clearTimeout(this.silenceTimer);
     clearTimeout(this.endTimer);
     this.index = index;
+    // The entry that plays, itself: the same song may be in the Queue twice.
+    this.playingEntry = this.queueMode ? this.entries[index] ?? null : null;
     this.virtualPos = 0;
     this.virtualStart = performance.now();
     const t = this.track;
@@ -1359,8 +1399,16 @@ export class Player {
   startQueue(playing = this.state === STATE_PLAYING) {
     this.hasPendingQueue = false;
     if (!this.unplayedCount) return false;
-    if (!this.queueMode) this.savedNP = {queue: this.queue, index: this.index, category: this.category, order: this.order, orderShuffle: this.orderShuffle};
     const first = this.entries.findIndex(e => !e.played);
+    this.enterQueue(first >= 0 ? first : this.entries.length - 1, playing);
+    this.queueToast(true);
+    this.postQueueChanged();
+    return true;
+  }
+
+  /** Into queue mode at entry i: the playing list is kept to return to, the entries become the list. */
+  enterQueue(i, playing) {
+    if (!this.queueMode) this.savedNP = {queue: this.queue, index: this.index, category: this.category, order: this.order, orderShuffle: this.orderShuffle};
     this.enteringQueue = true;
     try {
       this.queue = this.queueOrderTracks();
@@ -1368,9 +1416,19 @@ export class Player {
       this.queueMode = true;
       this.order = null;
       this.post('msg_player_category_changed');
-      this.load(first >= 0 ? first : this.entries.length - 1, playing);
+      this.load(i, playing);
     } finally { this.enteringQueue = false; }
-    this.queueToast(true);
+  }
+
+  /**
+   * Plays the Queue from entry i (a tap in the Queue list): in queue mode, so Next goes on through
+   * the entries after it and the list that was playing is the one to return to.
+   */
+  playQueueAt(i, playing = this.state === STATE_PLAYING) {
+    if (!this.entries[i]) return false;
+    this.hasPendingQueue = false;
+    if (this.queueMode) { this.load(i, playing); return true; }
+    this.enterQueue(i, playing);
     this.postQueueChanged();
     return true;
   }
@@ -1384,8 +1442,10 @@ export class Player {
     this.queue = np.queue;
     this.index = np.index;
     this.category = np.category;
+    // The list's own play order comes back with it: a shuffle goes on where the Queue interrupted it.
     this.order = np.order;
     this.orderShuffle = np.orderShuffle;
+    this.orderQueueMode = false;
     this.post('msg_player_category_changed');
     this.queueToast(false);
     this.postQueueChanged();
@@ -1411,7 +1471,9 @@ export class Player {
   markQueuePlayed(t) {
     if (!t || !this.entries.length) return;
     let changed = false;
-    for (const e of this.entries) if (!e.played && e.track.id === t.id) { e.played = true; changed = true; }
+    // In queue mode only the entry that plays: a song queued twice plays twice.
+    const one = this.queueMode ? this.playingEntry : null;
+    for (const e of this.entries) if (!e.played && (one ? e === one : e.track.id === t.id)) { e.played = true; changed = true; }
     if (changed) this.postQueueChanged();
   }
 
@@ -1528,7 +1590,7 @@ export class Player {
       }
       case 'cmd_player_end_seek_jumps': clearTimeout(this.jumpTimer); break;
       case 'cmd_player_set_shuffle_mode':
-      case 'cmd_player_set_shuffle': this.shuffle = d.arg1 ?? 0; this.order = null; this.checkSplice(); this.post('msg_player_shuffle_mode_changed', {arg1: this.shuffle}); break;
+      case 'cmd_player_set_shuffle': this.shuffle = d.arg1 ?? 0; this.order = null; this.widenForShuffleAll(); this.checkSplice(); this.post('msg_player_shuffle_mode_changed', {arg1: this.shuffle}); break;
       // The reference's id (layouts post it) and this app's shorter one.
       case 'cmd_player_set_repeat_mode':
       case 'cmd_player_set_repeat': this.repeat = d.arg1 ?? 0; this.checkSplice(); this.post('msg_player_repeat_mode_changed', {arg1: this.repeat}); break;
@@ -1559,7 +1621,7 @@ export class Player {
     }
     const pref = k => this.ctx.pref?.(k);
     if (next && pref('q_next_forces_after_song') !== false && this.queueStart !== 2) this.ctx.settingsUi?.setPref('queue_start', '2');
-    const playingEntry = this.queueMode ? this.entries[this.index] : null;
+    const playingEntry = this.queueMode ? this.playingEntry ?? this.entries[this.index] : null;
     const clearOnAdd = !!pref('queue_clear_on_add');
     if (cleanAndPlay || clearOnAdd) {
       const keep = cleanAndPlay || (clearOnAdd && this.queueStart === 1) ? null : playingEntry;
@@ -1584,16 +1646,69 @@ export class Player {
    */
   queueUpdated(added = false) {
     if (this.queueMode) {
-      const t = this.track;
-      const cur = this.entries.findIndex(e => e.track === t);
+      const t = this.track, was = this.queue, order = this.order;
+      const own = this.entries.indexOf(this.playingEntry);
+      const cur = own >= 0 ? own : this.entries.findIndex(e => e.track === t);
       this.queue = this.queueOrderTracks();
       this.order = null;
-      if (cur >= 0) this.index = cur;
-      else if (this.entries.length) { this.load(Math.max(0, this.entries.findIndex(e => !e.played)), this.state === STATE_PLAYING); }
+      if (cur >= 0) {
+        this.index = cur;
+        this.playingEntry = this.entries[cur];
+        this.keepShuffle(was, order);
+      } else if (this.entries.length) { this.load(Math.max(0, this.entries.findIndex(e => !e.played)), this.state === STATE_PLAYING); }
     }
     this.hasPendingQueue = !this.queueMode && this.unplayedCount > 0;
     this.postQueueChanged();
     if (added && this.pendingQueue && this.queueStart === 1) this.startQueue(this.state === STATE_PLAYING || !this.track);
+  }
+
+  /**
+   * The Queue changed while it plays shuffled: the songs already played stay behind the playing one,
+   * in the order they played, and only what is still to come is shuffled again (a new shuffle of
+   * everything would bring back songs just heard). `was` and `order` are the list and its play order
+   * before the change.
+   */
+  keepShuffle(was, order) {
+    if (!order || order.length !== was.length || !this.songsShuffled || this.shuffle === SHUFFLE_DJ || this.ctx.pref?.('queue_no_shuffle')) return;
+    const now = this.queue, at = order.findIndex(i => was[i] === this.track);
+    if (at < 0) return;
+    const taken = new Set([this.index]), played = [];
+    for (const i of order.slice(0, at)) {
+      const k = now.findIndex((t, j) => t === was[i] && !taken.has(j));
+      if (k >= 0) { taken.add(k); played.push(k); }
+    }
+    const rest = fisherYates([...now.keys()].filter(i => !taken.has(i)));
+    this.order = [...played, this.index, ...rest];
+    this.orderShuffle = this.shuffle;
+    this.orderQueueMode = true;
+  }
+
+  /**
+   * Removes entries from the Queue (the Queue list's Delete). Outside queue mode the rest waits as
+   * before. In queue mode the list follows; when the playing entry goes, the next one left plays,
+   * or the Queue ends as it does after its last song.
+   */
+  removeFromQueue(indexes) {
+    const drop = new Set(indexes.filter(i => Number.isInteger(i) && i >= 0 && i < this.entries.length));
+    if (!drop.size) return 0;
+    const cur = this.queueMode ? this.entries.indexOf(this.playingEntry) : -1;
+    const left = this.entries.filter((_, i) => !drop.has(i));
+    if (cur < 0 || !drop.has(cur)) {
+      this.entries = left;
+      this.queueUpdated(false);
+      return drop.size;
+    }
+    const playing = this.state === STATE_PLAYING;
+    const next = this.entries.find((e, i) => i > cur && !drop.has(i)) ?? null;
+    this.entries = left;
+    this.queue = this.queueOrderTracks();
+    this.order = null;
+    this.playingEntry = null;
+    if (next) this.load(left.indexOf(next), playing);
+    else if (!left.length) { this.index = -1; this.exitQueue(playing); return drop.size; }
+    else { this.index = left.length - 1; this.queueNext(playing, true); }
+    this.postQueueChanged();
+    return drop.size;
   }
 
   /**
@@ -1610,7 +1725,7 @@ export class Player {
 
   /** Clears the Queue (cmd_data_clear_q); in queue mode the playing entry stays. */
   clearQueue() {
-    const keep = this.queueMode ? this.entries[this.index] : null;
+    const keep = this.queueMode ? this.playingEntry ?? this.entries[this.index] : null;
     this.entries = keep ? [keep] : [];
     this.hasPendingQueue = false;
     if (this.queueMode) { this.queue = this.queueOrderTracks(); this.index = keep ? 0 : -1; this.order = null; }

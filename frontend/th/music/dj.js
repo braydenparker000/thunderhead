@@ -18,6 +18,8 @@
 // reads the session, sends them signed in), and so is each rating (th/music/ratings.js). Nothing in
 // this file touches the session: it is the player's own, on this phone.
 
+import { tagIndex, tagsOf } from './dj-tags.js';
+
 export const SHUFFLE_DJ = 5;
 export const DJ_AHEAD = 60;
 /** Songs already planned that a new plan keeps next (the player keeps the next 3 songs' heads). */
@@ -76,18 +78,19 @@ export function seeded(seed) {
   };
 }
 
-const low = (/** @type {unknown} */ s) => (typeof s === 'string' ? s.trim().toLowerCase() : '');
-const genres = (/** @type {Track} */ t) => new Set(low(t.genre).split(/\s*[/,;]\s*/).filter(Boolean));
-
 /** How close two songs are in their tags, 0 to about 2. @param {Track} c @param {Track} x */
 export function closeness(c, x) {
+  const a = tagsOf(c);
+  const b = tagsOf(x);
   let s = 0;
-  if (low(c.composer) && low(c.composer) === low(x.composer)) s += 0.6;
-  if (low(c.artist) && low(c.artist) === low(x.artist)) s += 0.4;
-  else if (low(c.albumArtist) && low(c.albumArtist) === low(x.albumArtist)) s += 0.2;
-  const g1 = genres(c);
-  const g2 = genres(x);
-  if (g1.size && g2.size) s += (0.5 * [...g1].filter((g) => g2.has(g)).length) / new Set([...g1, ...g2]).size;
+  if (a.composer && a.composer === b.composer) s += 0.6;
+  if (a.artist && a.artist === b.artist) s += 0.4;
+  else if (a.albumArtist && a.albumArtist === b.albumArtist) s += 0.2;
+  if (a.genres.length && b.genres.length) {
+    let shared = 0;
+    for (const g of a.genres) if (b.genres.includes(g)) shared++;
+    s += (0.5 * shared) / (a.genres.length + b.genres.length - shared);
+  }
   if (c.year && x.year) s += 0.2 * Math.max(0, 1 - Math.abs(c.year - x.year) / 10);
   return s;
 }
@@ -100,12 +103,15 @@ const faded = (v, now) => (v ? v[0] * 0.5 ** ((now - v[1]) / HALF_LIFE_MS) : 0);
  * @param {Track[]} tracks @param {number} c @param {number[]} pool @param {string[]} history newest last
  * @param {Learned} learned @param {() => number} rand @param {number} now
  * @param {Record<string, number>} [weights] song id → its history weight, 0 to 1
+ * @param {Set<string>} [movers] the songs some learned move starts from (a plan reads them once); without it every move is looked up
  */
-export function pick(tracks, c, pool, history, learned, rand, now, weights = {}) {
+export function pick(tracks, c, pool, history, learned, rand, now, weights = {}, movers) {
   const cur = tracks[c];
+  const moved = movers ? movers.has(cur.id) : true;
   const last = new Set(history.slice(-RECENT));
-  const artists = history.slice(-10).map((id) => low(byId(tracks, id)?.artist)).filter(Boolean);
-  const albums = history.slice(-20).map((id) => low(byId(tracks, id)?.album)).filter(Boolean);
+  const known = (/** @type {string} */ id) => { const t = byId(tracks, id); return t ? tagsOf(t) : null; };
+  const artists = history.slice(-10).map((id) => known(id)?.artist).filter(Boolean);
+  const albums = history.slice(-20).map((id) => known(id)?.album).filter(Boolean);
   /** @type {[number, number][]} */
   const scored = [];
   /** @type {[number, number][]} */
@@ -115,11 +121,12 @@ export function pick(tracks, c, pool, history, learned, rand, now, weights = {})
     if (i === c || last.has(x.id) || x.rating === 1 || (x.lastPlayed && now - x.lastPlayed < RECENT_MS)) continue;
     const mine = faded(learned.tracks[x.id], now);
     if (mine <= -3) continue;
-    let s = closeness(cur, x) + 0.25 * Math.max(-1, Math.min(1, mine)) + 0.25 * Math.max(-1, Math.min(1, faded(learned.moves[`${cur.id}>${x.id}`], now)));
+    let s = closeness(cur, x) + 0.25 * Math.max(-1, Math.min(1, mine)) + (moved ? 0.25 * Math.max(-1, Math.min(1, faded(learned.moves[`${cur.id}>${x.id}`], now))) : 0);
     s += HISTORY_W * Math.max(0, Math.min(1, weights[x.id] ?? 0));
-    if (low(x.album) && albums.includes(low(x.album))) s -= 0.3;
+    const tags = tagsOf(x);
+    if (tags.album && albums.includes(tags.album)) s -= 0.3;
     // The same artist within 10 songs only when nothing else is left.
-    (low(x.artist) && artists.includes(low(x.artist)) ? sameArtist : scored).push([i, s]);
+    (tags.artist && artists.includes(tags.artist) ? sameArtist : scored).push([i, s]);
   }
   if (!scored.length) scored.push(...sameArtist.map(([i, s]) => /** @type {[number, number]} */ ([i, s - 0.5])));
   if (!scored.length) return -1;
@@ -154,33 +161,28 @@ export function djOrder(tracks, index, o = {}) {
   const weights = o.weights ?? loadWeights();
   const start = index >= 0 && index < n ? index : Math.floor(rand() * n);
   const keep = o.keep?.[0] === start ? o.keep : [start];
-  /** @type {Map<string, number[]>} */
-  const by = new Map();
-  tracks.forEach((t, i) => {
-    for (const k of [`c:${low(t.composer)}`, `a:${low(t.artist)}`, ...[...genres(t)].map((g) => `g:${g}`)]) {
-      if (k.endsWith(':')) continue;
-      const b = by.get(k);
-      if (b) b.push(i);
-      else by.set(k, [i]);
-    }
-  });
+  const by = tagIndex(tracks);
+  const movers = new Set(Object.keys(learned.moves).map((k) => k.slice(0, k.indexOf('>'))));
   const left = new Set(tracks.keys());
   for (const i of keep) left.delete(i);
+  // The songs left, in the set's order, as an array for the picks at random (kept beside the set, not copied from it for each song).
+  const all = [...left];
   const order = [...keep];
   const history = [...learned.recent, ...keep.map((i) => tracks[i].id)];
   while (order.length < Math.min(n, DJ_AHEAD + 1)) {
     const c = /** @type {number} */ (order.at(-1));
-    const t = tracks[c];
-    const near = [`c:${low(t.composer)}`, `a:${low(t.artist)}`, ...[...genres(t)].map((g) => `g:${g}`)].flatMap((k) => by.get(k) ?? []);
-    const all = [...left];
-    const pool = [...new Set([...near.filter((i) => left.has(i)).slice(0, 400), ...Array.from({ length: Math.min(100, all.length) }, () => all[Math.floor(rand() * all.length)])])];
-    let next = pick(tracks, c, pool, history, learned, rand, now, weights);
+    /** @type {number[]} */
+    const near = [];
+    for (const k of tagsOf(tracks[c]).keys) for (const i of by.get(k) ?? []) if (near.length < 400 && left.has(i)) near.push(i);
+    const pool = [...new Set([...near, ...Array.from({ length: Math.min(100, all.length) }, () => all[Math.floor(rand() * all.length)])])];
+    let next = pick(tracks, c, pool, history, learned, rand, now, weights, movers);
     if (next < 0) next = all[Math.floor(rand() * all.length)];
     order.push(next);
     left.delete(next);
+    all.splice(all.indexOf(next), 1);
     history.push(tracks[next].id);
   }
-  const rest = [...left];
+  const rest = all;
   for (let i = rest.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [rest[i], rest[j]] = [rest[j], rest[i]];

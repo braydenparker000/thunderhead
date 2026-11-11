@@ -662,8 +662,8 @@ export class PowerList extends FastLayout {
       state_list_one_item_selected: n === 1,
       state_list_one_track_selected: n === 1 && tracks.length === 1,
       state_list_range_avail: n > 1 && Math.max(...sel) - Math.min(...sel) + 1 > n,
-      // Delete only removes playlists or playlist entries (music files stay).
-      state_list_can_delete: n > 0 && !!(this.source?.isPlaylists || this.source?.playlist),
+      // Delete only removes playlists, playlist entries or Queue entries (music files stay).
+      state_list_can_delete: n > 0 && !!(this.source?.isPlaylists || this.source?.playlist || this.source?.kind === 'queue'),
       state_list_aa_selectable_selected: false,
     });
     this.ctx.bus.post('list', 'state_list_selection_count', this, {arg1: n, state: st});

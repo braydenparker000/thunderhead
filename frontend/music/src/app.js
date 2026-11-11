@@ -40,6 +40,7 @@ import {installMetaInfo} from './widgets/meta-info.js';
 import {openLyricsDialog} from './widgets/lyrics-dialog.js';
 import {installSubAAEditor} from './widgets/subaa-edit.js';
 import {installScreenPrefs} from './widgets/screen.js';
+import {installSession, readSession, restore} from './player/session.js';
 import './list/list-widget.js';
 import './list/selection.js';
 
@@ -185,16 +186,9 @@ export async function boot() {
     if (!library.tracks.length) await library.r2Ready;
   }
   if (params.has('demo')) { /* demo queue set above */ } else if (library.tracks.length) {
-    const saved = await library.db?.getState('queue').catch(() => null);
-    const index = Math.max(0, library.tracks.findIndex(t => t.id === saved?.trackId));
-    if (saved?.shuffle !== undefined) player.shuffle = saved.shuffle;
-    if (saved?.repeat !== undefined) player.repeat = saved.repeat;
-    player.restoreQueue(saved?.entries ?? saved?.userQueue, library.byId);
-    // In queue mode the list to return to is saved by its track.
-    const npIndex = saved?.queueMode ? Math.max(0, library.tracks.findIndex(t => t.id === saved.npTrackId)) : index;
-    player.setQueue(library.tracks, npIndex);
-    if (saved?.queueMode) player.resumeQueueMode(saved.trackId);
-    if (saved?.positionMs) player.seek(saved.positionMs);
+    // Where the player was: the list that was playing with its order, the Queue, the song and its place (player/session.js).
+    const {saved, savedList} = await readSession(library);
+    restore(player, library, saved, savedList);
     // The song left off: its start on the phone, so the first play starts at once.
     player.wantStartHead();
   }
@@ -210,19 +204,8 @@ export async function boot() {
     if (!player.queue.length && library.tracks.length) player.setQueue(library.tracks, 0);
     else player.adoptRecords(library.byId);
   });
-  // Remember the current track and position (reference: resume where left off).
-  const saveState = () => {
-    const t = player.track;
-    if (!t || !library.byId.has(t.id)) return;
-    const np = player.savedNP;
-    library.db?.setState('queue', {
-      trackId: t.id, positionMs: player.positionMs(), shuffle: player.shuffle, repeat: player.repeat,
-      entries: player.entries.map(e => ({id: e.track.id, created: e.created, played: e.played})),
-      queueMode: player.queueMode, npTrackId: np?.queue?.[np.index]?.id ?? null,
-    }).catch(() => {});
-  };
-  ctx.bus.subscribe('bus_player', m => { if (m === 'msg_player_track_changed' || m === 'msg_player_playing_state_changed' || m === 'msg_player_shuffle_mode_changed' || m === 'msg_player_repeat_mode_changed' || m === 'msg_player_queue_changed') saveState(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); });
+  // Remember the list, the song and its place (reference: resume where left off).
+  installSession(ctx, player, library);
   // The home screen: the player, or the library with start_at_lib (the
   // app starts there and Back from the player or the EQ returns to it).
   const home = () => (ctx.pref('start_at_lib') ? 'nav_lib' : 'nav_main');
