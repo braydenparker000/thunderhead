@@ -237,6 +237,36 @@ unmodified builds from the same libmedia commit as the rest
 (`frontend/assets/libmedia/licenses/`). VVC, Speex and H.263 in an AVI are
 wired but were not tried: no test film could be made here.
 
+### How smoothly (measured 2026-11-10)
+
+`scripts/astra/smooth.cjs` on a three-minute 1080p H.264 film at 8 Mbit/s
+with Dolby Digital 5.1 (converted as it plays) and a second AAC track, in
+desktop Chrome; the second column slows the page's thread six times and
+limits the connection to 20 Mbit/s, which is nearer a slow phone.
+
+| | Fast machine | Slowed, 20 Mbit/s: before | after |
+|---|---|---|---|
+| First frame | 0.8 s | 5.2 s | 5.1 s |
+| Seek two minutes ahead | 0.5 s | 6.6 s | 3.6 s |
+| Seek six seconds on, inside the buffer | 0.05 s | 2.4 s | 0.06 s |
+| Seek back to the start | 0.6 s | 2.5 s | 1.8 s |
+| Frames dropped in 15 s of play, stalls | 0, 0 | 0, 0 | 0, 0 |
+
+What made the difference: after a seek the downloads of the pipelines being
+dropped went on filling their read-ahead and took half the connection from
+the place playback was waiting for; `HttpSource.jumped()` now closes them
+and ends their waiting reads (`tests/astra-source.test.mjs`). The audio
+decoder (1.1 MB for Dolby Digital, 1.6 MB for DTS) now downloads while the
+first video is read instead of before it.
+
+What is left, and why: the first frame and every far seek wait for one whole
+Matroska cluster (up to 5 MB or 5 s), because Mediabunny reads a cluster
+whole before it hands out its first packet; on 20 Mbit/s that is up to two
+seconds. Converted sound arrives about a second after the picture on a slow
+phone (decode and Opus encode on the page's thread). Changing the audio
+track stops the picture for about a third of a second (the seek in place
+that flushes the old sound). None of this was measured on the phone itself.
+
 ## The player screen
 
 `new PlayerScreen().open({stream, meta, sources, episodes, next, segments})`

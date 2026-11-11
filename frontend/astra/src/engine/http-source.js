@@ -32,10 +32,7 @@ export function parseContentRange(value) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export class HttpSource {
-  /**
-   * @param {string} url
-   * @param {{headers?: Record<string,string>, maxBytes?: number, fetchFn?: typeof fetch}} [options]
-   */
+  /** @param {string} url @param {{headers?: Record<string,string>, maxBytes?: number, fetchFn?: typeof fetch}} [options] */
   constructor(url, {headers = {}, maxBytes = 96 * BLOCK, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
     this.url = url;
     this.headers = headers;
@@ -74,6 +71,15 @@ export class HttpSource {
   doneProbing() {
     this.probing = false;
     for (const s of this.streams) s.wake?.();
+  }
+
+  // Playback has jumped elsewhere. The reads still waiting belong to pipelines being dropped, and their streams
+  // would go on filling their read-ahead, taking bandwidth from the new place: both end here (reads as 'closed').
+  jumped() {
+    for (const s of [...this.streams]) s.abort();
+    const moved = new SourceError('closed', 'Playback moved elsewhere.');
+    for (const list of this.waiters.values()) for (const w of list) w.reject(moved);
+    this.waiters.clear();
   }
 
   /** Calls fn(blockIndex) whenever a block lands in the cache. */

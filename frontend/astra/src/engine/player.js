@@ -228,7 +228,7 @@ export class AstraPlayer extends EventTarget {
     const {plan, info, probed} = this;
     this.audio = plan.audioOptions.map(o => ({id: o.track.id, label: o.label, language: o.track.language, delivery: o.delivery, supported: o.delivery !== 'unsupported', reason: o.reason, option: o}));
     this.selectedAudio = plan.audio?.track.id ?? null;
-    const session = new RemuxSession(this.video, {info, video: plan.video, audio: plan.audio});
+    const session = new RemuxSession(this.video, {info, video: plan.video, audio: plan.audio, source: probed?.source});
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     this.session = session;
