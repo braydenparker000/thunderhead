@@ -18,11 +18,11 @@ export const same = (a, b) => a.wb === b.wb && a.profile === b.profile && (a.cub
 const sound = (/** @type {any} */ st) => !!st && typeof st === 'object' && !!st.values && typeof st.values === 'object' && typeof st.wb === 'string' && typeof st.profile === 'string';
 
 /** A photo's past from its saved edit. With none saved it starts at `first` (the photo as imported), and holds
- * the edit as found after it when that is something else. @param {any} saved @param {State} first @param {State} now @returns {Past} */
-export function load(saved, first, now) {
+ * the edit as found after it when that is something else. @param {any} saved @param {State} first @param {State} now @param {string} [kind] what was imported @returns {Past} */
+export function load(saved, first, now, kind = 'RAF') {
   const whole = (/** @type {State} */ st) => { const c = copy(st); c.values = { ...first.values, ...c.values }; return c; };   // an edit saved before a control existed has it where it starts
   const steps = /** @type {Step[]} */ (Array.isArray(saved?.steps) ? saved.steps.filter((/** @type {any} */ s) => s && sound(s.st)).map((/** @type {any} */ s) => ({ key: '', name: String(s.name), val: String(s.val ?? ''), st: whole(s.st) })) : []);
-  if (!steps.length) { steps.push({ key: '', name: 'Imported', val: 'RAF', st: whole(first) }); if (!same(first, now)) steps.push({ key: '', name: 'Earlier edits', val: '', st: whole(now) }); }
+  if (!steps.length) { steps.push({ key: '', name: 'Imported', val: kind, st: whole(first) }); if (!same(first, now)) steps.push({ key: '', name: 'Earlier edits', val: '', st: whole(now) }); }
   const versions = Array.isArray(saved?.versions) ? saved.versions.filter((/** @type {any} */ v) => v && sound(v.st)).map((/** @type {any} */ v) => ({ name: String(v.name), st: whole(v.st) })) : [];
   return { steps, at: Number.isInteger(saved?.at) ? Math.max(0, Math.min(steps.length - 1, saved.at)) : steps.length - 1, versions };
 }

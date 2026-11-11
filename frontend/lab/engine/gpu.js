@@ -98,7 +98,8 @@ export async function engine(canvas, img, readback = false) {
   const uploadMs = performance.now() - t0;
   const asShot = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
   let neutral = asShot, white = /** @type {null | { kelvin: number, tint: number }} */ (null), picked = /** @type {null | { profile: import('./dcp.js').Profile, table: any }} */ (null);
-  const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: null, expOffset: 0, name: 'Camera matrix', model: '' };
+  // a picture (picture.js) has its tones already: its curve is straight, where a sensor's data with no profile gets a filmic one
+  const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: img.meta.picture ? new Float32Array([0, 0, 1, 1]) : null, expOffset: 0, name: 'Camera matrix', model: '' };
   let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', masked = '', fined = '', hazed = '', air = [1, 1, 1], airFor = /** @type {number[] | null} */ (null), state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
   /** Full-resolution views (full.js): each adds its own frame pass to a render. @type {{ bind: (tab: GPUBuffer) => void, bent: () => void, frame: (enc: GPUCommandEncoder, u: ArrayBuffer) => void, after: () => Promise<void> }[]} */
   const views = [];
@@ -110,7 +111,7 @@ export async function engine(canvas, img, readback = false) {
     picked = pick;
     const prof = /** @type {any} */ (pick?.profile || fallback);
     neutral = white ? neutralFor(prof, white.kelvin, white.tint) : asShot;
-    const conv = cameraToProPhoto(/** @type {any} */ (pick?.profile || fallback), neutral), t = tables(pick, conv.weight);
+    const conv = cameraToProPhoto(prof, neutral), t = tables(img.meta.picture && !pick?.profile ? { ...pick, profile: prof } : pick, conv.weight);
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
@@ -160,7 +161,7 @@ export async function engine(canvas, img, readback = false) {
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
-    n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (img.meta.picture ? 2097152 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, 0], 80);
     if (more.dehaze && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }   // the haze's colour, once for each profile and white balance
     f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, more.cube ?? 1, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);

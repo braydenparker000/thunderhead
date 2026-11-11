@@ -220,10 +220,18 @@ fn fit(c: vec3f) -> vec3f {
   var lo = 0.0; var hi = 4.0;          // the largest multiple of this colour's strength that fits
   for (var i = 0; i < 16; i++) { let mid = 0.5 * (lo + hi); if (fits(r, l, mid)) { lo = mid; } else { hi = mid; } }
   let x = 1.0 / max(lo, 1e-4);         // how far out towards the edge it is: 1 on it
-  if (x <= EDGE_KNEE) { return c; }
-  return strong(r, l, lo * (EDGE_KNEE + (1.0 - EDGE_KNEE) * tanh((x - EDGE_KNEE) / (1.0 - EDGE_KNEE))));
+  // 2097152: a picture (picture.js). Every colour it holds is one the screen shows, so none of them eases in: only
+  // what an edit pushes past the edge is brought back to it, and a picture nothing has moved comes out as it went in.
+  let knee = select(EDGE_KNEE, 1.0, (p.size.w & 2097152u) != 0u);
+  if (x <= knee) { return c; }
+  return strong(r, l, lo * (knee + (1.0 - knee) * tanh((x - knee) / max(1.0 - knee, 1e-6))));
 }
 ${TOOLS}
+// A colour as the screen shows it with nothing done to it. For a picture (picture.js) the table holds only what the
+// edit adds to this, and each pixel works this part out itself: a table read between its points blurs the hard edge
+// of the screen's range, and a picture is full of colours that sit near that edge (a deep blue was out by 28 levels
+// of 255). With nothing moved the table is all zeros, and the picture comes out as it went in.
+fn plain(c: vec3f) -> vec3f { let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); return vec3f(enc(o.r), enc(o.g), enc(o.b)); }
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
@@ -235,7 +243,9 @@ fn develop(c0: vec3f) -> vec3f {
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
-  if ((fl & 1048576u) == 0u) { c = fit(c); }   // 1048576: strong colours cut off at the edge, as before (to compare)
+  // 1048576: strong colours cut off at the edge, as before (to compare). In a picture's table a point the screen
+  // could never have shown is no pixel's colour: it is left as plain() has it, so it adds nothing to its neighbours.
+  if ((fl & 1048576u) == 0u && ((fl & 2097152u) == 0u || all(mv(p.o0, p.o1, p.o2, c0) >= vec3f(0.0)))) { c = fit(c); }
   let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = vec3f(enc(o.r), enc(o.g), enc(o.b));
   if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
@@ -244,7 +254,9 @@ fn develop(c0: vec3f) -> vec3f {
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
   if (any(id >= vec3u(N))) { return; }
-  textureStore(lutOut, id, vec4f(develop(unshape(vec3f(id) / f32(N - 1u))), 1.0));
+  let c = unshape(vec3f(id) / f32(N - 1u)); var v = develop(c);
+  if ((p.size.w & 2097152u) != 0u) { v -= plain(c); }
+  textureStore(lutOut, id, vec4f(v, 1.0));
 }
 ${DITHER}
 // Highlights and Shadows work on how bright the pixel's area is, not the pixel: the tone mask (mask.js) holds
@@ -307,7 +319,10 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (p.fx.w != 0.0) { let d = (spot - 0.5) * 2.0; c = c * exp2(p.fx.w * 2.0 * smoothstep(0.1, 1.1, 0.5 * dot(d, d))); }
   var o = c;
   if ((fl & 16384u) == 0u) {
-    if ((fl & 64u) != 0u) { o = develop(c); } else if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
+    if ((fl & 64u) != 0u) { o = develop(c); } else {
+      if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
+      if ((fl & 2097152u) != 0u) { o = clamp(o + plain(c), vec3f(0.0), vec3f(1.0)); }
+    }
   }
   o = mix(o, vec3f(0.91, 0.13, 0.16), 0.55 * lo.show);   // the mask being worked on, in red
   if (p.sharp.w > 0.0) { o = grain(o, spot); }

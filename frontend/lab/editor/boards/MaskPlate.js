@@ -105,7 +105,7 @@ export default class Component extends DCLogic {
     }
     return {
       real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none', rad, hasNote: !!note, note, noteT: Math.max(60, box[1] + box[3] - 46),
-      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
       overlay: real ? 'none' : shape[m.invert ? 1 : 0], lumMask: isRange && !real ? 'url(/lab/editor/assets/sample.jpg)' : 'none',
       overlayO: real ? 0 : S.overlay && !S.detecting ? (valOf('Amount') / 100) * 0.9 + 0.1 : 0,
       dots: m.kind === 'Brush' && !real ? m.dots.map((d) => ({ x: d[0], y: d[1], s: d[2], m: -d[2] / 2 })) : [],

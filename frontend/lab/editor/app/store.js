@@ -1,12 +1,12 @@
 // @ts-check
-// The editor's photos on this phone (docs/design/EDITOR.md, storage): each original RAF is copied into the
-// browser's private file system (OPFS) with the camera's own JPEG beside it and, once edited, a small picture
+// The editor's photos on this phone (docs/design/EDITOR.md, storage): each original (a RAF, or a JPEG) is copied into the
+// browser's private file system (OPFS) with the camera's own JPEG beside it (for a JPEG, a smaller copy of itself) and, once edited, a small picture
 // of the edit for its Library tile; the photo's record and its edit live in IndexedDB. Nothing leaves the phone. Persistent storage is asked for so Chrome
 // keeps all of it when space runs low.
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
- *   editFile?: string, backed?: string }} Photo `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
+ *   editFile?: string, backed?: string, kind?: 'jpeg' }} Photo `kind`: what the original is when it is not a RAF; `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
  *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js) */
 /** @typedef {Record<string, number | string>} Edit */
 
@@ -68,28 +68,46 @@ export function embedded(buf) {
   return off + len <= buf.byteLength ? new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }) : null;
 }
 
-/** Copies RAFs onto the phone; `step(done, total)` after each. A file already here (the same name, size and
- * time) is not copied twice, so picking a set again after an import was cut off carries on where it stopped.
- * Returns how many were copied and how many were here already.
- * @param {File[]} files @param {(k: number, n: number) => void} step */
-export async function add(files, step) {
-  const raws = files.filter((f) => /\.raf$/i.test(f.name));
-  let k = 0, had = 0;
-  for (const f of raws) {
-    if (cache.some((p) => p.name === f.name && p.size === f.size && p.taken === f.lastModified)) { had++; step(++k, raws.length); continue; }
-    const buf = await f.arrayBuffer(), jpg = embedded(buf), id = crypto.randomUUID();
-    await write('raw', `${id}.raf`, buf);
-    if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); }
-    /** @type {Photo} */
-    const p = { id, name: f.name, size: f.size, taken: f.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none' };
-    await tx('photos', (s) => s.put(p), 'readwrite');
-    cache = [p, ...cache].sort((a, b) => b.taken - a.taken);
-    step(++k, raws.length);
-  }
-  return { added: raws.length - had, had };
+const RAF = /\.raf$/i, JPEG = /\.jpe?g$/i;
+/** The name a photo's original is kept under. @param {string} id @param {Photo['kind']} [kind] */
+const orig = (id, kind) => `${id}.${kind === 'jpeg' ? 'jpg' : 'raf'}`;
+/** A picture file made small (1600 pixels on its longer side), for its tile and for the screen while it opens. @param {Blob} file */
+async function reduced(file) {
+  const bm = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bm.width, bm.height)), c = new OffscreenCanvas(Math.max(1, Math.round(bm.width * k)), Math.max(1, Math.round(bm.height * k)));
+  const g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d'));
+  g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close();
+  return c.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+}
+/** Copies one original onto the phone and keeps its record. A file that is not what its name says throws, with
+ * nothing kept. @param {File} file @param {Partial<Photo>} [more] */
+async function copyIn(file, more = {}) {
+  const id = crypto.randomUUID(), kind = JPEG.test(file.name) || file.type === 'image/jpeg' ? /** @type {const} */ ('jpeg') : undefined;
+  let jpg = /** @type {Blob | null} */ (null);
+  if (kind) { jpg = await reduced(file); await write('raw', orig(id, kind), file); }
+  else { const buf = await file.arrayBuffer(); jpg = embedded(buf); if (!jpg && more.source) throw new Error('not a RAF'); await write('raw', orig(id), buf); }
+  if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); }
+  /** @type {Photo} */
+  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}), ...more };
+  await tx('photos', (s) => s.put(p), 'readwrite');
+  return p;
 }
 
-/** One RAF handed over by another part of the app (Photos' Edit, apps/photos/to-editor.js), kept under
+/** Copies RAFs and JPEGs onto the phone; `step(done, total)` after each. A file already here (the same name, size
+ * and time) is not copied twice, so picking a set again after an import was cut off carries on where it stopped.
+ * Returns how many were copied, how many were here already, and how many could not be read.
+ * @param {File[]} files @param {(k: number, n: number) => void} step */
+export async function add(files, step) {
+  const ours = files.filter((f) => RAF.test(f.name) || JPEG.test(f.name));
+  let k = 0, had = 0, bad = 0;
+  for (const f of ours) {
+    if (cache.some((p) => p.name === f.name && p.size === f.size && p.taken === f.lastModified)) had++;
+    else try { const p = await copyIn(f); cache = [p, ...cache].sort((a, b) => b.taken - a.taken); } catch { bad++; }
+    step(++k, ours.length);
+  }
+  return { added: ours.length - had - bad, had, bad };
+}
+
+/** One original handed over by another part of the app (Photos' Edit, apps/photos/to-editor.js), kept under
  * where it came from (`photos:<id>`) so the same photo is copied once and its edit is found again.
  * Works before `init`. @param {string} source @returns {Promise<string | null>} its id here, if it is here */
 export async function fromSource(source) {
@@ -101,14 +119,7 @@ export async function fromSource(source) {
 export async function addFrom(file, source, more = {}) {
   const had = await fromSource(source);
   if (had) return had;
-  const buf = await file.arrayBuffer(), jpg = embedded(buf), id = crypto.randomUUID();
-  if (!jpg) throw new Error('not a RAF');
-  await write('raw', `${id}.raf`, buf);
-  await write('jpg', `${id}.jpg`, jpg);
-  /** @type {Photo} */
-  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', ...more, source };
-  await tx('photos', (s) => s.put(p), 'readwrite');
-  return id;
+  return (await copyIn(file, { ...more, source })).id;
 }
 
 /** @param {string} id @param {Partial<Photo>} patch */
@@ -126,9 +137,10 @@ export async function jpegUrl(id) {
   }
   return urls.get(id);
 }
-/** The first bytes of the photo's camera JPEG: its Exif is in them. @param {string} id */
+/** The first bytes of the photo's camera JPEG (of a JPEG itself: its small copy carries none): its Exif is in them. @param {string} id */
 export async function jpegHead(id) {
-  try { return new Uint8Array(await (await (await (await dir('jpg')).getFileHandle(`${id}.jpg`)).getFile()).slice(0, 1 << 17).arrayBuffer()); } catch { return new Uint8Array(0); }
+  const own = cache.find((x) => x.id === id)?.kind === 'jpeg';
+  try { return new Uint8Array(await (await (await (await dir(own ? 'raw' : 'jpg')).getFileHandle(`${id}.jpg`)).getFile()).slice(0, 1 << 17).arrayBuffer()); } catch { return new Uint8Array(0); }
 }
 /** The photo's Library tile: its edit where one was kept, else the camera's JPEG (init and add load them all). @param {string} id */
 export const urlNow = (id) => tiles.get(id) || urls.get(id) || '/lab/editor/assets/sample.jpg';
@@ -140,10 +152,10 @@ export async function saveTile(id, blob) {
   if (blob) { await write('thumb', `${id}.jpg`, blob); tiles.set(id, URL.createObjectURL(blob)); } else await (await dir('thumb')).removeEntry(`${id}.jpg`).catch(() => {});
   await update(id, { edited: !!blob });
 }
-/** Deletes photos from this phone for good: the RAF, its JPEG and tile, its record and its edit. @param {string[]} ids */
+/** Deletes photos from this phone for good: the original, its JPEG and tile, its record and its edit. @param {string[]} ids */
 export async function remove(ids) {
   for (const id of ids) {
-    for (const [folder, name] of [['raw', `${id}.raf`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
+    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
     for (const m of [urls, tiles]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
   }
@@ -151,10 +163,10 @@ export async function remove(ids) {
 }
 /** How many bytes this site keeps on the phone (the photos are nearly all of it). */
 export const usage = async () => (await navigator.storage?.estimate?.())?.usage ?? cache.reduce((s, p) => s + p.size, 0);
-/** The original RAF as a file on disk, under its own name (nothing is read until something reads it). @param {string} id */
+/** The original as a file on disk, under its own name (nothing is read until something reads it). @param {string} id */
 export async function rawFile(id) {
-  const p = cache.find((x) => x.id === id), f = await (await (await dir('raw')).getFileHandle(`${id}.raf`)).getFile();
-  return new File([f], p?.name || `${id}.raf`, { lastModified: p?.taken || f.lastModified });
+  const p = cache.find((x) => x.id === id), f = await (await (await dir('raw')).getFileHandle(orig(id, p?.kind))).getFile();
+  return new File([f], p?.name || orig(id, p?.kind), { type: p?.kind === 'jpeg' ? 'image/jpeg' : '', lastModified: p?.taken || f.lastModified });
 }
 /** Every saved edit, by photo id. @returns {Promise<Map<string, Edit>>} */
 export async function edits() {
