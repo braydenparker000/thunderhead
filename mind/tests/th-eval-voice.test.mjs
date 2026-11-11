@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {dirname} from 'node:path';
 import {grade, sentences, voiceDiff, voiceFixtures} from '../cli/lib/eval-voice.mjs';
-import {lintReply} from '../cli/lib/lint.mjs';
+import {lintText} from '../cli/lib/lint.mjs';
 import {env, startFake, th} from './helpers.mjs';
 
 const withFake = fn => async () => {
@@ -24,7 +24,7 @@ test('thirty fixtures, each with its briefing lines; every right reply passes an
     assert.ok(f.prompt && f.brief.length && f.brief.every(l => typeof l === 'string' && l.length <= 200), f.id);
     assert.ok(GRADED.some(k => f[k] !== undefined), `${f.id}: graded on something`);
     assert.deepEqual(grade(f, f.good), [], `${f.id}: ${f.good}`);
-    assert.equal(lintReply(f.good), null, f.id);
+    assert.equal(lintText(f.good), null, f.id);
     assert.ok(grade(f, f.bad).length, `${f.id}: the wrong reply should fail: ${f.bad}`);
     assert.doesNotMatch(JSON.stringify(f), /claude|opus|sonnet|haiku|fable/i, f.id);
   }
@@ -32,11 +32,14 @@ test('thirty fixtures, each with its briefing lines; every right reply passes an
   for (const k of GRADED) assert.ok(all.filter(f => f[k]).length >= 2, k);
 });
 
-test('the graders: shape, knowing, honesty, the admission, a kept correction, register', () => {
+test('the graders: fit, knowing, honesty, the admission, a kept correction, register', () => {
   const f = {knows: ['dentist']};
   assert.deepEqual(sentences('Morning. The dentist at 9:30, then choir. Rain from four.'), ['Morning.', 'The dentist at 9:30, then choir.', 'Rain from four.']);
-  assert.match(grade(f, 'One. Two. Three. The dentist.').join(), /4 sentences/);
-  assert.match(grade(f, 'The dentist:\n- at 9:30').join(), /a list or a heading/);
+  assert.match(grade(f, 'One. Two. Three. Four. Five. Six. The dentist.').join(), /7 sentences, at most 6/);
+  // A reply's shape is not graded: a list, an opener, an offer at the end.
+  assert.deepEqual(grade(f, 'Tomorrow:\n- the dentist at 9:30\n- choir at six'), []);
+  assert.deepEqual(grade(f, 'Sure. The dentist at 9:30; I can move it if that helps.'), []);
+  assert.match(grade({depth: true}, 'It failed.').join(), /asked for depth/);
   assert.match(grade(f, 'What do you want to know?').join(), /names none of dentist.*asks what the briefing holds/);
   assert.match(grade({lacks: true}, 'It should be open.').join(), /honesty/);
   assert.deepEqual(grade({lacks: true}, 'About four in five it is open.'), []);
@@ -45,7 +48,7 @@ test('the graders: shape, knowing, honesty, the admission, a kept correction, re
   assert.match(grade({rule: true}, 'Noted.').join(), /kept/);
   assert.match(grade({quiet: true}, 'Nothing. Really. Truly.').join(), /at most 2/);
   assert.match(grade(f, 'The dentist, perhaps!').join(), /exclamation.*hedging/);
-  assert.match(grade(f, 'The dentist. Want me to move it?').join(), /banned shape/);
+  assert.match(grade(f, 'Great question. The dentist.').join(), /banned phrase/);
   assert.deepEqual(grade(f, ''), ['no reply']);
 });
 

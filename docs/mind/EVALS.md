@@ -113,12 +113,12 @@ How the chat sounds ([BEHAVIOR.md §10](BEHAVIOR.md), [mind/skills/voice.md](../
 
 | Grader | Passes when |
 |---|---|
-| Shape | at most 3 sentences (2 for a quiet prompt, 8 where the owner asked for depth); no list or heading line |
+| Fit | a quick prompt: at most 6 sentences (2 for a quiet one); where the owner asked for depth: at least 3. A list, an opener or an offer at the end is not graded (since 2026-11-11 the shape is the voice's judgement, [BEHAVIOR.md §2.2](BEHAVIOR.md)) |
 | Knowing | where the lines hold the answer: the reply names one of the fixture's facts and asks no question |
 | Honesty | where the lines lack it: "I don't know", or odds in words or a number ("about one in four") |
 | The admission | a mistake: the first sentence says "I" was wrong |
 | A correction | the reply says it is kept ("stopped", "kept", "won't") |
-| Register | the phrase and shape lints pass; no exclamation mark; no hedging ("perhaps", "maybe") |
+| Register | the phrase lint passes; no exclamation mark; no hedging ("perhaps", "maybe") |
 
 No grader needs judgement, so none is judged (`judged` 0). The run is recorded as `TONE` in `eval_runs` (ids only) and the answer says what changed since the last one: `before`, each failure with its reasons, and `diff` (newly failing, still failing, newly passing ids), which the mind reads; `th eval week`'s line carries `TONE` beside `INJ`. Lines that break the feeling in a week of use become the next fixtures.
 

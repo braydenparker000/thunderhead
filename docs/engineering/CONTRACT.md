@@ -628,6 +628,4 @@ The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `
 
 ## Phrase lint
 
-"great question" · "amazing work" · "you're a natural" · "don't break your streak" · "i deeply apologize" · "i'm so sorry" · "i have successfully" · "keep pushing forward" · "as an ai language model" · "i will now run" · "using the bash tool"
-
-Chat replies also take the shape lint (where in the reply): "sure" (start) · "certainly" (start) · "absolutely" (start) · "of course" (start) · "here are" (sentence) · "options:" (anywhere) · "let me know if" (end) · "want me to" (end) · "would you like me to" (end) · "feel free to" (end); and a reply that is only a list: say it in sentences.
+"great question" · "amazing work" · "you're a natural" · "don't break your streak" · "i have successfully" · "keep pushing forward" · "as an ai language model" · "i will now run" · "using the bash tool"
