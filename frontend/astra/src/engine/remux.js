@@ -11,6 +11,8 @@ import * as MB from '../../vendor/mediabunny.js';
 import {mediaSourceClass} from './capabilities.js';
 import {AppendQueue, bufferedAt, bufferedAhead} from './mse.js';
 import {audioMime, videoMime} from './plan.js';
+import {mixable, toStereo} from './downmix.js';
+import {EarlyCuts} from './early.js';
 
 /** Read-ahead limits; tests shorten them to exercise restarts on small files. */
 export const TUNING = {ahead: {video: 40, audio: 60}, maxQueued: 24 << 20};
@@ -168,15 +170,15 @@ export class RemuxSession extends EventTarget {
     return read.value;
   }
 
-  output(kind, generation) {
+  output(kind, generation, early = null) {
     const queue = this.queues[kind];
     let head = [], moof = null;
     const send = bytes => { this.stats.appended += bytes.byteLength; queue.append(bytes, generation); };
     const format = new MB.Mp4OutputFormat({
-      fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 1 : 0.25,
+      fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 1 : 0, // video: every key frame, real or early (early.js), begins a fragment
       onFtyp: data => { head.push(data.slice()); },
       onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
-      onMoof: data => { moof = data.slice(); },
+      onMoof: data => { moof = data.slice(); early?.settle(moof); },
       onMdat: data => { send(concat([moof, data])); moof = null; },
     });
     return new MB.Output({format, target: new MB.NullTarget()});
@@ -187,14 +189,15 @@ export class RemuxSession extends EventTarget {
     const sink = new MB.EncodedPacketSink(track);
     const start = await sink.getKeyPacket(from, {verifyKeyPackets: true}) ?? await sink.getFirstPacket();
     if (!start || this.queues.video.generation !== generation) return;
-    const output = this.output('video', generation);
+    const early = new EarlyCuts(); // fragments every half second, not only at key frames
+    const output = this.output('video', generation, early);
     const source = new MB.EncodedVideoPacketSource(track.codec);
     output.addVideoTrack(source);
     await output.start();
     let first = true;
     for await (const packet of sink.packets(start)) {
       if (!await this.room('video', packet.timestamp, generation)) { await output.cancel(); return; }
-      await source.add(packet, first ? {decoderConfig: this.videoTrack.decoderConfig} : undefined);
+      await source.add(early.mark(packet), first ? {decoderConfig: this.videoTrack.decoderConfig} : undefined);
       first = false;
     }
     await output.finalize();
@@ -208,12 +211,19 @@ export class RemuxSession extends EventTarget {
       await loadDecoders(track.codec);
       if (this.audio !== choice || this.queues.audio.generation !== generation) return;
       const sink = new MB.AudioSampleSink(track);
-      const source = new MB.AudioSampleSource({codec: 'opus', bitrate: 192000, transform: {numberOfChannels: 2, sampleRate: 48000}});
+      // Mixed to stereo here, a sample at a time (downmix.js); only sound that also needs resampling goes through Mediabunny's transform.
+      const own = mixable(track.sampleRate);
+      const source = new MB.AudioSampleSource({codec: 'opus', bitrate: 192000, ...(own ? {} : {transform: {numberOfChannels: 2, sampleRate: 48000}})});
       output.addAudioTrack(source);
       await output.start();
       for await (const sample of sink.samples(from)) {
         if (this.audio !== choice || !await this.room('audio', sample.timestamp, generation)) { sample.close(); await output.cancel(); return; }
-        if (sample.timestamp >= 0) await source.add(sample); // an MP4's first sample can start a few milliseconds before zero, which the writer refuses
+        // An MP4's first sample can start a few milliseconds before zero, which the writer refuses.
+        if (sample.timestamp >= 0) {
+          const mixed = own ? stereoSample(sample) : sample;
+          await source.add(mixed);
+          if (own) mixed.close();
+        }
         sample.close();
       }
     } else {
@@ -266,6 +276,13 @@ export class RemuxSession extends EventTarget {
     for (const q of Object.values(this.queues)) q.generation++;
     this.onProgress();
   }
+}
+
+/** One decoded sample as stereo at the same rate. */
+function stereoSample(sample) {
+  const all = new Float32Array(sample.allocationSize({planeIndex: 0, format: 'f32'}) / 4);
+  sample.copyTo(all, {planeIndex: 0, format: 'f32'});
+  return new MB.AudioSample({data: toStereo(all, sample.numberOfChannels), format: 'f32', numberOfChannels: 2, sampleRate: sample.sampleRate, timestamp: sample.timestamp});
 }
 
 function concat(parts) {
