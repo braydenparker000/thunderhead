@@ -169,8 +169,10 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   camera wrote of the shot (when by its own clock, the camera, the lens, ISO, shutter, aperture, focal length:
   `engine/exif.js` `shot`), photos brought in before get it once at the next start, the Library is in the order
   the camera's clock gives (a JPEG's was the file's time), and the line under a photo's name says how it was
-  shot. Left: albums, search by date, camera, lens and ISO (the data is now there to search), bursts and
-  brackets shown as one stack, two photos side by side.
+  shot. **Find: built 2026-11-11.** A field at the top of the Library: every word typed must be in what is kept of
+  a photo (its name, RAF or JPEG, the camera, the lens, `iso 3200`, `f/5.6`, `23mm`, `1/250`, `2026-03-14`,
+  `march`, pick, reject, edited). What Find shows is what paste, match and export then work on. Left: albums,
+  bursts and brackets shown as one stack, two photos side by side.
   - Found on the way and mended: **every export carried a wrong shutter time, aperture and focal length.** A
     fraction in Exif is two numbers of four bytes; the reader took one, so what went into the file was where
     the value had been kept, not the value. Exports made before this have those three wrong (the date, the

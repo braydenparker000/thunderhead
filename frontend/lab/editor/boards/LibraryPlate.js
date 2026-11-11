@@ -11,10 +11,19 @@ import * as backup from '../app/backup.js';
 
 const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
 /** The stored photos as the board's roll. */
+/** What Find reads of a photo, in small letters: its name, what kind of file it is, the camera, the lens, how it
+ * was shot (iso 3200, f/5.6, 23mm, 1/250), the day it was taken (2026-03-14, march) and its flag.
+ * @param {import('../app/store.js').Photo} p */
+function words(p) {
+  const s = p.shot, d = new Date(p.taken), two = (/** @type {number} */ n) => String(n).padStart(2, '0'), t = s?.time || 0;
+  return [p.name, p.kind || 'raf', s?.camera, s?.lens, s?.iso ? `iso ${s.iso} iso${s.iso}` : '', s?.f ? `f/${+s.f.toFixed(1)} f${+s.f.toFixed(1)}` : '', s?.mm ? `${Math.round(s.mm)}mm ${Math.round(s.mm)} mm` : '',
+    t ? (t >= 0.4 ? `${+t.toFixed(1)}s` : `1/${Math.round(1 / t)}`) : '', `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`, d.toLocaleDateString('en-US', { month: 'long' }), p.flag === 'none' ? '' : p.flag, p.edited ? 'edited' : '']
+    .filter(Boolean).join(' ').toLowerCase();
+}
 function roll() {
   const real = store.photos(), days = [...new Set(real.map((p) => DAY(p.taken)))];
   return { shoots: days, photos: real.map((p, i) => ({ id: i, key: p.id, name: p.name, src: store.urlNow(p.id), pos: '50% 50%', zoom: '1', sim: '', filter: 'none',
-    rating: p.rating, flag: p.flag, edited: !!p.edited, shoot: days.indexOf(DAY(p.taken)) })) };
+    rating: p.rating, flag: p.flag, edited: !!p.edited, shoot: days.indexOf(DAY(p.taken)), words: words(p) })) };
 }
 
 export default class Component extends DCLogic {
@@ -31,10 +40,10 @@ export default class Component extends DCLogic {
     for (const p of photos) p.src = '/lab/editor/assets/sample.jpg';
     this.demo = photos;   // shown again if every photo is deleted
     const real = store.photos().length ? roll() : null;
-    this.state = { view: 'grid', cullMode: false, filter: 'All', sort: 0, cols: 3, idx: real ? 0 : 6, photos: real ? real.photos : photos, shoots: real?.shoots || null, importing: false, progress: null, skip: false, spin: 0 };
+    this.state = { view: 'grid', cullMode: false, filter: 'All', find: '', sort: 0, cols: 3, idx: real ? 0 : 6, photos: real ? real.photos : photos, shoots: real?.shoots || null, importing: false, progress: null, skip: false, spin: 0 };
     this.drag = null;
     // a photo's tile follows its edit, so the roll is read again when the open photo changes; and what the photos take on this phone
-    this.keep('Library', ['filter', 'sort', 'cols']);
+    this.keep('Library', ['filter', 'find', 'sort', 'cols']);
     const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.min(this.state.idx, r.photos.length - 1) : 6 }); } };
     photo.events.addEventListener('change', hear);
     addEventListener('th-editor-photos', hear, { once: true });   // photos from before their shooting data was kept got it, and with it their place by the camera's clock (app/store.js)
@@ -51,7 +60,9 @@ export default class Component extends DCLogic {
     const real = !!S.shoots, shoots = S.shoots || ['TODAY · OLD TOWN', 'NOV 7 · COAST', 'NOV 2 · HOME'];
     const fname = (p) => p.name || `DSCF0${p.n}.RAF`;
     const tests = { All: () => true, Picks: (p) => p.flag === 'pick', Rated: (p) => p.rating > 0, Edited: (p) => p.edited, Rejects: (p) => p.flag === 'reject' };
-    const shown = P.filter(tests[S.filter]);
+    // Find: every word typed must be somewhere in what is known of the photo (words, above)
+    const asked = String(S.find || '').toLowerCase().split(/\s+/).filter(Boolean), found = (p) => !asked.length || asked.every((w) => (p.words ?? fname(p).toLowerCase()).includes(w));
+    const shown = P.filter(tests[S.filter]).filter(found);
     const sorts = ['NEWEST', 'OLDEST', 'RATING'];
     const order = (list) => S.sort === 1 ? [...list].reverse() : S.sort === 2 ? [...list].sort((a, b) => b.rating - a.rating) : list;
     const tile = (p) => ({ src: p.src, aria: `${photo.stem(fname(p))}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
@@ -96,7 +107,7 @@ export default class Component extends DCLogic {
     // One thing done to every photo shown (app/clip.js, app/save.js): paste the copied edit, match them to the open
     // photo, export them. Each is two taps, the second within 5 s, and each photo is opened in turn.
     const all = real && this.app && S.view === 'grid' ? shown.filter((p) => p.key).map((p) => p.key) : [], open = photo.current(), held = all.length ? clip.held() : null, kinds = presets().filter((x) => x.on);
-    const armedFor = Date.now() - (S.manyAt || 0) < 5000 ? S.manyKey : '', of = `${count(all.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`}`;
+    const armedFor = Date.now() - (S.manyAt || 0) < 5000 ? S.manyKey : '', of = `${count(all.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`}${asked.length ? ` for “${asked.join(' ')}”` : ''}`;
     const many = (/** @type {string} */ key, /** @type {string} */ label, /** @type {(step: (k: number, n: number, part?: number) => void) => Promise<string>} */ run) => async () => {
       if (S.working) return;
       if (armedFor !== key) { set({ manyKey: key, manyAt: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
@@ -130,7 +141,7 @@ export default class Component extends DCLogic {
     return {
       title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       subTap, subInk: armed ? '#e8202a' : doomed.length || S.cut ? '#c9d0d8' : '#8b95a1', subRole: doomed.length || S.cut ? 'button' : null,
-      isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
+      isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols, find: S.find || '', onFind: (e) => set({ find: e.target.value }),
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
@@ -139,7 +150,7 @@ export default class Component extends DCLogic {
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
       progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
-      filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(tests[f]).length), current: String(f === S.filter),
+      filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(found).filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),
       cullDot: S.cullMode ? '#e8202a' : '#4f5357', cullGlow: S.cullMode ? '0 0 6px rgba(232,32,42,0.7)' : 'none', cycleSort: () => set({ sort: (S.sort + 1) % 3 }), sortName: `${sorts[S.sort]} ▾`,

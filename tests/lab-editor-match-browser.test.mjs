@@ -62,6 +62,18 @@ test('a photo keeps how it was shot, and a series is matched to the open photo b
   assert.deepEqual(kept.bare, [{ camera: '', lens: '', iso: 0, time: 0, f: 0, mm: 0 }, true], "with no Exif, the file's time stands");
   assert.deepEqual([kept.line, kept.bareLine, kept.slow], ['JPEG · 35 mm · f/4 · 1/100 · ISO 200', '', '23 mm · f/11 · 2.5 s · ISO 100']);
   assert.equal(kept.wb, 'Custom');
+  // Find reads what is kept of each photo: every word typed must be there.
+  await page.getByRole('button', { name: 'Import' }).click();
+  const shownFor = async (q) => { await page.getByLabel('Find photos').fill(q); await page.waitForTimeout(150); return page.evaluate(() => [...document.querySelectorAll('#stage .vscroll button[aria-label]')].map((b) => b.getAttribute('aria-label')).sort()); };
+  assert.deepEqual(await shownFor('known 35mm'), ['Over', 'R', 'Under'], 'the lens');
+  assert.deepEqual(await shownFor('iso 800'), ['Over']);
+  assert.deepEqual(await shownFor('1/400 f/4'), ['Under']);
+  assert.deepEqual(await shownFor('2026-03 jpeg'), ['Over', 'R', 'Under'], 'the month it was taken, by the camera');
+  assert.deepEqual(await shownFor('bare'), ['Bare'], 'a name');
+  assert.deepEqual(await shownFor('no such thing'), []);
+  assert.match(await page.textContent('#stage header'), /0 of 4 photos/);
+  assert.deepEqual((await shownFor('')).length, 4);
+  await page.getByRole('button', { name: 'Import' }).click();
   // The sheet offers the match because a photo is open; a second tap runs it on the four shown.
   await page.getByText('Match the photos shown to the open one').click();
   await page.getByText('Match 4 photos? Tap again').click();
