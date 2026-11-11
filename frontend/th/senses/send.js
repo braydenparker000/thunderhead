@@ -104,6 +104,9 @@ function keep(q) {
  * @param {Record<string, unknown> | null} [data] its fields only: ids, numbers, times (≤ 2 KB)
  * @returns {Promise<boolean>} */
 export async function sense(type, ref = null, data = null) {
+  // A page the browser loaded ahead (apps/home/prewarm.js) has not been seen: nothing is sensed
+  // until it is shown, and never if it is dropped instead.
+  if (/** @type {any} */ (document).prerendering) await new Promise((r) => document.addEventListener('prerenderingchange', r, { once: true }));
   if (!allowed(type) || framedByOther() || !(await sessionToken())) return false;
   const now = Date.now();
   keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}), ...(data ? { data } : {}) }]);

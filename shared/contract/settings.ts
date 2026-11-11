@@ -162,6 +162,9 @@ export const SETTINGS = [
     detail: 'How far a finger moves before a drag counts as a swipe.' },
   { ...GESTURES, key: 'gestures.edge_guard', label: 'Edge back guard', kind: 'switch', default: true,
     detail: "A swipe that starts at the screen's edge is left to the phone's own back gesture." },
+  // apps/home/prewarm.js: the app under the finger loads out of sight, so it opens already built.
+  { ...GESTURES, key: 'gestures.prewarm', label: 'Open apps ahead', kind: 'switch', default: true,
+    detail: 'An app starts loading the moment your finger rests on it in the ring, so it opens already built.' },
   // Island.
   { ...ISLAND, key: 'island.mode', label: 'Behaviour', kind: 'choice', default: 'capsule', attr: 'data-island',
     options: o('capsule:Capsule', 'bar:Bar', 'off:Off'),
