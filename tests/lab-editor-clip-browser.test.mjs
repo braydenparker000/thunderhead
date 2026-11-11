@@ -79,3 +79,30 @@ test('an edit is copied, pasted on one photo as a step it can undo, and on many 
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test("an edit's look is saved as a .cube table: nothing moved is no change, and what a table can hold is in it", opts, async () => {
+  // app/cube-out.js (ROADMAP.md stage 9): the table is made by the engine's own frame, each point developed exactly.
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, serviceWorkers: 'block' });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/editor/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('#stage header');
+  const r = await page.evaluate(async () => {
+    const { cubeOf, SIZE } = await import('/lab/editor/app/cube-out.js'), { parseCube } = await import('/lab/engine/cube.js');
+    const rows = (text) => text.split('\n').filter((l) => /^[\d.]+ [\d.]+ [\d.]+$/.test(l)).map((l) => l.split(' ').map(Number)), plain = { wb: 'As shot', profile: '' };
+    const same = await cubeOf({ ...plain, values: {} }, 'Nothing "moved"'), grey = rows(await cubeOf({ ...plain, values: { Saturation: -100, Exposure: 2, Highlights: -80 } }, 'Grey')), hard = rows(await cubeOf({ ...plain, values: { Contrast: 60 } }, 'Hard'));
+    const id = rows(same), N = SIZE, at = (r, g, b) => (b * N + g) * N + r;
+    let off = 0; for (let b = 0; b < N; b++) for (let g = 0; g < N; g++) for (let r0 = 0; r0 < N; r0++) { const v = id[at(r0, g, b)]; off = Math.max(off, Math.abs(v[0] - r0 / (N - 1)), Math.abs(v[1] - g / (N - 1)), Math.abs(v[2] - b / (N - 1))); }
+    return { head: same.split('\n').slice(0, 4), count: id.length, off, greyOff: Math.max(...grey.map((v) => Math.max(v[0], v[1], v[2]) - Math.min(v[0], v[1], v[2]))), greyMid: grey[at(16, 16, 16)][0],
+      hard: [hard[at(8, 8, 8)][0], id[at(8, 8, 8)][0], hard[at(26, 26, 26)][0], id[at(26, 26, 26)][0]], read: parseCube(same).n };
+  });
+  assert.deepEqual(r.head, ['TITLE "Nothing moved"', 'LUT_3D_SIZE 33', 'DOMAIN_MIN 0 0 0', 'DOMAIN_MAX 1 1 1']);
+  assert.equal(r.count, 33 ** 3);
+  assert.ok(r.off <= 0.5 / 255 + 1e-6, `with nothing moved every point answers itself, to the last step of 8 bits (off by ${r.off})`);
+  assert.ok(r.greyOff <= 1.01 / 255, `Saturation at −100: every answer is a grey (${r.greyOff})`);
+  assert.ok(Math.abs(r.greyMid - 16 / 32) <= 2 / 255, 'and Exposure and Highlights, which a look does not carry, moved nothing');
+  assert.ok(r.hard[0] < r.hard[1] - 0.02 && r.hard[2] > r.hard[3] + 0.02, 'Contrast: darks darker, lights lighter');
+  assert.equal(r.read, 33, "the engine's own reader takes the file back");
+  assert.deepEqual(errors, []);
+  await context.close();
+});

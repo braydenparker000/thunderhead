@@ -213,7 +213,12 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 - Display P3 with a profile embedded (25, M). HDR output for phone screens (25, L). A smarter JPEG encoder (26, S).
 - **Film grain that behaves like film, halation and bloom** (new, M). **Borders, a watermark, sizes for where a
   photo is going** (new, S to M). **A contact sheet and print layouts** (new, M).
-- **An edit saved as a `.cube` table** (new, S), to use the owner's look elsewhere.
+- **An edit saved as a `.cube` table: built 2026-11-11** (`app/cube-out.js`; Looks › Mine › AS .CUBE), to use the
+  owner's look elsewhere. A table answers one colour with another, so it carries Contrast, Whites, Blacks,
+  Saturation, Vibrance, the mixer, grading, the point curve and a `.cube` look that is on; not what works by
+  area or place (Highlights, Shadows, Texture, Clarity, Dehaze, masks), nor what is the photo's own (Exposure,
+  white balance, the camera's profile). 33 points a side, made by the engine's own frame with each point
+  developed exactly: with nothing moved, every point answers itself. Its answers are in 8 bits.
 
 ## Stage 10: the Thunderhead in Photos
 

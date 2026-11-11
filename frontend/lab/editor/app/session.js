@@ -7,10 +7,10 @@ import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
 import { isNone } from '../../engine/crop.js';
 import { tilt } from '../../engine/level.js';
-import { START, curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
+import { START } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { pref, prefOn } from '/th/pref.js';
-import { auto, forget, pickAt } from './adjust.js';
+import { auto, dials, forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
@@ -157,7 +157,7 @@ function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'), sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, defringe: v.Defringe / 100, masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(c.curve), ...more });
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, ...more });
 }
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
 export async function draw(fit = true) {

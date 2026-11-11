@@ -60,7 +60,9 @@ export default class Component extends DCLogic {
     const tiles = face === 'Presets'
       ? cubes.map((l) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? tile('cube:' + l.id, { ...photo.state(), cube: l.id }, 168, { cube: 1 }) || photo.jpeg() : '', pick: () => { if (real) photo.pickCube(l.id); set({ look: l.id === on ? '' : l.id, del: '', note: '' }); } }))
       : mine.map((l) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? tile('mine:' + l.id, photo.worn(l.st), 168) || photo.jpeg() : '', pick: () => { if (real) photo.wear(l.st, l.name); set({ look: l.id, del: '', note: '' }); } }));
-    const chips = (face === 'Presets' ? [{ name: 'Import', entry: true, aria: 'Import looks', pick: () => (real ? this.pickFiles() : set({ note: 'Open a photo to bring looks in' })) }] : [{ name: 'Save current', entry: true, pick: save }])
+    // AS .CUBE: the look that is picked, or this photo's edit, saved as a table to use elsewhere (app/cube-out.js)
+    const asCube = async () => { const { saveCube } = await import('../app/cube-out.js'); set({ note: 'Making the table…' }); saveCube(own?.st ? photo.worn(own.st) : photo.state(), own?.name || photo.stem(real.name)).then((f) => set({ note: `Saved ${f} to Downloads · colour only: no Exposure, white balance, Highlights, Shadows or masks` }), (e) => set({ note: `Not saved: ${e?.message || e}` })); };
+    const chips = (face === 'Presets' ? [{ name: 'Import', entry: true, aria: 'Import looks', pick: () => (real ? this.pickFiles() : set({ note: 'Open a photo to bring looks in' })) }] : [{ name: 'Save current', entry: true, pick: save }, ...(real ? [{ name: 'As .cube', entry: true, aria: 'Save the look as a .cube file', pick: asCube }] : [])])
       .concat(real && own ? [{ name: S.del === on ? 'Tap again to delete' : 'Delete', entry: true, hot: S.del === on, aria: 'Delete this look', pick: () => this.drop(on) }] : []);
     // the window sets the strength of the .cube look that is on; otherwise the place says what a tap does
     const strong = face === 'Presets' && !!own && !!real;

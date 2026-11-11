@@ -4,6 +4,15 @@
 // which hands these on as its own (boards import session.js alone).
 import { STILL, WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
 import { photos } from './store.js';
+import { curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
+
+/** An edit's adjustments as the engine's frame takes them (session.js draws with them; cube-out.js makes a table).
+ * @param {Record<string, number>} v @param {import('../../engine/grade.js').Curves | null} curve */
+export function dials(v, curve) {
+  const h = (/** @type {string} */ k) => v[k] / 100;
+  return { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'),
+    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
+}
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
 const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
