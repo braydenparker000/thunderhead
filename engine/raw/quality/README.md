@@ -48,8 +48,58 @@ darktable's demosaic is ahead by 0.6 dB overall, all of it green (its 3-pass Mar
 colours); the engine has the less false colour. RawTherapee 5.10 does not read this DNG's X-Trans pattern
 correctly (a magenta, patterned picture at every offset tried), so it has not been scored.
 
-Still on the table: Markesteijn's own choice of way (red and blue made four ways first, then the smoothest judged on
-all three colours): about 0.5 to 0.8 dB more green.
+## The second look
+
+What was still on the table above (Markesteijn's own choice of way, judged on all three colours) is in the engine
+since 2026-11-11, as a second look over the first (`frontend/lab/engine/demosaic-again.js`): three of the four
+greens at each red or blue site are made again the way Markesteijn's second pass makes them, but with the first
+look's red and blue where he uses his own; the smoothest ways are then chosen by brightness and both colour
+differences; red and blue follow the new green by the first look's ratio, a site's own colour by half.
+
+Five 1024 × 1024 scenes at `K=3`, from four 40 MP X-Trans bodies (X-T5, X-H2, X100VI and the X-E5: the same
+X-Trans CMOS 5 HR sensor; public-domain RAFs from raw.pixls.us and the owner's sample, none in the repository).
+PSNR / green / colour, in dB:
+
+| scene | the first look alone | with the second look | Markesteijn, 3 passes |
+|---|---|---|---|
+| flowers | 42.38 / 46.69 / 41.36 | 42.81 / 47.72 / 41.29 | 42.49 / 47.46 / 40.96 |
+| roofs and solar panels | 38.83 / 41.21 / 38.62 | 39.31 / 42.59 / 38.66 | 39.37 / 41.89 / 38.02 |
+| a cat's fur | 42.69 / 45.34 / 42.00 | 43.10 / 46.61 / 42.05 | 43.02 / 46.02 / 41.54 |
+| a stone church | 36.05 / 36.85 / 36.83 | 37.27 / 39.23 / 37.10 | 36.18 / 37.54 / 35.05 |
+| a tower against sky | 46.14 / 49.15 / 45.53 | 46.57 / 50.50 / 45.57 | 46.19 / 49.53 / 44.69 |
+
+So: 0.4 to 1.2 dB overall and 1.0 to 2.4 dB of green over the first look; ahead of Markesteijn's three passes in
+four scenes of five (0.06 dB behind on the roofs), ahead in green and in false colour in all five. With ISO 6400
+noise laid on (`noisy.mjs`), before any noise reduction: roofs 35.08 to 35.04 (green +0.2), church 33.70 to 34.08
+(green +1.0).
+
+What was tried on the way and did not earn its place:
+
+- Choosing the way by the greens alone a second time: nothing. The colour differences are what the choice needed.
+- Eight greens (the first look's four and the four made again) against the four made again: a wash.
+- A third look with the same ratios: changes nothing.
+- Red and blue following the new green all the way at their own sites: the new green carries the site's own
+  reading, so its noise went in twice (roofs at ISO 6400: 34.79). Keeping the site's own colour by half is best
+  without noise and within 0.1 dB of best with it (`KEEP`).
+
+Cost: the demosaic takes about twice as long (3.5 s to 7 to 8 s for 1024 × 1024 on the software GPU these numbers
+come from; not yet timed on a phone) and holds 8 bytes a pixel more while it runs, with margins 6 pixels wider.
+
+### What else exists for this sensor (looked up 2026-11-11)
+
+Nobody has published controlled numbers for demosaicing the 40 MP X-Trans sensor. What there is:
+
+- **Markesteijn, 3 passes** is the open-source baseline (darktable and RawTherapee carry near-identical code).
+  RawTherapee can mix it with a fast method in flat areas to hide noise; darktable's frequency-domain chroma
+  (FDC) trades colour noise at high ISO for colour bleeding.
+- **Neural demosaics** are where the next real step is. Adobe's Enhance Details and DxO's DeepPRIME XD are the
+  commercial ones. Open ones in 2026 are small projects: one trained on about a hundred RAFs and licensed
+  non-commercial, one trained on downscaled photos that zippers on X-Trans edges and needs about 3 GB at this
+  size, one with no licence yet, and vkdt's own (a U-net for Bayer and X-Trans with weights to download). None
+  states numbers against Markesteijn on this sensor. Taking one on would mean training or checking it on many
+  more RAFs than the handful here, and judging it at 100 % on the phone: a project of its own.
+- The sensor itself: 3.04 µm pixels and no low-pass filter, so at wide apertures real detail reaches the pixel
+  and the demosaic matters; past about f/8 diffraction blurs what any method could tell apart.
 
 ## Noise reduction
 
