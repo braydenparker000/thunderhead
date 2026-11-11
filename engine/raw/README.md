@@ -16,6 +16,13 @@ and white are and how the X-Trans pattern lies (`black`, `white`, `cfa`, `cfaWid
 The page demosaics only what is looked at, on the GPU (`frontend/lab/engine/demosaic.js`: green as Markesteijn's
 method makes it, after darktable's code, GPL 3; red and blue after vkdt's, BSD 2-clause). `quality/` measures it.
 
+Before anything is made from the sensor data, hot sensels are mended (`src/hot.rs`): a site that reads at least
+three times every site of its colour within two of it, clear of noise, while the sites touching it are not lifted
+with it (a lens spreads a real point of light onto its neighbours; a hot sensel stands alone). It takes the mean
+of those same-colour sites. The metadata's `hot` says how many. Cautious on purpose: on nine 40 MP X-Trans photos
+it changes nothing; of sensels planted 3 to 50 % of the range above a photo it mends 60 to 80 %, and those it
+leaves sit on bright ground. `cargo test` holds it to that on a made-up mosaic (a hot sensel, a star, a plain field).
+
 For export, `jpeg()` encodes one band of a JPEG with [jpeg-encoder](https://github.com/vstroebel/jpeg-encoder)
 (MIT or Apache-2.0, and the IJG licence). Every band shares its tables, so the page joins the bands' scans with
 restart markers into one file (`frontend/lab/engine/files.js`) and a 40 MP photo is never held whole.

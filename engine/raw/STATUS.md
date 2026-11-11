@@ -16,7 +16,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 
 | What | Where |
 |---|---|
-| Decode on every core, 3×3-binned editing copy, the sensor's own pixels for full size | `engine/raw`, `frontend/lab/engine/decode-worker.js` |
+| Decode on every core, hot pixels mended, 3×3-binned editing copy, the sensor's own pixels for full size | `engine/raw`, `frontend/lab/engine/decode-worker.js` |
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
@@ -410,6 +410,12 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   three passes in four of five and in false colour in all (`quality/README.md`, "The second look", which also
   says what else exists for this sensor: the next real step would be a neural demosaic, a project of its own).
   Cost: the demosaic takes about twice as long and 8 bytes a pixel more while it runs; not yet timed on a phone.
+- **Hot pixels: done** (2026-11-11, `src/hot.rs`, in the decoder so the editing copy, 100 % and exports all get
+  it). A sensel that stands at least three times above every same-colour site near it, alone, is given their mean
+  before the demosaic can spread it into a coloured cross. Nothing to set: it changes nothing in an ordinary photo
+  (nine checked) and leaves a star alone. Not yet seen on a real long exposure of the owner's.
+- **8-bit files already dither** (`files.js` `eight`: each value is rounded up or down by chance in proportion),
+  so a smooth sky does not band in a JPEG or PNG; the screen's dither is `wgsl.js` `DITHER`.
 - **Noise reduction: done.** The colour step stays. The brightness step weighs a neighbour by the 3 × 3 patch round
   it against the patch round the pixel, not by one value against one (`denoise.js` `blur`): at ISO 6400, +0.5 dB
   overall and +0.8 dB of green over the old step, and ahead of a plain non-local means. A photo not opened before

@@ -6,6 +6,8 @@
 //! its colours had a clipped sensel, for the highlight rebuild. The sensor data under the proxy goes out too, as
 //! decoded, for the full-resolution view and export (demosaiced on the GPU).
 
+mod hot;
+
 use rawler::decoders::RawDecodeParams;
 use rayon::prelude::*;
 use rawler::imgop::xyz::Illuminant;
@@ -63,14 +65,28 @@ pub fn decode_native(bytes: &[u8]) -> Result<Decoded, String> {
   let src = RawSource::new_from_slice(bytes);
   let decoder = rawler::get_decoder(&src).map_err(|e| format!("not a raw this engine reads: {e}"))?;
   let mut raw = decoder.raw_image(&src, &RawDecodeParams::default(), false).map_err(|e| format!("decode failed: {e}"))?;
+  let hot = mend(&mut raw);
   let b = bin(&raw)?;
   let c = chroma(&b.proxy, b.pw, b.ph, &raw.wb_coeffs);
-  let meta = meta(&raw, &b, c);
+  let meta = meta(&raw, &b, c, hot);
   let data = match std::mem::replace(&mut raw.data, RawImageData::Integer(Vec::new())) { RawImageData::Integer(d) => d, RawImageData::Float(_) => Vec::new() };
   Ok(Decoded { meta, proxy: b.proxy, pw: b.pw as u32, ph: b.ph as u32, raw: data, stride: raw.width, at: (b.x0, b.y0), cell: b.n })
 }
 
 fn level(v: &rawler::formats::tiff::Rational) -> f32 { if v.d == 0 { 0.0 } else { v.n as f32 / v.d as f32 } }
+/// The sensor's black and white levels.
+fn levels(raw: &RawImage) -> (f32, f32) {
+  let l = &raw.blacklevel.levels;
+  (if l.is_empty() { 0.0 } else { l.iter().map(level).sum::<f32>() / l.len() as f32 }, *raw.whitelevel.0.first().unwrap_or(&65535) as f32)
+}
+/// Mends the sensor data's hot sensels before anything is made from it (hot.rs), and says how many.
+fn mend(raw: &mut RawImage) -> usize {
+  let (black, white) = levels(raw);
+  let cfa = match &raw.photometric { RawPhotometricInterpretation::Cfa(c) => c.cfa.clone(), _ => return 0 };
+  let colour: Vec<usize> = (0..cfa.width * cfa.height).map(|i| cfa.color_at(i / cfa.width, i % cfa.width).min(2)).collect();
+  let w = raw.width;
+  match &mut raw.data { RawImageData::Integer(d) => hot::mend(d, w, &colour, cfa.width, cfa.height, black, white), RawImageData::Float(_) => 0 }
+}
 
 /// The proxy, where it starts in the sensor data, sensels a pixel each way, the black and white levels, and the
 /// colour (0 R, 1 G, 2 B) of each site of the pattern from the proxy's first sensel on, row by row.
@@ -86,8 +102,7 @@ fn bin(raw: &RawImage) -> Result<Bin, String> {
   // start on a cell boundary of the pattern, so every n x n cell holds the same mix of colours
   let (x0, y0) = (x0 + (n - x0 % n) % n, y0 + (n - y0 % n) % n);
   let (pw, ph) = ((w - (x0 - area.map_or(0, |r| r.p.x))) / n, (h - (y0 - area.map_or(0, |r| r.p.y))) / n);
-  let black: f32 = { let l = &raw.blacklevel.levels; if l.is_empty() { 0.0 } else { l.iter().map(level).sum::<f32>() / l.len() as f32 } };
-  let white = *raw.whitelevel.0.first().unwrap_or(&65535) as f32;
+  let (black, white) = levels(raw);
   let scale = 65535.0 / (white - black).max(1.0);
   let clip = black + CLIP * (white - black);
   // the colour of each site of the pattern, looked up once rather than per pixel
@@ -156,14 +171,14 @@ fn chroma(p: &[u16], pw: usize, ph: usize, wb_coeffs: &[f32]) -> [f32; 3] {
 }
 
 /// What the GPU stage needs: white balance, the camera matrix for D65 (XYZ to camera), orientation.
-fn meta(raw: &RawImage, b: &Bin, chroma: [f32; 3]) -> String {
+fn meta(raw: &RawImage, b: &Bin, chroma: [f32; 3], hot: usize) -> String {
   let m = raw.color_matrix.get(&Illuminant::D65).or_else(|| raw.color_matrix.values().next());
   let mat = m.map(|v| v.iter().take(9).map(|x| format!("{x}")).collect::<Vec<_>>().join(",")).unwrap_or_default();
   let wb = raw.wb_coeffs.iter().map(|x| format!("{}", if x.is_nan() { 0.0 } else { *x })).collect::<Vec<_>>().join(",");
   format!(
-    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?},\"chroma\":[{},{},{}],\"fullWidth\":{},\"fullHeight\":{},\"black\":{},\"white\":{},\"cfa\":{:?},\"cfaWidth\":{}}}",
+    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?},\"chroma\":[{},{},{}],\"fullWidth\":{},\"fullHeight\":{},\"black\":{},\"white\":{},\"cfa\":{:?},\"cfaWidth\":{},\"hot\":{}}}",
     raw.clean_make, raw.clean_model, raw.width, raw.height, b.pw, b.ph, wb, mat, format!("{:?}", raw.orientation), chroma[0], chroma[1], chroma[2],
-    b.pw * b.n, b.ph * b.n, b.black, b.white, b.cfa, b.cfa_width
+    b.pw * b.n, b.ph * b.n, b.black, b.white, b.cfa, b.cfa_width, hot
   )
 }
 

@@ -130,6 +130,7 @@ $('file').addEventListener('change', async (e) => {
   if (r.error) { stats.Status = `Couldn't open it: ${r.error}`; show(); return; }
   stats.Camera = `${r.meta.make} ${r.meta.model} · ${r.meta.width} × ${r.meta.height}`;
   stats.Decode = `${ms(r.decodeMs)} on ${r.threads} thread${r.threads > 1 ? "s" : ""} (worker round trip ${ms(performance.now() - t1)})`;
+  if (r.meta.hot) stats['Hot pixels mended'] = String(r.meta.hot);
   stats.Threads = crossOriginIsolated ? (r.threadsError ? `pool failed: ${r.threadsError}` : `${r.threads} (page isolated)`) : `1: ${isolated()}`;
   stats['Editing copy'] = `${r.width} × ${r.height}`;
   try {
