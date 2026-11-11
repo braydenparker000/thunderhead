@@ -16,7 +16,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { putOnce, sha256 } from '../import/vault';
 import { toAttachment } from './store';
-import { aiOf, hear, transcribe } from './transcribe';
+import { aiOf, hear, languageOf, transcribe } from './transcribe';
 import { fileKey, mediaType, memoSeconds, safeName, servingHeaders, unchanged } from './wire';
 
 const vaultOf = (env: Env): R2Bucket => {
@@ -89,7 +89,7 @@ export const filesRoutes = new Hono<AppEnv>()
     if (wait) throw new ApiError('rate_limited', undefined, { retry_after: wait, scope: 'account' });
     let text: string;
     try {
-      text = await hear(ai, bytes, type, DICTATE_MS);
+      text = await hear(ai, bytes, type, DICTATE_MS, languageOf(c.req.query('lang')));
     } catch {
       throw new ApiError('upstream');
     }

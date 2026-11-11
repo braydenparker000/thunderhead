@@ -127,7 +127,10 @@ const budgets = [
   // kept from home's read of the settings, for the copy and ui/theme.js's Auto).
   // (2026-11-04, Photos) +27 measured (78,374 → 78,401): th/contract.js's Photos built and its change
   // kind, th/session.js forgetting the shelf kept offline at sign-out.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 78_401],
+  // (2026-11-11, the owner's second batch of settings) +1,910 measured (78,401 → 80,311): th/pref.js
+  // (the phone's settings read where they are used, and the 12-hour clock), the springs' feel in
+  // th/motion.js, a prerendered page holding its senses (th/senses is counted elsewhere).
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 80_311],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -161,13 +164,15 @@ const budgets = [
   // arrangement kinds off home.
   // (2026-11-04, settings second) +73 measured (116,426 → 116,499): the chat keeps the shell's
   // settings from its read and says the mind's name when Stop can't reach it.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_499],
+  // (2026-11-11, settings) +53 measured (116,499 → 116,552): Fold long replies and Reply reveal are read.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_552],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
   // the mic's wiring with the chat, the recorder on the first press of the mic), 2026-10-31.
   // (2026-11-01) + "off the record" and "back on the record".
-  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_000],
+  // (2026-11-11, settings) +227 measured (21,000 → 21,227): the Dictation language goes with each piece.
+  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_227],
   // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01;
   // 24 KB with the sleep timer on it and room for Guitar's.
   // Task C: +8,120 measured bytes (22,958 → 31,078) for one capsule, readiness and retained frames.
@@ -176,7 +181,9 @@ const budgets = [
   // off-thread decode and fallback, long titles, the pulse, the times, glyph and Podcasts' skip controls.
   // The mind's line (2026-11-04): +1,681 measured bytes (41,309 → 42,990), line.js and its place in the capsule.
   // (2026-11-04, settings depth): +155 measured bytes (42,990 → 43,145), Island off declines the layer.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 43_145],
+  // (2026-11-11, settings) +827 measured (43,145 → 43,972): Long titles, Expanded controls, Alerts, the
+  // Sleep timer's minutes and Swipe to skip are read where they are used.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 43_972],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
@@ -220,7 +227,9 @@ const budgets = [
   // (2026-11-04, show) +882 measured (81,105): "How I got this" under a reply (chat.css).
   // (2026-11-04, settings depth) +2,658 measured (81,105 → 83,763): tokens.css follows the owner's
   // appearance (accent, glass, corners, ring size, reduced motion), compact turns, the mic off, the bar.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 83_763],
+  // (2026-11-11, settings) +2,324 measured (83,763 → 86,087): ui/prefs.css, one rule for each of the
+  // owner's drawing settings (22 attributes), inert while none is set.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_087],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).

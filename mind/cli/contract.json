@@ -377,7 +377,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; keeps nothing"
+      "note": "a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; `?lang=en|es` names the language, else it works it out; keeps nothing"
     },
     "GET /v1/files/:id": {
       "who": [

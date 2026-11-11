@@ -7,6 +7,7 @@
 // pill. Messages are keyed by id, so a re-render only adds, changes or removes what changed, and
 // the slot is one element that changes only when what it says does (a screen reader hears each
 // change once). Text is always set with textContent, never parsed as markup.
+import { clock, pref, prefOn } from '../pref.js';
 import { appFor } from '../registry/apps.js';
 import { citeHref, meta, revealMs } from './model.js';
 import { howFold } from './using.js';
@@ -58,10 +59,6 @@ function whereToStudy(cites) {
 }
 
 const HOUR = 3_600_000;
-const clock = (/** @type {number} */ at) => {
-  const d = new Date(at);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
 
 /**
  * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void, onUndo: (ledgerId: string, button: HTMLButtonElement) => void }} o
@@ -155,7 +152,9 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
     // Muse's own line (its task done, areas/work) is outside text: plain words, never Markdown or links.
     wrap.append(m.author === 'muse' ? el('p', '', m.body) : rich(m.body));
     if (!m.local && m.attachments?.length) wrap.append(attachments(m.attachments));
-    if (s.fresh.has(m.id)) {
+    // The owner's Reply reveal: words fade up, or (instant) the reply and what is under it are just there.
+    const slow = s.fresh.has(m.id) && pref('chat.reveal') !== 'instant';
+    if (slow) {
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
       words(wrap, revealMs(m.body));
@@ -214,7 +213,7 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
     const box = el('div', 'replybox');
     box.append(wrap, ...under);
     // What sits under a reply fades in once the reply has revealed (HOME.md §4.5).
-    setTimeout(() => under.forEach((u) => u.classList.add('in')), s.fresh.has(m.id) ? revealMs(m.body) + 50 : 0);
+    setTimeout(() => under.forEach((u) => u.classList.add('in')), slow ? revealMs(m.body) + 50 : 0);
     return box;
   }
 
@@ -304,7 +303,7 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
     for (const node of drawnNow) {
       const r = node.matches('.reply') ? node : node.querySelector('.reply');
       const id = node.dataset.id ?? '';
-      if (r && r !== newest && !r.matches('.progress') && !unfolded.has(id)) requestAnimationFrame(() => fold(/** @type {HTMLElement} */ (r), id));
+      if (r && r !== newest && !r.matches('.progress') && !unfolded.has(id) && prefOn('chat.fold')) requestAnimationFrame(() => fold(/** @type {HTMLElement} */ (r), id));
     }
     // A choice or follow-ups show under the newest reply while its turn is the last one.
     const latest = s.shown.findLast((m) => m.author === 'mind' && m.kind !== 'progress' && m.kind !== 'error');

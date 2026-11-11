@@ -5,12 +5,15 @@
 // signed-out toast never runs once the chat is here.
 import { ApiError, TIMEOUT_MS } from '../api.js';
 import { api, signedIn } from '../client.js';
+import { pref } from '../pref.js';
 import { toast } from '../ui.js';
 
 /** A piece of what the owner is saying, for its words (`POST /v1/dictate`); kept nowhere.
  * @param {string} token @param {Blob} audio @returns {Promise<string>} */
 async function hear(token, audio) {
-  const res = await fetch(`${api.base}/v1/dictate`, {
+  // The owner's Dictation language (Settings → Home and chat): English or Spanish, else the model works it out.
+  const lang = pref('chat.dictation');
+  const res = await fetch(`${api.base}/v1/dictate${lang === 'en' || lang === 'es' ? `?lang=${lang}` : ''}`, {
     method: 'POST',
     headers: { 'TH-Client': api.client, Authorization: `Bearer ${token}`, 'Content-Type': audio.type || 'audio/webm' },
     body: audio,

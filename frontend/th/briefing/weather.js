@@ -5,11 +5,12 @@
 import { api, signedIn } from '../client.js';
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
+import { clock as hhmm } from '../pref.js';
 import { el } from '../ui.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').WeatherTile} WeatherTile */
 
-const hhmm = (/** @type {number} */ ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
 
 /** @param {WeatherTile} w @param {() => void} changed after a new place is kept */
 export function openWeather(w, changed) {

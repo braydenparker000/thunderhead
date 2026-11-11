@@ -243,7 +243,10 @@ test('dictation: hold the mic and the words fill the bar as you speak; let go to
   assert.equal(dictated().length, n);
   assert.equal(await page.inputValue('#q'), '');
 
-  // When the Worker can't hear, the owner is told, and nothing lands in the bar.
+  // When the Worker can't hear, the owner is told, and nothing lands in the bar. This take is also
+  // sent with the owner's Dictation language (Settings → Home and chat); the ones before named none.
+  assert.ok(dictated().every((c) => c.query === ''), 'auto names no language');
+  await page.evaluate(() => localStorage.setItem('th.s.chat.dictation', 'es'));
   api.state.chat.deaf = true;
   await press();
   await page.waitForSelector('#ask.listening');
@@ -251,6 +254,8 @@ test('dictation: hold the mic and the words fill the bar as you speak; let go to
   await page.mouse.up();
   await page.waitForFunction(() => /Couldn.t hear that/.test(document.querySelector('.toast')?.textContent ?? ''));
   assert.equal(await page.inputValue('#q'), '');
+  assert.equal(dictated().at(-1).query, '?lang=es', 'Spanish goes to the Worker as ?lang=es');
+  await page.evaluate(() => localStorage.removeItem('th.s.chat.dictation'));
   api.state.chat.deaf = false;
 
   // A tap is still a voice memo.

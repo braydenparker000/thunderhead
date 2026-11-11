@@ -274,19 +274,44 @@ intensity only says how strongly.
 | `appearance.ring` | segments: compact / regular / large | phone | `regular` | `ui/tokens.css` scales `.ring` (.86 / 1 / 1.16); `home.js` keeps it clear of the edges by the same factor |
 | `appearance.haptics` | segments: off / light / full | phone | `light` | `th/motion.js` `buzz()`: off none, full pulses twice as long; the ring, swipes, dictation, the decision card and the Briefing's hold |
 | `appearance.motion` | segments: follow system / on / off | phone | `system` | `ui/tokens.css` (the duration tokens) and `th/motion.js` `motionReduced()`; off keeps the tokens and springs, while a few decorative loops still follow the phone's own setting |
+| `appearance.field` | segments: glow / plain | phone | `glow` | `ui/prefs.css`: plain drops the two drifting glows behind home |
+| `appearance.grain` | switch | phone | `on` | `ui/prefs.css`: off hides the film grain |
+| `appearance.idle_glow` | switch | phone | `on` | `ui/prefs.css`: off hides the edge light while nothing happens; thinking, listening, working and a waiting card still light it |
+| `appearance.feel` | segments: calm / regular / lively | phone | `regular` | `th/motion.js`: every spring, as the module loads (calm: stiffness × 0.85, damping + 0.14; lively: × 1.1, − 0.1) |
+| `appearance.launch` | segments: circle / fade / none | phone | `circle` | `ui/launch.js`: the cover an app opens under; none resolves at once |
+| `appearance.launch_ms` | range (ms): 200 / 300 / 420 | phone | `300` | `ui/launch.js`: the circle's or the fade's length |
+| `appearance.ring_dim` | segments: light / regular / deep | phone | `regular` | `ui/prefs.css`: the scrim behind the open ring, half as strong or 45% darker |
+| `appearance.ring_label` | switch | phone | `on` | `ui/prefs.css`: off hides the app's name by the ring |
+| `appearance.press` | switch | phone | `on` | `ui/prefs.css`: off hides the circle that closes in during the hold |
+| `appearance.toast` | segments: bottom / top | phone | `bottom` | `ui/prefs.css`: where home's short notice shows |
+| `appearance.toast_ms` | range (s): 2 / 3 / 5 | phone | `2` | `home.js`: how long home's short notice stays |
+| `appearance.clock` | segments: 24-hour / 12-hour | phone | `24` | `th/pref.js` `clock()`: the times over turns in the chat, on the weather and Due tiles and in security notices |
+| `appearance.status` | switch | phone | `on` | `ui/prefs.css`: off hides the status chip at the top of home |
+| `appearance.menu_width` | segments: narrow / regular / full | phone | `regular` | `ui/prefs.css`: the menu at most 300 px wide, as it was, or the whole screen (`home.js` measures it as it moves) |
+| `appearance.brief_tiles` | segments: comfortable / compact | phone | `comfortable` | `ui/prefs.css`: the Briefing's tiles with less padding and smaller gaps |
+| `appearance.brief_greeting` | switch | phone | `on` | `ui/prefs.css`: off hides the line at the top of the Briefing |
 
 ### 6.2 Home and chat (`chat.js`)
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `chat.density` | segments: comfortable / compact | phone | `comfortable` | `ui/tokens.css`: compact turns sit 12 px apart, not 22 |
-| `chat.time_markers` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
-| `chat.fold` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
-| `chat.reveal` | segments: words / instant | phone | `words` | exposed: `phoneValue()`; the chat does not read it yet |
-| `chat.followups` | segments: two / none | phone | `two` | exposed: `phoneValue()`; the chat does not read it yet |
-| `chat.enter_sends` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.time_markers` | switch | phone | `on` | `ui/prefs.css`: off hides the time over a turn |
+| `chat.fold` | switch | phone | `on` | `th/chat/view.js`: off never folds an older long reply |
+| `chat.reveal` | segments: words / instant | phone | `words` | `th/chat/view.js`: instant draws a new reply whole and shows what is under it at once |
+| `chat.followups` | segments: two / none | phone | `two` | `ui/prefs.css`: none hides the suggested follow-ups (a choice the reply asks for still shows) |
+| `chat.enter_sends` | switch | phone | `on` | `home.js`: off, Enter starts a new line and only the send button sends |
 | `chat.mic` | switch | phone | `on` | `ui/tokens.css`: off hides the mic, and the send button stands alone |
-| `chat.dictation` | segments: auto / en / es | phone | `auto` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.dictation` | segments: auto / en / es | phone | `auto` | `th/dictate/mic.js`: English or Spanish go to the Worker as `?lang=` (`POST /v1/dictate`, Whisper's `language`); auto sends none |
+| `chat.date` | segments: short / long / hidden | phone | `short` | `apps/home/prefs.js` (the long form) and `ui/prefs.css` (hidden) |
+| `chat.hint` | switch | phone | `on` | `ui/prefs.css`: off hides the gesture hint at once |
+| `chat.placeholder` | text in a sheet, ≤ 30 characters | phone | `Ask anything` | `apps/home/prefs.js`: the empty ask bar's words, and what dictation puts back after listening |
+| `chat.autofocus` | switch | phone | `off` | `apps/home/prefs.js`: the ask bar takes the keyboard as home opens |
+| `chat.spellcheck` | switch | phone | `on` | `apps/home/prefs.js`: the ask bar's `spellcheck` |
+| `chat.autocap` | segments: sentences / off | phone | `sentences` | `apps/home/prefs.js`: the ask bar's `autocapitalize` |
+| `chat.draft` | switch | phone | `on` | `home.js`: off neither keeps nor restores an unsent draft |
+| `chat.code_wrap` | switch | phone | `off` | `ui/prefs.css`: code blocks wrap instead of scrolling sideways |
+| `chat.news` | switch | phone | `on` | `apps/home/boot.js`: off never loads the What's new note |
 
 ### 6.3 Ring and gestures (`gestures.js`)
 
@@ -295,19 +320,26 @@ intensity only says how strongly.
 | `gestures.ring_apps` | order of music, guitar, podcasts, astra, media, study | phone | `music, guitar, podcasts, astra, media, study` | `th/registry/apps.js` `ringApps()` and `home.js`: the shown apps clockwise from the top, then Photos in the seventh place, kept for it; the ring is built again on a change |
 | `gestures.hold_ms` | range (ms): 160 / 220 / 300 | phone | `220` | `home.js`: the hold before the ring opens |
 | `gestures.swipe_px` | range (px): 6 / 10 | phone | `6` | `home.js`: how far a drag goes before it is a swipe |
-| `gestures.edge_guard` | switch | phone | `on` | exposed: `phoneValue()`; the shell does not read it yet |
+| `gestures.edge_guard` | switch | phone | `on` | `home.js`: a sideways drag that starts within 20 px of the screen's side never becomes a page swipe |
 | `gestures.prewarm` | switch | phone | `on` | `apps/home/prewarm.js`: the app under the finger in the ring loads out of sight, so it opens already built (HOME.md §12) |
+| `gestures.swipe_commit` | range (%): 20 / 28 / 40 | phone | `28` | `home.js`: how far a slow swipe goes before the page turns |
+| `gestures.hold_slop` | range (px): 10 / 18 / 28 | phone | `10` | `home.js`: how far the finger may drift during the hold |
+| `gestures.pull_find` | switch | phone | `on` | `home.js`: off, pulling down at the top of the conversation does nothing |
+| `gestures.ring_ticks` | switch | phone | `on` | `home.js`: off, no tap back as the finger crosses apps in the ring |
 
 ### 6.4 Island (`island.js`)
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `island.mode` | segments: capsule / bar / off | phone | `capsule` | `ui/tokens.css` (bar: the capsule across the top, its clip following the measured box) and `th/island/island.js` (off: `openApp` declines, so Music and Podcasts open as their own pages) |
-| `island.art` | switch | phone | `on` | exposed: `phoneValue()`; the island does not read it yet |
-| `island.titles` | segments: scroll / fade | phone | `scroll` | exposed: `phoneValue()`; the island does not read it yet |
-| `island.controls` | segments: prev-play-next / play-next-sleep | phone | `prev-play-next` | exposed: `phoneValue()`; the island does not read it yet |
-| `island.alerts` | switch | phone | `on` | exposed: `phoneValue()`; the island does not read it yet |
-| `island.sleep_min` | range (min): 15 / 30 / 45 | phone | `30` | exposed: `phoneValue()`; the island does not read it yet |
+| `island.art` | switch | phone | `on` | `ui/prefs.css`: off shows the app's colour dot in place of the art |
+| `island.titles` | segments: scroll / fade | phone | `scroll` | `th/island/island.js`: fade never scrolls a long title |
+| `island.controls` | segments: prev-play-next / play-next-sleep | phone | `prev-play-next` | `th/island/island.js`: with play, next, sleep the first button is the sleep timer and sits last |
+| `island.alerts` | switch | phone | `on` | `th/island/island.js`: off, the capsule shows no alert dot for a line or a card about what plays |
+| `island.sleep_min` | range (min): 15 / 30 / 45 | phone | `30` | `th/island/island.js`: the minutes the capsule's sleep timer starts with |
+| `island.bars` | switch | phone | `on` | `ui/prefs.css`: off hides the level bars |
+| `island.progress` | switch | phone | `on` | `ui/prefs.css`: off hides the progress line |
+| `island.swipe` | switch | phone | `on` | `th/island/island.js`: off, a sideways swipe on the capsule does not skip |
 
 ### 6.5 Briefing (`briefing.js`)
 

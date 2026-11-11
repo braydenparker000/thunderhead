@@ -89,7 +89,7 @@ export const ROUTES = {
   'PUT /v1/messages/:id': { who: AGENTS_READ, phase: 'P2', note: "N and R: kind 'error' with thread_id 'system' only" },
   'PATCH /v1/messages/:id': { who: ['C'], phase: 'P2', note: 'own posts only' },
   'PUT /v1/files/:id': { who: ['D', 'C'], phase: 'P2', note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds' },
-  'POST /v1/dictate': { who: D, phase: 'P2', note: 'a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; keeps nothing' },
+  'POST /v1/dictate': { who: D, phase: 'P2', note: 'a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; `?lang=en|es` names the language, else it works it out; keeps nothing' },
   'GET /v1/files/:id': { who: ['D', 'C', 'N'], phase: 'P2', note: 'the bytes, private, no-store; ?meta=1 the record' },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },

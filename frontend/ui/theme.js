@@ -55,7 +55,14 @@ try {
   for (const [key, attr] of [
     ['appearance.accent', 'data-accent-intensity'], ['appearance.glass', 'data-glass'], ['appearance.corners', 'data-corners'],
     ['appearance.glyphs', 'data-glyphs'], ['appearance.ring', 'data-ring-size'], ['appearance.haptics', 'data-haptics'],
-    ['appearance.motion', 'data-reduced-motion'], ['chat.density', 'data-chat-density'], ['chat.mic', 'data-mic'], ['island.mode', 'data-island'],
+    ['appearance.motion', 'data-reduced-motion'], ['appearance.field', 'data-field'], ['appearance.grain', 'data-grain'],
+    ['appearance.idle_glow', 'data-idle-glow'], ['appearance.feel', 'data-feel'], ['appearance.ring_dim', 'data-ring-dim'],
+    ['appearance.ring_label', 'data-ring-label'], ['appearance.press', 'data-press'], ['appearance.toast', 'data-toast'],
+    ['appearance.status', 'data-status'], ['appearance.menu_width', 'data-menu-width'], ['appearance.brief_tiles', 'data-brief-tiles'],
+    ['appearance.brief_greeting', 'data-brief-greeting'], ['chat.density', 'data-chat-density'], ['chat.time_markers', 'data-chat-times'],
+    ['chat.followups', 'data-chat-followups'], ['chat.mic', 'data-mic'], ['chat.date', 'data-chat-date'],
+    ['chat.hint', 'data-chat-hint'], ['chat.code_wrap', 'data-code-wrap'], ['island.mode', 'data-island'],
+    ['island.art', 'data-island-art'], ['island.bars', 'data-island-bars'], ['island.progress', 'data-island-progress'],
   ]) {
     const v = localStorage.getItem(`th.s.${key}`);
     if (v && /^[a-z-]{1,16}$/.test(v)) document.documentElement.setAttribute(attr, v);

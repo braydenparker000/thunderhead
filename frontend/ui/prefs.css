@@ -1,0 +1,36 @@
+/* The owner's choices that only change how things are drawn (shared/contract/settings-phone.ts,
+   MENU-AND-SETTINGS.md §6). Each rule answers one attribute that ui/theme.js puts on <html> before
+   the first paint, while that setting is not at its default; with none set this file does nothing. */
+
+/* Appearance */
+:root[data-field="plain"] .field::before,:root[data-field="plain"] .field::after{display:none}
+:root[data-grain="false"] .grain{display:none}
+/* The idle glow only: while I think, listen, work or wait on you, the edge still lights. */
+:root[data-idle-glow="false"] .edge:not(.gold):not(.listen):not(.think):not(.busy)::after{opacity:0}
+:root[data-ring-dim="light"] .scrim.show{opacity:.5}
+:root[data-ring-dim="deep"] .scrim{background:color-mix(in srgb,var(--scrim),#000 45%)}
+:root[data-ring-label="false"] .ring .lbl{display:none}
+:root[data-press="false"] .press{display:none}
+:root[data-toast="top"] .toast{bottom:auto;top:calc(52px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px)}
+:root[data-toast="top"] .toast.show{transform:translate(-50%,0)}
+:root[data-status="false"] .top .status{display:none}
+:root[data-menu-width="narrow"] .side{width:min(calc(100% - 52px),300px)}
+:root[data-menu-width="full"] .side{width:100%;border-radius:0}
+:root[data-brief-tiles="compact"] .brief .grid{gap:6px}
+:root[data-brief-tiles="compact"] .brief .tile{padding:10px 12px;border-radius:16px;gap:3px}
+:root[data-brief-greeting="false"] .brief .btitle{display:none}
+
+/* Home and chat */
+:root[data-chat-times="false"] .turn[data-time]::before{display:none}
+/* Follow-up suggestions only: a choice the reply asks for (.choices) always shows. */
+:root[data-chat-followups="none"] .follows:not(.choices){display:none}
+:root[data-chat-date="off"] .top #date{visibility:hidden}
+:root[data-chat-hint="false"] .hint{display:none}
+:root[data-code-wrap="true"] .turns pre{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Island */
+:root[data-island-art="false"] .th-island .art canvas{opacity:0}
+:root[data-island-bars="false"] .th-island .bars{display:none}
+:root[data-island-progress="false"] .th-island .progress{display:none}
+/* Expanded controls "Play, next, sleep": the first button is the sleep timer's moon, upright. */
+.th-island [data-control].zzz .i{transform:none;border:0;width:22px;height:22px}
