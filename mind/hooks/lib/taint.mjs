@@ -105,10 +105,35 @@ function bashTaint(command, ctx) {
   return strongest;
 }
 
+/**
+ * Variables this command line sets to plain words and uses nowhere else but as `$NAME` (a filter
+ * kept in one, `F='grep -v x'` then `… | $F`): their words stand in for them, so the rules below
+ * read the command that really runs. A value with anything the shell could act on (a quote, `$`,
+ * `;`, `|`, a redirect, a glob) is not taken, nor a name the line mentions in any other way (set
+ * twice, exported, read into): such a `$NAME` stays an unknown command, which taints.
+ * @returns {Map<string, string[]>}
+ */
+function plainVars(command, segments) {
+  /** @type {Map<string, string[]>} */
+  const vars = new Map();
+  for (const {words} of segments) {
+    if (!words.length || !words.every(w => /^[A-Za-z_]\w*=/.test(w))) continue;
+    for (const w of words) {
+      const name = w.slice(0, w.indexOf('=')), value = w.slice(name.length + 1);
+      const uses = command.replace(new RegExp(`\\$\\{${name}\\}|\\$${name}\\b`, 'g'), '');
+      const mentions = uses.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+      if (mentions === 1 && /^[\w@%+=:,.\/ -]+$/.test(value)) vars.set(name, value.split(' ').filter(Boolean));
+    }
+  }
+  return vars;
+}
+
 /** Each part's taint, in order. @returns {Generator<Taint>} */
 function* segmentTaints(command, ctx) {
-  for (const seg of parseShell(command)) {
-    const {cmd, args} = unwrap(seg.words);
+  const segments = parseShell(command), vars = plainVars(command, segments);
+  const named = w => vars.get(/^\$\{?([A-Za-z_]\w*)\}?$/.exec(w)?.[1] ?? '');
+  for (const seg of segments) {
+    const {cmd, args} = unwrap(vars.size ? seg.words.flatMap(w => named(w) ?? [w]) : seg.words);
     if (!cmd) continue;
     // Later relative paths resolve from where a cd went (home, or a cd that can't be read: the root, not the project).
     if (cmd === 'cd' || cmd === 'pushd') {

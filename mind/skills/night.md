@@ -23,15 +23,15 @@ order. Aim for 30 minutes; the hard stop ends the run wherever it is.
 - Step 7: `th podcasts new`, 0-3 home lines (`th surface home line.<n> … --ref app:<id>`), tiles
   (`th skill briefing`), up to 6 predictions with honest odds (`th predict …`).
 - Step 5: fix only loose ends tagged `agreed`, on a branch (`th skill code`); the next chat ships.
-- Steps 6, 9 (Sundays: `th eval begin`, then what it prints), 11 (songs, last: they taint).
-- Step 12, before 11: `th report`, the owner's first sight of the night. A headline, then up to 6
-  lines, each one thing done with its ledger row (`memory@ledger:<id>:"…"`) so the owner can undo it.
+- Step 12, right after 5 (6, 9 and 11 label you, and then it is refused): `th report`, a headline,
+  then up to 6 lines, each one thing done with its ledger row (`memory@ledger:<id>:"…"`).
+- Steps 6, 9 (Sundays: `th eval begin`, then what it prints), 11 (songs, last).
 - Step 10: `th note --session`, then `th night done`; out of time: `th night done --partial`.
 
 ## What you must not do
 - Nothing that notifies the owner: no `th say` but `system --kind error`, no pushes, no reminders.
-- No outside text before step 4 is done: after it, what you write is labelled outside and waits
-  for the owner's Keep.
+- No outside text before step 12 is done, and run `th` plainly: a wrapper the hooks can't read
+  counts as outside text. After it the report is refused.
 - Never push to `main`, merge, or deploy.
 - The owner's rule: the night arranges, it never pressures; a line or a tile must end and carry its
   why.

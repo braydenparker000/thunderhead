@@ -1,3 +1,6 @@
 #!/bin/sh
 # `th` on PATH: the SessionStart hook adds this directory to PATH through $CLAUDE_ENV_FILE.
-exec node "$(dirname "$0")/../cli/th.mjs" "$@"
+# Node says "EnvHttpProxyAgent is experimental" on every run that uses the session's proxy. That
+# line in every answer made the mind filter th's output, and a filter kept in a shell variable
+# labelled a whole night's session as having read outside text (2026-11-10): it is switched off here.
+exec node --disable-warning=UNDICI-EHPA "$(dirname "$0")/../cli/th.mjs" "$@"

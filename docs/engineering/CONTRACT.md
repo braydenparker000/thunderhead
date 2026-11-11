@@ -473,10 +473,10 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 13 | growth (the week in Guitar and Study) (weekly) | 1 | P7 | no | tiles and plans are put by slot, and one the same as the one in place writes nothing |
 | 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
+| 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
 | 6 | indexing (Study’s books) | 10 | P7 | no | a book is claimed by one run at a time and goes on from its cursor; a page is put by its number |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
-| 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
 | 11 | songs (notes, mixes) | 6 | P5 | no | a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
