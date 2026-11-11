@@ -253,13 +253,13 @@ test('a phone setting stays on this phone across a reload, and Appearance puts i
 test('a worker setting goes through PATCH /v1/settings and comes back after a reload; a failed one goes back', opts, async () => {
   const { page, context, errors, worker } = await open();
   await show(page, 'mind');
-  assert.equal(await page.getAttribute('[data-key="mind.ask_outside"]', 'aria-checked'), 'true', 'the default while unset');
+  assert.equal(await page.getAttribute('[data-key="mind.ask_outside"]', 'aria-checked'), 'false', 'the default while unset: the mind looks things up unasked');
   await page.click('[data-key="mind.ask_outside"]');
   await page.click('[data-key="mind.voice"] [data-v="drier"]');
   await page.click('[data-key="mind.night_budget"] [data-v="15"]');
   await page.click('[data-key="mind.permit.muse"] [data-v="quiet"]');
   await until(() => worker.patches.length === 4);
-  assert.deepEqual(worker.patches, [{ 'mind.ask_outside': false }, { 'mind.voice': 'drier' }, { 'mind.night_budget': 15 }, { 'mind.permit.muse': 'quiet' }]);
+  assert.deepEqual(worker.patches, [{ 'mind.ask_outside': true }, { 'mind.voice': 'drier' }, { 'mind.night_budget': 15 }, { 'mind.permit.muse': 'quiet' }]);
   assert.deepEqual(worker.refused, []);
   assert.ok(await page.$('text=Always asks first: money, deleting your data, keys and access, reaching another person.'));
   await page.reload({ waitUntil: 'load' });
@@ -272,7 +272,7 @@ test('a worker setting goes through PATCH /v1/settings and comes back after a re
     document.querySelector('[data-key="mind.night_budget"] .seg-option.on').dataset.v,
     document.querySelector('[data-key="mind.permit.muse"] .seg-option.on').dataset.v,
     document.querySelector('[data-key="mind.permit.music"] .seg-option.on').dataset.v,
-  ]), ['false', 'drier', '15', 'quiet', 'quiet']);
+  ]), ['true', 'drier', '15', 'quiet', 'quiet']);
   // The Worker refuses: the control goes back and the line says why.
   worker.fail = 1;
   await page.click('[data-key="mind.voice"] [data-v="warmer"]');

@@ -159,8 +159,10 @@ export const SETTINGS = [
   // Home lines (HOME.md §2.2): the Worker refuses a line in a slot past this.
   { ...MIND, section: 'Reaching you', key: 'mind.home_lines', label: 'Lines on home', kind: 'range', unit: 'lines', default: 4,
     options: [{ value: 0, label: 'None' }, ...stops('lines', 1, 2, 3, 4)], detail: 'How many of my lines may sit on home at once. None: I only answer in the chat.' },
-  { ...MIND, section: 'Reaching you', key: 'mind.ask_outside', label: 'Ask before outside sources', kind: 'switch', default: true,
-    detail: 'I ask before I read the web or other outside text for you.' },
+  // Off since 2026-11-11 (the owner: having to tell it to look things up was the annoyance): the
+  // mind looks up what a look would make right, unasked; on, it asks first.
+  { ...MIND, section: 'Reaching you', key: 'mind.ask_outside', label: 'Ask before looking things up', kind: 'switch', default: false,
+    detail: 'Off: I look things up on the web whenever that makes the answer right, and say where it came from. On: I ask you first.' },
   // The day pulse (watches.ts): how many wakes a day the mind may set itself; the Worker refuses the rest.
   { ...MIND, section: 'Waking', key: 'mind.wake_budget', label: 'Wakes I set myself', kind: 'range', unit: 'a day', default: 12,
     options: [{ value: 0, label: 'Off' }, ...stops('a day', 6, 12, 24, 40)], detail: 'A day, to look at something at a time I chose. Your messages never count. Off: none.' },
