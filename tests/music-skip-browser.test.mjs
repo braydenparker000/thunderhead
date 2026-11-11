@@ -190,8 +190,11 @@ function watchSkip(page, ahead) {
         if (t - out.heardAt > 2000) break;
       } else {
         if (!live) out.gaps.push(t);
-        // Past the 400 ms fade (and the 500 ms it may wait): the outgoing deck is silent.
-        if (t > 1200 && old !== p.audio && !old.paused) {
+        // Past the 400 ms fade (and the 500 ms it may wait): the outgoing deck is silent. Only looks
+        // taken before the new deck's own clock has moved count: the analyser hears both decks, and
+        // the new song reaches it a few tens of milliseconds before `_heard` is set (a CI run on
+        // 2026-11-11 read the new song's first sound as the old deck's and failed).
+        if (t > 1200 && old !== p.audio && !old.paused && (fresh.paused || fresh.currentTime === 0)) {
           if (dsp.bypass && old.volume > 0.001) out.heldLoud.push([t, old.volume]);
           let peak = 0;
           if (analyser) {

@@ -17,6 +17,13 @@ were tidied on 2026-11-02: history moved to [docs/archive/](../archive/README.md
 **Photos → LightCraft (owner, 2026-11-08; decisions.md):** step 1, the test page `/lab/lightcraft/`
 (engine/lightcraft-web/README.md) for the owner's phone; step 2 is export and 1:1 memory (measured there).
 
+**The 30-hour run (2026-11-10 to 11, the owner away; PRs #114 to #133, each merged when green and
+confirmed live):** the new editor's quality passes; Astra's eleven more decoders and quicker seeks;
+Music's queue, shuffle and restart; the night's report (two causes fixed, a third way left for the
+owner in BRIEFING.md); fewer rules on the chat; apps loaded ahead from the ring; 34 new settings and
+12 old ones wired; Edit opening the new editor. What is left from it is in each area's doc
+(`engine/raw/STATUS.md`, `frontend/astra/README.md`, MUSIC.md §18, BRIEFING.md, PHOTOS.md §4).
+
 ## Current phase: what is live
 
 - **Home:** a chat; hold for the ring of seven apps, swipe right for the Briefing, left for the menu
@@ -65,14 +72,7 @@ were tidied on 2026-11-02: history moved to [docs/archive/](../archive/README.md
 
 ## Last deploy
 
-- 2026-11-02 04:06 UTC: `594d2b7` (Deploy run #135, Worker and site), carrying PRs #17 to #20 (the
-  runs for #18 and #19, #133 and #134, failed in a site test part and deployed nothing; #132 was
-  cancelled):
-  - #17 Menu and Settings re-skinned on one component set.
-  - #18 Island v2: one morphing capsule, apps grow out of it, frames warmed and kept alive.
-  - #19 What's new: the ring, the menu and Settings, the island capsule.
-  - #20 Settings after Batch 2: the frosted panel behind the page, content before the slide.
-- 2026-11-02 03:28 UTC: `2c0c407` (run #131), #16 Speed and the ring: flat surfaces while moving,
-  springier ring, menu and Settings preloaded, a frames readout in `/?feel`.
-- 2026-11-02 02:21 UTC: `6fd2e79` (run #130), #15 Feel engine: interruptible springs for the ring,
-  swipes and island, and the `/?feel` tuning panel.
+- 2026-11-11: the 30-hour run, PRs #114 to #133, each deployed by its own merge (Worker and site);
+  the newest is on `/release.json` and `/v1/health`.
+- 2026-11-02 04:06 UTC: `594d2b7` (Deploy run #135), PRs #17 to #20: Menu and Settings on one
+  component set, Island v2, What's new, Settings after Batch 2. Earlier ones are in git history.
