@@ -35,7 +35,7 @@ export function loadDecoders(codec) {
 export class RemuxSession extends EventTarget {
   /**
    * @param {HTMLVideoElement} video
-   * @param {{info: object, video: object|null, audio: {track: object, delivery: string}|null}} plan
+   * @param {{info: object, video: object|null, audio: {track: object, delivery: string}|null, source?: object}} plan
    */
   constructor(video, plan) {
     super();
@@ -43,6 +43,7 @@ export class RemuxSession extends EventTarget {
     this.info = plan.info;
     this.videoTrack = plan.video;
     this.audio = plan.audio;
+    this.source = plan.source || null; // the range reader, told when playback jumps
     this.queues = {};
     this.ended = {video: !plan.video, audio: !plan.audio};
     this.destroyed = false;
@@ -63,7 +64,8 @@ export class RemuxSession extends EventTarget {
   async start(startTime = 0) {
     const MediaSourceClass = mediaSourceClass();
     if (!MediaSourceClass) throw Error('This browser has no Media Source Extensions.');
-    if (this.audio?.delivery === 'rebuilt') { this.emit('status', 'Loading the audio decoder…'); await loadDecoders(this.audio.track.codec); }
+    // The audio decoder downloads while the media source opens and the first video is read (pumpAudio waits for it).
+    if (this.audio?.delivery === 'rebuilt') loadDecoders(this.audio.track.codec).catch(() => {});
     this.ms = new MediaSourceClass();
     this.url = URL.createObjectURL(this.ms);
     if ('disableRemotePlayback' in this.video) this.video.disableRemotePlayback = true; // required by ManagedMediaSource
@@ -111,6 +113,7 @@ export class RemuxSession extends EventTarget {
   async restartAt(time) {
     if (this.destroyed) return;
     this.stats.restarts++;
+    this.source?.jumped?.();
     await Promise.all(Object.values(this.queues).map(q => q.restart()));
     for (const k of Object.keys(this.queues)) this.ended[k] = false;
     this.run(time);
@@ -202,6 +205,8 @@ export class RemuxSession extends EventTarget {
     const choice = this.audio, track = choice.track.ref;
     const output = this.output('audio', generation);
     if (choice.delivery === 'rebuilt') {
+      await loadDecoders(track.codec);
+      if (this.audio !== choice || this.queues.audio.generation !== generation) return;
       const sink = new MB.AudioSampleSink(track);
       const source = new MB.AudioSampleSource({codec: 'opus', bitrate: 192000, transform: {numberOfChannels: 2, sampleRate: 48000}});
       output.addAudioTrack(source);
