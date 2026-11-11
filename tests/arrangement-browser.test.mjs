@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -158,7 +159,8 @@ test("Music: tonight's mix over the library's home, its why, Dismiss hides it", 
   await p.page.click('.th-arr[data-app=music] .th-arr-x');
   await card.waitFor({ state: 'detached' });
   await p.went('arrangement.dismiss');
-  assert.ok(p.calls.some((c) => c.method === 'DELETE' && c.path === '/v1/surfaces/music/tonight'));
+  // The DELETE goes after the sense (th/ported/arrangement.js, dismissed), so it is waited for, not read at once.
+  await until(() => p.calls.some((c) => c.method === 'DELETE' && c.path === '/v1/surfaces/music/tonight'), { message: 'the DELETE of the slot never went' });
   assert.deepEqual(p.errors, []);
   await p.context.close();
 });
