@@ -1098,6 +1098,62 @@ While **Use my listening history** is on, both lean towards the artists the owne
 | 11 | Ref format for playlists (`music:playlist/<id>`) agreed in [GLOSSARY](../GLOSSARY.md) | Coordinator |
 | 12 | The chat's "nostalgic playlist" (§4.2) needs a way to write a playlist into the ported player, which has no verbs | Owner decides whether that small hook comes with the port or after it |
 
+## 18. The audit of 2026-11-10 (owner's ask: bugs and lag, no change to the look, the gestures or the playback idea)
+
+Nothing on screen moved, no animation or gesture changed, and the playback idea is as it was: one
+song streams with about a minute ahead, and once it sounds the first seconds of the next three are
+fetched for instant skips (`PRELOAD_S`, `HEADS_AHEAD`, `library/heads.js`, untouched).
+
+**The Queue.** Its list now does what the reference's does, with the reference's own selection menu
+(`merge_selection_menu_queue_items`, which the port had not used):
+
+- **Delete** takes the selected entries out of the Queue (it was greyed out there). In queue mode the
+  list follows; when the playing entry goes, the next one left plays, and an emptied Queue returns to
+  the list it interrupted (`Player.removeFromQueue`).
+- **Clear Queue** is in the selection menu beside Info/Tags (it was only in the header's menu).
+- **A tap on an entry plays the Queue from it** (`Player.playQueueAt`). Before, a copy of the Queue
+  played as an ordinary list: Next then jumped to the first unplayed entry, and the list that had been
+  playing was forgotten.
+- A song queued twice plays twice (its entries were marked played together), and adding to the Queue
+  while its second copy plays no longer jumps back to the first.
+
+**Shuffle.**
+
+- **A shuffle goes on after the Queue.** Leaving the Queue started the list's shuffle over, so songs
+  already heard came back and Previous had nothing behind it. The list's play order now comes back
+  with it.
+- **Shuffle All plays every category** (the reference: "Shuffle All Available Songs"). Chosen while
+  an album played, it stayed inside that album, and with Advance List stopped at its end. The list now
+  widens to every category of the playing list around the playing song, and narrows to that song's
+  category when the mode is left (`Player.widenForShuffleAll`).
+- A shuffled Queue that gets another song keeps what it has played behind the playing one and shuffles
+  only what is still to come.
+
+**A restart.** A phone closes a background tab whenever it wants the memory. The list that was
+playing (an album, a playlist, a search), its play order, the Queue, the song and its place all come
+back (`player/session.js`); before, the song came back inside the whole library, and a shuffle
+started over. The place in the song is saved every ten seconds while it plays, and when the page is
+hidden, frozen or closed (it was saved only at a song change or a pause). Not kept: which category
+list the playing list came from, so after a restart the swipe to the next album waits for the next
+list the owner starts.
+
+**Lag** (a 7,500-song library, the page's thread slowed four times, `tests` aside):
+
+| | Before | After |
+|---|---|---|
+| A skip in DJ shuffle (the plan made again) | 337 ms | 95 ms |
+| The first DJ plan | 375 ms | 171 ms |
+| Work after every song change | 45 ms and a long task | 28 ms, none |
+
+- After every song the hidden list behind the cover was prepared by sorting the whole library again;
+  the sorted All Songs list is now kept for a library and its list options (`ListWidget.sourceStack`).
+- The DJ's planner read every song's tags again for each of its thousands of comparisons; they are
+  read once for a song (`th/music/dj-tags.js`). The plans are the same, song for song, for the same seed.
+
+Tests: `tests/music-queue.test.mjs`, `music-session.test.mjs` (the player's own logic in Node, through
+`tests/fixtures/site-imports.mjs`), `music-queue-browser.test.mjs` and `music-session-browser.test.mjs`
+(the real page).
+
 ---
 
 ## Not built

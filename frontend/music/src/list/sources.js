@@ -315,6 +315,8 @@ export function categorySource(ctx, list, nav, cat) {
   else if (cat.kind === 'queue') {
     src = withOptions(new TrackSource(ctx, list, nav, title, [...(ctx.player?.userQueue ?? [])]), list, {key: 'tracks:queue', zoomKind: 'tracks'});
     src.kind = 'queue';
+    // The reference's own selection menu for the Queue (Delete removes entries, Clear Queue beside Info).
+    Object.defineProperty(src, 'selectionLayout', {value: 'merge_selection_menu_queue_items'});
     reorderable(src, map => ctx.player?.reorderQueue(map));
   }
   else if (STAT_LISTS[cat.kind]) {
@@ -516,6 +518,12 @@ export class TrackSource {
 
   onItemClick(i) {
     const p = this.ctx.player;
+    // An entry of the Queue: the Queue plays from it (and goes on through its entries), not a copy of it as another list.
+    if (this.kind === 'queue' && p.playQueueAt?.(i, p.state === STATE_PLAYING)) {
+      p.play();
+      if ((this.ctx.settings.list_item_action ?? 1) === 1) this.ctx.bus.post('bus_gui', 'cmd_nav_to_main', this);
+      return;
+    }
     // This list becomes the playing track's source list (album-art tap / swipe down).
     this.ctx.listWidget?.rememberQueueSource(this);
     const category = this.ctx.listWidget?.categoryFor(this) ?? null;

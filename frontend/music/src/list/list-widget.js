@@ -24,7 +24,7 @@ import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {alertDialog, editNameDialog} from '../widgets/dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
-import {openListOptions, ZOOMS, listOpts, saveListOpts} from './list-opts.js';
+import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {openResortDialog} from '../widgets/resort-dialog.js';
 import {exportPlaylists} from '../library/playlist-files.js';
 import {LyricsPage} from './lyrics.js';
@@ -507,11 +507,12 @@ export class ListWidget extends FastLayout {
         this.schedulePrepare();
       }
     });
-    ctx.bus.subscribe('bus_library', msg => { if (msg === 'msg_library_changed') this.schedulePrepare(); });
+    ctx.bus.subscribe('bus_library', msg => { this.allSongsKept = null; if (msg === 'msg_library_changed') this.schedulePrepare(); });
     ctx.bus.subscribe('bus_gui', msg => { if (msg === 'msg_nav_changed') this.setPlayingMode(); });
     ctx.bus.subscribe('bus_app', (msg, src, d) => {
       if (msg === 'msg_app_setting_changed' && LABEL_PREFS.includes(d?.key)) { this.rebind(); this.libList.rebindAll(); }
       if (msg === 'msg_app_setting_changed' && d?.key === 'vis_aa_visible') this.setPlayingMode();
+      if (msg === 'msg_app_setting_changed' && (LIST_PREFS.includes(d?.key) || LABEL_PREFS.includes(d?.key))) this.allSongsKept = null;
       if (msg === 'msg_app_setting_changed' && LIST_PREFS.includes(d?.key)) { this.rebuildStack(); this.schedulePrepare(); }
       if (msg === 'msg_app_setting_changed' && /^(search_track_titles_only|title_filename)$/.test(d?.key) && this.searching) this.showSearch();
     });
@@ -667,6 +668,8 @@ export class ListWidget extends FastLayout {
         ctx.bus.post('bus_gui', 'cmd_gui_show_toast', this, {title: str('pref_rescan_folders', 'Rescan')});
         break;
       case 'cmd_data_clear_q':
+      case 'cmd_list_clear_q': // the Queue's selection menu
+        if (list.selection) list.endSelection();
         ctx.player.clearQueue();
         if (src?.kind === 'queue') this.replaceTop(src.rebuild?.());
         break;
@@ -714,6 +717,10 @@ export class ListWidget extends FastLayout {
           const pl = src.playlist, pos = idx.map(i => src.entryIndex?.[i] ?? i);
           list.endSelection();
           P.removeAt(pl, pos);
+        } else if (src?.kind === 'queue') {
+          // In the Queue, Delete takes the entries out of it (the list follows msg_player_queue_changed).
+          list.endSelection();
+          ctx.player.removeFromQueue(idx);
         }
         break;
       }
@@ -1757,8 +1764,16 @@ export class ListWidget extends FastLayout {
     const t = this.ctx.player?.track;
     const qs = this.queueStack;
     if (qs?.length && qs[qs.length - 1].tracks?.some(x => x.id === t?.id)) return qs.slice();
-    const home = new HomeSource(this.ctx, this.libList, this.nav);
-    return [home, allSongsSource(this.ctx, this.libList, this.nav)];
+    // All Songs in its order is a sort of the whole library: made once for a library and its list
+    // options, not again after every song (prepareTrackList asks after each one).
+    const lib = this.ctx.library?.tracks, opts = listOpts('tracks:all'), key = JSON.stringify(opts) + '|' + (this.ctx.pref?.('no_sort_field') ? 1 : 0);
+    const kept = this.allSongsKept;
+    if (kept && kept.lib === lib && kept.key === key) return kept.stack.slice();
+    const stack = [new HomeSource(this.ctx, this.libList, this.nav), allSongsSource(this.ctx, this.libList, this.nav)];
+    // (Orders that change as songs play or are rated, 5 to 7, are made fresh each time.)
+    const sort = (opts.sort ?? 1) & ~REVERSE;
+    this.allSongsKept = sort >= 5 && sort <= 7 ? null : {lib, key, stack};
+    return stack.slice();
   }
 
   /**
