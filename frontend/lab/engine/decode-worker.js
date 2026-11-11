@@ -6,6 +6,7 @@
 // if the pool does not start, the one-thread build.
 
 import { lensOf } from './lens.js';
+import { still } from './picture.js';
 
 /** From the camera JPEG's Exif: how to turn the photo upright (rawler reads no orientation from a RAF), and
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
@@ -59,12 +60,18 @@ const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) =
 // A message is a RAF's bytes, or { buf, full: true, tag } to also get the sensor's own pixels, for 100 % and
 // export. Every answer carries the request's tag, so a page that has moved on to another photo can tell.
 // { jpeg: [rgb, width, rows, quality, fine], tag } is one band of an export's JPEG to encode (files.js).
+// { picture: file, tag } is a JPEG to open: a picture already, which needs no decoder (picture.js).
 self.onmessage = async (e) => {
   const tag = e.data.tag;
   try {
     if (e.data.jpeg) {
       const out = (await ready).jpeg(...e.data.jpeg);
       self.postMessage({ jpeg: out, tag }, [out.buffer]);
+      return;
+    }
+    if (e.data.picture) {
+      const s = await still(e.data.picture);
+      self.postMessage({ ...s, tag }, [s.proxy.buffer, s.picture]);
       return;
     }
     const buf = e.data.buf ?? e.data;

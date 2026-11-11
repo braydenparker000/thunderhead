@@ -91,7 +91,7 @@ export default class Component extends DCLogic {
       wbMenu: S.wbMenu && face === 'Color',
       wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === wbNow), bg: name === wbNow ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => { if (real) photo.setWb(name); set({ wb: name, wbMenu: false }); } })),
       real: !!real, demo: !real, status: real?.status || '', hasStatus: !!real?.status,
-      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
     };
   }
 }

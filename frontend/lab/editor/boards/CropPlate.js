@@ -114,7 +114,7 @@ export default class Component extends DCLogic {
     const fullW = odd ? 5152 : 7728, fullH = odd ? 7728 : 5152;          // the sample: the X-E5's 40 MP frame
     const outW = laid ? laid.ow : Math.round((crop.w / boxW) * fullW), outH = laid ? laid.oh : Math.round((crop.h / boxH) * fullH);
     return {
-      real: !!real, demo: !real, fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      real: !!real, demo: !real, fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
       boxL, boxT, boxW, boxH, viewTf: `translate(${view.tx.toFixed(2)}px, ${view.ty.toFixed(2)}px) scale(${view.s.toFixed(4)})`, viewTr: held ? 'none' : '320ms cubic-bezier(0.2, 0.85, 0.2, 1)',
       sDown: stage.down, sMove: stage.move, sUp: stage.up, imgW, imgH, imgML: -imgW / 2, imgMT: -imgH / 2, imgTf: tf,
       imgTr: S.turning ? '60ms linear' : '380ms cubic-bezier(0.2, 0.85, 0.2, 1)', cropTr: held ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)',

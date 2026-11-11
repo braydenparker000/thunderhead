@@ -73,7 +73,7 @@ export default class Component extends DCLogic {
       strong, plain: !strong, hint, dialLabel: own ? `${own.name} · Amount` : 'Amount',
       dialValue: strong ? photo.toDial('Cube') : undefined, dialText: strong ? photo.text('Cube') : undefined, dialTurn: strong ? (d) => photo.turn('Cube', d) : undefined, dialReset: strong ? () => photo.reset('Cube') : undefined,
       status: real?.status || '', hasStatus: !!real?.status,
-      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
     };
   }
 }

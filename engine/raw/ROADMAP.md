@@ -92,6 +92,10 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   (`quality/README.md`, "Colour fringing"): 2 to 5.5 dB back, false colour whole. Left: a second round of the
   colour pass, which may win back part of the green.
 - Dead pixels and a black level for each colour (S).
+- **The colour table at the edge of the screen's range** (new, S to measure, M to mend): found on JPEGs (stage 5),
+  where a strong colour near the edge was moved by the table being read between its points. A RAF's strong
+  colours go through the same table. Measure a frame against the engine's exact path (every pixel developed
+  itself, `exact`), and if it shows, mend it as for a picture or with a finer table near the edge.
 - A second, coarser scale for colour noise (M).
 - **The fitted view (27): mostly so already.** The sensor's own pixels, with noise reduction and sharpening, are
   drawn from 40 % zoom up (`zoom.js`), not only at 100 % as REVIEW.md said; below that a 40 MP photo is shown
@@ -115,7 +119,22 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 ## Stage 5: one Photos app
 
-- JPEG and HEIC open in the new editor (M). The Drive library moves over (M). The old editor is retired.
+- **JPEGs open in the new editor: built 2026-11-11.** The Library's picker takes them; a JPEG is kept as it is with
+  a small copy for its tile, opened as a picture and not as sensor data (`engine/picture.js`): its editing copy is
+  the mean of 3 × 3 of its pixels in linear light, its own pixels stand where the sensor's would for 100 % and
+  export, its tone curve is straight, and it starts with no sharpening or noise reduction (the camera did both).
+  Every control, the masks, retouching and export then work on it as on a RAF. Held by the first test that takes
+  a photo through the whole editor (`tests/lab-editor-jpeg-browser.test.mjs`): with nothing moved, an export is
+  the file's own pixels to within one level of 255. Getting there found two faults (below). Longer than a
+  texture holds (8190 pixels) it is reduced once. Left: HEIC (Chrome does not decode it), a file in a wider colour
+  space than sRGB is brought into sRGB by the browser, and the date it was taken is the file's, not its Exif's.
+  - A camera matrix with no profile brought the shot's white to D50 by scaling XYZ, not by Bradford's adaptation
+    as the DNG specification has it and as the way back to the screen does: colours were off by up to 45 levels
+    (`dcp.js` `adapt`). It touched only photos developed with no profile; the reference pictures were made again.
+  - The colour table is read between its points, which blurs the hard edge of what a screen can show: a deep
+    blue inside that edge came out 28 levels off. For a picture the table now holds only what the edit adds and
+    each pixel works the rest out exactly (`wgsl.js` `plain`). **For a RAF this is still to measure** (stage 3).
+- The Drive library moves over (M). The old editor is retired.
 - **It works with no signal: built 2026-11-11.** Opened once with a signal, the editor, its engine and the decoder
   are kept (13 MB the first time, then only what a release changed) and open with none; an older release's
   editor still opens when a newer one has not been fetched yet (`sw.js` `keepEditor`, `/lab/offline.json`,

@@ -12,6 +12,7 @@ import { fringeOf } from './lens.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
+import { compile as compilePicture, copier, upload } from './picture.js';
 
 // the frame pass writing 16-bit floats, which every view uses (its last pass, finish.js, sharpens them): compiled
 // at the first view, kept with its device
@@ -22,19 +23,20 @@ const deepPipe = (/** @type {GPUDevice} */ device) => {
   return made;
 };
 
-/** Puts a photo's sensor pixels on the GPU. Null where full resolution is not offered (a sensor that is not
- * X-Trans, or one wider than the GPU's textures).
+/** Puts a photo's sensor pixels on the GPU, or a picture's own (a JPEG: picture.js). Null where full resolution
+ * is not offered (a sensor that is not X-Trans, or one wider than the GPU's textures).
  * @param {Awaited<ReturnType<typeof import('./gpu.js').engine>>} e the photo's engine @param {{ meta: any }} img
- * @param {Uint16Array} mosaic the decoder's mosaic(): the GPU keeps its own copy, so let go of this one after */
+ * @param {Uint16Array | ImageBitmap} mosaic the decoder's mosaic(), or a picture: the GPU keeps its own copy, so let go of this one after */
 export async function full(e, img, mosaic) {
-  const { device, lut, views, bendP } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
-  if (!phase || mosaic.length !== W * H || Math.max(W, H) > device.limits.maxTextureDimension2D) return null;
-  const tex = device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+  const { device, lut, views, bendP } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta) || [0, 0];
+  const sensor = mosaic instanceof Uint16Array ? mosaic : null;
+  if (Math.max(W, H) > device.limits.maxTextureDimension2D || (sensor ? !phaseOf(img.meta) || sensor.length !== W * H : /** @type {ImageBitmap} */ (mosaic).width < W || /** @type {ImageBitmap} */ (mosaic).height < H)) return null;
+  const tex = sensor ? device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }) : upload(device, /** @type {ImageBitmap} */ (mosaic), W, H);
   // the full-size passes compile now, behind the photo already on screen: the first zoom to 100 % then only has to draw
-  for (const p of [compileDemosaic(device), compileNoise(device), compileSharp(device), deepPipe(device), finishPipe(device, 'rgba8unorm')]) Promise.resolve(p).catch(() => {});
+  for (const p of [sensor ? compileDemosaic(device) : compilePicture(device), compileNoise(device), compileSharp(device), deepPipe(device), finishPipe(device, 'rgba8unorm')]) Promise.resolve(p).catch(() => {});
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
-  for (let y = 0; y < H; y += BAND) {
-    device.queue.writeTexture({ texture: tex, origin: [0, y] }, mosaic, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
+  for (let y = 0; sensor && y < H; y += BAND) {
+    device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
   const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick,
@@ -50,7 +52,7 @@ export async function full(e, img, mosaic) {
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
-    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, dm = await demosaicer(device, tex, info, side, side);
+    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, dm = sensor ? await demosaicer(device, tex, info, side, side) : await copier(device, tex, side, side);
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
       for (let s = 1; s > 0.2; s *= 0.9) {

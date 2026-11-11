@@ -54,7 +54,7 @@ export default class Component extends DCLogic {
     const at = (e, b = e.currentTarget.getBoundingClientRect()) => [((e.clientX - b.left) / b.width) * box[2], ((e.clientY - b.top) / b.height) * box[3]];
     return {
       real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none',
-      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
       toolVerb: S.tool.toLowerCase(), viz: S.viz ? 'grayscale(1) contrast(3.2) brightness(1.1)' : 'none', patches, rings,
       status: S.viz ? 'Visualize · dust and spots stand out' : `${spots.length} spot${spots.length === 1 ? '' : 's'} · tap to ${S.tool.toLowerCase()} · drag a dashed circle to move its source`,
       pDown: (e) => {

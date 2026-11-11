@@ -52,7 +52,7 @@ export default class Component extends DCLogic {
     const shown = P.filter(tests[S.filter]);
     const sorts = ['NEWEST', 'OLDEST', 'RATING'];
     const order = (list) => S.sort === 1 ? [...list].reverse() : S.sort === 2 ? [...list].sort((a, b) => b.rating - a.rating) : list;
-    const tile = (p) => ({ src: p.src, aria: `${fname(p).replace(/\.RAF$/i, '')}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
+    const tile = (p) => ({ src: p.src, aria: `${photo.stem(fname(p))}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
       pos: p.pos, zoom: p.zoom, filter: p.filter, sim: p.sim, stars: '★'.repeat(p.rating), edited: p.edited ? '#e8202a' : 'transparent',
       flag: p.flag === 'pick' ? '⚑' : p.flag === 'reject' ? '✕' : '', flagInk: p.flag === 'reject' ? '#e8202a' : '#f2efe8', dim: p.flag === 'reject' ? 0.45 : 1,
       // CULL on: a photo opens culling at it; off: it opens in the editor (the app takes editor:open)
@@ -71,15 +71,15 @@ export default class Component extends DCLogic {
       const tick = () => { k = Math.min(total, k + 8); this.setState({ progress: { label, k, total } }); if (k < total) setTimeout(tick, 220); };
       setTimeout(tick, 220);
     };
-    // Choose photos: the phone's file picker, then each RAF copied onto the phone with the real count
+    // Choose photos: the phone's file picker, then each RAF or JPEG copied onto the phone with the real count
     const choose = () => {
-      const input = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: '.raf,.RAF,image/x-fuji-raf' });
+      const input = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: '.raf,.RAF,image/x-fuji-raf,.jpg,.jpeg,.JPG,.JPEG,image/jpeg' });
       input.onchange = async () => {
         const files = [...(input.files || [])];
         this.setState({ progress: { label: 'Copying to this phone', k: 0, total: files.length } });
-        const { added, had } = await store.add(files, (k, total) => this.setState({ progress: { label: 'Copying to this phone', k, total } }));
-        const r = roll(), n = added + had;
-        this.setState({ photos: r.photos, shoots: r.shoots, idx: 0, used: await store.usage(), progress: { label: 'Copying to this phone', k: n, total: n, done: `Done · ${added} photo${added === 1 ? '' : 's'} copied${had ? ` · ${had} already here` : ''}` } });
+        const { added, had, bad } = await store.add(files, (k, total) => this.setState({ progress: { label: 'Copying to this phone', k, total } }));
+        const r = roll(), n = added + had + bad;
+        this.setState({ photos: r.photos, shoots: r.shoots, idx: 0, used: await store.usage(), progress: { label: 'Copying to this phone', k: n, total: n, done: `Done · ${added} photo${added === 1 ? '' : 's'} copied${had ? ` · ${had} already here` : ''}${bad ? ` · ${bad} could not be read` : ''}` } });
       };
       input.click();
     };
@@ -106,7 +106,7 @@ export default class Component extends DCLogic {
       this.setState({ photos: r.photos.length ? r.photos : this.demo, shoots: r.photos.length ? r.shoots : null, idx: r.photos.length ? 0 : 6, filter: 'All', armed: 0, used });
     };
     return {
-      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${S.cut.name.replace(/\.RAF$/i, '')} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       subTap, subInk: armed ? '#e8202a' : doomed.length || S.cut ? '#c9d0d8' : '#8b95a1', subRole: doomed.length || S.cut ? 'button' : null,
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),

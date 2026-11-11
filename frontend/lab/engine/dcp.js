@@ -75,6 +75,11 @@ const ADOBE_TO_XYZ = [0.5767309, 0.185554, 0.1881852, 0.2973769, 0.6273491, 0.07
 export const PROPHOTO_TO_SRGB = mul(XYZ_TO_SRGB, mul(D50_TO_D65, PROPHOTO_TO_XYZ));
 export const PROPHOTO_TO_ADOBE = mul(inv(ADOBE_TO_XYZ), mul(D50_TO_D65, PROPHOTO_TO_XYZ));
 const D50 = [0.9642, 1, 0.8249];
+// Bradford's adaptation from a white to D50 (the white ProPhoto's own matrices are made for): what brings a colour
+// seen under one white to how it looks under the other. It is the exact way back from D50_TO_D65 above, so a
+// picture in sRGB goes to ProPhoto and comes back the same (picture.js).
+const BRADFORD = [0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0685, 1.0296];
+const adapt = (/** @type {number[]} */ white) => { const a = apply(BRADFORD, white), b = apply(BRADFORD, [0.96422, 1, 0.82521]); return mul(inv(BRADFORD), mul([b[0] / a[0], 0, 0, 0, b[1] / a[1], 0, 0, 0, b[2] / a[2]], BRADFORD)); };
 
 /** The shot's colour temperature from its camera neutral (DNG spec: iterate on the interpolated ColorMatrix),
  * then the weight that blends the two calibrations, and the matrix from white-balanced camera RGB to linear
@@ -92,7 +97,7 @@ export function cameraToProPhoto(p, neutral) {
   const w = weight(t), d = [1 / neutral[0], 0, 0, 0, 1 / neutral[1], 0, 0, 0, 1 / neutral[2]];
   let camToXyz;
   if (p.fm1) camToXyz = mul(blend(p.fm1, p.fm2, w), d);           // ForwardMatrix maps white-balanced camera RGB to XYZ D50
-  else { const m = inv(blend(p.cm1, p.cm2, w)), white = apply(m, neutral); camToXyz = mul([D50[0] / white[0], 0, 0, 0, D50[1] / white[1], 0, 0, 0, D50[2] / white[2]], m); }
+  else { const m = inv(blend(p.cm1, p.cm2, w)); camToXyz = mul(adapt(apply(m, neutral)), m); }   // ColorMatrix alone: the shot's white brought to D50 (DNG spec: linear Bradford)
   return { kelvin: t, weight: w, matrix: mul(XYZ_TO_PROPHOTO, camToXyz) };
 }
 

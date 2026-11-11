@@ -45,9 +45,9 @@ const rawFiles = (page) => page.evaluate(async () => { const d = await (await na
 test('a set picked again copies only what is missing, and leftovers of a cut-off import are cleared', opts, async () => {
   const { context, page } = await open();
   const raf = [...makeRaf(Uint8Array.from(await drawJpeg(page)))];
-  assert.deepEqual(await add(page, raf, ['DSCF0001.RAF', 'DSCF0002.RAF']), { added: 2, had: 0 });
+  assert.deepEqual(await add(page, raf, ['DSCF0001.RAF', 'DSCF0002.RAF']), { added: 2, had: 0, bad: 0 });
   // The import "was cut off" after two of three: the same three picked again copy one.
-  assert.deepEqual(await add(page, raf, ['DSCF0001.RAF', 'DSCF0002.RAF', 'DSCF0003.RAF']), { added: 1, had: 2 });
+  assert.deepEqual(await add(page, raf, ['DSCF0001.RAF', 'DSCF0002.RAF', 'DSCF0003.RAF']), { added: 1, had: 2, bad: 0 });
   assert.equal((await rawFiles(page)).length, 3);
   // A file with no record (the page closed between the copy and the record) goes; the photos stay.
   const state = await page.evaluate(async () => {

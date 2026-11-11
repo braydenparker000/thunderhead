@@ -2,7 +2,7 @@
 // The open photo's adjustments (docs/design/EDITOR.md): what the plate's dial reads and turns, Reset, Auto, the
 // white balance presets and the eyedropper. The photo itself, its drawing and its saving are session.js's,
 // which hands these on as its own (boards import session.js alone).
-import { WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
+import { STILL, WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
 const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
@@ -43,7 +43,11 @@ export function setValues(patch, key, name, val = '') { if (!cur) return; Object
 /** Puts adjustments back where they start, as one step. @param {string[]} names @param {string} name */
 export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
-const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : ZERO[name] ?? 0);
+const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
+/** A photo's name without its ending. @param {string} name */
+export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
+/** The line under the open photo's name: its film simulation and that it is a RAF, or that it is a JPEG. */
+export const kindLine = () => (cur?.plain ? 'JPEG' : `${cur?.shot.split(' · ')[0] || 'Fujifilm'} · RAF`);
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
 export const edited = (name) => !!cur && cur.values[name] !== start(name);
 /** @param {string} name */

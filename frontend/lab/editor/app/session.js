@@ -22,6 +22,8 @@ export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', 'Defringe', ...Object.keys(START)]);
 export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
 const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
+/** Where a JPEG starts that a RAF does not: the camera sharpened it and cleaned its colour already. */
+export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Color noise': 0 });
 
 export const events = new EventTarget();
 export const changed = () => events.dispatchEvent(new Event('change'));
@@ -41,7 +43,7 @@ document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} 
 
 let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], plain: boolean, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
 /** How long the open photo's last waits were, in seconds (0: not yet): to open, for 100 % to turn sharp, to save. The boards say them, so the phone's own speed can be read off the screen. */
 export const took = { open: 0, detail: 0, save: 0 };
@@ -73,26 +75,28 @@ export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
   const began = performance.now(); took.open = took.detail = took.save = 0;
-  const edit = (await store.loadEdit(id)) || {};
-  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
+  const edit = (await store.loadEdit(id)) || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
+  cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
-  const buf = await store.raw(id), me = cur, tag = ++asked;
-  let sensor = (/** @type {Uint16Array} */ m) => {};
-  const mosaic = /** @type {Promise<Uint16Array>} */ (new Promise((res) => { sensor = res; }));
+  const me = cur, tag = ++asked, buf = plain ? null : await store.raw(id);
+  let sensor = (/** @type {Uint16Array | ImageBitmap} */ m) => {};
+  const mosaic = /** @type {Promise<Uint16Array | ImageBitmap>} */ (new Promise((res) => { sensor = res; }));
+  const file = buf ? null : await store.rawFile(id);
   const r = await new Promise((res) => {
     /** @type {Worker} */ (worker).onmessage = (m) => {
-      if (m.data.tag !== tag) return;   // a photo left behind, still answering
+      if (m.data.tag !== tag) { m.data.picture?.close(); return; }   // a photo left behind, still answering
       if (m.data.mosaic) { sensor(m.data.mosaic); return; }
       if (m.data.preview) { me.shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); film = filmOf(m.data.settings); me.shot = m.data.settings || ''; changed(); return; }
       res(m.data);
     };
-    /** @type {Worker} */ (worker).postMessage({ buf, full: true, tag }, [buf]);
+    /** @type {Worker} */ (worker).postMessage(buf ? { buf, full: true, tag } : { picture: file, tag }, buf ? [buf] : []);
   });
-  if (cur !== me) return;
+  if (cur !== me) { r.picture?.close(); return; }
+  if (r.picture) sensor(r.picture);
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
   try {
-    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
+    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
     // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO and
     // most at the highest); one opened before keeps the start it was given then (none, before this was so).
@@ -108,7 +112,7 @@ export async function open(id) {
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
-      /** @type {any} */ (m.buffer).transfer?.(0);   // its 80 MB given back now: the GPU has its own copy
+      if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
       if (cur === me) { big = b; changed(); } else b?.dispose();
     }).catch(() => {});
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
