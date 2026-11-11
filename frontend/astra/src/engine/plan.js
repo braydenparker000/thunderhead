@@ -13,7 +13,7 @@
 
 import {baseLanguage, languageName} from './languages.js';
 import {channelName} from './labels.js';
-import {SOFTWARE_VIDEO, softwareAudio} from './software.js';
+import {UNREADABLE, softwareAudio, softwareVideo} from './software.js';
 
 const DIRECT_AUDIO = new Set(['aac', 'opus', 'flac', 'mp3']);
 const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'vorbis']);
@@ -32,7 +32,7 @@ export function videoMime(track) { return `video/mp4; codecs="${track.codecStrin
 
 /** In software mode the decoder plays the audio itself. */
 function softwareDelivery(track) {
-  return softwareAudio(track.codec) ? {delivery: 'software'} : {delivery: 'unsupported', reason: `${track.label || 'This audio format'} cannot be decoded in a browser.`};
+  return softwareAudio(track) ? {delivery: 'software'} : {delivery: 'unsupported', reason: `${track.label || 'This audio format'} cannot be decoded in a browser.`};
 }
 
 /** How each audio track can reach the speaker: 'direct', 'rebuilt' or 'unsupported'. */
@@ -101,7 +101,9 @@ export function planPlayback(probe, caps, prefs = {}) {
   }
   const info = probe.info;
   if (!info) {
-    // Mediabunny does not read AVI, FLV or MPEG-PS; the software decoder does.
+    // Mediabunny does not read AVI, FLV or MPEG-PS; the software decoder does. Nothing here reads Windows Media or RealMedia.
+    const named = UNREADABLE[probe.container];
+    if (named) return {mode: 'unsupported', reason: `${named} files cannot be unpacked in a browser.`, notes, audioOptions: [], subtitleOptions: [], external: true};
     if (caps.software && probe.error?.kind === 'format') {
       notes.push('Astra does not unpack this kind of file itself, so its software decoder plays it.');
       return {mode: 'software', notes, audioOptions: [], subtitleOptions: []};
@@ -122,33 +124,54 @@ export function planPlayback(probe, caps, prefs = {}) {
   }
 
   const name = video ? video.label + (video.hdr ? ' HDR' : '') : '';
-  const nativeOk = video && NATIVE_CONTAINERS.test(info.container) && caps.native(`video/${/webm/i.test(info.container) ? 'webm' : 'mp4'}; codecs="${video.codecString}"`);
-  const software = !!video && !caps.mse(videoMime(video)) && !nativeOk;
-  if (software && !(caps.software && SOFTWARE_VIDEO.has(video.codec))) {
+  const type = /webm/i.test(info.container) ? 'video/webm' : 'video/mp4';
+  const nativeOk = video && NATIVE_CONTAINERS.test(info.container) && !!video.codecString && caps.native(`${type}; codecs="${video.codecString}"`);
+  // One picture, one sound, nothing to choose, and the browser plays both as they are.
+  const plain = NATIVE_CONTAINERS.test(info.container) && info.video.length <= 1 && info.audio.length <= 1 && !subtitles.length;
+  const codecs = [video, info.audio[0]].filter(Boolean).map(t => t.codecString);
+  const whole = plain && (!video || nativeOk) && codecs.every(Boolean) && caps.native(`${type}; codecs="${codecs.join(', ')}"`);
+  // A picture Mediabunny did not list: MPEG-2 in a transport stream, which the software decoder plays, or Theora in an Ogg file, which nothing here does.
+  if (!video && info.hiddenVideo === 'ogg') return {mode: 'unsupported', reason: 'The picture in this Ogg file (Theora) cannot be decoded in a browser.', notes, audioOptions: [], subtitleOptions, external: true};
+  if (!video && info.hiddenVideo && caps.software) {
+    notes.push('Astra does not unpack the picture in this file itself, so its software decoder plays it.');
+    return {mode: 'software', notes, audioOptions: [], subtitleOptions};
+  }
+  const muxable = !video || (!!video.codec && caps.mse(videoMime(video)));
+  let software = !muxable && !whole;
+  if (software && !(caps.software && softwareVideo(video))) {
+    if (nativeOk) {
+      notes.push('Astra has no way to unpack this picture itself. Chrome will play it as-is: no audio track choice and no built-in subtitles.');
+      return {mode: 'native', notes};
+    }
     return {mode: 'unsupported', reason: `This phone cannot decode ${name} video in a browser.`, notes, video, audioOptions: [], subtitleOptions, external: true};
   }
 
-  const audioOptions = info.audio.map(track => ({track, ...(software ? softwareDelivery(track) : audioDelivery(track, caps)), label: audioLabel(track)}));
-  const audio = chooseAudio(audioOptions, {languages: prefs.languages || [], preferredId: prefs.audioId ?? null});
+  const options = () => info.audio.map(track => ({track, ...(software ? softwareDelivery(track) : audioDelivery(track, caps)), label: audioLabel(track)}));
+  const choose = list => chooseAudio(list, {languages: prefs.languages || [], preferredId: prefs.audioId ?? null});
+  let audioOptions = options(), audio = whole ? audioOptions[0] ?? null : choose(audioOptions);
+  // Sound the browser cannot take but the software decoder can (Windows Media Audio): it plays the whole file.
+  if (info.audio.length && !audio && !software && video && caps.software && softwareVideo(video) && info.audio.some(softwareAudio)) {
+    software = true;
+    audioOptions = options();
+    audio = choose(audioOptions);
+  }
   const subtitle = chooseSubtitle(subtitles, {audioLanguage: audio?.track.language, languages: prefs.languages || [], wanted: prefs.subtitleLanguage || null});
+  // A plain single-track MP4/WebM goes to the browser as-is: nothing to choose, nothing to unpack.
+  if (whole) return {mode: 'native', video, audio, audioOptions, subtitle, subtitleOptions, notes};
   if (info.audio.length && !audio) {
     const reason = `None of the audio tracks can play in a browser (${[...new Set(info.audio.map(t => t.label))].join(', ')}).`;
     if (!prefs.allowSilent) return {mode: 'unsupported', reason, notes, video, audioOptions, subtitleOptions, external: true, silent: !!video};
     notes.push(`${reason} Playing without sound.`);
   }
   if (software) {
-    notes.push(`This phone has no ${name} decoder for browsers, so Astra decodes it in software. That uses more battery and may stutter at high resolutions.`);
+    notes.push(muxable ? `${audio?.track.label || 'The sound'} in this file plays only through Astra's software decoder. That uses more battery.`
+      : `This phone has no ${name} decoder for browsers, so Astra decodes it in software. That uses more battery and may stutter at high resolutions.`);
     return {mode: 'software', video, audio, audioOptions, subtitle, subtitleOptions, notes};
   }
   const unsupported = audioOptions.filter(o => o.delivery === 'unsupported');
   if (unsupported.length) notes.push(`Not playable here: ${unsupported.map(o => o.label).join('; ')}.`);
   if (audio?.delivery === 'rebuilt') notes.push(`${audio.track.label} audio is converted on this device as it plays.`);
-
-  // A plain single-track MP4/WebM goes to the browser as-is: nothing to choose, nothing to unpack.
-  const simple = NATIVE_CONTAINERS.test(info.container) && info.video.length <= 1 && info.audio.length <= 1 && !subtitles.length
-    && (!video || caps.native(`video/${/webm/i.test(info.container) ? 'webm' : 'mp4'}; codecs="${video.codecString}"`))
-    && (!audio || audio.delivery === 'direct');
-  return {mode: simple ? 'native' : 'remux', video, audio, audioOptions, subtitle, subtitleOptions, notes};
+  return {mode: 'remux', video, audio, audioOptions, subtitle, subtitleOptions, notes};
 }
 
 export function subtitleLabel(s) {

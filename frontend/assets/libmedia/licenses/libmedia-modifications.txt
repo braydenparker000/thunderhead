@@ -14,3 +14,7 @@ are unmodified. Original source: libmedia commit
 
 Upstream copyright and LGPLv3 terms continue to apply. This modification is
 provided under those same terms; see the accompanying license texts.
+
+Added 2026-11-10: the decoder builds mpeg2video, mpeg4, msmpeg4, mjpeg, theora,
+h263, wmv, wma, speex, adpcm and vvc (decode/<name>-simd.wasm), copied
+unmodified from dist/decode/ of the same libmedia commit.

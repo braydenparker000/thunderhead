@@ -208,7 +208,7 @@ export class RemuxSession extends EventTarget {
       await output.start();
       for await (const sample of sink.samples(from)) {
         if (this.audio !== choice || !await this.room('audio', sample.timestamp, generation)) { sample.close(); await output.cancel(); return; }
-        if (sample.timestamp + sample.duration > 0) await source.add(sample);
+        if (sample.timestamp >= 0) await source.add(sample); // an MP4's first sample can start a few milliseconds before zero, which the writer refuses
         sample.close();
       }
     } else {
@@ -221,6 +221,7 @@ export class RemuxSession extends EventTarget {
       let first = true;
       for await (const packet of sink.packets(start)) {
         if (this.audio !== choice || !await this.room('audio', packet.timestamp, generation)) { await output.cancel(); return; }
+        if (packet.timestamp < 0) continue;
         await source.add(packet, first ? {decoderConfig: choice.track.decoderConfig} : undefined);
         first = false;
       }

@@ -9,7 +9,7 @@ import {probe, describeInfo} from './probe.js';
 import {planPlayback, audioLabel, subtitleLabel} from './plan.js';
 import {mseSupports, nativeCanPlay, canEncodeAudio, deviceReport} from './capabilities.js';
 import {RemuxSession} from './remux.js';
-import {SoftwareSession, softwareAudio, SOFTWARE_VIDEO} from './software.js';
+import {SoftwareSession, softwareAudio, softwareVideo} from './software.js';
 import {HttpSource} from './http-source.js';
 import {MkvSubtitleScanner, Mp4SubtitleScanner} from './embedded-subtitles.js';
 import {remoteFileHash, HASH_CHUNK} from './file-hash.js';
@@ -75,6 +75,9 @@ export class AstraPlayer extends EventTarget {
     video.addEventListener('error', this.onVideoError);
     this.onFirstFrame = () => { this.started = true; };
     video.addEventListener('loadeddata', this.onFirstFrame);
+    // Whether the film was running, kept apart from `paused`, which an error also sets.
+    this.onRun = e => { if (e.type === 'playing') this.playing = true; else if (!video.error) this.playing = false; };
+    for (const type of ['playing', 'pause']) video.addEventListener(type, this.onRun);
     this.onTimeUpdate = () => { if (this.hls || this.dash) this.pullTextTrackCues(); };
     video.addEventListener('timeupdate', this.onTimeUpdate);
   }
@@ -88,6 +91,14 @@ export class AstraPlayer extends EventTarget {
    */
   fail(message, detail, {decode = false, network = false} = {}) {
     if (!this.started && decode && this.canFallBack()) { this.fallBack(message); return; }
+    // While playing, a decoder that gives up (a seek into an open GOP in Chrome's
+    // own decoder, a hardware decoder taken away) is met first with a fresh
+    // pipeline at the same place, then with the software decoder.
+    if (this.resuming) return;
+    if (this.started && decode && this.video.error) {
+      if (this.canResume()) { this.resume(message); return; }
+      if (this.canFallBack()) { this.fallBack(message, this.playing); return; }
+    }
     // One stop is reported once, however many pipelines noticed it.
     if (this.failedLoad === this.load_) return;
     this.failedLoad = this.load_;
@@ -95,12 +106,38 @@ export class AstraPlayer extends EventTarget {
     this.emit('error', {message, detail, plan: this.plan, network});
   }
 
-  canFallBack() {
-    const v = this.info?.video?.[0];
-    return !this.fellBack && ['remux', 'native'].includes(this.mode) && this.caps?.software && !!this.info && (!v || SOFTWARE_VIDEO.has(v.codec)) && this.readable;
+  /** A decode error while a re-wrapped file plays is met once with a fresh pipeline at that place. */
+  canResume() {
+    return this.mode === 'remux' && !(performance.now() - this.resumedAt < 10000) && !this.probed?.source?.closed;
   }
 
-  async fallBack(reason) {
+  async resume(reason) {
+    const id = this.load_, at = this.video.currentTime, playing = this.playing, subtitle = this.selectedSubtitle;
+    this.resumedAt = performance.now();
+    this.resuming = true;
+    this.record('resume', {at: +at.toFixed(2), reason});
+    this.session?.destroy();
+    const chosen = this.audio.find(a => a.id === this.selectedAudio)?.option;
+    if (chosen && this.plan.audio) this.plan = {...this.plan, audio: {track: chosen.track, delivery: chosen.delivery}};
+    try {
+      await this.startRemux(at);
+      if (id !== this.load_) return;
+      if (this.selectedSubtitle !== subtitle) this.selectSubtitle(subtitle);
+      if (playing) this.video.play().catch(() => {});
+      this.resuming = false;
+    } catch (error) {
+      if (id !== this.load_) return;
+      this.resuming = false;
+      this.fail(reason, String(error?.message || error), {decode: true});
+    }
+  }
+
+  canFallBack() {
+    const v = this.info?.video?.[0];
+    return !this.fellBack && ['remux', 'native'].includes(this.mode) && this.caps?.software && !!this.info && (!v || softwareVideo(v)) && this.readable;
+  }
+
+  async fallBack(reason, play = true) {
     const id = this.load_, at = this.video.currentTime || this.startTime || 0;
     this.fellBack = true;
     this.record('fallback', reason);
@@ -121,7 +158,7 @@ export class AstraPlayer extends EventTarget {
       await this.startSoftware(at);
       if (id !== this.load_) return;
       this.emit('tracks');
-      this.video.play().catch(() => {});
+      if (play) this.video.play().catch(() => {});
       this.emit('ready', this.plan);
     } catch (error) {
       if (id !== this.load_) return;
@@ -136,7 +173,7 @@ export class AstraPlayer extends EventTarget {
   async load({url, headers = {}, startTime = 0, autoplay = false, prefs = {}, subtitles = []}) {
     const id = ++this.load_;
     this.reset();
-    Object.assign(this, {url, headers, startTime, started: false, fellBack: false});
+    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, resuming: false, resumedAt: NaN});
     const languages = prefs.languages || preferredLanguages();
     const controller = new AbortController();
     this.abort = controller;
@@ -232,9 +269,10 @@ export class AstraPlayer extends EventTarget {
     this.audio = streams.map((s, i) => {
       const track = known.length === streams.length ? known[i] : null;
       const option = track && plan.audioOptions?.find(o => o.track === track);
-      const supported = track ? softwareAudio(track.codec) : true;
-      return {id: 'sw:' + s.id, stream: s.id, label: option?.label || s.title || languageName(s.language) || `Track ${i + 1}`, language: track?.language || s.language, supported, reason: supported ? '' : option?.reason, delivery: 'software'};
+      const supported = s.decodable && (track ? softwareAudio(track) : true);
+      return {id: 'sw:' + s.id, stream: s.id, label: option?.label || s.title || languageName(s.language) || `Track ${i + 1}`, language: track?.language || s.language, supported, reason: supported ? '' : option?.reason || 'This audio format cannot be decoded in a browser.', delivery: 'software'};
     });
+    if (session.silent) this.plan = {...plan, notes: [...(plan.notes || []), 'The sound in this file cannot be decoded in a browser, so it plays without sound.']};
     this.selectedAudio = this.audio.find(a => streams.find(s => s.id === a.stream)?.active)?.id ?? this.audio[0]?.id ?? null;
     if (plan.subtitle) this.selectSubtitle(plan.subtitle.id);
   }
@@ -457,6 +495,7 @@ export class AstraPlayer extends EventTarget {
     this.load_++;
     this.reset();
     this.video.removeEventListener('error', this.onVideoError);
+    for (const type of ['playing', 'pause']) this.video.removeEventListener(type, this.onRun);
     this.video.removeEventListener('loadeddata', this.onFirstFrame);
     this.video.removeEventListener('timeupdate', this.onTimeUpdate);
     this.subtitles.destroy();
