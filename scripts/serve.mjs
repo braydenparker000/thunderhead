@@ -46,8 +46,9 @@ async function labList(api, build) {
 /** `api`: serve the site as staged for that API address (config.js and CSP); `build`: the release
  * number in sw.js, precache.json and config.js (a test serves build A, then B). */
 export function serve(port = 0, { api = '', build = 1 } = {}) {
-  const opts = { api, build };
+  const opts = { api, build, up: true };
   const server = createServer(async (req, res) => {
+    if (!opts.up) { req.socket.destroy(); return; }   // no signal: the connection just drops
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^[/\\]+/, '');
     if (path.startsWith('..')) { res.writeHead(400).end(); return; }
     if (path === '' || path.endsWith('/')) path += 'index.html';
@@ -64,6 +65,9 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
   });
   /** Switch to another release without restarting (the service worker update test). */
   server.release = (build) => { opts.build = build; };
+  /** With `false` every request fails as it does with no signal, for pages and the service worker alike (a browser's
+   * own offline switch does not always reach the worker); `true` brings it back. */
+  server.signal = (up) => { opts.up = up; };
   return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 

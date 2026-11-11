@@ -3,6 +3,8 @@
 // lists (/lab/editor/ and the engine at /lab/engine/); with no signal the editor then opens, its engine's worker and
 // decoder too. A later release fetches only the files that changed, and with no signal an older release's editor
 // still opens. The owner's switch (photos.offline) turns the keeping off.
+// "No signal" is the test server dropping every connection (scripts/serve.mjs `signal`), not the browser's offline
+// switch: on CI that switch did not reach the service worker, which then fetched what the test said it could not.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -35,7 +37,7 @@ async function openEditor(page) {
 const labCaches = (page) => page.evaluate(async () => (await caches.keys()).filter((n) => n.startsWith('th-lab-')).sort());
 
 test('opened once with a signal, the editor opens with none: its page, its engine, the decoder', opts, async () => {
-  server.release(1);
+  server.release(1); server.signal(true);
   const { context, page } = await controlled();
   assert.deepEqual(await labCaches(page), [], 'nothing of the editor is kept before it is opened');
   await openEditor(page);
@@ -44,7 +46,7 @@ test('opened once with a signal, the editor opens with none: its page, its engin
   assert.equal(kept.kept, true, kept.why);
   assert.ok(kept.fetched > 10_000_000, `the editor and its engine were fetched (${kept.fetched} bytes)`);
   assert.deepEqual(await labCaches(page), ['th-lab-1']);
-  await context.setOffline(true);
+  server.signal(false);   // no signal, for the page and the worker alike
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#stage header');
   assert.match(await page.textContent('#stage header'), /Library/);
@@ -53,8 +55,9 @@ test('opened once with a signal, the editor opens with none: its page, its engin
     .map(async (u) => { const r = await fetch(u); return r.ok ? (await r.arrayBuffer()).byteLength > 0 : false; })));
   assert.deepEqual(got, [true, true, true, true, true]);
   assert.equal(await page.evaluate(() => crossOriginIsolated), true, 'still isolated from the kept page, so the decoder has its threads');
+  assert.equal(await page.evaluate(() => fetch('/release.json').then(() => 'answered', () => 'no signal')), 'no signal', 'the server really is out of reach');
   // Opened again with a signal, nothing is fetched twice.
-  await context.setOffline(false);
+  server.signal(true);
   await page.evaluate(() => { window.__kept = null; });
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(() => window.__kept, null, { timeout: 30000 });
@@ -63,7 +66,7 @@ test('opened once with a signal, the editor opens with none: its page, its engin
 });
 
 test('a later release fetches only what changed, and with no signal the release before still opens', opts, async () => {
-  server.release(1);
+  server.release(1); server.signal(true);
   const { context, page } = await controlled();
   await openEditor(page);
   await page.waitForFunction(() => window.__kept?.kept, null, { timeout: 60000 });
@@ -77,12 +80,13 @@ test('a later release fetches only what changed, and with no signal the release 
   await page.waitForLoadState('load');
   await page.waitForFunction(async () => { const k = await caches.keys(); return k.includes('th-2') && !k.includes('th-1'); }, null, { timeout: 30000 });
   // With no signal before the editor was opened under release 2, release 1's editor opens.
-  await context.setOffline(true);
+  server.signal(false);   // no signal, for the page and the worker alike
   await page.goto(`${base}/lab/editor/`, { waitUntil: 'load' });
   await page.waitForSelector('#stage header');
-  assert.deepEqual(await labCaches(page), ['th-lab-1']);
+  assert.match(await page.textContent('#stage header'), /Library/);
+  assert.deepEqual(await labCaches(page), ['th-lab-1'], "release 2's cannot be fetched, so release 1's is what opened");
   // With a signal again it is kept as release 2's: nothing changed, so nothing is fetched, and release 1's goes.
-  await context.setOffline(false);
+  server.signal(true);
   await openEditor(page);
   await page.waitForFunction(() => window.__kept, null, { timeout: 60000 });
   const kept = await page.evaluate(() => window.__kept);
@@ -93,7 +97,7 @@ test('a later release fetches only what changed, and with no signal the release 
 });
 
 test('with "Keep the editor for offline use" off, nothing is kept', opts, async () => {
-  server.release(1);
+  server.release(1); server.signal(true);
   const { context, page } = await controlled({ 'photos.offline': 'false' });
   await openEditor(page);
   await page.waitForTimeout(1500);
