@@ -9,7 +9,8 @@ import { isNone } from '../../engine/crop.js';
 import { tilt } from '../../engine/level.js';
 import { START, curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
-import { forget, pickAt } from './adjust.js';
+import { pref, prefOn } from '/th/pref.js';
+import { auto, forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
@@ -95,11 +96,16 @@ export async function open(id) {
     if (cur !== me) { e.dispose(); return; }
     // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO and
     // most at the highest); one opened before keeps the start it was given then (none, before this was so).
-    me.noise0 = typeof edit.noise0 === 'number' ? edit.noise0 : typeof edit.Noise === 'number' ? 0 : noiseStart(r.meta.iso || 0);
+    me.noise0 = typeof edit.noise0 === 'number' ? edit.noise0 : typeof edit.Noise === 'number' || !prefOn('photos.new_noise', true) ? 0 : noiseStart(r.meta.iso || 0);
     if (typeof edit.Noise !== 'number') { me.values.Noise = me.noise0; if (past) for (const st of past.steps) st.st.values.Noise = me.noise0; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
+    // The owner's settings for a photo not opened before (Settings › Photos › Editor): the look it opens in, and Auto.
+    const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') === 'adobe-color' ? l.find((x) => x.label === 'Adobe Color') : null;
+    if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
+    r.meta.quick = pref('photos.demosaic') === 'faster';   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
     ready = true; place(); say(''); await draw(); if (cur === me) took.open = (performance.now() - began) / 1000;
+    if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       /** @type {any} */ (m.buffer).transfer?.(0);   // its 80 MB given back now: the GPU has its own copy

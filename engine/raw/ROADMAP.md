@@ -58,6 +58,13 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 
 ## Stage 2: the editor's own settings (M)
 
+**Begun 2026-11-11** (Settings › Photos › Editor, all kept on the phone and read when used): New photos open in
+(the camera's film simulation, or Adobe Color), Noise reduction by ISO, Auto tone on new photos, Double-tap zooms to
+(100 or 200 %), Full-size detail (Best, or Faster: the first look alone). Checked on a real RAF by hand: the repo
+holds none, so only Faster's picture is held by CI. Left of the list below: the starting Sharpening and Color
+noise, export defaults (the Export board already remembers its presets), the view's clipping levels, storage,
+and a starting point for each camera and lens.
+
 It reads none today. Speed against quality (demosaic Best or Faster; noise reduction and sharpening shown from
 50 %). What a new photo starts with (profile, Noise by ISO, Sharpening, lens corrections, hot pixels, Auto tone).
 Export defaults (format, quality, size, output sharpening, metadata, file name). The view (clipping levels,

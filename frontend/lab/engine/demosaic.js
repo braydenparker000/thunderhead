@@ -223,7 +223,8 @@ export const compile = (device) => pipes(device);
  * passes to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
  * is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
- * @param {{ phase: number[], black: number, white: number, wb: number[] }} info `wb`: the shot's white balance (red, green, blue)
+ * @param {{ phase: number[], black: number, white: number, wb: number[], quick?: boolean }} info `wb`: the shot's white balance (red, green, blue);
+ *   `quick`: the first look alone, about half the work (the owner's "Full-size detail: Faster")
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const [gauss, guess, level, mean, fix, again, level2, pick] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
@@ -248,11 +249,11 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
     const bx = first(rx, px), by = first(ry, py), bw = count(rx, rw, W, px), bh = count(ry, rh, H, py);
     const u = new ArrayBuffer(SIZE), n = new Int32Array(u), f = new Float32Array(u);
     n.set([rx, ry, rw, rh, bx, by, bw, bh, px, py]); f[10] = info.black; f[11] = 1 / (info.white - info.black);
-    const g1 = info.wb?.[1] || 1; f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1], 16);   // a photo with no white balance of its own: the colours as they are
+    const g1 = info.wb?.[1] || 1; f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, info.quick ? 1 : 0], 16);   // a photo with no white balance of its own: the colours as they are
     if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 20); }
     device.queue.writeBuffer(uni, 0, u);
     const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
-    steps.forEach((s, k) => { pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });
+    steps.forEach((s, k) => { if (info.quick && (k === 5 || k === 6)) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again
     pass.end();
   };
   return { out, run, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est]) b.destroy(); } };
