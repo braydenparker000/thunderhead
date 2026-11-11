@@ -30,9 +30,27 @@ let cache = [];
 const urls = /** @type {Map<string, string>} */ (new Map()), tiles = /** @type {Map<string, string>} */ (new Map());   // each photo's camera JPEG; its edit, small, where there is one
 /** Every photo, newest first (loaded once at start, then kept in step). */
 export const photos = () => cache;
+let safe = false;
+/** Whether the browser has promised to keep these photos (asked at start): without it, it may clear them when
+ * the phone runs low on space. */
+export const kept = () => safe;
+/** What a cut-off import left behind: a file copied with no record yet (the copy is the long part, so a page
+ * closed during it leaves one). Removed once an hour old (`age`, in ms), so a copy another tab is making now is
+ * left alone. */
+export async function sweep(age = 3600e3) {
+  const known = new Set(/** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).map((p) => p.id));
+  for (const folder of ['raw', 'jpg', 'thumb']) {
+    const d = await dir(folder);
+    for await (const [name, h] of /** @type {any} */ (d).entries()) {
+      if (h.kind !== 'file' || known.has(name.replace(/\.\w+$/, ''))) continue;
+      if (Date.now() - (await h.getFile()).lastModified >= age) await d.removeEntry(name).catch(() => {});
+    }
+  }
+}
 export async function init() {
-  navigator.storage?.persist?.().catch(() => {});
+  safe = (await navigator.storage?.persist?.().catch(() => false)) || false;
   cache = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).sort((a, b) => b.taken - a.taken);
+  sweep().catch(() => {});
   await Promise.all(cache.map(async (p) => {
     await jpegUrl(p.id);
     if (p.edited) try { tiles.set(p.id, URL.createObjectURL(await (await (await dir('thumb')).getFileHandle(`${p.id}.jpg`)).getFile())); } catch {}
@@ -48,11 +66,15 @@ export function embedded(buf) {
   return off + len <= buf.byteLength ? new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }) : null;
 }
 
-/** Copies RAFs onto the phone; `step(done, total)` after each. @param {File[]} files @param {(k: number, n: number) => void} step */
+/** Copies RAFs onto the phone; `step(done, total)` after each. A file already here (the same name, size and
+ * time) is not copied twice, so picking a set again after an import was cut off carries on where it stopped.
+ * Returns how many were copied and how many were here already.
+ * @param {File[]} files @param {(k: number, n: number) => void} step */
 export async function add(files, step) {
   const raws = files.filter((f) => /\.raf$/i.test(f.name));
-  let k = 0;
+  let k = 0, had = 0;
   for (const f of raws) {
+    if (cache.some((p) => p.name === f.name && p.size === f.size && p.taken === f.lastModified)) { had++; step(++k, raws.length); continue; }
     const buf = await f.arrayBuffer(), jpg = embedded(buf), id = crypto.randomUUID();
     await write('raw', `${id}.raf`, buf);
     if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); }
@@ -62,7 +84,7 @@ export async function add(files, step) {
     cache = [p, ...cache].sort((a, b) => b.taken - a.taken);
     step(++k, raws.length);
   }
-  return raws.length;
+  return { added: raws.length - had, had };
 }
 
 /** One RAF handed over by another part of the app (Photos' Edit, apps/photos/to-editor.js), kept under

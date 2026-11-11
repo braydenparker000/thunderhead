@@ -46,8 +46,11 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 - **Pictures checked in CI** (28, M): **built 2026-11-11** with it (`tests/lab-engine-pictures-browser.test.mjs`):
   a change that moves a picture by more than a rounding step fails until the reference is made again on purpose.
 - **Backup** (29, M): edits and originals to Drive, and back again on a new phone.
-- **Storage that stays** (new, S): ask the browser to keep the editor's storage for good, and show what it said.
-- **Nothing lost on a crash** (new, S): an export or an import that was cut off picks up where it stopped.
+- **Storage that stays** (new, S): **built 2026-11-11.** The browser is asked at start to keep the photos for good;
+  when it will not promise, the Library says so beside the space used.
+- **Nothing lost on a crash** (new, S): **built 2026-11-11.** A set picked again after an import was cut off copies
+  only what is missing; a file left with no record is cleared after an hour; an export the page did not live to
+  finish is offered again in the Library, once (`tests/lab-editor-keep-browser.test.mjs`).
 
 ## Stage 2: the editor's own settings (M)
 
