@@ -8,6 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const opts = { skip: Boolean(process.env.SITE_URL) && 'local only (a software GPU)', timeout: 240_000 };
 let server, browser, base;
@@ -64,15 +65,16 @@ test('a photo keeps how it was shot, and a series is matched to the open photo b
   assert.equal(kept.wb, 'Custom');
   // Find reads what is kept of each photo: every word typed must be there.
   await page.getByRole('button', { name: 'Import' }).click();
-  const shownFor = async (q) => { await page.getByLabel('Find photos').fill(q); await page.waitForTimeout(150); return page.evaluate(() => [...document.querySelectorAll('#stage .vscroll button[aria-label]')].map((b) => b.getAttribute('aria-label')).sort()); };
-  assert.deepEqual(await shownFor('known 35mm'), ['Over', 'R', 'Under'], 'the lens');
-  assert.deepEqual(await shownFor('iso 800'), ['Over']);
-  assert.deepEqual(await shownFor('1/400 f/4'), ['Under']);
-  assert.deepEqual(await shownFor('2026-03 jpeg'), ['Over', 'R', 'Under'], 'the month it was taken, by the camera');
-  assert.deepEqual(await shownFor('bare'), ['Bare'], 'a name');
-  assert.deepEqual(await shownFor('no such thing'), []);
+  const shown = () => page.evaluate(() => [...document.querySelectorAll('#stage .vscroll button[aria-label]')].map((b) => b.getAttribute('aria-label')).sort().join(' '));
+  const finds = async (q, want, why = q) => { await page.getByLabel('Find photos').fill(q); await until(async () => (await shown()) === want, { message: `Find “${q}” shows ${want || 'nothing'} (${why}); it shows ${await shown()}` }); };
+  await finds('known 35mm', 'Over R Under', 'the lens');
+  await finds('iso 800', 'Over');
+  await finds('1/400 f/4', 'Under');
+  await finds('2026-03 jpeg', 'Over R Under', 'the month it was taken, by the camera');
+  await finds('bare', 'Bare', 'a name');
+  await finds('no such thing', '');
   assert.match(await page.textContent('#stage header'), /0 of 4 photos/);
-  assert.deepEqual((await shownFor('')).length, 4);
+  await finds('', 'Bare Over R Under');
   await page.getByRole('button', { name: 'Import' }).click();
   // The sheet offers the match because a photo is open; a second tap runs it on the four shown.
   await page.getByText('Match the photos shown to the open one').click();

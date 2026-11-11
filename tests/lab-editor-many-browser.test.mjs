@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const opts = { skip: Boolean(process.env.SITE_URL) && 'local only (a software GPU)', timeout: 240_000 };
 let server, browser, base;
@@ -50,6 +51,7 @@ test('the photos shown are exported one after another, with the files the Export
   assert.match(await page.textContent('#stage'), /Full PNG and Small JPEG of each of the 1 photo shown \(Picks\), to Downloads/);
   await page.getByText('Export 1 photo? Tap again').click();
   await page.waitForFunction(() => /Done · 2 files from 1 photo in Downloads/.test(document.querySelector('#stage')?.textContent ?? ''), null, { timeout: 120_000 });
+  await until(() => saved.length === 2, { message: 'the two downloads reached the test (the browser tells of them a moment after the page is done)' });
   assert.deepEqual(saved.map((d) => d.suggestedFilename()).sort(), ['B.png', 'B_small.jpg']);
   // Each file is the photo as edited, at its size: brighter than the file that came in.
   const sizes = await Promise.all(saved.map(async (d) => { const path = await d.path(); return page.evaluate(async (bytes) => { const bm = await createImageBitmap(new Blob([new Uint8Array(bytes)])); const g = new OffscreenCanvas(bm.width, bm.height).getContext('2d'); g.drawImage(bm, 0, 0); return [bm.width, bm.height, g.getImageData(5, 5, 1, 1).data[1]]; }, [...(await import('node:fs')).readFileSync(path)]); }));
@@ -62,6 +64,7 @@ test('the photos shown are exported one after another, with the files the Export
   await page.getByText('Export the photos shown').click();
   await page.getByText('Export 3 photos? Tap again').click();
   await page.waitForFunction(() => /Done · 6 files from 3 photos in Downloads/.test(document.querySelector('#stage')?.textContent ?? ''), null, { timeout: 150_000 });
+  await until(() => saved.length === 8, { message: 'the six downloads reached the test' });
   assert.deepEqual(saved.slice(2).map((d) => d.suggestedFilename()).sort(), ['A.png', 'A_small.jpg', 'B.png', 'B_small.jpg', 'C.png', 'C_small.jpg']);
   assert.equal(await page.evaluate(async () => (await import('/lab/editor/app/session.js')).current()?.id), b, 'the photo that was open is open again');
   assert.deepEqual(errors, []);
