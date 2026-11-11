@@ -10,7 +10,7 @@
 // A page loaded this way knows it (`document.prerendering`); what should only happen once it is
 // seen waits for that: nothing is sensed (th/senses/send.js), and the browser itself holds back
 // sound, notifications and the like until the page is shown.
-import { appFor } from '/th/registry/apps.js';
+import { appFor, landing } from '/th/registry/apps.js';
 
 /** The apps that open inside home (th/island/island.js LAYERED; a test holds the two equal). */
 export const IN_HOME = Object.freeze(['music', 'podcasts']);
@@ -28,7 +28,7 @@ export function ahead(id) {
   if (!can || !app?.built || pref('gestures.prewarm') === 'false') return null;
   if (/** @type {any} */ (navigator).connection?.saveData) return null;
   if (IN_HOME.includes(app.id) && document.documentElement.dataset.island !== 'off') return null;
-  return app.path;
+  return landing(app.path);
 }
 
 /** @type {HTMLScriptElement | null} */

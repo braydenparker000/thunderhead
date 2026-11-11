@@ -1,6 +1,6 @@
 // Thunderhead home: one quiet chat screen. Hold still for the Compass ring, swipe right for the briefing, swipe left for the menu.
 // The ring's apps come from the app registry (th/registry/apps.js, EXTENDING.md rule 3).
-import { ringApps } from '/th/registry/apps.js';
+import { landing, ringApps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
 import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
@@ -96,7 +96,7 @@ function openFromRing(id,color,to){
   // filled or outlined; built again when either changes. Hold time and swipe start are theirs too.
   const pref=k=>{ try{ return localStorage.getItem('th.s.'+k) }catch(e){ return null } }, num=(k,d)=>Number(pref(k))||d, EDGE=20; // EDGE: px from the screen's side that are the phone's own back gesture (Edge back guard)
   const ringNow=()=>{ try{ return ringApps(JSON.parse(pref('gestures.ring_apps')||'null')) }catch(e){ return ringApps(null) } };
-  const skin=a=>{ const g=root.dataset.glyphs==='outline'?'':'-fill'; return [a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}${g}"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}${g}"/></svg></span>`,a.color,a.built?a.path:''] };
+  const skin=a=>{ const g=root.dataset.glyphs==='outline'?'':'-fill'; return [a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}${g}"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}${g}"/></svg></span>`,a.color,a.built?landing(a.path):''] };
   let apps=ringNow(), APPS=apps.map(skin);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
@@ -122,7 +122,7 @@ function openFromRing(id,color,to){
   };
   let petMotion=pets.map(motionOf);
   function rebuild(){ if(open) return; pets.forEach(p=>p.remove()); apps=ringNow(); APPS=apps.map(skin); N=APPS.length; SEC=Math.PI*2/N; HOLD=.5+7*N/360; pets=APPS.map(pet); petMotion=pets.map(motionOf); built=null }
-  document.addEventListener('th:setting',e=>{ if(['gestures.ring_apps','appearance.glyphs'].includes(e.detail?.key)) rebuild() });
+  document.addEventListener('th:setting',e=>{ if(['gestures.ring_apps','appearance.glyphs','photos.editor'].includes(e.detail?.key)) rebuild() });
   // The glass starts to fade in as the discs pass 85% of the way out with their speed falling (GESTURES.md §3).
   function glassy(v,speed){ if(!opening) return; peak=Math.max(peak,speed); if(v>=.85&&(speed<peak||speed===0)){ opening=false; ring.classList.add('glassy') } }
   const engines=()=>petMotion.flatMap(m=>[m.radial,m.size,m.choice,m.face]);

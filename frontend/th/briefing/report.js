@@ -6,6 +6,7 @@
 // `th undo` on that row; an undone line says so. The tile stays open across the page's redraws.
 // Text is set with textContent only.
 import { api, signedIn } from '../client.js';
+import { landing } from '../registry/apps.js';
 import { el, toast } from '../ui.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').ReportTile} ReportTile */
@@ -42,7 +43,7 @@ export function reportTile(t, icon, changed) {
 /** @param {string} day @param {ReportTile['lines'][number]} l @param {() => void} changed */
 function line(day, l, changed) {
   const li = el('li', { class: 'rline' });
-  li.append(l.path ? el('a', { class: 'rt', href: l.path, text: l.text }) : el('span', { class: 'rt', text: l.text }));
+  li.append(l.path ? el('a', { class: 'rt', href: landing(l.path), text: l.text }) : el('span', { class: 'rt', text: l.text }));
   const key = `${day}|${l.ledger_id}`;
   const done = () => {
     li.classList.add('undone');

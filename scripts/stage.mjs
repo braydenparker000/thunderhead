@@ -167,7 +167,9 @@ const budgets = [
   // (2026-11-11, settings) +53 measured (116,499 → 116,552): Fold long replies and Reply reveal are read.
   // (2026-11-11, back to home) +457 measured (116,552 → 117,009): the live socket is let go as home is
   // left and taken up again when home is shown from the back/forward cache.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 117_009],
+  // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
+  // th/registry/apps.js, the one rule for where Photos' front page lands.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 117_772],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

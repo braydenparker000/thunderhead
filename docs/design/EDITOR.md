@@ -150,7 +150,7 @@ high-contrast view for dust. Keys: UNDO SPOT, CLEAR ALL. *Engine:* heal (blended
 
 ## In the app (2026-11-11)
 
-The editor is the app's editor for RAFs: Photos' Edit hands a photo over and the editor opens it straight in Edit (`/lab/editor/?open=<id>&from=photos`; [PHOTOS.md §4](../product/apps/PHOTOS.md)). The back arrow in Edit then returns to Photos. Opened on its own (`/lab/editor/`), it starts at its Library as before. It still lives under `/lab/`, so it is not in the offline precache and its page reaches nothing outside this site; moving it to its own address, sending its edits to the Worker and retiring the editor before are the next steps, once the owner has used it.
+Since the owner's word later that day the editor **is** Photos: every way into Photos from the app lands in its Library (`landing()` in `th/registry/apps.js`; [PHOTOS.md §4](../product/apps/PHOTOS.md)), and its page is titled Photos. From the shelf before, kept on hand, Photos' Edit still hands a photo over and the editor opens it straight in Edit (`/lab/editor/?open=<id>&from=photos`; [PHOTOS.md §4](../product/apps/PHOTOS.md)). The back arrow in Edit then returns to Photos. Opened on its own (`/lab/editor/`), it starts at its Library as before. It still lives under `/lab/`, so it is not in the offline precache and its page reaches nothing outside this site; moving it to its own address, sending its edits to the Worker and retiring the editor before are the next steps, once the owner has used it.
 
 ## Mock-up shortcuts the build does properly
 

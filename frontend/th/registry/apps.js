@@ -43,6 +43,20 @@ export const apps = Object.freeze(
 /** @param {string} id @returns {AppEntry | null} */
 export const appFor = (id) => apps.find((a) => a.id === id) ?? null;
 
+/** Where the new editor lives (docs/design/EDITOR.md): Photos, since the owner's word of 2026-11-11. */
+export const EDITOR_PATH = '/lab/editor/';
+/** Where opening a place really lands. Photos' front page is the new editor's Library: the ring, a
+ * chip, a tile and the mind's `app.open` all go there. The shelf before is kept at `/photos/` for a
+ * link into it (`?photo=`, `?edit=`, `?day=`) and comes back as Photos' front page while Settings →
+ * Photos → Editor is Classic. Every other place lands where it says. @param {string} path */
+export function landing(path) {
+  if (path !== '/photos/') return path;
+  try {
+    if (localStorage.getItem('th.s.photos.editor') === 'classic') return path;
+  } catch {}
+  return EDITOR_PATH;
+}
+
 const PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@/?#%-]*$/;
 
 /** A place the shell may open: a shipped app's folder or a path inside it, resolved the way the

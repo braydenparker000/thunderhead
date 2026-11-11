@@ -98,7 +98,7 @@ test('Edit on a RAF hands its original to the new editor, once; the editor opens
   assert.deepEqual(await kept(page), [{ id: here, name: 'DSCF0042.RAF', source: `photos:${ID}`, taken: Date.UTC(2026, 9, 3, 10, 0), bytes: state.raf.length }]);
   // Straight into Edit, on that photo: its name in the header, the Library one step away.
   await page.waitForFunction(() => /DSCF0042/.test(document.querySelector('#stage header')?.textContent ?? ''));
-  assert.equal(await page.title(), 'Editor');
+  assert.equal(await page.title(), 'Photos');
   // The editor's own back arrow returns to Photos, at the photo.
   await Promise.all([page.waitForURL(new RegExp(`/photos/\\?photo=${ID}$`)), page.click('#stage header button[aria-label="Back to Photos"]')]);
   // Edit again: the copy is found, Drive is not asked, and nothing is copied twice.

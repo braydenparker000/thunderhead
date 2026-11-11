@@ -13,6 +13,7 @@
 // breathing; a long press on a tile moves or hides it, kept on this phone. Text is set with
 // textContent only.
 import { api, signedIn } from '../client.js';
+import { landing } from '../registry/apps.js';
 import { kv } from '../idb.js';
 import { buzz } from '../motion.js';
 import { el, toast } from '../ui.js';
@@ -67,7 +68,7 @@ export async function startBriefing() {
       const ledger = t.dataset.ledger;
       (ledger ? import('../senses/send.js').then((m) => m.sense('briefing.tile', `ledger:${ledger}`)) : Promise.resolve())
         .catch(() => {})
-        .finally(() => location.assign(path));
+        .finally(() => location.assign(landing(path)));
     }
     else if (t.dataset.go === 'weather' && shown?.weather) {
       const w = shown.weather;
