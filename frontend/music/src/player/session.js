@@ -6,14 +6,26 @@
 // Two records in the library's state store: 'queue' (small, written often) and 'queue-list' (the
 // list's song ids and play order, written only when the list or its order changes).
 
+import {groupKey} from '../library/group-key.js';
+
 const STATE = 'queue', LIST = 'queue-list';
 const SAVE_EVERY_MS = 10000; // the place in the song, while it plays
 
 /** The list that plays outside the Queue (in queue mode, the one it returns to), its play order and place. */
 function playingList(player) {
   const np = player.queueMode ? player.savedNP : null;
-  return np?.queue ? {list: np.queue, order: np.order ?? null, shuffle: np.orderShuffle, index: np.index}
-    : {list: player.queue, order: player.order ?? null, shuffle: player.orderShuffle, index: player.index};
+  return np?.queue ? {list: np.queue, order: np.order ?? null, shuffle: np.orderShuffle, index: np.index, category: np.category ?? null}
+    : {list: player.queue, order: player.order ?? null, shuffle: player.orderShuffle, index: player.index, category: player.category ?? null};
+}
+
+/** The category the list came from, named so list/category-ref.js can find it again: {home, key}, or null. */
+function categoryRef({category: c, index}) {
+  if (!c?.source?.home) return null;
+  // In Shuffle All the list spans every category: the one the playing song is in.
+  let i = c.index;
+  if (c.spans) { let start = 0; i = 0; while (i < c.spans.length - 1 && index >= start + c.spans[i]) start += c.spans[i++]; }
+  const key = groupKey(c.source.groups?.[i]);
+  return key ? {home: c.source.home, key} : null;
 }
 
 const sameSongs = (a, b) => a === b || (a.length === b.length && a.every((t, i) => t?.id === b[i]?.id));
@@ -26,7 +38,7 @@ export function stateOf(player, library) {
   return {
     trackId: t.id, positionMs: player.positionMs(), shuffle: player.shuffle, repeat: player.repeat,
     entries: player.entries.map(e => ({id: e.track.id, created: e.created, played: e.played})),
-    queueMode: player.queueMode, npTrackId: np?.queue?.[np.index]?.id ?? null, listIndex: at.index,
+    queueMode: player.queueMode, npTrackId: np?.queue?.[np.index]?.id ?? null, listIndex: at.index, category: categoryRef(at),
   };
 }
 
@@ -65,6 +77,8 @@ export function restore(player, library, saved, savedList) {
   let index = saved?.listIndex;
   if (!(Number.isInteger(index) && list[index]?.id === wanted)) index = Math.max(0, list.findIndex(t => t.id === wanted));
   player.setQueue(list, index);
+  // The category list it came from, when the list is still that category's (list/category-ref.js; none in tests of the player alone).
+  if (saved?.category) player.ctx?.restoreCategory?.(saved.category);
   const order = whole && savedList?.shuffle === player.shuffle && validOrder(savedList?.order, list.length) ? savedList.order : null;
   if (order) { player.order = order; player.orderShuffle = player.shuffle; player.orderQueueMode = false; }
   if (saved?.queueMode) {

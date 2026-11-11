@@ -1133,9 +1133,11 @@ fetched for instant skips (`PRELOAD_S`, `HEADS_AHEAD`, `library/heads.js`, untou
 playing (an album, a playlist, a search), its play order, the Queue, the song and its place all come
 back (`player/session.js`); before, the song came back inside the whole library, and a shuffle
 started over. The place in the song is saved every ten seconds while it plays, and when the page is
-hidden, frozen or closed (it was saved only at a song change or a pause). Not kept: which category
-list the playing list came from, so after a restart the swipe to the next album waits for the next
-list the owner starts.
+hidden, frozen or closed (it was saved only at a song change or a pause). The category list the
+playing list came from is found again too when it is a top-level library list (Albums, Artists,
+Genres, Folders, Playlists...: `list/category-ref.js`), so the swipe to the next album, Advance List
+at an album's end and the list behind the cover go on as before the restart. Not found again: a list
+started from inside an entry's own albums (an artist's album), which plays on without a category.
 
 **Lag** (a 7,500-song library, the page's thread slowed four times, `tests` aside):
 
