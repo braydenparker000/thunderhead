@@ -1,7 +1,7 @@
-# Photos: the road map to the end game (proposed 2026-11-11)
+# Photos: the road map to the end game (agreed 2026-11-11)
 
-Proposed to the owner, who asked to see the whole road with no stops and with new features added. **Nothing
-here starts before the owner says go.** [REVIEW.md](REVIEW.md) holds the reasoning (every step of the pipeline,
+Proposed to the owner, who asked to see the whole road with no stops and with new features added, and then
+said go (answers below). Work through it in order. [REVIEW.md](REVIEW.md) holds the reasoning (every step of the pipeline,
 ours against the best known); [STATUS.md](STATUS.md) says what is built. Step numbers in brackets are REVIEW.md's.
 
 Sizes: **S** one pull request, **M** several, **L** a project of its own. "New" marks a feature not asked for
@@ -22,15 +22,15 @@ Photos on the phone is the whole of the owner's photography, from the card to th
 What it will not be, said plainly: DxO's or Adobe's denoise (years of training on hardware we do not have),
 generative fill of Adobe's quality, or anything that needs more than the phone's 4 GB.
 
-## So that nothing stops: the owner's answers wanted once, up front
+## The owner's answers (2026-11-11): go, with no stops
 
-1. Backups go to the owner's Google Drive: yes or no.
-2. Models may be downloaded to the phone once (10 to 60 MB each): yes or no.
-3. Training a network may use a rented GPU (money) or only this session's CPU (free, smaller networks).
-4. The Thunderhead may look at photos (they would leave the phone to reach it), or only at their facts
-   (date, camera, lens, rating), or neither.
+1. Backups go to the owner's Google Drive, **but nothing may depend on it**: the editor works whole without Drive.
+2. Models may be downloaded to the phone once.
+3. Training uses only free computing (this session's CPU), and only if the result can actually be good: if it
+   cannot, say so and do not sink time into it.
+4. The Thunderhead may look at the photos.
 5. The old editor may be retired when stage 5 is done.
-6. Lightroom or Capture One exports and a high-ISO RAF, whenever they come: nothing waits on them but stage 4.
+6. Lightroom or Capture One exports and a high-ISO RAF come when they come: nothing waits on them but stage 4.
 
 ## Stage 0: agreed already
 
@@ -114,7 +114,7 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   photo is going** (new, S to M). **A contact sheet and print layouts** (new, M).
 - **An edit saved as a `.cube` table** (new, S), to use the owner's look elsewhere.
 
-## Stage 10: the Thunderhead in Photos (only as far as answer 4 allows)
+## Stage 10: the Thunderhead in Photos
 
 - With facts only: "the photos from Saturday on the 35 mm", a week's keepers as a briefing tile, reminders to
   back up or clear the card.

@@ -6,7 +6,8 @@ says what is built; this says how good it is and what would make it better.
 
 ## Where things stand with the owner
 
-- The owner asked for no new work until it has been talked through.
+- The owner asked for no new work until it had been talked through, then agreed the road map and said go
+  (ROADMAP.md has their answers).
 - Agreed, not yet built: a reminder or a rule may go through in a session that has read the web when its words are
   the owner's own from the message it names (the two night-report options are in `docs/product/BRIEFING.md`).
 - Agreed: the hot-pixel pull request's failed job (the runner could not reach Ubuntu's mirror) may be run again.
