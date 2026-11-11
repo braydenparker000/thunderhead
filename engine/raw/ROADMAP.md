@@ -62,8 +62,8 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 (the camera's film simulation, or Adobe Color), Noise reduction by ISO, Auto tone on new photos, Double-tap zooms to
 (100 or 200 %), Full-size detail (Best, or Faster: the first look alone). Checked on a real RAF by hand: the repo
 holds none, so only Faster's picture is held by CI. Left of the list below: the starting Sharpening and Color
-noise, export defaults (the Export board already remembers its presets), the view's clipping levels, storage,
-and a starting point for each camera and lens.
+noise, the view's clipping levels, storage, and a starting point for each camera and lens. (Export defaults: the
+Export board's two files are kept on the phone since the export of many, stage 5.)
 
 It reads none today. Speed against quality (demosaic Best or Faster; noise reduction and sharpening shown from
 50 %). What a new photo starts with (profile, Noise by ISO, Sharpening, lens corrections, hot pixels, Auto tone).
@@ -162,7 +162,11 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 - **The library grows up** (new, M): ratings, flags, albums, search by date, camera, lens, ISO; bursts and
   brackets shown as one stack; two photos side by side.
 - **Bring in from the card or the camera** (new, M): pick a folder on a card reader; over USB if the phone allows.
-- **Export many** (new, M): a queue that works through a whole album with the screen off.
+- **Export many: built 2026-11-11** (`app/save.js` `saveMany`). The Library's sheet exports every photo it is showing
+  (so: show Picks, export), each as it is edited, with the files the Export board has on; those two files are
+  now kept on the phone between visits (the export defaults of stage 2). Each photo is opened, developed from
+  its own pixels and saved to Downloads in turn; the screen is kept awake meanwhile, because a web page cannot
+  work with the screen off. Left: carrying on after the page is closed part-way, and a zip of the lot.
 - **Share: there already.** The Export board hands the files it saved to the phone's share sheet (`ExportPlate.js`).
 - A layout for a tablet or a laptop (new, M): the same editor with room to breathe, and keys.
 

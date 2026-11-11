@@ -6,7 +6,7 @@ import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
 import * as clip from '../app/clip.js';
-import { cutOff } from '../app/save.js';
+import { cutOff, presets, saveMany } from '../app/save.js';
 import * as backup from '../app/backup.js';
 
 const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
@@ -102,6 +102,16 @@ export default class Component extends DCLogic {
       const r = await clip.pasteOn(onto, (k, total) => this.setState({ progress: { label, k, total } }));
       this.setState({ pasting: false, progress: { label, k: n, total: n, done: `Done · pasted on ${count(r.done, 'photo')}${r.bad ? ` · ${r.bad} could not be opened` : ''}` } });
     };
+    // Export every photo shown, with the files the Export board has on (app/save.js): two taps, as for a paste
+    const out = real && this.app && S.view === 'grid' ? shown.filter((p) => p.key).map((p) => p.key) : [], kinds = presets().filter((x) => x.on), outArmed = Date.now() - (S.outArmed || 0) < 5000;
+    const exportAll = async () => {
+      if (!out.length || !kinds.length || S.pasting) return;
+      if (!outArmed) { set({ outArmed: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
+      const label = 'Exporting', n = out.length;
+      this.setState({ outArmed: 0, pasting: true, progress: { label, k: 0, total: n } });
+      const r = await saveMany(out, (k, total, part) => this.setState({ progress: { label, k, total, part } }));
+      this.setState({ pasting: false, progress: { label, k: n, total: n, done: `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}` } });
+    };
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
     const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
@@ -124,10 +134,11 @@ export default class Component extends DCLogic {
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
         ...(onto.length ? [{ glyph: '⎘', name: pasteArmed ? `Paste on ${count(onto.length, 'photo')}? Tap again` : 'Paste the copied edit', note: `${photo.stem(held?.name || '')}’s edit, onto the ${count(onto.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`} · each can undo it`, pick: pasteAll }] : []),
+        ...(out.length ? [{ glyph: '⇪', name: outArmed ? `Export ${count(out.length, 'photo')}? Tap again` : 'Export the photos shown', note: kinds.length ? `${kinds.map((x) => `${x.name} ${x.fmt}`).join(' and ')} of each of the ${count(out.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`}, to Downloads · the files are set on the Export board` : 'Both files are off on the Export board', pick: exportAll }] : []),
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
-      progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round((pr.k / pr.total) * 100) : 0,
+      progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),

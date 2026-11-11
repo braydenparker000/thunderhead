@@ -56,8 +56,8 @@
   </sc-if>
 
   <sc-if value="{{importing}}" hint-placeholder-val="{{false}}">
-    <div class="glass" role="dialog" aria-label="Import photos" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 14px; box-sizing: border-box; border-radius: 20px; z-index: 4">
-      <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px">Import photos</div>
+    <div class="glass" role="dialog" aria-label="Import and more" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 14px; box-sizing: border-box; border-radius: 20px; z-index: 4">
+      <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px">Import and more</div>
       <div style="font-size: 11px; color: #a6b0bc; margin-bottom: 10px">RAFs and JPEGs stay on this phone. Thumbnails come from the preview inside each RAF, so they appear at once.</div>
       <sc-for list="{{sources}}" as="o" hint-placeholder-count="3">
         <button onClick="{{o.pick}}" style="width: 100%; min-height: 50px; margin-bottom: 6px; padding: 8px 12px; box-sizing: border-box; border-radius: 14px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.07)">
