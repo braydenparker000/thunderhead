@@ -414,7 +414,7 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
 test('night steps come from the contract; the day comes from the briefing or --day', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const r = await th(['night', 'steps'], e);
-  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 5, 6, 8, 9, 12, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 12, the report, then 11, the songs, last before 10');
+  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 12, the report, then 11, the songs, last before 10');
   assert.deepEqual(r.json.steps.filter(s => s.cursor).map(s => s.step), [4]);
   assert.deepEqual(r.json.budget_min, {target: 30, hard: 45, sunday_hard: 60});
   assert.equal(fake.state.requests.length, 0, 'listing the steps asks the Worker nothing');

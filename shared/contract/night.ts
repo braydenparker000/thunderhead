@@ -86,6 +86,21 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P3',
   },
+  // The report (BRIEFING.md "The report card", 2026-11-04): what the night did, as the Briefing's
+  // first tile and the open day's first message. It comes right after health and before every step
+  // that reads outside text (2026-11-10): a session that has read any is labelled, and a labelled
+  // session's words may not reach the owner. It stood after the books and the Sunday evals, whose
+  // first command labels the session, so no Sunday night could ever report (BRIEFING.md "Why the
+  // night's report never came"). What the later steps do joins the report's counts when the run is
+  // done, never as words.
+  {
+    step: 12,
+    name: 'the report',
+    budget_min: 1,
+    idempotent: 'the same report again answers the stored one; a new one from the same session replaces it',
+    cursor: false,
+    phase: 'P4',
+  },
   // Indexing: from P7, reading Study's waiting books (mind/jobs/study-ingest.mjs: at most 2 books,
   // 10 minutes; a book not finished goes on the next night). The P5 indexing jobs join it later.
   {
@@ -114,18 +129,6 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P4',
     sunday: true,
   },
-  // The report (BRIEFING.md "The report card", 2026-11-04): what the night did, as the Briefing's
-  // first tile and the open day's first message. Before the songs, because reading songs' tags
-  // taints the session and a tainted session's words may not reach the owner; what step 11 then
-  // does joins the report's counts when the run is done, never as words.
-  {
-    step: 12,
-    name: 'the report',
-    budget_min: 1,
-    idempotent: 'the same report again answers the stored one; a new one from the same session replaces it',
-    cursor: false,
-    phase: 'P4',
-  },
   // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
   // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
   // number is the next free one; it runs last before the session note, after every step that
@@ -150,7 +153,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 and 11 between 9 and 10). */
+/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 after 5; 11 before 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;

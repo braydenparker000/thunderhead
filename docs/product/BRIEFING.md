@@ -201,6 +201,22 @@ The owner: the nightly briefing put no new cards or anything on the app. Counts 
 
 To confirm on the live Worker once a key can read it: `GET /v1/mind/wakes` (the `night` rows: status, `fire_status`, `fire_error`), the chat briefing's night line (which now names cut steps), `GET /v1/surfaces` (how many `tile` and `line` surfaces and their `written_at`), `GET /v1/ops/watchdogs` (`night.late`).
 
+## Why the night's report never came (2026-11-10)
+
+The owner: the nightly pass hasn't published anything. Counts and states only below; nothing personal.
+
+**What the last run showed.** The `mind-night` task fired at the day roll (04:00 local) and its session ran 1 min 51 s. Its day note came back labelled `outside`, the day's line and the report were refused (`session_tainted`), and the run ended `done` with steps 8, 9, 11, 12 and 13 skipped. So the page had no report tile and the day had no first message. (The task also has no clock schedule: the 06:07 fallback of [RUNTIME.md §2](../mind/RUNTIME.md) was never set, so a night the roll does not fire does not run. That is the owner's to add at claude.ai/code/routines.)
+
+**What was wrong, in order.**
+
+1. **Every `th` answer began with a warning.** In the night's environment Node's fetch already uses the session's proxy (`NODE_USE_ENV_PROXY=1`), so `th` never restarted itself, and the restart was the only place the warning "EnvHttpProxyAgent is experimental" was switched off. Fixed: `mind/bin/th` switches it off for every run.
+2. **The session filtered it, and the filter labelled the session.** It kept `grep -v …` in a shell variable and piped `th` through `$F`. The hooks' rule for outside text is an allowlist: a command it cannot read counts as outside text, and a variable used as a command was one. The label cannot be taken back, so everything after it was `outside`. Fixed: the rule reads a variable the same command line set to plain words and used nowhere else (`mind/hooks/lib/taint.mjs`, `plainVars`); anything the shell could act on in the value, or any other mention of the name, still counts as outside text.
+3. **The report stood after steps that always label the session.** It ran after the books and the Sunday evals, and `th eval begin` labels the session with its first command, so no Sunday night could report at all. Fixed: step 12 runs right after step 5 (`shared/contract/night.ts`); what the later steps do joins the report as counts, as the songs' work already did.
+
+**What stays.** A session that really has read outside text still cannot write the report or the day's line: that is the quarantine. `mind/skills/night.md` now says to run `th` plainly and, if a write comes back `outside` before the report, to end the run partial so the next night starts clean.
+
+**Not checked from here.** Whether earlier nights failed the same way: only the last run's record can be read from a coding session, and the private routes answer 401 to it. The next night's run is the proof.
+
 ## The calendar (built 2026-11-02)
 
 **The setting.** `briefing.calendars`, kind `links`: up to 3 `{ url, mine }`, each address once, https, ≤ 512 characters, no user, password or port, a public host neither numeric nor local (`linkProblem` in `shared/contract/settings.ts`, the same words on the phone and in the Worker's 422). Mine is the default; Shared marks someone else's or an organisation's feed. The addresses are kept only in Core's settings and read back only by the owner's devices; an agent's `GET /v1/settings` sees each link's host and mark.
@@ -221,7 +237,7 @@ The owner chose: the night's written report becomes an **expandable tile** on th
 - **The message:** posted once, when the report is first put; a replacement or an undo changes the tile, never the chat. Messages have no `visible_from`, so it shows when it is put (inside the quiet hours, with no push); the counts are its last paragraph, not a block. Its origin is the new `night`.
 - **Ledger:** every version is a row (`arrangement`, `briefing/report ← <day>`), the first one too: its undo removes the report.
 
-**Who writes it, and when.** The night, as step 12 "the report", placed after step 9 and before step 11 (the run: 1, 2, 3, 4, 7, 5, 6, 8, 9, 12, 11, 10). Before the songs, because reading songs' tags taints the session and a tainted session's words may not reach the owner; what step 11 then does joins the report as Worker counts, never as words. `th report --headline "<…>" --line <kind>:"<…>" …` → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
+**Who writes it, and when.** The night, as step 12 "the report", placed right after step 5 since 2026-11-10 (the run: 1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10; it stood after step 9, see "Why the night's report never came"). Before the books, the evals and the songs, because reading songs' tags taints the session and a tainted session's words may not reach the owner; what step 11 then does joins the report as Worker counts, never as words. `th report --headline "<…>" --line <kind>:"<…>" …` → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
 
 **Data shape** (`shared/contract/night-report.ts`; the counts' songs, mixes and pages are `number | null`, and the stored report also keeps `message_id`):
 

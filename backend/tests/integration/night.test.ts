@@ -195,17 +195,19 @@ describe('the run record', () => {
     const after7 = await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c');
     expect(after7.body).toEqual({ resume_from: 13, done: false, cursor: null, skipped: [] });
     expect((await night({ day: yday, action: 'step_done', step: 13 }, 'cse_night_c')).body.resume_from).toBe(5);
-    expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).body.resume_from).toBe(6);
+    // 12 (the report) right after health, before the steps that read outside text (6, 9, 11): a labelled session's report is refused.
+    expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).body.resume_from).toBe(12);
+    expect((await night({ day: yday, action: 'step_done', step: 12 }, 'cse_night_c')).body.resume_from).toBe(6);
     // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
     const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body).toEqual({
-      resume_from: sunday ? 9 : 12,
+      resume_from: sunday ? 9 : 11,
       done: false,
       cursor: null,
       skipped: sunday ? [8] : [8, 9],
     }); // P7
-    for (const step of sunday ? [9, 12] : [12]) await night({ day: yday, action: 'step_done', step }, 'cse_night_c');
-    // 12 (the report), then 11 (the songs) last before 10, after every step that writes memory: order is the list's.
+    if (sunday) await night({ day: yday, action: 'step_done', step: 9 }, 'cse_night_c');
+    // 11 (the songs) last before 10, after every step that writes memory: order is the list's.
     expect((await night({ day: yday, action: 'step_done', step: 10 }, 'cse_night_c')).status).toBe(409);
     expect((await night({ day: yday, action: 'step_done', step: 11 }, 'cse_night_c')).body.resume_from).toBe(10); // P5
     const r = await run(yday);

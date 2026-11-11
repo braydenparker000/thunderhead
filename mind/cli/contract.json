@@ -5013,6 +5013,14 @@
         "phase": "P3"
       },
       {
+        "step": 12,
+        "name": "the report",
+        "budget_min": 1,
+        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
+        "cursor": false,
+        "phase": "P4"
+      },
+      {
         "step": 6,
         "name": "indexing (Study’s books)",
         "budget_min": 10,
@@ -5037,14 +5045,6 @@
         "cursor": false,
         "phase": "P4",
         "sunday": true
-      },
-      {
-        "step": 12,
-        "name": "the report",
-        "budget_min": 1,
-        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
-        "cursor": false,
-        "phase": "P4"
       },
       {
         "step": 11,
