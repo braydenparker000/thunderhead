@@ -165,7 +165,9 @@ const budgets = [
   // (2026-11-04, settings second) +73 measured (116,426 → 116,499): the chat keeps the shell's
   // settings from its read and says the mind's name when Stop can't reach it.
   // (2026-11-11, settings) +53 measured (116,499 → 116,552): Fold long replies and Reply reveal are read.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_552],
+  // (2026-11-11, back to home) +457 measured (116,552 → 117,009): the live socket is let go as home is
+  // left and taken up again when home is shown from the back/forward cache.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 117_009],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

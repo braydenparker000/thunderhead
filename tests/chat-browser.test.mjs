@@ -779,6 +779,28 @@ test('an older long reply folds to 10 lines with Show all; the newest never fold
   await context.close();
 });
 
+test('leaving home lets the live socket go, so Back can show home whole; shown again, it reconnects and catches up', opts, async () => {
+  const { page, context, errors, api } = await open({ chat: { messages: [past(1, 'owner', 'Hello', 60_000), past(2, 'mind', 'Morning.', 50_000)] } });
+  await page.waitForSelector('#talk .reply');
+  await page.waitForFunction(() => window.__synced);
+  const live = () => api.calls.filter((c) => c.call === 'POST /v1/live/ticket').length;
+  await waitUntil(() => api.state.chat.sockets.length === 1);
+  const closed = new Promise((resolve) => api.state.chat.sockets[0].onClose((code) => resolve(code)));
+  const tickets = live();
+  // What the browser fires as the page goes into its back/forward cache.
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
+  assert.equal(await closed, 1000, 'the socket is closed cleanly');
+  // A message arrives while home is kept; shown again, home asks for a new socket and catches up.
+  api.state.chat.messages.push(past(3, 'mind', 'While you were away.', 1000));
+  api.state.chat.seq++;
+  api.state.chat.changes.push({ seq: api.state.chat.seq, kind: 'message', ref: null, at: Date.now() });
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  await waitUntil(() => api.state.chat.sockets.length === 2 && live() === tickets + 1);
+  await page.waitForFunction(() => /While you were away\./.test(document.querySelector('#talk')?.textContent ?? ''));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test("the owner's chat settings: no folding, the 12-hour clock, a reply that is simply there", opts, async () => {
   const prefs = () => { for (const [k, v] of [['chat.fold', 'false'], ['appearance.clock', '12'], ['chat.reveal', 'instant']]) localStorage.setItem(`th.s.${k}`, v); };
   const long = Array.from({ length: 24 }, (_, i) => `Line ${i + 1} of a long answer about the week.`).join('\n');

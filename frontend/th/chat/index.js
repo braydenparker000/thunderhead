@@ -602,11 +602,22 @@ export async function startChat() {
     rec.mark(!!otr);
     loadToday().then(paint, () => {});
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
+  const back = () => {
     live.wake();
     sync();
     flush();
     paint();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) back();
+  });
+  // Leaving for an app's own page: the socket is let go, so the browser can keep home whole and
+  // Back shows it at once, as it was left (its back/forward cache refuses a page with an open
+  // socket). Shown again from there, the socket and the conversation pick up.
+  addEventListener('pagehide', () => live.stop());
+  addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    live.start();
+    back();
   });
 }
