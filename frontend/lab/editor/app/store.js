@@ -5,7 +5,7 @@
 // keeps all of it when space runs low.
 
 const DB = 'th-editor';
-/** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean }} Photo */
+/** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string }} Photo */
 /** @typedef {Record<string, number | string>} Edit */
 
 const open = () => /** @type {Promise<IDBDatabase>} */ (new Promise((res, rej) => {
@@ -63,6 +63,27 @@ export async function add(files, step) {
     step(++k, raws.length);
   }
   return raws.length;
+}
+
+/** One RAF handed over by another part of the app (Photos' Edit, apps/photos/to-editor.js), kept under
+ * where it came from (`photos:<id>`) so the same photo is copied once and its edit is found again.
+ * Works before `init`. @param {string} source @returns {Promise<string | null>} its id here, if it is here */
+export async function fromSource(source) {
+  const all = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll()));
+  return all.find((p) => p.source === source)?.id ?? null;
+}
+/** @param {File} file @param {string} source @returns {Promise<string>} the photo's id here */
+export async function addFrom(file, source) {
+  const had = await fromSource(source);
+  if (had) return had;
+  const buf = await file.arrayBuffer(), jpg = embedded(buf), id = crypto.randomUUID();
+  if (!jpg) throw new Error('not a RAF');
+  await write('raw', `${id}.raf`, buf);
+  await write('jpg', `${id}.jpg`, jpg);
+  /** @type {Photo} */
+  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', source };
+  await tx('photos', (s) => s.put(p), 'readwrite');
+  return id;
 }
 
 /** @param {string} id @param {Partial<Photo>} patch */

@@ -440,6 +440,7 @@ opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this pa
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `photos.preview_size` | segments: 1,024 / 2,048 px (On this phone) | worker | `2048` | the phone, when it makes a photo's preview on import or first open (`apps/photos/data.js` `previewSide`, from `th.p.settings`) |
+| `photos.editor` | segments: new / classic (Editor) | phone | `new` | `apps/photos/to-editor.js`: Edit on a RAF hands its original to the new editor (`/lab/editor/`); classic, or anything the new one can't take, opens `?edit=` |
 | `photos.export_size` | segments: full size / 2,048 / 1,080 px (Export) | worker | `2048` | the Export sheet, as the size it starts with (`apps/photos/edit/export.js`, from `th.p.settings`) |
 | `photos.export_format` | segments: JPEG / HEIC where the phone writes it (Export) | worker | `jpeg` | the Export sheet, as the format it starts with; HEIC only where the browser encodes it, up to 2,048 px |
 | `photos.keep` | segments: previews only / recent originals too (On this phone) | worker | `previews` | nothing yet: previews are kept on every phone; recent originals come with editing (P1c) |
