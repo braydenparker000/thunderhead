@@ -1,18 +1,19 @@
 {
-  "id": "2026-11-05-photos-speed",
-  "date": "2026-11-05",
+  "id": "2026-11-11-thirty-hours",
+  "date": "2026-11-11",
   "lines": [
     {
-      "text": "Photos: a RAW photo is ready to edit much sooner, at half size first; full detail follows by itself."
+      "text": "Apps open already built: the one under your finger in the ring starts loading before you let go."
     },
     {
-      "text": "The editor uses several cores when it can, and its title shows how long the photo took to decode."
+      "text": "Settings has 34 new choices (springs, clock, ask bar, island), and 12 old ones that did nothing now work."
     },
     {
-      "text": "Photos has an Info sheet: tap the i in the editor, or hold a photo on the shelf and choose Info."
+      "text": "Photos: Edit opens the new editor for a RAF. The one before is under Settings, Photos, Editor.",
+      "open": "photos"
     },
     {
-      "text": "Undo in a Photos message now takes a tap (it did not before)."
+      "text": "Astra plays many more formats; Music's queue can be edited and comes back after a restart."
     }
   ]
 }
