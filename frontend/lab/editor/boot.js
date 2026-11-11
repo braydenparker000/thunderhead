@@ -6,6 +6,7 @@
 // raises the tool dock, Export from the header, back arrows and the phone's back gesture go back.
 // /lab/editor/screens/ keeps each screen on its own page. The app is wired to the engine (app/session.js):
 // imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
+import { prefOn } from '/th/pref.js';
 import { mount } from './dc.js';
 import { init } from './app/store.js';
 import { open as openPhoto, undo } from './app/session.js';
@@ -72,6 +73,10 @@ else {
   const asked = new URLSearchParams(location.search), wanted = asked.get('open');
   history.replaceState({ name: wanted ? 'Edit' : 'Library', first: Boolean(wanted) }, ''); // the address keeps its ask, so a reload (isolate.js) opens the same photo
   // the Library shows the photos on this phone, so read them first (none yet: the design's sample roll)
+  // Kept for use with no signal: with one, the service worker fetches what this release's editor is made of, once
+  // (sw.js `keepEditor`: only the files that changed since the release before), unless the owner turned that off
+  // (Settings > Photos > Editor) or the phone is saving data.
+  if (navigator.onLine !== false && prefOn('photos.offline', true) && !(/** @type {any} */ (navigator).connection?.saveData)) navigator.serviceWorker?.ready.then((r) => r.active?.postMessage({ type: 'keepEditor' }), () => {});
   init().catch((e) => console.warn('photos:', e)).then((all) => {
     if (wanted && all?.some((p) => p.id === wanted)) { openPhoto(wanted); show('Edit'); } else show('Library');
   });

@@ -10,6 +10,8 @@ import { noiseAt } from './noise.js';
 export const CFA = '101121212010101121121101010212121101';
 /** A made-up camera: its white balance, levels and matrix are plausible, not any real body's. */
 export const CAMERA = { wb: [1.96, 1, 1.82], black: 1022, white: 16383, xyzToCamD65: [1.3426, -0.6334, -0.1177, -0.4244, 1.2136, 0.2371, -0.058, 0.1303, 0.598] };
+/** The made-up lens's colour fringing: how much larger than green it draws red, green and blue. */
+export const FRINGE = [0.004, 0, -0.003];
 const EXPOSE = 0.2;   // how much of the sensor's range a white thing fills, as a real exposure leaves headroom
 
 const hash = (/** @type {number} */ x, /** @type {number} */ y) => { let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -42,9 +44,11 @@ function scene(/** @type {number} */ u, /** @type {number} */ v, /** @type {numb
 /** The photo, `n` pixels square (a multiple of 6). `truth` is what the sensor would have recorded of each colour
  * at each pixel, three a pixel, 0..1 of its range (`crisp`: the same before the lens blurred it); `mosaic` keeps one colour a pixel, as 16-bit sensor values;
  * `proxy` is the editing copy the decoder would make of it (3 × 3 cells, RGBA, the clipped colours flagged).
- * With `iso`, the sensor's own noise at that ISO is laid on the mosaic (seeded: the same every run).
- * @param {number} [n] @param {number} [iso] */
-export function known(n = 480, iso = 0) {
+ * With `iso`, the sensor's own noise at that ISO is laid on the mosaic (seeded: the same every run). With
+ * `fringed`, the made-up lens draws red a little larger than green and blue a little smaller (`FRINGE`: about a
+ * pixel each way at the picture's edge), and `fringe` is what the demosaic is told of it (lens.js `fringeOf`).
+ * @param {number} [n] @param {number} [iso] @param {boolean} [fringed] */
+export function known(n = 480, iso = 0, fringed = false) {
   const { wb, black, white } = CAMERA, range = white - black, truth = new Float32Array(n * n * 3), mosaic = new Uint16Array(n * n);
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
     const s = [0, 0, 0];
@@ -59,9 +63,14 @@ export function known(n = 480, iso = 0) {
   const noise = iso ? noiseAt(iso) : null;
   let seed = 12345;
   const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return (seed + 0.5) / 4294967296; }, gauss = () => Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd());
+  // a colour drawn larger by 1 + f about the centre: what a site records of it is the picture nearer the centre by that much
+  const drawn = (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ c, /** @type {number} */ f) => {
+    const px = Math.min(n - 1.001, Math.max(0, n / 2 + (x - n / 2) / (1 + f))), py = Math.min(n - 1.001, Math.max(0, n / 2 + (y - n / 2) / (1 + f))), i = Math.floor(px), j = Math.floor(py), u = px - i, w = py - j, at = (/** @type {number} */ a, /** @type {number} */ b) => truth[(b * n + a) * 3 + c];
+    return (at(i, j) * (1 - u) + at(i + 1, j) * u) * (1 - w) + (at(i, j + 1) * (1 - u) + at(i + 1, j + 1) * u) * w;
+  };
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
     const c = +CFA[(y % 6) * 6 + (x % 6)];
-    let v = truth[(y * n + x) * 3 + c];
+    let v = fringed && c !== 1 ? drawn(x, y, c, FRINGE[c]) : truth[(y * n + x) * 3 + c];
     if (noise) v = Math.min(1, Math.max(0, v + Math.sqrt(Math.max(0, noise.a[c] * v + noise.b[c])) * gauss()));
     mosaic[y * n + x] = Math.round(black + v * range);
   }
@@ -75,7 +84,8 @@ export function known(n = 480, iso = 0) {
   }
   const meta = { make: 'Made-up', model: 'Known', width: n, height: n, proxyWidth: pw, proxyHeight: pw, wb: [...wb, 0], xyzToCamD65: CAMERA.xyzToCamD65, orientation: 'Normal', chroma: [0, 0, 0],
     fullWidth: n, fullHeight: n, black, white, cfa: CFA, cfaWidth: 6, hot: 0, iso: iso || 160, lens: null };
-  return { n, truth, crisp, mosaic, proxy, meta, width: pw, height: pw };
+  const fringe = fringed ? { centre: [n / 2, n / 2], reach: n, table: Float32Array.from({ length: 64 }, (_, i) => [FRINGE[0], FRINGE[2], 0, 0][i % 4]) } : null;
+  return { n, truth, crisp, mosaic, proxy, meta, fringe, width: pw, height: pw };
 }
 
 const tone = (/** @type {number} */ v, /** @type {number} */ c) => Math.min(1, Math.max(0, (v * CAMERA.wb[c]) / EXPOSE / 1.25)) ** (1 / 2.2);

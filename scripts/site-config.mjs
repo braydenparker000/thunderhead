@@ -98,6 +98,16 @@ export function precached(path) {
   return !path.endsWith('.txt');
 }
 
+/** The new editor's own files (lab/editor/ and the engine it loads, lab/engine/): left out of the precache (13 MB
+ * at every release would be dear), kept instead once the editor has been opened, for use with no signal
+ * (sw.js `keepEditor`). */
+export const keptLab = (path) => path.startsWith('lab/editor/') || path.startsWith('lab/engine/');
+/** /lab/offline.json: those files with their sizes and hashes, so a later release fetches only what changed.
+ * @param {number} build @param {{ path: string, size: number, hash: string }[]} list */
+export function labJson(build, list) {
+  return `${JSON.stringify({ build, files: list.filter((f) => keptLab(f.path)).sort((a, b) => (a.path < b.path ? -1 : 1)) })}\n`;
+}
+
 /** @param {number} build @param {{ path: string, size: number }[]} list */
 export function precacheJson(build, list) {
   const files = list.filter((f) => precached(f.path)).sort((a, b) => (a.path < b.path ? -1 : 1));

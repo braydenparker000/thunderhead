@@ -27,7 +27,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 | Sharpening (Amount, Radius, Detail), Defringe, and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
-| Full size: X-Trans demosaic of the rectangle looked at (Markesteijn's green, chosen first by the greens alone and then again by all three colours; vkdt's red and blue), developed by the same frame pass | `demosaic.js`, `demosaic-again.js`, `full.js`, measured by `engine/raw/quality/` |
+| Full size: X-Trans demosaic of the rectangle looked at (Markesteijn's green, chosen first by the greens alone and then again by all three colours; vkdt's red and blue, read from where the lens drew them), developed by the same frame pass | `demosaic.js`, `demosaic-again.js`, `full.js`, measured by `engine/raw/quality/` |
 | One photo across the tools: the picture lives in its own layer under the boards and keeps its zoom and place from Edit to Looks, Masks and Heal. Free pinch from fitted to 300 %, drag, double-tap for 100 %; on Masks and Heal two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (a board's `data-keep="photo" data-zoom` slot is only a window onto the layer; `data-zoom="tool"` for a tool board) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
@@ -36,6 +36,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 | Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Heal board: Heal, Clone and Remove spots, each replaced from a source the engine picks nearby (it can be dragged); Size, Feather, Opacity; Visualize | `heal.js`, `mend.js`, `warp.js`, `demosaic.js`, `editor/app/heal.js`, `boards/HealPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone (and whether Chrome has promised to keep it), deleting rejects for good; a set picked again copies only what is missing; a cut-off export is offered again | `boards/LibraryPlate.js`, `editor/app/store.js`, `editor/app/save.js` |
+| With no signal: the editor, its engine and the decoder are kept by the service worker once opened with a signal, and open without one | `frontend/sw.js` `keepEditor`, `/lab/offline.json` (`scripts/stage.mjs`), `editor/boot.js`, `tests/lab-editor-offline-browser.test.mjs` |
 | Backup to the owner's Drive, asked for with a tap in the Library's Import sheet and run on Photos' page: originals through Photos' own import, each edit as one small file, both brought back by Photos' Edit on a bare phone. Nothing depends on it | `editor/app/backup.js`, `apps/photos/backup-screen.js`, `apps/photos/to-editor.js`, `tests/lab-editor-backup-browser.test.mjs` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried, output sharpening for Screen or Print | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -419,6 +420,16 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   it). A sensel that stands at least three times above every same-colour site near it, alone, is given their mean
   before the demosaic can spread it into a coloured cross. Nothing to set: it changes nothing in an ordinary photo
   (nine checked) and leaves a star alone. Not yet seen on a real long exposure of the owner's.
+- **Colour fringing, undone in the demosaic: done** (2026-11-11, `demosaic.js` `lead`, `lens.js` `fringeOf`; the
+  warp then leaves red and blue alone for full-size views). Undone after the demosaic, as before, half a pixel of
+  it cost 3 dB and a pixel nearly 7 on a known picture; now 1 and 2 dB, with false colour back to what it is
+  without any (`quality/README.md`, "Colour fringing"). The sample lenses fringe by 0.6 to 4 pixels over most of
+  the frame, so this is most of every photo's outer part. The editing copy is as before (its pixels are three
+  sensor pixels wide). The demosaic takes about a third longer where there is lens data.
+- **Strong colours: done** (2026-11-11, `wgsl.js` `fit`). A colour the screen cannot show keeps its hue and
+  lightness and gives up strength until it fits, where it used to be cut off at the edge with its hue bent
+  (5.3° on average over a wheel of strong colours, now 0.1°). In the colour table, so free per pixel.
+  `render(…, { edge: false })` cuts off as before, to compare; CI holds both pictures.
 - **8-bit files already dither** (`files.js` `eight`: each value is rounded up or down by chance in proportion),
   so a smooth sky does not band in a JPEG or PNG; the screen's dither is `wgsl.js` `DITHER`.
 - **Colour noise at large scale: measured, left** (2026-11-11). On the roofs crop at ISO 12800 the colour step

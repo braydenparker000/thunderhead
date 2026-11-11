@@ -216,6 +216,8 @@ export const SETTINGS = [
   { key: 'photos.double_tap', group: 'photos', section: 'Editor', label: 'Double-tap zooms to', kind: 'choice', scope: 'phone', mind: false,
     default: '100', options: o('100:100 %', '200:200 %'),
     detail: 'How far in a double-tap on the photo goes. 100 % is one sensor pixel to one screen pixel.' },
+  { key: 'photos.offline', group: 'photos', section: 'Editor', label: 'Keep the editor for offline use', kind: 'switch', scope: 'phone', mind: false, default: true,
+    detail: 'Once the editor has been opened with a signal it works without one. About 13 MB the first time, then only what a release changed.' },
   { key: 'photos.demosaic', group: 'photos', section: 'Editor', label: 'Full-size detail', kind: 'choice', scope: 'phone', mind: false,
     default: 'best', options: o('best:Best', 'faster:Faster'),
     detail: 'Best looks twice at fine detail when you zoom to 100 % or export. Faster looks once: about half the wait, a little less true. It applies from the next photo you open.' },

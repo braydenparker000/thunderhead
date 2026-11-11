@@ -85,6 +85,36 @@ What was tried on the way and did not earn its place:
 Cost: the demosaic takes about twice as long (3.5 s to 7 to 8 s for 1024 × 1024 on the software GPU these numbers
 come from; not yet timed on a phone) and holds 8 bytes a pixel more while it runs, with margins 6 pixels wider.
 
+## Colour fringing
+
+A lens draws red and blue a little larger or smaller than green (lateral chromatic aberration). The RAF's own lens
+data says by how much: on the sample files 0.6 to 1 pixel over most of the frame for the X-E5's lens, 1.2 to 1.6 for
+the X100VI's, 1.3 to 4 for one X-T5 zoom. The warp used to undo it after the demosaic. `fringe.mjs` lays it on a
+known picture to measure that (`K=3`; PSNR / green / colour, dB):
+
+| fringing | no fringing | undone after the demosaic (before) | undone in the demosaic (since 2026-11-11) |
+|---|---|---|---|
+| roofs, 0.5 px | 39.31 / 42.59 / 38.66 | 36.10 / 40.06 / 35.61 | 38.31 / 40.58 / 39.28 |
+| roofs, 1 px | | 32.62 / 37.16 / 31.53 | 37.30 / 39.37 / 39.10 |
+| roofs, 1.5 px | | 31.89 / 36.24 / 30.97 | 37.22 / 39.01 / 39.36 |
+| roofs, 2.5 px | | | 37.23 / 38.91 / 38.90 |
+| church, 0.5 px | 37.27 / 39.23 / 37.10 | 33.51 / 36.87 / 33.51 | 35.55 / 36.54 / 38.50 |
+| church, 1 px | | | 34.31 / 35.33 / 38.68 |
+
+Moving red and blue there and back alone costs almost nothing (0.5 px: 44.8 dB; a whole pixel: nothing), so the loss
+was the demosaic comparing colours at the wrong places. Now (`demosaic.js` `lead`): red and blue sites are looked
+for round where that colour of a pixel was recorded, each is weighed and compared with green at the place it
+belongs to, the second look uses those aligned colours, and the warp leaves them alone. False colour comes back
+whole; green stays about 2 to 3 dB under the picture without fringing. On a real X-T5 file the magenta and green
+edges on a crane against the sky at the frame's left edge (2 to 4 px of fringing there) all but go.
+
+Tried and dropped: fading the red and blue terms out of the first four greens where fringing is large (1 dB
+worse: a misplaced colour still says more about green's detail than none). Not tried: a second round of the
+colour pass with the final green, which may win back part of the green.
+
+Cost: the demosaic takes about a third longer on a photo whose lens has fringing data (6.8 s to 9.1 s for 1024 ×
+1024 on the software GPU).
+
 ### What else exists for this sensor (looked up 2026-11-11)
 
 Nobody has published controlled numbers for demosaicing the 40 MP X-Trans sensor. What there is:

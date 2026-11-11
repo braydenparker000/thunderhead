@@ -84,7 +84,7 @@ M several, L a project of its own.
 | 2 | Black and white levels | One black level (the file's, averaged), the file's white | A black level for each colour; some subtract a dark frame |
 | 3 | Hot and dead pixels | Hot ones mended on the mosaic (`src/hot.rs`); dead ones not | Both, on the mosaic |
 | 4 | Blown highlights | A clipped colour rebuilt from the unclipped ones (darktable's "inpaint opposed") | The same for small areas; segment-based or neural for large ones |
-| **5** | Colour fringing | Undone after the demosaic, in the warp | Before the demosaic, or inside a network |
+| 5 | Colour fringing | Undone in the demosaic (since 2026-11-11; it was after, in the warp, which measured 3 to 7 dB worse: this table called that gap small and was wrong) | Before the demosaic, or inside a network |
 | 6 | Demosaic | Markesteijn's green chosen twice, vkdt's red and blue: at or above Markesteijn 3-pass, measured | Markesteijn 3-pass among classical; neural beyond (Adobe, DxO) |
 | **7** | Flat and noisy areas | The same demosaic everywhere | A smoother demosaic blended in where contrast is low |
 | **8** | Noise reduction | Classical, after the demosaic: colour by a guided fit, brightness by patches, by ISO | One network that demosaics and denoises the mosaic together |
@@ -116,7 +116,7 @@ M several, L a project of its own.
 
 | # | Step | Ours | Best known |
 |---|---|---|---|
-| **22** | Colours too strong for the screen | Clipped, as Lightroom does | Brought into range smoothly |
+| 22 | Colours too strong for the screen | Eased in with their hue held (since 2026-11-11; it was clipped) | Brought into range smoothly |
 | 23 | Resize | Area average in linear light | The same |
 | 24 | Output sharpening | Screen or Print, three amounts, after the resize | The same |
 | **25** | Colour space and depth | sRGB only; 8 bits dithered, or 16-bit TIFF | Also Display P3 with a profile embedded; HDR output for phone screens |
@@ -126,7 +126,7 @@ M several, L a project of its own.
 
 | # | Step | Ours | Best known |
 |---|---|---|---|
-| **27** | What is seen while editing | A 3 × 3 copy; sharpening and noise reduction only at 100 % and in the export | An approximation of both at every zoom |
+| 27 | What is seen while editing | A 3 × 3 copy when fitted; the sensor's pixels with sharpening and noise reduction from 40 % zoom up (corrected 2026-11-11: this said 100 %) | An approximation of both at every zoom |
 | **28** | Proof it is right | A harness run by hand, on a software GPU | Reference pictures checked on every change, and on the real device |
 | **29** | Keeping the photos | On the phone only | Backed up |
 
