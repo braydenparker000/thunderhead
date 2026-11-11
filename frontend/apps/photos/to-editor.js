@@ -10,12 +10,22 @@
 // Classic (Settings → Photos → Editor).
 import { pref } from '/th/pref.js';
 import * as data from './data.js';
-import { fetchOriginal } from './drive.js';
+import { fetchOriginal, findByName } from './drive.js';
 
 /** @typedef {import('./data.js').PhotoItem} PhotoItem */
 
 /** Whether Edit on this photo opens the new editor. @param {PhotoItem | undefined} p */
 export const inNewEditor = (p) => Boolean(p && p.format === 'raf' && p.drive_id && navigator.onLine !== false && pref('photos.editor') !== 'classic' && navigator.storage?.getDirectory);
+
+/** The photo's edit as the editor backed it up to Drive (lab/editor/app/backup.js), or null. @param {string} token @param {string} photosId */
+async function backedEdit(token, photosId) {
+  const { mark, sideName } = await import('../../lab/editor/app/backup.js'), file = await findByName(token, sideName(photosId));
+  if (!file) return null;
+  const text = await (await fetchOriginal(token, file)).text(), b = JSON.parse(text);
+  if (b?.v !== 1 || !b.edit || typeof b.edit !== 'object' || Array.isArray(b.edit)) return null;
+  const flag = /** @type {'none' | 'pick' | 'reject'} */ (['pick', 'reject'].includes(b.flag) ? b.flag : 'none');
+  return { edit: b.edit, rating: Math.max(0, Math.min(5, Math.round(Number(b.rating) || 0))), flag, file, mark: mark(text) };
+}
 
 /** Hands the photo over and goes to the editor. Throws when the original can't be had; the caller
  * then opens the editor before. @param {PhotoItem} p @param {(line: string) => void} say */
@@ -27,7 +37,10 @@ export async function openInEditor(p, say) {
     say('Getting the original…');
     const token = await data.uploadToken();
     const blob = await fetchOriginal(token.access_token, /** @type {string} */ (p.drive_id));
-    id = await store.addFrom(new File([blob], p.name, { lastModified: p.taken_at }), source);
+    // An edit backed up from another phone, or before this one's storage was cleared, comes back with it.
+    const side = await backedEdit(token.access_token, p.id).catch(() => null);
+    id = await store.addFrom(new File([blob], p.name, { lastModified: p.taken_at }), source, side ? { rating: side.rating, flag: side.flag, editFile: side.file, backed: side.mark } : {});
+    if (side && Object.keys(side.edit).length) await store.saveEdit(id, side.edit);
   }
   location.assign(`/lab/editor/?open=${id}&from=photos`);
 }

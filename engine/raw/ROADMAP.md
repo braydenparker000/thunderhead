@@ -45,7 +45,11 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
   first run for real numbers.
 - **Pictures checked in CI** (28, M): **built 2026-11-11** with it (`tests/lab-engine-pictures-browser.test.mjs`):
   a change that moves a picture by more than a rounding step fails until the reference is made again on purpose.
-- **Backup** (29, M): edits and originals to Drive, and back again on a new phone.
+- **Backup** (29, M): **built 2026-11-11.** The Library's Import sheet has "Back up to Drive": originals not yet
+  there go through Photos' own import, each edit (with rating and flag) as one small file, and Photos' Edit
+  brings both back on a phone that has nothing kept. It runs on Photos' page, the one page allowed to reach
+  Drive; the editor's page still reaches nothing outside the site. Nothing depends on it: signed out, the row
+  only says so. It is a tap, not automatic: the editor cannot reach the network to do it by itself.
 - **Storage that stays** (new, S): **built 2026-11-11.** The browser is asked at start to keep the photos for good;
   when it will not promise, the Library says so beside the space used.
 - **Nothing lost on a crash** (new, S): **built 2026-11-11.** A set picked again after an import was cut off copies
