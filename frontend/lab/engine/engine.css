@@ -21,3 +21,11 @@ select{width:100%;background:#1c1e20;color:#eceff4;border:1px solid #3a3c3f;bord
 .checks{display:flex;gap:6px 18px;flex-wrap:wrap;margin:14px 0;color:#c9d0d8}
 .checks label{display:flex;gap:8px;align-items:center;min-height:32px}
 .checks input{accent-color:#e8202a;width:18px;height:18px;margin:0}
+/* The test bench (bench-ui.js). */
+h2{font-size:17px;margin:28px 0 8px}
+#bench{border:1px solid #2a2c2e;border-radius:14px;padding:4px 14px 16px;margin:8px 0 12px}
+.go{background:#e8202a}
+.now{color:#eceff4;min-height:20px;margin:6px 0}
+#bview{max-height:160px;width:auto;max-width:100%;margin:8px 0}
+#bview[hidden]{display:none}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:400 12px/1.5 ui-monospace,monospace;color:#c9d0d8;background:#111;border-radius:8px;padding:10px;margin:8px 0;min-height:40px}
