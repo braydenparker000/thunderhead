@@ -37,7 +37,7 @@ export function loadDecoders(codec) {
 export class RemuxSession extends EventTarget {
   /**
    * @param {HTMLVideoElement} video
-   * @param {{info: object, video: object|null, audio: {track: object, delivery: string}|null, source?: object}} plan
+   * @param {{info: object, video: object|null, audio: {track: object, delivery: string}|null, source?: object, early?: boolean}} plan
    */
   constructor(video, plan) {
     super();
@@ -46,6 +46,7 @@ export class RemuxSession extends EventTarget {
     this.videoTrack = plan.video;
     this.audio = plan.audio;
     this.source = plan.source || null; // the range reader, told when playback jumps
+    this.early = plan.early !== false; // half-second video fragments (early.js); off for a second try after a decode error
     this.queues = {};
     this.ended = {video: !plan.video, audio: !plan.audio};
     this.destroyed = false;
@@ -189,7 +190,7 @@ export class RemuxSession extends EventTarget {
     const sink = new MB.EncodedPacketSink(track);
     const start = await sink.getKeyPacket(from, {verifyKeyPackets: true}) ?? await sink.getFirstPacket();
     if (!start || this.queues.video.generation !== generation) return;
-    const early = new EarlyCuts(); // fragments every half second, not only at key frames
+    const early = this.early ? new EarlyCuts() : null; // fragments every half second, not only at key frames
     const output = this.output('video', generation, early);
     const source = new MB.EncodedVideoPacketSource(track.codec);
     output.addVideoTrack(source);
@@ -197,7 +198,7 @@ export class RemuxSession extends EventTarget {
     let first = true;
     for await (const packet of sink.packets(start)) {
       if (!await this.room('video', packet.timestamp, generation)) { await output.cancel(); return; }
-      await source.add(early.mark(packet), first ? {decoderConfig: this.videoTrack.decoderConfig} : undefined);
+      await source.add(early ? early.mark(packet) : packet, first ? {decoderConfig: this.videoTrack.decoderConfig} : undefined);
       first = false;
     }
     await output.finalize();

@@ -194,8 +194,8 @@ never switches pipeline mid-play:
    or Chrome fails to decode before the first frame, playback switches to it
    once by itself. A decoder that gives up while the film plays (a hardware
    decoder taken away, a seek into an open GOP in Chrome's own H.264
-   decoder) is met first with a fresh pipeline at the same place, then with
-   the software decoder there. A file whose picture has no decoder stops
+   decoder) is met first with a fresh pipeline at the same place, with
+   fragments only at key frames, then with the software decoder there. A file whose picture has no decoder stops
    with that reason at once; one whose sound has none plays with a notice.
 5. **Another app**: when nothing in the browser can play a file, the player
    offers it to the phone's video apps (VLC, MX Player…) through an Android
