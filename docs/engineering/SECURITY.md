@@ -146,7 +146,7 @@ so `connect-src` gains nothing; the picker's own inline `<style>` is refused by 
 
 App shell (`/index.html` and app stubs):
 ```
-default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline';
+default-src 'none'; script-src 'self' 'inline-speculation-rules'; style-src 'self'; style-src-attr 'unsafe-inline';
 img-src 'self' data: blob: https://<acct>.r2.cloudflarestorage.com;
 media-src 'self' blob: https://<acct>.r2.cloudflarestorage.com;
 connect-src 'self' https://thunderhead-api.<sub>.workers.dev wss://thunderhead-api.<sub>.workers.dev https://<acct>.r2.cloudflarestorage.com;
@@ -163,7 +163,7 @@ object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-request
 
 Study (`/study/`, P7: its own page, not a shell stub; built):
 ```
-default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:;
+default-src 'none'; script-src 'self' 'inline-speculation-rules'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:;
 font-src 'self'; connect-src 'self' https://thunderhead-api.<sub>.workers.dev;
 manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests
 ```
@@ -172,6 +172,7 @@ The reader reads the phone's own copy of a book, downloaded once through the Wor
 Rules:
 - `<acct>` and `<sub>` are filled at stage time from `config` (not secret). Presigned URLs use **path style** (`https://<acct>.r2.cloudflarestorage.com/<bucket>/<key>`) so one host covers every bucket.
 - `'wasm-unsafe-eval'` is added only on pages that compile WebAssembly (pdf.js if it needs it; the client-side KDF mode of §6.4), never site-wide.
+- `'inline-speculation-rules'` (2026-11-11) lets the shell tell the browser which of this site's own pages to load ahead: home names the app the finger rests on in the ring, so it opens already built (`apps/home/prewarm.js`, HOME.md §12). The keyword allows a `<script type="speculationrules">` block and nothing else: no inline code runs, and a rule can only name a page to fetch or prerender, which for another origin the browser does without credentials and only if that origin opts in. Decided on the owner's behalf while they were away (decisions.md).
 - `style-src-attr 'unsafe-inline'` exists for `style="--i:1;--c:#…"` custom properties on Home. Attribute styles can't use selectors, so CSS exfiltration through them is not practical. Removing it later (classes instead) is welcome.
 - A meta CSP ignores `frame-ancestors`, `report-uri`/`report-to` and `sandbox`. Never write them (the old site did; they did nothing).
 - Reporting: `ui/` registers a `securitypolicyviolation` listener that batches `{directive, blocked, source}` (no page content) to `POST /v1/ops/errors` when signed in.

@@ -87,10 +87,10 @@ test('pages fit the CSP: no inline scripts, no <style> blocks, no inline event h
 test('every page carries the CSP as the first tag after charset (Azure Storage sends no headers)', async () => {
   const shell = (await readFile(join(SITE, 'ui/csp.txt'), 'utf8')).trim();
   const signin = (await readFile(join(SITE, 'ui/csp-signin.txt'), 'utf8')).trim();
-  for (const csp of [shell, signin]) {
-    assert.match(csp, /default-src 'none'/);
-    assert.match(csp, /script-src 'self';/);
-  }
+  for (const csp of [shell, signin]) assert.match(csp, /default-src 'none'/);
+  // The shell may name its own pages to load ahead (speculation rules, SECURITY.md §4.1); no inline code anywhere.
+  assert.match(shell, /script-src 'self' 'inline-speculation-rules';/);
+  assert.match(signin, /script-src 'self';/);
   // SECURITY.md §4.1: the sign-in pages talk only to the API (filled in at stage time) and allow no inline styles.
   assert.match(signin, /connect-src 'none';/);
   assert.doesNotMatch(signin, /unsafe-inline/);

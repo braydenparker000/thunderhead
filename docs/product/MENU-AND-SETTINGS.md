@@ -296,6 +296,7 @@ intensity only says how strongly.
 | `gestures.hold_ms` | range (ms): 160 / 220 / 300 | phone | `220` | `home.js`: the hold before the ring opens |
 | `gestures.swipe_px` | range (px): 6 / 10 | phone | `6` | `home.js`: how far a drag goes before it is a swipe |
 | `gestures.edge_guard` | switch | phone | `on` | exposed: `phoneValue()`; the shell does not read it yet |
+| `gestures.prewarm` | switch | phone | `on` | `apps/home/prewarm.js`: the app under the finger in the ring loads out of sight, so it opens already built (HOME.md §12) |
 
 ### 6.4 Island (`island.js`)
 

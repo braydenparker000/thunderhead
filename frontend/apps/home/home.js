@@ -177,7 +177,7 @@ function openFromRing(id,color,to){
       if(!done){ m.radial.to(1,{spring:springs.pop,velocity:r.velocity}); m.size.to(1,{spring:springs.lift,velocity:.8*z.velocity}); m.face.to(1,{spring:springs.fade}) } });
     ground(); settleRing(ringRun) }
   function ground(){ if(!flight) return; clearTimeout(flight.glass); flight.anims.forEach(a=>a.cancel()); flight=null }
-  function setDir(d){ if(d===dir) return; land(0); dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0);
+  function setDir(d){ if(d===dir) return; land(0); dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0); document.dispatchEvent(new CustomEvent('th:ring',{detail:d<0?null:apps[d].id})); // prewarm.js loads that app ahead
     const dimmed=root.dataset.theme==='dark'?.6:.55;
     pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.classList.remove('lifted'); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop}); petMotion[i].face.to(d<0||i===d?1:dimmed,{spring:springs.fade}) });
     settleRing(run);
