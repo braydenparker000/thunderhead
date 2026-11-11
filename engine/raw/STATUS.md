@@ -419,6 +419,10 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   it). A sensel that stands at least three times above every same-colour site near it, alone, is given their mean
   before the demosaic can spread it into a coloured cross. Nothing to set: it changes nothing in an ordinary photo
   (nine checked) and leaves a star alone. Not yet seen on a real long exposure of the owner's.
+- **Strong colours: done** (2026-11-11, `wgsl.js` `fit`). A colour the screen cannot show keeps its hue and
+  lightness and gives up strength until it fits, where it used to be cut off at the edge with its hue bent
+  (5.3° on average over a wheel of strong colours, now 0.1°). In the colour table, so free per pixel.
+  `render(…, { edge: false })` cuts off as before, to compare; CI holds both pictures.
 - **8-bit files already dither** (`files.js` `eight`: each value is rounded up or down by chance in proportion),
   so a smooth sky does not band in a JPEG or PNG; the screen's dither is `wgsl.js` `DITHER`.
 - **Colour noise at large scale: measured, left** (2026-11-11). On the roofs crop at ISO 12800 the colour step

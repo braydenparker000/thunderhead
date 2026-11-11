@@ -1,6 +1,7 @@
 // The engine's pictures, checked on every change (engine/raw/ROADMAP.md stage 1; frontend/lab/engine/bench.js,
 // known.js). The test bench on /lab/engine/ develops a made-up photo whose every colour is known, on the GPU,
-// every way the editor does (demosaic, sharpening, noise reduction, a plain frame, an edited frame) and compares
+// every way the editor does (demosaic, its Faster mode, sharpening, noise reduction, a plain frame, the same with
+// strong colours cut off the old way, an edited frame) and compares
 // the result with the reference numbers kept beside it (bench-ref.json, made on this same software GPU). A change
 // that alters a picture fails here until the reference is made again on purpose (node engine/raw/checks/ref.cjs),
 // so the difference is seen and stated, never slipped in. The bench's own tolerance for a phone is wider.
@@ -38,7 +39,7 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.match(await page.textContent('#bnow'), /^Done/);
   const run = await page.evaluate(() => window.__bench);
   const ref = JSON.parse(readFileSync(new URL('../frontend/lab/engine/bench-ref.json', import.meta.url), 'utf8')).shots;
-  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'sharpened', 'denoised', 'frame', 'edited']);
+  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'sharpened', 'denoised', 'frame', 'cut', 'edited']);
   for (const [name, v] of Object.entries(run.verdict)) {
     assert.equal(v.same, true, `${name} is the reference's picture`);
     assert.ok((v.db ?? 0) <= TIGHT.db && v.grid <= TIGHT.grid, `${name}: off by ${v.db} dB and ${v.grid}; if the change was meant, make the reference again`);
@@ -50,8 +51,9 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.ok(ref.sharpened.psnr > 29, 'sharpening');
   assert.ok(ref.denoised.psnr > 33, 'noise reduction at ISO 6400');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.edited.grid[i]) > 0.02), 'the edited frame differs from the plain one');
+  assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.cut.grid[i]) > 0.02), 'easing strong colours in differs from cutting them off (the made-up camera has many)');
   const text = await page.textContent('#bout');
-  assert.equal((text.match(/SAME/g) || []).length, 6);
+  assert.equal((text.match(/SAME/g) || []).length, 7);
   assert.doesNotMatch(text, /DIFFERENT/);
   assert.equal(await page.isEnabled('#bcopy'), true);
   // The run is kept on this phone and shown the next time the page opens.

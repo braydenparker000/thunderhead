@@ -206,6 +206,23 @@ fn vivid(c: vec3f) -> vec3f {
   }
   return max(strong(r, l, k), vec3f(0.0));
 }
+// A colour the screen cannot show: after the last matrix a part of it is below zero. Cutting it off at the edge
+// bends its hue (over a wheel of strong colours: by 5 degrees on average and 23 at worst, measured). Its strength is
+// taken down instead, in Oklab, holding its lightness and hue, until it fits (0.1 degree on average); and a colour
+// within a tenth of the edge eases in ahead of it, so a petal's shading is not all laid on the edge. Colours
+// further in than that are not touched. This runs when the colour table is made, never per pixel.
+const EDGE_KNEE = 0.9;
+fn fits(r: vec3f, l: f32, k: f32) -> bool { let s = mv(p.o0, p.o1, p.o2, strong(r, l, k)); return min(s.r, min(s.g, s.b)) >= 0.0; }
+fn fit(c: vec3f) -> vec3f {
+  let q = vec3f(dot(c, vec3f(0.7153289, 0.3529082, -0.0682371)), dot(c, vec3f(0.2743544, 0.6678509, 0.0577947)), dot(c, vec3f(0.1097542, 0.1862089, 0.7040370)));
+  let r = sign(q) * pow(abs(q), vec3f(1.0 / 3.0)); let l = dot(r, vec3f(0.2104543, 0.7936178, -0.0040720));
+  if (fits(r, l, 4.0)) { return c; }   // nowhere near the edge
+  var lo = 0.0; var hi = 4.0;          // the largest multiple of this colour's strength that fits
+  for (var i = 0; i < 16; i++) { let mid = 0.5 * (lo + hi); if (fits(r, l, mid)) { lo = mid; } else { hi = mid; } }
+  let x = 1.0 / max(lo, 1e-4);         // how far out towards the edge it is: 1 on it
+  if (x <= EDGE_KNEE) { return c; }
+  return strong(r, l, lo * (EDGE_KNEE + (1.0 - EDGE_KNEE) * tanh((x - EDGE_KNEE) / (1.0 - EDGE_KNEE))));
+}
 ${TOOLS}
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
@@ -218,6 +235,7 @@ fn develop(c0: vec3f) -> vec3f {
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
+  if ((fl & 1048576u) == 0u) { c = fit(c); }   // 1048576: strong colours cut off at the edge, as before (to compare)
   let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = vec3f(enc(o.r), enc(o.g), enc(o.b));
   if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }

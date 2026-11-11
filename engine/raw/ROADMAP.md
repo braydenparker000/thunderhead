@@ -73,9 +73,24 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 ## Stage 3: quality that costs little
 
-- Flat areas (7, S). Strong colours brought into range (22, S). The worm check on foliage (S).
+- **The worm check: done 2026-11-11, clean.** Leaves and stems in focus, distant bare trees and smooth
+  out-of-focus greens, on real 40 MP files in the real editor at Sharpening 40 and 100: no worm or maze patterns,
+  no halos. At 100 a flat sky shows more grain, as it should. (A purple strap and purplish shadowed steel looked
+  like false colour and were checked against the camera's own JPEG: they are that colour.)
+- **Flat areas (7): nothing to do.** Where every way is as level as the best, the demosaic already takes the mean of
+  all four greens (`pick`), which is what a "dual demosaic" blends in.
+- **Strong colours (22): done 2026-11-11.** A colour the screen cannot show is no longer cut off at its edge: its
+  strength is taken down in Oklab with lightness and hue held, and a colour within a tenth of the edge eases in
+  (`wgsl.js` `fit`, baked into the colour table: no cost per pixel). Over a wheel of strong colours the hue error
+  falls from 5.3° (23° at worst) to 0.1°; colours inside the range do not move. On real photos it touches
+  0.01 to 0.06 % of pixels, 2.8 % with Saturation at +50. Tried first and dropped: easing each channel in towards
+  the brightest (the film industry's gamut compression): hue no better than cutting off (5.8° to 7.2°), and
+  colours that were fine moved.
 - Fringing before the demosaic (5, M) if the measurement earns it. Dead pixels and a black level for each colour (S).
-- A second, coarser scale for colour noise (M). The fitted view shows noise reduction and sharpening (27, M).
+- A second, coarser scale for colour noise (M).
+- **The fitted view (27): mostly so already.** The sensor's own pixels, with noise reduction and sharpening, are
+  drawn from 40 % zoom up (`zoom.js`), not only at 100 % as REVIEW.md said; below that a 40 MP photo is shown
+  at under a sixth of its size and neither would be seen.
 - Speed, once the testing page gives real numbers (M): shaders kept compiled between visits, the first picture
   sooner, exports faster. Targets to be set from the phone's first run, not guessed here.
 

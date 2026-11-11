@@ -70,6 +70,8 @@ export async function pictures() {
     eng.setProfile(null);
     await eng.render(0.25, 1);
     shots.frame = { grid: squares(await eng.snapshot()) };
+    await eng.render(0.25, 1, { edge: false });
+    shots.cut = { grid: squares(await eng.snapshot()) };   // strong colours cut off at the screen's edge, the way before
     await eng.render(0.25, 1.2, { highlights: -0.5, shadows: 0.5, whites: 0.1, blacks: -0.1, saturation: 0.3, vibrance: 0.2, clarity: 0.4, texture: 0.3, dehaze: 0.2 });
     shots.edited = { grid: squares(await eng.snapshot()) };
   } finally { eng.dispose(); }

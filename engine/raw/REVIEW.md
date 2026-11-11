@@ -116,7 +116,7 @@ M several, L a project of its own.
 
 | # | Step | Ours | Best known |
 |---|---|---|---|
-| **22** | Colours too strong for the screen | Clipped, as Lightroom does | Brought into range smoothly |
+| 22 | Colours too strong for the screen | Eased in with their hue held (since 2026-11-11; it was clipped) | Brought into range smoothly |
 | 23 | Resize | Area average in linear light | The same |
 | 24 | Output sharpening | Screen or Print, three amounts, after the resize | The same |
 | **25** | Colour space and depth | sRGB only; 8 bits dithered, or 16-bit TIFF | Also Display P3 with a profile embedded; HDR output for phone screens |
@@ -126,7 +126,7 @@ M several, L a project of its own.
 
 | # | Step | Ours | Best known |
 |---|---|---|---|
-| **27** | What is seen while editing | A 3 × 3 copy; sharpening and noise reduction only at 100 % and in the export | An approximation of both at every zoom |
+| 27 | What is seen while editing | A 3 × 3 copy when fitted; the sensor's pixels with sharpening and noise reduction from 40 % zoom up (corrected 2026-11-11: this said 100 %) | An approximation of both at every zoom |
 | **28** | Proof it is right | A harness run by hand, on a software GPU | Reference pictures checked on every change, and on the real device |
 | **29** | Keeping the photos | On the phone only | Backed up |
 
