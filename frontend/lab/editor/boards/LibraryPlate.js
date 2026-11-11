@@ -5,6 +5,7 @@
 import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
+import * as clip from '../app/clip.js';
 import { cutOff } from '../app/save.js';
 import * as backup from '../app/backup.js';
 
@@ -91,6 +92,16 @@ export default class Component extends DCLogic {
       : [B.originals.length ? `${count(B.originals.length, 'original')} (${mb(B.bytes)})` : '', B.edits.length ? count(B.edits.length, 'edit') : ''].filter(Boolean).join(' and ') + ` to back up${cell && B.originals.length ? ' · you are on mobile data' : ''}`;
     // Photos' page does it (the one page that may reach Drive) and comes straight back
     const backUp = () => { if (B?.signedIn && (B.originals.length || B.edits.length)) location.assign('/photos/?backup'); };
+    // Paste the copied edit (app/clip.js) on every photo shown: two taps, the second within 5 s; each photo can undo it
+    const held = real && this.app && S.view === 'grid' ? clip.held() : null, onto = held ? shown.filter((p) => p.key).map((p) => p.key) : [], pasteArmed = Date.now() - (S.pasteArmed || 0) < 5000;
+    const pasteAll = async () => {
+      if (!onto.length || S.pasting) return;
+      if (!pasteArmed) { set({ pasteArmed: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
+      const label = 'Pasting the edit', n = onto.length;
+      this.setState({ pasteArmed: 0, pasting: true, progress: { label, k: 0, total: n } });
+      const r = await clip.pasteOn(onto, (k, total) => this.setState({ progress: { label, k, total } }));
+      this.setState({ pasting: false, progress: { label, k: n, total: n, done: `Done · pasted on ${count(r.done, 'photo')}${r.bad ? ` · ${r.bad} could not be opened` : ''}` } });
+    };
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
     const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
@@ -112,6 +123,7 @@ export default class Component extends DCLogic {
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
+        ...(onto.length ? [{ glyph: '⎘', name: pasteArmed ? `Paste on ${count(onto.length, 'photo')}? Tap again` : 'Paste the copied edit', note: `${photo.stem(held?.name || '')}’s edit, onto the ${count(onto.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`} · each can undo it`, pick: pasteAll }] : []),
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],

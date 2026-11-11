@@ -2,7 +2,8 @@
 // its original in Drive, Photos fetches the original once, copies it into the editor's own store on
 // this phone under `photos:<id>` and goes to `/lab/editor/?open=<its id there>&from=photos`, which
 // opens it straight in Edit; the editor's back arrow returns to Photos; a second Edit finds the copy
-// and asks Drive for nothing. A JPEG, or any photo with the owner's Editor set to Classic, opens
+// and asks Drive for nothing. A JPEG is handed over the same way, unless it already has an edit in
+// the editor before; that one, a HEIC, and any photo with the owner's Editor set to Classic open
 // the editor before (`?edit=`). A synthetic RAF (tests/fixtures/make-raf.mjs: an invented JPEG in a
 // RAF header) against a mock API and a fake Drive; the engine's own decoding is not what is tested
 // here (tests/lab-editor-*.test.mjs), so its wasm is not served.
@@ -17,9 +18,9 @@ const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 120_000 };
 const TOKEN = `th1_${'E'.repeat(43)}abcdef`;
 const ID = '0192aaaa-bbbb-7ccc-8ddd-eeeeffff0042';
-const state = { raf: Buffer.alloc(0), format: 'raf', drive: 0 };
-const photo = () => ({ id: ID, drive_id: 'drive-file-42', name: state.format === 'raf' ? 'DSCF0042.RAF' : 'IMG_0042.JPG', format: state.format, bytes: state.raf.length, sha256: null,
-  camera: 'X-E5', film: 'Classic Chrome', width: 7728, height: 5152, taken_at: Date.UTC(2026, 9, 3, 10, 0), day: '2026-10-03', rating: 0, favorite: false, flag: null, pair_id: null, preview: false });
+const state = { raf: Buffer.alloc(0), format: 'raf', drive: 0, edited: false };
+const photo = () => ({ id: ID, drive_id: 'drive-file-42', name: state.format === 'raf' ? 'DSCF0042.RAF' : state.format === 'heic' ? 'IMG_0042.HEIC' : 'IMG_0042.JPG', format: state.format, bytes: state.raf.length, sha256: null,
+  camera: 'X-E5', film: 'Classic Chrome', width: 7728, height: 5152, taken_at: Date.UTC(2026, 9, 3, 10, 0), day: '2026-10-03', rating: 0, favorite: false, flag: null, pair_id: null, preview: false, edited: state.edited });
 let site, mock, browser, base;
 
 before(async () => {
@@ -74,13 +75,13 @@ const drawJpeg = (page) => page.evaluate(async () => {
   g.fillStyle = '#356'; g.fillRect(0, 0, 240, 160); g.fillStyle = '#ec7'; g.beginPath(); g.arc(120, 80, 50, 0, 7); g.fill();
   return [...new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer())];
 });
-/** What the editor keeps on this phone: each photo's record and the size of its RAF. */
+/** What the editor keeps on this phone: each photo's record and the size of its original. */
 const kept = (page) => page.evaluate(async () => {
   const db = await new Promise((res, rej) => { const r = indexedDB.open('th-editor', 1); r.onupgradeneeded = () => { r.result.createObjectStore('photos', { keyPath: 'id' }); r.result.createObjectStore('edits'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
   const all = await new Promise((res) => { const q = db.transaction('photos').objectStore('photos').getAll(); q.onsuccess = () => res(q.result); });
   db.close();
   const raw = await (await navigator.storage.getDirectory()).getDirectoryHandle('raw', { create: true });
-  return Promise.all(all.map(async (p) => ({ id: p.id, name: p.name, source: p.source, taken: p.taken, bytes: (await (await raw.getFileHandle(`${p.id}.raf`)).getFile()).size })));
+  return Promise.all(all.map(async (p) => ({ id: p.id, name: p.name, source: p.source, taken: p.taken, bytes: (await (await raw.getFileHandle(`${p.id}.${p.kind === 'jpeg' ? 'jpg' : 'raf'}`)).getFile()).size, ...(p.kind ? { kind: p.kind } : {}) })));
 });
 
 test('Edit on a RAF hands its original to the new editor, once; the editor opens it in Edit and goes back to Photos', opts, async () => {
@@ -111,7 +112,24 @@ test('Edit on a RAF hands its original to the new editor, once; the editor opens
   await context.close();
 });
 
-test('Classic in Settings, or a photo that is not a RAF, opens the editor before', opts, async () => {
+test('Edit on a JPEG hands it over too, as a picture', opts, async () => {
+  const { context, page } = await open();
+  state.format = 'jpeg'; state.drive = 0; state.edited = false;
+  state.raf = Buffer.from(await drawJpeg(page));
+  await page.goto(`${base}/photos/?photo=${ID}`, { waitUntil: 'load' });
+  await page.waitForSelector('.view .vedit');
+  await page.waitForLoadState('networkidle');
+  const before = state.drive;
+  await Promise.all([page.waitForURL(/\/lab\/editor\/\?open=[0-9a-f-]{36}&from=photos$/), page.click('.view .vedit')]);
+  const here = new URL(page.url()).searchParams.get('open');
+  assert.equal(state.drive - before, 1, 'the original was fetched from Drive once');
+  assert.deepEqual(await kept(page), [{ id: here, name: 'IMG_0042.JPG', source: `photos:${ID}`, taken: Date.UTC(2026, 9, 3, 10, 0), bytes: state.raf.length, kind: 'jpeg' }]);
+  await page.waitForFunction(() => /IMG_0042/.test(document.querySelector('#stage header')?.textContent ?? ''));
+  await context.close();
+  state.format = 'raf';
+});
+
+test('Classic in Settings, a HEIC, or a JPEG already edited in the editor before, opens the editor before', opts, async () => {
   const classic = await open({ 'photos.editor': 'classic' });
   state.format = 'raf'; state.drive = 0;
   await classic.page.goto(`${base}/photos/?photo=${ID}`, { waitUntil: 'load' });
@@ -119,12 +137,14 @@ test('Classic in Settings, or a photo that is not a RAF, opens the editor before
   await Promise.all([classic.page.waitForURL(new RegExp(`/photos/\\?edit=${ID}$`)), classic.page.click('.view .vedit')]);
   await classic.context.close();
 
-  const jpeg = await open();
-  state.format = 'jpeg';
-  await jpeg.page.goto(`${base}/photos/?photo=${ID}`, { waitUntil: 'load' });
-  await jpeg.page.waitForSelector('.view .vedit');
-  await Promise.all([jpeg.page.waitForURL(new RegExp(`/photos/\\?edit=${ID}$`)), jpeg.page.click('.view .vedit')]);
-  assert.deepEqual(await kept(jpeg.page), [], 'nothing was handed to the new editor');
-  await jpeg.context.close();
-  state.format = 'raf';
+  for (const [format, edited] of [['heic', false], ['jpeg', true]]) {
+    const other = await open();
+    state.format = format; state.edited = edited;
+    await other.page.goto(`${base}/photos/?photo=${ID}`, { waitUntil: 'load' });
+    await other.page.waitForSelector('.view .vedit');
+    await Promise.all([other.page.waitForURL(new RegExp(`/photos/\\?edit=${ID}$`)), other.page.click('.view .vedit')]);
+    assert.deepEqual(await kept(other.page), [], `${format}: nothing was handed to the new editor`);
+    await other.context.close();
+  }
+  state.format = 'raf'; state.edited = false;
 });

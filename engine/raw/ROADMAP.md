@@ -120,8 +120,14 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   mixer, grading, the point curves, Sharpening, Noise, Vignette and Grain, by name. Exposure, white balance,
   crop and profile stay the photo's own. It says how many settings it had no control for. Until the strengths
   are fitted (above) a preset lands near what it does in Lightroom, not on it. Camera recipes are left.
-- **Copy an edit and paste it on many** (new, S). **Match a series** (new, M): even out exposure and white
-  balance across photos of one scene.
+- **Copy an edit and paste it on many: built 2026-11-11** (`app/clip.js`). Versions has Copy edit and Paste edit;
+  the Library's Import sheet pastes the copied edit on every photo it is showing (so: flag the series as picks,
+  show Picks, paste), on a second tap. What goes across is the look of the picture (every adjustment, the
+  profile, the curve, a look); the crop, the spots and the masks stay each photo's own. Pasting is a step of the
+  photo's history, so Undo takes it off. Each photo is opened in turn to take it, so its tile shows the edit: a
+  few seconds a photo. Found on the way and mended: opening a photo while a frame of the one before was being
+  drawn could leave the editor drawing nothing, and so could a frame that failed.
+- **Match a series** (new, M): even out exposure and white balance across photos of one scene.
 - **Edit by reference** (new, M): bring any picture's look (its tones and colours) onto a photo as a starting point.
 - Optional, last: film simulations fitted to the camera's own JPEGs (13, M). The owner uses Adobe Color, so this
   only matters if the camera's looks are wanted exactly.
@@ -143,7 +149,10 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   - The colour table is read between its points, which blurs the hard edge of what a screen can show: a deep
     blue inside that edge came out 28 levels off. For a picture the table now holds only what the edit adds and
     each pixel works the rest out exactly. Measured for RAFs next and mended for every photo (stage 3).
-- The Drive library moves over (M). The old editor is retired.
+- The Drive library moves over (M). **Begun 2026-11-11:** Photos' Edit hands a JPEG to the new editor as it does a
+  RAF (`apps/photos/to-editor.js`), unless the JPEG already has an edit in the editor before: that one keeps
+  its edit there. Left before the old editor can go: the shelf itself (browsing Drive's photos from the new
+  Library), an edit made here reaching the Worker's shelf preview, HEIC and DNG, and the old edits brought over.
 - **It works with no signal: built 2026-11-11.** Opened once with a signal, the editor, its engine and the decoder
   are kept (13 MB the first time, then only what a release changed) and open with none; an older release's
   editor still opens when a newer one has not been fetched yet (`sw.js` `keepEditor`, `/lab/offline.json`,

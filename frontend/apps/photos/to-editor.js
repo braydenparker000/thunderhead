@@ -1,13 +1,14 @@
 // @ts-check
 // Edit, in the new editor (docs/design/EDITOR.md; the owner, 2026-11-10: it replaces the one before).
-// The new editor works on RAFs kept on this phone and its page reaches nothing outside this site,
-// so Photos, which may read the owner's Drive, fetches the original and hands it over: the RAF is
-// copied once into the editor's own store (lab/editor/app/store.js) under `photos:<id>`, and the
-// editor opens it straight in Edit. The next Edit on the same photo finds the copy, and the edit
-// made on it, already there.
-// The editor before (`?edit=`) still opens everything else: a JPEG, a HEIC or a DNG, a photo whose
-// original is not in Drive yet, a phone that is offline, and any photo once the owner picks
-// Classic (Settings → Photos → Editor).
+// The new editor works on RAFs and JPEGs kept on this phone and its page reaches nothing outside
+// this site, so Photos, which may read the owner's Drive, fetches the original and hands it over:
+// it is copied once into the editor's own store (lab/editor/app/store.js) under `photos:<id>`, and
+// the editor opens it straight in Edit. The next Edit on the same photo finds the copy, and the
+// edit made on it, already there.
+// The editor before (`?edit=`) still opens everything else: a HEIC or a DNG (the browser reads
+// neither), a JPEG that already has an edit there (it keeps that edit, where it can be seen and
+// carried on), a photo whose original is not in Drive yet, a phone that is offline, and any photo
+// once the owner picks Classic (Settings → Photos → Editor).
 import { pref } from '/th/pref.js';
 import * as data from './data.js';
 import { fetchOriginal, findByName } from './drive.js';
@@ -15,7 +16,7 @@ import { fetchOriginal, findByName } from './drive.js';
 /** @typedef {import('./data.js').PhotoItem} PhotoItem */
 
 /** Whether Edit on this photo opens the new editor. @param {PhotoItem | undefined} p */
-export const inNewEditor = (p) => Boolean(p && p.format === 'raf' && p.drive_id && navigator.onLine !== false && pref('photos.editor') !== 'classic' && navigator.storage?.getDirectory);
+export const inNewEditor = (p) => Boolean(p && (p.format === 'raf' || (p.format === 'jpeg' && !p.edited)) && p.drive_id && navigator.onLine !== false && pref('photos.editor') !== 'classic' && navigator.storage?.getDirectory);
 
 /** The photo's edit as the editor backed it up to Drive (lab/editor/app/backup.js), or null. @param {string} token @param {string} photosId */
 async function backedEdit(token, photosId) {
@@ -39,7 +40,7 @@ export async function openInEditor(p, say) {
     const blob = await fetchOriginal(token.access_token, /** @type {string} */ (p.drive_id));
     // An edit backed up from another phone, or before this one's storage was cleared, comes back with it.
     const side = await backedEdit(token.access_token, p.id).catch(() => null);
-    id = await store.addFrom(new File([blob], p.name, { lastModified: p.taken_at }), source, side ? { rating: side.rating, flag: side.flag, editFile: side.file, backed: side.mark } : {});
+    id = await store.addFrom(new File([blob], p.name, { type: p.format === 'jpeg' ? 'image/jpeg' : '', lastModified: p.taken_at }), source, side ? { rating: side.rating, flag: side.flag, editFile: side.file, backed: side.mark } : {});
     if (side && Object.keys(side.edit).length) await store.saveEdit(id, side.edit);
   }
   location.assign(`/lab/editor/?open=${id}&from=photos`);
