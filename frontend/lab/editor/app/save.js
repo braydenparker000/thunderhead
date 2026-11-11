@@ -20,19 +20,31 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }
 
+const MARK = 'th.editor.export';
+/** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
+ * name, once, if that photo is still here. A finished or refused export leaves no mark. */
+export function cutOff() {
+  try {
+    const m = JSON.parse(localStorage.getItem(MARK) || 'null');
+    localStorage.removeItem(MARK);
+    return m && store.photos().some((p) => p.id === m.id) ? /** @type {{ id: string, name: string }} */ (m) : null;
+  } catch { return null; }
+}
+
 /** Saves the open photo for each preset: developed once, each file taking its own size from it. `progress` hears how
  * far along it is (0 to 1). @param {Preset[]} presets @param {(done: number) => void} progress */
 export async function save(presets, progress) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
-  await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
+  try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name })); } catch { /* a private window */ }
+  try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
     const made = await develop(big, presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (w, h) => {
       const kept = carry(head, x.meta, x.gps, w, h);
       return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
     } })), (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); });
     for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
-  });
+  }); } finally { try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   return saved;
 }

@@ -5,6 +5,7 @@
 import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
+import { cutOff } from '../app/save.js';
 
 const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
 /** The stored photos as the board's roll. */
@@ -36,6 +37,9 @@ export default class Component extends DCLogic {
     photo.events.addEventListener('change', hear);
     this.app = document.body.dataset.board === 'App';
     if (this.app) store.usage().then((used) => this.setState({ used }), () => {});
+    // an export the page did not live to finish is offered again, once (app/save.js)
+    const cut = this.app ? cutOff() : null;
+    if (cut) this.state.cut = cut;
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), P = S.photos;
@@ -70,17 +74,18 @@ export default class Component extends DCLogic {
       input.onchange = async () => {
         const files = [...(input.files || [])];
         this.setState({ progress: { label: 'Copying to this phone', k: 0, total: files.length } });
-        const n = await store.add(files, (k, total) => this.setState({ progress: { label: 'Copying to this phone', k, total } }));
-        const r = roll();
-        this.setState({ photos: r.photos, shoots: r.shoots, idx: 0, used: await store.usage(), progress: { label: 'Copying to this phone', k: n, total: n, done: `Done · ${n} photo${n === 1 ? '' : 's'} on this phone` } });
+        const { added, had } = await store.add(files, (k, total) => this.setState({ progress: { label: 'Copying to this phone', k, total } }));
+        const r = roll(), n = added + had;
+        this.setState({ photos: r.photos, shoots: r.shoots, idx: 0, used: await store.usage(), progress: { label: 'Copying to this phone', k: n, total: n, done: `Done · ${added} photo${added === 1 ? '' : 's'} copied${had ? ` · ${had} already here` : ''}` } });
       };
       input.click();
     };
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
-    const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone` : '';
+    const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
     const doomed = real && S.view === 'grid' && S.filter === 'Rejects' ? shown.filter((p) => p.key) : [], armed = doomed.length > 0 && Date.now() - (S.armed || 0) < 5000;
     const subTap = async () => {
+      if (S.cut && S.view === 'grid') { set({ cut: null }); photo.open(S.cut.id); document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Export' })); return; }
       if (!doomed.length) return;
       if (!armed) { set({ armed: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
       const ids = doomed.map((p) => p.key);
@@ -90,8 +95,8 @@ export default class Component extends DCLogic {
       this.setState({ photos: r.photos.length ? r.photos : this.demo, shoots: r.photos.length ? r.shoots : null, idx: r.photos.length ? 0 : 6, filter: 'All', armed: 0, used });
     };
     return {
-      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
-      subTap, subInk: armed ? '#e8202a' : doomed.length ? '#c9d0d8' : '#8b95a1', subRole: doomed.length ? 'button' : null,
+      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${S.cut.name.replace(/\.RAF$/i, '')} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      subTap, subInk: armed ? '#e8202a' : doomed.length || S.cut ? '#c9d0d8' : '#8b95a1', subRole: doomed.length || S.cut ? 'button' : null,
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },

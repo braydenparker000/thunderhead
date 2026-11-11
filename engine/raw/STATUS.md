@@ -35,7 +35,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 | Profiles (the camera's renderings) as pictures on the Edit board's last face; the Looks board for `.cube` looks brought in (Presets) and edits saved as looks (Mine): each a small picture of this photo wearing it, in a strip in the panel | `cube.js`, `editor/app/looks.js`, `boards/Strip.js`, `boards/LooksPlate.js`, `boards/EditPlate.js` |
 | Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Heal board: Heal, Clone and Remove spots, each replaced from a source the engine picks nearby (it can be dragged); Size, Feather, Opacity; Visualize | `heal.js`, `mend.js`, `warp.js`, `demosaic.js`, `editor/app/heal.js`, `boards/HealPlate.js` |
-| Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
+| Library: tiles that show the edit, an Edited filter, what the photos take on the phone (and whether Chrome has promised to keep it), deleting rejects for good; a set picked again copies only what is missing; a cut-off export is offered again | `boards/LibraryPlate.js`, `editor/app/store.js`, `editor/app/save.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried, output sharpening for Screen or Print | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
 ## The plan, in order (agreed with the owner 2026-11-10)
