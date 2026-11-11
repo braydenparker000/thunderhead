@@ -147,7 +147,7 @@ describe('the settings catalogue', () => {
     expect(section).toContain('mind.voice: plain — Plain, a little warmer, or drier.\n');
     expect(section).toContain('mind.night_budget: 30 min — How long the night shift may run.\n');
     expect(section).toContain('mind.home_lines: 4 lines — How many of my lines');
-    expect(section).toContain('mind.ask_outside: on\n');
+    expect(section).toContain('mind.ask_outside: off\n');
     expect(section).toContain('mind.permit.muse: ask\n');
     expect(section).toContain(
       'briefing.tiles: report, today, due, practice, study, built, notes, holidays — Which tiles',
