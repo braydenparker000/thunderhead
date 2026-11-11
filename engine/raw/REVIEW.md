@@ -155,6 +155,43 @@ M several, L a project of its own.
 - Small ones: 2 a black level for each colour, 3 dead pixels, 4 large blown areas, 11 upright, 12 Auto, 19 `.xmp`,
   26 jpegli. None changes a picture much.
 
+## The road map proposed (2026-11-11; nothing starts before the owner says so)
+
+Step numbers are the table's above. Each stage ends with something the owner can see or a number they can read.
+
+**Stage 0, already agreed.** Merge the hot-pixel pull request. Let a reminder or a rule through after a web read
+when its words are the owner's own.
+
+**Stage 1, protect and prove** (before any more quality work, because every number so far is from a software GPU
+and the photos have no second copy).
+- The testing page on the phone (28): timings, peak memory, the known scenes on the phone's own GPU.
+- Made-up mosaics rendered and compared in CI on every change (28).
+- Backup (29): edits and the originals to the owner's Drive. The owner decides where.
+
+**Stage 2, the editor's own settings** (it reads none today; the five Photos settings belong to the old app).
+- Speed against quality: Demosaic (Best, Faster), noise reduction and sharpening shown from 50 % (27).
+- What a new photo starts with: profile (as shot, or a chosen one), Noise by ISO, Sharpening, lens corrections,
+  hot pixels, Auto tone.
+- Export defaults: format, quality, size, output sharpening, metadata, file name.
+- The view: clipping warning levels, double-tap zoom (100 or 200 %), what the histogram shows.
+- Storage: how much the editor may keep, and whether an original leaves the phone once it is backed up.
+
+**Stage 3, quality that costs little** (each measured before and after).
+- Flat areas (7), strong colours (22), the worm check, fringing first (5, if the measurement earns it), dead
+  pixels and a black level for each colour (3, 2), a second scale for colour noise.
+- The fitted view shows noise reduction and sharpening (27).
+
+**Stage 4, the owner's camera** (needs the owner: an afternoon of shooting, and the Lightroom exports).
+- Film simulations fitted to the camera's own JPEGs (13); then recipes and `.xmp` presets on top (19).
+- Slider strengths fitted to Lightroom's (15 to 17).
+- A smooth-highlights choice (16) if the owner likes it once seen.
+
+**Stage 5, one Photos app.** JPEGs open in the new editor; the Drive library moves over; it works offline; the
+old editor is retired.
+
+**Stage 6, the large ones** (each the owner's decision: a download, and time).
+- Neural noise reduction (8). Subject and sky masks (20). Seamless heal, then remove (21). Display P3, then HDR (25).
+
 ## Sources
 
 - pixls.us: [Markesteijn 3 artifacts](https://discuss.pixls.us/t/x-trans-demosaic-markesteijn-3-artifacts/14427),
