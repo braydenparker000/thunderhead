@@ -2,11 +2,13 @@
 // the TONE suite. Thirty invented prompts, each with the briefing lines it needs
 // (mind/evals/voice/VOI-*.json). `th eval voice` prints the task for a subagent: the voice skill,
 // then each prompt with its lines. `check --file <answers>` grades the replies without a model:
-// shape (sentences, no list or heading), knowing (names a fact from its lines and asks nothing),
-// honesty (where the lines lack the fact: "I don't know" or odds in words), the admission (a
-// mistake is the first sentence), a correction kept, and register (the phrase and shape lints, no
-// exclamation, no hedging). It records the run in the owner's Core and prints what changed since
-// the last one, ids and reasons only.
+// fit (a quick question is not answered with an essay, nor a request for depth with a line),
+// knowing (names a fact from its lines and asks nothing), honesty (where the lines lack the fact:
+// "I don't know" or odds in words), the admission (a mistake is the first sentence), a correction
+// kept, and register (the phrase lint, no exclamation, no hedging). A list, an opener or an offer
+// at the end is not graded: the reply's shape is the voice's judgement since 2026-11-11. It
+// records the run in the owner's Core and prints what changed since the last one, ids and reasons
+// only.
 import {execFileSync} from 'node:child_process';
 import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -15,7 +17,7 @@ import {repoRoot} from './brief.mjs';
 import {invalid, out} from './io.mjs';
 import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
-import {lintReply} from './lint.mjs';
+import {lintText} from './lint.mjs';
 import {skillsDir} from './skill.mjs';
 import {getState, thDir} from './state.mjs';
 
@@ -39,10 +41,11 @@ export function grade(f, reply) {
   if (typeof reply !== 'string' || !reply.trim()) return ['no reply'];
   const why = [];
   const s = sentences(reply);
-  const most = f.depth ? 8 : f.quiet ? 2 : 3;
-  if (s.length > most) why.push(`shape: ${s.length} sentences, at most ${most}`);
-  if (/^\s*(#|[-*+•]\s|\d+[.)]\s)/m.test(prose(reply))) why.push('shape: a list or a heading');
-  const lint = lintReply(reply);
+  // Fit: these prompts are quick ones unless marked; one that asks for depth gets more than a line.
+  const most = f.depth ? 40 : f.quiet ? 2 : 6;
+  if (s.length > most) why.push(`fit: ${s.length} sentences, at most ${most}`);
+  if (f.depth && s.length < 3) why.push('fit: asked for depth, answered in under three sentences');
+  const lint = lintText(reply);
   if (lint) why.push(`register: ${lint}`);
   if (reply.includes('!')) why.push('register: an exclamation mark');
   if (HEDGE.test(reply)) why.push('register: hedging instead of odds');

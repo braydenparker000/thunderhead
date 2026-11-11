@@ -8,7 +8,7 @@ import {CONTRACT, checkRoute, plainPath, routeOf} from './contract.mjs';
 import {permitOut, proposalHeaders, request, settings, sleep, stopNotice} from './http.mjs';
 import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
-import {lintReply, lintText} from './lint.mjs';
+import {lintText} from './lint.mjs';
 import {dayVoice} from './day-voice.mjs';
 
 export {lintText};
@@ -96,8 +96,8 @@ export async function say(argv) {
   const text = textArg(words);
   if (!text.trim()) throw invalid('the message is empty');
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
-  // A text message is the chat's reply: it takes the shape lint too (BEHAVIOR.md §2.2).
-  const lint = kind === 'text' ? lintReply(text) : kind === 'question' ? lintText(text) : null;
+  // The phrase lint alone: a reply's shape is the voice's judgement (BEHAVIOR.md §2.2).
+  const lint = kind === 'text' || kind === 'question' ? lintText(text) : null;
   if (lint) throw invalid(`the phrase lint refuses it (${lint})`);
   if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');

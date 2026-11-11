@@ -5618,57 +5618,12 @@
       "amazing work",
       "you're a natural",
       "don't break your streak",
-      "i deeply apologize",
-      "i'm so sorry",
       "i have successfully",
       "keep pushing forward",
       "as an ai language model",
       "i will now run",
       "using the bash tool"
-    ],
-    "banned_shapes": [
-      {
-        "phrase": "sure",
-        "at": "start"
-      },
-      {
-        "phrase": "certainly",
-        "at": "start"
-      },
-      {
-        "phrase": "absolutely",
-        "at": "start"
-      },
-      {
-        "phrase": "of course",
-        "at": "start"
-      },
-      {
-        "phrase": "here are",
-        "at": "sentence"
-      },
-      {
-        "phrase": "options:",
-        "at": "anywhere"
-      },
-      {
-        "phrase": "let me know if",
-        "at": "end"
-      },
-      {
-        "phrase": "want me to",
-        "at": "end"
-      },
-      {
-        "phrase": "would you like me to",
-        "at": "end"
-      },
-      {
-        "phrase": "feel free to",
-        "at": "end"
-      }
-    ],
-    "only_a_list": "only a list: say it in sentences"
+    ]
   },
   "watchdogs": {
     "limits": {

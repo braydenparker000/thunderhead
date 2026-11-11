@@ -14,7 +14,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as z from 'zod/mini';
 import * as c from '../shared/contract/index.ts';
-import { BANNED_PHRASES, BANNED_SHAPES, ONLY_A_LIST } from '../shared/contract/lint.ts';
+import { BANNED_PHRASES } from '../shared/contract/lint.ts';
 import { INFO_LIMITS, INFO_NUMBERS } from '../shared/contract/photos-info.ts';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
@@ -246,7 +246,7 @@ function mind() {
     // Scheduled actions and plans (`th verb --at`, `th plan`): checked before the call.
     schedules: { limits: c.SCHEDULE_LIMITS, plans: c.PLAN_LIMITS, plan_action: c.PLAN_ACTION, quiet_held: c.QUIET_HELD },
     routines: { limits: c.ROUTINE_LIMITS, days: c.ROUTINE_DAYS },
-    lint: { banned_phrases: BANNED_PHRASES, banned_shapes: BANNED_SHAPES, only_a_list: ONLY_A_LIST },
+    lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
     // The day pulse (`th watch`): the kinds, the limits, what an event or a change watch may name.
     watches: {
@@ -488,8 +488,6 @@ function docs() {
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');
-  const shapes = BANNED_SHAPES.map((s) => `"${s.phrase}" (${s.at})`).join(' · ');
-  L.push(`Chat replies also take the shape lint (where in the reply): ${shapes}; and a reply that is ${ONLY_A_LIST}.`, '');
   return `${L.join('\n')}`;
 }
 

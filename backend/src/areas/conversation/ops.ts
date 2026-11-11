@@ -4,7 +4,7 @@
 // files a message names become its attachments (areas/files/ops.ts).
 import type { JsonObject, Message, MessageKind, Permitted, Thread } from '../../../../shared/contract/api';
 import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
-import { lintChatReply, lintMindText } from '../../../../shared/contract/lint.ts';
+import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
@@ -51,10 +51,9 @@ export function today(w: Writer, tz: string): Thread {
   return t;
 }
 
-/** The phrase lint on a mind message's words; a text message (only the chat posts one) is also
- * checked for shape: no list alone, no opener, no closer that offers more (BEHAVIOR.md §2.2). */
-const bodyLint = (kind: string, body: string) =>
-  kind === 'text' ? lintChatReply(body) : kind === 'question' ? lintMindText(body) : null;
+/** The phrase lint on a mind message's words (a reply or a question; a progress card's lines and
+ * an error's are not prose). A reply's shape is the voice's judgement (BEHAVIOR.md §2.2). */
+const bodyLint = (kind: string, body: string) => (kind === 'text' || kind === 'question' ? lintMindText(body) : null);
 
 /** Returns the stored message and whether this call created it. */
 export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { message: Message; created: boolean } {
