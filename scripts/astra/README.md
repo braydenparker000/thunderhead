@@ -27,6 +27,9 @@ npm run serve &
 | `one.cjs <file> [seconds] [seek to]` | One film with the player's own log (`ALL=1` adds the software decoder's). |
 | `smooth.cjs <file> [cpu slowdown] [bytes per second]` | Start-up, frame pacing, stalls, long tasks on the page's thread, far and near seeks, an audio switch. `6 2500000` is close to a slow phone on 20 Mbit/s. |
 | `seektrace.cjs <file> <to> [cpu] [net]` | What one far seek waits for: the blocks asked for, each download, when picture and sound are buffered again. |
+| `hops.cjs <file> [count]` | Many seeks, most of them inside the buffer and at any frame: each must show a picture at the place, with no decode error. |
+| `tone.cjs <file>...` | The sound a film really makes: its loudest pitch and its level on each side (the test tone is 440 Hz; 5.1 sound is mixed to stereo with the centre at -3 dB). |
+| `rewrap.mjs <in> <out>` | A film's video re-wrapped as Astra does it, saved as a file for `ffmpeg -v error -i <out> -f null -` (no output means every frame decoded). The check for HEVC, which desktop Chrome cannot play. |
 
 `run.cjs` calls a film STILL or BLACK from two looks at the picture half a second apart; a film it
 marks FAILS for that alone (MPEG-PS, a four-second film) is worth one look with `one.cjs` before it

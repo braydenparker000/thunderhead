@@ -176,8 +176,9 @@ never switches pipeline mid-play:
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
    (profile 5 has no standard picture underneath).
-3. **Play** (`remux.js`, `mse.js`). Video packets are re-wrapped as
-   fragmented MP4 untouched, so the phone's hardware decoder does the work;
+3. **Play** (`remux.js`, `mse.js`, `early.js`, `downmix.js`). Video packets
+   are re-wrapped as fragmented MP4 untouched, in half-second fragments, so
+   the phone's hardware decoder does the work;
    audio has its own SourceBuffer, so changing track refills only the audio.
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame. Text subtitles in MKV are read
@@ -193,8 +194,8 @@ never switches pipeline mid-play:
    or Chrome fails to decode before the first frame, playback switches to it
    once by itself. A decoder that gives up while the film plays (a hardware
    decoder taken away, a seek into an open GOP in Chrome's own H.264
-   decoder) is met first with a fresh pipeline at the same place, then with
-   the software decoder there. A file whose picture has no decoder stops
+   decoder) is met first with a fresh pipeline at the same place, with
+   fragments only at key frames, then with the software decoder there. A file whose picture has no decoder stops
    with that reason at once; one whose sound has none plays with a notice.
 5. **Another app**: when nothing in the browser can play a file, the player
    offers it to the phone's video apps (VLC, MX Player…) through an Android
@@ -241,31 +242,46 @@ wired but were not tried: no test film could be made here.
 
 `scripts/astra/smooth.cjs` on a three-minute 1080p H.264 film at 8 Mbit/s
 with Dolby Digital 5.1 (converted as it plays) and a second AAC track, in
-desktop Chrome; the second column slows the page's thread six times and
-limits the connection to 20 Mbit/s, which is nearer a slow phone.
+desktop Chrome; the slowed columns have the page's thread six times slower
+and the connection limited to 20 Mbit/s, which is nearer a slow phone.
 
 | | Fast machine | Slowed, 20 Mbit/s: before | after |
 |---|---|---|---|
-| First frame | 0.8 s | 5.2 s | 5.1 s |
-| Seek two minutes ahead | 0.5 s | 6.6 s | 3.6 s |
-| Seek six seconds on, inside the buffer | 0.05 s | 2.4 s | 0.06 s |
-| Seek back to the start | 0.6 s | 2.5 s | 1.8 s |
+| First frame | 0.7 s | 5.2 s | 4.1 s |
+| Seek two minutes ahead | 0.4 s | 6.6 s | 1.8 s |
+| Seek six seconds on, inside the buffer | 0.06 s | 2.4 s | 0.05 s |
+| Seek back to the start | 0.5 s | 2.5 s | 1.1 s |
 | Frames dropped in 15 s of play, stalls | 0, 0 | 0, 0 | 0, 0 |
 
-What made the difference: after a seek the downloads of the pipelines being
-dropped went on filling their read-ahead and took half the connection from
-the place playback was waiting for; `HttpSource.jumped()` now closes them
-and ends their waiting reads (`tests/astra-source.test.mjs`). The audio
-decoder (1.1 MB for Dolby Digital, 1.6 MB for DTS) now downloads while the
-first video is read instead of before it.
+Three things made the difference.
 
-What is left, and why: the first frame and every far seek wait for one whole
-Matroska cluster (up to 5 MB or 5 s), because Mediabunny reads a cluster
-whole before it hands out its first packet; on 20 Mbit/s that is up to two
-seconds. Converted sound arrives about a second after the picture on a slow
-phone (decode and Opus encode on the page's thread). Changing the audio
-track stops the picture for about a third of a second (the seek in place
-that flushes the old sound). None of this was measured on the phone itself.
+- **A seek has the whole connection** (`http-source.js`, `jumped()`). The
+  downloads of the pipelines being dropped went on filling their read-ahead
+  and took half the connection from the place playback was waiting for; they
+  are closed and their waiting reads ended (`tests/astra-source.test.mjs`).
+- **Converted sound starts at once** (`downmix.js`). Mediabunny mixes to
+  stereo in five-second blocks, so Dolby Digital and DTS could not start
+  until five seconds of the file had been read. 48 kHz sound is now mixed
+  here a sample at a time; other rates still go through Mediabunny, which
+  also resamples (`tests/astra-downmix.test.mjs`).
+- **The picture arrives in half-second fragments** (`early.js`). Mediabunny
+  closes a video fragment only at the next key frame, so the first picture
+  waited for a second Matroska cluster. A fragment is now cut every half
+  second at a frame shown after all before it, and its first frame written
+  back as the ordinary frame it is, as chunked CMAF streams do
+  (`tests/astra-early.test.mjs`; `scripts/astra/rewrap.mjs` re-wraps a film
+  to a file for ffmpeg, which decoded every frame of nine films, HEVC, VP9
+  and AV1 among them, with the same key frames as their sources).
+
+The audio decoder (1.1 MB for Dolby Digital, 1.6 MB for DTS) also downloads
+while the first video is read instead of before it.
+
+What is left, and why: the first frame still waits for one whole Matroska
+cluster (up to 5 MB or 5 s), because Mediabunny reads a cluster whole before
+it hands out its first packet, and on a first play for the audio decoder's
+download. Changing the audio track stops the picture for about a third of a
+second (the seek in place that flushes the old sound). None of this was
+measured on the phone itself.
 
 ## The player screen
 
