@@ -32,7 +32,7 @@ test('the night section walks the contract\'s steps: each built step in order, a
   const built = contract.steps.filter(s => contract.built_phases.includes(s.phase) && !s.deferred).map(s => s.step);
   const named = [...night.matchAll(/^ {3}- (\d+) /gm)].map(m => Number(m[1]));
   assert.deepEqual(named, built, 'one bullet per built step, in order');
-  for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch <file> --night'])
+  for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch - --night'])
     assert.ok(night.includes(cmd), cmd);
   assert.match(night, new RegExp(`at ${contract.budget_min.hard} \\(${contract.budget_min.sunday_hard} on the`));
 });

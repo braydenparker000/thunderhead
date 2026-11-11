@@ -217,6 +217,17 @@ The owner: the nightly pass hasn't published anything. Counts and states only be
 
 **Not checked from here.** Whether earlier nights failed the same way: only the last run's record can be read from a coding session, and the private routes answer 401 to it. The next night's run is the proof.
 
+**The night after (2026-11-11): refused again, for a new reason.** The run started at the day roll with the fixes above live, and none of the three came back: no warning, no filter, the report in its new place. Steps 1 to 5, 7 and 13 were done and the day note and the day's line were written. Then `th report` was refused (`session_tainted`), three minutes in, and the run ended partial. The cause, from the run's commands: at step 4 `th help facts` said only "a batch of memory ops", with no word on what the file holds. The session went to find out, read the command's source, and listed its own temp folder to see where such a file would go (`ls $TMPDIR/th`). The hooks' rule counts a look at anything outside the repo as outside text (that folder holds the drop folder for outside files), so the listing labelled the session.
+
+Fixed at the root: `th help facts` now spells out the batch (the three ops, their fields, an example of each), and the batch can come on stdin (`th facts --batch - --night`), so the night writes no file and has no folder to look into. `mind/ROLES.md` and the night skill say so, and say that until the report is written the night runs only `th` and asks `th help`, never the source or a folder outside the repo.
+
+**Two things left for the owner, because they loosen the quarantine.** Both were weighed and not done: a safety check in the coding session refused the first, and the second is the same kind of change.
+
+1. *The report from a labelled session.* The Worker could take the report from a night session that has read outside text, show it as the tile only (not as the chat's first message) and say on the tile that it was written after outside text. Tiles and home lines from such a session are already taken (`surfaces.put` has no check); only the report is refused. With this, one stray command could never again leave the Briefing empty. `backend/src/areas/briefing/report.ts`, the line `if (g.tainted) throw new Fail('session_tainted')`.
+2. *The night's own folder.* The hooks could read a plain `ls` of `$TMPDIR/th` (fixed names: the briefing, state, work, the drop folder) as local, while the drop folder's own listing and every file in it stay outside text. `mind/hooks/lib/taint.mjs`, `ownFile`.
+
+Until one of them is in, a night that looks outside the repo before step 12 will lose its report, as these two did. The next night's run is again the proof.
+
 ## The calendar (built 2026-11-02)
 
 **The setting.** `briefing.calendars`, kind `links`: up to 3 `{ url, mine }`, each address once, https, ≤ 512 characters, no user, password or port, a public host neither numeric nor local (`linkProblem` in `shared/contract/settings.ts`, the same words on the phone and in the Worker's 422). Mine is the default; Shared marks someone else's or an organisation's feed. The addresses are kept only in Core's settings and read back only by the owner's devices; an agent's `GET /v1/settings` sees each link's host and mark.

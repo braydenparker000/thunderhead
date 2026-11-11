@@ -18,8 +18,8 @@ order. Aim for 30 minutes; the hard stop ends the run wherever it is.
   `th note --day-voice "<what you noticed, ≤ 200>"` (the chat's to read), then `th title <thread id>
   "<title>"` unless the owner titled it.
 - Step 3: `th thread done <id>` for what the day finished, `th thread add` for each commitment.
-- Step 4: one file, `th facts --batch <file> --night`, parts over 50 ops (`--part 2`), saving your
-  place with `th night step 4 cursor "<part>:<last message id>"`.
+- Step 4: `th facts --batch - --night` on stdin (`th help facts`), parts over 50 ops (`--part
+  2`), saving your place with `th night step 4 cursor "<part>:<last message id>"`.
 - Step 7: `th podcasts new`, 0-3 home lines (`th surface home line.<n> … --ref app:<id>`), tiles
   (`th skill briefing`), up to 6 predictions with honest odds (`th predict …`).
 - Step 5: fix only loose ends tagged `agreed`, on a branch (`th skill code`); the next chat ships.

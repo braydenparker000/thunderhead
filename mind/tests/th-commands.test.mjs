@@ -398,6 +398,12 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   writeFileSync(batch, JSON.stringify([{op: 'add', kind: 'routine', subject: 'music', text: 'Plays guitar after dinner', source: 'observed', evidence: [`msg:${said.id}`], sensitivity: 0},
     {op: 'add', kind: 'fact', subject: 'x', text: 'Unsupported', source: 'user', evidence: ['msg:does-not-exist'], sensitivity: 0}]));
   assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: [{i: 1, reason: 'bad_evidence'}]}, 'valid ops apply, bad ones are listed');
+  // The batch on stdin (`-`): no file to write and no folder to look into (the night of 2026-11-11
+  // listed its temp folder to find where the file went, and the listing labelled the session).
+  const onStdin = JSON.stringify({ops: [{op: 'add', kind: 'habit', subject: 'owner', text: 'Reads before bed', source: 'observed', evidence: [`msg:${said.id}`]}]});
+  assert.deepEqual((await th(['facts', '--batch', '-'], e, onStdin)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
+  const how = (await th(['help', 'facts'], e)).stdout;
+  for (const word of ['{"ops":[', '"op":"add"', '"op":"confirm"', '"op":"supersede"', 'msg:<message id>', '--batch - --night']) assert.ok(how.includes(word), `th help facts says ${word}`);
   assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
   const ahead = await th(['night', 'step', '3', 'done'], e);
   assert.equal(ahead.code, 7, 'a step ahead of the run is a conflict');
