@@ -146,7 +146,7 @@ Rules for the push itself:
 - Title ≤ 40 characters, body ≤ 100 characters, no exclamation marks.
 - Tapping it opens Home with the item in view.
 
-**Owner-set reminders** ("Remind me at 15:00 to call", the `+` sheet's "Remind me"): fire at the asked time, don't count toward the 2, skip the natural-pause rule, but still never fire before 06:30. A reminder asked for 05:00 is set for 06:30 and the reply says so: "Set for 06:30, the earliest I'll ring."
+**Owner-set reminders** ("Remind me at 15:00 to call", the `+` sheet's "Remind me"): fire at the asked time, don't count toward the 2, skip the natural-pause rule, but still never fire before 06:30. A reminder asked for 05:00 is set for 06:30 and the reply says so: "Set for 06:30, the earliest I'll ring." The mind sets one only by naming the owner's message that asked; after it has read outside text in the session, only in the owner's own words from that message (at least three in four of the reminder's words stand in it), so a look-up never costs the owner a reminder and outside text can never word one.
 
 **Check (VL-3):** Worker tests: a third push in a day → `409 push_budget`; a push at 06:29 → `409 quiet_hours`; a push 90 min after another → `409 push_gap`; a push while `quiet_until > now` → `409 quiet`. Weekly metric "push budget breaches" = 0 ([EVALS.md](EVALS.md)).
 

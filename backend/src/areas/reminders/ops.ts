@@ -1,12 +1,14 @@
 // Reminders the owner sets (HOME.md §6.2, BEHAVIOR.md §3.4 "Owner-set reminders"), inside a
 // commit. A reminder is the owner's own words at the owner's own time: from the phone, or from the
 // chat mind naming the owner's message that asked (a recent owner-device message, at most 3 from
-// one, never from a tainted session), because a reminder's push skips the mind's push budget. A
+// one; from a session that has read outside text, only in the owner's own words from that
+// message: shared/contract/owner-words.ts), because a reminder's push skips the mind's push budget. A
 // time inside quiet hours moves to their end (never before 06:30). At its time the alarm delivers
 // it once: a system line in today's thread and, outside quiet hours, a push.
 
 import type { Permitted } from '../../../../shared/contract/api';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
+import { ownersWords } from '../../../../shared/contract/owner-words.ts';
 import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
   type PutReminderRequest,
@@ -49,9 +51,16 @@ const CONTROL = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u206
 export const fireAt = (at: number, tz: string, quiet: QuietWindow, rules: QuietWindow[] = []) =>
   rules.length ? pastAll(at, tz, [quiet, ...rules]) : heldUntil(at, tz, quiet);
 
-/** The mind's claimed chat session, clean (as memory writes need it): else 403. */
-function cleanSession(w: Writer, c: Caller): void {
-  if (claimedSession(w.db, c.session_id, 'chat').tainted) throw new Fail('session_tainted');
+/** The mind's claimed chat session, clean (as memory writes need it): else 403. A session that has
+ * read outside text may still say back what the owner typed: `words` in the owner's own words from
+ * the message `source` (already checked to be the owner's) goes through. */
+function cleanSession(w: Writer, c: Caller, words?: string, source?: string): void {
+  if (!claimedSession(w.db, c.session_id, 'chat').tainted) return;
+  const said = words !== undefined && source !== undefined ? convo.messageOrigin(w.db, source)?.body : undefined;
+  if (said !== undefined && ownersWords(words as string, said)) return;
+  throw new Fail('session_tainted', {
+    reason: "after outside text, only the owner's own words from the message named",
+  });
 }
 
 /** PUT /v1/reminders/:id. The same request again answers the stored reminder; another body under
@@ -86,8 +95,8 @@ export function put(
   if (r.at > w.at + REMINDER_LIMITS.days_ahead * DAY)
     throw invalid('at', `at most ${REMINDER_LIMITS.days_ahead} days ahead`);
   if (mind) {
-    cleanSession(w, c);
     checkSource(w, r.source_message_id as string);
+    cleanSession(w, c, text, r.source_message_id as string);
     const lint = lintMindText(text);
     if (lint) throw invalid('text', lint);
     if (store.mindSince(w.db, w.at - DAY) >= MIND_PER_DAY)
