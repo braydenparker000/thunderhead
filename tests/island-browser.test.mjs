@@ -561,3 +561,42 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     await settle(page);assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('alert')),true);
   }finally{await context.close();}
 });
+
+test("the owner's island settings: play, next, sleep; the timer's minutes; no skip by swipe, no scrolling title, no alert", opts, async () => {
+  const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
+  try {
+    const page=await signedIn(context);
+    await page.evaluate(()=>{for(const [k,v] of [['island.controls','play-next-sleep'],['island.sleep_min','15'],['island.swipe','false'],['island.titles','fade'],['island.alerts','false']]) localStorage.setItem(`th.s.${k}`,v);});
+    await page.goto(`${base}/`);
+    await readyOpen(page,'music');await settle(page);
+    await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
+    // Two songs with a long title, so a skip or a scrolling title would show.
+    await page.evaluate(()=>{const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'one',title:'An invented title, a little too long'},{id:'two',title:'The second invented song'}];p.index=0;});
+    await page.waitForFunction(()=>document.querySelector('.title').textContent.includes('invented title'));
+    await settle(page);
+    const index=()=>page.evaluate(()=>document.querySelector('iframe[data-app=music]').contentWindow.__cp.player.index);
+    const swipe=async()=>{const box=await page.locator('.compact').boundingBox(),x=box.x+box.width/2,y=box.y+18;
+      await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x-30,y,{steps:3});await page.mouse.move(x-70,y,{steps:3});await page.mouse.up();await settle(page);};
+    await swipe();
+    assert.equal(await index(),0,'Swipe to skip off: the swipe does nothing');
+    // Long titles "Fade": past the two seconds a scroll would wait, nothing moves.
+    await outlast(page,2600);
+    assert.equal(await page.locator('.title').evaluate(e=>e.getAnimations().length),0,'the title never scrolls');
+    // Alerts off: a card about what plays raises no dot.
+    await page.evaluate(()=>{let dock=document.querySelector('#decision');if(!dock){dock=document.createElement('div');dock.id='decision';document.body.append(dock);}const card=document.createElement('div');card.className='card';card.textContent='An invented card';dock.append(card);});
+    await outlast(page,400);
+    assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('alert')),false);
+    // Expanded: play, next, then the sleep timer, which starts at the owner's 15 minutes.
+    await page.locator('.compact').click();await settle(page);
+    const first=page.locator('.th-island [data-control="previous"]');
+    assert.deepEqual(await first.evaluate(e=>[e.getAttribute('aria-label'),e.style.order,e.classList.contains('zzz')]),['Sleep timer','3',true]);
+    assert.deepEqual(await page.locator('.th-island .controls button').evaluateAll(b=>b.map(x=>[x.getBoundingClientRect().x,x.getAttribute('aria-label')]).sort((a,b)=>a[0]-b[0]).map(x=>x[1])),['Play','Next','Sleep timer']);
+    await first.click();
+    assert.equal(await page.evaluate(()=>import('/th/island/island.js').then(m=>Math.round(m.sleepLeft()/60))),15);
+    assert.equal(await index(),0,'the first button no longer steps back');
+    // Back on in Settings, the swipe skips again at once (read where it is used).
+    await page.evaluate(()=>{localStorage.removeItem('th.s.island.swipe');return import('/th/island/island.js').then(m=>m.wide(false));});
+    await settle(page);await swipe();
+    assert.equal(await index(),1,'Swipe to skip on: next');
+  } finally { await context.close(); }
+});

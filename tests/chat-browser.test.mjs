@@ -779,6 +779,23 @@ test('an older long reply folds to 10 lines with Show all; the newest never fold
   await context.close();
 });
 
+test("the owner's chat settings: no folding, the 12-hour clock, a reply that is simply there", opts, async () => {
+  const prefs = () => { for (const [k, v] of [['chat.fold', 'false'], ['appearance.clock', '12'], ['chat.reveal', 'instant']]) localStorage.setItem(`th.s.${k}`, v); };
+  const long = Array.from({ length: 24 }, (_, i) => `Line ${i + 1} of a long answer about the week.`).join('\n');
+  const messages = [past(1, 'owner', 'Plan my week', 3 * 3600_000), past(2, 'mind', long, 3 * 3600_000 - 60_000), past(3, 'owner', 'Thanks', 20 * 60_000), past(4, 'mind', 'Any time.', 19 * 60_000)];
+  const reply = { after: 300, text: 'A reply that is simply there, with no words fading up.' };
+  const { page, context, errors } = await open({ chat: { messages, reply, presence: { state: 'listening', note: null, since: Date.now() } }, init: prefs });
+  await page.waitForSelector('#talk .reply');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); // folding happens a frame after drawing
+  assert.equal(await page.$$eval('#talk .reply.folded, #talk .more', (r) => r.length), 0, 'Fold long replies off: nothing folds');
+  assert.match(await page.$eval('#talk .turn', (t) => t.dataset.time), /^\d{1,2}:\d\d (am|pm)$/, 'the 12-hour clock');
+  await send(page, 'And one more');
+  await page.waitForFunction(() => document.querySelectorAll('#talk .reply').length === 3);
+  assert.equal(await page.$$eval('#talk .reply.reveal, #talk .reply .w', (r) => r.length), 0, 'Reply reveal instant: no word animation');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('Find in today: every match marked, "3 of 3" newest first, Enter steps back, Escape closes', opts, async () => {
   const messages = [past(1, 'owner', 'Something calm for the evening', 40 * 60_000), past(2, 'mind', 'Calm piano, under Evening.', 39 * 60_000), past(3, 'owner', 'Calm again tomorrow', 10 * 60_000), past(4, 'mind', 'Noted.', 9 * 60_000)];
   const { page, context, errors } = await open({ chat: { messages } });

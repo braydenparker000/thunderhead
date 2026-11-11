@@ -71,8 +71,8 @@ async function start() {
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   // The shell's and home's senses (th/senses/shell.js): heard from what home shows, ids and times.
   requestAnimationFrame(() => setTimeout(() => import('/th/senses/shell.js').then((m) => m.startShellSenses()).catch(() => {}), 0));
-  // What's new after an update (th/news), once per release.
-  requestAnimationFrame(() => setTimeout(() => import('/th/news/news.js').then((m) => m.startNews()).catch(() => {}), 0));
+  // What's new after an update (th/news), once per release, unless the owner turned it off.
+  if (localStorage.getItem('th.s.chat.news') !== 'false') requestAnimationFrame(() => setTimeout(() => import('/th/news/news.js').then((m) => m.startNews()).catch(() => {}), 0));
   // Push (SECURITY.md §10): when it is on, the subscription follows a replaced key and a new sign-in.
   if ('Notification' in window && Notification.permission === 'granted')
     requestAnimationFrame(() => setTimeout(() => import('/th/push/phone.js').then((m) => m.recheck()).catch(() => {}), 0));

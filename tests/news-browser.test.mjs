@@ -44,8 +44,9 @@ test('when a card is due: a new id, fresh lines', () => {
 });
 
 /** Home signed in (`at`: when) at phone size, with `news` as /whats-new.json. */
-async function home(context, news, at = Date.now() - 30 * 86_400_000) {
+async function home(context, news, at = Date.now() - 30 * 86_400_000, prefs = {}) {
   const page = await context.newPage();
+  await page.addInitScript((p) => { for (const [k, v] of Object.entries(p)) localStorage.setItem(`th.s.${k}`, v); }, prefs);
   await mockApi(page, {});
   await page.route('**/whats-new.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(news) }));
   // Home reads the lines after its first paint; a test that expects no card waits for that read.
@@ -99,6 +100,20 @@ test('a phone signed in since the release has it all already: no card', opts, as
   await page.newsRead;
   // Signed in after the release: the lines are kept as seen without a card.
   await page.waitForFunction((id) => localStorage.getItem('th.news.seen') === id, news.id);
+  assert.equal(await page.locator('#turns .card.news').count(), 0);
+  await context.close();
+});
+
+test("What's new off (Settings → Home and chat): the note's lines are never even read", opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const page = await home(context, NEWS, undefined, { 'chat.news': 'false' });
+  page.newsRead.catch(() => {}); // it never comes
+  let read = false;
+  page.on('request', (r) => { if (r.url().endsWith('/whats-new.json')) read = true; });
+  // The chat loads in the same turn the note would have: once it has synced, the note had its chance.
+  await page.waitForFunction(() => document.documentElement.dataset.signedIn !== undefined && document.querySelector('#talk'));
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 600)));
+  assert.equal(read, false);
   assert.equal(await page.locator('#turns .card.news').count(), 0);
   await context.close();
 });

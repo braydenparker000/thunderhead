@@ -15,7 +15,7 @@ function openFromRing(id,color,to){
 (function(){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
-  const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('show'),1700)};
+  const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('show'),num('appearance.toast_ms',2)*1000)};
   try{$('#date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}catch(e){}
 
   // Day or night: ui/theme.js keeps it (Auto by the owner's hours, Day or Night sticks), from the
@@ -46,14 +46,14 @@ function openFromRing(id,color,to){
   // What you were writing survives closing the app: kept on this phone as you type, gone once sent
   // (and with everything else of yours at sign-out: th.p.*).
   const DRAFT='th.p.draft';
-  try{ const d=localStorage.getItem(DRAFT); if(d&&!q.value){ q.value=d; ask.classList.add('typing') } }catch(e){}
-  const keepDraft=()=>{ try{ q.value.trim()?localStorage.setItem(DRAFT,q.value):localStorage.removeItem(DRAFT) }catch(e){} };
+  try{ const d=localStorage.getItem(DRAFT); if(d&&!q.value&&localStorage.getItem('th.s.chat.draft')!=='false'){ q.value=d; ask.classList.add('typing') } }catch(e){}
+  const keepDraft=()=>{ try{ q.value.trim()&&pref('chat.draft')!=='false'?localStorage.setItem(DRAFT,q.value):localStorage.removeItem(DRAFT) }catch(e){} };
   q.addEventListener('input',keepDraft); ask.addEventListener('submit',()=>setTimeout(keepDraft));
   // Enter sends (the line break a phone's keyboard asks for, whatever its key code); Shift+Enter on a
   // keyboard starts a new line, and pasted lines stay.
   let newLine=false;
   q.addEventListener('keydown',e=>{ newLine=e.key==='Enter'&&e.shiftKey });
-  q.addEventListener('beforeinput',e=>{ if((e.inputType==='insertLineBreak'||e.inputType==='insertParagraph')&&!newLine){ e.preventDefault(); ask.requestSubmit() } });
+  q.addEventListener('beforeinput',e=>{ if((e.inputType==='insertLineBreak'||e.inputType==='insertParagraph')&&!newLine&&pref('chat.enter_sends')!=='false'){ e.preventDefault(); ask.requestSubmit() } });
   // The conversation ends above the bar, however tall it has grown, and stays at its newest turn
   // while the bar grows or the keyboard opens (the page resizes to the keyboard: interactive-widget).
   let atEnd=true; convo.addEventListener('scroll',()=>{ atEnd=convo.scrollHeight-convo.scrollTop-convo.clientHeight<24 },{passive:true});
@@ -65,7 +65,7 @@ function openFromRing(id,color,to){
   const pullEl=document.createElement('div'); pullEl.className='pullfind'; pullEl.setAttribute('aria-hidden','true'); pullEl.textContent='Find in today'; convo.parentElement.append(pullEl);
   let pull=null;
   const pullShow=d=>{ const k=Math.min(1,d/64); pullEl.style.opacity=String(k); pullEl.style.transform=`translate(-50%,${-12+k*12}px)`; pullEl.classList.toggle('ready',k>=1) };
-  convo.addEventListener('touchstart',e=>{ pull=convo.scrollTop<=0&&e.touches.length===1&&!e.target.closest('input,textarea')?{y:e.touches[0].clientY,d:0}:null },{passive:true});
+  convo.addEventListener('touchstart',e=>{ pull=pref('gestures.pull_find')!=='false'&&convo.scrollTop<=0&&e.touches.length===1&&!e.target.closest('input,textarea')?{y:e.touches[0].clientY,d:0}:null },{passive:true});
   convo.addEventListener('touchmove',e=>{ if(!pull) return; pull.d=e.touches[0].clientY-pull.y; if(pull.d<0||convo.scrollTop>0){ pull=null; pullShow(0); return } pullShow(pull.d) },{passive:true});
   convo.addEventListener('touchend',()=>{ if(pull&&pull.d>=64) import('/th/reply/find.js').then(f=>f.openFind()); pull=null; pullShow(0) },{passive:true});
   // Signed out the mic only says so; signed in it records a voice memo (th/chat/index.js).
@@ -94,7 +94,7 @@ function openFromRing(id,color,to){
   // fades, so its glass always sees what is behind it.
   // The owner's ring (Settings → Ring and gestures): their apps in their order, Photos last; Ring icons
   // filled or outlined; built again when either changes. Hold time and swipe start are theirs too.
-  const pref=k=>{ try{ return localStorage.getItem('th.s.'+k) }catch(e){ return null } }, num=(k,d)=>Number(pref(k))||d;
+  const pref=k=>{ try{ return localStorage.getItem('th.s.'+k) }catch(e){ return null } }, num=(k,d)=>Number(pref(k))||d, EDGE=20; // EDGE: px from the screen's side that are the phone's own back gesture (Edge back guard)
   const ringNow=()=>{ try{ return ringApps(JSON.parse(pref('gestures.ring_apps')||'null')) }catch(e){ return ringApps(null) } };
   const skin=a=>{ const g=root.dataset.glyphs==='outline'?'':'-fill'; return [a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}${g}"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}${g}"/></svg></span>`,a.color,a.built?a.path:''] };
   let apps=ringNow(), APPS=apps.map(skin);
@@ -183,7 +183,7 @@ function openFromRing(id,color,to){
     settleRing(run);
     // The chosen disc lifts on its shadow only once it has come to rest.
     if(d>=0) petMotion[d].choice.whenResting().then(()=>{ if(dir===d&&open) pets[d].classList.add('lifted') });
-    name(d); if(d>=0) haptic('choose') }
+    name(d); if(d>=0&&pref('gestures.ring_ticks')!=='false') haptic('choose') }
   // The name under the ring: the new one fades up into place, the old one fades on up and out (compositor only).
   function name(d){ const was=lbl.classList.contains('show')?lbl.textContent:'', next=d>=0?APPS[d][0]:'';
     if(was===next) return;
@@ -244,8 +244,8 @@ function openFromRing(id,color,to){
       // anything else is the scroller's once it passes the 10 px hold slop.
       // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary).
       if(!swipe&&view==='side'&&mx<0&&d>=num('gestures.swipe_px',6)&&start.el.closest&&start.el.closest('#convos .row.thr')){ resumePages(); start=null; return }
-      if(!swipe){ if(d>=num('gestures.swipe_px',6)&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
-        else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); resumePages(); start=null } return } }
+      if(!swipe){ if(d>=num('gestures.swipe_px',6)&&Math.abs(mx)>Math.abs(my)&&!(pref('gestures.edge_guard')!=='false'&&(start.x<EDGE||start.x>innerWidth-EDGE))){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
+        else { if(d>num('gestures.hold_slop',10)){ clearTimeout(holdT); press.classList.remove('on'); resumePages(); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
       const W=app.clientWidth, S=side.offsetWidth;
       // Past the end a page stretches a little and springs back on release (a rubber band).
@@ -259,12 +259,12 @@ function openFromRing(id,color,to){
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
   // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
   function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
-  // A swipe commits at 28% of its travel or a flick of 0.45 px/ms its way (GESTURES.md §4).
+  // A swipe commits at 28% of its travel (the owner's Swipe to turn: 20, 28 or 40%) or a flick of 0.45 px/ms its way (GESTURES.md §4).
   // A flick finishes at the finger's speed (the spring's settle is about 1.8 times the straight run),
   // between 180 and 460 ms; a commit ticks once.
-  function endSwipe(at){ const {from,b,s,axis}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45; swipe=null; start.paused=false; swiped=true; setTimeout(()=>swiped=false,60);
-    const to=from==='home'?(b>0&&(v>F||b>.28&&v>=-F)?'brief':s>0&&(v<-F||s>.28&&v<=F)?'side':'home')
-      :from==='brief'?(v<-F||b<.72&&v<=F?'home':'brief'):(v>F||s<.72&&v>=-F?'home':'side');
+  function endSwipe(at){ const {from,b,s,axis}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45, C=num('gestures.swipe_commit',28)/100; swipe=null; start.paused=false; swiped=true; setTimeout(()=>swiped=false,60);
+    const to=from==='home'?(b>0&&(v>F||b>C&&v>=-F)?'brief':s>0&&(v<-F||s>C&&v<=F)?'side':'home')
+      :from==='brief'?(v<-F||b<1-C&&v<=F?'home':'brief'):(v>F||s<1-C&&v>=-F?'home':'side');
     const left=to==='brief'||from==='brief'?Math.abs((to==='brief'?1:0)-b)*app.clientWidth:Math.abs((to==='side'?1:0)-s)*side.offsetWidth;
     go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined,{b:axis==='brief'?v*1000/app.clientWidth:0,s:axis==='side'?-v*1000/side.offsetWidth:0});
     if(to!==from){ haptic('commit'); if(to==='brief'||to==='side') learn(to) } }

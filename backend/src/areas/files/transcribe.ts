@@ -32,16 +32,30 @@ const words = (out: unknown): string | null => {
   return [...text.trim()].slice(0, TEXT_MAX).join('').trim();
 };
 
+/** The languages dictation may be told to listen for (the owner's Dictation language, Settings →
+ * Home and chat); anything else, or none, leaves the model to work it out. */
+export const DICTATE_LANGUAGES = ['en', 'es'] as const;
+export const languageOf = (given: string | undefined): string | undefined =>
+  (DICTATE_LANGUAGES as readonly string[]).includes(given ?? '') ? given : undefined;
+
 /** The words in `bytes`, `''` when none were heard. Throws when the model fails, answers no
  * words field or the deadline passes: dictation tells "nothing heard" from "couldn't hear". */
-export async function hear(ai: Transcriber, bytes: ArrayBuffer, type: string, ms: number): Promise<string> {
+export async function hear(
+  ai: Transcriber,
+  bytes: ArrayBuffer,
+  type: string,
+  ms: number,
+  language?: string,
+): Promise<string> {
   const deadline = AbortSignal.timeout(ms);
   const late = new Promise<never>((_, reject) => {
     deadline.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
   });
   late.catch(() => undefined); // the deadline may pass after the words came: nobody waits then
   const run = async (audio: unknown) => {
-    const text = words(await Promise.race([ai.run(WHISPER, { audio }, { signal: deadline }), late]));
+    const text = words(
+      await Promise.race([ai.run(WHISPER, { audio, ...(language ? { language } : {}) }, { signal: deadline }), late]),
+    );
     if (text === null) throw new Error('no words field');
     return text;
   };

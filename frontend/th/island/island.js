@@ -4,6 +4,10 @@ import { appFor } from '../registry/apps.js';
 import { animator, motionReduced, springs, restTime, response, haptic } from '../motion.js';
 import { frames, retain } from './frames.js';
 import { drop, saidFor } from './line.js';
+import { pref, prefNum, prefOn } from '../pref.js';
+/** The owner's Expanded controls: play, next and the sleep timer in place of back, play, next. */
+const sleepy = () => pref('island.controls') === 'play-next-sleep';
+const sleepTap = () => control('sleep', sleepLeft() ? 0 : prefNum('island.sleep_min', 30));
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 /** @param {string} id */
 export const layered = id => LAYERED.includes(id);
@@ -287,10 +291,12 @@ function ensureIsland() {
   for (const button of /** @type {NodeListOf<HTMLButtonElement>} */ (b.querySelectorAll('[data-control]'))) button.addEventListener('click', () => {
     const cmd = button.dataset.control;
     if (cmd === 'toggle') kick();
-    control(cmd === 'toggle' ? playing() ? 'pause' : 'play' : /** @type {'next'|'previous'} */ (cmd));
+    if (cmd === 'previous' && sleepy()) toastOf(sleepTap());
+    else control(cmd === 'toggle' ? playing() ? 'pause' : 'play' : /** @type {'next'|'previous'} */ (cmd));
     touch(); haptic('choose');
   });
-  b.querySelector('.zz')?.addEventListener('click', () => { toastOf(control('sleep', sleepLeft() ? 0 : 30)); touch(); });
+  b.querySelector('.zz')?.addEventListener('click', () => { toastOf(sleepTap()); touch(); });
+  document.addEventListener('th:setting', e => { if (/** @type {CustomEvent} */ (e).detail?.key === 'island.controls') lastApp = ''; });
   gestures(b);
   document.addEventListener('pointerdown', e => { if (expanded && !b.contains(/** @type {Node} */ (e.target))) void wide(false); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && expanded) { void wide(false); /** @type {HTMLElement} */ (b.querySelector('.compact')).focus(); } });
@@ -335,7 +341,7 @@ function gestures(b) {
     if (!start) return;
     const dx=e.clientX-start.x,dy=e.clientY-start.y;
     if (Math.abs(dy)>30 && dy < -Math.abs(dx)) { held=true; clearTimeout(hold); start=null; void wide(false); }
-    else if (!expanded && Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)*1.5) { held=true; clearTimeout(hold); start=null; control(dx<0?'next':'previous'); }
+    else if (!expanded && prefOn('island.swipe') && Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)*1.5) { held=true; clearTimeout(hold); start=null; control(dx<0?'next':'previous'); }
   });
   const end=() => {if(!touching) return; touching=false; clearTimeout(hold); start=null; touch(); if (!expanded) marquee();};
   addEventListener('pointerup',end); addEventListener('pointercancel',end);
@@ -348,7 +354,7 @@ function notices() {
   if (!island) return;
   const notes=[...document.querySelectorAll('#talk .note')].filter(about);
   const decision=document.querySelector('#decision .card:not(.gone)');
-  const key=notes.map(n=>n.closest('[data-id]')?.getAttribute('data-id') ?? n.textContent).join('|') + (decision?.textContent ?? '');
+  const key=prefOn('island.alerts') ? notes.map(n=>n.closest('[data-id]')?.getAttribute('data-id') ?? n.textContent).join('|') + (decision?.textContent ?? '') : '';
   island.classList.toggle('alert',Boolean(key));
   if (key && key!==noticeKey) {
     clearTimeout(alertEnd); island.classList.add('alert-flash');
@@ -386,7 +392,7 @@ function marquee(delay = 2000) {
     await wait(delay);
     while (run === marqueeRun) {
       const end = text.parentElement ? text.parentElement.clientWidth - text.scrollWidth - 16 : 0;
-      if (end >= -16 || motionReduced()) return;
+      if (end >= -16 || motionReduced() || pref('island.titles') === 'fade') return;
       // Only while the capsule rests, compact and untouched, in a visible page.
       if (expanded || touching || is.hidden || document.hidden || !shape.resting || !alertWidth.resting || layer?.front) { await wait(2000); continue; }
       is.classList.add('scrolling');
@@ -461,9 +467,12 @@ function tick() {
     /** @type {Element} */ (is.querySelector('.art .i')).innerHTML=use(app?.icon ?? '');
     // Podcasts skips 15 s back and 30 s on; Music steps through its queue.
     const [previous, next] = /** @type {HTMLElement[]} */ ([...is.querySelectorAll('[data-control="previous"],[data-control="next"]')]);
-    previous.innerHTML=pod ? `<b>15</b>${icon('arrow-counter-clockwise')}` : icon('play');
+    // With the owner's "Play, next, sleep", the first button is the sleep timer and sits last.
+    const zz = sleepy();
+    previous.innerHTML=zz ? icon('moon-stars') : pod ? `<b>15</b>${icon('arrow-counter-clockwise')}` : icon('play');
+    previous.style.order = zz ? '3' : ''; previous.classList.toggle('zzz', zz);
     next.innerHTML=pod ? `<b>30</b>${icon('arrow-clockwise')}` : icon('play');
-    previous.setAttribute('aria-label', pod ? 'Back 15 seconds' : 'Previous');
+    previous.setAttribute('aria-label', zz ? 'Sleep timer' : pod ? 'Back 15 seconds' : 'Previous');
     next.setAttribute('aria-label', pod ? 'Forward 30 seconds' : 'Next');
   }
   is.dataset.app=layer.id;

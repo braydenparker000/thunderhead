@@ -6,13 +6,12 @@
 /** @typedef {import('../../shared/contract/api.ts').SessionItem} SessionItem */
 /** @typedef {import('../../shared/contract/api.ts').AgentRole} AgentRole */
 
+import { clock } from './pref.js';
+
 const DAY = 86_400_000;
 
-/** `14:05` @param {number} ms */
-export const hhmm = (ms) => {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+/** `14:05`, or `2:05 pm` on the owner's 12-hour clock (th/pref.js). @param {number} ms */
+export const hhmm = clock;
 
 /** `3 Oct` @param {number} ms */
 export const dMMM = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

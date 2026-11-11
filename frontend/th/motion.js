@@ -10,6 +10,10 @@ export function spring({ stiffness = 380, damping = .8 } = {}) {
 export const springs = { page: spring({ stiffness: 320, damping: .86 }), pop: spring({ stiffness: 900, damping: .55 }), ring: spring({ stiffness: 1100, damping: .7 }), island: spring({ stiffness: 130, damping: .82 }), lift: spring({ stiffness: 700, damping: .64 }), fade: spring({ stiffness: 3800, damping: 1 }) };
 /** @param {keyof typeof springs} name @param {Partial<Params>} params */
 export function setSpring(name, params) { return springs[name] = spring({ ...springs[name], ...params }); }
+// The owner's Springs (Settings → Appearance, `data-feel` on <html>): calm lands without a bounce
+// and a little slower, lively bounces more. Applied once, to every spring, as this module loads.
+const FEEL = { calm: { k: .85, d: .14 }, lively: { k: 1.1, d: -.1 } }[globalThis.document?.documentElement.dataset.feel ?? ''];
+if (FEEL) for (const name of /** @type {(keyof typeof springs)[]} */ (Object.keys(springs))) setSpring(name, { stiffness: springs[name].stiffness * FEEL.k, damping: Math.min(1, Math.max(.3, springs[name].damping + FEEL.d)) });
 
 /** Exact state after seconds; velocity is in units/second. @param {Params} p @param {number} seconds */
 export function response(p, seconds, value = 0, velocity = 0, target = 1) {

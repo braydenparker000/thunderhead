@@ -20,21 +20,22 @@ const piece = bytesOf('synthetic opus-in-webm piece');
 const WORDS = 'Remind me to water the synthetic seedlings';
 
 function fakeAi(answer: (audio: unknown) => unknown) {
-  const calls: { model: string; type?: string }[] = [];
+  const calls: { model: string; type?: string; language?: unknown }[] = [];
   const AI: Transcriber = {
     run: async (model, inputs) => {
       const audio = inputs.audio as { contentType?: string } | string;
-      calls.push({ model, type: typeof audio === 'string' ? 'base64' : audio.contentType });
+      const said = 'language' in inputs ? { language: inputs.language } : {};
+      calls.push({ model, type: typeof audio === 'string' ? 'base64' : audio.contentType, ...said });
       return answer(audio);
     },
   };
   return { calls, env: { ...env, AI } as unknown as Env };
 }
 
-async function dictate(e: Env, o: { token?: string; type?: string | null; body?: Uint8Array } = {}) {
+async function dictate(e: Env, o: { token?: string; type?: string | null; body?: Uint8Array; lang?: string } = {}) {
   const headers = new Headers({ Authorization: `Bearer ${o.token ?? D}`, 'CF-Connecting-IP': '192.0.2.41' });
   if (o.type !== null) headers.set('Content-Type', o.type ?? 'audio/webm;codecs=opus');
-  const request = new Request('https://api.example.test/v1/dictate', {
+  const request = new Request(`https://api.example.test/v1/dictate${o.lang ? `?lang=${o.lang}` : ''}`, {
     method: 'POST',
     headers,
     body: o.body ?? piece,
@@ -56,6 +57,12 @@ describe('POST /v1/dictate', () => {
     expect(await dictate(ai.env)).toEqual({ status: 200, body: { text: WORDS } });
     expect(ai.calls).toEqual([{ model: WHISPER, type: 'audio/webm' }]);
     expect(await files()).toBe(before);
+  });
+
+  it('listens for the language the owner chose (en or es); anything else leaves it to the model', async () => {
+    const ai = fakeAi(() => ({ text: WORDS }));
+    for (const lang of ['es', 'en', 'xx', 'en-US']) await dictate(ai.env, { lang });
+    expect(ai.calls.map((c) => c.language)).toEqual(['es', 'en', undefined, undefined]);
   });
 
   it("silence is '', a failed hearing is 502, no binding is 503", async () => {

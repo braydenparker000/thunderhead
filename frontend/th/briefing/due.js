@@ -2,11 +2,12 @@
 // The Due sheet (BRIEFING.md §2), opened from the Briefing's Due tile: the owner's reminders due
 // today and tomorrow, soonest first, each with its time and its words (the tile itself shows only
 // the counts and the next time). Escape, the dim or Close shut it. Text is set with textContent.
+import { clock as hhmm } from '../pref.js';
 import { el } from '../ui.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').DueTile} DueTile */
 
-const hhmm = (/** @type {number} */ ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
 
 /** @param {DueTile} t */
 export function openDue(t) {
