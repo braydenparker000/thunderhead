@@ -185,6 +185,14 @@ describe('M11 and M12: the session', () => {
     // The night session claimed before the taint above counts as tainted now (M11c: no rule from
     // it); one fired since doesn't.
     expect(await reason(night(), rule())).toBe('outside_rule');
+    // But a rule in the owner's own words, from the owner's message it cites, is kept as theirs.
+    const own = addOp([`msg:${owner}`], { kind: 'rule', text: 'Calm music in the evening' });
+    expect(await reason(night(), own)).toBeNull();
+    const [kept] = await coreSql<{ provenance: string }>('SELECT provenance FROM facts WHERE id = ?', own.id);
+    expect(kept.provenance).toBe('owner');
+    // The same words citing the mind's message get no such pass.
+    const fromMind = addOp([`msg:${mind}`], { kind: 'rule', text: 'Calm music in the evening' });
+    expect(await reason(night(), fromMind)).toBe('outside_rule');
     S.night = await freshSession(P.N, 'night', 'cse_memory_night_2');
     expect(await reason(night(), rule())).toBeNull();
   });

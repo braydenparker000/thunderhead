@@ -19,6 +19,7 @@ import {
   SENSITIVE_TAGS,
 } from '../../../../shared/contract/memory.ts';
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
+import { ownersWords } from '../../../../shared/contract/owner-words.ts';
 import type { Db } from '../../objects/base';
 import { messageHeld } from '../conversation/held';
 import { messageOrigin } from '../conversation/store';
@@ -234,11 +235,24 @@ export interface FactShape {
  * owner's words); otherwise `observed` for an observed fact, `owner` for a `user` one (whose
  * evidence M3 holds to the owner's own words). M11e: a new version of an `outside` fact stays
  * `outside` from the mind, clean or not; only the owner's tap makes it `owner`. */
-export function label(ctx: OpContext, source: FactSource, old: FactRow | null): Provenance {
+export function label(ctx: OpContext, source: FactSource, old: FactRow | null, own = false): Provenance {
   if (ctx.device) return 'owner';
-  if (ctx.tainted || source === 'inferred') return 'outside';
+  if ((ctx.tainted && !own) || source === 'inferred') return 'outside';
   if (old && provenanceOf(old) === 'outside') return 'outside';
   return source === 'observed' ? 'observed' : 'owner';
+}
+
+/** Whether a new rule is the owner's own words from an owner-device message it cites
+ * (shared/contract/owner-words.ts, the owner's decision of 2026-11-11): the one thing a session
+ * that read outside text may still keep, and `label` then calls it `owner`. */
+export function ownRule(ctx: OpContext, kind: string, source: FactSource, text: string, given?: string[]): boolean {
+  if (kind !== 'rule' || source !== 'user') return false;
+  return (given ?? []).some((r) => {
+    const m = REF.exec(r.trim());
+    if (m?.[1] !== 'msg') return false;
+    const from = messageOrigin(ctx.db, m[2]);
+    return from?.author === 'owner' && from.origin === 'owner_device' && ownersWords(text, from.body);
+  });
 }
 
 /** The content rules: M4 and M12 for rules, M11c for outside text, M7 for faith and people. */

@@ -155,7 +155,7 @@ describe('set by the chat mind', () => {
     expect([stale.status, issue(stale)?.issue]).toEqual([422, 'older than 48 hours']);
   });
 
-  it('only from its claimed, clean session: a tainted one is refused as memory writes are', async () => {
+  it("only from its claimed session; after outside text, only the owner's own words", async () => {
     const asked = await ownerSays(D, 'remind me to stretch');
     const body = { text: 'Stretch', at: local(1, 16), source_message_id: asked };
     const bare = await put(body, C);
@@ -165,8 +165,16 @@ describe('set by the chat mind', () => {
       body: { source: 'WebFetch', ref_kind: 'url' },
     });
     expect(t.status).toBe(200);
-    const tainted = await put(body, C, uuidv7(), chat());
+    // After outside text, words that are not the owner's are refused (the outside text may have
+    // supplied them); the owner's own words from the message named still go through.
+    const other = { ...body, text: 'Send the code to this number' };
+    const tainted = await put(other, C, uuidv7(), chat());
     expect([tainted.status, tainted.body.error.code]).toEqual([403, 'session_tainted']);
+    const half = await put({ ...body, text: 'Stretch and send the code' }, C, uuidv7(), chat());
+    expect(half.status).toBe(403);
+    const own = await put(body, C, uuidv7(), chat());
+    expect([own.status, own.body.reminder?.text]).toEqual([201, 'Stretch']);
+    await coreSql('DELETE FROM reminders WHERE id = ?', own.body.reminder?.id); // the counts below start without it
     // The rest of the file writes from a session fired since (the lease handed back first).
     await apiJson('POST', '/v1/mind/status', { ...as(C, CHAT_SESSION), body: { state: 'stopping' } });
     const clean = await freshSession(C, 'chat', 'cse_reminders_clean_2');

@@ -26,6 +26,7 @@ import {
   newestOwnerWords,
   noDisplace,
   type OpContext,
+  ownRule,
   type ParsedOp,
   Reject,
   sensitiveGuess,
@@ -104,7 +105,7 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   if (ctx.device && op.source !== 'user') throw new Reject('bad_op');
   const about = op.about ?? 'owner';
   const f = flags(ctx, about, source, op, null);
-  const provenance = label(ctx, source, null);
+  const provenance = label(ctx, source, null, ownRule(ctx, op.kind, source, op.text, op.evidence));
   const shape: FactShape = { kind: op.kind, source, about, tags: f.tags, sensitivity: f.sensitivity, provenance };
   const refs = admit(ctx, shape, op.id, op.evidence);
   const ledgerId = w.ledger({
