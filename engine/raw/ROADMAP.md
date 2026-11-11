@@ -102,7 +102,11 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 ## Stage 4: answering like Lightroom
 
 - Slider strengths fitted to the owner's exports (15 to 17, S once they exist).
-- `.xmp` presets brought in (19, M).
+- **`.xmp` presets: built 2026-11-11.** The Looks board's IMPORT reads a Lightroom preset and keeps it in Mine
+  (`app/xmp.js`, on the reader the editor before has): the Light and Color sliders, Texture, Clarity, Dehaze, the
+  mixer, grading, the point curves, Sharpening, Noise, Vignette and Grain, by name. Exposure, white balance,
+  crop and profile stay the photo's own. It says how many settings it had no control for. Until the strengths
+  are fitted (above) a preset lands near what it does in Lightroom, not on it. Camera recipes are left.
 - **Copy an edit and paste it on many** (new, S). **Match a series** (new, M): even out exposure and white
   balance across photos of one scene.
 - **Edit by reference** (new, M): bring any picture's look (its tones and colours) onto a photo as a starting point.

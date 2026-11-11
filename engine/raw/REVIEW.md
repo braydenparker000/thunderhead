@@ -108,7 +108,7 @@ M several, L a project of its own.
 | 16 | Tone curve | Adobe's hue-preserving curve, the profile's own or Camera Raw's default | The same if Lightroom is the aim; AgX or sigmoid if smooth, hue-stable highlights are |
 | 17 | Clarity, Texture, Dehaze | Local contrast against the same area masks; dark-channel dehaze | Local Laplacian pyramids; the same dehaze. Close; halos unmeasured |
 | 18 | Saturation, Vibrance, mixer, grading | In Oklab, skin protected, baked into one table | The same (a perceptual space) |
-| 19 | Looks | `.cube` tables, Adobe's looks, edits saved as looks | Also `.xmp` presets and camera recipes |
+| 19 | Looks | `.cube` tables, Adobe's looks, edits saved as looks, Lightroom `.xmp` presets (since 2026-11-11) | Also camera recipes |
 | **20** | Masks | Brush, linear, radial, colour range, brightness range | Also subject, sky and people found by a model |
 | **21** | Heal and remove | A source patch fitted to the surroundings | Seamless (Poisson) blending; content-aware or generative remove |
 

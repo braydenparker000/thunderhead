@@ -287,7 +287,7 @@ export const cubeOn = () => cur?.cube || '';
 export function pickCube(id) { if (!cur) return; cur.cube = cur.cube === id ? '' : id; applyProfile(); changed(); draw(); save('look', cur.cube ? `Look · ${kept.get(id)?.name || ''}` : 'Look off', ''); }
 /** The edit as it would be wearing a saved look: everything the look holds but what is the photo's own (its exposure,
  * white balance, lens corrections and crop). @param {hist.State} st @returns {hist.State} */
-export function worn(st) { const now = state(), v = { ...st.values }; for (const k of ['Exposure', 'Temp', 'Tint', 'Distortion', 'Vignetting']) delete v[k]; return { ...now, values: { ...now.values, ...v }, profile: st.profile, curve: st.curve || null, cube: st.cube || '' }; }
+export function worn(st) { const now = state(), v = { ...st.values }; for (const k of ['Exposure', 'Temp', 'Tint', 'Distortion', 'Vignetting']) delete v[k]; return { ...now, values: { ...now.values, ...v }, profile: st.profile ?? now.profile, curve: st.curve || null, cube: st.cube || '' }; }   // a look with no profile of its own (a preset brought in: xmp.js) keeps the photo's
 /** Puts a saved look on, a step of the history. @param {hist.State} st @param {string} name */
 export function wear(st, name) { if (!cur) return; put(worn(st)); applyProfile(); changed(); draw(); save('', `Look · ${name}`, ''); }
 /** Press and hold: the photo as shot, without the chosen look. @param {boolean} on */

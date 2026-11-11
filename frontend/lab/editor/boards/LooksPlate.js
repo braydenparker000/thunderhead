@@ -9,6 +9,7 @@ import * as photo from '../app/session.js';
 import '../app/zoom.js';
 import { tile } from '../app/tiles.js';
 import * as kept from '../app/looks.js';
+import { XMP_MAX_BYTES, lookOfXmp } from '../app/xmp.js';
 
 const FACES = ['Presets', 'Mine'];
 const SAMPLES = { Presets: [['Moody 01', 'contrast(1.2) saturate(0.7) brightness(0.92)'], ['Moody 02', 'contrast(1.1) saturate(0.6) hue-rotate(-10deg) brightness(0.95)'], ['Golden', 'saturate(1.2) sepia(0.25) brightness(1.05)'],
@@ -22,16 +23,24 @@ export default class Component extends DCLogic {
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }
-  /** IMPORT: `.cube` looks are read and kept; the other kinds say they are not read yet. */
+  /** IMPORT: `.cube` looks go to Presets; a Lightroom preset (`.xmp`) becomes a look of the owner's own, in Mine
+   * (app/xmp.js); the other kinds say they are not read yet. */
   pickFiles() {
     const i = document.createElement('input'); i.type = 'file'; i.multiple = true;
     i.onchange = async () => {
-      let added = 0; const not = [];
+      let added = 0, mine = 0; const not = [], left = [];
       for (const f of i.files || []) {
-        if (!/\.cube$/i.test(f.name)) { not.push(`${f.name}: only .cube looks are read so far`); continue; }
+        if (/\.xmp$/i.test(f.name)) {
+          const look = f.size <= XMP_MAX_BYTES ? lookOfXmp(await f.text(), f.name) : null;
+          if (!look) { not.push(`${f.name}: not a preset this editor reads`); continue; }
+          await kept.addMine(look.name, look.st); mine++;
+          if (look.left) left.push(`${look.name}: ${look.left} of its settings have no control here`);
+          continue;
+        }
+        if (!/\.cube$/i.test(f.name)) { not.push(`${f.name}: only .cube and .xmp looks are read so far`); continue; }
         try { await kept.addCube(f); added++; } catch (e) { not.push(`${f.name}: ${e.message}`); }
       }
-      this.setState({ face: added ? 'Presets' : this.state.face, note: [added ? `${added} added to Presets` : '', not[0] || '', not.length > 1 ? `and ${not.length - 1} more not read` : ''].filter(Boolean).join(' · ') });
+      this.setState({ face: mine ? 'Mine' : added ? 'Presets' : this.state.face, note: [added ? `${added} added to Presets` : '', mine ? `${mine} preset${mine === 1 ? '' : 's'} added to Mine` : '', left[0] || '', not[0] || '', not.length > 1 ? `and ${not.length - 1} more not read` : ''].filter(Boolean).join(' · ') });
     };
     i.click();
   }
