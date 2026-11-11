@@ -8,11 +8,23 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/lab/engine/engine.css">
 <script type="module" src="/lab/engine/engine.js"></script>
+<script type="module" src="/lab/engine/bench-ui.js"></script>
 </head>
 <body>
 <main>
 <h1>Engine test</h1>
 <p class="lead">The engine's test bench: your RAF opened in the browser (rawler), binned to the 2576 px editing copy, and developed on the phone's graphics chip through your profiles. It shows what each step costs on this phone; the switches turn one step off, to compare.</p>
+<section id="bench">
+<h2>Test this phone</h2>
+<p class="lead">One tap checks that this phone's graphics chip develops a known, made-up photo correctly, then times every stage on the newest photo in your Library: decoding, the first picture, a slider, a screenful at 100 %, a full-size export, and the memory it took. Nothing leaves the phone: copy the result and paste it where it is wanted.</p>
+<div class="bar"><button id="ball" type="button" class="go">Run every test</button><button id="bcheck" type="button">Check the pictures only</button><label class="pick quiet">Time a RAF<input type="file" id="bfile" accept=".raf,.RAF,image/x-fuji-raf,*/*"></label></div>
+<div class="checks"><label><input id="bexport" type="checkbox" checked> Include a full-size export (it can take minutes)</label></div>
+<p class="now" id="bnow" aria-live="polite"></p>
+<canvas id="bview" aria-label="The photo being timed" hidden></canvas>
+<pre id="bout"></pre>
+<button id="bcopy" type="button" disabled>Copy the result</button>
+</section>
+<h2>The engine by hand</h2>
 <div class="bar"><label class="pick">Open a RAF<input type="file" id="file" accept=".raf,.RAF,image/x-fuji-raf,*/*"></label>
 <label class="pick quiet">Load profiles<input type="file" id="profiles" accept=".zip,application/zip"></label></div>
 <div class="row"><label for="profile">Profile</label><select id="profile" disabled><option>Camera matrix</option></select><output id="kelvin"></output></div>

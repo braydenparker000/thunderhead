@@ -19,6 +19,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 
 | What | Where |
 |---|---|
+| The test bench (2026-11-11): `/lab/engine/`, "Test this phone". One tap develops a made-up photo whose colours are known on the phone's GPU and compares it with a reference GPU's numbers, then times every stage on the Library's newest RAF (decode, first picture, a slider's frame, a screenful at 100 %, a full export) and the memory it took. The result is text to copy; the last eight runs stay in the browser. CI holds the same pictures to the reference on every change | `bench.js`, `bench-ui.js`, `known.js`, `bench-ref.json`, `engine/raw/checks/ref.cjs`, `tests/lab-engine-pictures-browser.test.mjs` |
 | Decode on every core, hot pixels mended, 3×3-binned editing copy, the sensor's own pixels for full size | `engine/raw`, `frontend/lab/engine/decode-worker.js` |
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |

@@ -39,9 +39,12 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 
 ## Stage 1: protect and prove
 
-- **The testing page** on the phone (28, M): timings of each stage, peak memory, the known scenes on the phone's
-  own GPU against reference numbers. Results kept on the Worker so runs can be compared.
-- **Pictures checked in CI** (28, M): made-up mosaics rendered and compared on every change.
+- **The testing page** on the phone (28, M): **built 2026-11-11** (`/lab/engine/`, "Test this phone"; STATUS.md).
+  Results are text to copy and the last runs are kept in the browser, not on the Worker: a coding session cannot
+  read the Worker's private data, and the page's network policy stays closed this way. Waiting on the owner's
+  first run for real numbers.
+- **Pictures checked in CI** (28, M): **built 2026-11-11** with it (`tests/lab-engine-pictures-browser.test.mjs`):
+  a change that moves a picture by more than a rounding step fails until the reference is made again on purpose.
 - **Backup** (29, M): edits and originals to Drive, and back again on a new phone.
 - **Storage that stays** (new, S): ask the browser to keep the editor's storage for good, and show what it said.
 - **Nothing lost on a crash** (new, S): an export or an import that was cut off picks up where it stopped.
