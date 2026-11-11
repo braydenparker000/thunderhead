@@ -14,7 +14,7 @@ const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (invented add-on)' };
 const ADDON = 'https://addon.example';
 const TITLE = 'Frieren: Beyond Journey’s End';
-const META = { id: 'tt0000101', type: 'series', name: TITLE, description: 'An invented series for the test.', videos: [{ id: 'tt0000101:1:1', season: 1, episode: 1, title: 'One' }] };
+const META = { id: 'tt0000101', type: 'series', name: TITLE, description: 'An invented series for the test.', runtime: '24 min', videos: [{ id: 'tt0000101:1:1', season: 1, episode: 1, title: 'One' }] };
 let site, browser, base;
 
 before(async () => {
@@ -49,8 +49,8 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
     if (u.pathname.startsWith('/meta/series/')) return json({ meta: META });
     if (u.pathname.startsWith('/stream/'))
       return json({ streams: [
-        { name: 'Small', title: 'Ep 1 💾 150 MB', url: 'https://cdn.example/small.mp4' },
-        { name: 'Large', title: 'Ep 1 💾 1.2 GB', url: 'https://cdn.example/large.mp4' },
+        { name: 'Large', title: 'Ep 1 1080p x264 💾 1.2 GB', url: 'https://cdn.example/large.mp4' },
+        { name: 'Small', title: 'Ep 1 720p x265 💾 150 MB', url: 'https://cdn.example/small.mp4' },
         { name: 'Unknown', title: 'Ep 1', url: 'https://cdn.example/unknown.mp4' },
       ] });
     return route.fulfill({ status: 404, body: '' });
@@ -77,6 +77,30 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   assert.doesNotMatch(await shown(), /1\.2 GB/);
   await page.getByRole('button', { name: /Under 200 MB/ }).click();
   await page.waitForFunction(() => document.querySelector('.screen.streams .group-body')?.textContent.includes('1.2 GB'));
+  // The owner's own filter chips (addons/stream-facts.js), under the add-ons. As the add-on sent them:
+  // Large, Small, Unknown; a stream says what an hour of it costs when the runtime is known.
+  const names = () => page.locator('.screen.streams .stream-card .stream-name').allTextContents();
+  const chip = (name) => page.locator('.screen.streams .filter-chips.facts').getByRole('button', { name, exact: true });
+  assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
+  assert.match(await page.locator('.screen.streams .stream-card', { hasText: 'Small' }).textContent(), /380 MB an hour/);
+  await chip('Smallest first').click();
+  assert.deepEqual(await names(), ['Small', 'Large', 'Unknown'], 'smallest first, the unknown size last');
+  await chip('Under 700 MB').click();
+  assert.deepEqual(await names(), ['Small']);
+  assert.equal(await page.locator('.screen.streams .stream-footer').textContent(), '2 hidden by your filters');
+  await chip('Under 700 MB').click();
+  await chip('1080p').click();
+  assert.deepEqual(await names(), ['Large']);
+  await chip('HEVC').click();
+  assert.deepEqual(await names(), [], 'a 1080p stream in HEVC: this add-on has none');
+  // Kept for the next title: the screen opened again starts with the same chips on.
+  await page.evaluate(() => { window.astra.back(); const d = window.astra.stack.at(-1).screen; window.astra.openStreams(d.meta, d.meta.videos[0]); });
+  // (the screen left behind goes once its slide is done: wait for the new one alone)
+  await page.waitForFunction(() => { const all = document.querySelectorAll('.screen.streams'); return all.length === 1 && all[0].querySelector('.stream-footer')?.textContent === '3 hidden by your filters'; });
+  assert.deepEqual(await page.locator('.screen.streams .filter-chips.facts .chip[aria-pressed="true"]').allTextContents(), ['Smallest first', '1080p', 'HEVC']);
+  await chip('Clear').click();
+  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 3);
+  assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
   // Nothing plays by itself (a negative read, on the page's own timers).
   await outlast(page, 500);
   assert.deepEqual(await page.evaluate(() => ({ player: document.querySelectorAll('.screen.player').length, playing: [...document.querySelectorAll('video')].filter((v) => !v.paused).length })), { player: 0, playing: 0 });

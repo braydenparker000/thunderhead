@@ -172,6 +172,14 @@ How it is enforced:
    "best stream", no auto-play of the first result, no auto-resolve before a tap. The existing behavior
    stays and gains a test: `StreamsScreen` renders, waits 10 s, and asserts no player was created and no
    debrid request was made.
+   **The owner's filter chips (2026-11-11, `addons/stream-facts.js`):** a second row under the add-ons,
+   for the owner who wants small files to save data: Smallest first; one size limit (under 700 MB,
+   1.5 GB or 3 GB); any of the picture sizes (720p, 1080p, 4K, SD) and codecs (HEVC, AV1); Clear. They
+   are read from each stream's own words and `behaviorHints.videoSize`, kept between titles
+   (`streamFilters` in Astra's store), and say how many they hide. With a size limit on, a stream of
+   unknown size is hidden: it may be any size. A stream whose size and the title's runtime are known
+   shows what an hour of it costs ("710 MB an hour"). This orders and hides at the owner's word only;
+   Astra still never picks or plays a stream.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
 4. **The mind never sees streams**: the Worker holds no stream data; senses carry none (§3).

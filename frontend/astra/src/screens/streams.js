@@ -1,10 +1,13 @@
 // Streams for a title or episode: every add-on is asked at once and fills in
-// as it answers, in the add-ons' own order. Nothing is ranked or auto-picked.
+// as it answers, in the add-ons' own order. Nothing is auto-picked, and nothing is
+// ranked or hidden unless the owner's own filter chips say so (addons/stream-facts.js:
+// smallest first, a size limit, picture sizes, codecs; remembered between titles).
 
 import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {image, longPress, sheet, toast, emptyCard} from '../ui/components.js';
 import {fetchStreams, supports} from '../addons/client.js';
+import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, bytesOf, filtersFrom, minutesOf, perHour, shown} from '../addons/stream-facts.js';
 import {episodeCode, videoTitle} from '../app/content.js';
 import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
 
@@ -35,17 +38,19 @@ export class StreamsScreen {
     this.groups = new Map();
     this.names = new Map();
     this.filter = app.store.get('lastAddon', 'all');
+    this.f = filtersFrom(app.store.get('streamFilters', null));
     if (headless) return;
     app.loadPlayer?.().catch(() => {});
     // "No compatible add-ons" may change when a late manifest arrives or add-ons are edited.
     this.offAddons = app.onAddons?.(() => { if (this.empty) this.load(); });
     this.el = h('div', {class: 'screen streams'});
     this.chips = h('div', {class: 'filter-chips', role: 'tablist'});
+    this.facts = h('div', {class: 'filter-chips facts', role: 'group', 'aria-label': 'Filters'});
     this.list = h('div', {class: 'stream-list', 'aria-live': 'polite'});
     this.footer = h('p', {class: 'stream-footer'});
     this.el.append(...[this.hero(), h('button', {class: 'float-back solid', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back')),
       startTime > 30 ? h('div', {class: 'resume-pill'}, icon('replay', {size: 16}), `Resume from ${clock(startTime)}`) : null,
-      this.chips, this.list, this.footer].filter(Boolean));
+      h('div', {class: 'chip-band'}, this.chips, this.facts), this.list, this.footer].filter(Boolean));
     this.load();
   }
 
@@ -205,18 +210,33 @@ export class StreamsScreen {
     this.list.querySelector(':scope > .state-card')?.remove();
     order.forEach((el, i) => { if (this.list.children[i] !== el) this.list.insertBefore(el, this.list.children[i] || null); });
     while (this.list.children.length > order.length) this.list.lastElementChild.remove();
-    this.footer.textContent = asking ? 'Checking more add-ons…' : '';
+    const hidden = shown.reduce((n, g) => n + (g.streams ? g.streams.length - this.visible(g).length : 0), 0);
+    this.footer.textContent = asking ? 'Checking more add-ons…' : hidden ? `${hidden} hidden by your filters` : '';
   }
+
+  /** An add-on's streams as the owner's filters and the Thunderhead's size limit leave them, each with its place in the add-on's list. */
+  visible(g) { return shown(g.streams, this.f).filter(([s]) => !overLimit(s, this.app.maxMb)); }
+
+  /** A change to the owner's filters: kept for the next title, and the list drawn again. */
+  setFilters(f) { this.f = f; this.app.store.set('streamFilters', f); this.render(); }
 
   /** The chips, rebuilt only when what they show changes (so their scroll stays put). */
   renderChips(listed) {
-    const signature = [this.filter, this.loading, this.app.maxMb || 0, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');
+    const signature = [this.filter, this.loading, this.app.maxMb || 0, JSON.stringify(this.f), ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');
     if (signature === this.chipSignature) return;
     this.chipSignature = signature;
     const chip = (id, label, failed = false) => h('button', {class: 'chip' + (failed ? ' failed' : ''), role: 'tab', type: 'button', 'aria-selected': String(this.filter === id), 'aria-pressed': String(this.filter === id),
       'aria-label': failed ? `${label}, didn't answer` : null, onclick: () => { this.filter = id; this.app.store.set('lastAddon', id); this.render(); }}, label);
     const limit = this.app.maxMb ? h('button', {class: 'chip', type: 'button', 'aria-pressed': 'true', 'aria-label': `Under ${this.app.maxMb} MB, tap to show all sizes`, onclick: () => { this.app.maxMb = 0; this.render(); }}, `Under ${this.app.maxMb} MB ✕`) : null;
     this.chips.replaceChildren(this.refreshChip(), ...(limit ? [limit] : []), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));
+    // The owner's filters: smallest first, one size limit, any of the picture sizes and codecs.
+    const f = this.f, pick = (label, on, next) => h('button', {class: 'chip', type: 'button', 'aria-pressed': String(on), onclick: () => this.setFilters(next)}, label);
+    const any = (list, v) => (list.includes(v) ? list.filter(x => x !== v) : [...list, v]);
+    this.facts.replaceChildren(pick('Smallest first', f.small, {...f, small: !f.small}),
+      ...SIZE_CHIPS.map(([mb, label]) => pick(label, f.maxMb === mb, {...f, maxMb: f.maxMb === mb ? 0 : mb})),
+      ...RES_CHIPS.map(([v, label]) => pick(label, f.res.includes(v), {...f, res: any(f.res, v)})),
+      ...CODEC_CHIPS.map(([v, label]) => pick(label, f.codec.includes(v), {...f, codec: any(f.codec, v)})),
+      ...(anyFilter(f) ? [h('button', {class: 'chip clear', type: 'button', onclick: () => this.setFilters({...NO_FILTERS})}, 'Clear')] : []));
   }
 
   /** One add-on's section, updated in place: its title, then placeholders, its cards, or its error row. */
@@ -233,12 +253,13 @@ export class StreamsScreen {
     sec.fetching.hidden = g.streams !== null;
     // What the body shows: placeholders, an error, or this exact list of streams.
     const shows = g.error ? g.error : g.streams === null ? 'asking' : g.streams;
-    if (sec.shows !== shows || sec.limit !== (this.app.maxMb || 0)) {
+    const limit = `${this.app.maxMb || 0}|${JSON.stringify(this.f)}`;
+    if (sec.shows !== shows || sec.limit !== limit) {
       sec.shows = shows;
-      sec.limit = this.app.maxMb || 0;
+      sec.limit = limit;
       sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]
         : g.streams === null ? [skeletonStream(), skeletonStream()]
-        : g.streams.map((s, i) => [s, i]).filter(([s]) => !overLimit(s, this.app.maxMb)).map(([s, i]) => this.card(g, s, i))));
+        : this.visible(g).map(([s, i]) => this.card(g, s, i))));
     }
     return sec;
   }
@@ -246,6 +267,8 @@ export class StreamsScreen {
   card(group, s, i) {
     const playable = !!s.url;
     const size = s.size ? sizeFrom(s) : ''; // a size already in the description is not repeated
+    // What an hour of it costs in data, when the title's runtime is known.
+    const hourly = perHour(bytesOf(s), minutesOf(this.video?.runtime || this.meta.runtime));
     const card = h('button', {class: 'stream-card' + (playable ? '' : ' disabled'), type: 'button', 'aria-disabled': String(!playable),
       onclick: () => {
         if (!playable && s.externalUrl && /^https?:/i.test(s.externalUrl)) { window.open(s.externalUrl, '_blank', 'noopener'); return; }
@@ -257,7 +280,7 @@ export class StreamsScreen {
       }},
       h('b', {class: 'stream-name'}, (s.name || group.addon.name).replace(/\s*\n\s*/g, ' ')),
       s.title ? h('span', {class: 'stream-desc'}, s.title) : null,
-      h('span', {class: 'stream-badges'}, size ? h('em', {}, size) : null, !playable && s.infoHash ? h('em', {class: 'muted'}, 'Torrent') : null));
+      h('span', {class: 'stream-badges'}, size ? h('em', {}, size) : null, hourly ? h('em', {}, hourly) : null, !playable && s.infoHash ? h('em', {class: 'muted'}, 'Torrent') : null));
     if (playable) longPress(card, () => sheet(s.name?.replace(/\s+/g, ' ') || group.addon.name, [
       {label: 'Copy stream link', icon: 'copy', run: () => navigator.clipboard.writeText(s.url).then(() => toast('Link copied'), () => toast('Copy failed'))},
       canOpenExternally() ? {label: 'Play in another app', icon: 'play', run: () => { const url = externalPlayerUrl(s.url, {title: this.meta.name || ''}); if (url) location.href = url; }} : null,
