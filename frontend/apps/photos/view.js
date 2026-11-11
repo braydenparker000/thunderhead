@@ -24,7 +24,19 @@ export async function photoScreen(box, id) {
   const close = el('button', { type: 'button', class: 'vback', 'aria-label': 'Back to the shelf' }, [icon('caret-left')]);
   const moreBtn = el('button', { type: 'button', class: 'vmore', 'aria-label': 'Stars, heart, flag or delete' }, [icon('star')]);
   const editBtn = el('button', { type: 'button', class: 'vedit', 'aria-label': 'Edit' }, [icon('pencil-simple')]);
-  editBtn.addEventListener('click', () => go(`?edit=${id}`));
+  // A RAF opens in the new editor, handed over with its original (to-editor.js); anything it can't
+  // take, or a hand-over that fails, opens in the editor before.
+  editBtn.addEventListener('click', async () => {
+    const { inNewEditor, openInEditor } = await import('./to-editor.js');
+    if (!inNewEditor(p)) return go(`?edit=${id}`);
+    editBtn.disabled = true;
+    try {
+      await openInEditor(p, toast);
+    } catch {
+      editBtn.disabled = false;
+      go(`?edit=${id}`);
+    }
+  });
   const view = el('div', { class: 'view', role: 'dialog', 'aria-label': 'Photo' }, [img, el('div', { class: 'vtop' }, [close, info, editBtn, moreBtn]), marks]);
   box.replaceChildren(view);
   close.addEventListener('click', back);

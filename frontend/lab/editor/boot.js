@@ -8,7 +8,7 @@
 // imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
 import { mount } from './dc.js';
 import { init } from './app/store.js';
-import { undo } from './app/session.js';
+import { open as openPhoto, undo } from './app/session.js';
 import { isolate } from '../engine/isolate.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
@@ -33,6 +33,7 @@ else {
   const BOARDS = /** @type {Record<string, string>} */ ({ Library: 'LibraryPlate', Edit: 'EditPlate', Crop: 'CropPlate', Masks: 'MaskPlate', Looks: 'LooksPlate', Heal: 'HealPlate', Versions: 'ViewTools', Export: 'ExportPlate' });
   const dock = /** @type {HTMLElement} */ (document.getElementById('dock')), veil = /** @type {HTMLElement} */ (document.getElementById('dockveil'));
   let current = '';
+  const fromPhotos = new URLSearchParams(location.search).get('from') === 'photos';
   const show = (/** @type {string} */ name) => {
     current = name;
     dock.hidden = veil.hidden = true;
@@ -54,6 +55,8 @@ else {
     let to = '';
     if (label === 'Undo') { undo(); return; }
     if (label === 'Back to the tools') { e.stopPropagation(); e.preventDefault(); dock.hidden = veil.hidden = false; return; }
+    // Opened from Photos' Edit: its back arrow goes back there, not to this editor's own Library.
+    if (label === 'Back to Photos' && fromPhotos && history.state?.first) { e.stopPropagation(); e.preventDefault(); history.back(); return; }
     if (label === 'Back to Photos' || label === 'Back to Library') to = 'Library';
     else if (label === 'Show histogram') to = 'Versions';   // the View board holds the histogram and its clipping
     else if (label === 'Back to the editor') to = 'Edit';
@@ -64,7 +67,12 @@ else {
     go(to);
   }, true);
   addEventListener('contextmenu', (e) => { if (!(/** @type {HTMLElement} */ (e.target)).closest('input, textarea')) e.preventDefault(); });   // a long press is the app's own (hold to compare), not the browser's menu
-  history.replaceState({ name: 'Library' }, '');
+  // Photos' Edit hands a photo over (apps/photos/to-editor.js): `?open=<its id here>&from=photos` opens
+  // it in Edit at once, with Photos one step back. Otherwise the Library, as before.
+  const asked = new URLSearchParams(location.search), wanted = asked.get('open');
+  history.replaceState({ name: wanted ? 'Edit' : 'Library', first: Boolean(wanted) }, ''); // the address keeps its ask, so a reload (isolate.js) opens the same photo
   // the Library shows the photos on this phone, so read them first (none yet: the design's sample roll)
-  init().catch((e) => console.warn('photos:', e)).finally(() => show('Library'));
+  init().catch((e) => console.warn('photos:', e)).then((all) => {
+    if (wanted && all?.some((p) => p.id === wanted)) { openPhoto(wanted); show('Edit'); } else show('Library');
+  });
 }

@@ -148,6 +148,10 @@ dashed line, and you drag it to move. SIZE, FEATHER and OPACITY go on the dial; 
 high-contrast view for dust. Keys: UNDO SPOT, CLEAR ALL. *Engine:* heal (blended), clone, and remove
 (content-aware fill).
 
+## In the app (2026-11-11)
+
+The editor is the app's editor for RAFs: Photos' Edit hands a photo over and the editor opens it straight in Edit (`/lab/editor/?open=<id>&from=photos`; [PHOTOS.md §4](../product/apps/PHOTOS.md)). The back arrow in Edit then returns to Photos. Opened on its own (`/lab/editor/`), it starts at its Library as before. It still lives under `/lab/`, so it is not in the offline precache and its page reaches nothing outside this site; moving it to its own address, sending its edits to the Worker and retiring the editor before are the next steps, once the owner has used it.
+
 ## Mock-up shortcuts the build does properly
 
 The fly-out start points are estimated from text length: use the real positions. The Edit board's dial
