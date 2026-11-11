@@ -416,6 +416,11 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   (nine checked) and leaves a star alone. Not yet seen on a real long exposure of the owner's.
 - **8-bit files already dither** (`files.js` `eight`: each value is rounded up or down by chance in proportion),
   so a smooth sky does not band in a JPEG or PNG; the screen's dither is `wgsl.js` `DITHER`.
+- **Colour noise at large scale: measured, left** (2026-11-11). On the roofs crop at ISO 12800 the colour step
+  (Color noise 25) wins 1.1 to 1.7 dB of colour at 1 to 8 pixels but only 0.4 dB at 16 (47.7 dB against 54.6
+  without noise): what is left there is about one level of 255 in the midtones, more in lifted shadows. Color
+  noise 50 makes 16 pixels worse (44.4): it starts to blur real colour. A coarser second scale would be the fix
+  if blotches show on a real high-ISO photo.
 - **Noise reduction: done.** The colour step stays. The brightness step weighs a neighbour by the 3 × 3 patch round
   it against the patch round the pixel, not by one value against one (`denoise.js` `blur`): at ISO 6400, +0.5 dB
   overall and +0.8 dB of green over the old step, and ahead of a plain non-local means. A photo not opened before
