@@ -3,6 +3,7 @@
 // white balance presets and the eyedropper. The photo itself, its drawing and its saving are session.js's,
 // which hands these on as its own (boards import session.js alone).
 import { STILL, WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
+import { photos } from './store.js';
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
 const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
@@ -46,8 +47,17 @@ export const resetAll = (names, name) => setValues(Object.fromEntries(names.map(
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
 /** A photo's name without its ending. @param {string} name */
 export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
-/** The line under the open photo's name: its film simulation and that it is a RAF, or that it is a JPEG. */
-export const kindLine = () => (cur?.plain ? 'JPEG' : `${cur?.shot.split(' · ')[0] || 'Fujifilm'} · RAF`);
+/** How a shot was taken, in a line (23 mm · f/5.6 · 1/250 · ISO 160): what its Exif says, '' when it says nothing. @param {import('./store.js').Photo['shot']} s */
+export function shotLine(s) {
+  const t = s?.time || 0, speed = !t ? '' : t >= 0.4 ? `${+t.toFixed(1)} s` : `1/${Math.round(1 / t)}`;
+  return [s?.mm ? `${Math.round(s.mm)} mm` : '', s?.f ? `f/${+s.f.toFixed(1)}` : '', speed, s?.iso ? `ISO ${s.iso}` : ''].filter(Boolean).join(' · ');
+}
+/** The line under the open photo's name: its film simulation (a JPEG: that it is one), then how it was shot, or
+ * that it is a RAF when its Exif does not say. */
+export function kindLine() {
+  const how = shotLine(photos().find((p) => p.id === cur?.id)?.shot);
+  return cur?.plain ? `JPEG${how ? ` · ${how}` : ''}` : `${cur?.shot.split(' · ')[0] || 'Fujifilm'} · ${how || 'RAF'}`;
+}
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
 export const edited = (name) => !!cur && cur.values[name] !== start(name);
 /** @param {string} name */

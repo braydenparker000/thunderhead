@@ -137,7 +137,7 @@ test('signed in: originals go through Photos, each edit as one small file, repla
   }
   const mine = here.find((p) => p.id === first.id), side = D.files.get(mine.editFile);
   assert.equal(side.name, `${mine.source.slice(7)}.thunderhead-edit.json`);
-  assert.deepEqual(JSON.parse(side.bytes.toString('utf8')), { v: 1, name: 'DSCF0011.RAF', taken: 1_700_000_000_000, rating: 4, flag: 'pick', edit: { Exposure: 0.7, wb: 'As shot' } });
+  assert.deepEqual(JSON.parse(side.bytes.toString('utf8')), { v: 1, name: 'DSCF0011.RAF', taken: Date.UTC(2026, 9, 30, 17, 0, 5), rating: 4, flag: 'pick', edit: { Exposure: 0.7, wb: 'As shot' } });   // taken: by the camera's clock (the fixture's Exif, with its zone), not the file's time
   assert.equal(here.find((p) => p.id === second.id).editFile, undefined, 'a photo with no edit, rating or flag has no file');
   assert.deepEqual(await state(page), { signedIn: true, originals: 0, bytes: 0, edits: 0 });
   // The edit changes: it is to back up again, and the same file in Drive is replaced.

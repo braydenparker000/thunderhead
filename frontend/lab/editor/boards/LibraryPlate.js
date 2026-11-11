@@ -37,6 +37,7 @@ export default class Component extends DCLogic {
     this.keep('Library', ['filter', 'sort', 'cols']);
     const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.min(this.state.idx, r.photos.length - 1) : 6 }); } };
     photo.events.addEventListener('change', hear);
+    addEventListener('th-editor-photos', hear, { once: true });   // photos from before their shooting data was kept got it, and with it their place by the camera's clock (app/store.js)
     this.app = document.body.dataset.board === 'App';
     if (this.app) store.usage().then((used) => this.setState({ used }), () => {});
     // an export the page did not live to finish is offered again, once (app/save.js)
@@ -92,26 +93,26 @@ export default class Component extends DCLogic {
       : [B.originals.length ? `${count(B.originals.length, 'original')} (${mb(B.bytes)})` : '', B.edits.length ? count(B.edits.length, 'edit') : ''].filter(Boolean).join(' and ') + ` to back up${cell && B.originals.length ? ' · you are on mobile data' : ''}`;
     // Photos' page does it (the one page that may reach Drive) and comes straight back
     const backUp = () => { if (B?.signedIn && (B.originals.length || B.edits.length)) location.assign('/photos/?backup'); };
-    // Paste the copied edit (app/clip.js) on every photo shown: two taps, the second within 5 s; each photo can undo it
-    const held = real && this.app && S.view === 'grid' ? clip.held() : null, onto = held ? shown.filter((p) => p.key).map((p) => p.key) : [], pasteArmed = Date.now() - (S.pasteArmed || 0) < 5000;
-    const pasteAll = async () => {
-      if (!onto.length || S.pasting) return;
-      if (!pasteArmed) { set({ pasteArmed: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
-      const label = 'Pasting the edit', n = onto.length;
-      this.setState({ pasteArmed: 0, pasting: true, progress: { label, k: 0, total: n } });
-      const r = await clip.pasteOn(onto, (k, total) => this.setState({ progress: { label, k, total } }));
-      this.setState({ pasting: false, progress: { label, k: n, total: n, done: `Done · pasted on ${count(r.done, 'photo')}${r.bad ? ` · ${r.bad} could not be opened` : ''}` } });
+    // One thing done to every photo shown (app/clip.js, app/save.js): paste the copied edit, match them to the open
+    // photo, export them. Each is two taps, the second within 5 s, and each photo is opened in turn.
+    const all = real && this.app && S.view === 'grid' ? shown.filter((p) => p.key).map((p) => p.key) : [], open = photo.current(), held = all.length ? clip.held() : null, kinds = presets().filter((x) => x.on);
+    const armedFor = Date.now() - (S.manyAt || 0) < 5000 ? S.manyKey : '', of = `${count(all.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`}`;
+    const many = (/** @type {string} */ key, /** @type {string} */ label, /** @type {(step: (k: number, n: number, part?: number) => void) => Promise<string>} */ run) => async () => {
+      if (S.working) return;
+      if (armedFor !== key) { set({ manyKey: key, manyAt: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
+      const n = all.length;
+      this.setState({ manyAt: 0, working: true, progress: { label, k: 0, total: n } });
+      const done = await run((k, total, part) => this.setState({ progress: { label, k, total, part } })).catch((e) => `It stopped: ${e?.message || e}`);
+      this.setState({ working: false, progress: { label, k: n, total: n, done } });
     };
-    // Export every photo shown, with the files the Export board has on (app/save.js): two taps, as for a paste
-    const out = real && this.app && S.view === 'grid' ? shown.filter((p) => p.key).map((p) => p.key) : [], kinds = presets().filter((x) => x.on), outArmed = Date.now() - (S.outArmed || 0) < 5000;
-    const exportAll = async () => {
-      if (!out.length || !kinds.length || S.pasting) return;
-      if (!outArmed) { set({ outArmed: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
-      const label = 'Exporting', n = out.length;
-      this.setState({ outArmed: 0, pasting: true, progress: { label, k: 0, total: n } });
-      const r = await saveMany(out, (k, total, part) => this.setState({ progress: { label, k, total, part } }));
-      this.setState({ pasting: false, progress: { label, k: n, total: n, done: `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}` } });
-    };
+    const row = (/** @type {string} */ key, /** @type {string} */ glyph, /** @type {string} */ name, /** @type {string} */ ask, /** @type {string} */ note, /** @type {() => void} */ pick) => ({ glyph, name: armedFor === key ? `${ask} Tap again` : name, note, pick });
+    const rows = !all.length ? [] : [
+      ...(held ? [row('paste', '⎘', 'Paste the copied edit', `Paste on ${count(all.length, 'photo')}?`, `${photo.stem(held.name)}’s edit, onto the ${of} · each can undo it`,
+        many('paste', 'Pasting the edit', async (step) => { const r = await clip.pasteOn(all, step); return `Done · pasted on ${count(r.done, 'photo')}${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }))] : []),
+      ...(open && all.some((id) => id !== open.id) ? [row('match', '≈', 'Match the photos shown to the open one', `Match ${count(all.length, 'photo')}?`, `${photo.stem(open.name)}’s white balance, and its brightness by how each was shot, for the ${of} · each can undo it`,
+        many('match', 'Matching', async (step) => { const r = await clip.matchOn(all, step); return `Done · matched ${count(r.done, 'photo')}${r.plain ? ` · ${r.plain} white balance only (no shooting data)` : ''}${r.bad ? ` · ${r.bad} left as they were` : ''}`; }))] : []),
+      row('export', '⇪', 'Export the photos shown', `Export ${count(all.length, 'photo')}?`, kinds.length ? `${kinds.map((x) => `${x.name} ${x.fmt}`).join(' and ')} of each of the ${of}, to Downloads · the files are set on the Export board` : 'Both files are off on the Export board',
+        kinds.length ? many('export', 'Exporting', async (step) => { const r = await saveMany(all, step); return `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }) : () => {})];
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
     const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
@@ -133,8 +134,7 @@ export default class Component extends DCLogic {
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
-        ...(onto.length ? [{ glyph: '⎘', name: pasteArmed ? `Paste on ${count(onto.length, 'photo')}? Tap again` : 'Paste the copied edit', note: `${photo.stem(held?.name || '')}’s edit, onto the ${count(onto.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`} · each can undo it`, pick: pasteAll }] : []),
-        ...(out.length ? [{ glyph: '⇪', name: outArmed ? `Export ${count(out.length, 'photo')}? Tap again` : 'Export the photos shown', note: kinds.length ? `${kinds.map((x) => `${x.name} ${x.fmt}`).join(' and ')} of each of the ${count(out.length, 'photo')} shown${S.filter === 'All' ? '' : ` (${S.filter})`}, to Downloads · the files are set on the Export board` : 'Both files are off on the Export board', pick: exportAll }] : []),
+        ...rows,
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],

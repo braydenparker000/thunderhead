@@ -3,10 +3,13 @@
 // browser's private file system (OPFS) with the camera's own JPEG beside it (for a JPEG, a smaller copy of itself) and, once edited, a small picture
 // of the edit for its Library tile; the photo's record and its edit live in IndexedDB. Nothing leaves the phone. Persistent storage is asked for so Chrome
 // keeps all of it when space runs low.
+import { shot } from '../../engine/exif.js';
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
- *   editFile?: string, backed?: string, kind?: 'jpeg' }} Photo `kind`: what the original is when it is not a RAF; `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
+ *   editFile?: string, backed?: string, kind?: 'jpeg', stamp?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
+ *   Exif says, else the file's time; `stamp`: the file's own time (an import knows a file it has by it); `shot`: what the camera wrote of the shot (engine/exif.js);
+ *   `kind`: what the original is when it is not a RAF; `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
  *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js) */
 /** @typedef {Record<string, number | string>} Edit */
 
@@ -49,10 +52,22 @@ export async function sweep(age = 3600e3) {
     }
   }
 }
+/** Photos brought in before the shot's own data was kept get it now, once, from their Exif (and their place in
+ * the Library by the camera's clock). Returns how many. */
+async function fill() {
+  let n = 0;
+  for (const p of cache.filter((x) => !x.shot)) {
+    const { at, ...made } = shot(await jpegHead(p.id));
+    await update(p.id, { shot: made, stamp: p.stamp ?? p.taken, taken: p.source ? p.taken : at || p.taken }); n++;   // one handed over keeps the time it came with
+  }
+  if (n) cache.sort((a, b) => b.taken - a.taken);
+  return n;
+}
 export async function init() {
   safe = (await navigator.storage?.persist?.().catch(() => false)) || false;
   cache = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).sort((a, b) => b.taken - a.taken);
   sweep().catch(() => {});
+  fill().then((n) => { if (n) dispatchEvent(new Event('th-editor-photos')); }, () => {});   // the Library reads the roll again
   await Promise.all(cache.map(async (p) => {
     await jpegUrl(p.id);
     if (p.edited) try { tiles.set(p.id, URL.createObjectURL(await (await (await dir('thumb')).getFileHandle(`${p.id}.jpg`)).getFile())); } catch {}
@@ -86,8 +101,9 @@ async function copyIn(file, more = {}) {
   if (kind) { jpg = await reduced(file); await write('raw', orig(id, kind), file); }
   else { const buf = await file.arrayBuffer(); jpg = embedded(buf); if (!jpg && more.source) throw new Error('not a RAF'); await write('raw', orig(id), buf); }
   if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); }
+  const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg || new Blob()).slice(0, 1 << 17).arrayBuffer()));   // a JPEG's own Exif; a RAF's is in the camera's JPEG inside it
   /** @type {Photo} */
-  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}), ...more };
+  const p = { id, name: file.name, size: file.size, taken: at || file.lastModified, stamp: file.lastModified, shot: made, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}), ...more };
   await tx('photos', (s) => s.put(p), 'readwrite');
   return p;
 }
@@ -100,7 +116,7 @@ export async function add(files, step) {
   const ours = files.filter((f) => RAF.test(f.name) || JPEG.test(f.name));
   let k = 0, had = 0, bad = 0;
   for (const f of ours) {
-    if (cache.some((p) => p.name === f.name && p.size === f.size && p.taken === f.lastModified)) had++;
+    if (cache.some((p) => p.name === f.name && p.size === f.size && (p.stamp ?? p.taken) === f.lastModified)) had++;
     else try { const p = await copyIn(f); cache = [p, ...cache].sort((a, b) => b.taken - a.taken); } catch { bad++; }
     step(++k, ours.length);
   }
@@ -119,7 +135,7 @@ export async function fromSource(source) {
 export async function addFrom(file, source, more = {}) {
   const had = await fromSource(source);
   if (had) return had;
-  return (await copyIn(file, { ...more, source })).id;
+  return (await copyIn(file, { taken: file.lastModified, ...more, source })).id;   // the time it comes with is the library's own for it
 }
 
 /** @param {string} id @param {Partial<Photo>} patch */

@@ -127,7 +127,13 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   photo's history, so Undo takes it off. Each photo is opened in turn to take it, so its tile shows the edit: a
   few seconds a photo. Found on the way and mended: opening a photo while a frame of the one before was being
   drawn could leave the editor drawing nothing, and so could a frame that failed.
-- **Match a series** (new, M): even out exposure and white balance across photos of one scene.
+- **Match a series: built 2026-11-11** (`app/clip.js` `matchOn`). With a photo open, the Library's sheet matches every
+  photo it is showing to it: each gets the open photo's white balance, and its Exposure is set by how the two
+  were shot (shutter time × ISO ÷ f-number squared, from each photo's Exif), so a scene shot at changing
+  settings comes out as bright in every frame. It is the camera's own numbers, not a guess from the pictures,
+  so two frames of different things are not pulled together. A photo with no shooting data gets the white
+  balance alone; a JPEG beside a RAF is left. For this each photo now keeps what its Exif says of the shot
+  (below, stage 5).
 - **Edit by reference** (new, M): bring any picture's look (its tones and colours) onto a photo as a starting point.
 - Optional, last: film simulations fitted to the camera's own JPEGs (13, M). The owner uses Adobe Color, so this
   only matters if the camera's looks are wanted exactly.
@@ -159,8 +165,16 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   `tests/lab-editor-offline-browser.test.mjs`). The owner's "Keep the editor for offline use" turns it off.
 - **Culling: there already** in the Library (CULL: the camera's own JPEGs, stars, pick and reject, rejects deleted
   for good). Left: swiping, and developing only the keepers.
-- **The library grows up** (new, M): ratings, flags, albums, search by date, camera, lens, ISO; bursts and
-  brackets shown as one stack; two photos side by side.
+- **The library grows up** (new, M): ratings and flags are there. **Begun 2026-11-11:** each photo keeps what the
+  camera wrote of the shot (when by its own clock, the camera, the lens, ISO, shutter, aperture, focal length:
+  `engine/exif.js` `shot`), photos brought in before get it once at the next start, the Library is in the order
+  the camera's clock gives (a JPEG's was the file's time), and the line under a photo's name says how it was
+  shot. Left: albums, search by date, camera, lens and ISO (the data is now there to search), bursts and
+  brackets shown as one stack, two photos side by side.
+  - Found on the way and mended: **every export carried a wrong shutter time, aperture and focal length.** A
+    fraction in Exif is two numbers of four bytes; the reader took one, so what went into the file was where
+    the value had been kept, not the value. Exports made before this have those three wrong (the date, the
+    camera, the lens and the ISO were right). `tests/lab-engine-exif.test.mjs` now holds it, in both byte orders.
 - **Bring in from the card or the camera** (new, M): pick a folder on a card reader; over USB if the phone allows.
 - **Export many: built 2026-11-11** (`app/save.js` `saveMany`). The Library's sheet exports every photo it is showing
   (so: show Picks, export), each as it is edited, with the files the Export board has on; those two files are
