@@ -92,10 +92,19 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   (`quality/README.md`, "Colour fringing"): 2 to 5.5 dB back, false colour whole. Left: a second round of the
   colour pass, which may win back part of the green.
 - Dead pixels and a black level for each colour (S).
-- **The colour table at the edge of the screen's range** (new, S to measure, M to mend): found on JPEGs (stage 5),
-  where a strong colour near the edge was moved by the table being read between its points. A RAF's strong
-  colours go through the same table. Measure a frame against the engine's exact path (every pixel developed
-  itself, `exact`), and if it shows, mend it as for a picture or with a finer table near the edge.
+- **The colour table at the edge of the screen's range: done 2026-11-11** (new; found on JPEGs, stage 5). The frame
+  reads its colours from a table, between its points, and the table held the finished colour: cut off at the
+  screen's range and encoded. A table read between points blurs a hard cut. Measured against the engine's exact
+  path (every pixel developed itself) on three real RAFs: a stop over, highlights blown to white came out tinted
+  (244 of 255 in one colour) on 3 to 4 % of the photo; at Saturation +40, 1.5 to 2 % of pixels were off by more
+  than 3 levels, 22 at worst. Now the table holds only how far the colour is moved, in ProPhoto, and each pixel
+  does the last steps itself (to the screen's colours, the cut, the encoding, a look's table, the point curve:
+  `wgsl.js` `finish`). After: blown highlights are white; off by more than 3 levels at Saturation +40 on 0.004 to
+  0.24 % of pixels, as shot on none. The frame takes the same time on the software GPU (3.2 s before and after;
+  three copies of the finishing steps in the shader cost 23 % until they were made one). Left in the table, and
+  the source of what error remains: the easing of strong colours at the edge (`fit`), a few pixels in ten
+  thousand on a real photo. A test now holds the table to the exact path
+  (`tests/lab-engine-pictures-browser.test.mjs`).
 - A second, coarser scale for colour noise (M).
 - **The fitted view (27): mostly so already.** The sensor's own pixels, with noise reduction and sharpening, are
   drawn from 40 % zoom up (`zoom.js`), not only at 100 % as REVIEW.md said; below that a 40 MP photo is shown
@@ -133,7 +142,7 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
     (`dcp.js` `adapt`). It touched only photos developed with no profile; the reference pictures were made again.
   - The colour table is read between its points, which blurs the hard edge of what a screen can show: a deep
     blue inside that edge came out 28 levels off. For a picture the table now holds only what the edit adds and
-    each pixel works the rest out exactly (`wgsl.js` `plain`). **For a RAF this is still to measure** (stage 3).
+    each pixel works the rest out exactly. Measured for RAFs next and mended for every photo (stage 3).
 - The Drive library moves over (M). The old editor is retired.
 - **It works with no signal: built 2026-11-11.** Opened once with a signal, the editor, its engine and the decoder
   are kept (13 MB the first time, then only what a release changed) and open with none; an older release's

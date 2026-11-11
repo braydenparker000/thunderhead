@@ -227,12 +227,9 @@ fn fit(c: vec3f) -> vec3f {
   return strong(r, l, lo * (knee + (1.0 - knee) * tanh((x - knee) / max(1.0 - knee, 1e-6))));
 }
 ${TOOLS}
-// A colour as the screen shows it with nothing done to it. For a picture (picture.js) the table holds only what the
-// edit adds to this, and each pixel works this part out itself: a table read between its points blurs the hard edge
-// of the screen's range, and a picture is full of colours that sit near that edge (a deep blue was out by 28 levels
-// of 255). With nothing moved the table is all zeros, and the picture comes out as it went in.
-fn plain(c: vec3f) -> vec3f { let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); return vec3f(enc(o.r), enc(o.g), enc(o.b)); }
-fn develop(c0: vec3f) -> vec3f {
+// A photo's colours up to the edge of the screen's range: linear ProPhoto in, linear ProPhoto out. This is the
+// part the colour table holds (bake), read between its points for each pixel.
+fn colour(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c, p.f.y, p.g.z, p.g.w); }
@@ -244,19 +241,31 @@ fn develop(c0: vec3f) -> vec3f {
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
   // 1048576: strong colours cut off at the edge, as before (to compare). In a picture's table a point the screen
-  // could never have shown is no pixel's colour: it is left as plain() has it, so it adds nothing to its neighbours.
+  // could never have shown is no pixel's colour: it is left alone, so it adds nothing to its neighbours.
   if ((fl & 1048576u) == 0u && ((fl & 2097152u) == 0u || all(mv(p.o0, p.o1, p.o2, c0) >= vec3f(0.0)))) { c = fit(c); }
-  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = vec3f(enc(o.r), enc(o.g), enc(o.b));
+  return c;
+}
+// The last steps, which every pixel does for itself: to the screen's own colours, cut off at its range, encoded;
+// then a look's own table and the point curve. They are not in the table because the cut is a hard edge, and a
+// table read between its points blurs one: highlights blown to white came out tinted (244 of 255 in one colour
+// on up to 4 % of a photo a stop over, measured against the exact path) and a strong colour moved by up to 22 levels.
+fn finish(c: vec3f) -> vec3f {
+  let fl = p.size.w; let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = select(1.055 * pow(o, vec3f(1.0 / 2.4)) - 0.055, 12.92 * o, o <= vec3f(0.0031308));
   if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
   return e;
 }
+fn develop(c0: vec3f) -> vec3f { return finish(colour(c0)); }
+// What the table holds for a colour: how far colour() moves it, on a square-root scale (even enough across the
+// range for 16-bit floats, and cheap to undo). With nothing moved it is all zeros, so a picture (picture.js) comes
+// out as it went in, and a small edit is a small, smooth thing to read between points.
+const LOW = 0.000244140625; const HIGH = 16.0;   // the table's own range (shape): 2^-12 to 2^4
+fn moved(c: vec3f, t: vec3f) -> vec3f { let y = max(sqrt(clamp(c, vec3f(LOW), vec3f(HIGH))) + t, vec3f(0.0)); return y * y; }
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
   if (any(id >= vec3u(N))) { return; }
-  let c = unshape(vec3f(id) / f32(N - 1u)); var v = develop(c);
-  if ((p.size.w & 2097152u) != 0u) { v -= plain(c); }
-  textureStore(lutOut, id, vec4f(v, 1.0));
+  let c = unshape(vec3f(id) / f32(N - 1u));
+  textureStore(lutOut, id, vec4f(sqrt(max(colour(c), vec3f(0.0))) - sqrt(c), 1.0));
 }
 ${DITHER}
 // Highlights and Shadows work on how bright the pixel's area is, not the pixel: the tone mask (mask.js) holds
@@ -319,10 +328,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (p.fx.w != 0.0) { let d = (spot - 0.5) * 2.0; c = c * exp2(p.fx.w * 2.0 * smoothstep(0.1, 1.1, 0.5 * dot(d, d))); }
   var o = c;
   if ((fl & 16384u) == 0u) {
-    if ((fl & 64u) != 0u) { o = develop(c); } else {
-      if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
-      if ((fl & 2097152u) != 0u) { o = clamp(o + plain(c), vec3f(0.0), vec3f(1.0)); }
-    }
+    // (finish is called once: its look and curve steps are long, and a GPU that lays out every branch pays for each copy)
+    if ((fl & 64u) != 0u) { o = colour(c); } else if ((fl & 8192u) != 0u) { o = moved(c, at(vec3u(shape(c) * f32(N - 1u) + 0.5))); } else { o = moved(c, lookup(c)); }
+    o = finish(o);
   }
   o = mix(o, vec3f(0.91, 0.13, 0.16), 0.55 * lo.show);   // the mask being worked on, in red
   if (p.sharp.w > 0.0) { o = grain(o, spot); }
