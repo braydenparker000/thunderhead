@@ -51,3 +51,24 @@ test('nothing set is nothing moved; a hard recipe stays inside every dial', () =
   const auto = edit({ dynamicRange: 'Auto', highlight: -1.5 }, { shotWb: [5500, 10] });
   assert.deepEqual([auto.values.Highlights, auto.values.Whites, auto.left], [-18, -6, []]);
 });
+
+test('the list the card reads: every recipe has a name, a group and settings that land inside the dials; no address in it', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const text = await readFile(new URL('../frontend/lab/editor/assets/weekly-fuji-recipes.json', import.meta.url), 'utf8'), doc = JSON.parse(text);
+  assert.ok(!/https?:/.test(text), 'the pages are kept as paths on the source site, never as addresses (tests/site.test.mjs)');
+  assert.ok(doc.recipes.length >= 390 && /Ritchie Roesch/.test(doc.author) && doc.source === 'fujixweekly.com');
+  assert.equal(new Set(doc.recipes.map((r) => r.id)).size, doc.recipes.length, 'each has its own id');
+  const groups = new Map();
+  for (const r of doc.recipes) {
+    assert.ok(r.name && r.name === r.name.trim() && r.name.length <= 60 && r.sensor && /^[a-z0-9-]+$/.test(r.id) && typeof r.page === 'string' && !r.page.startsWith('/'), JSON.stringify(r).slice(0, 120));
+    assert.ok(filmLabel(r.set.filmSimulation) || /^any/i.test(r.set.filmSimulation), `${r.name}: ${r.set.filmSimulation}`);
+    const e = edit(r.set, { shotWb: [5500, 10], noise0: 20 });
+    for (const [k, v] of Object.entries(e.values)) {
+      const [lo, hi] = k === 'Temp' ? [2000, 15000] : k === 'Tint' ? [-150, 150] : ['Sharpening', 'Noise', 'Grain'].includes(k) ? [0, 100] : [-100, 100];
+      assert.ok(Number.isFinite(v) && v >= lo && v <= hi, `${r.name}: ${k} = ${v}`);
+    }
+    groups.set(r.sensor, (groups.get(r.sensor) || 0) + 1);
+  }
+  assert.equal([...groups.keys()][0], 'X-Trans V', "the owner's camera's sensor comes first");
+  assert.ok(groups.get('X-Trans V') >= 90 && groups.get('X-Trans IV') >= 190);
+});

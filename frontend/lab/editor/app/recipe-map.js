@@ -66,7 +66,7 @@ export function edit(r, shot) {
   if (cc || cb) left.push('Color Chrome: as the mixer\'s luminance on strong colours, not the camera\'s own effect');
   if (g.size && grain) left.push(`Grain ${g.size}: one grain size here`);
   if (r.monochromatic && (r.monochromatic.wc || r.monochromatic.mg)) left.push('Monochromatic colour (toning): not replicated');
-  if (/\+\s*(r|ye|g)\b/i.test(r.filmSimulation || '')) left.push('The black-and-white colour filter: not replicated');
+  if (/\+\s*(r|ye?|g)\b/i.test(r.filmSimulation || '')) left.push('The black-and-white colour filter: not replicated');
   if (r.exposureCompensation && (r.exposureCompensation.min || r.exposureCompensation.max)) left.push('Exposure compensation: a shooting note, not applied');
   if (/underwater|ambience|white priority/i.test(mode)) left.push(`White balance ${w.mode}: as the shot's own`);
   return { values, wb: set || moved ? 'Custom' : 'As shot', film: filmLabel(r.filmSimulation || ''), left };
