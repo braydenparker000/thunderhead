@@ -67,9 +67,26 @@ on DIV2K); both looked clean on real X-E5 crops. Lightroom itself is not scored 
    is 0.15 s, so the other 6.7 s is the phone's start-up or a download; the decoder is now started while the
    Library is on screen. The full-size pipeline does about 1.2 megapixels a second on the phone, which is
    what makes a 40-megapixel export take 58 s.
-3. **Picture.** A neural demosaic and denoise that matches or beats Enhance and Denoise on the yardstick,
-   fast enough on the phone. Rule 3 of the owner's answers below still holds: free computing only, and say
-   so if it cannot be good.
+3. **Picture.** The owner, 2026-11-12: the absolute highest quality, not a fast model; an export on the best
+   model, the editing screen on a fast one at 100 % and the best one closer in; all of it smooth. So the
+   model is chosen on measured quality alone and made fast afterwards.
+   - Built: Starfish's X-Trans network (joint demosaic and noise reduction, 1.2 M weights, MIT or Apache;
+     `frontend/lab/engine/nets/starfish-xtrans/`) runs in the editor as a demosaic stage
+     (`frontend/lab/engine/neural.js`), from its authors' own WebGPU export. It agrees with the PyTorch
+     model to 93 dB. Exports use it, and so does what shows from 200 % in, once the photo rests; the dial
+     never waits on it. Settings › Photos › Neural detail turns it off, and a phone whose GPU will not have
+     it falls back by itself.
+   - Looked at and not taken: vkdt's jddcnn (2.2 M weights, X-Trans weights for clean and noisy pictures)
+     scored about 40 dB on the clean small set and 36 to 37 at ISO 3200, under both Starfish (42.7, 40.0) and
+     our own demosaic. Our green with the network's colour, and the mean of the two, were no better than the
+     network alone on photographs. On the engine's own chart (bench-ref.json) the network is 1.9 dB truer
+     overall and 1.5 in colour but 3.4 dB behind in green: it was trained on photographs, and a chart of
+     fine lines is hard on it.
+   - Next: a larger network of the same kind trained for the X-E5's own noise (NAFNet-class; the survey of
+     2026-11-12 found no open X-Trans model stronger than Starfish, and that the strongest general ones need
+     retraining for the 6 × 6 pattern). That needs a GPU: Kaggle's free tier is enough, in the owner's name.
+   - Lightroom on Android has no AI Denoise or Enhance (forum evidence, September 2026), so on the owner's
+     phone the bar is Lightroom's standard development.
 4. **Finish.** What the owner picked on 2026-11-12: Display P3 with a profile and a better JPEG encoder;
    borders, a watermark and sizes for where a photo is going; grain, halation and bloom; HDR output and
    print layouts; the small sensor fixes and the high-ISO extras not already covered by milestone 3; the

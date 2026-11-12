@@ -2,6 +2,7 @@
 // Export: the whole photo developed from the sensor's own pixels, a band at a time (full.js), brought to the
 // size asked for by averaging in linear light, and handed to a file's writer (files.js) as it comes.
 
+const SPLIT = 4;   // an export's first pieces are timed a step at a time (full.js `region`), for the phone's own numbers
 const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
 // straightened); and how far past a piece it is developed, so sharpening sees the same neighbours either side of a join
 const decode = (/** @type {number} */ s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
@@ -86,23 +87,32 @@ export const OUTPUT = /** @type {Record<string, Record<string, number>>} */ ({ S
  * a time and each file takes the band down to its size, so two files cost one development, not two.
  * @param {NonNullable<Awaited<ReturnType<typeof import('./full.js').full>>>} big the photo's sensor pixels
  * @param {{ long: number, open: (w: number, h: number) => import('./files.js').Writer, sharpen?: number }[]} jobs each file: its size, its writer given
- *   that size, and output sharpening's strength (`OUTPUT`; 0 or none for none) @param {(done: number) => void} [progress] 0 to 1 */
-export async function develop(big, jobs, progress) {
+ *   that size, and output sharpening's strength (`OUTPUT`; 0 or none for none) @param {(done: number) => void} [progress] 0 to 1
+ * @param {Record<string, any> | null} [clock] filled with where the time went, in ms: `gpu` developing, `read` bringing pieces back, `write` reducing
+ *   and encoding, `split`: the first pieces' steps by name over `splitPx` pixels, and `net`: 1 when the network made the colours
+ * @param {boolean} [best] the sensor's colours by the network (full.js `view`) */
+export async function develop(big, jobs, progress, clock = null, best = false) {
   const sw = big.width, sh = big.height;
-  const v = await big.view(Math.min(sw, TILE) + 2 * EDGE, BAND + 2 * EDGE, null, false, true);
+  const v = await big.view(Math.min(sw, TILE) + 2 * EDGE, BAND + 2 * EDGE, null, false, true, best);
+  if (clock) clock.net = v.net ? 1 : 0;
   try {
     const outs = jobs.map((j) => {
       const f = Math.min(1, j.long / Math.max(sw, sh)), ow = Math.max(1, Math.round(sw * f)), oh = Math.max(1, Math.round(sh * f)), file = j.open(ow, oh), out = (j.sharpen || 0) > 0 ? crisp(file, ow, j.sharpen || 0) : file;
       return { ow, oh, out, push: reducer(sw, sh, ow, oh, out) };
     });
     const [tw, th] = v.room().map((r) => Math.max(8, r - 2 * EDGE));
+    let pieces = 0;
     for (let y = 0; y < sh; y += th) {
       const n = Math.min(th, sh - y), band = new Uint16Array(sw * n * 4);
       for (let x = 0; x < sw; x += tw) {   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
-        const w = Math.min(tw, sw - x), at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE), half = await v.halves();   // at the picture's edge it is drawn from further in
+        const w = Math.min(tw, sw - x), t0 = performance.now(), split = clock && pieces < SPLIT ? (clock.split ??= {}) : null;
+        const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
+        if (clock) { clock.gpu = (clock.gpu || 0) + t1 - t0; clock.read = (clock.read || 0) + performance.now() - t1; if (split) clock.splitPx = (clock.splitPx || 0) + at.cw * at.ch; } pieces++;
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
       }
+      const t2 = performance.now();
       for (const o of outs) await o.push(band, n);   // each file takes the band down to its own size (none keeps the band itself)
+      if (clock) clock.write = (clock.write || 0) + performance.now() - t2;
       progress?.((y + n) / sh);
     }
     return Promise.all(outs.map(async (o) => ({ blob: await o.out.done(), width: o.ow, height: o.oh })));

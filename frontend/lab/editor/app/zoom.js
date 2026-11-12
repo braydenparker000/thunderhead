@@ -13,7 +13,7 @@
 // The photo is not inside any board. It lives in one layer of its own (`home`) under the boards, and a board's
 // slot is only a window: the layer takes the window's place and glides to the next board's. So changing tool
 // neither redraws the photo nor loses where it was zoomed to.
-import { pref } from '/th/pref.js';
+import { pref, prefOn } from '/th/pref.js';
 import * as photo from './session.js';
 import { tile } from './tiles.js';
 import { note } from './timings.js';
@@ -26,6 +26,7 @@ const LAYER = 'position: absolute; pointer-events: none; display: none';
 const wrap = make('div', 'position: absolute; transform-origin: 0 0; will-change: transform', 'fillphoto');
 const over = /** @type {HTMLImageElement} */ (make('img', `${LAYER}; inset: 0; image-rendering: pixelated`));   // the clipping overlay
 const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER)), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));
+const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));   // from 200 %: what shows, made by the network once the photo rests (`finer`)
 const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: none', 'glass');
 const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
@@ -37,6 +38,7 @@ let win = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} 
 let f = { W: 0, H: 0, w: 1, h: 1, ox: 0, oy: 0, fw: 1, fh: 1 };   // the slot, and the photo fitted in it (design pixels); the photo's sensor size
 let z = 1, tx = 0, ty = 0, job = 0, timer = 0, tiled = -1;   // the wrap's scale and shift from fitted; the detail being made
 let view = /** @type {View | null} */ (null), from = /** @type {Big | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
+let fine = /** @type {View | null} */ (null), fineOf = /** @type {Big | null} */ (null), fineCap = [0, 0], fined = -1;   // the network's view of the photo, how much it holds, and whether its picture shows (1)
 
 const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage')?.parentElement);
 /** Screen pixels in one of the design's (the page's frame is the 412-wide design, scaled to the screen). */
@@ -125,7 +127,7 @@ photo.hooks.fill = (s, el) => {
     badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
     clearTimeout(glide); home.style.transition = moved ? GLIDE : 'none'; glide = setTimeout(() => { home.style.transition = 'none'; }, 360);
   }
-  if (el.parentElement !== wrap) wrap.replaceChildren(el, over, still, live);
+  if (el.parentElement !== wrap) wrap.replaceChildren(el, over, still, live, closer);
   follow(); layout();
 };
 /** The photo's element went into a board's own slot (Crop, Export): the layer is put away until a window asks again. */
@@ -173,7 +175,7 @@ function touch(/** @type {PointerEvent} */ e) {
 export function toggle() { zoomAt(z > 1.02 ? 1 : full(), f.W / 2, f.H / 2, true); settle(300); }
 
 /* Detail: the sensor's pixels, drawn once the photo rests. */
-function hide() { still.style.display = live.style.display = 'none'; tiled = -1; view?.rest(); }
+function hide() { still.style.display = live.style.display = closer.style.display = 'none'; tiled = fined = -1; clearTimeout(again); again = 0; view?.rest(); }
 const rest = () => settle(120);
 /** The photo has come to rest (or will, in `ms`): tell the boards, and draw what the zoom now needs. @param {number} ms */
 function settle(ms) {
@@ -192,7 +194,7 @@ const ensure = () => (making ||= (async () => {
   view?.dispose();
   const v = await big.view(need, Math.ceil(738 * k) + 2, live, READBACK);
   if (photo.whole() !== big) { v.dispose(); return null; }
-  v.onframe = (at) => { if (!live.isConnected || z / full() < 0.999) { v.rest(); return; } place(live, at.X, at.Y, at.cw, at.ch); };
+  v.onframe = (at) => { if (!live.isConnected || z / full() < 0.999) { v.rest(); return; } place(live, at.X, at.Y, at.cw, at.ch); if (!own) stale(); };
   cap = need;
   return (view = v);
 })().finally(() => { making = null; }));
@@ -201,6 +203,30 @@ const ensure = () => (making ||= (async () => {
 function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** @type {number} */ Y, /** @type {number} */ w, /** @type {number} */ h) {
   const q = f.w / f.fw;
   Object.assign(c.style, { left: '0', top: '0', width: `${c.width}px`, height: `${c.height}px`, transformOrigin: '0 0', transform: `translate(${X * q}px, ${Y * q}px) scale(${(w * q) / c.width}, ${(h * q) / c.height})`, display: 'block' });
+}
+let own = false, again = 0;   // a frame the detail asked for itself; the wait before the network's picture is made again
+/** A frame of an edit came while the network's picture showed (or was waited for): the picture is of the photo as
+ * it was, so the live view shows, and the network makes it again once no frame has come for a while. */
+function stale() {
+  if (fined < 0 && !again) return;
+  closer.style.display = 'none'; fined = -1; clearTimeout(again);
+  again = window.setTimeout(() => { again = 0; if (z / full() >= FINE) settle(0); }, 400);
+}
+const FINE = 2;   // from 200 % the network makes what shows: a quarter of a screenful of sensor pixels or less, so its work is affordable
+/** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
+ * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
+ * and while a control moves. @param {number} mine @param {number} X @param {number} Y @param {number} w @param {number} h */
+async function finer(mine, X, Y, w, h) {
+  const big = photo.whole();
+  if (!big) return;
+  if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { if (fineOf === big) fine?.dispose(); fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; }
+  if (!fine.net || mine !== job) return;   // a GPU that will not have the network: the live view is all there is
+  const began = performance.now();
+  let im = /** @type {ImageData | null} */ (null), at = fine.at();
+  await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h); im = await fine.read(); fine.rest(); });
+  if (mine !== job || !im || !at) return;
+  closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d')).putImageData(im, 0, 0);
+  place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch });
 }
 async function detail(/** @type {number} */ mine) {
   mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
@@ -215,8 +241,9 @@ async function detail(/** @type {number} */ mine) {
     if (Math.abs(p - 1) < 0.001) { tx += (Math.round(dx) - dx) / k; ty += (Math.round(dy) - dy) / k; apply(); }   // at 100 % exactly, on whole screen pixels
     const [rw, rh] = v.room(), w = Math.min(X1 - X + 2, rw), h = Math.min(Y1 - Y + 2, rh);   // strongly straightened, the view holds less than a screenful: its middle
     v.place(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h);
-    await photo.frame();
+    own = true; try { await photo.frame(); } finally { own = false; }
     if (mine === job) { still.style.display = 'none'; tiled = -1; }
+    if (mine === job && p >= FINE && prefOn('photos.neural', true)) await finer(mine, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2).catch((e) => console.warn('zoom network', e)); else if (mine === job) { closer.style.display = 'none'; fined = -1; }
     return;
   }
   // 40 % to 100 %: more than the view holds, so a tile at a time onto the still canvas
@@ -235,6 +262,7 @@ async function detail(/** @type {number} */ mine) {
 }
 // an edit while the still canvas shows: it is of the photo as it was, so the editing copy shows until the control rests
 photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } });
+
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);
 photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); });

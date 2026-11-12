@@ -105,6 +105,9 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
   const opened = r.timings.find((t) => t.kind === 'open'), kept = r.timings.find((t) => t.kind === 'save');
   assert.deepEqual([opened.file, opened.px, opened.ms > 0, kept.files, kept.px, kept.kinds], ['jpeg', 996 * 660, true, 1, 996 * 660, 'PNG']);
   assert.ok(!JSON.stringify(r.timings).includes('IMG_0042'), 'no name among them');
+  // an export says where its time went: developing, reading back, writing, and its first pieces a step at a time
+  for (const k of ['gpu', 'read', 'write', 'demosaic', 'sharpen', 'warp', 'colour']) assert.ok(Number.isFinite(kept[k]) && kept[k] >= 0, `the export's ${k} time is kept (${kept[k]})`);
+  assert.ok(kept.gpu > 0 && kept.colour > 0);
   assert.deepEqual(errors, []);
   await context.close();
 });

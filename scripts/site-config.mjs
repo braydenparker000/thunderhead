@@ -21,6 +21,8 @@ export const CONTENT_TYPES = {
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.otf': 'font/otf', '.wasm': 'application/wasm', '.gz': 'application/gzip',
+  // a network's passes and weights (lab/engine/nets/): read by the engine with fetch
+  '.wgsl': 'text/plain; charset=utf-8', '.bin': 'application/octet-stream',
 };
 
 /** The API's origin, checked: https only (plain http only for a local test host). */
@@ -101,7 +103,7 @@ export function precached(path) {
 /** The new editor's own files (lab/editor/ and the engine it loads, lab/engine/): left out of the precache (13 MB
  * at every release would be dear), kept instead once the editor has been opened, for use with no signal
  * (sw.js `keepEditor`). */
-export const keptLab = (path) => path.startsWith('lab/editor/') || path.startsWith('lab/engine/');
+export const keptLab = (path) => path.startsWith('lab/editor/') || (path.startsWith('lab/engine/') && !/^lab\/engine\/nets\/[^/]+\/f32\//.test(path));   // a network's copy for a GPU without half floats is fetched when one asks: a phone has them
 /** /lab/offline.json: those files with their sizes and hashes, so a later release fetches only what changed.
  * @param {number} build @param {{ path: string, size: number, hash: string }[]} list */
 export function labJson(build, list) {

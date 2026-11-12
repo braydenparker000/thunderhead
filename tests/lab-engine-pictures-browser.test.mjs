@@ -44,7 +44,7 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.match(await page.textContent('#bnow'), /^Done/);
   const run = await page.evaluate(() => window.__bench);
   const ref = JSON.parse(readFileSync(new URL('../frontend/lab/engine/bench-ref.json', import.meta.url), 'utf8')).shots;
-  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'fringed', 'sharpened', 'denoised', 'frame', 'cut', 'edited']);
+  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'fringed', 'sharpened', 'denoised', 'network', 'networkNoisy', 'frame', 'cut', 'edited']);
   for (const [name, v] of Object.entries(run.verdict)) {
     assert.equal(v.same, true, `${name} is the reference's picture`);
     assert.ok((v.db ?? 0) <= TIGHT.db && v.grid <= TIGHT.grid, `${name}: off by ${v.db} dB and ${v.grid}; if the change was meant, make the reference again`);
@@ -56,15 +56,53 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.ok(ref.fringed.psnr > ref.demosaic.psnr - 2.5 && ref.fringed.colour > ref.demosaic.colour - 1, 'through a lens that fringes by a pixel, the picture is nearly as true');
   assert.ok(ref.sharpened.psnr > 29, 'sharpening');
   assert.ok(ref.denoised.psnr > 33, 'noise reduction at ISO 6400');
+  // The network (neural.js) against the usual way, on a chart that is hard on it (it was trained on photographs): truer
+  // overall and in colour on a clean picture, and at ISO 6400 truer than the demosaic with noise reduction after it.
+  assert.ok(ref.network.psnr > ref.demosaic.psnr + 1 && ref.network.colour > ref.demosaic.colour + 1, 'the network on a clean picture');
+  assert.ok(ref.networkNoisy.psnr > ref.denoised.psnr + 1 && ref.networkNoisy.colour > ref.denoised.colour + 1, 'the network at ISO 6400');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.edited.grid[i]) > 0.02), 'the edited frame differs from the plain one');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.cut.grid[i]) > 0.02), 'easing strong colours in differs from cutting them off (the made-up camera has many)');
   const text = await page.textContent('#bout');
-  assert.equal((text.match(/SAME/g) || []).length, 8);
+  assert.equal((text.match(/SAME/g) || []).length, 10);
   assert.doesNotMatch(text, /DIFFERENT/);
   assert.equal(await page.isEnabled('#bcopy'), true);
   // The run is kept on this phone and shown the next time the page opens.
   await page.reload({ waitUntil: 'load' });
   assert.match(await page.textContent('#bout'), /^The last run on this phone:[\s\S]*demosaic/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a full-size view and an export by the network: the same photo, a little apart from the usual way', { ...opts, timeout: 420_000 }, async () => {
+  // full.js `view(..., best)` puts the network where the demosaic stands, with no noise reduction after it (it took
+  // the noise out itself); export.js `develop(..., best)` makes a file that way and says so. The known photo is
+  // small enough for a software GPU: a real one is forty megapixels.
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), { full } = await import('/lab/engine/full.js'), { develop } = await import('/lab/engine/export.js'), files = await import('/lab/engine/files.js');
+    const k = known(480, 3200), eng = await engine(document.createElement('canvas'), k, true);
+    eng.setProfile(null); await eng.render(0.25, 1, { sharpen: 0.4, noise: 0.5, colorNoise: 0.25, fit: false });
+    const big = await full(eng, k, k.mosaic.slice());
+    const shot = async (/** @type {boolean} */ best) => { const v = await big.view(240, 240, null, true, false, best), at = await v.region(120, 120, 240, 240), im = await v.read(), net = v.net; v.dispose(); return { net, at: [at.cw, at.ch], data: im.data }; };
+    const usual = await shot(false), net = await shot(true);
+    let sum = 0, most = 0, light = 0;
+    for (let i = 0; i < usual.data.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(usual.data[i + c] - net.data[i + c]); sum += d; most = Math.max(most, d); light += net.data[i + c]; }
+    const n = (usual.data.length / 4) * 3, clock = {};
+    const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true);
+    const bm = await createImageBitmap(file.blob);
+    big.dispose(); eng.dispose();
+    return { nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}) }, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+  });
+  assert.deepEqual(r.nets, [false, true], 'the view says which way it was made');
+  assert.deepEqual(r.at, [240, 240]);
+  assert.ok(r.light > 20, `the network's view is a picture (mean ${r.light.toFixed(1)} of 255)`);
+  assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);
+  assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'] });
+  assert.deepEqual(r.file, [240, 240, 240, 240, 'image/png']);
   assert.deepEqual(errors, []);
   await page.close();
 });

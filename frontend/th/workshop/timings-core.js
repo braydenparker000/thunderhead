@@ -5,8 +5,8 @@
 
 /** At most this often. */
 export const EVERY_MS = 6 * 60 * 60_000;
-const KINDS = ['open', 'full', 'detail', 'save'];
-const NUMBERS = ['at', 'ms', 'heard', 'decode', 'threads', 'code', 'wasm', 'pool', 'waited', 'age', 'px', 'files', 'bytes'];
+const KINDS = ['open', 'full', 'detail', 'fine', 'save'];
+const NUMBERS = ['at', 'ms', 'heard', 'decode', 'threads', 'code', 'wasm', 'pool', 'waited', 'age', 'px', 'files', 'bytes', 'gpu', 'read', 'write', 'demosaic', 'noise', 'sharpen', 'warp', 'colour', 'net', 'fell'];
 const WORDS = /** @type {Record<string, RegExp>} */ ({ file: /^(raf|jpeg|stack)$/, kinds: /^(JPEG|PNG|TIFF)( (JPEG|PNG|TIFF)){0,7}$/ });
 
 /** The stored list made safe: each entry's known fields only. @param {unknown} stored @returns {Record<string, number | string | boolean>[]} */

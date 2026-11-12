@@ -198,3 +198,9 @@ On the roofs crop, `K=3`, blurred by 0.8 of a pixel (32.4 dB unsharpened):
 away, and compares the smoothed result with what is really there. Letting the correction bend to third order (a
 saddle and a three-fold bend on top of the level and tilt) lowers the error at a spot's rim by 6 % (0.308 to 0.289
 stops on the roofs crop, where random spots land on edges and no correction can be right).
+
+## The network
+
+`engine.cjs <crop>.bin /lab/engine/neural.js` runs the network (frontend/lab/engine/neural.js) where the
+demosaic stands. `NET_ISO=<iso>` is the ISO whose noise it is told of (noise.js; 100 when not given) and
+`SMOOTH=<n>` how much of that noise (1 is all of it).
