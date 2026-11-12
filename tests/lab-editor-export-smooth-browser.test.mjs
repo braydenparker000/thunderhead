@@ -113,7 +113,9 @@ test('while a large photo exports, the page keeps drawing', opts, async () => {
 // An export the network was making, given up: not taken for the network failing (app/save.js leaves the network
 // alone for a week after that). Needs the CC0 X-E5 sample (tests/photos-engine.test.mjs fetches it); skipped without it.
 const RAF = join(tmpdir(), 'th-photos-engine-sample', 'xe5-8509.raf');
-test('a cancelled export by the network leaves the network on', { ...opts, skip: opts.skip || (!existsSync(RAF) && 'the sample RAF is not here'), timeout: 900_000 }, async () => {
+// It opens a forty-megapixel photo and develops its first band by the network on a software GPU: about six minutes, more
+// than a part of CI may take, so it runs only when asked for (TH_LONG=1), never by chance of the sample being there.
+test('a cancelled export by the network leaves the network on', { ...opts, skip: opts.skip || (!process.env.TH_LONG && 'a long test: TH_LONG=1 runs it') || (!existsSync(RAF) && 'the sample RAF is not here'), timeout: 900_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, serviceWorkers: 'block', acceptDownloads: true });
   const page = await context.newPage(), errors = [], saved = [];
   page.on('pageerror', (e) => errors.push(e.message));
