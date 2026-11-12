@@ -96,7 +96,7 @@ export function upload(device, picture, W, H) {
  * @param {GPUDevice} device @param {GPUTexture} tex the picture (`upload`) @param {number} maxW @param {number} maxH */
 export async function copier(device, tex, maxW, maxH) {
   const pipe = await compile(device), SIZE = 32 + SPOTS * SPOT_ROWS * 16;
-  const uni = device.createBuffer({ size: SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), out = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE });
+  const uni = device.createBuffer({ size: SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), out = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
   const bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: tex.createView() }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: { buffer: out } }] });
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it */

@@ -593,6 +593,17 @@ against the camera's own JPEGs: that needs a few RAFs shot with a recipe set, be
 make it true rather than near: Color Chrome as its own control (a deepening of strong colours by how strong
 they are), grain with a size, a dynamic-range shoulder, and toning for black and white.
 
+## Less waiting (2026-11-12, from the fluidity review)
+
+- **A turn of Noise or Sharpening at 100 % no longer demosaics again.** Both work on the demosaiced
+  rectangle in place, so every turn of either used to make it again from the sensor, which is most of the
+  work at full size. `full.js` keeps the rectangle aside as it was made and copies it back; another
+  rectangle, or a changed geometry (a retouch spot, the crop), makes it anew. With the network the copy
+  also serves Sharpening, but not Noise: the network is told how much noise to take out. Measured on a
+  software GPU, a 900 × 900 view: a turn of Sharpening 10.7 s before, 0.7 s after, the picture the same to
+  the last value (`tests/lab-engine-pictures-browser.test.mjs`). Not measured on the phone yet: the
+  timings file will show it as shorter `detail` times.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

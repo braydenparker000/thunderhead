@@ -268,7 +268,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const SIZE = 352 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const cov = buf((Math.ceil(maxW / 3) + 8) * (Math.ceil(maxH / 3) + 8) * 16, GPUBufferUsage.STORAGE);
   const green = buf((maxW + 16) * (maxH + 16) * 4, GPUBufferUsage.STORAGE);
-  const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE);
+  const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);   // (copied aside and back by full.js: what follows works in place)
   const ways = buf((maxW + 24) * (maxH + 24) * 8, GPUBufferUsage.STORAGE), flat = buf((maxW + 20) * (maxH + 20) * 4, GPUBufferUsage.STORAGE);
   const est = buf((maxW + 2 * REACH) * (maxH + 2 * REACH) * 8, GPUBufferUsage.STORAGE);
   const all = [mosaic.createView(), ...[uni, cov, green, out, ways, flat, est].map((buffer) => ({ buffer }))];
