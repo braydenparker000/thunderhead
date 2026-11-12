@@ -73,6 +73,7 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
     const healed = await shot(), px = (im, x, y) => [...im.data.subarray(((y - 40) * im.width + x - 100) * 4, ((y - 40) * im.width + x - 100) * 4 + 3)];
     out.spot = { was: px(plain, 510, 230), now: px(healed, 510, 230), source: at(90, 110), beside: [px(plain, 540, 230), px(healed, 540, 230)] };
     v.dispose();
+    out.timings = JSON.parse(localStorage.getItem('th.editor.timings') || '[]');
     return out;
   });
   assert.deepEqual(r.added, { added: 1, had: 0, bad: 1 }, 'the JPEG is kept; a file that is no picture is counted, not kept');
@@ -98,6 +99,12 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
     assert.ok(Math.abs(r.spot.beside[0][k] - r.spot.beside[1][k]) <= 1, 'and nothing beside it moved');
   }
   assert.ok(Math.abs(r.spot.was[0] - r.spot.now[0]) > 20, 'which is not what was there');
+  // how long it took is kept as numbers for the owner's storage (app/timings.js): never the photo's name
+  const kinds = r.timings.map((t) => t.kind);
+  assert.deepEqual([kinds.includes('open'), kinds.includes('full'), kinds.includes('save')], [true, true, true], `timings kept: ${kinds}`);
+  const opened = r.timings.find((t) => t.kind === 'open'), kept = r.timings.find((t) => t.kind === 'save');
+  assert.deepEqual([opened.file, opened.px, opened.ms > 0, kept.files, kept.px, kept.kinds], ['jpeg', 996 * 660, true, 1, 996 * 660, 'PNG']);
+  assert.ok(!JSON.stringify(r.timings).includes('IMG_0042'), 'no name among them');
   assert.deepEqual(errors, []);
   await context.close();
 });

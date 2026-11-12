@@ -958,6 +958,13 @@ Nothing else in the Worker reads these files and no agent key may call these rou
 owner gave the account's storage to reads the pieces from the bucket and joins them
 (`scripts/workshop.mjs`). They stay until the owner removes them.
 
+One file there is the phone's own: `editor-timings.json`, which home sends a while after it opens
+(`frontend/th/workshop/timings.js`; at most once in six hours, only when the editor has kept a new
+timing, the one before it removed). It holds how long the editor took on this phone to open a photo
+(with the decoder's start-up and decode), to have its full-size pixels, to show them and to export,
+as numbers and a few fixed words (`timings-core.js` keeps known fields only), never a photo, a name
+or a setting. Off with Settings › Privacy and data › Editor timings.
+
 ## 12. WebSocket protocol (`/v1/live`)
 
 | Direction | Frame | Meaning |

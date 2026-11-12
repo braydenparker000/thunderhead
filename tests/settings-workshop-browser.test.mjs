@@ -2,7 +2,8 @@
 // mocked Worker that keeps pieces as the real one does (API.md §11.27): a file goes up in pieces,
 // each with its own SHA-256; one that stops part way says so, and the same file chosen again sends
 // only the rest; the pieces joined are the file; a file already there is not sent again; Remove
-// asks first, then takes it. Invented bytes only.
+// asks first, then takes it. And home's own file there, the editor's timings (th/workshop/timings.js).
+// Invented bytes only.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -48,17 +49,23 @@ async function workshop(page) {
   return w;
 }
 
-test('a file goes to the workshop in pieces, goes on from where it stopped, and can be removed', opts, async () => {
+/** Signed in on home against the mocked Worker, with `kept` in this phone's storage first. */
+async function home(kept = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', timezoneId: 'UTC', locale: 'en-GB' });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.addInitScript(() => { try { localStorage.setItem('th.p.sent', '1'); } catch {} });
+  await page.addInitScript((k) => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('th.p.sent', '1'); for (const [key, v] of Object.entries(k)) localStorage.setItem(key, v); } } catch {} }, kept);
   await mockApi(page, {});
   const w = await workshop(page);
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve) => { const req = indexedDB.open('th-auth', 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'); tx.oncomplete = () => { req.result.close(); resolve(); }; }; }), TOKEN);
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.waitForSelector('html[data-signed-in]');
+  return { page, context, errors, w };
+}
+
+test('a file goes to the workshop in pieces, goes on from where it stopped, and can be removed', opts, async () => {
+  const { page, context, errors, w } = await home();
   // From Settings, by its row.
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
   await page.click('.spage.in [data-page="workshop"]');
@@ -100,6 +107,40 @@ test('a file goes to the workshop in pieces, goes on from where it stopped, and 
   await page.waitForSelector('#workshop-files .sempty');
   assert.equal(w.deletes.length, 1);
   assert.equal(w.files.size, 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('home passes the editor’s timings on: known fields only, one file, the one before removed, and not when switched off', opts, async () => {
+  const at = Date.UTC(2026, 10, 12, 8);
+  const timings = [{ at, kind: 'open', ms: 8127, file: 'raf', decode: 1399, pool: 5000, name: 'DSCF0042.RAF' }, { at: at + 1, kind: 'save', ms: 57685, files: 1, px: 39806928, kinds: 'JPEG' }];
+  const { page, context, errors, w } = await home({ 'th.editor.timings': JSON.stringify(timings) });
+  const send = () => page.evaluate(() => import('/th/workshop/timings.js').then((m) => m.sendTimings()));
+  await send();
+  assert.equal(w.files.size, 1);
+  const [[first, f]] = [...w.files.entries()], said = JSON.parse(f.pieces.get(1).toString('utf8'));
+  assert.equal(f.name, 'editor-timings.json');
+  assert.deepEqual(said.timings, [{ kind: 'open', at, ms: 8127, decode: 1399, pool: 5000, file: 'raf' }, { kind: 'save', at: at + 1, ms: 57685, px: 39806928, files: 1, kinds: 'JPEG' }]);
+  assert.deepEqual([said.v, typeof said.build, typeof said.agent, typeof said.cores], [1, 'string', 'string', 'number']);
+  // Nothing new, or too soon: nothing goes.
+  await send();
+  assert.equal(w.puts.length, 1);
+  // A new timing, six hours on: a new file, and the one before is removed.
+  await page.evaluate((t) => {
+    const all = JSON.parse(localStorage.getItem('th.editor.timings')); all.push({ at: t, kind: 'full', ms: 2100 }); localStorage.setItem('th.editor.timings', JSON.stringify(all));
+    const sent = JSON.parse(localStorage.getItem('th.workshop.timings')); sent.when -= 7 * 60 * 60_000; localStorage.setItem('th.workshop.timings', JSON.stringify(sent));
+  }, at + 2);
+  await send();
+  assert.deepEqual([w.puts.length, w.deletes, w.files.size], [2, [first], 1]);
+  assert.equal(JSON.parse([...w.files.values()][0].pieces.get(1).toString('utf8')).timings.length, 3);
+  // Switched off in Settings › Privacy and data: nothing goes, however new.
+  await page.evaluate((t) => {
+    localStorage.setItem('th.s.privacy.editor_timings', 'false');
+    const all = JSON.parse(localStorage.getItem('th.editor.timings')); all.push({ at: t, kind: 'full', ms: 1900 }); localStorage.setItem('th.editor.timings', JSON.stringify(all));
+    const sent = JSON.parse(localStorage.getItem('th.workshop.timings')); sent.when -= 7 * 60 * 60_000; localStorage.setItem('th.workshop.timings', JSON.stringify(sent));
+  }, at + 3);
+  await send();
+  assert.equal(w.puts.length, 2);
   assert.deepEqual(errors, []);
   await context.close();
 });

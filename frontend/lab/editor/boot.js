@@ -10,6 +10,7 @@ import { prefOn } from '/th/pref.js';
 import { mount } from './dc.js';
 import { init } from './app/store.js';
 import { open as openPhoto, undo } from './app/session.js';
+import { warm } from './app/decoder.js';
 import { isolate } from '../engine/isolate.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
@@ -78,6 +79,7 @@ else {
   // (Settings > Photos > Editor) or the phone is saving data.
   if (navigator.onLine !== false && prefOn('photos.offline', true) && !(/** @type {any} */ (navigator).connection?.saveData)) navigator.serviceWorker?.ready.then((r) => r.active?.postMessage({ type: 'keepEditor' }), () => {});
   init().catch((e) => console.warn('photos:', e)).then((all) => {
+    if (all?.length) warm();   // the decoder starts while the Library is looked at (decoder.js)
     if (wanted && all?.some((p) => p.id === wanted)) { openPhoto(wanted); show('Edit'); } else show('Library');
   });
 }

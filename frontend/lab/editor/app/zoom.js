@@ -16,6 +16,7 @@
 import { pref } from '/th/pref.js';
 import * as photo from './session.js';
 import { tile } from './tiles.js';
+import { note } from './timings.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -180,7 +181,7 @@ function settle(ms) {
   timer = setTimeout(() => {
     photo.events.dispatchEvent(new Event('change'));
     const mine = job, began = performance.now(), sharp = z / full() >= 0.4 && !!photo.whole(); badge.classList.toggle('busy', sharp);   // a dot beats on the badge while the sensor's pixels are being made
-    detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; badge.classList.remove('busy'); if (sharp) { photo.took.detail = (performance.now() - began) / 1000; photo.events.dispatchEvent(new Event('change')); } });
+    detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; badge.classList.remove('busy'); if (sharp) { photo.took.detail = (performance.now() - began) / 1000; note('detail', photo.took.detail * 1000); photo.events.dispatchEvent(new Event('change')); } });
   }, ms);
 }
 const ensure = () => (making ||= (async () => {

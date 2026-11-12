@@ -5,6 +5,7 @@ import { OUTPUT, develop } from '../../engine/export.js';
 import { block, carry, taken } from '../../engine/exif.js';
 import * as files from '../../engine/files.js';
 import * as photo from './session.js';
+import { note } from './timings.js';
 import * as store from './store.js';
 
 /** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
@@ -56,7 +57,7 @@ export function cutOff() {
 export async function save(presets, progress) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
-  const head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
+  const began = performance.now(), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
@@ -66,6 +67,7 @@ export async function save(presets, progress) {
     } })), (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); });
     for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
+  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' ') });
   return saved;
 }
 

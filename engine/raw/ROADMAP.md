@@ -59,6 +59,14 @@ on DIV2K); both looked clean on real X-E5 crops. Lightroom itself is not scored 
    Settings › Files for the workshop (`scripts/workshop.mjs` reads them). From then on "as good as
    Lightroom" is measured here, on the owner's own photos, without asking them again.
 2. **Speed.** A photo editable in about 2 s and a full-size export in about 10 s on the owner's phone.
+   First, numbers from real use with no work for the owner (built): the editor keeps how long each open, the
+   full-size pixels, the first full-size view and each export took, with the decoder's start-up split into its
+   code, its WebAssembly and its threads (`lab/editor/app/timings.js`), and home passes them on to the
+   workshop's folder (`th/workshop/timings.js`; Settings › Privacy and data › Editor timings turns it off).
+   What is known so far: on the phone the decode is 1.4 s of an 8.1 s open, and here the decoder's start-up
+   is 0.15 s, so the other 6.7 s is the phone's start-up or a download; the decoder is now started while the
+   Library is on screen. The full-size pipeline does about 1.2 megapixels a second on the phone, which is
+   what makes a 40-megapixel export take 58 s.
 3. **Picture.** A neural demosaic and denoise that matches or beats Enhance and Denoise on the yardstick,
    fast enough on the phone. Rule 3 of the owner's answers below still holds: free computing only, and say
    so if it cannot be good.
