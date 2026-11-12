@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Compare methods</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/lab/editor/compare/compare.css">
+<script type="module" src="/lab/editor/compare/compare.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="back" href="/lab/editor/" aria-label="Back to the editor">&#8249; Editor</a>
+  <h1 id="title">Compare methods</h1>
+</header>
+<p id="status" class="status" role="status"></p>
+<main>
+  <ul id="grid" class="grid" hidden></ul>
+  <section id="compare" aria-label="Compare">
+    <div id="viewport" class="viewport" aria-label="The photo: tap to flip between A and B">
+      <div id="divider" class="divider" hidden aria-label="Split divider: drag"></div>
+    </div>
+    <div id="chips" class="chips" aria-label="Methods"></div>
+    <div class="row" aria-label="Zoom">
+      <button type="button" class="btn" data-zoom="1">100 %</button>
+      <button type="button" class="btn" data-zoom="2">200 %</button>
+      <button type="button" class="btn" data-zoom="3">300 %</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" id="split" aria-pressed="false">Split</button>
+      <button type="button" class="btn" id="diff" aria-pressed="false">Difference</button>
+      <button type="button" class="btn" id="blind" aria-pressed="false">Blind</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn wide" id="prefer" hidden>I prefer this one</button>
+      <label class="btn wide file">Add a file<input id="file" type="file" accept="image/*" multiple></label>
+    </div>
+  </section>
+</main>
+</body>
+</html>

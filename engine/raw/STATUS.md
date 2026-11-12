@@ -490,6 +490,20 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
 - The lens's colour fringing, which the usual demosaic undoes as it goes, is undone after the network by the
   lens pass (warp.js is told the colours are not yet aligned). Full-size detail: Faster has no meaning for it.
 
+## The compare page (2026-11-12)
+
+`/lab/editor/compare/?open=<photo id>` (the Compare tile on the editor's Versions board opens the photo there):
+the photo as edited, made by each way the engine has (Classic: the demosaic looking twice; Faster: once; Network),
+beside the camera's own JPEG and any picture added on the page (Lightroom's export as a JPEG or PNG: a browser
+does not read TIFF). Each way is a layer of 512-pixel tiles, each tile made once (`full.js` `view(..., 'twice' |
+'once' | true)`, one engine job at a time, what shows first) and kept, so changing the way only changes which
+layer shows and zooming (100 to 300 %, hard pixels) draws nothing. A tap flips between the last two ways;
+Split lays them either side of a line; Difference shows where they disagree, eight times over; Blind hides
+the names until one is picked, and a pick is kept as a mark (where on the photo as fractions, how far in, the
+two ways, the one picked; never which photo) that rides in the timings file. Not yet: a picture laid over the
+photo is only stretched to its size, not lined up tile by tile or matched in tone, and it is held whole in
+memory.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
