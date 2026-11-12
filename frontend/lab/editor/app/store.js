@@ -7,9 +7,9 @@ import { shot } from '../../engine/exif.js';
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
- *   editFile?: string, backed?: string, kind?: 'jpeg', stamp?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
+ *   editFile?: string, backed?: string, kind?: 'jpeg' | 'stack', stamp?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
  *   Exif says, else the file's time; `stamp`: the file's own time (an import knows a file it has by it); `shot`: what the camera wrote of the shot (engine/exif.js);
- *   `kind`: what the original is when it is not a RAF; `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
+ *   `kind`: what the original is when it is not a RAF (a JPEG; frames stacked into one, app/stack.js); `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
  *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js) */
 /** @typedef {Record<string, number | string>} Edit */
 
@@ -85,7 +85,7 @@ export function embedded(buf) {
 
 const RAF = /\.raf$/i, JPEG = /\.jpe?g$/i;
 /** The name a photo's original is kept under. @param {string} id @param {Photo['kind']} [kind] */
-const orig = (id, kind) => `${id}.${kind === 'jpeg' ? 'jpg' : 'raf'}`;
+const orig = (id, kind) => `${id}.${kind === 'jpeg' ? 'jpg' : kind === 'stack' ? 'stk' : 'raf'}`;
 /** A picture file made small (1600 pixels on its longer side), for its tile and for the screen while it opens. @param {Blob} file */
 async function reduced(file) {
   const bm = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bm.width, bm.height)), c = new OffscreenCanvas(Math.max(1, Math.round(bm.width * k)), Math.max(1, Math.round(bm.height * k)));
@@ -121,6 +121,19 @@ export async function add(files, step) {
     step(++k, ours.length);
   }
   return { added: ours.length - had - bad, had, bad };
+}
+
+/** Keeps a photo made here from others (a stack, app/stack.js): its file, the camera JPEG of the photo it was made
+ * from for its tile and its Exif, and its record. @param {string} name @param {BlobPart[]} parts its file @param {string} from the photo whose JPEG it takes @param {Partial<Photo>} more */
+export async function addMade(name, parts, from, more) {
+  const id = crypto.randomUUID(), file = new Blob(parts);
+  await write('raw', orig(id, 'stack'), file);
+  try { const jpg = await (await (await dir('jpg')).getFileHandle(`${from}.jpg`)).getFile(); await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); } catch { /* it has none: the tile is the sample's until the stack is edited */ }
+  /** @type {Photo} */
+  const p = { id, name, size: file.size, taken: Date.now(), added: Date.now(), film: '', rating: 0, flag: 'none', kind: 'stack', ...more };
+  await tx('photos', (s) => s.put(p), 'readwrite');
+  cache = [p, ...cache].sort((a, b) => b.taken - a.taken);
+  return p;
 }
 
 /** One original handed over by another part of the app (Photos' Edit, apps/photos/to-editor.js), kept under
@@ -171,7 +184,7 @@ export async function saveTile(id, blob) {
 /** Deletes photos from this phone for good: the original, its JPEG and tile, its record and its edit. @param {string[]} ids */
 export async function remove(ids) {
   for (const id of ids) {
-    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
+    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
     for (const m of [urls, tiles]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
   }

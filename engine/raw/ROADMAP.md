@@ -212,7 +212,17 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 - **HDR merge** (new, L): a bracket of RAFs into one file with the range of all, aligned, ghosts handled.
 - **Panorama** (new, L): frames stitched, at a reduced size if 4 GB demands it.
-- **Stacking for noise** (new, M): a burst averaged, which buys stops no single-frame denoiser can.
+- **Stacking for noise: built 2026-11-12, for frames from a tripod** (`engine/stack.js`, `app/stack.js`; the Library's
+  sheet, "Stack the photos shown for noise"). The frames are averaged as sensor data, sensel by sensel, before
+  any colour is made, so the stack is a raw photo still: it is kept as one (16 bits, at four times the camera's
+  scale, so the average holds two more bits than a frame), stands in the Library beside its frames, and opens
+  like any RAF, with the camera's profile, the demosaic, the lens corrections and every control. Noise falls with
+  the square root of the count (sixteen frames: a quarter, measured), and the engine is told so (its noise model
+  and the Noise it starts with go by ISO ÷ frames). A frame shot otherwise than the first (ISO, shutter,
+  aperture) is left out, and so is one that has moved by more than half a sensel against it, read from the two
+  editing copies (noise does not disturb the reading: 0.02 of a pixel at the worst tried). Up to 64 frames, one
+  in memory at a time. Left: frames shot by hand (they must be laid on each other first, which means making their
+  colours before averaging), and a stack's own file in the backup (its frames are backed up).
 
 ## Stage 9: output and finish
 

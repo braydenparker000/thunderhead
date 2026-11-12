@@ -15,6 +15,7 @@ import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
 import { begin } from './starts.js';
+import { ask } from './decoder.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
 export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0, Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
@@ -41,7 +42,6 @@ const fill = (/** @type {HTMLElement} */ s) => {
 };
 document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (s.dataset.keep === 'photo') fill(s); });
 
-let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], plain: boolean, start?: Record<string, number>, noise0?: number, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
@@ -80,20 +80,17 @@ export async function open(id, quick = false) {
   const edit = (await store.loadEdit(id)) || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
   cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
   ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = await store.jpegUrl(id); place(); changed();
-  worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
-  const me = cur, tag = ++asked, buf = plain ? null : await store.raw(id);
+  const me = cur, stack = p.kind === 'stack', buf = plain || stack ? null : await store.raw(id);   // a stack: frames averaged into one (stack.js), kept as sensor data
   let sensor = (/** @type {Uint16Array | ImageBitmap} */ m) => {};
   const mosaic = /** @type {Promise<Uint16Array | ImageBitmap>} */ (new Promise((res) => { sensor = res; }));
   const file = buf ? null : await store.rawFile(id);
-  const r = await new Promise((res) => {
-    /** @type {Worker} */ (worker).onmessage = (m) => {
-      if (m.data.tag !== tag) { m.data.picture?.close(); return; }   // a photo left behind, still answering
-      if (m.data.mosaic) { sensor(m.data.mosaic); return; }
-      if (m.data.preview) { me.shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); film = filmOf(m.data.settings); me.shot = m.data.settings || ''; changed(); return; }
-      res(m.data);
-    };
-    /** @type {Worker} */ (worker).postMessage(buf ? { buf, full: !quick, tag } : { picture: file, tag }, buf ? [buf] : []);
-  });
+  const r = await new Promise((res) => ask(buf ? { buf, full: !quick } : plain ? { picture: file } : { stack: file, full: !quick }, buf ? [buf] : [], (d) => {
+    if (cur !== me) { d.picture?.close(); return true; }   // a photo left behind, still answering
+    if (d.mosaic) { sensor(d.mosaic); return true; }
+    if (d.preview) { me.shotEv = BASELINE_EV + Math.log2((d.dr || 100) / 100); film = filmOf(d.settings); me.shot = d.settings || ''; changed(); return false; }
+    res(d);
+    return !!d.error || plain || quick || d.meta.cfaWidth !== 6;   // else the sensor's own pixels follow
+  }));
   if (cur !== me) { r.picture?.close(); return; }
   if (r.picture) { if (quick) r.picture.close(); else sensor(r.picture); }
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
@@ -227,14 +224,7 @@ export const whole = () => big;
 /** Brings the engine's colour table and tone mask back to the photo as it is on screen: a look's tile or the
  * 100 % view's map may have drawn it another way since. For work that draws without a frame of its own (export). */
 export const settle = () => paint({ fit: false });
-/** One band of an export's JPEG, encoded on the decoder's thread (the engine's files.js asks).
- * @param {Uint8Array} rgb @param {number} w @param {number} h @param {number} quality @param {boolean} fine @returns {Promise<Uint8Array>} */
-export const jpegBand = (rgb, w, h, quality, fine) => new Promise((res, rej) => {
-  const to = worker, tag = `j${++asked}`;
-  if (!to) { rej(new Error('no decoder')); return; }
-  const hear = (/** @type {MessageEvent} */ m) => { if (m.data.tag !== tag) return; to.removeEventListener('message', hear); if (m.data.jpeg) res(m.data.jpeg); else rej(new Error(m.data.error)); };
-  to.addEventListener('message', hear); to.postMessage({ jpeg: [rgb, w, h, quality, fine], tag }, [rgb.buffer]);
-});
+export { jpegBand } from './decoder.js';
 /** The upright photo's size in sensor pixels. */
 export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
 /** Draws the 100 % view where it now looks. */
