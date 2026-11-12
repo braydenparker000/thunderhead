@@ -9,7 +9,7 @@
 import { prefOn } from '/th/pref.js';
 import { mount } from './dc.js';
 import { init } from './app/store.js';
-import { open as openPhoto, undo } from './app/session.js';
+import { open as openPhoto, saveNow, undo } from './app/session.js';
 import { warm } from './app/decoder.js';
 import { isolate } from '../engine/isolate.js';
 
@@ -78,6 +78,11 @@ else {
   // (sw.js `keepEditor`: only the files that changed since the release before), unless the owner turned that off
   // (Settings > Photos > Editor) or the phone is saving data.
   if (navigator.onLine !== false && prefOn('photos.offline', true) && !(/** @type {any} */ (navigator).connection?.saveData)) navigator.serviceWorker?.ready.then((r) => r.active?.postMessage({ type: 'keepEditor' }), () => {});
+  // Android may take a tab in the background without a word: the edit is written the moment the page is hidden,
+  // not left to the timer that follows a change (session.js `save`).
+  const keepNow = () => { saveNow().catch((e) => console.warn('edit not saved on leaving', e)); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') keepNow(); });
+  addEventListener('pagehide', keepNow);
   init().catch((e) => console.warn('photos:', e)).then((all) => {
     if (all?.length) warm();   // the decoder starts while the Library is looked at (decoder.js)
     if (wanted && all?.some((p) => p.id === wanted)) { openPhoto(wanted); show('Edit'); } else show('Library');

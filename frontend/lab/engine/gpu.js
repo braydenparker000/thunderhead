@@ -52,7 +52,8 @@ function gpu() {
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No GPU adapter.');
     const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('shader-f16') ? ['shader-f16'] : [] });   // half floats, where the GPU has them: the network's (neural.js)
-    device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; });
+    // lost: the next photo gets a new device; a page with a photo open is told, unless the device was let go on purpose (engine.dispose, the page leaving)
+    device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; if (l.reason !== 'destroyed') dispatchEvent(new Event('th-gpu-lost')); });
     const module = device.createShaderModule({ code: WGSL });
     const [pipe, bakePipe, maskP, bendP] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
       device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } }), maskPipes(device), warpPipe(device)]);

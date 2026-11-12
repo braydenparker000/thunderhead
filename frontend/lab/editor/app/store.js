@@ -7,10 +7,11 @@ import { shot } from '../../engine/exif.js';
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
- *   editFile?: string, backed?: string, kind?: 'jpeg' | 'stack', stamp?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
+ *   editFile?: string, backed?: string, kind?: 'jpeg' | 'stack', stamp?: number, deleted?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
  *   Exif says, else the file's time; `stamp`: the file's own time (an import knows a file it has by it); `shot`: what the camera wrote of the shot (engine/exif.js);
  *   `kind`: what the original is when it is not a RAF (a JPEG; frames stacked into one, app/stack.js); `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
- *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js) */
+ *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js); `deleted`: when it was deleted, while it can
+ *   still be brought back (`remove`) */
 /** @typedef {Record<string, number | string>} Edit */
 
 const open = () => /** @type {Promise<IDBDatabase>} */ (new Promise((res, rej) => {
@@ -32,6 +33,8 @@ async function write(folder, name, data) {
 
 /** @type {Photo[]} */
 let cache = [];
+/** @type {Photo[]} */
+let bin = [];   // photos deleted lately: out of the Library, still on the phone (`remove`, `restore`)
 const urls = /** @type {Map<string, string>} */ (new Map()), tiles = /** @type {Map<string, string>} */ (new Map());   // each photo's camera JPEG; its edit, small, where there is one
 /** Every photo, newest first (loaded once at start, then kept in step). */
 export const photos = () => cache;
@@ -39,18 +42,26 @@ let safe = false;
 /** Whether the browser has promised to keep these photos (asked at start): without it, it may clear them when
  * the phone runs low on space. */
 export const kept = () => safe;
-/** What a cut-off import left behind: a file copied with no record yet (the copy is the long part, so a page
- * closed during it leaves one). Removed once an hour old (`age`, in ms), so a copy another tab is making now is
- * left alone. */
+/** Files with no record. An original with none (its record was lost, or the page closed between the copy and the
+ * record) is still the owner's photo: it is given a record again and shows in the Library as "Recovered", never
+ * deleted. Only what is no picture at all goes, and a camera JPEG or tile whose original is gone. Files under an
+ * hour old (`age`, in ms) are left alone: another tab may be copying them now. Returns how many photos came back. */
 export async function sweep(age = 3600e3) {
   const known = new Set(/** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).map((p) => p.id));
+  let back = 0;
   for (const folder of ['raw', 'jpg', 'thumb']) {
     const d = await dir(folder);
     for await (const [name, h] of /** @type {any} */ (d).entries()) {
-      if (h.kind !== 'file' || known.has(name.replace(/\.\w+$/, ''))) continue;
-      if (Date.now() - (await h.getFile()).lastModified >= age) await d.removeEntry(name).catch(() => {});
+      const id = name.replace(/\.\w+$/, '');
+      if (h.kind !== 'file' || known.has(id)) continue;
+      const file = /** @type {File} */ (await h.getFile());
+      if (Date.now() - file.lastModified < age) continue;
+      if (folder === 'raw' && (await adopt(id, name, file).catch(() => false))) { known.add(id); back++; continue; }
+      await d.removeEntry(name).catch(() => {});
     }
   }
+  if (back) { cache.sort((a, b) => b.taken - a.taken); dispatchEvent(new Event('th-editor-photos')); }
+  return back;
 }
 /** Photos brought in before the shot's own data was kept get it now, once, from their Exif (and their place in
  * the Library by the camera's clock). Returns how many. */
@@ -65,7 +76,9 @@ async function fill() {
 }
 export async function init() {
   safe = (await navigator.storage?.persist?.().catch(() => false)) || false;
-  cache = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).sort((a, b) => b.taken - a.taken);
+  const all = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).sort((a, b) => b.taken - a.taken);
+  cache = all.filter((p) => !p.deleted); bin = all.filter((p) => p.deleted);
+  empty(bin.filter((p) => Date.now() - (p.deleted || 0) > KEEP_DAYS * 864e5).map((p) => p.id)).catch((e) => console.warn('photos: deleted ones not cleared', e));
   sweep().catch(() => {});
   fill().then((n) => { if (n) dispatchEvent(new Event('th-editor-photos')); }, () => {});   // the Library reads the roll again
   await Promise.all(cache.map(async (p) => {
@@ -108,6 +121,22 @@ async function copyIn(file, more = {}) {
   return p;
 }
 
+/** Gives an original that has no record one again, where it lies (no copy). False for a file that is no picture.
+ * @param {string} id @param {string} name its file's name @param {File} file */
+async function adopt(id, name, file) {
+  const kind = /\.jpg$/.test(name) ? /** @type {const} */ ('jpeg') : undefined;
+  if (!kind && !/\.raf$/.test(name)) return false;   // a stack cannot be told from its file alone: it is left where it is
+  const jpg = kind ? await reduced(file) : embedded(await file.arrayBuffer());
+  if (!jpg) return false;
+  await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg));
+  const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg).slice(0, 1 << 17).arrayBuffer()));
+  /** @type {Photo} */
+  const p = { id, name: `Recovered ${id.slice(0, 8)}.${kind ? 'jpg' : 'RAF'}`, size: file.size, taken: at || file.lastModified, stamp: file.lastModified, shot: made, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}) };
+  await tx('photos', (s) => s.put(p), 'readwrite');
+  cache = [p, ...cache];
+  return true;
+}
+
 /** Copies RAFs and JPEGs onto the phone; `step(done, total)` after each. A file already here (the same name, size
  * and time) is not copied twice, so picking a set again after an import was cut off carries on where it stopped.
  * Returns how many were copied, how many were here already, and how many could not be read.
@@ -116,7 +145,9 @@ export async function add(files, step) {
   const ours = files.filter((f) => RAF.test(f.name) || JPEG.test(f.name));
   let k = 0, had = 0, bad = 0;
   for (const f of ours) {
-    if (cache.some((p) => p.name === f.name && p.size === f.size && (p.stamp ?? p.taken) === f.lastModified)) had++;
+    const same = (/** @type {Photo} */ p) => p.name === f.name && p.size === f.size && (p.stamp ?? p.taken) === f.lastModified, gone = bin.find(same);
+    if (gone) { await restore([gone.id]); had++; }   // deleted lately and picked again: brought back, not copied twice
+    else if (cache.some(same)) had++;
     else try { const p = await copyIn(f); cache = [p, ...cache].sort((a, b) => b.taken - a.taken); } catch { bad++; }
     step(++k, ours.length);
   }
@@ -181,14 +212,30 @@ export async function saveTile(id, blob) {
   if (blob) { await write('thumb', `${id}.jpg`, blob); tiles.set(id, URL.createObjectURL(blob)); } else await (await dir('thumb')).removeEntry(`${id}.jpg`).catch(() => {});
   await update(id, { edited: !!blob });
 }
-/** Deletes photos from this phone for good: the original, its JPEG and tile, its record and its edit. @param {string[]} ids */
+/** How long a deleted photo can still be brought back. */
+export const KEEP_DAYS = 7;
+/** Deletes photos: they leave the Library at once and can be brought back for KEEP_DAYS (`restore`), after which
+ * they go from this phone for good (`init`), or at once with `empty`. @param {string[]} ids */
 export async function remove(ids) {
-  for (const id of ids) {
+  for (const p of cache.filter((x) => ids.includes(x.id))) { p.deleted = Date.now(); await tx('photos', (s) => s.put(p), 'readwrite'); bin.push(p); }
+  cache = cache.filter((p) => !ids.includes(p.id));
+}
+/** The photos deleted and not yet gone. */
+export const deleted = () => bin;
+/** Brings deleted photos back, with their edits. @param {string[]} [ids] all of them when not given */
+export async function restore(ids) {
+  for (const p of bin.filter((x) => !ids || ids.includes(x.id))) { delete p.deleted; await tx('photos', (s) => s.put(p), 'readwrite'); cache.push(p); }
+  bin = bin.filter((p) => p.deleted); cache.sort((a, b) => b.taken - a.taken);
+}
+/** Takes deleted photos from this phone for good: the original, its JPEG and tile, its record and its edit.
+ * @param {string[]} [ids] every deleted photo when not given */
+export async function empty(ids) {
+  for (const { id } of bin.filter((x) => !ids || ids.includes(x.id))) {
     for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
     for (const m of [urls, tiles]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
+    bin = bin.filter((p) => p.id !== id);
   }
-  cache = cache.filter((p) => !ids.includes(p.id));
 }
 /** How many bytes this site keeps on the phone (the photos are nearly all of it). */
 export const usage = async () => (await navigator.storage?.estimate?.())?.usage ?? cache.reduce((s, p) => s + p.size, 0);

@@ -76,7 +76,8 @@ export default class Component extends DCLogic {
     const cur = P[S.idx], n = P.length;
     const curT = tile(cur);
     const step = (from, dir) => { let i = from; do { i += dir; } while (S.skip && i >= 0 && i < n && P[i].flag === 'reject'); return i < 0 || i >= n ? from : i; };
-    const setPhoto = (patch) => { if (cur.key) store.update(cur.key, patch); set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) }); };
+    // (a rating or flag the phone would not keep: the screen goes back to what the phone holds)
+    const setPhoto = (patch) => { if (cur.key) store.update(cur.key, patch).catch((e) => { console.warn('photo not updated', e); const r = roll(); this.setState({ photos: r.photos, shoots: r.shoots }); }); set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) }); };
     const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
     const span = 328, fx = (i) => 22 + (i / (n - 1)) * span;
     const runImport = (label) => {
@@ -143,17 +144,22 @@ export default class Component extends DCLogic {
       this.setState({ photos: r.photos.length ? r.photos : this.demo, shoots: r.photos.length ? r.shoots : null, idx: r.photos.length ? 0 : 6, filter: 'All', armed: 0, used });
     };
     return {
-      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'} from this phone for good? Tap again` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'}? Tap again · they can be brought back for ${store.KEEP_DAYS} days` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       subTap, subInk: armed ? '#e8202a' : doomed.length || S.cut ? '#c9d0d8' : '#8b95a1', subRole: doomed.length || S.cut ? 'button' : null,
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols, find: S.find || '', onFind: (e) => set({ find: e.target.value }),
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
         ...rows,
+        // deleted lately: still on the phone, and back with their edits at a tap; or gone now, to free their room (two taps)
+        ...(this.app && store.deleted().length ? [{ glyph: '↺', name: `Bring back ${count(store.deleted().length, 'deleted photo')}`, note: `Deleted in the last ${store.KEEP_DAYS} days · they come back with their edits`, pick: async () => { await store.restore(); const r = roll(); this.setState({ photos: r.photos, shoots: r.shoots, filter: 'All', used: await store.usage() }); } },
+          { glyph: '✕', name: 'Empty the deleted photos', note: Date.now() - (S.emptying || 0) < 5000 ? `Tap again: ${count(store.deleted().length, 'photo')} will be gone for good` : 'Frees their room on this phone now · this cannot be undone',
+            pick: async () => { if (Date.now() - (S.emptying || 0) >= 5000) { set({ emptying: Date.now() }); setTimeout(() => this.setState({}), 5100); return; } await store.empty(); this.setState({ emptying: 0, used: await store.usage() }); } }] : []),
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
-      progress: !!pr, progText: pr ? (pr.k < pr.total || (this.app && !pr.done) ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '',   // (the app says Done in its own words, once it is: the sample's line showed for a moment after the last file) progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
+      progress: !!pr, // (the app says Done in its own words, once it is: the sample's line showed for a moment after the last file)
+      progText: pr ? (pr.k < pr.total || (this.app && !pr.done) ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(found).filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),

@@ -71,12 +71,13 @@ export const say = (status) => { if (cur) { cur.status = status; changed(); } };
 
 /** Where Noise starts for a photo shot at an ISO: nothing up to 400, then 20 more for each doubling, to 40 from 1600 up. @param {number} iso */
 export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math.log2((iso || 100) / 400))));
-/** Opens a photo from the Library. @param {string} id @param {boolean} [quick] without its full-size pixels (work that only passes through: clip.js) */
-export async function open(id, quick = false) {
+/** Opens a photo from the Library. @param {string} id @param {boolean} [quick] without its full-size pixels (work that only passes through: clip.js)
+ * @param {boolean} [again] the photo that is open already, anew (its GPU device was lost) */
+export async function open(id, quick = false, again = false) {
   const p = store.photos().find((x) => x.id === id);
-  if (!p || cur?.id === id) return;
+  if (!p || (cur?.id === id && !again)) return;
   const turn = ++asked; while (drawing) await sleep(8);   // a frame of the photo before may be in flight (its tile, a dial's last turn): its engine is not taken from under it
-  if (turn !== asked || cur?.id === id) return;
+  if (turn !== asked || (cur?.id === id && !again)) return;
   const began = performance.now(); took.open = took.detail = took.save = 0; again = false;
   const edit = (await store.loadEdit(id)) || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
   cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
@@ -114,7 +115,7 @@ export async function open(id, quick = false) {
       const b = cur === me ? await full(e, r, m) : null;
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
       if (cur === me) { big = b; changed(); if (b) note('full', performance.now() - began); } else b?.dispose();
-    }).catch(() => {});
+    }).catch((err) => { console.warn('full size', err); if (cur === me) say('The full-size photo could not be made, so 100 % and export are not there. Open the photo again.'); });
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }
 
@@ -236,9 +237,11 @@ export function save(key, name, val) {
   clearTimeout(saveT);
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
-  clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, record(me, p)); }, 400);
+  clearTimeout(tileT); tileT = setTimeout(() => { keepTile(me)?.catch?.((err) => console.warn('tile not kept', err)); }, 1500);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, record(me, p)).catch((err) => unsaved(me, err)); }, 400);
 }
+/** An edit the phone would not keep (its storage full, most often): said on the photo, since nothing else would show it. */
+const unsaved = (/** @type {NonNullable<typeof cur>} */ me, /** @type {unknown} */ err) => { console.warn('edit not saved', err); if (cur === me) say('This edit could not be saved on this phone. Free some space, then change something to try again.'); };
 const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, ...(me.start ? { start0: me.start } : {}), wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) });
 /** Saves now what `save` would shortly, the tile too: for work that goes straight on to another photo (clip.js). */
 export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }
@@ -252,6 +255,8 @@ async function keepTile(/** @type {typeof cur} */ me) {
 }
 /** Closes the open photo (it was deleted). */
 export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; img.src = '/lab/editor/assets/sample.jpg'; place(); changed(); }
+// The graphics chip was reset under the photo (the phone took it back, or its driver fell over): the picture would stay frozen with no word, so the edit is kept and the photo opened again on a new device.
+addEventListener('th-gpu-lost', () => { const me = cur; if (!me) return; store.saveEdit(me.id, record(me, past)).catch(() => {}).finally(() => open(me.id, false, true)); });
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
 /** Back, or forward again, to a step: the edit as it stood then. @param {number} i */
