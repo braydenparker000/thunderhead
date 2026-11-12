@@ -29,7 +29,7 @@ async function session() {
 /** What there is to back up, without touching the network.
  * @returns {Promise<{ signedIn: boolean, originals: store.Photo[], bytes: number, edits: store.Photo[] }>} */
 export async function state() {
-  const all = store.photos(), originals = all.filter((p) => !p.source), edits = await store.edits();
+  const all = store.photos(), originals = all.filter((p) => !p.source && p.kind !== 'stack'), edits = await store.edits();   // a stack is made from frames that are themselves backed up; its own file is not sent (Photos has no place for one yet)
   const changed = all.filter((p) => idOf(p) && (edits.has(p.id) || p.rating || p.flag !== 'none' || p.backed) && mark(kept(p, edits.get(p.id))) !== p.backed);
   return { signedIn: Boolean(await session()), originals, bytes: originals.reduce((s, p) => s + p.size, 0), edits: changed };
 }
@@ -63,7 +63,7 @@ export async function edits(say = () => {}) {
 export async function run(say) {
   const s = await session();
   if (!s) return { originals: 0, edits: 0, failed: 0, why: 'Sign in on the home screen to back up.' };
-  const todo = store.photos().filter((p) => !p.source);
+  const todo = store.photos().filter((p) => !p.source && p.kind !== 'stack');
   let ok = 0, failed = 0, why = '';
   if (todo.length) {
     const { importFiles } = await import('../../../apps/photos/import.js');

@@ -53,7 +53,7 @@ export function setValues(patch, key, name, val = '') { if (!cur) return; Object
 /** Puts adjustments back where they start, as one step. @param {string[]} names @param {string} name */
 export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
-const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
+const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.start && name in cur.start ? cur.start[name] : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
 /** A photo's name without its ending. @param {string} name */
 export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
 /** How a shot was taken, in a line (23 mm · f/5.6 · 1/250 · ISO 160): what its Exif says, '' when it says nothing. @param {import('./store.js').Photo['shot']} s */

@@ -6,6 +6,7 @@ import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
 import * as clip from '../app/clip.js';
+import { stackOn } from '../app/stack.js';
 import { cutOff, presets, saveMany } from '../app/save.js';
 import * as backup from '../app/backup.js';
 
@@ -122,6 +123,9 @@ export default class Component extends DCLogic {
         many('paste', 'Pasting the edit', async (step) => { const r = await clip.pasteOn(all, step); return `Done · pasted on ${count(r.done, 'photo')}${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }))] : []),
       ...(open && all.some((id) => id !== open.id) ? [row('match', '≈', 'Match the photos shown to the open one', `Match ${count(all.length, 'photo')}?`, `${photo.stem(open.name)}’s white balance, and its brightness by how each was shot, for the ${of} · each can undo it`,
         many('match', 'Matching', async (step) => { const r = await clip.matchOn(all, step); return `Done · matched ${count(r.done, 'photo')}${r.plain ? ` · ${r.plain} white balance only (no shooting data)` : ''}${r.bad ? ` · ${r.bad} left as they were` : ''}`; }))] : []),
+      ...(all.length >= 2 && all.length <= 64 && all.every((id) => !store.photos().find((p) => p.id === id)?.kind) ? [row('stack', '≡', 'Stack the photos shown', `Stack ${count(all.length, 'frame')}?`, `Frames of one scene from a tripod, made one new photo: shot alike, less noise; a bracket, the range of all (HDR). The ${of} · the frames stay`,
+        many('stack', 'Stacking', async (step) => { const r = await stackOn(all, step), left = [r.moved ? `${count(r.moved, 'frame')} had moved` : '', r.differ ? `${r.differ} shot otherwise` : '', r.bad ? `${r.bad} could not be read` : ''].filter(Boolean).join(' · ');
+          return r.id ? `Done · ${r.name} is in the Library${left ? ` · left out: ${left}` : ''}` : `Not stacked: fewer than two frames lie on each other${left ? ` (${left})` : ''}`; }))] : []),
       row('export', '⇪', 'Export the photos shown', `Export ${count(all.length, 'photo')}?`, kinds.length ? `${kinds.map((x) => `${x.name} ${x.fmt}`).join(' and ')} of each of the ${of}, to Downloads · the files are set on the Export board` : 'Both files are off on the Export board',
         kinds.length ? many('export', 'Exporting', async (step) => { const r = await saveMany(all, step); return `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }) : () => {})];
     const pr = S.progress;

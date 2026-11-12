@@ -61,9 +61,15 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 **Begun 2026-11-11** (Settings › Photos › Editor, all kept on the phone and read when used): New photos open in
 (the camera's film simulation, or Adobe Color), Noise reduction by ISO, Auto tone on new photos, Double-tap zooms to
 (100 or 200 %), Full-size detail (Best, or Faster: the first look alone). Checked on a real RAF by hand: the repo
-holds none, so only Faster's picture is held by CI. Left of the list below: the starting Sharpening and Color
-noise, the view's clipping levels, storage, and a starting point for each camera and lens. (Export defaults: the
-Export board's two files are kept on the phone since the export of many, stage 5.)
+holds none, so only Faster's picture is held by CI. Left of the list below: the view's clipping levels and storage.
+(Export defaults: the Export board's two files are kept on the phone since the export of many, stage 5.)
+
+**A start for each camera and lens: built 2026-11-11** (`app/starts.js`; Looks › Mine › AS START). The open photo's
+look is kept as where every photo from its camera with its lens begins: its sharpening and colour noise (so the
+two settings the list had for those are not needed), lens corrections by hand, profile, curve, a look, everything
+but what is each photo's own (Exposure, white balance, and Noise, which goes by ISO). A photo opened for the
+first time begins there; it is where the photo starts and not an edit, so its history begins with it and Reset
+goes back to it. A tap on START ✓ clears it. The camera and lens come from the photo's Exif (stage 5).
 
 It reads none today. Speed against quality (demosaic Best or Faster; noise reduction and sharpening shown from
 50 %). What a new photo starts with (profile, Noise by ISO, Sharpening, lens corrections, hot pixels, Auto tone).
@@ -204,9 +210,28 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 ## Stage 8: more than one frame
 
-- **HDR merge** (new, L): a bracket of RAFs into one file with the range of all, aligned, ghosts handled.
+- **HDR merge: built 2026-11-12, for a bracket from a tripod** (the same "Stack the photos shown"; `engine/stack.js`
+  `summer`). A bracket is the stack's sum with each frame counted by its exposure: a sensel is worth all the
+  light it gathered in the frames where it did not clip, over the time they were open. Measured on the made-up
+  scene at 1, 4 and 16 times the exposure: deep shadows come out at a twelfth of a frame's noise, highlights are
+  the short frame's as it was, and no band between them is brighter or darker than the scene. The result is a
+  raw photo at the shortest frame's exposure (nothing more is clipped than was in it), opened as bright as the
+  middle frame, with the range there for Highlights and Shadows to use. The frames must share ISO, aperture and
+  the camera's DR setting; the shutter time is what differs. Left: things that moved between frames (ghosts)
+  are not looked for, frames shot by hand are not laid on each other, and a bracket wider than ±2 stops keeps
+  less than all of its longest frame's fineness (16 bits hold four times the camera's scale, not sixteen).
 - **Panorama** (new, L): frames stitched, at a reduced size if 4 GB demands it.
-- **Stacking for noise** (new, M): a burst averaged, which buys stops no single-frame denoiser can.
+- **Stacking for noise: built 2026-11-12, for frames from a tripod** (`engine/stack.js`, `app/stack.js`; the Library's
+  sheet, "Stack the photos shown for noise"). The frames are averaged as sensor data, sensel by sensel, before
+  any colour is made, so the stack is a raw photo still: it is kept as one (16 bits, at four times the camera's
+  scale, so the average holds two more bits than a frame), stands in the Library beside its frames, and opens
+  like any RAF, with the camera's profile, the demosaic, the lens corrections and every control. Noise falls with
+  the square root of the count (sixteen frames: a quarter, measured), and the engine is told so (its noise model
+  and the Noise it starts with go by ISO ÷ frames). A frame shot otherwise than the first (ISO, shutter,
+  aperture) is left out, and so is one that has moved by more than half a sensel against it, read from the two
+  editing copies (noise does not disturb the reading: 0.02 of a pixel at the worst tried). Up to 64 frames, one
+  in memory at a time. Left: frames shot by hand (they must be laid on each other first, which means making their
+  colours before averaging), and a stack's own file in the backup (its frames are backed up).
 
 ## Stage 9: output and finish
 

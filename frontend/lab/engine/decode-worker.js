@@ -7,6 +7,7 @@
 
 import { lensOf } from './lens.js';
 import { still } from './picture.js';
+import { binned, unpack } from './stack.js';
 
 /** From the camera JPEG's Exif: how to turn the photo upright (rawler reads no orientation from a RAF), and
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
@@ -61,6 +62,7 @@ const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) =
 // export. Every answer carries the request's tag, so a page that has moved on to another photo can tell.
 // { jpeg: [rgb, width, rows, quality, fine], tag } is one band of an export's JPEG to encode (files.js).
 // { picture: file, tag } is a JPEG to open: a picture already, which needs no decoder (picture.js).
+// { stack: file, full, tag } is a stack to open: frames averaged into one, kept as sensor data (stack.js).
 self.onmessage = async (e) => {
   const tag = e.data.tag;
   try {
@@ -72,6 +74,14 @@ self.onmessage = async (e) => {
     if (e.data.picture) {
       const s = await still(e.data.picture);
       self.postMessage({ ...s, tag }, [s.proxy.buffer, s.picture]);
+      return;
+    }
+    if (e.data.stack) {
+      const { meta, mosaic } = unpack(await e.data.stack.arrayBuffer());
+      self.postMessage({ preview: true, dr: meta.dr || 100, settings: meta.settings || '', tag });
+      const proxy = binned(mosaic, meta);
+      self.postMessage({ meta, width: meta.proxyWidth, height: meta.proxyHeight, proxy, decodeMs: 0, threads: 1, threadsError: '', tag }, [proxy.buffer]);
+      if (e.data.full && meta.cfaWidth === 6) self.postMessage({ mosaic, tag }, [mosaic.buffer]);
       return;
     }
     const buf = e.data.buf ?? e.data;
