@@ -84,6 +84,7 @@ export default class Component extends DCLogic {
       faces: FACES.map((f) => ({ label: f, count: counts[f] || 0 })), faceAt: at, pickFace: (i) => { photo.pickWhite(false); set({ face: FACES[i], wbMenu: false }); this._host?.el.querySelector('[role=toolbar]')?.scrollTo({ left: 0 }); },   // a new face's row starts from its beginning
       chips, rowAria: `${face} adjustments`, dialLabel, unit,
       dialValue: point ? point.value : live ? photo.toDial(ctl) : app ? 0 : undefined, dialText: point ? point.text : live ? photo.text(ctl) : app ? '' : undefined,   // the app with no photo: no made-up value
+      dialStart: !point && live ? photo.startDial(ctl) : undefined,
       dialTurn: point ? point.turn : live ? (d) => photo.turn(ctl, d) : undefined, dialReset: point ? point.reset : live ? () => photo.reset(ctl) : undefined,
       auto, pressAuto: real ? photo.auto : undefined,
       plateTop: 915 - plateH, photoH: 915 - plateH - 56, drumTop: plateH - 60, rowTop: plateH - 58,

@@ -10,6 +10,7 @@ import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
 import { cancelled, day, jobs, keepPresets, presets, save } from '../app/save.js';
 import * as shown from '../app/shown.js';
+import { tick as buzz } from '../app/haptic.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -67,7 +68,7 @@ export default class Component extends DCLogic {
         const total = on.length * 12, began = performance.now(), stop = (this.stop = new AbortController());
         set({ done: false, saved: null, note: '', stopped: false, working: { k: 0, total } });
         save(jobs(P, real.name, [fw, fh], S.day), (d) => { if (!stop.signal.aborted) this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }); }, { signal: stop.signal })
-          .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); },
+          .then((saved) => { photo.took.save = (performance.now() - began) / 1000; buzz('done'); this.setState({ working: null, done: true, saved }); },
             (err) => this.setState(cancelled(err) ? { working: null, done: true, stopped: true } : { working: null, done: true, note: String(err?.message || err) }))
           .finally(() => { if (this.stop === stop) this.stop = null; });
         return;

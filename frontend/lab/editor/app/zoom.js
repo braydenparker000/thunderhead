@@ -10,6 +10,9 @@
 // and move the photo, wherever in the photo's room they land, and whatever the board marks data-zoom-with (what
 // it lays over the photo) is moved and scaled with it.
 //
+// A one-finger pan let go while moving glides on and eases to rest (fling.js); two fingers tapped undo a step and
+// three redo one (taps.js).
+//
 // The photo is not inside any board. It lives in one layer of its own (`home`) under the boards, and a board's
 // slot is only a window: the layer takes the window's place and glides to the next board's. So changing tool
 // neither redraws the photo nor loses where it was zoomed to.
@@ -17,6 +20,8 @@ import { pref, prefOn } from '/th/pref.js';
 import * as photo from './session.js';
 import { tile } from './tiles.js';
 import { note } from './timings.js';
+import { fling, gliding, halt, heard, speed, trail } from './fling.js';
+import { hear } from './taps.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -61,10 +66,10 @@ export const transform = () => `translate(${tx}px, ${ty}px) scale(${z})`;
 /** How many times its fitted size the photo is shown (a brush keeps its size on screen, so it covers less of a zoomed photo). */
 export const mag = () => z;
 
-function hold() {   // the photo keeps covering the slot (or sits in its middle, where smaller)
-  const lim = (/** @type {number} */ t, /** @type {number} */ size, /** @type {number} */ room, /** @type {number} */ o) => (size <= room ? (room - size) / 2 - o : Math.max(room - size - o, Math.min(-o, t)));
-  tx = lim(tx, f.w * z, f.W, f.ox); ty = lim(ty, f.h * z, f.H, f.oy);
-}
+const lim = (/** @type {number} */ t, /** @type {number} */ size, /** @type {number} */ room, /** @type {number} */ o) => (size <= room ? (room - size) / 2 - o : Math.max(room - size - o, Math.min(-o, t)));
+/** The nearest shift to (x, y) at which the photo keeps covering the slot (or sits in its middle, where smaller). @param {number} x @param {number} y */
+const inside = (x, y) => [lim(x, f.w * z, f.W, f.ox), lim(y, f.h * z, f.H, f.oy)];
+function hold() { [tx, ty] = inside(tx, ty); }
 function apply(ease = false) {
   wrap.style.transition = ease ? EASE : 'none';
   wrap.style.transform = transform();
@@ -84,6 +89,7 @@ function zoomAt(to, x, y, ease = false) {
 }
 function layout() {
   if (!win) return;
+  halt();
   const r = slot.getBoundingClientRect(), s = r.width / (slot.offsetWidth || 1), [fw, fh] = photo.shape(), W = r.width / s, H = r.height / s, k = Math.min(W / fw, H / fh);
   if (!(W > 0 && H > 0)) return;
   const was = `${f.ox},${f.oy},${f.w},${f.h}`, o = f;
@@ -131,7 +137,7 @@ photo.hooks.fill = (s, el) => {
   follow(); layout();
 };
 /** The photo's element went into a board's own slot (Crop, Export): the layer is put away until a window asks again. */
-photo.hooks.away = () => { if (win) seen.unobserve(win); styled.disconnect(); wrap.style.filter = 'none'; win = null; pts.clear(); g = null; home.style.display = 'none'; };
+photo.hooks.away = () => { halt(); if (win) seen.unobserve(win); styled.disconnect(); wrap.style.filter = 'none'; win = null; pts.clear(); g = null; home.style.display = 'none'; };
 /** The clipping overlay to lay over the photo ('' for none): it zooms with it. @param {string} url */
 export function clip(url) { if (over.getAttribute('src') !== url) over.src = url; over.style.display = url ? 'block' : 'none'; if (url) Object.assign(over.style, { width: '100%', height: '100%' }); }
 
@@ -141,10 +147,13 @@ let g = /** @type {null | { pinch: boolean, two: boolean, x: number, y: number, 
 function touch(/** @type {PointerEvent} */ e) {
   if (!win?.isConnected) return;
   // a gesture starts in the photo's window; on a tool board anywhere in the photo's room (the board's own layers lie over the window)
-  if (e.type === 'pointerdown' && !(tool() ? win.parentElement : win)?.contains(/** @type {Node} */ (e.target))) return;
+  const mine = !!(tool() ? win.parentElement : win)?.contains(/** @type {Node} */ (e.target));
+  hear(e, mine);
+  if (e.type === 'pointerdown' && halt()) { hold(); apply(); settle(60); }   // a touch stops a glide where it is
+  if (e.type === 'pointerdown' && !mine) return;
   const r = slot.getBoundingClientRect(), s = r.width / f.W, at = { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s };
   const mid = () => { const [a, b = a] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
-  const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; };   // two: two fingers were down at some point of this gesture
+  const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; trail.length = 0; };   // two: two fingers were down at some point of this gesture
   if (e.type === 'pointerdown') {
     if (pts.size > 1) return;
     pts.set(e.pointerId, at); begin();
@@ -155,7 +164,7 @@ function touch(/** @type {PointerEvent} */ e) {
     const m = mid();
     g.far = Math.max(g.far, Math.hypot(m.x - g.x, m.y - g.y));
     if (g.pinch) { const px = (g.x - f.ox - g.tx) / g.z, py = (g.y - f.oy - g.ty) / g.z; z = Math.max(1, Math.min(most(), (g.z * m.d) / g.d)); tx = m.x - f.ox - px * z; ty = m.y - f.oy - py * z; }
-    else if (!tool() && z > 1.02 && g.far > 6) { if (!ear().hasPointerCapture(e.pointerId)) ear().setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
+    else if (!tool() && z > 1.02 && g.far > 6) { if (!ear().hasPointerCapture(e.pointerId)) ear().setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; heard(e.timeStamp, m.x, m.y); }
     else return;
     hold(); apply();
   } else if (pts.delete(e.pointerId)) {
@@ -168,10 +177,19 @@ function touch(/** @type {PointerEvent} */ e) {
       if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : tapTo(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
       return;
     }
+    if (was && !was.two && !tool() && z > 1.02 && launch(e.timeStamp)) return;   // let go while moving: it glides on
     const p = z / full();
     if (z < 1.04) zoomAt(1, f.W / 2, f.H / 2, true); else if (Math.abs(p - 1) < 0.07) zoomAt(full(), f.W / 2, f.H / 2, true);   // near fitted or near 100 %: exactly that
     settle(z < 1.04 || Math.abs(p - 1) < 0.07 ? 300 : 60);
   }
+}
+/** A one-finger pan let go while moving glides on (fling.js), and the detail is made where it rests. @param {number} now */
+function launch(now) {
+  const v = speed(now);
+  if (!v || matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  clearTimeout(timer); job++;   // no detail is made for where it was let go
+  fling({ x: tx, y: ty, vx: f.w * z > f.W ? v[0] : 0, vy: f.h * z > f.H ? v[1] : 0, inside, show: (x, y) => { tx = x; ty = y; apply(); }, rest: () => settle(60) });
+  return true;
 }
 /** Between fitted and 100 %, about the slot's middle (a board's 100 % key). */
 export function toggle() { zoomAt(z > 1.02 ? 1 : full(), f.W / 2, f.H / 2, true); settle(300); }
@@ -183,6 +201,7 @@ const rest = () => settle(120);
 function settle(ms) {
   clearTimeout(timer); job++;
   timer = setTimeout(() => {
+    if ((g && !tool()) || gliding()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
     photo.events.dispatchEvent(new Event('change'));
     const mine = job, began = performance.now(), sharp = z / full() >= 0.4 && !!photo.whole(); badge.classList.toggle('busy', sharp);   // a dot beats on the badge while the sensor's pixels are being made
     detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; badge.classList.remove('busy'); if (sharp) { photo.took.detail = (performance.now() - began) / 1000; note('detail', photo.took.detail * 1000); photo.events.dispatchEvent(new Event('change')); } });

@@ -1,7 +1,9 @@
 // @ts-check
 // A short line over the photo for a moment, on whatever board is up (docs/design/EDITOR.md): the header's Undo says
 // which step it took back ("Undid Exposure +0.80"), so a tap that changed something out of sight is not a mystery.
-import { history, undo as back } from './session.js';
+// Redo (three fingers tapped on the photo: taps.js) says which step it put back on. Each ticks under the finger.
+import { goto, history, undo as back } from './session.js';
+import { tick } from './haptic.js';
 
 const line = document.createElement('div');
 line.setAttribute('role', 'status');
@@ -24,6 +26,13 @@ export const said = () => (line.style.display === 'none' ? '' : line.textContent
 export function undo() {
   const h = history(), step = h.steps[h.at];
   if (!step || h.at <= 0) { tell('Nothing to undo'); return; }
-  back();
+  back(); tick('end');
   tell(`Undid ${step.name}${step.val ? ` ${step.val}` : ''}`);
+}
+/** Forward one step of the history again, after an Undo, saying which. */
+export function redo() {
+  const h = history(), step = h.steps[h.at + 1];
+  if (!step) { tell('Nothing to redo'); return; }
+  goto(h.at + 1); tick('end');
+  tell(`Redid ${step.name}${step.val ? ` ${step.val}` : ''}`);
 }

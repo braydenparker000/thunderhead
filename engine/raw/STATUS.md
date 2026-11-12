@@ -627,6 +627,25 @@ stopped for 417 ms; on the thread no task of the page's reached 50 ms and the lo
 only told). The test fails on a task of 250 ms. Not yet measured on the phone; the Library's Export many takes a
 signal but has no Cancel key yet.
 
+## Under the finger (2026-11-12)
+
+Three things to make the editor feel more fluid on the phone. **Ticks** (`frontend/lab/editor/app/haptic.js`): a
+short buzz (`navigator.vibrate`) when the dial passes the value's start or reaches an end of its range
+(`boards/DialPlate.js`; the Edit board tells the dial where its value starts, `adjust.js` `startDial`), when the
+drum's face clicks into place (`boards/Drum.js`), on Undo and Redo (`app/told.js`) and when an export is done
+(`boards/ExportPlate.js`, and Export many in `app/save.js`). Never one per pixel of a drag, at most one every
+40 ms, off with the new setting `photos.haptics` (Settings › Photos › Editor › Haptics, on at first) and on a
+phone set to reduce motion. **A fling** (`app/fling.js`): a zoomed photo let go while one finger still moves it
+glides on and slows to rest; past an edge it gives (at most 48 design pixels) and comes back inside; any new touch
+stops it where it is. Only the transform changes while it glides; the detail is made once it rests (a detail
+asked for while fingers move or it glides waits for that: `zoom.js` `settle`). **Two fingers tapped undo a step,
+three redo one** (`app/taps.js`, `told.js` `redo`), said by the line over the photo: all fingers down within
+120 ms, up within 250 ms, none moved 10 px, all on the photo, so the end of a pinch, a tap on the controls or a
+finger already at work with Heal's or Masks' tool is none.
+Held by tests/lab-editor-touch-browser.test.mjs, with a stub for the vibration: what the phone is asked for is
+checked, how it feels is not, and none of it has been tried on the phone yet. On this software GPU a fling glides
+for about 40 frames, the worst 17 to 33 ms apart, and gives 18 to 25 px at the edge.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

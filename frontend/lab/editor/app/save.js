@@ -8,6 +8,7 @@ import { outSize } from './shown.js';
 import { note } from './timings.js';
 import * as store from './store.js';
 import { prefOn } from '/th/pref.js';
+import { tick } from './haptic.js';
 
 /** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
  * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
@@ -125,7 +126,7 @@ export async function saveMany(ids, step, signal) {
       } catch (err) { if (cancelled(err)) { stopped = err; break; } bad++; }
     }
   } finally { lock?.release?.().catch(() => {}); }
-  if (!stopped) step(ids.length, ids.length, 0);
+  if (!stopped) { step(ids.length, ids.length, 0); tick('done'); }
   if (was && was !== photo.current()?.id) await photo.open(was);
   if (stopped) throw stopped;
   return { done, files, bad };
