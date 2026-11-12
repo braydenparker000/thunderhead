@@ -63,6 +63,8 @@ export default class Component extends DCLogic {
     const past = real ? photo.history() : null;
     const stepList = past ? past.steps.map((s, i) => [s.name, s.val, i === past.at, i > past.at, () => photo.goto(i)]) : steps.map(([name, val], i) => [name, val, i === S.step, i > S.step, () => set({ step: i, ver: 1 })]);
     const verList = real ? photo.versions().map((v, i) => ({ name: v.name, src: tile(`ver:${JSON.stringify(v.st)}`, v.st, 152), filter: 'none', sel: v.on, pick: () => photo.version(i) })).concat([{ name: 'New', glyph: '+', pick: () => photo.keep() }, { name: 'Copy edit', glyph: '⎘', pick: () => set({ said: clip.copy() ? 'Copied. Open another photo and Paste it here, or paste it on many from the Library’s Import sheet.' : '' }) },
+        // the compare page: this photo made every way the engine has, side by side (lab/editor/compare/)
+        { name: 'Compare', glyph: '◫', pick: () => { const id = photo.current()?.id; if (id) photo.saveNow().finally(() => location.assign(`/lab/editor/compare/?open=${encodeURIComponent(id)}`)); } },
         ...(clip.held() ? [{ name: 'Paste edit', glyph: '⇣', pick: () => set({ said: clip.paste() ? `Pasted the edit from ${photo.stem(clip.held()?.name || '')}. Undo takes it off.` : 'That edit is on this photo already.' }) }] : [])])
       : vers.concat([['New', '']]).map(([name, f], i) => ({ name, src: SAMPLE, filter: f || 'none', sel: i === S.ver, pick: () => (name === 'New' ? null : set({ ver: i })) }));
     // the history's row comes to the step the photo is at, when it opens and when that step changes

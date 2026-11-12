@@ -25,10 +25,25 @@ export function clean(stored) {
   return out;
 }
 
+const WAYS = ['classic', 'faster', 'network', 'camera', 'file'];
+/** The owner's verdicts from the compare page (lab/editor/compare/), made safe: where on the photo (as fractions),
+ * how far in, which two ways were shown and which was picked. Never which photo. @param {unknown} stored
+ * @returns {{ at: number, x: number, y: number, zoom: number, a: string, b: string, picked: string }[]} */
+export function cleanMarks(stored) {
+  if (!Array.isArray(stored)) return [];
+  const out = [];
+  for (const m of stored.slice(-200)) {
+    if (!m || typeof m !== 'object' || ![m.at, m.x, m.y, m.zoom].every(Number.isFinite) || ![m.a, m.b, m.picked].every((w) => WAYS.includes(w))) continue;
+    out.push({ at: Math.round(m.at), x: Math.round(m.x * 1e4) / 1e4, y: Math.round(m.y * 1e4) / 1e4, zoom: Math.round(m.zoom * 100) / 100, a: m.a, b: m.b, picked: m.picked });
+  }
+  return out;
+}
+
 /** True when there is a timing newer than the last one sent, and the last send was long enough ago.
  * @param {{ last?: number, when?: number }} sent @param {{ at?: any }[]} list @param {number} now */
 export const due = (sent, list, now) => list.length > 0 && Number(list[list.length - 1].at) > (sent.last || 0) && now - (sent.when || 0) >= EVERY_MS;
 
 /** The file: the build and the phone in a few words, then the timings.
- * @param {ReturnType<typeof clean>} list @param {{ build: string, agent: string, cores: number, memory: number }} phone */
-export const fileOf = (list, phone) => JSON.stringify({ v: 1, build: phone.build, agent: phone.agent.slice(0, 200), cores: phone.cores, memory: phone.memory, timings: list });
+ * @param {ReturnType<typeof clean>} list @param {{ build: string, agent: string, cores: number, memory: number }} phone
+ * @param {ReturnType<typeof cleanMarks>} [marks] the compare page's verdicts, which ride in the same file */
+export const fileOf = (list, phone, marks = []) => JSON.stringify({ v: 1, build: phone.build, agent: phone.agent.slice(0, 200), cores: phone.cores, memory: phone.memory, timings: list, marks });

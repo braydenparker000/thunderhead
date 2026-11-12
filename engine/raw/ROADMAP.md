@@ -72,6 +72,30 @@ sensor, and Lightroom met them as a camera it has no profile for; at ISO 3200 it
 reduction Lightroom applied (the file asked for none). The owner's own RAFs with Lightroom's exports are the
 check that counts, and they have no truth to score against, so that one is by eye, side by side.
 
+**The standard benchmarks (2026-11-12).** So that nothing rests on our own test pictures alone, the same
+contenders were scored on the two sets demosaicing papers use, Kodak (24 pictures) and McMaster (18), laid out
+as X-Trans mosaics the same way (mean over the pictures, dB; the plain score):
+
+| | ours | best of darktable and LibRaw | the network |
+|---|---|---|---|
+| Kodak, clean | 36.2 | 35.8 | 41.2 |
+| Kodak, ISO 3200 | 34.8 (with our noise reduction) | 33.6 (none) | 37.8 |
+| McMaster, clean | 35.8 | 35.8 | 38.4 |
+| McMaster, ISO 3200 | 34.0 (with our noise reduction) | 33.0 (none) | 36.4 |
+
+These pictures are small and 8-bit, and their truth is not free of aliasing, so they are easier on a network
+trained on pictures like them than 40 megapixels from a sensor will be; the lead on the owner's files is
+likely smaller. The order is the same on every set measured. In the editor the network scores as it does
+in PyTorch over a whole set (39.97 against 39.96 dB at ISO 3200; 42.64 against 42.71 clean, where the editor
+tells it of ISO 100's noise and the PyTorch run told it of none).
+
+**A larger network: not now (the owner asked, 2026-11-12).** The step already taken is the large one. In the
+2025 contest for this very task, networks of under a million weights scored close to ones fifty times the
+size; the estimate for a larger one trained for the X-E5 is 0.3 to 0.8 dB more, hard to see at 100 %, for
+one to three weeks of a free GPU. What may be worth training is a short fine-tune against a fault seen in a
+real photo: zippering along sharp edges, fine repeating lines, clipped strong colours. First the owner's
+RAFs beside Lightroom's exports, on the compare page (`/lab/editor/compare/`).
+
 **Milestones, in order**
 
 1. **A fixed yardstick.** About ten of the owner's real RAFs with Lightroom's export of each, sent once from

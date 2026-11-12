@@ -963,7 +963,9 @@ One file there is the phone's own: `editor-timings.json`, which home sends a whi
 timing, the one before it removed). It holds how long the editor took on this phone to open a photo
 (with the decoder's start-up and decode), to have its full-size pixels, to show them and to export,
 as numbers and a few fixed words (`timings-core.js` keeps known fields only), never a photo, a name
-or a setting. Off with Settings › Privacy and data › Editor timings.
+or a setting. The owner's verdicts from the compare page (`/lab/editor/compare/`) ride in the same file
+as `marks`: where on a photo (as fractions), how far in, which two ways were shown and which was
+picked, never which photo. Off with Settings › Privacy and data › Editor timings.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

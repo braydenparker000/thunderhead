@@ -3,7 +3,7 @@
 // one and the last send was six hours ago or more; the file says the build and the phone in a few words.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clean, due, EVERY_MS, fileOf } from '../frontend/th/workshop/timings-core.js';
+import { clean, cleanMarks, due, EVERY_MS, fileOf } from '../frontend/th/workshop/timings-core.js';
 
 test('only timings of known kinds, with their known fields, are kept', () => {
   const stored = [
@@ -34,7 +34,24 @@ test('sent when there is a new timing, at most once in six hours', () => {
 
 test('the file says the build and the phone in a few words, then the timings', () => {
   const file = JSON.parse(fileOf([{ kind: 'full', at: 1, ms: 2 }], { build: 'abc1234', agent: 'Browser/1 '.repeat(40), cores: 8, memory: 8 }));
-  assert.deepEqual(Object.keys(file), ['v', 'build', 'agent', 'cores', 'memory', 'timings']);
+  assert.deepEqual(Object.keys(file), ['v', 'build', 'agent', 'cores', 'memory', 'timings', 'marks']);
   assert.deepEqual([file.v, file.build, file.cores, file.memory, file.agent.length], [1, 'abc1234', 8, 8, 200]);
   assert.deepEqual(file.timings, [{ kind: 'full', at: 1, ms: 2 }]);
+});
+
+test('the compare page’s verdicts: where, how far in, which two and which was picked, and nothing else', () => {
+  const stored = [
+    { at: 1000.4, x: 0.123456, y: 0.5, zoom: 3, a: 'network', b: 'classic', picked: 'network', photo: 'DSCF0042.RAF' },
+    { at: 2000, x: 0.2, y: 0.3, zoom: 2, a: 'camera', b: 'file', picked: 'file' },
+    { at: 3000, x: 0.2, y: 0.3, zoom: 2, a: 'lightroom-export', b: 'classic', picked: 'classic' },
+    { at: 4000, x: 'left', y: 0.3, zoom: 2, a: 'faster', b: 'classic', picked: 'classic' },
+    null, 'words',
+  ];
+  assert.deepEqual(cleanMarks(stored), [
+    { at: 1000, x: 0.1235, y: 0.5, zoom: 3, a: 'network', b: 'classic', picked: 'network' },
+    { at: 2000, x: 0.2, y: 0.3, zoom: 2, a: 'camera', b: 'file', picked: 'file' },
+  ]);
+  assert.deepEqual(cleanMarks({}), []);
+  assert.equal(cleanMarks(Array.from({ length: 300 }, (_, i) => ({ at: i + 1, x: 0, y: 0, zoom: 1, a: 'classic', b: 'faster', picked: 'faster' }))).length, 200);
+  assert.deepEqual(JSON.parse(fileOf([], { build: 'abc1234', agent: 'x', cores: 8, memory: 8 }, cleanMarks(stored))).marks.length, 2);
 });
