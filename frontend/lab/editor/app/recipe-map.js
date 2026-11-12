@@ -11,10 +11,20 @@
 const FILMS = /** @type {[RegExp, string][]} */ ([
   [/bleach\s*bypass/i, 'BLEACH BYPASS'], [/eterna/i, 'ETERNA'], [/classic\s*chrome/i, 'CLASSIC CHROME'], [/reala/i, 'REALA ACE'],
   [/nostalgic/i, 'NOSTALGIC Neg'], [/classic\s*neg/i, 'CLASSIC Neg'], [/pro\s*neg\.?\s*hi/i, 'Pro Neg Hi'], [/pro\s*neg\.?\s*st/i, 'Pro Neg Std'],
-  [/velvia/i, 'Velvia'], [/astia/i, 'ASTIA'], [/acros/i, 'ACROS'], [/monochrome/i, 'Monochrome'], [/sepia/i, 'Sepia'], [/provia|standard/i, 'PROVIA'],
+  [/velvia/i, 'Velvia'], [/astia/i, 'ASTIA'], [/acros/i, 'ACROS'], [/monochrome/i, 'Monochrome'], [/sepia/i, 'Sepia'], [/provia/i, 'PROVIA'],
 ]);
 /** The profile label a recipe's film simulation stands for, or '' for one this does not know. @param {string} film */
 export const filmLabel = (film) => FILMS.find(([re]) => re.test(film || ''))?.[1] || '';
+/** The one black-and-white colour filter a film simulation names ('R', 'Y' or 'G'), or '' for none or a choice of them. @param {string} film */
+const filterOf = (film) => { const f = [...(film || '').matchAll(/\+\s*(r|ye?|g)\b/gi)].map((m) => m[1][0].toUpperCase()); return f.length === 1 ? f[0] : ''; };
+/** Which of a photo's profiles a recipe's film simulation is: the one of its family (whatever else its label says:
+ * "PROVIA/Standard", "ETERNA BLEACH BYPASS"), with the recipe's colour filter where there is such a profile, else
+ * the plain one. −1 for none. @param {string} film @param {string[]} labels the profiles' labels */
+export function profileFor(film, labels) {
+  const want = filmLabel(film), filter = filterOf(film), fam = labels.map((l, i) => ({ l, i })).filter((e) => want && filmLabel(e.l) === want);
+  const plain = fam.filter((e) => !/\+/.test(e.l)).sort((a, b) => a.l.length - b.l.length)[0], filtered = filter ? fam.find((e) => filterOf(e.l) === filter) : null;
+  return (filtered || plain || fam[0])?.i ?? -1;
+}
 
 // One of the camera's steps on each of our dials. First guesses (see the top).
 const TONE = 12, EDGE = 4;       // Highlight and Shadow tone: Highlights/Shadows, and a third as much on Whites/Blacks
@@ -66,8 +76,27 @@ export function edit(r, shot) {
   if (cc || cb) left.push('Color Chrome: as the mixer\'s luminance on strong colours, not the camera\'s own effect');
   if (g.size && grain) left.push(`Grain ${g.size}: one grain size here`);
   if (r.monochromatic && (r.monochromatic.wc || r.monochromatic.mg)) left.push('Monochromatic colour (toning): not replicated');
-  if (/\+\s*(r|ye?|g)\b/i.test(r.filmSimulation || '')) left.push('The black-and-white colour filter: not replicated');
+  if (/\+\s*(r|ye?|g)\b/i.test(r.filmSimulation || '')) left.push('The black-and-white colour filter: only where there is a profile with it');
   if (r.exposureCompensation && (r.exposureCompensation.min || r.exposureCompensation.max)) left.push('Exposure compensation: a shooting note, not applied');
   if (/underwater|ambience|white priority/i.test(mode)) left.push(`White balance ${w.mode}: as the shot's own`);
   return { values, wb: set || moved ? 'Custom' : 'As shot', film: filmLabel(r.filmSimulation || ''), left };
+}
+
+/** The list as its file packs it (one row a recipe, in the order of `cols`; tables for the sensors and the film
+ * simulations) opened out: each recipe with its own id, its group and its settings.
+ * @param {{ sensors: string[], films: string[], cols: string[], rows: unknown[][] }} doc
+ * @returns {{ id: string, name: string, sensor: string, camera: string, page: string, set: Recipe }[]} */
+export function unpack(doc) {
+  const at = /** @type {Record<string, number>} */ (Object.fromEntries(doc.cols.map((c, i) => [c, i]))), seen = new Set();
+  return doc.rows.map((row) => {
+    const v = (/** @type {string} */ c) => /** @type {any} */ (row[at[c]] ?? null), sensor = doc.sensors[v('sensor')] || 'Other', name = String(v('name'));
+    let id = `${sensor} ${name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    while (seen.has(id)) id += '-2';
+    seen.add(id);
+    return { id, name, sensor, camera: v('camera') || '', page: v('page') || '', set: { filmSimulation: doc.films[v('film')] || '', dynamicRange: v('dynamicRange') ?? undefined, dRangePriority: v('dRangePriority'),
+      grain: v('grain') ? { strength: v('grain'), size: v('grainSize') } : undefined, colorChrome: v('colorChrome') ?? undefined, colorChromeBlue: v('colorChromeBlue') ?? undefined,
+      whiteBalance: v('wb') || v('red') !== null ? { mode: v('wb') || '', kelvin: v('kelvin'), red: v('red') || 0, blue: v('blue') || 0 } : undefined,
+      highlight: v('highlight') ?? undefined, shadow: v('shadow') ?? undefined, color: v('color') ?? undefined, sharpness: v('sharpness') ?? undefined, noiseReduction: v('noiseReduction') ?? undefined, clarity: v('clarity') ?? undefined,
+      exposureCompensation: v('evMin') !== null || v('evMax') !== null ? { min: v('evMin') || 0, max: v('evMax') || 0 } : null, monochromatic: v('wc') !== null || v('mg') !== null ? { wc: v('wc') || 0, mg: v('mg') || 0 } : null } };
+  });
 }

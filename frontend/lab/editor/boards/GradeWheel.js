@@ -6,12 +6,13 @@
 // Props: `zone`, `onzone(name)`.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import { app } from '../app/shown.js';
 
 const ZONES = ['Shadows', 'Midtones', 'Highlights', 'Global'], D = 176, MINI = 38;
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { pucks: { Shadows: [215, 14, 0], Midtones: [40, 6, 0], Highlights: [48, 18, 0], Global: [0, 0, 0] } };
+    this.state = { pucks: app ? { Shadows: [0, 0, 0], Midtones: [0, 0, 0], Highlights: [0, 0, 0], Global: [0, 0, 0] } : { Shadows: [215, 14, 0], Midtones: [40, 6, 0], Highlights: [48, 18, 0], Global: [0, 0, 0] } };   // the app with no photo: none made up
     this.drag = null; this.lum = null; this.tapped = -1e9;
   }
   renderVals() {

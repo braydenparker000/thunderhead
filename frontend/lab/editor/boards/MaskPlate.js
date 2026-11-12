@@ -4,11 +4,13 @@
 // picked with a tap, and brush masks painted on it (Size, Feather and Flow are the brush's, Erase rubs out). The
 // panel holds the masks in a row along its top, the dial that turns the chosen mask's own adjustments, and the drum
 // with its row (Mask, Light, Color, Effects); the engine lays the mask over the picture in red. Without a photo it
-// plays a sample. Not built yet, so not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
+// shows none in the app (app/shown.js) and plays a sample on a screen of the design on its own. Not built yet, so
+// not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as mk from '../app/masks.js';
 import * as zoom from '../app/zoom.js';   // two fingers zoom and move the photo; one is the mask's
+import * as shown from '../app/shown.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -39,8 +41,8 @@ export default class Component extends DCLogic {
       Color: [R, R, `conic-gradient(${C}, #f2b632, #46a758, #3e63dd, ${C})`],
       Luminance: [R, R, 'linear-gradient(90deg, #111, #eee)'],
     };
-    const real = photo.current(), eng = real && photo.eng;
-    const masks = real ? mk.list() : S.masks, sel = Math.max(0, Math.min(S.sel, masks.length - 1)), has = masks.length > 0;
+    const seen = shown.face(), real = seen.real ? photo.current() : null, eng = real && photo.eng, none = shown.app && !real;
+    const masks = real ? mk.list() : none ? [] : S.masks, sel = Math.max(0, Math.min(S.sel, masks.length - 1)), has = masks.length > 0;
     const m = masks[sel] || { kind: 'Linear', n: 1, vals: {}, invert: false };   // none yet: the plate shows an empty one
     if (real) mk.show(S.overlay && has && !S.turning ? sel : -1);   // the red comes off while the dial turns, so the change itself shows
     const ai = ['Subject', 'Sky', 'Background', 'People', 'Object'];
@@ -104,10 +106,10 @@ export default class Component extends DCLogic {
       note = !has ? 'Add a mask to change part of the photo' : S.adding && masks.length >= 8 ? 'A photo can have eight masks' : m.kind === 'Brush' && !m.strokes?.length ? 'Paint on the photo' : mk.RANGE.includes(m.kind) && !m.pick ? `Tap the photo to pick a ${m.kind === 'Color' ? 'colour' : 'brightness'}` : '';
     }
     return {
-      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none', rad, hasNote: !!note, note, noteT: Math.max(60, box[1] + box[3] - 46),
-      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
-      overlay: real ? 'none' : shape[m.invert ? 1 : 0], lumMask: isRange && !real ? 'url(/lab/editor/assets/sample.jpg)' : 'none',
-      overlayO: real ? 0 : S.overlay && !S.detecting ? (valOf('Amount') / 100) * 0.9 + 0.1 : 0,
+      real: !!real, demo: seen.demo, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none', rad, hasNote: !!note, note, noteT: Math.max(60, box[1] + box[3] - 46),
+      fileName: seen.fileName, shotLine: seen.shotLine,
+      overlay: real || none ? 'none' : shape[m.invert ? 1 : 0], lumMask: isRange && !real && !none ? 'url(/lab/editor/assets/sample.jpg)' : 'none',
+      overlayO: real || none ? 0 : S.overlay && !S.detecting ? (valOf('Amount') / 100) * 0.9 + 0.1 : 0,
       dots: m.kind === 'Brush' && !real ? m.dots.map((d) => ({ x: d[0], y: d[1], s: d[2], m: -d[2] / 2 })) : [],
       guides: ['Linear', 'Radial'].includes(m.kind) && S.overlay && (!real || (has && !!m.a)), isRadial: m.kind === 'Radial',
       guideLines: lines,

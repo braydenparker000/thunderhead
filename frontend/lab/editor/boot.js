@@ -5,11 +5,13 @@
 // /lab/editor/ plays the screens as one app: Library first, EDIT › into the editor, the corner button
 // raises the tool dock, Export from the header, back arrows and the phone's back gesture go back.
 // /lab/editor/screens/ keeps each screen on its own page. The app is wired to the engine (app/session.js):
-// imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
+// imported RAFs live on the phone (app/store.js) and open, developed, in Edit. Culling's EDIT › opens the photo on
+// screen itself (boards/LibraryPlate.js); the header's Undo says what it took back (app/told.js).
 import { prefOn } from '/th/pref.js';
 import { mount } from './dc.js';
 import { init } from './app/store.js';
-import { open as openPhoto, saveNow, undo } from './app/session.js';
+import { open as openPhoto, pickWhite, saveNow } from './app/session.js';
+import { undo } from './app/told.js';
 import { warm } from './app/decoder.js';
 import { isolate } from '../engine/isolate.js';
 
@@ -38,6 +40,7 @@ else {
   const fromPhotos = new URLSearchParams(location.search).get('from') === 'photos';
   const show = (/** @type {string} */ name) => {
     current = name;
+    pickWhite(false);   // the eyedropper's ask is the Edit board's: it goes with it
     dock.hidden = veil.hidden = true;
     for (const b of dock.querySelectorAll('button')) b.setAttribute('aria-current', b.dataset.go === name ? 'page' : 'false');
     stage.replaceChildren();
@@ -63,7 +66,6 @@ else {
     else if (label === 'Show histogram') to = 'Versions';   // the View board holds the histogram and its clipping
     else if (label === 'Back to the editor') to = 'Edit';
     else if (text === 'Export' && b.closest('header')) to = 'Export';
-    else if (text === 'EDIT ›') to = 'Edit';
     if (!to) return;
     e.stopPropagation(); e.preventDefault();
     go(to);

@@ -4,13 +4,24 @@
 // here at all, is said.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edit, filmLabel } from '../frontend/lab/editor/app/recipe-map.js';
+import { edit, filmLabel, profileFor, unpack } from '../frontend/lab/editor/app/recipe-map.js';
 
 test('each film simulation is the profile of that name', () => {
   const pairs = { 'Reala Ace': 'REALA ACE', 'Classic Chrome': 'CLASSIC CHROME', 'Classic Negative': 'CLASSIC Neg', 'Classic Neg.': 'CLASSIC Neg', 'Nostalgic Neg.': 'NOSTALGIC Neg', 'PRO Neg. Hi': 'Pro Neg Hi',
-    'PRO Neg. Std': 'Pro Neg Std', 'Eterna': 'ETERNA', 'Eterna Bleach Bypass': 'BLEACH BYPASS', 'Velvia': 'Velvia', 'Astia': 'ASTIA', 'Provia': 'PROVIA', 'Provia/Standard': 'PROVIA', 'Acros+R': 'ACROS',
+    'PRO Neg. Std': 'Pro Neg Std', 'Eterna': 'ETERNA', 'Eterna Bleach Bypass': 'BLEACH BYPASS', 'Velvia': 'Velvia', 'Astia': 'ASTIA', 'Provia': 'PROVIA', 'Provia/STD': 'PROVIA', 'Adobe Standard': '', 'Acros+R': 'ACROS',
     'Monochrome+Ye': 'Monochrome', 'Sepia': 'Sepia', 'Something new': '' };
   for (const [film, label] of Object.entries(pairs)) assert.equal(filmLabel(film), label, film);
+});
+
+test('the profile a film simulation is, among a photo\'s own: its family whatever the label says, its colour filter where there is one', () => {
+  const mine = ['Adobe Color', 'Adobe Standard', 'PROVIA', 'Velvia', 'ASTIA', 'CLASSIC CHROME', 'REALA ACE', 'Pro Neg Hi', 'Pro Neg Std', 'CLASSIC Neg', 'NOSTALGIC Neg', 'ETERNA', 'BLEACH BYPASS', 'ACROS', 'Monochrome', 'Sepia'];
+  const pick = (film, labels = mine) => labels[profileFor(film, labels)] ?? null;
+  assert.deepEqual(['Provia/STD', 'Classic Negative', 'Eterna', 'Eterna Bleach Bypass', 'PRO Neg. Std', 'Acros+R', 'Monochrome (+Y, +R, +G)', 'Any (See Below)', 'Reala Ace'].map((f) => pick(f)),
+    ['PROVIA', 'CLASSIC Neg', 'ETERNA', 'BLEACH BYPASS', 'Pro Neg Std', 'ACROS', 'Monochrome', null, 'REALA ACE']);
+  // another set of profiles, named the long way and with the filters
+  const long = ['Adobe Standard', 'PROVIA/STANDARD', 'ETERNA BLEACH BYPASS', 'ETERNA/CINEMA', 'ACROS+G FILTER', 'ACROS+R FILTER', 'ACROS', 'MONOCHROME+Ye FILTER'];
+  assert.deepEqual(['Provia', 'Eterna', 'Eterna Bleach Bypass', 'Acros+R', 'Acros', 'Acros (+Y, +R, +G)', 'Monochrome+Y', 'Monochrome', 'Velvia'].map((f) => pick(f, long)),
+    ['PROVIA/STANDARD', 'ETERNA/CINEMA', 'ETERNA BLEACH BYPASS', 'ACROS+R FILTER', 'ACROS', 'ACROS', 'MONOCHROME+Ye FILTER', 'MONOCHROME+Ye FILTER', null]);
 });
 
 test('a recipe lands on the dials, and says what is only near', () => {
@@ -56,10 +67,15 @@ test('the list the card reads: every recipe has a name, a group and settings tha
   const { readFile } = await import('node:fs/promises');
   const text = await readFile(new URL('../frontend/lab/editor/assets/weekly-fuji-recipes.json', import.meta.url), 'utf8'), doc = JSON.parse(text);
   assert.ok(!/https?:/.test(text), 'the pages are kept as paths on the source site, never as addresses (tests/site.test.mjs)');
-  assert.ok(doc.recipes.length >= 390 && /Ritchie Roesch/.test(doc.author) && doc.source === 'fujixweekly.com');
-  assert.equal(new Set(doc.recipes.map((r) => r.id)).size, doc.recipes.length, 'each has its own id');
+  const recipes = unpack(doc);
+  assert.ok(recipes.length >= 390 && /Ritchie Roesch/.test(doc.author) && doc.source === 'fujixweekly.com');
+  assert.equal(new Set(recipes.map((r) => r.id)).size, recipes.length, 'each has its own id');
+  // one the page was read for by hand: 1960 Chrome (Eterna Bleach Bypass, DR400, grain Strong Large, Fluorescent 1 −2 Red −4 Blue, …)
+  const one = recipes.find((r) => r.id === 'x-trans-v-1960-chrome');
+  assert.deepEqual(one.set, { filmSimulation: 'Eterna Bleach Bypass', dynamicRange: 400, dRangePriority: null, grain: { strength: 'Strong', size: 'Large' }, colorChrome: 'Strong', colorChromeBlue: 'Off',
+    whiteBalance: { mode: 'Fluorescent 1', kelvin: null, red: -2, blue: -4 }, highlight: -2, shadow: -1, color: 2, sharpness: -1, noiseReduction: -4, clarity: -2, exposureCompensation: { min: 0.33, max: 1 }, monochromatic: null });
   const groups = new Map();
-  for (const r of doc.recipes) {
+  for (const r of recipes) {
     assert.ok(r.name && r.name === r.name.trim() && r.name.length <= 60 && r.sensor && /^[a-z0-9-]+$/.test(r.id) && typeof r.page === 'string' && !r.page.startsWith('/'), JSON.stringify(r).slice(0, 120));
     assert.ok(filmLabel(r.set.filmSimulation) || /^any/i.test(r.set.filmSimulation), `${r.name}: ${r.set.filmSimulation}`);
     const e = edit(r.set, { shotWb: [5500, 10], noise0: 20 });

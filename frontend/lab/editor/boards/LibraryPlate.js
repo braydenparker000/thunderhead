@@ -1,7 +1,8 @@
 // @ts-nocheck
 // The LibraryPlate board, as designed (docs/design/editor/boards/LibraryPlate.dc.html.dc.html). Once photos are
 // imported (app/store.js: Choose photos copies RAFs onto the phone) it shows them, grouped by day, with the
-// camera's JPEG as each tile, and a tile opens that photo in the editor; until then it plays the design's roll.
+// camera's JPEG as each tile, and a tile opens that photo in the editor. In the app with none yet it says so and
+// offers the import; only a screen of the design on its own (/lab/editor/screens/) plays the design's roll.
 import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
@@ -39,22 +40,29 @@ export default class Component extends DCLogic {
         rating: [0, 3, 0, 4, 2, 0, 5, 0, 1, 3][i % 10], flag: i % 9 === 4 ? 'reject' : i % 4 === 1 ? 'pick' : 'none', edited: i % 5 === 2, shoot: i < 12 ? 0 : i < 24 ? 1 : 2 });
     }
     for (const p of photos) p.src = '/lab/editor/assets/sample.jpg';
-    this.demo = photos;   // shown again if every photo is deleted
-    const real = store.photos().length ? roll() : null;
+    this.app = document.body.dataset.board === 'App';
+    this.demo = this.app ? [] : photos;   // shown again if every photo is deleted (the app: none, and it says so)
+    const real = store.photos().length || this.app ? roll() : null;
     this.state = { view: 'grid', cullMode: false, filter: 'All', find: '', sort: 0, cols: 3, idx: real ? 0 : 6, photos: real ? real.photos : photos, shoots: real?.shoots || null, importing: false, progress: null, skip: false, spin: 0 };
     this.drag = null;
     // a photo's tile follows its edit, so the roll is read again when the open photo changes; and what the photos take on this phone
     this.keep('Library', ['filter', 'find', 'sort', 'cols']);
-    const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.min(this.state.idx, r.photos.length - 1) : 6 }); } };
+    const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0 || this.app; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.max(0, Math.min(this.state.idx, r.photos.length - 1)) : 6 }); } };
     photo.events.addEventListener('change', hear);
     addEventListener('th-editor-photos', hear, { once: true });   // photos from before their shooting data was kept got it, and with it their place by the camera's clock (app/store.js)
-    this.app = document.body.dataset.board === 'App';
     if (this.app) store.usage().then((used) => this.setState({ used }), () => {});
     // an export the page did not live to finish is offered again, once (app/save.js)
     const cut = this.app ? cutOff() : null;
     if (cut) this.state.cut = cut;
     // Backup to Drive (app/backup.js): an extra. What there is to back up is read here, with no network.
     if (this.app) backup.state().then((b) => { if (!this._host?.stale) this.setState({ backup: b }); }, () => {});
+    // the Import sheet goes away at a tap anywhere outside it (the tap does nothing else); its own key toggles it
+    const outside = (e) => {
+      if (this._host?.stale) { document.removeEventListener('click', outside, true); return; }
+      if (!e.isTrusted || !this.state.importing || e.target.closest?.('[role=dialog], [aria-expanded]')) return;   // (a click made by the page, as an export's download, is no tap)
+      e.stopPropagation(); e.preventDefault(); this.setState({ importing: false, progress: null });
+    };
+    document.addEventListener('click', outside, true);
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), P = S.photos;
@@ -67,19 +75,19 @@ export default class Component extends DCLogic {
     const sorts = ['NEWEST', 'OLDEST', 'RATING'];
     const order = (list) => S.sort === 1 ? [...list].reverse() : S.sort === 2 ? [...list].sort((a, b) => b.rating - a.rating) : list;
     const tile = (p) => ({ src: p.src, aria: `${photo.stem(fname(p))}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
-      pos: p.pos, zoom: p.zoom, filter: p.filter, sim: p.sim, stars: '★'.repeat(p.rating), edited: p.edited ? '#e8202a' : 'transparent',
+      pos: p.pos, zoom: p.zoom, filter: p.filter, sim: p.sim, simShow: p.sim ? 'block' : 'none', stars: '★'.repeat(p.rating), edited: p.edited ? '#e8202a' : 'transparent',
       flag: p.flag === 'pick' ? '⚑' : p.flag === 'reject' ? '✕' : '', flagInk: p.flag === 'reject' ? '#e8202a' : '#f2efe8', dim: p.flag === 'reject' ? 0.45 : 1,
       // CULL on: a photo opens culling at it; off: it opens in the editor (the app takes editor:open)
       open: () => { if (S.cullMode) { set({ view: 'cull', idx: p.id }); return; } if (p.key) photo.open(p.key); document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' })); } });
     const groups = S.sort === 2 ? [{ title: 'BY RATING', count: String(shown.length), items: order(shown).map(tile) }]
       : (S.sort === 1 ? shoots.map((_, i) => i).reverse() : shoots.map((_, i) => i)).map((g) => ({ title: shoots[g], count: String(shown.filter((p) => p.shoot === g).length), items: order(shown.filter((p) => p.shoot === g)).map(tile) })).filter((g) => g.items.length);
-    const cur = P[S.idx], n = P.length;
+    const n = P.length, cur = P[Math.max(0, Math.min(S.idx, n - 1))] || { id: -1, name: ' ', src: '', pos: '50% 50%', zoom: '1', sim: '', filter: 'none', rating: 0, flag: 'none', shoot: 0 };   // none at all: an empty stand-in
     const curT = tile(cur);
     const step = (from, dir) => { let i = from; do { i += dir; } while (S.skip && i >= 0 && i < n && P[i].flag === 'reject'); return i < 0 || i >= n ? from : i; };
     // (a rating or flag the phone would not keep: the screen goes back to what the phone holds)
     const setPhoto = (patch) => { if (cur.key) store.update(cur.key, patch).catch((e) => { console.warn('photo not updated', e); const r = roll(); this.setState({ photos: r.photos, shoots: r.shoots }); }); set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) }); };
     const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
-    const span = 328, fx = (i) => 22 + (i / (n - 1)) * span;
+    const span = 328, fx = (i) => 22 + (n > 1 ? (i / (n - 1)) * span : 0);
     const runImport = (label) => {
       let k = 0; const total = 64;
       set({ progress: { label, k, total } });
@@ -141,23 +149,28 @@ export default class Component extends DCLogic {
       if (ids.includes(photo.current()?.id)) photo.shut();
       await store.remove(ids);
       const r = roll(), used = await store.usage();
-      this.setState({ photos: r.photos.length ? r.photos : this.demo, shoots: r.photos.length ? r.shoots : null, idx: r.photos.length ? 0 : 6, filter: 'All', armed: 0, used });
+      const some = r.photos.length > 0 || this.app;
+      this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? 0 : 6, filter: 'All', armed: 0, used });
     };
     return {
-      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'}? Tap again · they can be brought back for ${store.KEEP_DAYS} days` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cut ? `The export of ${photo.stem(S.cut.name)} did not finish · tap here to open it again` : S.cullMode ? 'Culling on · tap a photo to start there' : armed ? `Delete ${doomed.length} photo${doomed.length === 1 ? '' : 's'}? Tap again · they can be brought back for ${store.KEEP_DAYS} days` : doomed.length ? `${doomed.length} reject${doomed.length === 1 ? '' : 's'} · tap here to delete ${doomed.length === 1 ? 'it' : 'them'} from this phone` : real && !n ? 'Your RAFs and JPEGs, kept on this phone' : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}${gb}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       subTap, subInk: armed ? '#e8202a' : doomed.length || S.cut ? '#c9d0d8' : '#8b95a1', subRole: doomed.length || S.cut ? 'button' : null,
-      isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols, find: S.find || '', onFind: (e) => set({ find: e.target.value }),
+      isGrid: S.view === 'grid', isCull: S.view === 'cull', groups,
+      // nothing to show: none on the phone yet (the app), or none that the filter and Find let through
+      empty: S.view === 'grid' && !shown.length && !S.importing, emptyTitle: n ? 'No photos match' : 'No photos yet',
+      emptyNote: n ? (asked.length ? `Nothing for “${asked.join(' ')}”${S.filter === 'All' ? '' : ` in ${S.filter}`} · clear Find${S.filter === 'All' ? '' : ' or show ALL'}` : `None in ${S.filter} yet · show ALL`) : 'Import brings RAFs and JPEGs from the phone’s files. They stay on this phone.',
+      canChoose: !n && this.app, choose, cols: S.cols, find: S.find || '', onFind: (e) => set({ find: e.target.value }),
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
-        ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
+        ...(this.app && B ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),   // (once what there is to back up is known: until then a tap would do nothing)
         ...rows,
         // deleted lately: still on the phone, and back with their edits at a tap; or gone now, to free their room (two taps)
         ...(this.app && store.deleted().length ? [{ glyph: '↺', name: `Bring back ${count(store.deleted().length, 'deleted photo')}`, note: `Deleted in the last ${store.KEEP_DAYS} days · they come back with their edits`, pick: async () => { await store.restore(); const r = roll(); this.setState({ photos: r.photos, shoots: r.shoots, filter: 'All', used: await store.usage() }); } },
           { glyph: '✕', name: 'Empty the deleted photos', note: Date.now() - (S.emptying || 0) < 5000 ? `Tap again: ${count(store.deleted().length, 'photo')} will be gone for good` : 'Frees their room on this phone now · this cannot be undone',
             pick: async () => { if (Date.now() - (S.emptying || 0) >= 5000) { set({ emptying: Date.now() }); setTimeout(() => this.setState({}), 5100); return; } await store.empty(); this.setState({ emptying: 0, used: await store.usage() }); } }] : []),
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
-        this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
-          : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
+        // watching a folder is the design's: Chrome on Android cannot watch one yet, so the app does not offer it
+        ...(this.app ? [] : [{ glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }])],
       progress: !!pr, // (the app says Done in its own words, once it is: the sample's line showed for a moment after the last file)
       progText: pr ? (pr.k < pr.total || (this.app && !pr.done) ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(found).filter(tests[f]).length), current: String(f === S.filter),
@@ -165,10 +178,10 @@ export default class Component extends DCLogic {
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),
       cullDot: S.cullMode ? '#e8202a' : '#4f5357', cullGlow: S.cullMode ? '0 0 6px rgba(232,32,42,0.7)' : 'none', cycleSort: () => set({ sort: (S.sort + 1) % 3 }), sortName: `${sorts[S.sort]} ▾`,
       cycleSize: () => set({ cols: S.cols === 3 ? 4 : S.cols === 4 ? 2 : 3 }), sizeGlyph: S.cols === 4 ? '▦' : S.cols === 2 ? '◫' : '▤',
-      cur: { ...curT, meta: `${S.idx + 1} / ${n} · ${cur.sim}` },
-      strip: [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => { const p = P[Math.max(0, Math.min(n - 1, S.idx + d))]; const out = S.idx + d < 0 || S.idx + d >= n;
+      cur: { ...curT, meta: [`${S.idx + 1} / ${n}`, cur.sim].filter(Boolean).join(' · ') },
+      strip: !n ? [] : [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => { const p = P[Math.max(0, Math.min(n - 1, S.idx + d))]; const out = S.idx + d < 0 || S.idx + d >= n;
         return { src: p.src, pos: p.pos, filter: p.filter, ringW: d === 0 ? 2 : 0, lift: d === 0 ? 0 : 3, o: out ? 0 : d === 0 ? 1 : p.flag === 'reject' ? 0.3 : 0.65 }; }),
-      rollName: shoots[cur.shoot].split(' · ')[1] ?? shoots[cur.shoot], pos: String(S.idx + 1), total: String(n),
+      rollName: (shoots[cur.shoot] || '').split(' · ')[1] ?? shoots[cur.shoot] ?? '', pos: String(S.idx + 1), total: String(n),
       marks: P.map((p, i) => ({ x: fx(i).toFixed(1), c: p.flag === 'pick' ? 'rgba(242,239,232,0.75)' : p.flag === 'reject' ? 'rgba(232,32,42,0.6)' : 'transparent' })),
       fillW: (fx(S.idx) - 22).toFixed(1), numX: Math.max(30, Math.min(342, fx(S.idx))).toFixed(1), spinY: -Math.floor(frac * 12) * 150,
       dDown: (e) => { this.drag = { x: e.clientX, s: S.spin, i: S.idx }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
@@ -184,6 +197,8 @@ export default class Component extends DCLogic {
         ink: cur.rating === r ? '#f2efe8' : '#7d8187', bar: cur.rating === r ? '#e8202a' : 'transparent', pick: () => setPhoto({ rating: r }) })),
       flags: [['pick', 'PICK ⚑'], ['none', 'UNFLAG'], ['reject', 'REJECT ✕']].map(([f, label]) => ({ label, on: String(cur.flag === f),
         ink: cur.flag === f ? (f === 'reject' ? '#e8202a' : '#f2efe8') : '#7d8187', dot: cur.flag === f ? '#e8202a' : 'transparent', pick: () => setPhoto({ flag: f }) })),
+      // EDIT ›: the photo on screen, in the editor (the app takes editor:open)
+      toEdit: () => { if (cur.key) photo.open(cur.key); document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' })); },
       toGrid: () => set({ view: 'grid' }), skip: String(S.skip), skipDot: S.skip ? '#e8202a' : '#4f5357', toggleSkip: () => set({ skip: !S.skip }), noop: () => {},
     };
   }

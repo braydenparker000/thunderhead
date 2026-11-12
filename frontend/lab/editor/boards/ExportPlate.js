@@ -3,10 +3,13 @@
 // metadata, location and file name are the photo's own; the watermark and Display P3 wait for their stage and say
 // so. The two files to save (Full, Small) are cards along the panel's top; the drum's faces are Size, Format,
 // Output and Info; the dial sets the long edge, the quality, or steps through a choice; Save is in the header.
+// The sizes are the ones the files will have (app/shown.js `outSize`, as the Crop board says too). A JPEG's or a
+// PNG's bytes hang on what the picture holds, so no size is guessed for them; a TIFF's is exact.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
 import { day, jobs, keepPresets, presets, save } from '../app/save.js';
+import * as shown from '../app/shown.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -20,7 +23,8 @@ export default class Component extends DCLogic {
   renderVals() {
     const S = this.state, set = (o) => this.setState(o);
     // a photo's own size and name; what its export can't do yet is off, whatever the preset says
-    const real = photo.current(), [fw, fh] = real ? photo.shape() : [7728, 5152], full = Math.max(fw, fh), stem0 = real ? real.name.replace(/\.\w+$/, '') : 'DSCF0412';
+    const seen = shown.face(), real = seen.real ? photo.current() : null, app = shown.app;
+    const [fw, fh] = (real && shown.outSize()) || (real ? photo.shape() : [7728, 5152]), full = Math.max(fw, fh), stem0 = real ? real.name.replace(/\.\w+$/, '') : app ? '' : 'DSCF0412';
     const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: 'sRGB', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
     const keepP = (list) => { if (document.body.dataset.board === 'App') keepPresets(list); set({ presets: list, done: false }); };
     const setP = (patch) => keepP(S.presets.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)));
@@ -29,7 +33,8 @@ export default class Component extends DCLogic {
     const nums = { long: [512, full, 64, 'px'], q: [50, 100, 1, ''] };
     const short = (x) => Math.round((x.long * Math.min(fw, fh)) / full);
     const mb = (n) => (n >= 10 ? `${Math.round(n)} MB` : `${n.toFixed(1)} MB`);
-    const est = (x) => { const px = x.long * short(x); const bpp = x.fmt === 'PNG' ? 1.9 : x.fmt === 'TIFF 16' ? 6 : 0.1 + Math.pow((x.q - 50) / 50, 1.6) * 0.55; return mb((px * bpp) / 1e6); };
+    const est = (x) => (x.fmt === 'TIFF 16' ? mb((x.long * short(x) * 6) / 1e6) : '');   // 16-bit RGB: six bytes a pixel, whatever the picture
+    const dims = (x) => (fw >= fh ? `${x.long} × ${short(x)}` : `${short(x)} × ${x.long}`), facts = (x) => [dims(x), est(x)].filter(Boolean).join(' · ');
     const fileName = (x) => { const stem = x.naming === 'Camera name' ? stem0 : x.naming === 'Date + number' ? (real ? `${S.day || 'photo'}_${(stem0.match(/\d+$/) || [stem0])[0]}` : '2026-11-09_0412') : 'Oldtown_012'; return `${stem}${x.name === 'Small' ? '_small' : ''}.${x.fmt === 'JPEG' ? 'jpg' : x.fmt === 'PNG' ? 'png' : 'tif'}`; };
     const rows = {
       Size: sizeList.map(([k, px]) => ({ name: k, value: String(px), on: p.size === k, pick: () => setP({ size: k, long: px }) }))
@@ -57,6 +62,7 @@ export default class Component extends DCLogic {
     const W = S.working, on = P.filter((x) => x.on);
     const run = () => {
       if (!on.length || W) return;
+      if (!real && app) return;   // nothing open: nothing to save
       if (real) {
         const total = on.length * 12, began = performance.now();
         set({ done: false, saved: null, note: '', working: { k: 0, total } });
@@ -71,15 +77,16 @@ export default class Component extends DCLogic {
     // the files just saved, for the phone's share sheet (where it takes files)
     const shares = real && S.saved ? S.saved.map((x) => new File([x.blob], x.file, { type: x.blob.type })) : [];
     return {
-      real: !!real, demo: !real, who: real ? `${stem0} · ${(photo.looks().find((l) => l.id === photo.look()) || {}).label || 'RAF'}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}` : 'DSCF0412 · Classic Chrome · edited',
+      real: !!real, demo: seen.demo, who: real ? `${stem0} · ${real.plain ? 'JPEG' : (photo.looks().find((l) => l.id === photo.look()) || {}).label || photo.kindLine().split(' · ')[0]}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}`
+        : app ? [seen.fileName, seen.status].filter(Boolean).join(' · ') : 'DSCF0412 · Classic Chrome · edited',
       working: !!W, donePct: W ? (W.k / W.total) * 100 : 0,
       cards: P.map((x, i) => ({ name: x.name, sel: String(i === S.sel), on: String(x.on), ringW: i === S.sel ? 2 : 0,
-        fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''}${x.sharpen !== 'Off' ? ` · ${x.sharpen.toLowerCase()}` : ''}`, line: x.on ? `${x.long} × ${short(x)} · ≈ ${est(x)}` : 'Off · not saved',
+        fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''}${x.sharpen !== 'Off' ? ` · ${x.sharpen.toLowerCase()}` : ''}`, line: x.on ? (real || !app ? facts(x) : '') : 'Off · not saved',
         ink: x.on ? '#f2efe8' : '#80848a', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
         pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => keepP(S.presets.map((y, j) => (j === i ? { ...y, on: !y.on } : y))) })),
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
       showDone: S.done, doneTitle: S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
-      doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),
+      doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${facts(x)}`),
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
       faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),

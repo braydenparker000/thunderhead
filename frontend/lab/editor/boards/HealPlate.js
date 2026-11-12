@@ -2,11 +2,13 @@
 // The Heal board. With a photo open (app/session.js) the spots are the photo's own (app/heal.js, engine/heal.js):
 // a tap retouches a spot from a source the engine picks nearby, the dashed circle is that source and can be
 // dragged, and the photo itself shows the result. The drum chooses the tool (Heal, Clone, Remove); the dial sets
-// the chosen spot's size, feather and opacity (and the next one's). Without a photo it plays a sample.
+// the chosen spot's size, feather and opacity (and the next one's), and shows the chosen spot's own. In the app with no
+// photo open it shows none (app/shown.js); a screen of the design on its own plays a sample.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as heal from '../app/heal.js';
 import * as zoom from '../app/zoom.js';   // two fingers zoom and move the photo; one retouches
+import * as shown from '../app/shown.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -19,19 +21,21 @@ export default class Component extends DCLogic {
     photo.events.addEventListener('change', hear);
   }
   renderVals() {
-    const S = this.state, set = (o) => this.setState(o), V = S.vals;
-    const size = 8 + (V.Size / 100) * 72;
+    const S = this.state, set = (o) => this.setState(o);
+    const seen = shown.face(), real = seen.real ? photo.current() : null, eng = real && photo.eng;
     const tools = ['Heal', 'Clone', 'Remove'];
     // with a photo: where it sits in its room, and its spots as the board draws them (in the room's pixels)
-    const real = photo.current(), eng = real && photo.eng;
-    let box = [20, 200, 372, 248], spots = S.spots;
+    let box = [20, 200, 372, 248], spots = shown.app && !real ? [] : S.spots;
     if (real) {
       const [w, h] = photo.shape(), room = 649 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), k = Math.min(412 / w, room / h);
       box = [(412 - w * k) / 2, (room - h * k) / 2, w * k, h * k];
       const px = (x, y) => { const [u, v] = eng ? eng.shownPoint(x, y) : [0, 0]; return [u * box[2], v * box[3]]; };
       spots = heal.list().map((p) => { const c = px(p.x, p.y), e = px(p.x + p.r, p.y), q = px(p.sx, p.sy); return { x: c[0], y: c[1], sx: q[0], sy: q[1], s: 2 * Math.hypot(e[0] - c[0], e[1] - c[1]), tool: p.tool }; });
     }
-    const sel = Math.max(0, Math.min(S.sel, spots.length - 1));
+    const sel = Math.max(0, Math.min(S.sel, spots.length - 1)), mine = real && heal.list()[sel];
+    // the dial and the row show the chosen spot's own settings (its size as it is on screen); with none chosen, the next spot's
+    const V = mine ? { Size: Math.max(1, Math.min(100, ((spots[sel].s * zoom.mag() - 8) / 72) * 100)), Feather: (mine.feather ?? S.vals.Feather / 100) * 100, Opacity: (mine.opacity ?? S.vals.Opacity / 100) * 100 } : S.vals;
+    const size = 8 + (V.Size / 100) * 72;
     const patches = (real ? [] : spots).map((p) => ({ x: p.x, y: p.y, s: p.s, m: -p.s / 2, il: -p.sx + p.s / 2, it: -p.sy + p.s / 2,
       hard: p.tool === 'Clone' ? 60 : Math.round(60 - (V.Feather / 100) * 40), o: (V.Opacity / 100) * (p.tool === 'Heal' ? 0.92 : 1) }));
     const fine = real ? 1 / zoom.mag() : 1;   // lines keep their weight on screen however far the photo is zoomed
@@ -53,8 +57,8 @@ export default class Component extends DCLogic {
     // a touch on the photo, in the board's own pixels whatever the page is scaled by
     const at = (e, b = e.currentTarget.getBoundingClientRect()) => [((e.clientX - b.left) / b.width) * box[2], ((e.clientY - b.top) / b.height) * box[3]];
     return {
-      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none',
-      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
+      real: !!real, demo: seen.demo, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none',
+      fileName: seen.fileName, shotLine: seen.shotLine,
       toolVerb: S.tool.toLowerCase(), viz: S.viz ? 'grayscale(1) contrast(3.2) brightness(1.1)' : 'none', patches, rings,
       status: S.viz ? 'Visualize · dust and spots stand out' : `${spots.length} spot${spots.length === 1 ? '' : 's'} · tap to ${S.tool.toLowerCase()} · drag a dashed circle to move its source`,
       pDown: (e) => {
@@ -74,7 +78,7 @@ export default class Component extends DCLogic {
         const d = this.drag; if (!d) return; const [x, y] = at(e, d.b); if (real) return heal.moveSource(d.i, x / box[2], y / box[3]); this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
       pUp: (e) => {
         const t = this.tap; this.drag = this.tap = null;
-        if (real && t && e?.type === 'pointerup' && !zoom.pinching()) { const i = heal.add(S.tool, t.x / box[2], t.y / box[3], size / box[2] / zoom.mag(), V.Feather / 100, V.Opacity / 100); if (i >= 0) set({ sel: i }); }
+        if (real && t && e?.type === 'pointerup' && !zoom.pinching()) { const i = heal.add(S.tool, t.x / box[2], t.y / box[3], (8 + (S.vals.Size / 100) * 72) / box[2] / zoom.mag(), S.vals.Feather / 100, S.vals.Opacity / 100); if (i >= 0) set({ sel: i }); }   // a new spot takes the dial as last set
       },
       dialLabel: `${S.tool} · ${ctl}`, unit: ctl === 'Size' ? 'px' : '%', dialValue: val / 10 - 5, dialText: String(Math.round(ctl === 'Size' ? size : val)),
       dialTurn: (d) => setCtl((d + 5) * 10), dialReset: () => setCtl(START[ctl]),

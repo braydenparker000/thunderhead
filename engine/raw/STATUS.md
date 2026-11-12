@@ -531,6 +531,68 @@ two ways, the one picked; never which photo) that rides in the timings file. Not
 photo is only stretched to its size, not lined up tile by tile or matched in tone, and it is held whole in
 memory.
 
+## The interface's faults (2026-11-12, from the interface audit)
+
+The audit walked every board on a phone-sized screen and listed what was wrong; these are closed, each with
+its check in `tests/lab-editor-faults-browser.test.mjs`:
+
+- **The sample never shows in the app.** A board asks `app/shown.js` what to show: the open photo, or the one
+  being opened by its own name with "Opening…", or that none is open. The design's sample (its picture,
+  DSCF0412, its made-up values) plays only on a screen of the design on its own.
+- **No black gap or wrong picture on a second open.** The camera JPEG is decoded before it is put on, and the
+  canvas goes in only once its first frame is drawn (`session.js` `open`).
+- **EDIT on the culling screen opens the photo on screen**, not the first one.
+- **Crop follows Undo and History** (frame and size at once), and its steps say what they did (the size,
+  "rotated", "flipped", "straightened 1.5°") instead of all being "Crop".
+- **Undo says what it took back** ("Undid Exposure +0.80", `app/told.js`).
+- **The white balance eyedropper works by touch** and is put away when the board changes.
+- **An empty Library says so** with a button to choose photos; a filter or Find with no match says that.
+- **Crop and Export say the same size**, the one an export makes (`shown.outSize`); a JPEG is called a JPEG;
+  the guessed megabytes are gone.
+- **A tap outside the Import sheet closes it**; what the app cannot do yet (Watch a folder) is not offered.
+- **Every control has 44 px of touch room** (`.hit` in `editor.css`), and a row that runs on past an edge
+  fades there so it shows there is more.
+
+Still open from that audit: a JPEG's export is a pixel short on a side that does not divide by three
+(`engine/picture.js`); the histogram's clipping labels wrap.
+
+## The Weekly Fuji recipes (2026-11-12)
+
+First on the Looks board's Presets face is a card, **Fuji recipes** (tag WEEKLY): the film simulation recipes
+Fuji X Weekly publishes (Ritchie Roesch, fujixweekly.com), 394 of them, grouped by the sensor each was made
+for, X-Trans V first. A tap on one puts it on the open photo as one step of the history (Undo takes it back):
+it takes the place of the photo's look and leaves what is the photo's own (Exposure, crop, lens corrections,
+masks, spots). The board then says what was only near and what is not here.
+
+The list is `frontend/lab/editor/assets/weekly-fuji-recipes.json` (77 KB, read only when the card is first
+opened): each recipe's name, its camera settings and the path of its page. None of the site's words or
+pictures are in it, and the page holds no address of the site (the editor reaches nothing outside this site).
+It was read from the site's own recipe pages on 2026-11-12, one request at a time; it does not update itself.
+
+A recipe is made for the camera's JPEG engine; here each setting is laid on the nearest control
+(`app/recipe-map.js`, checked without a browser in `tests/lab-editor-recipes.test.mjs`):
+
+| The recipe's setting | Here |
+|---|---|
+| Film Simulation | the profile of that family among the photo's own (with its black-and-white filter where there is such a profile) |
+| Highlight, Shadow | Highlights and Shadows, 12 a step (Shadow turned over: +1 is darker), and a third as much on Whites and Blacks |
+| Dynamic Range 200, 400 | Highlights 10 and 20 lower. Near only: the camera does it at the shot |
+| D-Range Priority | Highlights held and Shadows lifted, in place of the two tones. Near only |
+| Color | Saturation, 6 a step |
+| Sharpness | Sharpening 40, 8 a step |
+| High ISO NR | Noise, 5 a step from where the photo's ISO starts it |
+| Clarity | Clarity, 8 a step |
+| Grain Weak, Strong | Grain 18, 36; Large adds 8. Near only: one grain size here |
+| Color Chrome Effect, FX Blue | the mixer's luminance: the Effect lowers every colour but blue and aqua, FX Blue those two. Near only |
+| White Balance | a light or a temperature of the recipe's, else the shot's own; then the Red and Blue shift as Temp and Tint |
+| Exposure Compensation, ISO | not applied: they are for the shooting |
+| Monochromatic Color (toning) | not replicated |
+
+These strengths are first guesses, set where each dial's range puts the camera's steps. **Not measured yet**
+against the camera's own JPEGs: that needs a few RAFs shot with a recipe set, beside their JPEGs. What would
+make it true rather than near: Color Chrome as its own control (a deepening of strong colours by how strong
+they are), grain with a size, a dynamic-range shoulder, and toning for black and white.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
@@ -564,9 +626,9 @@ memory.
 
 Left out on purpose or not reached, none of it blocking:
 
-- Upright (Crop reads LATER) and Fuji's 1.25× crop modes; Crop's history steps are all named "Crop".
+- Upright (Crop reads LATER) and Fuji's 1.25× crop modes.
 - Noise for a mask; detection masks (Subject, Sky, Background, People, Object).
-- Search on the Looks board; `.xmp`, `.lrtemplate` and `.zip` looks; recipes (their samples left the Looks board).
+- Search on the Looks board (and in the Weekly Fuji recipes); `.lrtemplate` and `.zip` looks; the recipes' strengths measured against the camera's JPEGs.
 - Watermark and Display P3 on export; camera import over USB; renaming or moving a photo.
 - Retouch spots that build on each other; a true content-aware Remove.
 
