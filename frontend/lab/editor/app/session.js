@@ -14,10 +14,10 @@ import { auto, dials, forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
+import { begin } from './starts.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
-export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
-  Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
+export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0, Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', 'Defringe', ...Object.keys(START)]);
 export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
@@ -43,7 +43,7 @@ document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} 
 
 let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], plain: boolean, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], plain: boolean, start?: Record<string, number>, noise0?: number, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
 /** How long the open photo's last waits were, in seconds (0: not yet): to open, for 100 % to turn sharp, to save. The boards say them, so the phone's own speed can be read off the screen. */
 export const took = { open: 0, detail: 0, save: 0 };
@@ -100,14 +100,14 @@ export async function open(id, quick = false) {
   try {
     const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
-    // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO and
-    // most at the highest); one opened before keeps the start it was given then (none, before this was so).
+    // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO, most at the highest); one opened before keeps the start it was given then.
     me.noise0 = typeof edit.noise0 === 'number' ? edit.noise0 : typeof edit.Noise === 'number' || !prefOn('photos.new_noise', true) ? 0 : noiseStart(r.meta.iso || 0);
     if (typeof edit.Noise !== 'number') { me.values.Noise = me.noise0; if (past) for (const st of past.steps) st.st.values.Noise = me.noise0; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     // The owner's settings for a photo not opened before (Settings › Photos › Editor): the look it opens in, and Auto.
     const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') === 'adobe-color' ? l.find((x) => x.label === 'Adobe Color') : null;
     if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
+    begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
     r.meta.quick = pref('photos.demosaic') === 'faster';   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
     ready = true; place(); say(''); await draw(); if (cur === me) took.open = (performance.now() - began) / 1000;
@@ -248,7 +248,7 @@ export function save(key, name, val) {
   clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
   saveT = setTimeout(() => { if (me) store.saveEdit(me.id, record(me, p)); }, 400);
 }
-const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) });
+const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, ...(me.start ? { start0: me.start } : {}), wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) });
 /** Saves now what `save` would shortly, the tile too: for work that goes straight on to another photo (clip.js). */
 export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }
 let tileT = 0;

@@ -61,9 +61,15 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 **Begun 2026-11-11** (Settings › Photos › Editor, all kept on the phone and read when used): New photos open in
 (the camera's film simulation, or Adobe Color), Noise reduction by ISO, Auto tone on new photos, Double-tap zooms to
 (100 or 200 %), Full-size detail (Best, or Faster: the first look alone). Checked on a real RAF by hand: the repo
-holds none, so only Faster's picture is held by CI. Left of the list below: the starting Sharpening and Color
-noise, the view's clipping levels, storage, and a starting point for each camera and lens. (Export defaults: the
-Export board's two files are kept on the phone since the export of many, stage 5.)
+holds none, so only Faster's picture is held by CI. Left of the list below: the view's clipping levels and storage.
+(Export defaults: the Export board's two files are kept on the phone since the export of many, stage 5.)
+
+**A start for each camera and lens: built 2026-11-11** (`app/starts.js`; Looks › Mine › AS START). The open photo's
+look is kept as where every photo from its camera with its lens begins: its sharpening and colour noise (so the
+two settings the list had for those are not needed), lens corrections by hand, profile, curve, a look, everything
+but what is each photo's own (Exposure, white balance, and Noise, which goes by ISO). A photo opened for the
+first time begins there; it is where the photo starts and not an edit, so its history begins with it and Reset
+goes back to it. A tap on START ✓ clears it. The camera and lens come from the photo's Exif (stage 5).
 
 It reads none today. Speed against quality (demosaic Best or Faster; noise reduction and sharpening shown from
 50 %). What a new photo starts with (profile, Noise by ISO, Sharpening, lens corrections, hot pixels, Auto tone).

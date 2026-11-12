@@ -6,6 +6,8 @@
 // Profile face. Without a photo open it plays a few samples.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import * as store from '../app/store.js';
+import { dropStart, forWhat, keepStart, startFor } from '../app/starts.js';
 import '../app/zoom.js';
 import { tile } from '../app/tiles.js';
 import * as kept from '../app/looks.js';
@@ -62,7 +64,10 @@ export default class Component extends DCLogic {
       : mine.map((l) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? tile('mine:' + l.id, photo.worn(l.st), 168) || photo.jpeg() : '', pick: () => { if (real) photo.wear(l.st, l.name); set({ look: l.id, del: '', note: '' }); } }));
     // AS .CUBE: the look that is picked, or this photo's edit, saved as a table to use elsewhere (app/cube-out.js)
     const asCube = async () => { const { saveCube } = await import('../app/cube-out.js'); set({ note: 'Making the table…' }); saveCube(own?.st ? photo.worn(own.st) : photo.state(), own?.name || photo.stem(real.name)).then((f) => set({ note: `Saved ${f} to Downloads · colour only: no Exposure, white balance, Highlights, Shadows or masks` }), (e) => set({ note: `Not saved: ${e?.message || e}` })); };
-    const chips = (face === 'Presets' ? [{ name: 'Import', entry: true, aria: 'Import looks', pick: () => (real ? this.pickFiles() : set({ note: 'Open a photo to bring looks in' })) }] : [{ name: 'Save current', entry: true, pick: save }, ...(real ? [{ name: 'As .cube', entry: true, aria: 'Save the look as a .cube file', pick: asCube }] : [])])
+    // START: this photo's edit kept as where every photo from its camera and lens begins (app/starts.js); a tap on it again clears it
+    const shot = real ? store.photos().find((p) => p.id === real.id)?.shot : null, whose = forWhat(shot), has = !!startFor(shot);
+    const asStart = () => { if (has) { dropStart(shot); set({ note: `Photos from the ${whose} start plain again` }); } else set({ note: keepStart(shot, photo.state()) ? `New photos from the ${whose} now start like this one (but for Exposure, white balance and Noise, which stay each photo’s own)` : 'Not kept' }); };
+    const chips = (face === 'Presets' ? [{ name: 'Import', entry: true, aria: 'Import looks', pick: () => (real ? this.pickFiles() : set({ note: 'Open a photo to bring looks in' })) }] : [{ name: 'Save current', entry: true, pick: save }, ...(real ? [{ name: 'As .cube', entry: true, aria: 'Save the look as a .cube file', pick: asCube }] : []), ...(whose ? [{ name: has ? 'Start ✓' : 'As start', entry: true, hot: has, aria: has ? `Clear the start for the ${whose}` : `Make this the start for the ${whose}`, pick: asStart }] : [])])
       .concat(real && own ? [{ name: S.del === on ? 'Tap again to delete' : 'Delete', entry: true, hot: S.del === on, aria: 'Delete this look', pick: () => this.drop(on) }] : []);
     // the window sets the strength of the .cube look that is on; otherwise the place says what a tap does
     const strong = face === 'Presets' && !!own && !!real;

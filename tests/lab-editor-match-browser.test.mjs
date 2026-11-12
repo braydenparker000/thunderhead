@@ -88,6 +88,36 @@ test('a photo keeps how it was shot, and a series is matched to the open photo b
   assert.deepEqual(after['Under.jpg'], [2.5, 7000, 'Custom', 'Matched · R'], 'two stops less light: two stops more Exposure');
   assert.deepEqual(after['Over.jpg'], [-1.5, 7000, 'Custom', 'Matched · R'], 'two stops more gain: two stops less');
   assert.deepEqual(after['Bare.jpg'], [0, 7000, 'Custom', 'Matched · R'], 'no shooting data: the white balance alone');
+  // A start for this camera and lens (app/starts.js): Looks › Mine › AS START keeps the open photo's look; a photo
+  // opened for the first time then begins there, as where it starts and not as an edit.
+  await page.getByRole('button', { name: 'Import' }).click();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Looks' })));
+  await page.getByRole('listbox', { name: 'Sections: Presets' }).press('ArrowDown');   // the drum, one face on: Mine
+  await page.getByRole('button', { name: 'Make this the start for the Made-up Known · Known 35mm F2' }).click();
+  await page.waitForFunction(() => /New photos from the Made-up Known · Known 35mm F2 now start like this one/.test(document.querySelector('#stage')?.textContent ?? ''));
+  const begun = await page.evaluate(async (file) => {
+    const store = await import('/lab/editor/app/store.js'), photo = await import('/lab/editor/app/session.js'), starts = await import('/lab/editor/app/starts.js');
+    photo.setValues({ Contrast: 30, Saturation: -20 }, 'Contrast', 'Contrast'); await photo.draw();
+    starts.keepStart(store.photos().find((p) => p.name === 'R.jpg').shot, photo.state());   // again, now with a look worth seeing
+    await store.add([new File([new Uint8Array(file.bytes)], 'New.jpg', { type: 'image/jpeg', lastModified: 5 }), new File([new Uint8Array(file.bare)], 'Bare2.jpg', { type: 'image/jpeg', lastModified: 6 })], () => {});
+    const by = (name) => store.photos().find((p) => p.name === name), out = {};
+    await photo.open(by('New.jpg').id);
+    out.fresh = [photo.value('Contrast'), photo.value('Saturation'), photo.value('Exposure'), photo.current().wb, photo.edited('Contrast'), photo.history().steps.map((s) => s.name)];
+    photo.setValues({ Contrast: 55 }, 'Contrast', 'Contrast'); photo.reset('Contrast'); await photo.saveNow();
+    out.reset = photo.value('Contrast');
+    await photo.open(by('Bare2.jpg').id);
+    out.bare = [photo.value('Contrast'), photo.value('Saturation')];
+    await photo.open(by('New.jpg').id);
+    out.again = [photo.value('Contrast'), photo.edited('Contrast')];
+    starts.dropStart(by('R.jpg').shot);
+    out.dropped = starts.startFor(by('R.jpg').shot);
+    return out;
+  }, { bytes: files[1].bytes, bare: files[3].bytes });
+  assert.deepEqual(begun.fresh, [30, -20, 0, 'As shot', false, ['Imported']], "the look came with it; its Exposure and white balance are its own; nothing counts as edited");
+  assert.equal(begun.reset, 30, 'Reset goes back to the start, not to nothing');
+  assert.deepEqual(begun.bare, [0, 0], 'a photo that names no camera starts plain');
+  assert.deepEqual(begun.again, [30, false], 'opened again, it still knows where it started');
+  assert.equal(begun.dropped, null);
   assert.deepEqual(errors, []);
   await context.close();
 });
