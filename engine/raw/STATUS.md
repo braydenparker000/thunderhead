@@ -490,6 +490,33 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
 - The lens's colour fringing, which the usual demosaic undoes as it goes, is undone after the network by the
   lens pass (warp.js is told the colours are not yet aligned). Full-size detail: Faster has no meaning for it.
 
+## Keeping the photos safe (2026-11-12, from the audit)
+
+The originals may be nowhere but this phone, so losing one is the worst thing the editor can do. An audit of
+`app/` and `engine/` found these, each checked in the code and now closed:
+
+- **A save that failed was silent.** `session.js` `save` now says so on the photo (`unsaved`): the phone's storage
+  full is the likely cause.
+- **A change could die with the tab.** The edit is written the moment the page is hidden or left (`boot.js`),
+  not only 400 ms after the last change.
+- **Delete was for good.** `store.remove` now only takes a photo out of the Library: it stays on the phone
+  for `KEEP_DAYS` (7) and `restore` brings it back with its edit; `init` lets go of what is older, and `empty`
+  does so at once. The Library's sheet has "Bring back" and "Empty" rows. A deleted photo picked again from
+  the phone's files comes back and is not copied twice.
+- **The clean-up could delete every original.** `sweep` removed any original with no record: had the records
+  been lost and the files kept, all of them. It now gives such an original a record again (`adopt`, "Recovered
+  …" in the Library) and removes only what is no picture.
+- **A reset graphics chip froze the photo without a word.** `gpu.js` says so (`th-gpu-lost`, unless the device
+  was let go on purpose) and `session.js` keeps the edit and opens the photo anew.
+- **A decoder thread that fell over hung every later open.** `decoder.js` tells everything waiting on it and
+  starts a new thread at the next request.
+- **A full-size build that failed was silent,** leaving export saying "still loading". It now says so.
+- The import and export progress had lost its count and bar to a comment laid mid-line (`LibraryPlate.js`).
+
+Still open from that audit: two tabs on one photo overwrite each other (no lock); an import that fails for
+want of room says "could not be read"; nothing tests masks, heal on a RAF, rotate and flip, versions, history
+across a reload, or TIFF export. The features found missing or half-made are listed in ROADMAP.
+
 ## The compare page (2026-11-12)
 
 `/lab/editor/compare/?open=<photo id>` (the Compare tile on the editor's Versions board opens the photo there):

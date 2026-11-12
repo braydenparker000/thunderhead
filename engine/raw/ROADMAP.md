@@ -96,6 +96,19 @@ one to three weeks of a free GPU. What may be worth training is a short fine-tun
 real photo: zippering along sharp edges, fine repeating lines, clipped strong colours. First the owner's
 RAFs beside Lightroom's exports, on the compare page (`/lab/editor/compare/`).
 
+**The audit of 2026-11-12 (the owner: "Let's audit everything").** The picture is proven; the editor round it
+is not finished. Closed at once: the ways to lose a photo or an edit (STATUS, "Keeping the photos safe"). Found
+unfinished, for the next passes: EDIT in the Cull view does not open the photo being culled; no Auto white
+balance, and Auto sets the Light controls only; the Presets face is empty until looks are brought in; no reset
+for a whole panel outside Curve, Mixer and Grading; `photos.keep`, `photos.export_size` and
+`photos.export_format` are read by nothing in the new editor; a JPEG's Profile face gives the wrong reason; the
+Mine count reads 0; Heal's dial shows the board's last value, not the chosen spot's. Missing beside Lightroom
+Mobile: Point Color, Lens Blur, detection masks and masks combined, Upright, a content-aware remove, a
+sharpening mask, vignette and grain beyond one slider, a choice of what a paste carries, more crop ratios, HEIC
+and DNG out, HDR. Present: Light, Color, the mixer, grading, point curves, crop, heal and clone, versions,
+history, before and after, the histogram and clipping, batch paste, match, stack and export, `.cube` and
+`.xmp` looks. (The scoreboard above said "no masks": Brush, Linear, Radial, Color and Luminance masks are built.)
+
 **Milestones, in order**
 
 1. **A fixed yardstick.** About ten of the owner's real RAFs with Lightroom's export of each, sent once from
