@@ -210,7 +210,16 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 ## Stage 8: more than one frame
 
-- **HDR merge** (new, L): a bracket of RAFs into one file with the range of all, aligned, ghosts handled.
+- **HDR merge: built 2026-11-12, for a bracket from a tripod** (the same "Stack the photos shown"; `engine/stack.js`
+  `summer`). A bracket is the stack's sum with each frame counted by its exposure: a sensel is worth all the
+  light it gathered in the frames where it did not clip, over the time they were open. Measured on the made-up
+  scene at 1, 4 and 16 times the exposure: deep shadows come out at a twelfth of a frame's noise, highlights are
+  the short frame's as it was, and no band between them is brighter or darker than the scene. The result is a
+  raw photo at the shortest frame's exposure (nothing more is clipped than was in it), opened as bright as the
+  middle frame, with the range there for Highlights and Shadows to use. The frames must share ISO, aperture and
+  the camera's DR setting; the shutter time is what differs. Left: things that moved between frames (ghosts)
+  are not looked for, frames shot by hand are not laid on each other, and a bracket wider than ±2 stops keeps
+  less than all of its longest frame's fineness (16 bits hold four times the camera's scale, not sixteen).
 - **Panorama** (new, L): frames stitched, at a reduced size if 4 GB demands it.
 - **Stacking for noise: built 2026-11-12, for frames from a tripod** (`engine/stack.js`, `app/stack.js`; the Library's
   sheet, "Stack the photos shown for noise"). The frames are averaged as sensor data, sensel by sensel, before

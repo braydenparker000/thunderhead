@@ -35,7 +35,7 @@ test('three frames are stacked into one photo that opens, and looks, like a RAF'
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByText('Choose photos').click()]);
   await chooser.setFiles(['DSCF0001.RAF', 'DSCF0002.RAF', 'DSCF0003.RAF'].map((name) => join(dir, name)));
   await page.waitForFunction(() => /Done · 3 photos copied/.test(document.querySelector('#stage')?.textContent ?? ''), null, { timeout: 120_000 });
-  await page.getByText('Stack the photos shown for noise').click();
+  await page.getByText('Stack the photos shown', { exact: true }).click();
   await page.getByText('Stack 3 frames? Tap again').click();
   await page.waitForFunction(() => /Done · DSCF000\d ×3 is in the Library/.test(document.querySelector('#stage')?.textContent ?? ''), null, { timeout: 240_000 });
   const r = await page.evaluate(async () => {

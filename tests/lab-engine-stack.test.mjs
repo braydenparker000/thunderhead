@@ -61,3 +61,29 @@ test('a frame that lies on the first is told from one that has moved', () => {
   assert.deepEqual(one.map(Math.round), [1, 0]);
   assert.ok(Math.hypot(...one) > STILL && Math.hypot(...half) > STILL, `a pixel's move, and half of one, are seen (${half.map((v) => v.toFixed(2))})`);
 });
+
+test('a bracket: the shadows are all the frames together, the highlights the short frame alone, and nothing is bent between', () => {
+  // The scene at 1, 4 and 16 times the exposure: what each sensel would read, clipped at the sensor's white, with noise.
+  const { black, white } = scene.meta, range = white - black, sd = 24, clip = black + 0.9 * range;
+  const at = (t, seed) => { let s = seed >>> 0; const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return (s + 0.5) / 4294967296; }, gauss = () => Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd());
+    return Uint16Array.from(scene.mosaic, (v) => Math.max(0, Math.min(white, Math.round(black + (v - black) * t + sd * gauss())))); };
+  const sum = summer(scene.mosaic.length, black, clip), frames = [[1, 11], [4, 12], [16, 13]].map(([t, seed]) => [t, at(t, seed)]);
+  for (const [t, m] of frames) sum.add(m, t);
+  const out = sum.done();
+  assert.deepEqual([sum.count, sum.light], [3, 21]);
+  // by how many frames a sensel counted in: all three (deep shadow), two, or the short one alone
+  const err = [[], [], []];
+  for (let i = 0; i < out.length; i++) { const v = scene.mosaic[i]; if (v >= clip) continue; const k = black + (v - black) * 16 < clip - 4 * sd ? 2 : black + (v - black) * 16 > clip + 4 * sd && black + (v - black) * 4 < clip - 4 * sd ? 1 : black + (v - black) * 4 > clip + 4 * sd ? 0 : -1; if (k >= 0) err[k].push(out[i] / FINER - v); }
+  const rms = (e) => Math.sqrt(e.reduce((t, x) => t + x * x, 0) / e.length), mean = (e) => e.reduce((t, x) => t + x, 0) / e.length;
+  assert.ok(err.every((e) => e.length > 500), `the scene has all three kinds of sensel (${err.map((e) => e.length)})`);
+  assert.ok(rms(err[2]) < sd / 8, `deep shadows: three frames' light over 21 exposures, a twelfth of a frame's noise (${rms(err[2]).toFixed(2)} of ${sd})`);
+  assert.ok(rms(err[1]) < sd / 2.5 && rms(err[1]) > sd / 5, `where the longest clipped: two frames over 5 (${rms(err[1]).toFixed(2)})`);
+  assert.ok(rms(err[0]) < sd * 1.2 && rms(err[0]) > sd * 0.8, `highlights: the short frame alone, as it was (${rms(err[0]).toFixed(2)})`);
+  assert.ok(err.every((e) => Math.abs(mean(e)) < 0.6), `and none of the three is brighter or darker than the scene (${err.map((e) => mean(e).toFixed(2))})`);
+  // what the engine is told: far less noise, and to open it as bright as the middle frame
+  const m = stackMeta({ ...scene.meta, iso: 1600 }, 3, { light: sum.light, lift: 4, dr: 100 });
+  assert.deepEqual([m.iso, m.dr, m.frames], [76, 400, 3]);
+  // the frames lie on each other, told across their exposures
+  const short = binned(frames[0][1], scene.meta), long = binned(frames[2][1], scene.meta), w = scene.width;
+  assert.ok(Math.hypot(...shiftOf(short, long, w, w, 1 / 16)) <= STILL, `the long frame has not moved against the short (${shiftOf(short, long, w, w, 1 / 16).map((v) => v.toFixed(3))})`);
+});
