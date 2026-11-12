@@ -3,6 +3,7 @@
 // size asked for by averaging in linear light, and handed to a file's writer (files.js) as it comes.
 
 const SPLIT = 4;   // an export's first pieces are timed a step at a time (full.js `region`), for the phone's own numbers
+const NET_TILE = 960, NET_BAND = 512;   // a piece by the network: with its edge and the lens's reach, inside one of the network's windows
 const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
 // straightened); and how far past a piece it is developed, so sharpening sees the same neighbours either side of a join
 const decode = (/** @type {number} */ s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
@@ -93,7 +94,10 @@ export const OUTPUT = /** @type {Record<string, Record<string, number>>} */ ({ S
  * @param {boolean} [best] the sensor's colours by the network (full.js `view`) */
 export async function develop(big, jobs, progress, clock = null, best = false) {
   const sw = big.width, sh = big.height;
-  const v = await big.view(Math.min(sw, TILE) + 2 * EDGE, BAND + 2 * EDGE, null, false, true, best);
+  // The network works a window of the sensor at a time (neural.js: 990 pixels of each 1056 are its own), so its pieces
+  // are cut to sit in one window each, and taller: less of its work then goes on the context round a piece.
+  const [wide, rows] = best ? [NET_TILE, NET_BAND] : [TILE, BAND];
+  const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best);
   if (clock) clock.net = v.net ? 1 : 0;
   try {
     const outs = jobs.map((j) => {
