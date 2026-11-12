@@ -50,7 +50,7 @@ async function workshop(page) {
 }
 
 /** Signed in on home against the mocked Worker, with `kept` in this phone's storage first. */
-async function home(kept = {}) {
+async function home(kept = {}, path = '/') {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', timezoneId: 'UTC', locale: 'en-GB' });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -59,7 +59,7 @@ async function home(kept = {}) {
   const w = await workshop(page);
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve) => { const req = indexedDB.open('th-auth', 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'); tx.oncomplete = () => { req.result.close(); resolve(); }; }; }), TOKEN);
-  await page.goto(`${base}/`, { waitUntil: 'load' });
+  await page.goto(`${base}${path}`, { waitUntil: 'load' });
   await page.waitForSelector('html[data-signed-in]');
   return { page, context, errors, w };
 }
@@ -141,6 +141,14 @@ test('home passes the editor’s timings on: known fields only, one file, the on
   }, at + 3);
   await send();
   assert.equal(w.puts.length, 2);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('/settings/workshop/ opens the page itself', opts, async () => {
+  const { page, context, errors } = await home({}, '/settings/workshop/');
+  await page.waitForFunction(() => [...document.querySelectorAll('.spage.in .page-title')].some((h) => h.textContent === 'Files for the workshop'));
+  await page.waitForSelector('#workshop-pick');
   assert.deepEqual(errors, []);
   await context.close();
 });
