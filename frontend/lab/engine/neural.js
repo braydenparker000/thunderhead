@@ -143,6 +143,8 @@ async function proof(device, g, pipes, held) {
   } finally { valid.destroy(); back.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); }
 }
 
+/** Whether the network has been asked for on a device (compiled or on its way). @param {GPUDevice} device */
+export const begun = (device) => made.has(device);
 /** The network on a device: read, compiled and proved once. @param {GPUDevice} device */
 export function compile(device) {
   let p = made.get(device);

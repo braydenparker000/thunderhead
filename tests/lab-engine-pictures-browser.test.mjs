@@ -210,8 +210,13 @@ test('at full size a turn of Sharpening or Noise starts from the demosaiced rect
     // the same settings on a view made new: from the sensor, never from a copy
     const v2 = await big.view(240, 240, null, true); await v2.region(120, 120, 240, 240); const fresh = [...(await v2.read()).data];
     eng.setGeometry({ distortion: 0, vignetting: 0, crop: null, spots: [] }); await shot(0.4, 0.5, 60); const bent = { ...v.stats };
-    v.dispose(); v2.dispose(); big.dispose(); eng.dispose();
-    return { first, turned, after, bent, differs: [!same(a, sharper), !same(a, cleaner), !same(a, moved)], back: same(a, back), fresh: same(a, fresh) };
+    // the network is compiled behind the photo only where it will be used (meta.net, the owner's setting), a moment after
+    const N = await import('/lab/engine/neural.js'), warm = [N.begun(eng.gpu.device)];
+    const big2 = await full(eng, { ...k, meta: { ...k.meta, net: true } }, k.mosaic.slice());
+    warm.push(N.begun(eng.gpu.device)); await new Promise((res) => setTimeout(res, 1800)); warm.push(N.begun(eng.gpu.device));
+    await N.compile(eng.gpu.device).catch(() => {});
+    v.dispose(); v2.dispose(); big.dispose(); big2.dispose(); eng.dispose();
+    return { first, turned, after, bent, warm, differs: [!same(a, sharper), !same(a, cleaner), !same(a, moved)], back: same(a, back), fresh: same(a, fresh) };
   });
   assert.deepEqual(r.first, { demosaic: 1, kept: 0 });
   assert.equal(r.turned.demosaic, 1, 'three turns of Sharpening and Noise: the sensor is not gone back to');
@@ -221,6 +226,7 @@ test('at full size a turn of Sharpening or Noise starts from the demosaiced rect
   assert.ok(r.fresh, 'and it is what a view made new draws from the sensor');
   assert.equal(r.after.demosaic, 2, 'another rectangle is made from the sensor');
   assert.equal(r.bent.demosaic, 3, 'and so is the same one once the geometry (a retouch spot) changed');
+  assert.deepEqual(r.warm, [false, false, true], 'the network: not asked for without the setting, nor at once, but behind the photo a moment later');
   assert.deepEqual(errors, []);
   await page.close();
 });

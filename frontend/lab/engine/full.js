@@ -9,7 +9,7 @@ import { compile as compileDemosaic, demosaicer, phaseOf } from './demosaic.js';
 import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { fringeOf } from './lens.js';
-import { demosaicer as network } from './neural.js';
+import { compile as compileNet, demosaicer as network } from './neural.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
@@ -35,6 +35,9 @@ export async function full(e, img, mosaic) {
   const tex = sensor ? device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }) : upload(device, /** @type {ImageBitmap} */ (mosaic), W, H);
   // the full-size passes compile now, behind the photo already on screen: the first zoom to 100 % then only has to draw
   for (const p of [sensor ? compileDemosaic(device) : compilePicture(device), compileNoise(device), compileSharp(device), deepPipe(device), finishPipe(device, 'rgba8unorm')]) Promise.resolve(p).catch(() => {});
+  // and the network, where it will be used (meta.net: the owner's setting), a moment later so the photo's first frames
+  // are not held up: read, compiled and proved once for the device, so the first rest at 100 % only has to run it
+  if (sensor && img.meta.net) setTimeout(() => compileNet(device).catch(() => {}), 1500);
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
   for (let y = 0; sensor && y < H; y += BAND) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);

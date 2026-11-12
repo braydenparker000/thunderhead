@@ -221,14 +221,15 @@ const FINE = 0.999;   // from 100 % the network makes what shows (the owner, 202
 async function finer(mine, X, Y, w, h) {
   const big = photo.whole();
   if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
-  if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { if (fineOf === big) fine?.dispose(); fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; }
+  const t0 = performance.now(); let made = 0;   // how long the network's view took to make, when it had to be (the timings say: the first one of a photo compiles it unless that was done behind the photo, full.js)
+  if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { if (fineOf === big) fine?.dispose(); fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; made = performance.now() - t0; }
   if (!fine.net || mine !== job) return;   // a GPU that will not have the network: the live view is all there is
   const began = performance.now();
   let im = /** @type {ImageData | null} */ (null), at = fine.at();
   await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h); im = await fine.read(); fine.rest(); });
   if (mine !== job || !im || !at) return;
   closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d')).putImageData(im, 0, 0);
-  place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch });
+  place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}) });
 }
 async function detail(/** @type {number} */ mine) {
   mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';

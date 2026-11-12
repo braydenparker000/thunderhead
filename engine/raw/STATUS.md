@@ -603,6 +603,10 @@ they are), grain with a size, a dynamic-range shoulder, and toning for black and
   software GPU, a 900 × 900 view: a turn of Sharpening 10.7 s before, 0.7 s after, the picture the same to
   the last value (`tests/lab-engine-pictures-browser.test.mjs`). Not measured on the phone yet: the
   timings file will show it as shorter `detail` times.
+- **The network is compiled behind the photo.** Where it will be used (the owner's setting, a RAF), `full.js`
+  reads, compiles and proves it a moment after the full-size photo is ready, so the first rest at 100 % only
+  has to run it. What that first view costs was not being timed (the clock started after it was made): a
+  `fine` timing now carries `made`, the milliseconds the network's view took to make when it had to be.
 
 ## How to work here
 
