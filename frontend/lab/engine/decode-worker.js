@@ -45,15 +45,25 @@ function recipe(mk) {
 }
 
 const THREADS = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
+// How long the decoder took to start, in ms: its code loaded, its WebAssembly made ready, its threads started.
+// It rides on each decode's answer (`boot`), so the phone's own numbers say where an open's time goes.
+const boot = { code: 0, wasm: 0, pool: 0 }, born = performance.now(), ms = (/** @type {number} */ t) => Math.round(performance.now() - t);
 async function threaded() {
+  let t = performance.now();
   const glue = await import('./pkg-threads/th_raw.js');
+  boot.code = ms(t); t = performance.now();
   await glue.default({ module_or_path: new URL('./pkg-threads/th_raw_bg.wasm', import.meta.url) });
+  boot.wasm = ms(t); t = performance.now();
   await Promise.race([glue.initThreadPool(THREADS), new Promise((_, no) => setTimeout(() => no(new Error('the decode threads did not start')), 10_000))]);
+  boot.pool = ms(t);
   return { decode: glue.decode, jpeg: glue.jpeg, threads: THREADS };
 }
 async function plain() {
+  let t = performance.now();
   const glue = await import('./pkg/th_raw.js');
+  boot.code = ms(t); t = performance.now();
   await glue.default({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
+  boot.wasm = ms(t);
   return { decode: glue.decode, jpeg: glue.jpeg, threads: 1 };
 }
 let threadsError = '';
@@ -96,7 +106,7 @@ self.onmessage = async (e) => {
         self.postMessage({ preview: new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings, tag });
       }
     }
-    const lens = lensOf(buf);
+    const lens = lensOf(buf), asked = performance.now();
     const { decode, threads } = await ready;
     const t0 = performance.now();
     const d = decode(new Uint8Array(buf));
@@ -105,7 +115,7 @@ self.onmessage = async (e) => {
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
     meta.iso = info.iso; meta.lens = lens;   // the lens's own corrections, from the RAF (lens.js)
-    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError, tag };
+    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError, tag, boot: { ...boot, waited: Math.round(t0 - asked), age: Math.round(asked - born) } };
     self.postMessage(msg, [proxy.buffer]);
     // the sensor's pixels follow the editing copy, so the photo is on screen first
     const mosaic = e.data.full && meta.cfaWidth === 6 ? d.mosaic() : null;

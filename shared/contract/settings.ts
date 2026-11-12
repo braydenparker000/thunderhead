@@ -192,6 +192,9 @@ export const SETTINGS = [
   { ...SENSES, key: 'privacy.senses.shell', label: 'Ring and island', detail: 'Which apps you open and close and when, and which setting you change, never its value.' },
   { ...SENSES, section: 'Reports', key: 'privacy.errors', label: 'Error reports',
     detail: 'When something breaks, what broke and where, never what you wrote.' },
+  // The editor's timings (th/workshop/timings.js): kept on this phone, passed on by home to the owner's storage.
+  { key: 'privacy.editor_timings', group: 'privacy', section: 'Reports', label: 'Editor timings', kind: 'switch', scope: 'phone', mind: false, default: true,
+    detail: 'How long opening, zooming and exporting a photo took, as numbers only, to your own storage, so a slow step can be found and fixed. Never a photo or its name.' },
   // Photos (PHOTOS.md §3.6): the phone makes each preview at this size; what stays on the phone.
   { key: 'photos.preview_size', group: 'photos', section: 'On this phone', label: 'Preview size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),

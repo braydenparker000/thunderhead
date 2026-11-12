@@ -16,6 +16,7 @@ import * as kept from './looks.js';
 import * as store from './store.js';
 import { begin } from './starts.js';
 import { ask } from './decoder.js';
+import { note } from './timings.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
 export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0, Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
@@ -91,7 +92,7 @@ export async function open(id, quick = false) {
     res(d);
     return !!d.error || plain || quick || d.meta.cfaWidth !== 6;   // else the sensor's own pixels follow
   }));
-  if (cur !== me) { r.picture?.close(); return; }
+  const heard = performance.now(); if (cur !== me) { r.picture?.close(); return; }
   if (r.picture) { if (quick) r.picture.close(); else sensor(r.picture); }
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
   try {
@@ -107,12 +108,12 @@ export async function open(id, quick = false) {
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
     r.meta.quick = pref('photos.demosaic') === 'faster';   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
-    ready = true; place(); say(''); await draw(); if (cur === me) took.open = (performance.now() - began) / 1000;
+    ready = true; place(); say(''); await draw(); if (cur === me) { took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
-      if (cur === me) { big = b; changed(); } else b?.dispose();
+      if (cur === me) { big = b; changed(); if (b) note('full', performance.now() - began); } else b?.dispose();
     }).catch(() => {});
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }

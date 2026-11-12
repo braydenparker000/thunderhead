@@ -1,0 +1,40 @@
+// What home passes on of the editor's timings, without a browser (frontend/th/workshop/timings-core.js): only
+// known fields of known kinds, so nothing else in the editor's storage can ride along; sent when there is a new
+// one and the last send was six hours ago or more; the file says the build and the phone in a few words.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { clean, due, EVERY_MS, fileOf } from '../frontend/th/workshop/timings-core.js';
+
+test('only timings of known kinds, with their known fields, are kept', () => {
+  const stored = [
+    { at: 1000, kind: 'open', ms: 8127.4, file: 'raf', quick: false, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, name: 'DSCF0042.RAF' },
+    { at: 2000, kind: 'save', ms: 57685, files: 1, px: 39806928, bytes: 7900000, kinds: 'JPEG', note: 'a caption' },
+    { at: 3000, kind: 'open', ms: 900, file: '../../secret' },
+    { at: 4000, kind: 'spy', ms: 1 },
+    { kind: 'open', ms: 5 },
+    'words', null,
+  ];
+  assert.deepEqual(clean(stored), [
+    { kind: 'open', at: 1000, ms: 8127, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, file: 'raf', quick: false },
+    { kind: 'save', at: 2000, ms: 57685, px: 39806928, files: 1, bytes: 7900000, kinds: 'JPEG' },
+    { kind: 'open', at: 3000, ms: 900 },
+  ]);
+  assert.deepEqual(clean('not a list'), []);
+  assert.equal(clean(Array.from({ length: 300 }, (_, i) => ({ at: i + 1, kind: 'full', ms: 1 }))).length, 120);
+});
+
+test('sent when there is a new timing, at most once in six hours', () => {
+  const list = [{ at: 5000 }];
+  assert.equal(due({}, list, Date.UTC(2026, 10, 12)), true);
+  assert.equal(due({}, [], 10_000), false);
+  assert.equal(due({ last: 5000, when: 0 }, list, EVERY_MS * 2), false, 'nothing new');
+  assert.equal(due({ last: 4000, when: 10_000 }, list, 10_000 + EVERY_MS - 1), false, 'too soon');
+  assert.equal(due({ last: 4000, when: 10_000 }, list, 10_000 + EVERY_MS), true);
+});
+
+test('the file says the build and the phone in a few words, then the timings', () => {
+  const file = JSON.parse(fileOf([{ kind: 'full', at: 1, ms: 2 }], { build: 'abc1234', agent: 'Browser/1 '.repeat(40), cores: 8, memory: 8 }));
+  assert.deepEqual(Object.keys(file), ['v', 'build', 'agent', 'cores', 'memory', 'timings']);
+  assert.deepEqual([file.v, file.build, file.cores, file.memory, file.agent.length], [1, 'abc1234', 8, 8, 200]);
+  assert.deepEqual(file.timings, [{ kind: 'full', at: 1, ms: 2 }]);
+});

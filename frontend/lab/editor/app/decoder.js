@@ -7,10 +7,13 @@ let worker = /** @type {Worker | null} */ (null), asked = 0;
 /** Asks the decoder. `hear` is given each answer to this request, and says true once it has heard the last.
  * @param {Record<string, any>} msg @param {Transferable[]} give @param {(answer: any) => boolean} hear */
 export function ask(msg, give, hear) {
-  const to = (worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' })), tag = `q${++asked}`;
+  warm(); const to = /** @type {Worker} */ (worker), tag = `q${++asked}`;
   const on = (/** @type {MessageEvent} */ m) => { if (m.data.tag === tag && hear(m.data)) to.removeEventListener('message', on); };
   to.addEventListener('message', on); to.postMessage({ ...msg, tag }, give);
 }
+/** Starts the decoder before a photo asks for it: its code, its WebAssembly and its threads take a while the
+ * first time, and the Library is on screen meanwhile. */
+export const warm = () => { worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' }); };
 /** One band of an export's JPEG, encoded on the decoder's thread (the engine's files.js asks).
  * @param {Uint8Array} rgb @param {number} w @param {number} h @param {number} quality @param {boolean} fine @returns {Promise<Uint8Array>} */
 export const jpegBand = (rgb, w, h, quality, fine) => new Promise((res, rej) => ask({ jpeg: [rgb, w, h, quality, fine] }, [rgb.buffer], (d) => { if (d.jpeg) res(d.jpeg); else rej(new Error(d.error)); return true; }));
