@@ -48,15 +48,16 @@ export async function full(e, img, mosaic) {
    * @param {number} maxW @param {number} maxH @param {HTMLCanvasElement | null} [canvas]
    * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one)
    * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats
-   * @param {boolean} [best] the sensor's colours by the network (neural.js): truer and cleaner, and many times the work. Where the
-   *   GPU will not have it, the view is made the usual way and says so (`net`) */
+   * @param {boolean | 'twice' | 'once'} [best] true: the sensor's colours by the network (neural.js): truer and cleaner, and many
+   *   times the work. Where the GPU will not have it, the view is made the usual way and says so (`net`). 'twice' and
+   *   'once': the usual demosaic looking twice (Best) or once (Faster) whatever the photo is set to, for comparing them */
   const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false) => {
     const format = deep ? 'rgba16float' : 'rgba8unorm', [pipe, last] = await Promise.all([deepPipe(device), finishPipe(device, format)]), size = deep ? 8 : 4;
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
-    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); return null; }) : null;
-    const dm = net || (sensor ? await demosaicer(device, tex, info, side, side) : await copier(device, tex, side, side));
+    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); return null; }) : null;
+    const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
       for (let s = 1; s > 0.2; s *= 0.9) {

@@ -10,24 +10,26 @@ import { prefOn } from '/th/pref.js';
 import { store } from '/th/session.js';
 import { uuidv7 } from '/th/chat/model.js';
 import { sha256 } from '/th/attach/upload.js';
-import { clean, due, fileOf } from './timings-core.js';
+import { clean, cleanMarks, due, fileOf } from './timings-core.js';
 
-const KEY = 'th.editor.timings', SENT = 'th.workshop.timings', NAME = 'editor-timings.json';
+const KEY = 'th.editor.timings', MARKS = 'th.compare.marks', SENT = 'th.workshop.timings', NAME = 'editor-timings.json';
 
 export async function sendTimings() {
   if (!CONFIG.api || !prefOn('privacy.editor_timings', true)) return;
-  let list, sent;
+  let list, marks, sent;
   try {
     list = clean(JSON.parse(localStorage.getItem(KEY) || '[]'));
+    marks = cleanMarks(JSON.parse(localStorage.getItem(MARKS) || '[]'));   // the compare page's verdicts ride in the same file
     sent = JSON.parse(localStorage.getItem(SENT) || '{}') || {};
   } catch {
     return;
   }
-  if (!due(sent, list, Date.now())) return;
+  const newest = Math.max(0, ...[list[list.length - 1], marks[marks.length - 1]].map((e) => Number(e?.at) || 0));
+  if (!due(sent, newest ? [{ at: newest }] : [], Date.now())) return;
   const s = await store.read();
   if (!s) return;
   const nav = /** @type {any} */ (navigator), base = CONFIG.api.replace(/\/+$/, '');
-  const body = new Blob([fileOf(list, { build: String(CONFIG.commit).slice(0, 7), agent: navigator.userAgent, cores: navigator.hardwareConcurrency || 0, memory: nav.deviceMemory || 0 })]);
+  const body = new Blob([fileOf(list, { build: String(CONFIG.commit).slice(0, 7), agent: navigator.userAgent, cores: navigator.hardwareConcurrency || 0, memory: nav.deviceMemory || 0 }, marks)]);
   const headers = { Authorization: `Bearer ${s.token}`, 'TH-Client': `${CONFIG.build}.${String(CONFIG.commit).slice(0, 7)}` };
   const id = uuidv7();
   const put = await fetch(`${base}/v1/workshop/${id}/parts/1?bytes=${body.size}`, {
@@ -37,6 +39,6 @@ export async function sendTimings() {
   if (!put.ok) return;
   if (typeof sent.id === 'string') await fetch(`${base}/v1/workshop/${sent.id}`, { method: 'DELETE', headers }).catch(() => {});
   try {
-    localStorage.setItem(SENT, JSON.stringify({ id, last: list[list.length - 1].at, when: Date.now() }));
+    localStorage.setItem(SENT, JSON.stringify({ id, last: newest, when: Date.now() }));
   } catch {}
 }
