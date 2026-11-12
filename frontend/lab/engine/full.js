@@ -9,6 +9,7 @@ import { compile as compileDemosaic, demosaicer, phaseOf } from './demosaic.js';
 import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { fringeOf } from './lens.js';
+import { demosaicer as network } from './neural.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
@@ -39,20 +40,23 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
-  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick,
+  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick, iso: /** @type {number} */ (img.meta.iso) || 100,
     fringe: fringeOf(img.meta.lens, W, H) };   // the lens's colour fringing is undone in the demosaic, where it costs detail least (demosaic.js `lead`)
   const open = /** @type {Set<() => void>} */ (new Set());
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the
    * engine's renders: `onframe` is called, in the task that draws it, with the rectangle each one shows.
    * @param {number} maxW @param {number} maxH @param {HTMLCanvasElement | null} [canvas]
    * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one)
-   * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats */
-  const view = async (maxW, maxH, canvas = null, readback = false, deep = false) => {
+   * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats
+   * @param {boolean} [best] the sensor's colours by the network (neural.js): truer and cleaner, and many times the work. Where the
+   *   GPU will not have it, the view is made the usual way and says so (`net`) */
+  const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false) => {
     const format = deep ? 'rgba16float' : 'rgba8unorm', [pipe, last] = await Promise.all([deepPipe(device), finishPipe(device, format)]), size = deep ? 8 : 4;
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
-    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, dm = sensor ? await demosaicer(device, tex, info, side, side) : await copier(device, tex, side, side);
+    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); return null; }) : null;
+    const dm = net || (sensor ? await demosaicer(device, tex, info, side, side) : await copier(device, tex, side, side));
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
       for (let s = 1; s > 0.2; s *= 0.9) {
@@ -62,6 +66,10 @@ export async function full(e, img, mosaic) {
       return [8, 8];
     };
     let fit = room(), cleaned = '';
+    // How much of the photo's noise the network is told of, from the Noise dial: all of it where the dial is at this ISO's
+    // start (session.js `noiseStart`), less below it (more grain kept), more above (smoother).
+    const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), smooth = (/** @type {number} */ dial) => (dial >= start ? 1 + (dial - start) / 60 : 0.25 + (0.75 * dial) / start);
+    const keptOf = (/** @type {Float32Array} */ f) => `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;   // the settings a rectangle's colours are made with
     const dn = await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn.spare);
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -74,7 +82,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -89,6 +97,14 @@ export async function full(e, img, mosaic) {
     }
     async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw); }
     async function halves() { return new Uint16Array((await bytes()).buffer); }
+    /** What makes a rectangle's colours from the sensor, a step at a time, by name (an export times them apart).
+     * @param {Rect} r @param {Float32Array} f the frame's settings @returns {[string, (enc: GPUCommandEncoder) => void][]} */
+    const steps = (r, f) => [
+      ['demosaic', (enc) => (net ? net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, smooth(f[100] * 40)) : dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots))],
+      ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
+      ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
+      ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe && !net)],   // the network leaves the lens's fringing in: the lens pass undoes it
+    ];
     const hook = {
       /** The geometry changed: the same rectangle of the picture now draws on another part of the sensor. */
       bent: () => { fit = room(); const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
@@ -99,15 +115,9 @@ export async function full(e, img, mosaic) {
       frame: (enc, u) => {
         if (!at || !bind) return;
         const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
-        const kept = `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;
+        const kept = keptOf(f);
         if (cleaned !== kept) { cleaned = kept; fresh = false; }   // noise reduction and sharpening are part of the rectangle's colours
-        if (!fresh) {
-          dm.run(enc, at.rx, at.ry, at.rw, at.rh, e.gpu.geo().spots);
-          if (f[100] > 0 || f[101] > 0) dn.run(enc, at.rw, at.rh, e.gpu.noise, f[100], f[101]);
-          crisp.run(enc, at.rw, at.rh, info.wb, f[96], f[97], f[98]);   // Sharpening: the lens's spread taken out (deconv.js)
-          bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh }, true, false, !!info.fringe);
-          fresh = true;
-        }
+        if (!fresh) { for (const [, run] of steps(at, f)) run(enc); fresh = true; }
         n[52] = at.cw; n[53] = at.ch; n[55] |= 1024 | 524288; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;   // no dither yet: the last pass does it
         device.queue.writeBuffer(uni, 0, c);
         const fu = new ArrayBuffer(32); new Uint32Array(fu).set([at.cw, at.ch, deep ? 0 : 1, 0]); new Float32Array(fu).set([0, f[97], f[98], f[683]], 4);   // the photo's own sharpening is done already; a mask's (in the frame's fourth value) uses the radius and detail, then defringe
@@ -139,10 +149,19 @@ export async function full(e, img, mosaic) {
       return (at = { X, Y, cw, ch, rx, ry, rw, rh });
     }
     /** place(), drawn now with the last shown frame's settings (a test, or one band of an export).
-     * @param {number} X @param {number} Y @param {number} cw @param {number} ch */
-    async function region(X, Y, cw, ch) {
-      const r = place(X, Y, cw, ch), enc = device.createCommandEncoder();
-      hook.frame(enc, e.gpu.settings());
+     * @param {number} X @param {number} Y @param {number} cw @param {number} ch @param {Record<string, number> | null} [clock] */
+    async function region(X, Y, cw, ch, clock = null) {
+      const r = place(X, Y, cw, ch), u = e.gpu.settings();
+      // timed a step at a time for an export's first pieces (`clock` gathers each step's ms): where the phone's time goes
+      const timed = async (/** @type {string} */ name, /** @type {(enc: GPUCommandEncoder) => void} */ run) => {
+        const t = performance.now(), one = device.createCommandEncoder(); run(one); device.queue.submit([one.finish()]); await device.queue.onSubmittedWorkDone();
+        if (clock) clock[name] = (clock[name] || 0) + performance.now() - t;
+      };
+      const f = new Float32Array(u);
+      if (clock && bind && (!fresh || cleaned !== keptOf(f))) { for (const [name, run] of steps(r, f)) await timed(name, run); fresh = true; cleaned = keptOf(f); }
+      if (clock) { await timed('colour', (enc) => hook.frame(enc, u)); await hook.after(); return r; }
+      const enc = device.createCommandEncoder();
+      hook.frame(enc, u);
       device.queue.submit([enc.finish()]);
       await device.queue.onSubmittedWorkDone();
       await hook.after();

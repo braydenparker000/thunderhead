@@ -463,6 +463,32 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   morning (demosaic 12, noise 8; sharpening works in the noise step's buffers), and a 100 % view runs about 45
   passes where it ran 10. In headless Chromium saving the Full and Small files of a 40 MP photo takes about 6 minutes.
 
+## The network (2026-11-12)
+
+- `frontend/lab/engine/neural.js` stands where `demosaic.js`'s `demosaicer` does and writes the same form (two
+  u32 a pixel, clipped colours flagged), so everything after it is unchanged. It runs Starfish's export as it
+  is (`nets/starfish-xtrans/`: `graph.txt`, a `.wgsl` a pass, `weights.bin`; `f16/` where the GPU has half
+  floats, `f32/` where it has not: the software GPU has not). A rectangle is made a window of 1056 × 1056
+  at a time, 30 pixels of each side being context; each window has its own settings and bindings, because
+  several are laid in one frame's commands. Our own passes are `cut` (a window of the sensor at green's scale,
+  with each site's noise from noise.js at the photo's ISO) and `place` (the middle back at the sensor's scale).
+- `full.js` `view(..., best)` takes it in place of the demosaic and skips noise reduction (the network took the
+  noise out). The Noise dial says how much of the photo's noise the network is told of: all of it at the
+  ISO's own start, less below, more above.
+- An export asks for it (`app/save.js` `netOn`); if it fails the export is made again the usual way and the
+  network is not tried on that phone for a week. From 200 % in, `app/zoom.js` `finer` makes what shows with
+  it once the photo rests and lays it over the live view; an edit's first frame takes it away and it comes
+  back 400 ms after the last frame. It is never part of a dial's frame.
+- Before a device uses it, the network proves itself there once (`proof`): shown a small grey picture with a
+  slope across it, it must give that picture back to within 0.02 of the sensor's range (the software GPU: 0.002).
+  A GPU that gives anything else is not used, and the views are made the usual way. The half-float copy a
+  phone runs cannot be run on the software GPU here, so this is what stands between a driver's fault and a
+  wrong export.
+- What is not known: how long it takes on the owner's phone. An export's timing says (`net`, `gpu`, and the
+  first pieces' steps; `fine` for the 200 % view), in the timings the phone passes on.
+- The lens's colour fringing, which the usual demosaic undoes as it goes, is undone after the network by the
+  lens pass (warp.js is told the colours are not yet aligned). Full-size detail: Faster has no meaning for it.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

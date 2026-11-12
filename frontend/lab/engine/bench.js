@@ -10,6 +10,7 @@
 // Nothing leaves the phone. The result is text to copy; the last runs are kept in this browser to compare.
 import { engine } from './gpu.js';
 import { demosaicer, phaseOf } from './demosaic.js';
+import { demosaicer as network } from './neural.js';
 import { denoiser } from './denoise.js';
 import { sharpener } from './deconv.js';
 import { noiseAt } from './noise.js';
@@ -27,7 +28,7 @@ const round = (/** @type {number} */ v) => Math.round(v);
 
 /** The known mosaic developed on `device`: demosaic, then noise reduction and sharpening if asked.
  * @param {GPUDevice} device @param {ReturnType<typeof known>} k
- * @param {{ noise?: number, colour?: number, iso?: number, sharp?: number[], quick?: boolean, fringe?: boolean }} [o] the sliders as the plates show them; `quick`: the first
+ * @param {{ noise?: number, colour?: number, iso?: number, sharp?: number[], quick?: boolean, fringe?: boolean, net?: boolean }} [o] the sliders as the plates show them; `net`: by the network; `quick`: the first
  *   look alone; `fringe: false`: the demosaic is not told of the lens's fringing */
 async function developed(device, k, o = {}) {
   const n = k.n, make = device.createBuffer.bind(device);
@@ -37,7 +38,8 @@ async function developed(device, k, o = {}) {
     device.queue.writeTexture({ texture: tex }, k.mosaic, { bytesPerRow: n * 2 }, [n, n]);
     const phase = phaseOf(k.meta);
     if (!phase) throw new Error('the pattern was not recognised');
-    const dm = await demosaicer(device, tex, { phase, black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, quick: o.quick, fringe: o.fringe === false ? null : k.fringe }, n, n), enc = device.createCommandEncoder(), made = [dm];
+    const info = { phase, black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, quick: o.quick, iso: o.iso || 100, fringe: o.fringe === false ? null : k.fringe };
+    const dm = o.net ? await network(device, tex, info, n, n) : await demosaicer(device, tex, info, n, n), enc = device.createCommandEncoder(), made = [dm];
     dm.run(enc, 0, 0, n, n, null);
     if (o.noise || o.colour) { const dn = await denoiser(device, dm.out); made.push(dn); dn.run(enc, n, n, noiseAt(o.iso || 160), (2.5 * (o.noise || 0)) / 100, (4 * (o.colour || 0)) / 100); }
     if (o.sharp) { const sh = await sharpener(device, dm.out); made.push(sh); sh.run(enc, n, n, CAMERA.wb, o.sharp[0] / 40, o.sharp[1], o.sharp[2] / 100); }
@@ -70,6 +72,8 @@ export async function pictures() {
     shots.fringed = score(await developed(device, fringed), clean.truth, N);
     shots.sharpened = score(await developed(device, clean, { sharp: [40, 1, 25] }), clean.crisp, N);   // against the scene before the lens
     shots.denoised = score(await developed(device, noisy, { iso: 6400, noise: 50, colour: 25 }), clean.truth, N);
+    shots.network = score(await developed(device, clean, { net: true }), clean.truth, N);   // the sensor's colours by the network (neural.js)
+    shots.networkNoisy = score(await developed(device, noisy, { net: true, iso: 6400 }), clean.truth, N);   // told of ISO 6400's noise, it takes it out as it goes
     eng.setProfile(null);
     await eng.render(0.25, 1);
     shots.frame = { grid: squares(await eng.snapshot()) };

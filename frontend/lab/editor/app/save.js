@@ -7,6 +7,7 @@ import * as files from '../../engine/files.js';
 import * as photo from './session.js';
 import { note } from './timings.js';
 import * as store from './store.js';
+import { prefOn } from '/th/pref.js';
 
 /** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
  * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
@@ -42,6 +43,13 @@ function download(blob, name) {
 }
 
 const MARK = 'th.editor.export';
+const NET = 'th.editor.net';   // when the network last failed an export on this phone
+/** Whether an export is made by the network (engine/neural.js). */
+const netOn = () => { try { return prefOn('photos.neural', true) && Date.now() - Number(localStorage.getItem(NET) || 0) > 7 * 864e5; } catch { return false; } };
+/** Where an export's time went (engine/export.js `develop`), as whole numbers for the timings: developing, reading
+ * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
+const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), net: c.net || 0, fell: c.fell || 0,
+  ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])) });
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
  * name, once, if that photo is still here. A finished or refused export leaves no mark. */
 export function cutOff() {
@@ -57,17 +65,28 @@ export function cutOff() {
 export async function save(presets, progress) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
-  const began = performance.now(), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
+  const began = performance.now(), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
-    const made = await develop(big, presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (w, h) => {
+    const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (/** @type {number} */ w, /** @type {number} */ h) => {
       const kept = carry(head, x.meta, x.gps, w, h);
       return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
-    } })), (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); });
+    } }));
+    const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
+    // By the network where it is on (Settings > Photos > Editor) and has not failed here lately; if it fails now, the
+    // export is made again the usual way, and the network is left alone on this phone for a week.
+    let made;
+    try { made = await develop(big, jobsOf(), step, clock, netOn()); }
+    catch (err) {
+      if (!clock.net || photo.whole() !== big) throw err;
+      try { localStorage.setItem(NET, String(Date.now())); } catch { /* a private window */ }
+      for (const k of Object.keys(clock)) delete clock[k];
+      clock.fell = 1; made = await develop(big, jobsOf(), step, clock, false);
+    }
     for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
-  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' ') });
+  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock) });
   return saved;
 }
 
