@@ -173,6 +173,62 @@ test('the colour table gives what developing each pixel itself gives', opts, asy
   await page.close();
 });
 
+test('Color Chrome darkens strong colours and leaves greys and pale ones; Chrome Blue the blues; Grain size makes the grain coarser', opts, async () => {
+  // grade.js `chrome`: Oklab's lightness lowered by up to 7 % (about 0.3 stops) on strong colours, by how strong they
+  // are; Chrome for every hue but the blues, Chrome Blue for those. grain: specks larger than at the start, run smoothly
+  // into each other. At 0 (and Grain size at its start) the picture is the one without them, to the last value.
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { still } = await import('/lab/engine/picture.js'), { engine } = await import('/lab/engine/gpu.js'), { known } = await import('/lab/engine/known.js');
+    const picture = async (/** @type {string[]} */ cols) => { const c = new OffscreenCanvas(cols.length * 60, 120), g = c.getContext('2d'); cols.forEach((col, i) => { g.fillStyle = col; g.fillRect(i * 60, 0, 60, 120); }); return still(await c.convertToBlob({ type: 'image/png' })); };
+    const cols = ['#d02020', '#20a040', '#2040d0', '#5a96dc', '#808080', '#c8b8a8'], eng = await engine(document.createElement('canvas'), await picture(cols), true), out = {};
+    eng.setProfile(null);
+    const shot = async (more) => { await eng.render(0, 1, { ...more, dither: false }); const im = await eng.snapshot(), cw = im.width / cols.length, o = (i) => (Math.floor(im.height / 2) * im.width + Math.floor(i * cw + cw / 2)) * 4; return cols.map((_, i) => [...im.data.subarray(o(i), o(i) + 3)]); };
+    for (const [name, more] of [['plain', {}], ['chrome', { chrome: 1 }], ['weak', { chrome: 0.5 }], ['blue', { chromeBlue: 1 }]]) out[name] = await shot(more);
+    eng.dispose();
+    // the known photo, with grain and the banding guard on: at 0 and at its start each is no change at all
+    const k = await engine(document.createElement('canvas'), known(480), true), bytes = async (more) => { await k.render(0.25, 1.1, { saturation: 0.3, grain: 0.5, ...more }); return [...(await k.snapshot()).data]; };
+    k.setProfile(null);
+    const without = await bytes({}), at0 = await bytes({ chrome: 0, chromeBlue: 0, grainSize: 1 });
+    out.same = without.length > 0 && without.every((v, i) => v === at0[i]);
+    k.dispose();
+    // grain on a flat grey: how alike a pixel is to the ones 1 and 2 along, and how strong it is
+    const flat = await engine(document.createElement('canvas'), await picture(Array(8).fill('#777777')), true);
+    flat.setProfile(null);
+    out.grain = {};
+    for (const [name, size] of [['start', 1], ['large', 2 ** (35 / 30)], ['most', 2 ** (75 / 30)]]) {
+      await flat.render(0, 1, { grain: 0.5, grainSize: size, dither: false });
+      const im = await flat.snapshot(), w = im.width, h = im.height, v = Array.from({ length: w * h }, (_, i) => im.data[i * 4 + 1]), m = v.reduce((a, b) => a + b, 0) / v.length, d = v.map((x) => x - m), sd = d.reduce((a, b) => a + b * b, 0) / d.length;
+      const along = (lag) => { let s = 0, n = 0; for (let y = 0; y < h; y++) for (let x = 0; x + lag < w; x++) { s += d[y * w + x] * d[y * w + x + lag]; n++; } return s / n / sd; };
+      out.grain[name] = { sd: Math.sqrt(sd), ac1: along(1), ac2: along(2) };
+    }
+    flat.dispose();
+    return out;
+  });
+  const lin = (c) => ((c / 255) <= 0.04045 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4), Y = (px) => 0.2126 * lin(px[0]) + 0.7152 * lin(px[1]) + 0.0722 * lin(px[2]);
+  const stops = (a, b) => Math.log2(Y(b) / Y(a)), near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 1);
+  const [red, green, blue, sky, grey, pale] = [0, 1, 2, 3, 4, 5];
+  for (const i of [red, green]) {
+    const s = stops(r.plain[i], r.chrome[i]), w = stops(r.plain[i], r.weak[i]);
+    assert.ok(s < -0.15 && s > -0.5, `Chrome 100 darkens patch ${i} (${r.plain[i]} to ${r.chrome[i]}) by ${s.toFixed(2)} stops`);
+    assert.ok(w < -0.05 && w > s, `Chrome 50 by less (${w.toFixed(2)} stops)`);
+  }
+  for (const i of [blue, sky, grey, pale]) assert.ok(near(r.plain[i], r.chrome[i]), `Chrome leaves patch ${i} as it was: ${r.plain[i]}, ${r.chrome[i]}`);
+  for (const i of [blue, sky]) assert.ok(stops(r.plain[i], r.blue[i]) < -0.1, `Chrome Blue darkens patch ${i}: ${r.plain[i]} to ${r.blue[i]}`);
+  for (const i of [red, green, grey, pale]) assert.ok(near(r.plain[i], r.blue[i]), `Chrome Blue leaves patch ${i}: ${r.plain[i]}, ${r.blue[i]}`);
+  assert.equal(r.same, true, 'both at 0 and Grain size at its start: the bytes of a render without them');
+  const g = r.grain;
+  assert.ok(Math.abs(g.start.ac1) < 0.05 && Math.abs(g.start.ac2) < 0.05, `at its start each speck is its own: ${g.start.ac1.toFixed(3)}, ${g.start.ac2.toFixed(3)}`);
+  assert.ok(g.large.ac1 > g.start.ac1 + 0.1 && g.most.ac2 > 0.25 && g.most.ac1 > g.large.ac1, `coarser with size: ${JSON.stringify(g)}`);
+  for (const k of ['large', 'most']) assert.ok(Math.abs(g[k].sd / g.start.sd - 1) < 0.25, `and about as strong (${g[k].sd.toFixed(2)} against ${g.start.sd.toFixed(2)})`);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('a picture that is off is told apart, and a missing reference is said', opts, async () => {
   const page = await browser.newPage({ serviceWorkers: 'block' });
   await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });

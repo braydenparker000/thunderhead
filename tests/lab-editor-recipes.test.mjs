@@ -1,10 +1,10 @@
 // A Fujifilm recipe laid on the editor's controls (frontend/lab/editor/app/recipe-map.js), without a browser: the
-// film simulation is the profile of that name; tone, colour, sharpness, noise reduction, clarity and grain land
-// on their dials; a white balance shift moves the shot's own temperature and tint; and what is only near, or not
-// here at all, is said.
+// film simulation is the profile of that name; tone, colour, sharpness, noise reduction, clarity, grain and its
+// size, Color Chrome and black-and-white toning land on their dials; a white balance shift moves the shot's own
+// temperature and tint; and what is only near, or not here at all, is said.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edit, filmLabel, profileFor, unpack } from '../frontend/lab/editor/app/recipe-map.js';
+import { edit, filmLabel, profileFor, toning, unpack } from '../frontend/lab/editor/app/recipe-map.js';
 
 test('each film simulation is the profile of that name', () => {
   const pairs = { 'Reala Ace': 'REALA ACE', 'Classic Chrome': 'CLASSIC CHROME', 'Classic Negative': 'CLASSIC Neg', 'Classic Neg.': 'CLASSIC Neg', 'Nostalgic Neg.': 'NOSTALGIC Neg', 'PRO Neg. Hi': 'Pro Neg Hi',
@@ -30,12 +30,13 @@ test('a recipe lands on the dials, and says what is only near', () => {
   const e = edit(r, { shotWb: [5500, 10], noise0: 20 });
   assert.equal(e.film, 'REALA ACE');
   assert.deepEqual([e.values.Highlights, e.values.Whites, e.values.Shadows, e.values.Blacks], [-22, -4, 12, 4], 'softer highlights (and DR200), lifted shadows');
-  assert.deepEqual([e.values.Saturation, e.values.Sharpening, e.values.Noise, e.values.Clarity, e.values.Grain], [24, 32, 0, -16, 18]);
-  assert.deepEqual([e.values['Mix Red Lum'], e.values['Mix Green Lum'], e.values['Mix Blue Lum']], [-12, -12, 0]);
+  assert.deepEqual([e.values.Saturation, e.values.Sharpening, e.values.Noise, e.values.Clarity, e.values.Grain, e.values['Grain size']], [24, 32, 0, -16, 18, 25]);
+  assert.deepEqual([e.values.Chrome, e.values['Chrome Blue']], [100, 0], 'Color Chrome Strong is Chrome at 100');
+  assert.ok(!Object.keys(e.values).some((k) => /^(Mix|Grade) /.test(k)), 'the mixer and grading are left alone');
   assert.equal(e.wb, 'Custom');
   assert.ok(e.values.Temp > 5500 && e.values.Temp < 6000 && e.values.Temp % 50 === 0, `red up and blue down is warmer: ${e.values.Temp}`);
   assert.equal(e.values.Tint, 9, 'red +1 and blue −2: a little towards green');
-  assert.deepEqual(e.left.map((s) => s.split(':')[0]), ['Dynamic Range DR200', 'Color Chrome', 'Grain Small', 'Exposure compensation']);
+  assert.deepEqual(e.left.map((s) => s.split(':')[0]), ['Dynamic Range DR200', 'Exposure compensation']);
 });
 
 test('white balance: a light or a temperature of the recipe, else the shot; no shift and no setting leaves it As shot', () => {
@@ -51,16 +52,43 @@ test('white balance: a light or a temperature of the recipe, else the shot; no s
 
 test('nothing set is nothing moved; a hard recipe stays inside every dial', () => {
   const none = edit({}, { shotWb: [5500, 10], noise0: 25 });
-  assert.deepEqual([none.values.Highlights, none.values.Shadows, none.values.Saturation, none.values.Sharpening, none.values.Noise, none.values.Clarity, none.values.Grain, none.wb, none.film, none.left], [0, 0, 0, 40, 25, 0, 0, 'As shot', '', []]);
+  assert.deepEqual([none.values.Highlights, none.values.Shadows, none.values.Saturation, none.values.Sharpening, none.values.Noise, none.values.Clarity, none.values.Grain, none.values['Grain size'], none.values.Chrome, none.values['Chrome Blue'], none.wb, none.film, none.left],
+    [0, 0, 0, 40, 25, 0, 0, 25, 0, 0, 'As shot', '', []]);
   const hard = edit({ highlight: 4, shadow: 4, color: 4, sharpness: 4, noiseReduction: 4, clarity: 5, grain: { strength: 'Strong', size: 'Large' }, colorChrome: 'Strong', colorChromeBlue: 'Strong', dynamicRange: 'DR400', filmSimulation: 'Acros+R', monochromatic: { wc: 2, mg: -1 } }, { shotWb: [5500, 10], noise0: 90 });
   for (const [k, v] of Object.entries(hard.values)) assert.ok(v >= -150 && v <= 15000 && Number.isFinite(v), `${k} = ${v}`);
-  assert.deepEqual([hard.values.Noise, hard.values.Grain, hard.values['Mix Blue Lum'], hard.film], [100, 44, -16, 'ACROS']);
-  assert.ok(hard.left.some((s) => /toning/.test(s)) && hard.left.some((s) => /colour filter/.test(s)));
+  assert.deepEqual([hard.values.Noise, hard.values.Grain, hard.values['Grain size'], hard.values.Chrome, hard.values['Chrome Blue'], hard.film], [100, 36, 60, 100, 100, 'ACROS']);
+  assert.ok(!hard.left.some((s) => /toning|Chrome|Grain/.test(s)) && hard.left.some((s) => /colour filter/.test(s)), hard.left.join('; '));
   // D-Range Priority takes the place of the two tones and of Dynamic Range; DR Auto is the camera's choice at the shot, nothing here
   const drp = edit({ dRangePriority: 'Strong', highlight: 2, shadow: 2, dynamicRange: '400' }, { shotWb: [5500, 10] });
   assert.deepEqual([drp.values.Highlights, drp.values.Shadows, drp.values.Whites, drp.values.Blacks, drp.left.map((s) => s.split(':')[0])], [-35, 25, 0, 0, ['D-Range Priority Strong']]);
   const auto = edit({ dynamicRange: 'Auto', highlight: -1.5 }, { shotWb: [5500, 10] });
   assert.deepEqual([auto.values.Highlights, auto.values.Whites, auto.left], [-18, -6, []]);
+});
+
+test('Color Chrome and FX Blue, Weak and Strong, are Chrome and Chrome Blue at 50 and 100; grain Large is Grain size 60', () => {
+  const at = (r) => { const v = edit(r, { shotWb: [5500, 10] }).values; return [v.Chrome, v['Chrome Blue'], v.Grain, v['Grain size']]; };
+  assert.deepEqual(at({ colorChrome: 'Weak', colorChromeBlue: 'Strong' }), [50, 100, 0, 25]);
+  assert.deepEqual(at({ colorChrome: 'Off', colorChromeBlue: 'Weak' }), [0, 50, 0, 25]);
+  assert.deepEqual(at({ grain: { strength: 'Weak', size: 'Large' } }), [0, 0, 18, 60]);
+  assert.deepEqual(at({ grain: { strength: 'Strong', size: 'Small' } }), [0, 0, 36, 25]);
+  assert.deepEqual(at({ grain: { strength: 'Off', size: 'Large' } }), [0, 0, 0, 25], 'no grain: its size stays where it starts');
+});
+
+test('black-and-white toning is the same tint on every range of grading, its hue from the setting\'s direction', () => {
+  // warm/cool and magenta/green: warm 40 degrees, green 130, cool 220, magenta 310; the length 2.5 times, to 45
+  assert.deepEqual([toning(4, 0), toning(-4, 0), toning(0, 4), toning(0, -4), toning(18, 18), toning(-6, -6)],
+    [{ hue: 40, sat: 10 }, { hue: 220, sat: 10 }, { hue: 310, sat: 10 }, { hue: 130, sat: 10 }, { hue: 355, sat: 45 }, { hue: 175, sat: 21 }]);
+  const zones = (e) => ['Shadows', 'Midtones', 'Highlights', 'Global'].map((z) => [e.values[`Grade ${z} Hue`], e.values[`Grade ${z} Sat`]]);
+  const warm = edit({ filmSimulation: 'Acros', monochromatic: { wc: 3, mg: 0 } }, { shotWb: [5500, 10] });
+  assert.deepEqual(zones(warm), Array(4).fill([40, 8]), 'a warm tone (Acros, WC +3)');
+  assert.ok(!warm.left.some((s) => /ton/i.test(s)), 'and it is not said to be missing');
+  const coolGreen = edit({ filmSimulation: 'Monochrome', monochromatic: { wc: -4, mg: -2 } }, { shotWb: [5500, 10] });
+  const [hue, sat] = zones(coolGreen)[0];
+  assert.ok(hue > 175 && hue < 220, `cool and a little green: between green (130) and cool (220), nearer cool (${hue})`);
+  assert.deepEqual([hue, sat], [193, 11]);
+  assert.deepEqual(zones(coolGreen), Array(4).fill([193, 11]));
+  // no toning set: grading is not touched
+  assert.ok(!Object.keys(edit({ filmSimulation: 'Acros', monochromatic: { wc: 0, mg: 0 } }, { shotWb: [5500, 10] }).values).some((k) => /^Grade /.test(k)));
 });
 
 test('the list the card reads: every recipe has a name, a group and settings that land inside the dials; no address in it', async () => {
@@ -80,7 +108,7 @@ test('the list the card reads: every recipe has a name, a group and settings tha
     assert.ok(filmLabel(r.set.filmSimulation) || /^any/i.test(r.set.filmSimulation), `${r.name}: ${r.set.filmSimulation}`);
     const e = edit(r.set, { shotWb: [5500, 10], noise0: 20 });
     for (const [k, v] of Object.entries(e.values)) {
-      const [lo, hi] = k === 'Temp' ? [2000, 15000] : k === 'Tint' ? [-150, 150] : ['Sharpening', 'Noise', 'Grain'].includes(k) ? [0, 100] : [-100, 100];
+      const [lo, hi] = k === 'Temp' ? [2000, 15000] : k === 'Tint' ? [-150, 150] : / Hue$/.test(k) ? [0, 359] : ['Sharpening', 'Noise', 'Grain', 'Grain size', 'Chrome', 'Chrome Blue'].includes(k) || / Sat$/.test(k) ? [0, 100] : [-100, 100];
       assert.ok(Number.isFinite(v) && v >= lo && v <= hi, `${r.name}: ${k} = ${v}`);
     }
     groups.set(r.sensor, (groups.get(r.sensor) || 0) + 1);
