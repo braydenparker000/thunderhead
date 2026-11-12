@@ -3,6 +3,16 @@
 // white balance presets and the eyedropper. The photo itself, its drawing and its saving are session.js's,
 // which hands these on as its own (boards import session.js alone).
 import { STILL, WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
+import { photos } from './store.js';
+import { curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
+
+/** An edit's adjustments as the engine's frame takes them (session.js draws with them; cube-out.js makes a table).
+ * @param {Record<string, number>} v @param {import('../../engine/grade.js').Curves | null} curve */
+export function dials(v, curve) {
+  const h = (/** @type {string} */ k) => v[k] / 100;
+  return { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'),
+    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
+}
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
 const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
@@ -46,8 +56,17 @@ export const resetAll = (names, name) => setValues(Object.fromEntries(names.map(
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
 /** A photo's name without its ending. @param {string} name */
 export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
-/** The line under the open photo's name: its film simulation and that it is a RAF, or that it is a JPEG. */
-export const kindLine = () => (cur?.plain ? 'JPEG' : `${cur?.shot.split(' · ')[0] || 'Fujifilm'} · RAF`);
+/** How a shot was taken, in a line (23 mm · f/5.6 · 1/250 · ISO 160): what its Exif says, '' when it says nothing. @param {import('./store.js').Photo['shot']} s */
+export function shotLine(s) {
+  const t = s?.time || 0, speed = !t ? '' : t >= 0.4 ? `${+t.toFixed(1)} s` : `1/${Math.round(1 / t)}`;
+  return [s?.mm ? `${Math.round(s.mm)} mm` : '', s?.f ? `f/${+s.f.toFixed(1)}` : '', speed, s?.iso ? `ISO ${s.iso}` : ''].filter(Boolean).join(' · ');
+}
+/** The line under the open photo's name: its film simulation (a JPEG: that it is one), then how it was shot, or
+ * that it is a RAF when its Exif does not say. */
+export function kindLine() {
+  const how = shotLine(photos().find((p) => p.id === cur?.id)?.shot);
+  return cur?.plain ? `JPEG${how ? ` · ${how}` : ''}` : `${cur?.shot.split(' · ')[0] || 'Fujifilm'} · ${how || 'RAF'}`;
+}
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
 export const edited = (name) => !!cur && cur.values[name] !== start(name);
 /** @param {string} name */

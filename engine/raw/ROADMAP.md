@@ -62,8 +62,8 @@ generative fill of Adobe's quality, or anything that needs more than the phone's
 (the camera's film simulation, or Adobe Color), Noise reduction by ISO, Auto tone on new photos, Double-tap zooms to
 (100 or 200 %), Full-size detail (Best, or Faster: the first look alone). Checked on a real RAF by hand: the repo
 holds none, so only Faster's picture is held by CI. Left of the list below: the starting Sharpening and Color
-noise, export defaults (the Export board already remembers its presets), the view's clipping levels, storage,
-and a starting point for each camera and lens.
+noise, the view's clipping levels, storage, and a starting point for each camera and lens. (Export defaults: the
+Export board's two files are kept on the phone since the export of many, stage 5.)
 
 It reads none today. Speed against quality (demosaic Best or Faster; noise reduction and sharpening shown from
 50 %). What a new photo starts with (profile, Noise by ISO, Sharpening, lens corrections, hot pixels, Auto tone).
@@ -92,10 +92,19 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   (`quality/README.md`, "Colour fringing"): 2 to 5.5 dB back, false colour whole. Left: a second round of the
   colour pass, which may win back part of the green.
 - Dead pixels and a black level for each colour (S).
-- **The colour table at the edge of the screen's range** (new, S to measure, M to mend): found on JPEGs (stage 5),
-  where a strong colour near the edge was moved by the table being read between its points. A RAF's strong
-  colours go through the same table. Measure a frame against the engine's exact path (every pixel developed
-  itself, `exact`), and if it shows, mend it as for a picture or with a finer table near the edge.
+- **The colour table at the edge of the screen's range: done 2026-11-11** (new; found on JPEGs, stage 5). The frame
+  reads its colours from a table, between its points, and the table held the finished colour: cut off at the
+  screen's range and encoded. A table read between points blurs a hard cut. Measured against the engine's exact
+  path (every pixel developed itself) on three real RAFs: a stop over, highlights blown to white came out tinted
+  (244 of 255 in one colour) on 3 to 4 % of the photo; at Saturation +40, 1.5 to 2 % of pixels were off by more
+  than 3 levels, 22 at worst. Now the table holds only how far the colour is moved, in ProPhoto, and each pixel
+  does the last steps itself (to the screen's colours, the cut, the encoding, a look's table, the point curve:
+  `wgsl.js` `finish`). After: blown highlights are white; off by more than 3 levels at Saturation +40 on 0.004 to
+  0.24 % of pixels, as shot on none. The frame takes the same time on the software GPU (3.2 s before and after;
+  three copies of the finishing steps in the shader cost 23 % until they were made one). Left in the table, and
+  the source of what error remains: the easing of strong colours at the edge (`fit`), a few pixels in ten
+  thousand on a real photo. A test now holds the table to the exact path
+  (`tests/lab-engine-pictures-browser.test.mjs`).
 - A second, coarser scale for colour noise (M).
 - **The fitted view (27): mostly so already.** The sensor's own pixels, with noise reduction and sharpening, are
   drawn from 40 % zoom up (`zoom.js`), not only at 100 % as REVIEW.md said; below that a 40 MP photo is shown
@@ -111,8 +120,20 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   mixer, grading, the point curves, Sharpening, Noise, Vignette and Grain, by name. Exposure, white balance,
   crop and profile stay the photo's own. It says how many settings it had no control for. Until the strengths
   are fitted (above) a preset lands near what it does in Lightroom, not on it. Camera recipes are left.
-- **Copy an edit and paste it on many** (new, S). **Match a series** (new, M): even out exposure and white
-  balance across photos of one scene.
+- **Copy an edit and paste it on many: built 2026-11-11** (`app/clip.js`). Versions has Copy edit and Paste edit;
+  the Library's Import sheet pastes the copied edit on every photo it is showing (so: flag the series as picks,
+  show Picks, paste), on a second tap. What goes across is the look of the picture (every adjustment, the
+  profile, the curve, a look); the crop, the spots and the masks stay each photo's own. Pasting is a step of the
+  photo's history, so Undo takes it off. Each photo is opened in turn to take it, so its tile shows the edit: a
+  few seconds a photo. Found on the way and mended: opening a photo while a frame of the one before was being
+  drawn could leave the editor drawing nothing, and so could a frame that failed.
+- **Match a series: built 2026-11-11** (`app/clip.js` `matchOn`). With a photo open, the Library's sheet matches every
+  photo it is showing to it: each gets the open photo's white balance, and its Exposure is set by how the two
+  were shot (shutter time × ISO ÷ f-number squared, from each photo's Exif), so a scene shot at changing
+  settings comes out as bright in every frame. It is the camera's own numbers, not a guess from the pictures,
+  so two frames of different things are not pulled together. A photo with no shooting data gets the white
+  balance alone; a JPEG beside a RAF is left. For this each photo now keeps what its Exif says of the shot
+  (below, stage 5).
 - **Edit by reference** (new, M): bring any picture's look (its tones and colours) onto a photo as a starting point.
 - Optional, last: film simulations fitted to the camera's own JPEGs (13, M). The owner uses Adobe Color, so this
   only matters if the camera's looks are wanted exactly.
@@ -133,18 +154,35 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
     (`dcp.js` `adapt`). It touched only photos developed with no profile; the reference pictures were made again.
   - The colour table is read between its points, which blurs the hard edge of what a screen can show: a deep
     blue inside that edge came out 28 levels off. For a picture the table now holds only what the edit adds and
-    each pixel works the rest out exactly (`wgsl.js` `plain`). **For a RAF this is still to measure** (stage 3).
-- The Drive library moves over (M). The old editor is retired.
+    each pixel works the rest out exactly. Measured for RAFs next and mended for every photo (stage 3).
+- The Drive library moves over (M). **Begun 2026-11-11:** Photos' Edit hands a JPEG to the new editor as it does a
+  RAF (`apps/photos/to-editor.js`), unless the JPEG already has an edit in the editor before: that one keeps
+  its edit there. Left before the old editor can go: the shelf itself (browsing Drive's photos from the new
+  Library), an edit made here reaching the Worker's shelf preview, HEIC and DNG, and the old edits brought over.
 - **It works with no signal: built 2026-11-11.** Opened once with a signal, the editor, its engine and the decoder
   are kept (13 MB the first time, then only what a release changed) and open with none; an older release's
   editor still opens when a newer one has not been fetched yet (`sw.js` `keepEditor`, `/lab/offline.json`,
   `tests/lab-editor-offline-browser.test.mjs`). The owner's "Keep the editor for offline use" turns it off.
 - **Culling: there already** in the Library (CULL: the camera's own JPEGs, stars, pick and reject, rejects deleted
   for good). Left: swiping, and developing only the keepers.
-- **The library grows up** (new, M): ratings, flags, albums, search by date, camera, lens, ISO; bursts and
-  brackets shown as one stack; two photos side by side.
+- **The library grows up** (new, M): ratings and flags are there. **Begun 2026-11-11:** each photo keeps what the
+  camera wrote of the shot (when by its own clock, the camera, the lens, ISO, shutter, aperture, focal length:
+  `engine/exif.js` `shot`), photos brought in before get it once at the next start, the Library is in the order
+  the camera's clock gives (a JPEG's was the file's time), and the line under a photo's name says how it was
+  shot. **Find: built 2026-11-11.** A field at the top of the Library: every word typed must be in what is kept of
+  a photo (its name, RAF or JPEG, the camera, the lens, `iso 3200`, `f/5.6`, `23mm`, `1/250`, `2026-03-14`,
+  `march`, pick, reject, edited). What Find shows is what paste, match and export then work on. Left: albums,
+  bursts and brackets shown as one stack, two photos side by side.
+  - Found on the way and mended: **every export carried a wrong shutter time, aperture and focal length.** A
+    fraction in Exif is two numbers of four bytes; the reader took one, so what went into the file was where
+    the value had been kept, not the value. Exports made before this have those three wrong (the date, the
+    camera, the lens and the ISO were right). `tests/lab-engine-exif.test.mjs` now holds it, in both byte orders.
 - **Bring in from the card or the camera** (new, M): pick a folder on a card reader; over USB if the phone allows.
-- **Export many** (new, M): a queue that works through a whole album with the screen off.
+- **Export many: built 2026-11-11** (`app/save.js` `saveMany`). The Library's sheet exports every photo it is showing
+  (so: show Picks, export), each as it is edited, with the files the Export board has on; those two files are
+  now kept on the phone between visits (the export defaults of stage 2). Each photo is opened, developed from
+  its own pixels and saved to Downloads in turn; the screen is kept awake meanwhile, because a web page cannot
+  work with the screen off. Left: carrying on after the page is closed part-way, and a zip of the lot.
 - **Share: there already.** The Export board hands the files it saved to the phone's share sheet (`ExportPlate.js`).
 - A layout for a tablet or a laptop (new, M): the same editor with room to breathe, and keys.
 
@@ -175,7 +213,12 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 - Display P3 with a profile embedded (25, M). HDR output for phone screens (25, L). A smarter JPEG encoder (26, S).
 - **Film grain that behaves like film, halation and bloom** (new, M). **Borders, a watermark, sizes for where a
   photo is going** (new, S to M). **A contact sheet and print layouts** (new, M).
-- **An edit saved as a `.cube` table** (new, S), to use the owner's look elsewhere.
+- **An edit saved as a `.cube` table: built 2026-11-11** (`app/cube-out.js`; Looks › Mine › AS .CUBE), to use the
+  owner's look elsewhere. A table answers one colour with another, so it carries Contrast, Whites, Blacks,
+  Saturation, Vibrance, the mixer, grading, the point curve and a `.cube` look that is on; not what works by
+  area or place (Highlights, Shadows, Texture, Clarity, Dehaze, masks), nor what is the photo's own (Exposure,
+  white balance, the camera's profile). 33 points a side, made by the engine's own frame with each point
+  developed exactly: with nothing moved, every point answers itself. Its answers are in 8 bits.
 
 ## Stage 10: the Thunderhead in Photos
 

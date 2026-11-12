@@ -6,6 +6,7 @@
 // (app/past.js). With no photo open it plays the design's sample.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import * as clip from '../app/clip.js';
 import * as zoom from '../app/zoom.js';
 import { scope } from '../app/scope.js';
 import { tile } from '../app/tiles.js';
@@ -51,7 +52,7 @@ export default class Component extends DCLogic {
       compare: 'BEFORE / AFTER · drag the line. Anywhere else, press and hold the photo to see the original.',
       zoom: '100% · drag to look around; the red box shows where you are. Double-tap the photo to go in and out, or pinch.',
       history: 'HISTORY · tap a step to go back to it; the next edit starts a new branch from there. Long-press Undo opens this too.',
-      versions: 'VERSIONS · different edits of one photo, without copies of the RAF. + keeps the current edit as a new one.',
+      versions: 'VERSIONS · different edits of one photo, without copies of the RAF. + keeps the current edit as a new one. Copy takes it to other photos.',
     };
     if (real) Object.assign(hints, { zoom: `${zi.pct}% · drag to look around; the red box shows where you are. Pinch for more or less, up to 300%; double-tap goes in and out.`,
       compare: 'BEFORE / AFTER · drag the line. Anywhere else, press and hold the photo to see it as imported.', history: 'HISTORY · tap a step to go back to it; the next edit starts a new branch from there. Undo steps back one.' });
@@ -61,7 +62,8 @@ export default class Component extends DCLogic {
     if (real) zoom.clip(sc && S.clip ? sc.clip : '');
     const past = real ? photo.history() : null;
     const stepList = past ? past.steps.map((s, i) => [s.name, s.val, i === past.at, i > past.at, () => photo.goto(i)]) : steps.map(([name, val], i) => [name, val, i === S.step, i > S.step, () => set({ step: i, ver: 1 })]);
-    const verList = real ? photo.versions().map((v, i) => ({ name: v.name, src: tile(`ver:${JSON.stringify(v.st)}`, v.st, 152), filter: 'none', sel: v.on, pick: () => photo.version(i) })).concat([{ name: 'New', pick: () => photo.keep() }])
+    const verList = real ? photo.versions().map((v, i) => ({ name: v.name, src: tile(`ver:${JSON.stringify(v.st)}`, v.st, 152), filter: 'none', sel: v.on, pick: () => photo.version(i) })).concat([{ name: 'New', glyph: '+', pick: () => photo.keep() }, { name: 'Copy edit', glyph: '⎘', pick: () => set({ said: clip.copy() ? 'Copied. Open another photo and Paste it here, or paste it on many from the Library’s Import sheet.' : '' }) },
+        ...(clip.held() ? [{ name: 'Paste edit', glyph: '⇣', pick: () => set({ said: clip.paste() ? `Pasted the edit from ${photo.stem(clip.held()?.name || '')}. Undo takes it off.` : 'That edit is on this photo already.' }) }] : [])])
       : vers.concat([['New', '']]).map(([name, f], i) => ({ name, src: SAMPLE, filter: f || 'none', sel: i === S.ver, pick: () => (name === 'New' ? null : set({ ver: i })) }));
     // the history's row comes to the step the photo is at, when it opens and when that step changes
     const here = shownMode === 'history' ? stepList.findIndex((x) => x[2]) : -1;
@@ -74,7 +76,7 @@ export default class Component extends DCLogic {
       history: shownMode === 'history', historyInk: shownMode === 'history' ? '#e8202a' : '#a6b0bc', tHistory: () => mode('history'),
       steps: stepList.map(([name, val, cur, ahead, pick]) => ({ name, val, cur: String(cur), bg: cur ? 'rgba(232,32,42,0.2)' : 'transparent', dot: cur ? '#e8202a' : ahead ? '#5d6166' : '#f2efe8', o: ahead ? 0.45 : 1, pick })),
       versions: shownMode === 'versions', plateTop: 915 - plateH, photoH: 915 - 52 - plateH, hintTop: 56 + more,
-      vers: verList.map((v) => (v.name === 'New' ? { name: 'New', glyph: '+', pick: v.pick } : { name: v.name, src: v.src || SAMPLE, filter: v.filter || 'none', on: !!v.sel, pick: v.pick })),
+      vers: verList.map((v) => (v.glyph || v.name === 'New' ? { name: v.name, glyph: v.glyph || '+', pick: v.pick } : { name: v.name, src: v.src || SAMPLE, filter: v.filter || 'none', on: !!v.sel, pick: v.pick })),
       after, imL, imT, imW, imH, imTr: this.drag ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)', pix: 'auto',
       afterW: split ? `${baseW - splitRel}px` : '100%', split, splitX: S.split, zoomed: S.zoom && !real,
       beforeOn: !!beforeSrc, beforeSrc, beforeW: S.holding ? baseW : splitRel,
@@ -118,7 +120,7 @@ export default class Component extends DCLogic {
         this.drag = null; clearTimeout(this.holdTimer); if (this.state.holding) set({ holding: false });
       },
       modes: [['compare', 'COMPARE'], ['zoom', '100%'], ['history', 'HISTORY'], ['versions', 'VERSIONS']].map(([m, label]) => ({ label: m === 'zoom' && real && zoomed ? `${zi.pct}%` : label, on: String(shownMode === m), ink: shownMode === m ? '#f2efe8' : '#7d8187', dot: shownMode === m ? '#e8202a' : 'transparent', pick: () => mode(m) })),
-      hint: S.holding ? (real ? 'Showing the photo as imported while you hold.' : 'Showing the original while you hold.') : hints[shownMode] || 'Tap a tool above. The histogram and history also live in the header.',
+      hint: S.holding ? (real ? 'Showing the photo as imported while you hold.' : 'Showing the original while you hold.') : (shownMode === 'versions' && S.said) || hints[shownMode] || 'Tap a tool above. The histogram and history also live in the header.',
     };
   }
 }

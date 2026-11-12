@@ -6,15 +6,13 @@
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
-import { day, save } from '../app/save.js';
+import { day, jobs, keepPresets, presets, save } from '../app/save.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
-    const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', mark: false, meta: 'All', gps: false, naming: 'Camera name' };
-    this.state = { sel: 0, group: 'Size', ctl: 'long', presets: [{ ...base, name: 'Full', on: true, size: 'Full', long: 7728, q: 95 }, { ...base, name: 'Small', on: true, size: '2048', long: 2048, q: 85, sharpen: 'Screen', mark: true }],
-      working: null, done: false, day: '', saved: null, note: '' };
-    this.keep('Export', ['sel', 'group', 'ctl', 'presets']);
+    this.state = { sel: 0, group: 'Size', ctl: 'long', presets: presets(), working: null, done: false, day: '', saved: null, note: '' };   // the two files as last set on this phone (app/save.js)
+    this.keep('Export', ['sel', 'group', 'ctl']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
     if (photo.current()) day().then((d) => this.setState({ day: d }), () => {});
@@ -24,7 +22,8 @@ export default class Component extends DCLogic {
     // a photo's own size and name; what its export can't do yet is off, whatever the preset says
     const real = photo.current(), [fw, fh] = real ? photo.shape() : [7728, 5152], full = Math.max(fw, fh), stem0 = real ? real.name.replace(/\.\w+$/, '') : 'DSCF0412';
     const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: 'sRGB', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
-    const setP = (patch) => set({ presets: S.presets.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)), done: false });
+    const keepP = (list) => { if (document.body.dataset.board === 'App') keepPresets(list); set({ presets: list, done: false }); };
+    const setP = (patch) => keepP(S.presets.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)));
     const sizeList = [['Full', full], ['4K', 3840], ['2048', 2048], ['1080', 1080]].filter(([k, px]) => k === 'Full' || px < full);
     const enums = { amt: ['Low', 'Standard', 'High'], meta: ['All', 'Copyright only', 'None'], naming: real ? ['Camera name', 'Date + number'] : ['Camera name', 'Date + number', 'Shoot + number'] };
     const nums = { long: [512, full, 64, 'px'], q: [50, 100, 1, ''] };
@@ -61,7 +60,7 @@ export default class Component extends DCLogic {
       if (real) {
         const total = on.length * 12, began = performance.now();
         set({ done: false, saved: null, note: '', working: { k: 0, total } });
-        save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x), sharpen: x.sharpen, amt: x.amt })), (d) => this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }))
+        save(jobs(P, real.name, [fw, fh], S.day), (d) => this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }))
           .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); }, (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
         return;
       }
@@ -77,7 +76,7 @@ export default class Component extends DCLogic {
       cards: P.map((x, i) => ({ name: x.name, sel: String(i === S.sel), on: String(x.on), ringW: i === S.sel ? 2 : 0,
         fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''}${x.sharpen !== 'Off' ? ` · ${x.sharpen.toLowerCase()}` : ''}`, line: x.on ? `${x.long} × ${short(x)} · ≈ ${est(x)}` : 'Off · not saved',
         ink: x.on ? '#f2efe8' : '#80848a', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
-        pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => set({ presets: P.map((y, j) => (j === i ? { ...y, on: !y.on } : y)), done: false }) })),
+        pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => keepP(S.presets.map((y, j) => (j === i ? { ...y, on: !y.on } : y))) })),
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
       showDone: S.done, doneTitle: S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
       doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),

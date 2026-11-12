@@ -17,6 +17,11 @@ const opts = { skip: live && 'local only (a software GPU)', timeout: 240_000 };
  * for the same software GPU on another processor. Measured: nudging one constant of the demosaic (how far a site's
  * own colour follows the new green, 0.5 to 0.4) moves colour by 0.04 dB, and this catches it. */
 const TIGHT = { db: 0.011, grid: 0.00011 };
+/** How far the colour table may sit from developing each pixel itself, for each frame the test below draws: levels
+ * of 255 on average, then the share of pixels off by more than 1 and by more than 3. A tenth above what was
+ * measured (0.25, 4.5 %, 0.16 % for the plain frame). The known photo is the worst there is for this: its made-up
+ * camera sees many colours no screen shows, and those are the ones still read from the table (wgsl.js `fit`). */
+const LIMIT = { plain: [0.28, 0.05, 0.0018], bright: [0.55, 0.08, 0.0483], strong: [0.6, 0.097, 0.0229], toned: [0.33, 0.05, 0.0016] };
 let server, browser, base;
 
 before(async () => {
@@ -60,6 +65,36 @@ test('the known photo develops to the reference numbers', opts, async () => {
   // The run is kept on this phone and shown the next time the page opens.
   await page.reload({ waitUntil: 'load' });
   assert.match(await page.textContent('#bout'), /^The last run on this phone:[\s\S]*demosaic/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the colour table gives what developing each pixel itself gives', opts, async () => {
+  // The frame reads its colours from a table, between its points; `exact` develops every pixel itself. The two
+  // must agree, most of all where the picture meets the edge of the screen's range: highlights blown to white and
+  // strong colours. (Measured before the cut-off and the encoding left the table: 4 % of a photo a stop over was
+  // off by more than 3 levels of 255, its blown highlights tinted. A few pixels in ten thousand still differ, where
+  // a strong colour is eased in at the edge: that easing is in the table.)
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js');
+    const eng = await engine(document.createElement('canvas'), known(480), true), out = {};
+    for (const [name, ev, more] of [['plain', 0.25, {}], ['bright', 1.5, {}], ['strong', 0.25, { saturation: 0.4, vibrance: 0.3 }], ['toned', 0.6, { highlights: -0.5, shadows: 0.5, whites: 0.2, blacks: -0.1 }]]) {
+      await eng.render(ev, 1, { ...more, dither: false, exact: true }); const a = (await eng.snapshot()).data;
+      await eng.render(ev, 1, { ...more, dither: false }); const b = (await eng.snapshot()).data;
+      let over1 = 0, over3 = 0, sum = 0; const n = a.length / 4;
+      for (let i = 0; i < n; i++) { const d = Math.max(Math.abs(a[i * 4] - b[i * 4]), Math.abs(a[i * 4 + 1] - b[i * 4 + 1]), Math.abs(a[i * 4 + 2] - b[i * 4 + 2])); sum += d; if (d > 1) over1++; if (d > 3) over3++; }
+      out[name] = { mean: sum / n, over1: over1 / n, over3: over3 / n };
+    }
+    eng.dispose();
+    return out;
+  });
+  assert.deepEqual(Object.keys(r), Object.keys(LIMIT));
+  for (const [name, v] of Object.entries(r)) assert.ok(v.mean < LIMIT[name][0] && v.over1 < LIMIT[name][1] && v.over3 < LIMIT[name][2], `${name}: off by ${v.mean.toFixed(3)} levels on average, ${(100 * v.over1).toFixed(2)} % of pixels by more than 1 and ${(100 * v.over3).toFixed(3)} % by more than 3`);
   assert.deepEqual(errors, []);
   await page.close();
 });

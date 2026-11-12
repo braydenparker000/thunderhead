@@ -87,6 +87,7 @@ async function open(b, path, device = { viewport: { width: 390, height: 844 }, d
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused|Uncaught|shader|WebGPU/i.test(m.text())) errors.push(m.text()); });
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve, reject) => {
+    localStorage.setItem('th.s.photos.editor', 'classic');   // this file is the editor before: since Edit hands JPEGs to the new one too, it is reached with Editor set to Classic
     const req = indexedDB.open('th-auth', 1);
     req.onupgradeneeded = () => req.result.createObjectStore('kv');
     req.onsuccess = () => {

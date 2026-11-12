@@ -24,7 +24,7 @@ export async function photoScreen(box, id) {
   const close = el('button', { type: 'button', class: 'vback', 'aria-label': 'Back to the shelf' }, [icon('caret-left')]);
   const moreBtn = el('button', { type: 'button', class: 'vmore', 'aria-label': 'Stars, heart, flag or delete' }, [icon('star')]);
   const editBtn = el('button', { type: 'button', class: 'vedit', 'aria-label': 'Edit' }, [icon('pencil-simple')]);
-  // A RAF opens in the new editor, handed over with its original (to-editor.js); anything it can't
+  // A RAF or a JPEG opens in the new editor, handed over with its original (to-editor.js); anything it can't
   // take, or a hand-over that fails, opens in the editor before.
   editBtn.addEventListener('click', async () => {
     const { inNewEditor, openInEditor } = await import('./to-editor.js');

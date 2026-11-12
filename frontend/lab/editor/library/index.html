@@ -24,6 +24,7 @@
 
   <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
     <div class="vscroll" style="position: absolute; top: 56px; left: 0; right: 0; height: calc(734px - var(--cut))">
+      <div style="padding: 2px 12px 2px"><input type="search" value="{{find}}" onInput="{{onFind}}" placeholder="Find · a lens, a camera, ISO 3200, 2026-03, a name" aria-label="Find photos" enterkeyhint="search" autocomplete="off" spellcheck="false" style="width: 100%; box-sizing: border-box; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid #26282c; background: #0d0e10; color: #eceff4; font: 13px Inter, system-ui, sans-serif; outline: none"></div>
       <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
         <div style="position: sticky; top: 0; z-index: 1; padding: 10px 16px 6px; background: rgba(0,0,0,0.88); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: #a6b0bc">{{g.title}}<span style="color: #5d6166; margin-left: 8px">{{g.count}}</span></div>
         <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
@@ -56,9 +57,9 @@
   </sc-if>
 
   <sc-if value="{{importing}}" hint-placeholder-val="{{false}}">
-    <div class="glass" role="dialog" aria-label="Import photos" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 14px; box-sizing: border-box; border-radius: 20px; z-index: 4">
-      <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px">Import photos</div>
-      <div style="font-size: 11px; color: #a6b0bc; margin-bottom: 10px">RAFs stay on this phone. Thumbnails come from the preview inside each RAF, so they appear at once.</div>
+    <div class="glass" role="dialog" aria-label="Import and more" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 14px; box-sizing: border-box; border-radius: 20px; z-index: 4">
+      <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px">Import and more</div>
+      <div style="font-size: 11px; color: #a6b0bc; margin-bottom: 10px">RAFs and JPEGs stay on this phone. Thumbnails come from the preview inside each RAF, so they appear at once.</div>
       <sc-for list="{{sources}}" as="o" hint-placeholder-count="3">
         <button onClick="{{o.pick}}" style="width: 100%; min-height: 50px; margin-bottom: 6px; padding: 8px 12px; box-sizing: border-box; border-radius: 14px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.07)">
           <span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: #e8202a; font-size: 15px">{{o.glyph}}</span>
