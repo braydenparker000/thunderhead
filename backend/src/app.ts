@@ -9,6 +9,7 @@ import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
 import { PHOTO_LIMITS } from '../../shared/contract/photos.ts';
 import { TASTE_LIMITS } from '../../shared/contract/taste.ts';
+import { WORKSHOP_LIMITS } from '../../shared/contract/workshop.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
@@ -49,6 +50,7 @@ import { verbsRoutes } from './areas/verbs/routes';
 import { routineRoutes } from './areas/verbs/routine-routes';
 import { watchdogsRoutes } from './areas/watchdogs/routes';
 import { workRoutes } from './areas/work/routes';
+import { workshopRoutes } from './areas/workshop/routes';
 import type { AppEnv } from './http/auth';
 import { cachedMinClient, clientVersion } from './http/client-version';
 import { cors } from './http/cors';
@@ -85,6 +87,9 @@ const historyFile = bodyLimit({ maxSize: TASTE_LIMITS.file_bytes, onError: tooLa
 // A photo's preview (PHOTOS.md §3.1), checked again in the route.
 const preview = bodyLimit({ maxSize: PHOTO_LIMITS.preview_bytes, onError: tooLarge });
 const PREVIEW = /^\/v1\/photos\/[^/]+\/preview$/;
+// One piece of a file for the workshop (streamed, its exact size checked in the route).
+const workshopPart = bodyLimit({ maxSize: WORKSHOP_LIMITS.part_bytes, onError: tooLarge });
+const WORKSHOP_PART = /^\/v1\/workshop\/[^/]+\/parts\/[^/]+$/;
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
     ? chatFile
@@ -110,7 +115,9 @@ const limitFor = (path: string) =>
                         ? scripture
                         : PREVIEW.test(path)
                           ? preview
-                          : small;
+                          : WORKSHOP_PART.test(path)
+                            ? workshopPart
+                            : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -174,5 +181,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', driveRoutes)
   .route('/v1', looksRoutes)
   .route('/v1', photosRoutes)
+  .route('/v1', workshopRoutes)
   .notFound(notFound)
   .onError(onError);

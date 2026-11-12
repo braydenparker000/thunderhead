@@ -57,3 +57,6 @@
 .xbar span{display:block;height:100%;width:var(--p,0%);border-radius:inherit;background:var(--accent-fill);transition:width var(--d-base) var(--settle)}
 .xstat{margin-top:10px}
 @media (prefers-reduced-motion:reduce){.spage,.xbar span{transition:none}.flash{animation:none}}
+/* Files for the workshop (workshop.js): the pick button and the bar of the file being sent. */
+.spage .sform:has(#workshop-pick){margin:12px 16px}
+#workshop-bar{display:block;width:calc(100% - 32px);height:6px;margin:12px 16px;accent-color:var(--accent-fill)}
