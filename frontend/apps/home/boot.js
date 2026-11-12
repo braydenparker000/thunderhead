@@ -12,7 +12,7 @@ import { onSignedOut, store } from '/th/session.js';
 import { el, toast, tooSoon } from '/th/ui.js';
 import { startUpdates } from '/th/update.js';
 
-const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices', '/settings/memory/': 'memory', '/settings/photos/': 'photos' };
+const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices', '/settings/memory/': 'memory', '/settings/photos/': 'photos', '/settings/workshop/': 'workshop' };
 
 // The service worker works with or without sign-in.
 startUpdates();

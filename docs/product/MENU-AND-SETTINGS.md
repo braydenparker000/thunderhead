@@ -492,4 +492,4 @@ private storage in pieces of 8 MiB, each with its SHA-256, each tried up to four
 goes. A file that stopped part way says how many pieces are in, and the same file chosen again
 sends only the rest. Below, what is there: the name, the size and the day, Remove (asked first),
 and the room used of 4 GB. A file over 512 MB, or one there is no room for, is refused in words.
-Files stay until the owner removes them.
+Files stay until the owner removes them. `/settings/workshop/` opens this page.
