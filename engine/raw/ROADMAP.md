@@ -119,6 +119,10 @@ RAFs beside Lightroom's exports, on the compare page (`/lab/editor/compare/`).
      model to 93 dB. Exports use it, and so does what shows from 200 % in, once the photo rests; the dial
      never waits on it. Settings › Photos › Neural detail turns it off, and a phone whose GPU will not have
      it falls back by itself.
+   - The owner compared them on the compare page on 2026-11-12: "The network is best." So it also makes
+     what shows at 100 %, once the photo rests. On the owner's phone it passed its proof and took 0.8 s for
+     a screenful at 200 % (about 0.16 megapixels); a photo opened in 2.3 s with the decoder started early
+     (its start-up is 4.6 s, 3.7 of them its eight threads), and the usual 100 % view took 1.2 s.
    - Looked at and not taken: vkdt's jddcnn (2.2 M weights, X-Trans weights for clean and noisy pictures)
      scored about 40 dB on the clean small set and 36 to 37 at ISO 3200, under both Starfish (42.7, 40.0) and
      our own demosaic. Our green with the network's colour, and the mean of the two, were no better than the

@@ -1,5 +1,5 @@
 // The network in the new editor at /lab/editor/ (frontend/lab/engine/neural.js; engine/raw/ROADMAP.md milestone 3):
-// zoomed to 200 % or closer, what shows is made again by the network once the photo rests and laid over the live
+// zoomed to 100 % or closer (tried here at 200 %), what shows is made again by the network once the photo rests and laid over the live
 // view; while a control moves the live view shows, and the network's picture comes back for the new edit. Needs
 // the CC0 X-E5 sample (tests/photos-engine.test.mjs fetches it into the temp folder); skipped without it.
 import { test, before, after } from 'node:test';
