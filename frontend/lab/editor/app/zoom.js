@@ -26,7 +26,7 @@ const LAYER = 'position: absolute; pointer-events: none; display: none';
 const wrap = make('div', 'position: absolute; transform-origin: 0 0; will-change: transform', 'fillphoto');
 const over = /** @type {HTMLImageElement} */ (make('img', `${LAYER}; inset: 0; image-rendering: pixelated`));   // the clipping overlay
 const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER)), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));
-const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));   // from 200 %: what shows, made by the network once the photo rests (`finer`)
+const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));   // from 100 %: what shows, made by the network once the photo rests (`finer`)
 const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: none', 'glass');
 const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
@@ -212,13 +212,13 @@ function stale() {
   closer.style.display = 'none'; fined = -1; clearTimeout(again);
   again = window.setTimeout(() => { again = 0; if (z / full() >= FINE) settle(0); }, 400);
 }
-const FINE = 2;   // from 200 % the network makes what shows: a quarter of a screenful of sensor pixels or less, so its work is affordable
+const FINE = 0.999;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best)
 /** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
  * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
  * and while a control moves. @param {number} mine @param {number} X @param {number} Y @param {number} w @param {number} h */
 async function finer(mine, X, Y, w, h) {
   const big = photo.whole();
-  if (!big) return;
+  if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
   if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { if (fineOf === big) fine?.dispose(); fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; }
   if (!fine.net || mine !== job) return;   // a GPU that will not have the network: the live view is all there is
   const began = performance.now();

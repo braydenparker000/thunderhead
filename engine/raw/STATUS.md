@@ -477,7 +477,7 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   ISO's own start, less below, more above.
 - An export asks for it (`app/save.js` `netOn`); if it fails the export is made again the usual way and the
   network is not tried on that phone for a week. The same when the page did not live to finish an export the
-  network was making (`cutOff`): a phone that takes the tab back for the work must not do so every time. From 200 % in, `app/zoom.js` `finer` makes what shows with
+  network was making (`cutOff`): a phone that takes the tab back for the work must not do so every time. From 100 % in (200 % at first), `app/zoom.js` `finer` makes what shows with
   it once the photo rests and lays it over the live view; an edit's first frame takes it away and it comes
   back 400 ms after the last frame. It is never part of a dial's frame.
 - Before a device uses it, the network proves itself there once (`proof`): shown a small grey picture with a
