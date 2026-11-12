@@ -187,3 +187,40 @@ test('a picture that is off is told apart, and a missing reference is said', opt
   assert.deepEqual(out.v.x, { same: false, why: 'no reference' });
   await page.close();
 });
+
+test('at full size a turn of Sharpening or Noise starts from the demosaiced rectangle kept aside, and makes the same picture as from the sensor', { ...opts, timeout: 300_000 }, async () => {
+  // full.js: noise reduction and sharpening work on the demosaiced rectangle in place, so each turn of either used
+  // to demosaic the rectangle again (most of the work at 100 %). It is kept aside now and copied back; moving
+  // the rectangle, or a retouch spot (the geometry), makes it again from the sensor.
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), { full } = await import('/lab/engine/full.js');
+    const k = known(480, 3200), eng = await engine(document.createElement('canvas'), k, true);
+    eng.setProfile(null);
+    const big = await full(eng, k, k.mosaic.slice()), v = await big.view(240, 240, null, true);
+    const shot = async (/** @type {number} */ sharpen, /** @type {number} */ noise, x = 120) => { await eng.render(0.25, 1, { sharpen, noise, colorNoise: 0.25, fit: false }); await v.region(x, 120, 240, 240); return [...(await v.read()).data]; };
+    const same = (/** @type {number[]} */ a, /** @type {number[]} */ b) => a.every((x, i) => x === b[i]);
+    const a = await shot(0.4, 0.5), first = { ...v.stats };
+    const sharper = await shot(0.9, 0.5), cleaner = await shot(0.4, 1), back = await shot(0.4, 0.5), turned = { ...v.stats };
+    const moved = await shot(0.4, 0.5, 60), after = { ...v.stats };
+    // the same settings on a view made new: from the sensor, never from a copy
+    const v2 = await big.view(240, 240, null, true); await v2.region(120, 120, 240, 240); const fresh = [...(await v2.read()).data];
+    eng.setGeometry({ distortion: 0, vignetting: 0, crop: null, spots: [] }); await shot(0.4, 0.5, 60); const bent = { ...v.stats };
+    v.dispose(); v2.dispose(); big.dispose(); eng.dispose();
+    return { first, turned, after, bent, differs: [!same(a, sharper), !same(a, cleaner), !same(a, moved)], back: same(a, back), fresh: same(a, fresh) };
+  });
+  assert.deepEqual(r.first, { demosaic: 1, kept: 0 });
+  assert.equal(r.turned.demosaic, 1, 'three turns of Sharpening and Noise: the sensor is not gone back to');
+  assert.ok(r.turned.kept >= 3, `each started from the copy (${r.turned.kept})`);
+  assert.deepEqual(r.differs, [true, true, true], 'Sharpening, Noise and the place each change the picture');
+  assert.ok(r.back, 'back at the first settings the picture is the first one, to the last value');
+  assert.ok(r.fresh, 'and it is what a view made new draws from the sensor');
+  assert.equal(r.after.demosaic, 2, 'another rectangle is made from the sensor');
+  assert.equal(r.bent.demosaic, 3, 'and so is the same one once the geometry (a retouch spot) changed');
+  assert.deepEqual(errors, []);
+  await page.close();
+});

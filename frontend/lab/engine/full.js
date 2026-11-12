@@ -72,6 +72,10 @@ export async function full(e, img, mosaic) {
     const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), smooth = (/** @type {number} */ dial) => (dial >= start ? 1 + (dial - start) / 60 : 0.25 + (0.75 * dial) / start);
     const keptOf = (/** @type {Float32Array} */ f) => `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;   // the settings a rectangle's colours are made with
     const dn = await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn.spare);
+    // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
+    // turn of Noise or Sharpening then starts from the copy, not from the sensor again (the demosaic is most of the work).
+    const aside = device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
+    let held = '';
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     // the frame pass writes `mid`; the last pass sharpens that into `out`
@@ -83,7 +87,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -101,14 +105,20 @@ export async function full(e, img, mosaic) {
     /** What makes a rectangle's colours from the sensor, a step at a time, by name (an export times them apart).
      * @param {Rect} r @param {Float32Array} f the frame's settings @returns {[string, (enc: GPUCommandEncoder) => void][]} */
     const steps = (r, f) => [
-      ['demosaic', (enc) => (net ? net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, smooth(f[100] * 40)) : dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots))],
+      ['demosaic', (enc) => {
+        // what the rectangle was made from: where on the sensor, and (the network) how much noise it was told of
+        const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8;
+        if (held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
+        if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, smooth(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
+        enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++;
+      }],
       ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
       ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
       ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe && !net)],   // the network leaves the lens's fringing in: the lens pass undoes it
     ];
     const hook = {
       /** The geometry changed: the same rectangle of the picture now draws on another part of the sensor. */
-      bent: () => { fit = room(); const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
+      bent: () => { fit = room(); held = ''; const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
       /** @param {GPUBuffer} tab the profile's tables, re-made with each profile */
       bind: (tab) => { bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: mid.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: e.gpu.mask }, { binding: 7, resource: e.gpu.fine }, { binding: 8, resource: e.gpu.haze }, { binding: 9, resource: e.gpu.brushed }] }); },
       /** The view's part of a render: the rectangle's colours if it moved, then the frame pass over it with the
@@ -168,7 +178,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); crisp.destroy(); bend.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };

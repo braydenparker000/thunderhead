@@ -178,7 +178,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   if (!lead) throw new Error('the network is for another pattern');
   const [lx, ly] = lead, snap = (/** @type {number} */ v, /** @type {number} */ l) => v - ((((v - l) % 6) + 6) % 6);
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE)), out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE);
+  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE)), out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);
   const SIZE = 128 + SPOTS * SPOT_ROWS * 16, view = mosaic.createView();
   /** A window's own settings and bindings: several windows are laid in one frame's commands, each read when it runs.
    * @type {{ uni: GPUBuffer, valid: GPUBuffer, cut: GPUBindGroup, place: GPUBindGroup, ops: GPUBindGroup[] }[]} */
