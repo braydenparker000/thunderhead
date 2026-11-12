@@ -108,7 +108,7 @@ export async function open(id, quick = false, again = false) {
     const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') === 'adobe-color' ? l.find((x) => x.label === 'Adobe Color') : null;
     if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
-    r.meta.quick = pref('photos.demosaic') === 'faster';   // Full-size detail: Faster (engine/demosaic.js)
+    r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true);   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
     await draw(); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();

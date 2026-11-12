@@ -2,8 +2,7 @@
 // Export from the editor (docs/design/EDITOR.md): the open photo, as edited, developed from the sensor's own
 // pixels and saved to the phone's Downloads: one file for each preset that is on, all from one development.
 import { OUTPUT, develop } from '../../engine/export.js';
-import { block, carry, taken } from '../../engine/exif.js';
-import * as files from '../../engine/files.js';
+import { carry, taken } from '../../engine/exif.js';
 import * as photo from './session.js';
 import { outSize } from './shown.js';
 import { note } from './timings.js';
@@ -49,7 +48,7 @@ const NET = 'th.editor.net';   // when the network last failed an export on this
 const netOn = () => { try { return prefOn('photos.neural', true) && Date.now() - Number(localStorage.getItem(NET) || 0) > 7 * 864e5; } catch { return false; } };
 /** Where an export's time went (engine/export.js `develop`), as whole numbers for the timings: developing, reading
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
-const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), net: c.net || 0, fell: c.fell || 0,
+const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0,
   ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])) });
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
  * name, once, if that photo is still here. A finished or refused export leaves no mark. */   // (`net`: the network was making it)
@@ -64,9 +63,14 @@ export function cutOff() {
   } catch { return null; }
 }
 
+/** An export given up by the owner (Cancel), told apart from one that failed. @param {any} err */
+export const cancelled = (err) => err?.name === 'AbortError';
+
 /** Saves the open photo for each preset: developed once, each file taking its own size from it. `progress` hears how
- * far along it is (0 to 1). @param {Preset[]} presets @param {(done: number) => void} progress */
-export async function save(presets, progress) {
+ * far along it is (0 to 1). `how.signal` gives it up: nothing is saved, and it rejects with an AbortError
+ * (`cancelled`); `how.worker: false` does all its work on the page (engine/export.js `develop`).
+ * @param {Preset[]} presets @param {(done: number) => void} progress @param {{ signal?: AbortSignal, worker?: boolean }} [how] */
+export async function save(presets, progress, how = {}) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const began = performance.now(), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
@@ -74,20 +78,21 @@ export async function save(presets, progress) {
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
-    const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (/** @type {number} */ w, /** @type {number} */ h) => {
-      const kept = carry(head, x.meta, x.gps, w, h);
-      return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
-    } }));
+    // each file as plain data (engine/files.js `Spec`), so it can be written on the export's own thread
+    const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0,
+      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, kept: carry(head, x.meta, x.gps, w, h) }) }));
+    const way = { signal: how.signal, worker: how.worker, encode: photo.jpegBand };
     const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
     // By the network where it is on (Settings > Photos > Editor) and has not failed here lately; if it fails now, the
     // export is made again the usual way, and the network is left alone on this phone for a week.
     let made;
-    try { made = await develop(big, jobsOf(), step, clock, best); }
+    try { made = await develop(big, jobsOf(), step, clock, best, way); }
     catch (err) {
-      if (!clock.net || photo.whole() !== big) throw err;
+      // given up is not failed: the network is not blamed for an export the owner stopped
+      if (!clock.net || photo.whole() !== big || cancelled(err)) throw err;
       try { localStorage.setItem(NET, String(Date.now())); } catch { /* a private window */ }
       for (const k of Object.keys(clock)) delete clock[k];
-      clock.fell = 1; made = await develop(big, jobsOf(), step, clock, false);
+      clock.fell = 1; made = await develop(big, jobsOf(), step, clock, false, way);
     }
     for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
@@ -99,24 +104,29 @@ export async function save(presets, progress) {
  * opened as from the Library, developed from its own pixels and saved to Downloads. The screen is kept awake
  * while it runs (a phone that sleeps stops the page). `step(k, n, part)` as it goes: photos done, of how many, and
  * how far along the one in hand is. The photo that was open is opened again at the end. Returns how many photos
- * and files were saved, and how many photos could not be. @param {string[]} ids @param {(k: number, n: number, part: number) => void} step */
-export async function saveMany(ids, step) {
+ * and files were saved, and how many photos could not be. `signal` gives the rest up: the photo in hand saves
+ * nothing, the photo that was open is opened again, and it rejects with an AbortError (`cancelled`).
+ * @param {string[]} ids @param {(k: number, n: number, part: number) => void} step @param {AbortSignal} [signal] */
+export async function saveMany(ids, step, signal) {
   const was = photo.current()?.id, list = presets(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);
-  let done = 0, files = 0, bad = 0;
+  let done = 0, files = 0, bad = 0, stopped = /** @type {any} */ (null);
   try {
     for (const [k, id] of ids.entries()) {
       step(k, ids.length, 0);
       try {
+        signal?.throwIfAborted();
         await photo.open(id);
-        for (let i = 0; i < 1200 && photo.current()?.id === id && photo.ready && !photo.whole(); i++) await new Promise((r) => setTimeout(r, 100));   // its own pixels follow the photo on screen
+        for (let i = 0; i < 1200 && photo.current()?.id === id && photo.ready && !photo.whole() && !signal?.aborted; i++) await new Promise((r) => setTimeout(r, 100));   // its own pixels follow the photo on screen
+        signal?.throwIfAborted();
         const p = photo.current();
         if (p?.id !== id || !photo.whole()) throw new Error('not opened');
         // at the size the Export board says (shown.js)
-        files += (await save(jobs(list, p.name, outSize() || photo.shape(), await day()), (d) => step(k, ids.length, d))).length; done++;
-      } catch { bad++; }
+        files += (await save(jobs(list, p.name, outSize() || photo.shape(), await day()), (d) => step(k, ids.length, d), { signal })).length; done++;
+      } catch (err) { if (cancelled(err)) { stopped = err; break; } bad++; }
     }
   } finally { lock?.release?.().catch(() => {}); }
-  step(ids.length, ids.length, 0);
+  if (!stopped) step(ids.length, ids.length, 0);
   if (was && was !== photo.current()?.id) await photo.open(was);
+  if (stopped) throw stopped;
   return { done, files, bad };
 }

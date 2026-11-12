@@ -603,6 +603,29 @@ they are), grain with a size, a dynamic-range shoulder, and toning for black and
   software GPU, a 900 × 900 view: a turn of Sharpening 10.7 s before, 0.7 s after, the picture the same to
   the last value (`tests/lab-engine-pictures-browser.test.mjs`). Not measured on the phone yet: the
   timings file will show it as shorter `detail` times.
+- **The network is compiled behind the photo.** Where it will be used (the owner's setting, a RAF), `full.js`
+  reads, compiles and proves it a moment after the full-size photo is ready, so the first rest at 100 % only
+  has to run it. What that first view costs was not being timed (the clock started after it was made): a
+  `fine` timing now carries `made`, the milliseconds the network's view took to make when it had to be.
+## Export off the page, and Cancel (2026-11-12)
+
+An export's work on the processor (each band brought to a file's size, output sharpening, the writers) now runs
+on its own module thread (`engine/export-worker.js`, started by `export-thread.js` for each export); the page
+keeps only the GPU's part and the reading back. The code moved to `engine/reduce.js` unchanged, and each band is
+given to the thread, not copied; no more than two wait on it at once (a 40 MP band is about 30 MB). A JPEG's
+bands still go to the decoder's thread to be encoded, through the page: one copy of the encoder in memory. Where
+the thread cannot start, all of it is done on the page as before (`develop(..., { worker: false })`), and the
+files are the same to the byte either way (each export's dither now starts from the same place, `files.js`
+`reseed`). An export takes an `AbortSignal`, looked at between pieces: the GPU's view is let go, the thread is
+stopped, nothing is downloaded, and `save` / `saveMany` reject with an AbortError (`save.js` `cancelled`), which
+leaves no mark of a cut-off export and does not turn the network off. The Export board shows CANCEL while it
+saves, then "Export cancelled".
+Measured on this software GPU (tests/lab-editor-export-smooth-browser.test.mjs: 7728 × 1100, a full-size JPEG
+sharpened for print and a 2048 one for a screen): all on the page, a band held the page for 445 ms and the frames
+stopped for 417 ms; on the thread no task of the page's reached 50 ms and the longest gap between frames was
+17 ms (up to 300 ms on a busy machine, with no long task: the software GPU drawing the frames, so that gap is
+only told). The test fails on a task of 250 ms. Not yet measured on the phone; the Library's Export many takes a
+signal but has no Cancel key yet.
 
 ## How to work here
 
