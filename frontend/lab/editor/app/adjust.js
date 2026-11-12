@@ -28,9 +28,8 @@ export function text(name) {
   if (SPAN[name]) return name === 'Radius' ? v.toFixed(1) : String(Math.round(v));
   return `${sign(v)}${Math.abs(Math.round(v))}`;
 }
-/** The dial's position for a value (its window runs −5..5). @param {string} name */
-export function toDial(name) {
-  const v = value(name);
+/** The dial's position for a value (its window runs −5..5): the control's own now, or `v`. @param {string} name @param {number} [v] */
+export function toDial(name, v = value(name)) {
   if (name === 'Exposure') return v;
   if (name === 'Temp') return cur ? Math.log2(v / cur.shotK) / 0.25 : 0;
   if (name === 'Tint') return (v - shotWb()[1]) / 30;
@@ -54,6 +53,8 @@ export function setValues(patch, key, name, val = '') { if (!cur) return; Object
 export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.start && name in cur.start ? cur.start[name] : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
+/** The dial's position where an adjustment starts for this photo (the dial ticks there: boards/DialPlate.js). @param {string} name */
+export const startDial = (name) => toDial(name, start(name));
 /** A photo's name without its ending. @param {string} name */
 export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
 /** How a shot was taken, in a line (23 mm · f/5.6 · 1/250 · ISO 160): what its Exif says, '' when it says nothing. @param {import('./store.js').Photo['shot']} s */

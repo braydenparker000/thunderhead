@@ -139,7 +139,8 @@ TIFF encoders, output sharpening, metadata writer.
 
 **Viewing** (`ViewTools`). Histogram (glass, top right; tap ▲ for clipping shown in red and blue).
 Before/after split line; elsewhere, hold the photo for the original. Double-tap or pinch for 100 % (one
-RAF pixel per screen pixel, about 7×) with a red-boxed minimap. History (glass list; tapping a step
+RAF pixel per screen pixel, about 7×) with a red-boxed minimap. A zoomed photo flung with one finger glides on, gives a
+little at its edges and comes back inside; a touch stops it. Two fingers tapped on the photo undo a step, three redo one. History (glass list; tapping a step
 returns to it, the next edit branches). Versions (edits of one photo, no RAF copies). *Engine:* histogram
 and clipping maps, 100 % tiles, an edit history and version store.
 

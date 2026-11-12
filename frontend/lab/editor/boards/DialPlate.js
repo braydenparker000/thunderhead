@@ -6,8 +6,11 @@
 // given, is the name of a small key in the window's corner (`onauto`). `left`: the value runs from the window's
 // left end, not out from its middle (a strength, 0 upwards). `span`: the position at the window's end (5 unless given: a
 // choice of a few options spans less, so a short turn steps it). `slim`: no wheel, the window itself is dragged and the number stays under the finger. `onhold` hears true when a
-// finger takes the dial and false once it has let go and the dial is still.
+// finger takes the dial and false once it has let go and the dial is still. `start`: the position where the value
+// starts (0, the middle, unless given; a `left` dial has none unless given): turning past it, or into either end of the
+// range, gives a small tick under the finger (app/haptic.js).
 import { DCLogic } from '../dc.js';
+import { tick } from '../app/haptic.js';
 
 export default class Component extends DCLogic {
   constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; this.spin = 0; this.tapped = -1e9; }
@@ -27,7 +30,12 @@ export default class Component extends DCLogic {
     const valueText = this.props.text ?? (ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v)));
     // the window: a red fill runs from the middle to the value, the number riding at its end in a ringed box; the Auto key takes the right end
     const auto = this.props.auto || '', slim = !!this.props.slim, left = !!this.props.left, L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = Math.max(-1, Math.min(1, v / (this.props.span || 5))), end = mid + f * half;
-    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
+    const at0 = typeof this.props.start === 'number' ? this.props.start * 36 : left ? null : 0, edge = Math.min(5, this.props.span || 5) * 36 - 0.01;
+    const felt = (was, now) => {   // past the start, or into an end: a tick
+      if (at0 !== null && was !== at0 && (now === at0 || (was - at0) * (now - at0) < 0)) tick('detent');
+      else if (Math.abs(now) >= edge && Math.abs(was) < edge) tick('end');
+    };
+    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); felt(this.state.angle, c); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
     const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
     const run = (v0) => {   // degrees a millisecond, dying away
       let vel = v0, last = performance.now();

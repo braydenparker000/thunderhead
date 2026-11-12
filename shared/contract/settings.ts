@@ -226,6 +226,8 @@ export const SETTINGS = [
     detail: 'Best looks twice at fine detail when you zoom to 100 % or export. Faster looks once: about half the wait, a little less true. It applies from the next photo you open.' },
   { key: 'photos.neural', group: 'photos', section: 'Editor', label: 'Neural detail', kind: 'switch', scope: 'phone', mind: false, default: true,
     detail: 'Exports, and the photo at 100 % and closer, are made by a neural network: truer fine detail and far less noise at high ISO. An export takes longer. Off: the usual way.' },
+  { key: 'photos.haptics', group: 'photos', section: 'Editor', label: 'Haptics', kind: 'switch', scope: 'phone', mind: false, default: true,
+    detail: 'A small tick under your finger when a dial passes its start or reaches an end, a section clicks into place, Undo, and an export is done. Off on a phone set to reduce motion.' },
   // Export (PHOTOS.md, Export): what the Export sheet starts with; each export can change it.
   { key: 'photos.export_size', group: 'photos', section: 'Export', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
