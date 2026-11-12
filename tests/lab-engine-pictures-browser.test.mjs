@@ -211,10 +211,10 @@ test('at full size a turn of Sharpening or Noise starts from the demosaiced rect
     const v2 = await big.view(240, 240, null, true); await v2.region(120, 120, 240, 240); const fresh = [...(await v2.read()).data];
     eng.setGeometry({ distortion: 0, vignetting: 0, crop: null, spots: [] }); await shot(0.4, 0.5, 60); const bent = { ...v.stats };
     // the network is compiled behind the photo only where it will be used (meta.net, the owner's setting), a moment after
+    // (only that it was begun is checked: compiling it on a software GPU is the network test's minutes, not this one's)
     const N = await import('/lab/engine/neural.js'), warm = [N.begun(eng.gpu.device)];
     const big2 = await full(eng, { ...k, meta: { ...k.meta, net: true } }, k.mosaic.slice());
     warm.push(N.begun(eng.gpu.device)); await new Promise((res) => setTimeout(res, 1800)); warm.push(N.begun(eng.gpu.device));
-    await N.compile(eng.gpu.device).catch(() => {});
     v.dispose(); v2.dispose(); big.dispose(); big2.dispose(); eng.dispose();
     return { first, turned, after, bent, warm, differs: [!same(a, sharper), !same(a, cleaner), !same(a, moved)], back: same(a, back), fresh: same(a, fresh) };
   });

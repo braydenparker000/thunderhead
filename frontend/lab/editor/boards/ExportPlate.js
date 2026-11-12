@@ -8,13 +8,13 @@
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
-import { day, jobs, keepPresets, presets, save } from '../app/save.js';
+import { cancelled, day, jobs, keepPresets, presets, save } from '../app/save.js';
 import * as shown from '../app/shown.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { sel: 0, group: 'Size', ctl: 'long', presets: presets(), working: null, done: false, day: '', saved: null, note: '' };   // the two files as last set on this phone (app/save.js)
+    this.state = { sel: 0, group: 'Size', ctl: 'long', presets: presets(), working: null, done: false, day: '', saved: null, note: '', stopped: false };   // the two files as last set on this phone (app/save.js)
     this.keep('Export', ['sel', 'group', 'ctl']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
@@ -64,10 +64,12 @@ export default class Component extends DCLogic {
       if (!on.length || W) return;
       if (!real && app) return;   // nothing open: nothing to save
       if (real) {
-        const total = on.length * 12, began = performance.now();
-        set({ done: false, saved: null, note: '', working: { k: 0, total } });
-        save(jobs(P, real.name, [fw, fh], S.day), (d) => this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }))
-          .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); }, (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
+        const total = on.length * 12, began = performance.now(), stop = (this.stop = new AbortController());
+        set({ done: false, saved: null, note: '', stopped: false, working: { k: 0, total } });
+        save(jobs(P, real.name, [fw, fh], S.day), (d) => { if (!stop.signal.aborted) this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }); }, { signal: stop.signal })
+          .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); },
+            (err) => this.setState(cancelled(err) ? { working: null, done: true, stopped: true } : { working: null, done: true, note: String(err?.message || err) }))
+          .finally(() => { if (this.stop === stop) this.stop = null; });
         return;
       }
       let k = 0; const total = on.length * 12;
@@ -79,14 +81,16 @@ export default class Component extends DCLogic {
     return {
       real: !!real, demo: seen.demo, who: real ? `${stem0} · ${real.plain ? 'JPEG' : (photo.looks().find((l) => l.id === photo.look()) || {}).label || photo.kindLine().split(' · ')[0]}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}`
         : app ? [seen.fileName, seen.status].filter(Boolean).join(' · ') : 'DSCF0412 · Classic Chrome · edited',
-      working: !!W, donePct: W ? (W.k / W.total) * 100 : 0,
+      working: !!W, stoppable: !!W && !!real, donePct: W ? (W.k / W.total) * 100 : 0,
       cards: P.map((x, i) => ({ name: x.name, sel: String(i === S.sel), on: String(x.on), ringW: i === S.sel ? 2 : 0,
         fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''}${x.sharpen !== 'Off' ? ` · ${x.sharpen.toLowerCase()}` : ''}`, line: x.on ? (real || !app ? facts(x) : '') : 'Off · not saved',
         ink: x.on ? '#f2efe8' : '#80848a', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
         pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => keepP(S.presets.map((y, j) => (j === i ? { ...y, on: !y.on } : y))) })),
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
-      showDone: S.done, doneTitle: S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
-      doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${facts(x)}`),
+      // while it saves, Cancel gives it up: nothing is saved, and the board is ready to save again
+      cancel: () => this.stop?.abort(),
+      showDone: S.done, doneTitle: S.stopped ? 'Export cancelled' : S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
+      doneLines: S.stopped ? [] : S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${facts(x)}`),
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
       faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),

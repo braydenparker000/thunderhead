@@ -6,7 +6,22 @@ import { block, entry } from './exif.js';
 /** A file being written: `rows` takes the next n rows (sRGB, 16 bits a colour, three a pixel).
  * @typedef {{ rows: (px: Uint16Array, n: number) => Promise<void>, done: () => Promise<Blob> }} Writer */
 
-let seed = 0x9e3779b9;
+/** A JPEG encoder: one band of 8-bit RGB rows to a JPEG of its own (the decoder's, app/decoder.js `jpegBand`).
+ * @typedef {(rgb: Uint8Array, w: number, h: number, quality: number, fine: boolean) => Promise<Uint8Array>} Band */
+/** What a file is to be, as plain data that can cross to the export's thread: its format (as the Export board
+ * names it), its JPEG quality, and the Exif it carries (exif.js `carry`).
+ * @typedef {{ fmt: string, q: number, kept: import('./exif.js').Entry[] | null }} Spec */
+
+/** The writer a Spec asks for, at w × h. @param {Spec} s @param {number} w @param {number} h @param {Band | null} band @returns {Writer} */
+export function writer(s, w, h, band) {
+  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept)); }
+  return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept)) : tiff(w, h, s.kept);
+}
+
+const SEED = 0x9e3779b9;
+let seed = SEED;
+/** The dither starts again from the same place: an export calls it first, so its files hang only on the photo. */
+export function reseed() { seed = SEED; }
 /** 16 bits to 8, rounded up or down by chance in proportion, so a smooth sky doesn't band.
  * @param {Uint16Array} px @param {Uint8Array} out */
 function eight(px, out) {
@@ -22,7 +37,7 @@ const bytes = (/** @type {number[]} */ ...b) => new Uint8Array(b);
 /** A JPEG. The decoder's encoder makes it a band at a time; every band shares its tables, so their scans join
  * into one file with a restart marker between them. Colour is kept at full resolution from quality 90 up.
  * @param {number} w @param {number} h @param {number} quality 1 to 100
- * @param {(rgb: Uint8Array, w: number, h: number, quality: number, fine: boolean) => Promise<Uint8Array>} band
+ * @param {Band} band
  * @param {Uint8Array | null} exif an Exif block @returns {Writer} */
 export function jpeg(w, h, quality, band, exif) {
   const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell);   // a block of the JPEG, and how many a row
