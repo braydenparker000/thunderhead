@@ -478,6 +478,7 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 8px; z-index: 2">
     <button aria-label="Back to the editor" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">Export</div><div style="font-size: 11px; color: #a6b0bc">{{who}}</div></div>
+    <sc-if value="{{stoppable}}"><button class="hit" onClick="{{cancel}}" aria-label="Cancel the export" style="height: 32px; padding: 0 13px; border-radius: 16px; background: rgba(255,255,255,0.14); color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; white-space: nowrap">CANCEL</button></sc-if>
     <button onClick="{{save}}" style="height: 32px; padding: 0 13px; border-radius: 16px; background: {{saveBg}}; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; white-space: nowrap; font-variant-numeric: tabular-nums">{{saveLabel}}</button>
   </header>
 
