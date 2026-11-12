@@ -224,7 +224,9 @@ fn fit(c: vec3f) -> vec3f {
   // what an edit pushes past the edge is brought back to it, and a picture nothing has moved comes out as it went in.
   let knee = select(EDGE_KNEE, 1.0, (p.size.w & 2097152u) != 0u);
   if (x <= knee) { return c; }
-  return strong(r, l, lo * (knee + (1.0 - knee) * tanh((x - knee) / max(1.0 - knee, 1e-6))));
+  // (tanh is held to an argument it can take: past about 88 a GPU works it out as infinity over infinity, which is
+  // no number at all, and the colour came out black. With a picture's knee of 1 that was every colour past the edge.)
+  return strong(r, l, lo * (knee + (1.0 - knee) * tanh(min((x - knee) / max(1.0 - knee, 1e-6), 20.0))));
 }
 ${TOOLS}
 // A photo's colours up to the edge of the screen's range: linear ProPhoto in, linear ProPhoto out. This is the

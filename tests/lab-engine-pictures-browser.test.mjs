@@ -109,6 +109,40 @@ test('a full-size view and an export by the network: the same photo, a little ap
   await page.close();
 });
 
+test('an edit that pushes strong colours past the screen\'s edge brings them back to it, never to black', opts, async () => {
+  // Whites, Contrast and Auto strengthen colour, and a strong yellow or green then lies past what a screen shows.
+  // wgsl.js `fit` takes its strength down to the edge. It used to hand tanh an argument too large for a GPU,
+  // which made the colour no number at all: black where every pixel is developed, olive through the table. In a
+  // JPEG, whose colours all start on or inside the edge, that was every colour an edit pushed past it.
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { still } = await import('/lab/engine/picture.js'), { engine } = await import('/lab/engine/gpu.js');
+    const cols = ['#e0d020', '#d02020', '#20a040', '#2040d0', '#808080', '#f0e060', '#ffd000', '#c0c020'], W = cols.length * 120, c = new OffscreenCanvas(W, 480), g = c.getContext('2d');
+    cols.forEach((col, i) => { g.fillStyle = col; g.fillRect(i * 120, 0, 120, 480); });
+    const eng = await engine(document.createElement('canvas'), await still(await c.convertToBlob({ type: 'image/png' })), true), out = {};
+    eng.setProfile(null);
+    const shot = async (contrast, more) => { await eng.render(0, contrast, { ...more, dither: false }); const im = await eng.snapshot(); return cols.map((_, i) => [...im.data.subarray((80 * im.width + Math.floor((i * 120 + 60) / 3)) * 4, (80 * im.width + Math.floor((i * 120 + 60) / 3)) * 4 + 3)]); };
+    out.plain = await shot(1, {});
+    for (const [name, contrast, more] of [['whites', 1, { whites: 0.37 }], ['whitesFull', 1, { whites: 1 }], ['contrast', 1.3, {}]]) out[name] = { table: await shot(contrast, more), exact: await shot(contrast, { ...more, exact: true }) };
+    eng.dispose();
+    return out;
+  });
+  for (const name of ['whites', 'whitesFull', 'contrast']) for (const way of ['table', 'exact']) r[name][way].forEach((px, i) => {
+    const was = r.plain[i];
+    assert.ok(Math.max(...px) >= 0.75 * Math.max(...was), `${name}, ${way}: the patch that was ${was} came out ${px}`);
+  });
+  // a strong yellow under Whites is a brighter yellow: red and green up, blue still low
+  const [yr, yg, yb] = r.whites.table[0];
+  assert.ok(yr > 230 && yg > 215 && yb < 40, `the yellow under Whites +37 is ${r.whites.table[0]}`);
+  r.whites.table.forEach((px, i) => px.forEach((v, k) => assert.ok(Math.abs(v - r.whites.exact[i][k]) <= 12, `the table and each pixel itself agree on patch ${i}: ${px} against ${r.whites.exact[i]}`)));
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the colour table gives what developing each pixel itself gives', opts, async () => {
   // The frame reads its colours from a table, between its points; `exact` develops every pixel itself. The two
   // must agree, most of all where the picture meets the edge of the screen's range: highlights blown to white and
