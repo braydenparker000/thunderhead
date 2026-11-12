@@ -113,8 +113,9 @@ of Settings, with the running short commit and Check for update.
 
 Navigation order (2026-11-02): More appearance, Home and chat, Ring and gestures, Island,
 Briefing, The mind, Quiet hours, Notifications, What I remember, Privacy and data, Password,
-Devices, Export, Recently deleted, About and diagnostics. The catalogue's pages (§6) and About
-open over Settings like the others. Connected apps stays hidden until it has a working surface.
+Devices, Export, Recently deleted, Files for the workshop (2026-11-12, §6.9), About and
+diagnostics. The catalogue's pages (§6), Files for the workshop and About open over Settings like
+the others. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours
 
@@ -479,3 +480,15 @@ Read-only, no catalogue keys: Release (the build, a preview's branch, the short 
 Rows today (`GET /v1/ops/meter?days=1`: rows read and written since 00:00 UTC with their percentages
 of the free plan's day), and the last Frames readout if the feel lab left one on this phone under
 `th.lab.frames` (the lab does not store it yet; until then the row says how to record one).
+
+### 6.9 Files for the workshop (`workshop.js`)
+
+No catalogue keys. The owner sends a file of any kind to the agent that builds Thunderhead with
+them: a RAW to test the editor on, a photo another app made to compare with
+([API.md §11.27](../engineering/API.md)). Choose files picks any number; each goes to the owner's
+private storage in pieces of 8 MiB, each with its SHA-256, each tried up to four times
+(`workshop-send.js`), with a bar and a line saying how far it is; the screen is kept on while it
+goes. A file that stopped part way says how many pieces are in, and the same file chosen again
+sends only the rest. Below, what is there: the name, the size and the day, Remove (asked first),
+and the room used of 4 GB. A file over 512 MB, or one there is no room for, is refused in words.
+Files stay until the owner removes them.

@@ -42,6 +42,7 @@ export const PAGES = /** @type {const} */ ([
   ['agents', 'Agents', 'key'],
   ['export', 'Export', 'download-simple'],
   ['deleted', 'Recently deleted', 'trash'],
+  ['workshop', 'Files for the workshop', 'cloud-arrow-up'],
   ['about', 'About and diagnostics', 'info'],
 ]);
 

@@ -239,6 +239,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/photos/:id/info` | D | P9 | built | {info, camera?, film?}: what the file says (an allowlist, ≤ 2 KB; unknown keys dropped; never GPS) for a photo registered without it; camera and film only where it has none |
 | `PUT /v1/photos/:id/preview` | D | P9 | built | the JPEG preview, ≤ 400 KB |
 | `GET /v1/photos/:id/preview` | D | P9 | built | the preview bytes, private; an ETag |
+| `GET /v1/workshop` | D | P9 | built | the files sent for the workshop, newest first, and how much room they take |
+| `PUT /v1/workshop/:id/parts/:n` | D | P9 | built | ?bytes=<the whole file>; one piece, bytes: 8 MiB but the last; TH-File-Name, TH-Sha256 of the piece |
+| `DELETE /v1/workshop/:id` | D | P9 | built | removes a file, every piece |
 
 ## Verbs
 

@@ -933,6 +933,31 @@ public and checked by its one-use state.
   paste again changes nothing and answers that row's `ledger_id` (from the last hour), else `null`.
   No schema change.
 
+### 11.27 The workshop's files (P9)
+
+Files of any kind the owner sends from the phone for the agent that builds Thunderhead with them: a
+RAW to test the editor on, another app's export to compare with (`shared/contract/workshop.ts`,
+`backend/src/areas/workshop/`). The owner's device only. The private bucket is the only record: no
+table and no rows.
+
+- `PUT /v1/workshop/:id/parts/:n?bytes=<the whole file's size>` (raw bytes; `TH-File-Name`,
+  URL-encoded; `TH-Sha256`, the piece's own) → `{n, have}`. `:id` is the client's UUIDv7 for the
+  file. A file is sent in pieces of exactly 8 MiB but the last (`WORKSHOP_LIMITS.part_bytes`), in any
+  order; each is streamed into the bucket as `workshop/<id>/<n:0001>` with the file's name and size
+  as its metadata, and kept only when its bytes match the hash (`422` otherwise, as for a piece
+  whose `Content-Length` is not its size). The same piece again replaces it. Another name or size
+  under an id that has pieces is `409 conflict`. A file over 512 MiB is `413`; when every file
+  together would pass 4 GiB the piece is `422` (`bytes`: the workshop is full), so the bucket's free
+  allowance is never passed.
+- `GET /v1/workshop` → `{items: [{id, name, bytes, parts, have, at}], bytes, limit, part_bytes}`:
+  the files newest first, read from the bucket, each with the pieces that are in (a file half sent
+  goes on from there), and the room taken of the room there is.
+- `DELETE /v1/workshop/:id` → `{removed}`: every piece of the file; `404` when there is none.
+
+Nothing else in the Worker reads these files and no agent key may call these routes. A session the
+owner gave the account's storage to reads the pieces from the bucket and joins them
+(`scripts/workshop.mjs`). They stay until the owner removes them.
+
 ## 12. WebSocket protocol (`/v1/live`)
 
 | Direction | Frame | Meaning |

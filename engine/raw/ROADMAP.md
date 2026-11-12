@@ -8,6 +8,68 @@ Sizes: **S** one pull request, **M** several, **L** a project of its own. "New" 
 before. Every quality item is measured before and after, and anything that does not earn its place is dropped
 and written down.
 
+## The road from 2026-11-12: close the gap with Lightroom
+
+The owner, on 2026-11-12: the goal is a product as good as or better than Lightroom; the work had become
+running in circles; they want to manage less. What went wrong, said plainly: the stages below were a list of
+features, not a plan to close a measured gap; too many decisions went back to the owner as menus, tests and
+file transfers; and "as good as Lightroom" was never written down as something that can be measured. This
+section replaces the order of what is left. The stages below stay as the record of what was built and why.
+
+**How the work runs now**
+
+- The agent chooses the order and the method. No option menus. The owner hears one short report a milestone:
+  the scoreboard before and after. The owner is asked only for money, deleting data, access, and anything
+  that reaches another person.
+- The owner is not asked to test. Their one job is the yardstick below, once, and saying what annoys them
+  in real use.
+- Well-specified pieces go to a cheaper model at medium effort, and the agent reviews what comes back.
+- The best existing code is looked for first, under any licence (notices kept, GPL and AGPL sources kept
+  available). Outside code is read before it is used.
+
+**The scoreboard against Lightroom Mobile (2026-11-12)**
+
+| | Today | Against Lightroom |
+|---|---|---|
+| Colour and tone | Adobe's own profiles through the DCP model | should be level; not yet checked on the owner's files |
+| Fine detail | level with the best classical demosaics | behind Enhance |
+| High-ISO noise | classical noise reduction | behind AI Denoise |
+| Speed on the owner's phone | editable in 8.1 s, 100 % view 1.3 s, a slider frame 17 ms, a full-size JPEG 58 s | the gap felt on every edit |
+| Tools | the global tools, healing, looks, stacking | no masks (parked by the owner) |
+
+What the scoreboard rests on. The phone's numbers are the owner's run of the testing page on build 72e3d2a
+(all eight pictures the same as the reference; decode 1.4 s on 8 threads; 202 MB of JS heap at most). The
+detail and noise rows are a shoot-out on known pictures laid out as X-Trans mosaics and scored against the
+truth, in dB (mean over the scenes; higher is better):
+
+| | ours | best classical (darktable, LibRaw) | small neural nets |
+|---|---|---|---|
+| clean, sharp set | 41.8 | 41.8 | 43.0 to 43.1 |
+| clean, second set | 38.5 | 38.1 | 39.7 to 40.9 |
+| ISO 3200 | 38.9 to 39.1 with our noise reduction | 37.6 | 40.3 (joint denoise) |
+| ISO 12800 | 36.8 with our noise reduction | 34.4 | 38.2 (joint denoise) |
+
+So the demosaic is as good as classical gets, and the way past it is a network that demosaics and denoises
+together. The two tried were a 159 k-weight one (CC BY-NC 4.0) and a 1.2 M-weight one (MIT/Apache, trained
+on DIV2K); both looked clean on real X-E5 crops. Lightroom itself is not scored yet: that is milestone 1.
+
+**Milestones, in order**
+
+1. **A fixed yardstick.** About ten of the owner's real RAFs with Lightroom's export of each, sent once from
+   Settings › Files for the workshop (`scripts/workshop.mjs` reads them). From then on "as good as
+   Lightroom" is measured here, on the owner's own photos, without asking them again.
+2. **Speed.** A photo editable in about 2 s and a full-size export in about 10 s on the owner's phone.
+3. **Picture.** A neural demosaic and denoise that matches or beats Enhance and Denoise on the yardstick,
+   fast enough on the phone. Rule 3 of the owner's answers below still holds: free computing only, and say
+   so if it cannot be good.
+4. **Finish.** What the owner picked on 2026-11-12: Display P3 with a profile and a better JPEG encoder;
+   borders, a watermark and sizes for where a photo is going; grain, halation and bloom; HDR output and
+   print layouts; the small sensor fixes and the high-ISO extras not already covered by milestone 3; the
+   Library's actions menu.
+
+Parked by the owner on 2026-11-12 until they ask: masks, panoramas and other multi-frame work, the
+Thunderhead in Photos, and the classic Photos app's Drive work ("drive is just not worth it for now").
+
 ## The end game
 
 Photos on the phone is the whole of the owner's photography, from the card to the finished file:
