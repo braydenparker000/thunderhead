@@ -149,7 +149,7 @@ export default class Component extends DCLogic {
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
-      progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
+      progress: !!pr, progText: pr ? (pr.k < pr.total || (this.app && !pr.done) ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '',   // (the app says Done in its own words, once it is: the sample's line showed for a moment after the last file) progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(found).filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),

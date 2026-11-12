@@ -48,8 +48,7 @@ test('a photo keeps how it was shot, and a series is matched to the open photo b
   await page.getByRole('button', { name: 'Import' }).click();
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByText('Choose photos').click()]);
   await chooser.setFiles(files.map((f) => ({ name: f.name, mimeType: 'image/jpeg', buffer: Buffer.from(f.bytes) })));
-  await page.waitForFunction(() => /Done · \d/.test(document.querySelector('#stage')?.textContent ?? ''));
-  assert.match(await page.textContent('#stage'), /Done · 4 photos copied/);
+  await page.waitForFunction(() => /Done · 4 photos copied/.test(document.querySelector('#stage')?.textContent ?? ''));
   const kept = await page.evaluate(async () => {
     const store = await import('/lab/editor/app/store.js'), photo = await import('/lab/editor/app/session.js');
     const by = (name) => store.photos().find((p) => p.name === name), r = by('R.jpg');
