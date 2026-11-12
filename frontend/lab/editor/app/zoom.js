@@ -163,6 +163,8 @@ function touch(/** @type {PointerEvent} */ e) {
     const was = g, now = performance.now(); g = null;
     if (tool() && !was?.two) return;   // one finger on a tool board is the board's
     if (was && was.far < 8 && !was.pinch) {   // a tap: the second of two quick ones zooms
+      const u = (at.x - f.ox - tx) / (f.w * z), v = (at.y - f.oy - ty) / (f.h * z);   // where on the picture, in shares of it
+      if (photo.armed()) { if (u >= 0 && u <= 1 && v >= 0 && v <= 1) photo.pickAt(u, v); tap.t = 0; return; }   // the eyedropper's tap (adjust.js)
       if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : tapTo(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
       return;
     }

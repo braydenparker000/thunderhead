@@ -4,11 +4,13 @@
 // section (Light, Curve, Color, Mixer, Grading, Effects, Detail, Optics, Profile) and the section's adjustments fly
 // out of it into the row. The curve and the grading wheels are in the panel too, never over the photo: the panel
 // grows for them and the photo's room gives way. The dial turns the chosen one, runs on when flicked, and two taps on it put the value
-// back where it starts. With a photo open (app/session.js) every value is the photo's; without one it plays a sample.
+// back where it starts. With a photo open (app/session.js) every value is the photo's; in the app with none open (or
+// another opening) it shows none (app/shown.js); only a screen of the design on its own plays a sample.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer, zoomed with two fingers
 import { tile } from '../app/tiles.js';
+import * as shown from '../app/shown.js';
 
 const FACES = ['Light', 'Curve', 'Color', 'Mixer', 'Grading', 'Effects', 'Detail', 'Optics', 'Profile'];
 const LISTS = {
@@ -30,12 +32,12 @@ export default class Component extends DCLogic {
     photo.events.addEventListener('change', hear);
   }
   renderVals() {
-    const S = this.state, set = (o) => this.setState(o), real = photo.current(), face = S.face;
-    const val = (n, sample) => (real ? photo.text(n) : sample);
+    const S = this.state, set = (o) => this.setState(o), seen = shown.face(), real = seen.real ? photo.current() : null, face = S.face, app = shown.app;
+    const val = (n, sample) => (real ? photo.text(n) : app ? '' : sample);
     const moved = (names) => (real ? names.filter((n) => photo.edited(n)).length : 0);
     const mixNames = COLORS.flatMap(([c]) => ['Hue', 'Sat', 'Lum'].map((a) => `Mix ${c} ${a}`)), gradeNames = ZONES.flatMap((z) => ['Hue', 'Sat', 'Lum'].map((a) => `Grade ${z} ${a}`)).concat(['Blending', 'Balance']);
     const counts = real ? { Light: moved(LISTS.Light.map((a) => a[0])), Curve: photo.curve() ? 1 : 0, Color: moved(LISTS.Color.map((a) => a[0])), Mixer: moved(mixNames), Grading: moved(gradeNames),
-      Effects: moved(LISTS.Effects.map((a) => a[0])), Detail: moved(LISTS.Detail.map((a) => a[0])), Optics: moved(LISTS.Optics.map((a) => a[0])), Profile: real.profile ? 1 : 0 } : { Light: 5, Color: 4, Detail: 1, Optics: 1 };
+      Effects: moved(LISTS.Effects.map((a) => a[0])), Detail: moved(LISTS.Detail.map((a) => a[0])), Optics: moved(LISTS.Optics.map((a) => a[0])), Profile: real.profile ? 1 : 0 } : app ? {} : { Light: 5, Color: 4, Detail: 1, Optics: 1 };
     // the row: what flies out of the drum for this face, and which of them the dial turns
     let chips = [], tiles = [], ctl = '', dialLabel = '', unit = '', point = null, auto = '';
     const pickAdj = (name) => { photo.pickWhite(false); set({ adj: { ...S.adj, [face]: name }, wbMenu: false }); };
@@ -44,7 +46,7 @@ export default class Component extends DCLogic {
       ctl = dialLabel = cur[0]; unit = cur[2] || '';
       chips = list.map(([name, sample]) => ({ name, value: val(name, sample), on: name === ctl, pick: () => pickAdj(name) }));
       if (face === 'Light') auto = 'AUTO';
-      if (face === 'Color') chips.unshift({ name: 'WB', value: (real ? real.wb : S.wb), entry: true, aria: 'White balance', pick: () => set({ wbMenu: !S.wbMenu }) },
+      if (face === 'Color') chips.unshift({ name: 'WB', value: (real ? real.wb : app ? '' : S.wb), entry: true, aria: 'White balance', pick: () => set({ wbMenu: !S.wbMenu }) },
         { name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 9, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } });
     } else if (face === 'Curve') {
       chips = ['RGB', 'R', 'G', 'B'].map((c) => ({ name: c, on: c === S.chan, pad: 12, pick: () => set({ chan: c }) })).concat([{ name: 'Reset', entry: true, pick: () => photo.setCurve() }]);
@@ -63,14 +65,14 @@ export default class Component extends DCLogic {
       const wheel = ZONES.includes(S.zone);
       dialLabel = wheel ? `${S.zone} Lum` : S.zone; ctl = wheel ? `Grade ${S.zone} Lum` : S.zone;
     } else {   // Profile: the camera's own renderings, each a small picture of this photo, the one it was shot with marked; the window sets a look table's strength
-      const looks = real ? photo.looks() : [{ id: 'p', label: 'Provia', asShot: true }, { id: 'v', label: 'Velvia' }, { id: 'c', label: 'Classic Chrome' }, { id: 'a', label: 'Acros', mono: true }], on = real ? photo.look() : 'p';
+      const looks = real ? photo.looks() : app ? [] : [{ id: 'p', label: 'Provia', asShot: true }, { id: 'v', label: 'Velvia' }, { id: 'c', label: 'Classic Chrome' }, { id: 'a', label: 'Acros', mono: true }], on = real ? photo.look() : 'p';
       const kinds = { All: () => true, Film: (l) => !/^Adobe/.test(l.label), Adobe: (l) => /^Adobe/.test(l.label), 'B&W': (l) => l.mono };
       chips = Object.keys(kinds).map((k) => ({ name: k, value: String(looks.filter(kinds[k]).length), on: k === S.kind, pick: () => set({ kind: k }) }));
       tiles = looks.filter(kinds[S.kind] || kinds.All).map((l) => ({ name: l.label, on: l.id === on, tag: l.asShot ? 'AS SHOT' : '', src: real ? tile('look:' + l.id, { ...photo.state(), profile: l.id }, 168, { amount: 1 }) || photo.jpeg() : '', pick: () => real && photo.pickLook(l.id) }));
       dialLabel = 'Amount'; ctl = 'Amount'; unit = '%';
     }
     const at = FACES.indexOf(face);
-    const wbs = real ? Object.keys(photo.WB).map((n) => [n, `${photo.wbKelvin(n).toLocaleString('en-US')} K`])
+    const wbs = real ? Object.keys(photo.WB).map((n) => [n, `${photo.wbKelvin(n).toLocaleString('en-US')} K`]) : app ? []
       : [['As shot', '5,450 K'], ['Auto', '5,210 K'], ['Daylight', '5,500 K'], ['Cloudy', '6,500 K'], ['Shade', '7,500 K'], ['Tungsten', '2,850 K'], ['Fluorescent', '3,800 K'], ['Flash', '5,500 K']];
     const wbNow = real ? real.wb : S.wb, live = real && ctl;
     // the panel is as tall as its face needs: the curve and a grading wheel take the dial's place and more, and the photo's room gives way
@@ -81,17 +83,17 @@ export default class Component extends DCLogic {
     return {
       faces: FACES.map((f) => ({ label: f, count: counts[f] || 0 })), faceAt: at, pickFace: (i) => { photo.pickWhite(false); set({ face: FACES[i], wbMenu: false }); this._host?.el.querySelector('[role=toolbar]')?.scrollTo({ left: 0 }); },   // a new face's row starts from its beginning
       chips, rowAria: `${face} adjustments`, dialLabel, unit,
-      dialValue: point ? point.value : live ? photo.toDial(ctl) : undefined, dialText: point ? point.text : live ? photo.text(ctl) : undefined,
+      dialValue: point ? point.value : live ? photo.toDial(ctl) : app ? 0 : undefined, dialText: point ? point.text : live ? photo.text(ctl) : app ? '' : undefined,   // the app with no photo: no made-up value
       dialTurn: point ? point.turn : live ? (d) => photo.turn(ctl, d) : undefined, dialReset: point ? point.reset : live ? () => photo.reset(ctl) : undefined,
       auto, pressAuto: real ? photo.auto : undefined,
       plateTop: 915 - plateH, photoH: 915 - plateH - 56, drumTop: plateH - 60, rowTop: plateH - 58,
-      isDial: mode === 'dial', isCurve: mode === 'curve', isWheel: mode === 'wheel', isTiles: mode === 'tiles', tiles, noTiles: 'No profiles on this phone yet: load them on the engine page', dialLeft: !!real && !!ctl && photo.upward(ctl), chan: S.chan, zone: S.zone, pickZone: (z) => set({ zone: z }),
+      isDial: mode === 'dial', isCurve: mode === 'curve', isWheel: mode === 'wheel', isTiles: mode === 'tiles', tiles,
+      noTiles: real?.plain ? 'A JPEG has no camera profiles: its colours are already the camera’s own' : real ? 'No profiles on this phone yet: load them on the engine page' : '', dialLeft: !!real && !!ctl && photo.upward(ctl), chan: S.chan, zone: S.zone, pickZone: (z) => set({ zone: z }),
       curveIn: Math.round(cp[ci][0] * 255), curveOut: Math.round(cp[ci][1] * 255), nudgeUp: hold(1), nudgeDown: hold(-1), nudgeStop: () => { clearTimeout(this.rep); clearInterval(this.rep); },
       removePoint: () => { if (real && inner) { photo.setCurve(S.chan, cp.filter((_, j) => j !== ci)); photo.picked.i = Math.max(0, ci - 1); } }, removeInk: inner ? '#dedbd4' : '#5d6166',
       wbMenu: S.wbMenu && face === 'Color',
       wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === wbNow), bg: name === wbNow ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => { if (real) photo.setWb(name); set({ wb: name, wbMenu: false }); } })),
-      real: !!real, demo: !real, status: real?.status || '', hasStatus: !!real?.status,
-      fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
+      real: !!real, demo: seen.demo, status: seen.status, hasStatus: !!seen.status, fileName: seen.fileName, shotLine: seen.shotLine,
     };
   }
 }

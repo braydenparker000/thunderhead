@@ -4,12 +4,13 @@
 // photo's own histogram (app/scope.js); the point last touched is the one the plate's dial turns.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import { app } from '../app/shown.js';
 import { scope } from '../app/scope.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
-    const base = () => [[0, 0], [0.25, 0.21], [0.75, 0.80], [1, 1]];
+    const base = () => (app ? [[0, 0], [1, 1]] : [[0, 0], [0.25, 0.21], [0.75, 0.80], [1, 1]]);   // the app with no photo: straight, no made-up curve
     this.state = { curves: { RGB: base(), R: [[0, 0], [1, 1]], G: [[0, 0], [1, 1]], B: [[0, 0], [1, 1]] }, sel: 1 };
     this.drag = null;
   }

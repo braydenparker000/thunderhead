@@ -23,7 +23,7 @@
     <div style="display: flex; align-items: center">
       <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
       <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
-      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #2468d8; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+      <button class="hit" style="--hit: -6px 0; height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #2468d8; color: #fff; font-size: 13px; font-weight: 600">Export</button>
     </div>
   </header>
 
@@ -36,7 +36,7 @@
   <div class="plate" style="position: absolute; left: 0; top: calc(705px - var(--cut)); width: 412px; height: 340px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 340px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
     <sc-if value="{{strong}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: 0; top: 4px"><dc-import name="DialPlate" slim="{{strong}}" left="{{strong}}" label="{{dialLabel}}" unit="%" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" hint-size="412px,44px"></dc-import></div></sc-if>
     <sc-if value="{{plain}}"><span role="status" style="position: absolute; left: 20px; right: 20px; top: 6px; height: 40px; display: flex; align-items: center; font-size: 11.5px; line-height: 1.35; color: #8d9197">{{hint}}</span></sc-if>
-    <div style="position: absolute; left: 0; top: 52px"><dc-import name="Strip" tiles="{{tiles}}" label="{{stripLabel}}" empty="{{noTiles}}" hint-size="412px,92px"></dc-import></div>
+    <div style="position: absolute; left: 0; top: 52px"><dc-import name="Strip" tiles="{{tiles}}" label="{{stripLabel}}" empty="{{noTiles}}" onnear="{{near}}" hint-size="412px,92px"></dc-import></div>
     <div style="position: absolute; left: 10px; top: 150px">
       <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
     </div>
@@ -48,7 +48,7 @@
 <template data-dc="DialPlate">
 <div style="width: 412px; height: {{tall}}px; position: relative; color: #eceff4; font-family: Inter, system-ui, sans-serif; user-select: none">
 
-  <div role="status" aria-label="{{label}} {{valueText}} {{unit}}" style="position: absolute; left: 20px; top: 2px; width: 372px; height: 40px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
+  <div role="status" aria-label="{{label}} {{valueText}} {{unit}}" style="position: absolute; left: 20px; top: 2px; width: 372px; height: 40px; border-radius: 10px; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
     <span style="position: absolute; left: 12px; top: 5px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{labelUp}}</span>
     <div aria-hidden="true" style="position: absolute; inset: 0">
       <span style="position: absolute; left: {{trackL}}px; width: {{trackW}}px; top: 27px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: rgba(255,255,255,0.13); box-shadow: inset 0 1px 1px rgba(0,0,0,0.5)"></span>
@@ -56,9 +56,9 @@
       <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 27px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
     </div>
     <span style="position: absolute; left: {{numX}}px; top: 27px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap">{{valueText}}</span>
-    <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.16) 0, rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 52%), radial-gradient(120% 60% at 50% 0, rgba(255,255,255,0.08), rgba(255,255,255,0) 70%)"></span>
+    <span aria-hidden="true" style="position: absolute; inset: 0; border-radius: 10px; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.16) 0, rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 52%), radial-gradient(120% 60% at 50% 0, rgba(255,255,255,0.08), rgba(255,255,255,0) 70%)"></span>
     <sc-if value="{{hasAuto}}" hint-placeholder-val="{{false}}">
-      <button class="key" onClick="{{pressAuto}}" aria-label="{{auto}}" style="position: absolute; right: 6px; top: 7px; height: 26px; padding: 0 9px; border-radius: 8px; display: flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 5px; height: 5px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>{{auto}}</button>
+      <button class="key hit" onClick="{{pressAuto}}" aria-label="{{auto}}" style="--hit: -9px 0; position: absolute; right: 6px; top: 7px; height: 26px; padding: 0 9px; border-radius: 8px; display: flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 5px; height: 5px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>{{auto}}</button>
     </sc-if>
   </div>
 
@@ -97,9 +97,9 @@
 </div>
 </template>
 <template data-dc="Row">
-<div class="hscroll" role="toolbar" aria-label="{{label}}" style="width: {{wide}}px; height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; box-sizing: border-box; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 16px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 16px), transparent 100%)">
+<div class="hscroll" role="toolbar" aria-label="{{label}}" onScroll="{{scrolled}}" data-more="{{more}}" style="width: {{wide}}px; height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 14px 0 6px; box-sizing: border-box; -webkit-mask-image: {{mask}}; mask-image: {{mask}}">
   <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
-        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 38px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 6px; box-shadow: {{p.box}}">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly hit" style="--hit: -3px 0; --dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 38px; min-width: 44px; box-sizing: border-box; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 6px; box-shadow: {{p.box}}">
           <sc-if value="{{p.isDot}}" hint-placeholder-val="{{false}}"><span style="width: 13px; height: 13px; border-radius: 50%; background: {{p.dot}}; box-shadow: {{p.dotRing}}"></span></sc-if>
           <sc-if value="{{p.isDropper}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#dedbd4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.5l5 5M17 2.5l4.5 4.5-3 3-4.5-4.5z"/><path d="M15 9l-9 9-2.5.5.5-2.5 9-9"/></svg></sc-if>
           <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}; white-space: nowrap">{{p.name}}</span>

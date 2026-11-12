@@ -10,7 +10,8 @@ import { tilt } from '../../engine/level.js';
 import { START } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { pref, prefOn } from '/th/pref.js';
-import { auto, dials, forget, pickAt } from './adjust.js';
+import { auto, dials, forget } from './adjust.js';
+import { opening, preview } from './shown.js';
 import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
@@ -32,7 +33,6 @@ export const changed = () => events.dispatchEvent(new Event('change'));
 export const canvas = document.createElement('canvas'), img = document.createElement('img');
 canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited';
 for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height: 100%; display: block';
-img.src = '/lab/editor/assets/sample.jpg';
 // boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
 // data-zoom is filled by zoom.js, which puts itself here
 export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElement) => void)} */ (null), away: /** @type {null | (() => void)} */ (null) };
@@ -76,12 +76,13 @@ export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math
 export async function open(id, quick = false, again = false) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || (cur?.id === id && !again)) return;
+  Object.assign(opening, { id, name: p.name }); changed();   // the boards name it at once (shown.js)
   const turn = ++asked; while (drawing) await sleep(8);   // a frame of the photo before may be in flight (its tile, a dial's last turn): its engine is not taken from under it
   if (turn !== asked || (cur?.id === id && !again)) return;
   const began = performance.now(); took.open = took.detail = took.save = 0; again = false;
-  const edit = (await store.loadEdit(id)) || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
-  cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = await store.jpegUrl(id); place(); changed();
+  const [saved, url] = await Promise.all([store.loadEdit(id), preview(id)]), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
+  if (turn !== asked) return; cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = url; opening.id = ''; place(); changed();
   const me = cur, stack = p.kind === 'stack', buf = plain || stack ? null : await store.raw(id);   // a stack: frames averaged into one (stack.js), kept as sensor data
   let sensor = (/** @type {Uint16Array | ImageBitmap} */ m) => {};
   const mosaic = /** @type {Promise<Uint16Array | ImageBitmap>} */ (new Promise((res) => { sensor = res; }));
@@ -109,7 +110,7 @@ export async function open(id, quick = false, again = false) {
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
     r.meta.quick = pref('photos.demosaic') === 'faster';   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
-    ready = true; place(); say(''); await draw(); if (cur === me) { took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
+    await draw(); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
@@ -210,8 +211,8 @@ export async function pixels() {
 /** The crop (engine/crop.js; null for none), and the upright picture's size before it. */
 export const geo = () => cur?.geo || null;
 export const uncropped = () => (ready ? whole0 : shape());
-/** Sets the crop, a step of the history. While the Crop board is up the picture stays uncropped under its frame. @param {import('../../engine/crop.js').Crop} g */
-export function setGeo(g) { if (!cur) return; cur.geo = isNone(g) ? null : g; changed(); if (!base) draw(); save('crop', 'Crop', ''); }
+/** Sets the crop, a step of the history (`val` says what changed). While the Crop board is up the picture stays uncropped under its frame. @param {import('../../engine/crop.js').Crop} g @param {string} [val] */
+export function setGeo(g, val = '') { if (!cur) return; cur.geo = isNone(g) ? null : g; changed(); if (!base) draw(); save('crop', 'Crop', val); }
 /** The point curve (engine/grade.js): each channel's points, or null while all are straight. */
 export const curve = () => cur?.curve || null;
 /** Sets one channel's points (RGB, R, G or B); none, with no channel, straightens them all. @param {string} [ch] @param {number[][]} [pts] */
@@ -254,7 +255,7 @@ async function keepTile(/** @type {typeof cur} */ me) {
   if (cur === me) { await store.saveTile(me.id, blob); changed(); }
 }
 /** Closes the open photo (it was deleted). */
-export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; img.src = '/lab/editor/assets/sample.jpg'; place(); changed(); }
+export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; opening.id = ''; img.removeAttribute('src'); place(); changed(); }
 // The graphics chip was reset under the photo (the phone took it back, or its driver fell over): the picture would stay frozen with no word, so the edit is kept and the photo opened again on a new device.
 addEventListener('th-gpu-lost', () => { const me = cur; if (!me) return; store.saveEdit(me.id, record(me, past)).catch(() => {}).finally(() => open(me.id, false, true)); });
 /** The photo's history: each step's name and value, and the step it is at. */
@@ -272,7 +273,6 @@ export function version(i) { const v = versions()[i]; if (!cur || !v) return; pu
 /** The open photo's camera JPEG (for a tile still being drawn); and the open photo, if one is. */
 export const jpeg = () => img.src, current = () => cur;
 export * from './adjust.js';
-canvas.addEventListener('click', (e) => pickAt(e.offsetX / canvas.clientWidth, e.offsetY / canvas.clientHeight));
 
 /* Looks: the camera profiles on this phone, each drawn small from this photo for its tile. */
 /** The looks for the open photo, with the one it was shot with first marked. */

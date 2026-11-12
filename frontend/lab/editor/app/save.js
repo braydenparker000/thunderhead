@@ -5,6 +5,7 @@ import { OUTPUT, develop } from '../../engine/export.js';
 import { block, carry, taken } from '../../engine/exif.js';
 import * as files from '../../engine/files.js';
 import * as photo from './session.js';
+import { outSize } from './shown.js';
 import { note } from './timings.js';
 import * as store from './store.js';
 import { prefOn } from '/th/pref.js';
@@ -110,7 +111,8 @@ export async function saveMany(ids, step) {
         for (let i = 0; i < 1200 && photo.current()?.id === id && photo.ready && !photo.whole(); i++) await new Promise((r) => setTimeout(r, 100));   // its own pixels follow the photo on screen
         const p = photo.current();
         if (p?.id !== id || !photo.whole()) throw new Error('not opened');
-        files += (await save(jobs(list, p.name, photo.shape(), await day()), (d) => step(k, ids.length, d))).length; done++;
+        // at the size the Export board says (shown.js)
+        files += (await save(jobs(list, p.name, outSize() || photo.shape(), await day()), (d) => step(k, ids.length, d))).length; done++;
       } catch { bad++; }
     }
   } finally { lock?.release?.().catch(() => {}); }

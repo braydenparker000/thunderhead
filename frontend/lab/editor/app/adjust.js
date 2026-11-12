@@ -95,6 +95,8 @@ export function setWb(name) {
   white(); changed(); draw(); save('wb', 'White balance', name);
 }
 let picking = false;
+/** Whether the eyedropper is armed: the next tap on the photo is its (zoom.js hears the tap). */
+export const armed = () => picking;
 /** The eyedropper: armed, the next tap on the photo makes what is under it neutral. Tapping its key again
  * puts it away. @param {boolean} [on] */
 export function pickWhite(on = !picking) {

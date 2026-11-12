@@ -4,10 +4,25 @@
 // drum has four faces (Straighten, Aspect, Rotate, Geometry); the dial turns the angle or a perspective setting.
 // The frame always fills the stage and the photo sits under it: a finger inside the frame moves the photo, two
 // fingers zoom it, and the frame's corners and sides pull it to another shape, after which the view settles so
-// the frame fills the stage again. The stage is whatever room the screen leaves above the panel.
+// the frame fills the stage again. The stage is whatever room the screen leaves above the panel. A crop set from
+// elsewhere (Undo, History, a version) is taken up at once; each change is a step of the history that says what it
+// did (rotated, flipped, straightened 1.5°, or the size it leaves), and the size shown is the export's (app/shown.js).
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
-import { frame } from '../../engine/crop.js';
+import { frame, isNone } from '../../engine/crop.js';
+import * as shown from '../app/shown.js';
+
+/** What a change of the crop did, for its step in the history. @param {any} a before @param {any} b after @param {number[] | null} size */
+function what(a, b, size) {
+  if (isNone(b)) return 'reset';
+  if (!a) return size ? `${size[0]} × ${size[1]}` : '';
+  if (a.quarter !== b.quarter) return 'rotated';
+  if (a.flipH !== b.flipH || a.flipV !== b.flipV) return 'flipped';
+  if (a.angle !== b.angle) return `straightened ${b.angle.toFixed(1).replace('-', '−')}°`;
+  for (const k of ['vertical', 'horizontal', 'scale']) if (a[k] !== b[k]) return `${k[0].toUpperCase()}${k.slice(1)} ${Math.round(b[k])}`;
+  if (a.aspect !== b.aspect || a.portrait !== b.portrait) return b.aspect;
+  return size ? `${size[0]} × ${size[1]}` : 'resized';
+}
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -15,16 +30,25 @@ export default class Component extends DCLogic {
     this.state = { group: 'Straighten', ctl: 'Angle', aspect: 'Original', portrait: false, quarter: 0, flipH: false, flipV: false,
       vals: { Angle: 0, Vertical: 0, Horizontal: 0, Scale: 0 }, turning: false, crop: null };
     this.corner = null; this.pts = new Map(); this.g = null;
-    const g = photo.current() && photo.geo();   // the photo's crop as saved: the board starts from it
-    if (g) Object.assign(this.state, { quarter: g.quarter, flipH: g.flipH, flipV: g.flipV, aspect: g.aspect || 'Free', portrait: !!g.portrait, vals: { Angle: g.angle, Vertical: g.vertical, Horizontal: g.horizontal, Scale: g.scale } });
-    this.rect0 = g ? g.rect : null;
+    if (photo.current()) this.load(photo.geo());   // the photo's crop as saved: the board starts from it
     this.keep('Crop', ['group', 'ctl']);
-    const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
+    const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else { this.follow(); this.setState({}); } };
     photo.events.addEventListener('change', hear);
+  }
+  /** The board set to a crop (none: the whole photo), as nothing to save. @param {any} g */
+  load(g) {
+    Object.assign(this.state, { quarter: g?.quarter || 0, flipH: !!g?.flipH, flipV: !!g?.flipV, aspect: g ? g.aspect || 'Free' : 'Original', portrait: !!g?.portrait,
+      vals: g ? { Angle: g.angle, Vertical: g.vertical, Horizontal: g.horizontal, Scale: g.scale } : { Angle: 0, Vertical: 0, Horizontal: 0, Scale: 0 }, crop: null });
+    this.rect0 = g ? g.rect : null; this.sent = undefined; this.got = JSON.stringify(g || null);
+  }
+  /** The photo's crop changed, and not by this board (Undo, History, a version, another photo): the frame follows it. */
+  follow() {
+    if (!photo.current() || this.corner || this.g) return;
+    if (JSON.stringify(photo.geo()) !== this.got) this.load(photo.geo());
   }
   renderVals() {
     const S = this.state, set = (o) => { if ('crop' in o) this.rect0 = null; this.setState(o); };
-    const real = photo.current(), [pw, ph] = real ? photo.uncropped() : [1600, 1067], q = 412 / (document.getElementById('frame')?.getBoundingClientRect().width || 412);
+    const seen = shown.face(), real = seen.real ? photo.current() : null, app = shown.app, [pw, ph] = real ? photo.uncropped() : [1600, 1067], q = 412 / (document.getElementById('frame')?.getBoundingClientRect().width || 412);
     // the image box: the photo fitted into the stage, turned by quarter turns
     const odd = S.quarter % 2 === 1, natW = odd ? ph : pw, natH = odd ? pw : ph;
     const room = 649 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), stageH = room - 36;   // what the screen leaves above the panel
@@ -42,7 +66,7 @@ export default class Component extends DCLogic {
       rect: near(rect.x, 0) && near(rect.y, 0) && near(rect.w, 1) && near(rect.h, 1) ? null : rect, aspect: S.aspect, portrait: S.portrait };
     const laid = real ? frame(geo, pw, ph) : null, sent = JSON.stringify(geo);
     if (real && this.sent === undefined) this.sent = sent;   // as opened: nothing to save yet
-    if (real && this.sent !== sent) { this.sent = sent; queueMicrotask(() => photo.setGeo(geo)); }
+    if (real && this.sent !== sent) { const was = JSON.parse(this.sent); this.sent = sent; queueMicrotask(() => { this.got = JSON.stringify(isNone(geo) ? null : geo); photo.setGeo(geo, what(was, geo, shown.outSize(geo))); }); }
     // scale the turned photo up just enough to keep the crop covered
     const cover = laid ? laid.cover : Math.max(1, (crop.w * Math.cos(Math.abs(a)) + crop.h * Math.sin(Math.abs(a))) / boxW, (crop.w * Math.sin(Math.abs(a)) + crop.h * Math.cos(Math.abs(a))) / boxH);
     const imgW = odd ? boxH : boxW, imgH = odd ? boxW : boxH;
@@ -96,7 +120,7 @@ export default class Component extends DCLogic {
     const ranges = { Angle: 45, Vertical: 100, Horizontal: 100, Scale: 100 }, range = ranges[S.ctl], val = v[S.ctl];
     const fmt = (x, c) => (x > 0.04 ? '+' : x < -0.04 ? '−' : '') + (c === 'Angle' ? Math.abs(x).toFixed(1) : Math.round(Math.abs(x)));
     // Auto: the sample's is a set angle; a photo's is read from its lines (engine/level.js), against the turns and flips shown
-    const auto = () => (real ? photo.level().then((t) => this.setState({ ctl: 'Angle', vals: { ...this.state.vals, Angle: Math.max(-45, Math.min(45, +((S.flipH !== S.flipV ? t : -t)).toFixed(1))) } })) : set({ ctl: 'Angle', vals: { ...v, Angle: -1.8 } }));
+    const auto = () => (!real && app ? null : real ? photo.level().then((t) => this.setState({ ctl: 'Angle', vals: { ...this.state.vals, Angle: Math.max(-45, Math.min(45, +((S.flipH !== S.flipV ? t : -t)).toFixed(1))) } })) : set({ ctl: 'Angle', vals: { ...v, Angle: -1.8 } }));
     const setVal = (c, x) => set({ vals: { ...this.state.vals, [c]: Math.max(-ranges[c], Math.min(ranges[c], x)) } });
     const reset = () => set({ vals: { Angle: 0, Vertical: 0, Horizontal: 0, Scale: 0 }, aspect: 'Original', portrait: false, quarter: 0, flipH: false, flipV: false, crop: null, ctl: 'Angle' });
     // rows: what each section offers
@@ -106,19 +130,20 @@ export default class Component extends DCLogic {
         .concat([{ name: '⇄', aria: 'Swap orientation', on: S.portrait, pick: () => set({ portrait: !S.portrait, crop: null }) }]),
       Rotate: [{ name: '⟲ 90°', pick: () => set({ quarter: (S.quarter + 3) % 4, crop: null }) }, { name: '⟳ 90°', pick: () => set({ quarter: (S.quarter + 1) % 4, crop: null }) },
         { name: 'Flip ↔', on: S.flipH, pick: () => set({ flipH: !S.flipH }) }, { name: 'Flip ↕', on: S.flipV, pick: () => set({ flipV: !S.flipV }) }],
-      Geometry: [real ? { name: 'Upright', value: 'LATER', pick: () => {} } : { name: 'Upright', pick: () => set({ ctl: 'Vertical', vals: { ...v, Vertical: 22, Angle: -1.8 } }) }]
+      Geometry: [real || app ? { name: 'Upright', value: 'LATER', pick: () => {} } : { name: 'Upright', pick: () => set({ ctl: 'Vertical', vals: { ...v, Vertical: 22, Angle: -1.8 } }) }]
         .concat(['Vertical', 'Horizontal', 'Scale'].map((c) => ({ name: c, value: fmt(v[c], c), on: S.ctl === c, pick: () => set({ ctl: c }) }))),
     };
     const groups = Object.keys(rows), gi = groups.indexOf(S.group);
     const chips = rows[S.group].concat([{ name: 'Reset', entry: true, aria: 'Reset the crop', pick: reset }]);
     const fullW = odd ? 5152 : 7728, fullH = odd ? 7728 : 5152;          // the sample: the X-E5's 40 MP frame
-    const outW = laid ? laid.ow : Math.round((crop.w / boxW) * fullW), outH = laid ? laid.oh : Math.round((crop.h / boxH) * fullH);
+    // the size it leaves: a photo's as its export will be (app/shown.js); the sample's of the X-E5's frame
+    const out = real ? shown.outSize(geo) : app ? null : [Math.round((crop.w / boxW) * fullW), Math.round((crop.h / boxH) * fullH)];
     return {
-      real: !!real, demo: !real, fileName: real ? photo.stem(real.name) : 'DSCF0412', shotLine: real ? photo.kindLine() : '23 mm · f/5.6 · 1/250 · ISO 160',
+      real: !!real, demo: seen.demo, fileName: seen.fileName, shotLine: seen.shotLine,
       boxL, boxT, boxW, boxH, viewTf: `translate(${view.tx.toFixed(2)}px, ${view.ty.toFixed(2)}px) scale(${view.s.toFixed(4)})`, viewTr: held ? 'none' : '320ms cubic-bezier(0.2, 0.85, 0.2, 1)',
       sDown: stage.down, sMove: stage.move, sUp: stage.up, imgW, imgH, imgML: -imgW / 2, imgMT: -imgH / 2, imgTf: tf,
       imgTr: S.turning ? '60ms linear' : '380ms cubic-bezier(0.2, 0.85, 0.2, 1)', cropTr: held ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)',
-      cx: boxL + view.tx + view.s * crop.x, cy: boxT + view.ty + view.s * crop.y, cw: view.s * crop.w, ch: view.s * crop.h, grid, handles, dims: `${outW} × ${outH} · ${((outW * outH) / 1e6).toFixed(1)} MP`,
+      cx: boxL + view.tx + view.s * crop.x, cy: boxT + view.ty + view.s * crop.y, cw: view.s * crop.w, ch: view.s * crop.h, grid, handles, dims: out ? `${out[0]} × ${out[1]} · ${((out[0] * out[1]) / 1e6).toFixed(1)} MP` : '',
       dialLabel: S.ctl === 'Angle' ? 'Straighten' : S.ctl, dialValue: (val / range) * 5, dialText: fmt(val, S.ctl) + (S.ctl === 'Angle' ? '°' : ''),
       dialTurn: (d) => setVal(S.ctl, (d / 5) * range), dialReset: () => setVal(S.ctl, 0), dialHold: (on) => set({ turning: on }),
       auto: S.ctl === 'Angle' ? 'AUTO' : '', pressAuto: auto,
