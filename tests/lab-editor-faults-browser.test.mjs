@@ -133,7 +133,9 @@ test('the Library: empty and no-match states, the Import sheet, culling into the
   await page.getByRole('button', { name: 'EDIT ›' }).click();
   await until(() => page.evaluate(async () => (await import('/lab/editor/app/session.js')).current()?.name === 'IMG_0001.jpg'), { message: 'EDIT › opened the photo culled' });
   await ready(page);
-  const swap = (await page.evaluate(() => { window.REC = false; return window.FRAMES; })).filter((f) => f.name === 'IMG_0001.jpg');
+  // (the photo is ready in the task that puts its picture on: the frames are read once one has passed since, or a
+  // quick machine stops looking before any frame saw the developed picture)
+  const swap = (await page.evaluate(async () => { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); window.REC = false; return window.FRAMES; })).filter((f) => f.name === 'IMG_0001.jpg');
   assert.ok(swap.some((f) => f.el === 'CANVAS') && swap.every((f) => f.el === 'IMG' || f.el === 'CANVAS'), `its JPEG (if a frame passed before it was developed), then its developed picture: ${swap.map((f) => f.el)}`);
   assert.ok(swap.every((f) => f.el !== 'CANVAS' || f.drawn), 'the picture is put on only once its first frame is drawn (not blank)');
   assert.ok(swap.every((f) => f.el !== 'IMG' || f.src !== before), 'never the photo before under its name');
