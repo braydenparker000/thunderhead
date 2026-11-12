@@ -32,8 +32,8 @@ section replaces the order of what is left. The stages below stay as the record 
 | | Today | Against Lightroom |
 |---|---|---|
 | Colour and tone | Adobe's own profiles through the DCP model | should be level; not yet checked on the owner's files |
-| Fine detail | level with the best classical demosaics | behind Enhance |
-| High-ISO noise | classical noise reduction | behind AI Denoise |
+| Fine detail | level with the best classical demosaics; the network (exports, 200 % in) about 1 dB past them | ahead on the first measure: see below |
+| High-ISO noise | classical noise reduction; the network takes it out as it goes | ahead on the first measure, with a caveat: see below |
 | Speed on the owner's phone | editable in 8.1 s, 100 % view 1.3 s, a slider frame 17 ms, a full-size JPEG 58 s | the gap felt on every edit |
 | Tools | the global tools, healing, looks, stacking | no masks (parked by the owner) |
 
@@ -52,6 +52,25 @@ truth, in dB (mean over the scenes; higher is better):
 So the demosaic is as good as classical gets, and the way past it is a network that demosaics and denoises
 together. The two tried were a 159 k-weight one (CC BY-NC 4.0) and a 1.2 M-weight one (MIT/Apache, trained
 on DIV2K); both looked clean on real X-E5 crops. Lightroom itself is not scored yet: that is milestone 1.
+
+**Lightroom Mobile, scored (2026-11-12).** The owner developed the clean and the ISO 3200 test mosaics of set A in
+Lightroom Mobile (Android) and sent the 16-bit TIFFs through Files for the workshop. Scored as every other
+developer is, Lightroom came 3.8 dB under our demosaic, but a tenth of that picture's error was in smooth areas:
+tone and colour its rendering changes that the scorer's greys and matrix do not undo. So the fair measure takes
+tone and colour out square by square (each colour's best gain and offset in every 16 x 16 pixels) and lays on each
+developer's best 9 x 9 filter, which undoes sharpening, blur and a part-pixel shift, for every developer alike.
+What is left is how truly each drew the detail, in dB:
+
+| | ours | the network | darktable Markesteijn 3 | LibRaw 3-pass | Lightroom Mobile |
+|---|---|---|---|---|---|
+| clean | 42.2 | 43.2 | 41.8 | 41.8 | 39.9 |
+| ISO 3200 | 40.1 (with our noise reduction) | 40.7 | 38.4 (none) | 38.4 (none) | 37.9 |
+
+So on these pictures Lightroom Mobile is about 2.4 dB behind our demosaic and 3.4 behind the network on a clean
+picture. What this does not settle: the mosaics are made from photographs, not shot through the X-E5's lens and
+sensor, and Lightroom met them as a camera it has no profile for; at ISO 3200 it is not known how much noise
+reduction Lightroom applied (the file asked for none). The owner's own RAFs with Lightroom's exports are the
+check that counts, and they have no truth to score against, so that one is by eye, side by side.
 
 **Milestones, in order**
 
@@ -82,6 +101,9 @@ on DIV2K); both looked clean on real X-E5 crops. Lightroom itself is not scored 
      network alone on photographs. On the engine's own chart (bench-ref.json) the network is 1.9 dB truer
      overall and 1.5 in colour but 3.4 dB behind in green: it was trained on photographs, and a chart of
      fine lines is hard on it.
+   - A little more from the same network: developing the picture turned and flipped all eight ways and
+     averaging gains 0.25 dB (0.34 in green) on the clean small set, at eight times the work. Kept in mind
+     for an export once its time on the phone is known.
    - Next: a larger network of the same kind trained for the X-E5's own noise (NAFNet-class; the survey of
      2026-11-12 found no open X-Trans model stronger than Starfish, and that the strongest general ones need
      retraining for the 6 × 6 pattern). That needs a GPU: Kaggle's free tier is enough, in the owner's name.

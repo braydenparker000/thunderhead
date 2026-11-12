@@ -51,11 +51,14 @@ const netOn = () => { try { return prefOn('photos.neural', true) && Date.now() -
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), net: c.net || 0, fell: c.fell || 0,
   ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])) });
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
- * name, once, if that photo is still here. A finished or refused export leaves no mark. */
+ * name, once, if that photo is still here. A finished or refused export leaves no mark. */   // (`net`: the network was making it)
 export function cutOff() {
   try {
     const m = JSON.parse(localStorage.getItem(MARK) || 'null');
     localStorage.removeItem(MARK);
+    // cut off while the network was making it (the phone may have taken the tab back for the work it is): the
+    // network is left alone here for a week, so the next export is made the usual way, and the timings say so
+    if (m?.net) { localStorage.setItem(NET, String(Date.now())); note('save', 0, { net: 1, fell: 2 }); }
     return m && store.photos().some((p) => p.id === m.id) ? /** @type {{ id: string, name: string }} */ (m) : null;
   } catch { return null; }
 }
@@ -66,7 +69,8 @@ export async function save(presets, progress) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const began = performance.now(), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
-  try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name })); } catch { /* a private window */ }
+  const best = netOn();
+  try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
     const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (/** @type {number} */ w, /** @type {number} */ h) => {
@@ -77,7 +81,7 @@ export async function save(presets, progress) {
     // By the network where it is on (Settings > Photos > Editor) and has not failed here lately; if it fails now, the
     // export is made again the usual way, and the network is left alone on this phone for a week.
     let made;
-    try { made = await develop(big, jobsOf(), step, clock, netOn()); }
+    try { made = await develop(big, jobsOf(), step, clock, best); }
     catch (err) {
       if (!clock.net || photo.whole() !== big) throw err;
       try { localStorage.setItem(NET, String(Date.now())); } catch { /* a private window */ }
