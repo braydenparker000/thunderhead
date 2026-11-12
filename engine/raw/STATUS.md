@@ -479,6 +479,11 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   network is not tried on that phone for a week. From 200 % in, `app/zoom.js` `finer` makes what shows with
   it once the photo rests and lays it over the live view; an edit's first frame takes it away and it comes
   back 400 ms after the last frame. It is never part of a dial's frame.
+- Before a device uses it, the network proves itself there once (`proof`): shown a small grey picture with a
+  slope across it, it must give that picture back to within 0.02 of the sensor's range (the software GPU: 0.002).
+  A GPU that gives anything else is not used, and the views are made the usual way. The half-float copy a
+  phone runs cannot be run on the software GPU here, so this is what stands between a driver's fault and a
+  wrong export.
 - What is not known: how long it takes on the owner's phone. An export's timing says (`net`, `gpu`, and the
   first pieces' steps; `fine` for the 200 % view), in the timings the phone passes on.
 - The lens's colour fringing, which the usual demosaic undoes as it goes, is undone after the network by the

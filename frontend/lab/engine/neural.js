@@ -23,7 +23,7 @@ const CLIP = 0.97;   // demosaic.js's: a site this near the sensor's white has c
 
 /** @typedef {{ kind: 'f16' | 'f32', win: number, halo: number, cfa: number[], sizes: number[], files: (string | null)[], mosaic: number, sigma: number, output: number,
  *   ops: { code: string, binds: number[], groups: number[] }[], weights: Map<number, ArrayBuffer> }} Graph */
-/** @type {WeakMap<GPUDevice, Promise<{ g: Graph, pipes: GPUComputePipeline[], cut: GPUComputePipeline, place: GPUComputePipeline, held: GPUBuffer[] }>>} */
+/** @type {WeakMap<GPUDevice, Promise<{ g: Graph, pipes: GPUComputePipeline[], cut: GPUComputePipeline, place: GPUComputePipeline, held: GPUBuffer[], off: number }>>} */
 const made = new WeakMap();
 
 /** Reads the export: its graph, its passes and its weights. @param {'f16' | 'f32'} kind @returns {Promise<Graph>} */
@@ -106,7 +106,44 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
   rgb[n] = u.x | (u.y << 16u); rgb[n + 1u] = u.z | (clip << 16u);
 }`;
 
-/** The network on a device: read and compiled once. @param {GPUDevice} device */
+const half = (/** @type {number} */ v) => { const f = new Float32Array([v]), x = new Uint32Array(f.buffer)[0], e = ((x >> 23) & 255) - 112, m = (x >> 13) & 1023; return e <= 0 ? 0 : e >= 31 ? 31744 : (e << 10) | m; };   // a float as a half float's bits (0 to 65504, truncated)
+const unhalf = (/** @type {number} */ h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? (m ? NaN : Infinity) : (1 + m / 1024) * 2 ** (e - 15); return h & 32768 ? -v : v; };
+/** How far the network may be from a grey slope it is shown, of the sensor's range: on the software GPU it is
+ * within 0.003; a GPU whose driver gets the network wrong is nowhere near. */
+export const PROOF = 0.02;
+/** The network is shown a small grey picture with a slope across it, and must give that picture back: grey has
+ * the same value at every site, so the right answer is known without keeping one. A GPU that gives anything
+ * else (a driver's fault in the half floats, a pass it compiles wrongly) is not used: this throws, and the
+ * views are made the usual way. It costs one small window, once a device.
+ * @param {GPUDevice} device @param {Graph} g @param {GPUComputePipeline[]} pipes @param {GPUBuffer[]} held */
+async function proof(device, g, pipes, held) {
+  const N = 96, WIN = g.win, wide = g.kind === 'f16' ? 2 : 4, slope = (/** @type {number} */ x, /** @type {number} */ y) => 0.15 + 0.5 * (x / N) + 0.2 * (y / N);
+  const bufs = g.sizes.map((size, id) => held[id] || device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC }));
+  const valid = device.createBuffer({ size: 8, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), back = device.createBuffer({ size: 3 * N * wide, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  try {
+    const row = (/** @type {(x: number, y: number) => number} */ of, /** @type {number} */ y) => (wide === 2 ? Uint16Array.from({ length: N }, (_, x) => half(of(x, y))) : Float32Array.from({ length: N }, (_, x) => of(x, y)));
+    for (let y = 0; y < N; y++) { device.queue.writeBuffer(bufs[g.mosaic], y * WIN * wide, row(slope, y)); device.queue.writeBuffer(bufs[g.sigma], y * WIN * wide, row(() => 0.002, y)); }
+    device.queue.writeBuffer(valid, 0, new Uint32Array([N, N]));
+    const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+    g.ops.forEach((o, j) => {
+      pass.setPipeline(pipes[j]);
+      pass.setBindGroup(0, device.createBindGroup({ layout: pipes[j].getBindGroupLayout(0), entries: [...o.code.matchAll(/@binding\((\d)\)/g)].map((m) => +m[1]).map((b) => ({ binding: b, resource: { buffer: b === 5 ? valid : bufs[o.binds[b]] } })) }));
+      pass.dispatchWorkgroups(o.groups[0], o.groups[1], o.groups[2]);
+    });
+    pass.end();
+    const Y = N / 2;   // the middle row of each colour's plane
+    for (let c = 0; c < 3; c++) enc.copyBufferToBuffer(bufs[g.output], (c * WIN * WIN + Y * WIN) * wide, back, c * N * wide, N * wide);
+    device.queue.submit([enc.finish()]);
+    await back.mapAsync(GPUMapMode.READ);
+    const got = wide === 2 ? Array.from(new Uint16Array(back.getMappedRange()), unhalf) : Array.from(new Float32Array(back.getMappedRange()));
+    let off = 0;
+    for (let c = 0; c < 3; c++) for (let x = g.halo; x < N - g.halo; x++) off = Math.max(off, Math.abs(got[c * N + x] - slope(x, Y)));
+    if (!(off <= PROOF)) throw new Error(`the network gives a wrong picture on this GPU (off by ${off})`);
+    return off;
+  } finally { valid.destroy(); back.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); }
+}
+
+/** The network on a device: read, compiled and proved once. @param {GPUDevice} device */
 export function compile(device) {
   let p = made.get(device);
   if (!p) {
@@ -117,10 +154,11 @@ export function compile(device) {
       // the weights, held once for every view of every photo
       const held = g.sizes.map((size, id) => { const w = g.weights.get(id); if (!w) return /** @type {any} */ (null); const b = device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, w); return b; });
       g.weights.clear();
-      return { g, pipes, cut, place, held };
+      const off = await proof(device, g, pipes, held);
+      return { g, pipes, cut, place, held, off };
     })();
     made.set(device, p);
-    p.catch(() => made.delete(device));
+    p.catch(() => {});   // a GPU that fails keeps failing: it is not tried again on this device
   }
   return p;
 }

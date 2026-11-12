@@ -93,10 +93,12 @@ test('a full-size view and an export by the network: the same photo, a little ap
     for (let i = 0; i < usual.data.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(usual.data[i + c] - net.data[i + c]); sum += d; most = Math.max(most, d); light += net.data[i + c]; }
     const n = (usual.data.length / 4) * 3, clock = {};
     const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true);
-    const bm = await createImageBitmap(file.blob);
+    const bm = await createImageBitmap(file.blob), N = await import('/lab/engine/neural.js'), proved = (await N.compile(eng.gpu.device)).off;
     big.dispose(); eng.dispose();
-    return { nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}) }, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}) }, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
   });
+  // before a GPU uses the network it must give a known grey slope back (neural.js `proof`): a driver that gets it wrong is not used
+  assert.ok(r.proved >= 0 && r.proved < r.limit / 4, `the network proved itself on this GPU (off by ${r.proved}, at most ${r.limit})`);
   assert.deepEqual(r.nets, [false, true], 'the view says which way it was made');
   assert.deepEqual(r.at, [240, 240]);
   assert.ok(r.light > 20, `the network's view is a picture (mean ${r.light.toFixed(1)} of 255)`);
