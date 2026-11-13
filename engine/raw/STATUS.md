@@ -792,6 +792,24 @@ says which of the passes the time goes in.
 Not done here: the classic noise reduction (`denoise.js`) still uses the table, as it was tuned with it.
 The Noise dial starts at 0 below ISO 400, so there more grain than the start's cannot be asked for yet.
 
+## An export is never made a lesser way, and carries on where it stopped (2026-11-13)
+
+The owner's words: the best method always, never the classic one in its place. Until now an export by the
+network that failed was made again the usual way without a word, and one the phone cut off turned the network
+off for a day. Both are gone.
+
+- `export.js` `develop` asked for the network refuses where the network cannot run (`NoBest`, with why: the
+  view's `lost`); nothing is written. At 100 % the editor says once that the standard view is what shows.
+- Its bands are kept as they are made (`editor/app/export-kept.js`: the browser's private file system, a file a
+  band, about 320 MB for 40 megapixels while it is being made). An export that fails is tried once more from
+  there at once; one that stops again, or dies with the tab, leaves its bands, the Export board says how much
+  is made already, and Save makes only the rest. The same file to the byte (tested). Cancel clears them; so does
+  finishing, any edit (another export), and three days.
+- Only the setting turns the network off. BEST AGAIN is gone with the reason for it.
+
+Not done: an export still needs the page in front (a phone gives a hidden tab's GPU nothing); what is new is that
+coming back loses one band's work, not the whole export.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
