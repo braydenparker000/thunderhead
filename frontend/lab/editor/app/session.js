@@ -11,19 +11,19 @@ import { START } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { pref, prefOn } from '/th/pref.js';
 import { auto, dials, forget } from './adjust.js';
-import { opening, preview } from './shown.js';
+import { opening } from './shown.js';
 import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
 import { begin } from './starts.js';
 import { ask } from './decoder.js';
-import { note } from './timings.js';
+import { firstPicture, keepView, note, onScreen, tap } from './kept-view.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
 export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0, Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, 'Grain size': 25, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', 'Grain size', 'Defringe', ...Object.keys(START)]);
-export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
+export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Auto: null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
 const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
 /** Where a JPEG starts that a RAF does not: the camera sharpened it and cleaned its colour already. */
 export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Color noise': 0 });
@@ -76,13 +76,13 @@ export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math
 export async function open(id, quick = false, again = false) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || (cur?.id === id && !again)) return;
-  Object.assign(opening, { id, name: p.name }); changed();   // the boards name it at once (shown.js)
+  Object.assign(opening, { id, name: p.name }); tap(); changed();   // the boards name it at once (shown.js)
   const turn = ++asked; while (drawing) await sleep(8);   // a frame of the photo before may be in flight (its tile, a dial's last turn): its engine is not taken from under it
   if (turn !== asked || (cur?.id === id && !again)) return;
   const began = performance.now(); took.open = took.detail = took.save = 0; again = false;
-  const [saved, url] = await Promise.all([store.loadEdit(id), preview(id)]), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
+  const [saved, url] = await firstPicture(id), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
   if (turn !== asked) return; cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = url; opening.id = ''; place(); changed();
+  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = url; opening.id = ''; place(); onScreen(); changed();
   const me = cur, stack = p.kind === 'stack', buf = plain || stack ? null : await store.raw(id);   // a stack: frames averaged into one (stack.js), kept as sensor data
   let sensor = (/** @type {Uint16Array | ImageBitmap} */ m) => {};
   const mosaic = /** @type {Promise<Uint16Array | ImageBitmap>} */ (new Promise((res) => { sensor = res; }));
@@ -178,9 +178,9 @@ export async function alone(job) {
   try { await job(); } finally { drawing = false; }
   if (again) { again = false; await draw(); }
 }
-/** The photo as last rendered, `w` pixels wide (0: the editing copy's own size), as a JPEG. @param {number} w */
-async function small(w) {
-  const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, w ? { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' } : {});
+/** The photo as last rendered, `w` pixels wide (0: the editing copy's own size), as a JPEG; `also` is handed the frame whole. @param {number} w @param {(im: ImageData) => void} [also] */
+async function small(w, also) {
+  const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, w ? { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' } : {}); also?.(im);
   const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
   return c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
 }
@@ -247,11 +247,11 @@ const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past 
 /** Saves now what `save` would shortly, the tile too: for work that goes straight on to another photo (clip.js). */
 export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }
 let tileT = 0;
-/** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported. */
+/** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported; the picture kept to show while it opens again (kept-view.js) is made from the same frame. */
 async function keepTile(/** @type {typeof cur} */ me) {
   if (!me || cur !== me || !past) return;
   let blob = /** @type {Blob | null} */ (null);
-  if (!hist.same(state(), past.steps[0].st)) await alone(async () => { if (cur === me && eng) { await unseen(null); blob = await small(480); } });
+  if (!hist.same(state(), past.steps[0].st)) await alone(async () => { if (cur === me && eng) { const rec = record(me, past); await unseen(null); blob = await small(480, (im) => keepView(me.id, rec, im)); } });   // the edit read before its frame is drawn: a change in between leaves a mark that matches no saved edit
   if (cur === me) { await store.saveTile(me.id, blob); changed(); }
 }
 /** Closes the open photo (it was deleted). */

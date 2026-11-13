@@ -1,6 +1,6 @@
 // @ts-check
 // The open photo's adjustments (docs/design/EDITOR.md): what the plate's dial reads and turns, Reset, Auto, the
-// white balance presets and the eyedropper. The photo itself, its drawing and its saving are session.js's,
+// white balance presets, its Auto and the eyedropper. The photo itself, its drawing and its saving are session.js's,
 // which hands these on as its own (boards import session.js alone).
 import { STILL, WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
 import { photos } from './store.js';
@@ -79,19 +79,43 @@ export function reset(name) {
 }
 /** The curve's point the dial turns: the one last touched on the curve board. */
 export const picked = { i: 1 };
-let before = /** @type {Record<string, number> | null} */ (null);
-/** Auto for the Light controls, read from the photo (engine/auto.js). A second press, with none of them moved
- * since, puts back what was there. */
+/** A word on the photo for a few seconds (the board's hint line), unless something else is said meanwhile. @param {string} note */
+function hint(note) { const me = cur; say(note); setTimeout(() => { if (cur === me && me?.status === note) say(''); }, 4000); }
+/** Auto for the Light controls, read from the photo (engine/auto.js), as one step of the history. The hint line and
+ * the step say what it moved, most moved first ("Auto: Exposure +0.35 · Highlights −30"); Undo takes it back. */
 export function auto() {
   if (!eng || !cur) return;
-  const v = cur.values, a = /** @type {Record<string, number>} */ (eng.auto(cur.shotEv)), names = Object.keys(a), on = !!before && names.every((k) => v[k] === a[k]);
-  const was = Object.fromEntries(names.map((k) => [k, v[k]])), me = cur, note = on ? 'Auto off' : 'Auto: tap again to undo';
-  Object.assign(v, on ? before : a); before = on ? null : was;
-  say(note); setTimeout(() => { if (cur === me && me.status === note) say(''); }, 2500); draw(); save('', on ? 'Auto off' : 'Auto', '');
+  const v = cur.values, a = /** @type {Record<string, number>} */ (eng.auto(cur.shotEv));
+  const by = (/** @type {string} */ k) => Math.abs(toDial(k, a[k]) - toDial(k, v[k])), moved = Object.keys(a).filter((k) => v[k] !== a[k]).sort((x, y) => by(y) - by(x));
+  if (!moved.length) { hint('Auto: nothing to change'); return; }
+  Object.assign(v, a);
+  const line = moved.slice(0, 4).map((k) => `${k} ${text(k)}`).join(' · ');
+  changed(); draw(); save('', 'Auto', line); hint(`Auto: ${line}`);
 }
-/** A white balance preset from the plate's menu. @param {string} name */
+let guess = { key: '', at: /** @type {null | import('../../engine/autowhite.js').AutoWhite} */ (null) };
+/** The light Auto white balance reads from the photo (engine/autowhite.js), kept while the photo and its profile stay. */
+function estimate() {
+  if (!eng || !cur) return null;
+  const key = `${cur.id}|${cur.profile}|${cur.shotK}|${cur.shotTint}`;
+  if (guess.key !== key) guess = { key, at: eng.autoWb() };
+  return guess.at;
+}
+/** Auto white balance: Temp and Tint from the photo's own neutrals, as one step. With too little neutral in it to go
+ * by, it stays at (or goes back to) the camera's white, and says so. */
+export function autoWb() {
+  const r = estimate();
+  if (!r || !cur) return;
+  pickWhite(false);
+  const [wb, k, t] = r.weak ? ['As shot', ...shotWb()] : ['Auto', Math.round(r.kelvin / 50) * 50, Math.round(r.tint)], same = cur.wb === wb && cur.values.Temp === k && cur.values.Tint === t;
+  cur.wb = String(wb); cur.values.Temp = Number(k); cur.values.Tint = Number(t);
+  const what = `Temp ${text('Temp')} K · Tint ${text('Tint')}`;
+  if (!same) { white(); changed(); draw(); save('wb', 'White balance · Auto', r.weak ? 'As shot' : what); }
+  hint(r.weak ? "Auto: kept the camera's white, nothing neutral to go by" : `Auto: ${what}`);
+}
+/** A white balance preset from the plate's menu (Auto reads it from the photo). @param {string} name */
 export function setWb(name) {
   if (!cur || !(name in WB)) return;
+  if (name === 'Auto') { autoWb(); return; }
   pickWhite(false); cur.wb = name; [cur.values.Temp, cur.values.Tint] = WB[name] || shotWb();
   white(); changed(); draw(); save('wb', 'White balance', name);
 }
@@ -115,7 +139,7 @@ export function pickAt(u, v) {
   cur.values.Temp = Math.round(Math.min(15000, Math.max(2000, w.kelvin)) / 50) * 50; cur.values.Tint = Math.round(w.tint);
   custom(); changed(); draw(); save('', 'White balance', 'Picked');
 }
-/** Another photo opens: the eyedropper is put away and Auto forgets what it replaced. */
-export function forget() { picking = false; before = null; canvas.style.cursor = ''; }
-/** The Temp a preset stands for, for the menu. @param {string} name */
-export const wbKelvin = (name) => (WB[name] || shotWb())[0];
+/** Another photo opens: the eyedropper is put away. */
+export function forget() { picking = false; canvas.style.cursor = ''; }
+/** The Temp a preset stands for, for the menu (Auto: what it reads from the photo). @param {string} name */
+export function wbKelvin(name) { const r = name === 'Auto' ? estimate() : null; return r && !r.weak ? Math.round(r.kelvin / 50) * 50 : (WB[name] || shotWb())[0]; }

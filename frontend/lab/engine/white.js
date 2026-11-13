@@ -3,11 +3,11 @@
 // sensor colours and answers with a camera neutral (what a white thing reads there, G = 1), which dcp.js
 // turns into Temp and Tint.
 //
-// There is no Auto here yet. Three ways of estimating the light from the whole frame were measured against
+// Auto is autowhite.js's. Before it, three ways of estimating the light from the whole frame were measured against
 // the cameras' own white balance on ten sample scenes (nine for the last): grey world, shades of grey
 // (Finlayson and Trezzi, 2004) and the Grayness Index (Qian and others, CVPR 2019). They missed by 29, 36 and
 // 48 mired on average, always towards a bluer light (a warmer picture), and by far more with sky in the frame:
-// worse than leaving the photo as shot.
+// worse than leaving the photo as shot. So Auto holds to the camera's white unless the photo plainly disagrees.
 
 /** @typedef {{ width: number, height: number, proxy: Uint16Array }} Img */
 

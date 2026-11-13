@@ -96,6 +96,33 @@ test('a later release fetches only what changed, and with no signal the release 
   server.release(1);
 });
 
+test('just after a release the editor\'s unchanged files come from what is kept, not over the network again', opts, async () => {
+  // sw.js `lab`: until a release's editor is kept whole, each file the page asked for came from the network (the
+  // decoder's megabytes and each of its threads' scripts, on every first open after a release). Now only the
+  // release's list is read, and a file whose hash did not change is the kept release's.
+  server.release(1); server.signal(true);
+  const { context, page } = await controlled();
+  await openEditor(page);
+  await page.waitForFunction(() => window.__kept?.kept, null, { timeout: 60000 });
+  server.release(2);
+  await page.goto(`${base}/`, { waitUntil: 'load' });
+  const applied = page.waitForEvent('framenavigated', { timeout: 30000 });
+  await page.evaluate(async () => { (await navigator.serviceWorker.getRegistration()).update(); });
+  await applied;
+  await page.waitForLoadState('load');
+  await page.waitForFunction(async () => { const k = await caches.keys(); return k.includes('th-2') && !k.includes('th-1'); }, null, { timeout: 30000 });
+  server.asked.length = 0;
+  await page.goto(`${base}/lab/editor/`, { waitUntil: 'load' });
+  await page.waitForSelector('#stage header');
+  await page.waitForFunction(() => window.__kept, null, { timeout: 60000 }).catch(() => {});
+  const lab = server.asked.filter((p) => /^lab\/(editor|engine)\//.test(p));
+  // the test server stamps the build only into sw.js, config.js and the lists: no editor file changed
+  assert.deepEqual(lab, [], `the editor's files came from release 1's kept copy (asked over the network: ${lab.slice(0, 6).join(', ')}${lab.length > 6 ? ` and ${lab.length - 6} more` : ''})`);
+  assert.ok(server.asked.includes('lab/offline.json'), 'only its list was read');
+  await context.close();
+  server.release(1);
+});
+
 test('with "Keep the editor for offline use" off, nothing is kept', opts, async () => {
   server.release(1); server.signal(true);
   const { context, page } = await controlled({ 'photos.offline': 'false' });

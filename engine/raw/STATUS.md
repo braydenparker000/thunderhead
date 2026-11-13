@@ -662,6 +662,63 @@ Held by tests/lab-editor-touch-browser.test.mjs, with a stub for the vibration: 
 checked, how it feels is not, and none of it has been tried on the phone yet. On this software GPU a fling glides
 for about 40 frames, the worst 17 to 33 ms apart, and gives 18 to 25 px at the edge.
 
+## The edit at once when a photo is opened again, and Export many's Cancel (2026-11-13)
+
+Opening a 40 MP RAF takes about 2.3 s on the phone, and until it was developed the screen showed the camera's
+JPEG, not the owner's edit. Now, when an edit is kept, the frame its Library tile is made from (`session.js`
+`keepTile`, 1.5 s after the last change, between the dial's frames) is also kept the screen's size: the editing
+copy, cropped and edited, 1600 pixels on its longer side at most, a JPEG at 0.85 (`app/kept-view.js`). In Chromium a
+JPEG at 0.85 was smaller than a WebP of the same quality on the editor's sample photo (64 KB against about 90 KB at
+46.9 dB; a WebP at 0.85 is 17 KB but visibly softer at 45.0 dB) and encodes ten times faster; a 40 MP photo's should
+be about 60 to 100 KB. It lies beside the tile in the phone's private files (`view/<id>.pic`), with a mark of the edit it was
+made from (the saved edit without its history) in the photo's record; it is made again only when that mark
+changes, and not while a finger is down. On open (`firstPicture`) it shows in place of the camera JPEG only when its
+mark is the mark of the edit saved now: an edit changed another way (another tab, a paste on many) shows the camera
+JPEG as before. The developed picture still takes over after its first frame. A cropped photo's kept picture is its
+cropped frame, so it sits where the developed picture will, at its size (the zoom layer lays the photo out by the
+picture's own shape); only the Crop board, which shows the photo uncropped, would see it change if a photo were
+opened straight onto it. Deleting a photo takes its kept picture at once (`store.remove`; also `empty`, `sweep`);
+the Library's storage figure counts it (the browser's own estimate); backups never carry it. The open's timing now
+has `first` (ms from the tap to the first picture of the photo on screen) and `kept: 1` when that was the kept one.
+A photo edited before this change, or brought back after a delete, has none until its edit next changes.
+
+**Export many** has a CANCEL key beside its count while it runs (44 px of touch room): the file in hand is given up,
+the photo that was open comes back, and the Library says "Export cancelled · 1 file from 1 photo in Downloads".
+
+Held by `tests/lab-editor-reopen-browser.test.mjs` (frames recorded from the tap: the first picture under the
+photo's name is the kept edit by a pixel against both pictures, no frame without one, no jump at the swap, the
+developed picture the same edit; a stale one, a cropped one, a deleted one; Cancel). Not yet seen on the phone: the
+timings file will say how long `first` is there.
+## The two Autos (2026-11-13)
+
+**Auto white balance** (`frontend/lab/engine/autowhite.js`, `gpu.js` `autoWb`, `adjust.js` `autoWb`): "Auto" beside
+"As shot" in the Edit board's white balance menu (the menu is built from `session.js` `WB`, so neither template
+changed). It reads the editing copy's camera colours, a 3 × 3 mean every few pixels (about 40 000 samples, clipped
+ones left out), and asks of each bright one what light it would be under if it were grey (the profile's own
+`whiteOf`). Only answers within 40 tint of the locus and between about 2 300 and 12 500 K vote, weighted by
+brightness, by nearness to the locus and by a prior around the camera's white (0.6 at 80 mired warmer or 70 bluer).
+The light with the most votes wins, read as the mean colour of the pixels that agree with it (within 15 mired and 10
+tint), not of the whole frame. How sure it is: the share of the photo that agrees, weighed as the votes are. Under 6 %
+it keeps the camera's white ("Auto: kept the camera's white, nothing neutral to go by"); from 6 to 15 % it moves that
+share of the way; past 15 % the whole way. The answer is held to 2 500–10 000 K and ±40 tint, rounded to 50 K and a
+whole tint, and set as the white balance "Auto" (a step "White balance · Auto", which Undo takes back; `past.js`
+compares its Temp and Tint as it does Custom's). Measured (tests/lab-engine-autowhite.test.mjs, made-up scenes from
+the engine's own colour temperatures, two cameras): a grey ramp and colour patches at 3 200, 5 500 and 7 500 K with
+the camera's white 1 000 K off either way land within 16 K and 0.1 tint; grass and a sunset with the camera at 4 800,
+5 500 and 6 500 K are weak (at most 4.8 % agreeing, the sunset on the JPEG camera) and keep the camera's white; a
+clipped sky and noisy shadows change nothing. In the browser test a JPEG lit at 4 300 K came out at 4 300 K and its
+grey patch within 0.2 of 255 of neutral. Limits, plainly: it is an estimate, never compared with Lightroom's Auto
+or tried on real photos yet. A warm surface filling the frame (a face, a wooden wall, an orange sky) looks exactly
+like grey under a lamp, and only the prior keeps it from being "corrected"; sky votes for a bluer light the same
+way. A photo whose light is more than about 100 mired from the camera's white is only partly corrected. A pasted
+edit carries Auto's Temp and Tint from the photo it was copied from; it does not read the new photo again.
+
+**Auto for the Light controls says what it did** (`adjust.js` `auto`): its step is "Auto" with what moved as its
+value, most moved first by the dial's own scale, at most four ("Exposure +0.75 · Shadows +22"), and the board's
+hint line says the same for four seconds; the header's Undo says "Undid Auto Exposure +0.75 · …". A second tap that
+would change nothing says "Auto: nothing to change" and makes no step. Undo, not a second tap, now takes Auto back
+(the setting's line says so). Held by tests/lab-editor-autowb-browser.test.mjs.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

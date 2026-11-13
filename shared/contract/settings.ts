@@ -215,7 +215,7 @@ export const SETTINGS = [
   { key: 'photos.new_noise', group: 'photos', section: 'Editor', label: 'Noise reduction by ISO', kind: 'switch', scope: 'phone', mind: false, default: true,
     detail: 'A photo not opened before starts with the noise reduction its ISO calls for. Off: it starts at none.' },
   { key: 'photos.new_auto', group: 'photos', section: 'Editor', label: 'Auto tone on new photos', kind: 'switch', scope: 'phone', mind: false, default: false,
-    detail: 'A photo not opened before starts with Auto on its Light controls. Auto on the plate undoes it.' },
+    detail: 'A photo not opened before starts with Auto on its Light controls. Undo takes it back.' },
   { key: 'photos.double_tap', group: 'photos', section: 'Editor', label: 'Double-tap zooms to', kind: 'choice', scope: 'phone', mind: false,
     default: '100', options: o('100:100 %', '200:200 %'),
     detail: 'How far in a double-tap on the photo goes. 100 % is one sensor pixel to one screen pixel.' },

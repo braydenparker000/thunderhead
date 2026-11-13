@@ -1,13 +1,13 @@
 // What home passes on of the editor's timings, without a browser (frontend/th/workshop/timings-core.js): only
 // known fields of known kinds, so nothing else in the editor's storage can ride along; sent when there is a new
-// one and the last send was six hours ago or more; the file says the build and the phone in a few words.
+// one and the last send was ten minutes ago or more; the file says the build and the phone in a few words.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clean, cleanMarks, due, EVERY_MS, fileOf } from '../frontend/th/workshop/timings-core.js';
 
 test('only timings of known kinds, with their known fields, are kept', () => {
   const stored = [
-    { at: 1000, kind: 'open', ms: 8127.4, file: 'raf', quick: false, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, name: 'DSCF0042.RAF' },
+    { at: 1000, kind: 'open', ms: 8127.4, file: 'raf', quick: false, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 41.6, kept: 1, name: 'DSCF0042.RAF' },
     { at: 2000, kind: 'save', ms: 57685, files: 1, px: 39806928, bytes: 7900000, kinds: 'JPEG', note: 'a caption' },
     { at: 3000, kind: 'open', ms: 900, file: '../../secret' },
     { at: 4000, kind: 'spy', ms: 1 },
@@ -15,7 +15,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
     'words', null,
   ];
   assert.deepEqual(clean(stored), [
-    { kind: 'open', at: 1000, ms: 8127, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, file: 'raf', quick: false },
+    { kind: 'open', at: 1000, ms: 8127, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 42, kept: 1, file: 'raf', quick: false },
     { kind: 'save', at: 2000, ms: 57685, px: 39806928, files: 1, bytes: 7900000, kinds: 'JPEG' },
     { kind: 'open', at: 3000, ms: 900 },
   ]);
@@ -23,7 +23,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
   assert.equal(clean(Array.from({ length: 300 }, (_, i) => ({ at: i + 1, kind: 'full', ms: 1 }))).length, 120);
 });
 
-test('sent when there is a new timing, at most once in six hours', () => {
+test('sent when there is a new timing, at most once in ten minutes', () => {
   const list = [{ at: 5000 }];
   assert.equal(due({}, list, Date.UTC(2026, 10, 12)), true);
   assert.equal(due({}, [], 10_000), false);

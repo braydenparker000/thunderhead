@@ -1,7 +1,7 @@
 // @ts-check
 // The editor's timings to the owner's own storage (API.md §11.27): how long opening a photo, reaching its full-size
 // pixels and exporting took on this phone (lab/editor/app/timings.js keeps them; that page reaches nothing
-// itself). Home passes them on a while after it opens, at most once in six hours and only when there is a new
+// itself). Home passes them on a while after it opens, at most once in ten minutes and only when there is a new
 // one, as one small file in the workshop's folder named editor-timings.json, the one before it removed. So a
 // slow step on the real phone can be found without the owner running a test. Off with Settings › Privacy and
 // data › Editor timings. Signed in only; a failure waits for the next time home opens.

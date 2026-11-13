@@ -8,7 +8,7 @@ import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
 import * as clip from '../app/clip.js';
 import { stackOn } from '../app/stack.js';
-import { cutOff, presets, saveMany } from '../app/save.js';
+import { cancelled, cutOff, presets, saveMany } from '../app/save.js';
 import * as backup from '../app/backup.js';
 
 const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
@@ -123,8 +123,11 @@ export default class Component extends DCLogic {
       if (armedFor !== key) { set({ manyKey: key, manyAt: Date.now() }); setTimeout(() => this.setState({}), 5100); return; }
       const n = all.length;
       this.setState({ manyAt: 0, working: true, progress: { label, k: 0, total: n } });
-      const done = await run((k, total, part) => this.setState({ progress: { label, k, total, part } })).catch((e) => `It stopped: ${e?.message || e}`);
-      this.setState({ working: false, progress: { label, k: n, total: n, done } });
+      // Cancel (export only) gives the photo in hand up and says what was saved before it: the Library is then as it was
+      const done = await run((k, total, part) => { if (!this.stop?.signal.aborted) this.setState({ progress: { label, k, total, part } }); }).catch((e) => (cancelled(e) ? e : `It stopped: ${e?.message || e}`));
+      const off = typeof done === 'string' ? null : done, k = off ? off.done || 0 : n;
+      this.stop = null;
+      this.setState({ working: false, progress: { label, k, total: n, done: off ? `Export cancelled · ${off.done ? `${count(off.files || 0, 'file')} from ${count(off.done, 'photo')} in Downloads` : 'nothing was saved'}` : done } });
     };
     const row = (/** @type {string} */ key, /** @type {string} */ glyph, /** @type {string} */ name, /** @type {string} */ ask, /** @type {string} */ note, /** @type {() => void} */ pick) => ({ glyph, name: armedFor === key ? `${ask} Tap again` : name, note, pick });
     const rows = !all.length ? [] : [
@@ -136,7 +139,7 @@ export default class Component extends DCLogic {
         many('stack', 'Stacking', async (step) => { const r = await stackOn(all, step), left = [r.moved ? `${count(r.moved, 'frame')} had moved` : '', r.differ ? `${r.differ} shot otherwise` : '', r.bad ? `${r.bad} could not be read` : ''].filter(Boolean).join(' · ');
           return r.id ? `Done · ${r.name} is in the Library${left ? ` · left out: ${left}` : ''}` : `Not stacked: fewer than two frames lie on each other${left ? ` (${left})` : ''}`; }))] : []),
       row('export', '⇪', 'Export the photos shown', `Export ${count(all.length, 'photo')}?`, kinds.length ? `${kinds.map((x) => `${x.name} ${x.fmt}`).join(' and ')} of each of the ${of}, to Downloads · the files are set on the Export board` : 'Both files are off on the Export board',
-        kinds.length ? many('export', 'Exporting', async (step) => { const r = await saveMany(all, step); return `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }) : () => {})];
+        kinds.length ? many('export', 'Exporting', async (step) => { const r = await saveMany(all, step, (this.stop = new AbortController()).signal); return `Done · ${count(r.files, 'file')} from ${count(r.done, 'photo')} in Downloads${r.bad ? ` · ${r.bad} could not be opened` : ''}`; }) : () => {})];
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
     const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
@@ -172,7 +175,8 @@ export default class Component extends DCLogic {
         // watching a folder is the design's: Chrome on Android cannot watch one yet, so the app does not offer it
         ...(this.app ? [] : [{ glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }])],
       progress: !!pr, // (the app says Done in its own words, once it is: the sample's line showed for a moment after the last file)
-      progText: pr ? (pr.k < pr.total || (this.app && !pr.done) ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
+      stoppable: !!S.working && !!this.stop && !this.stop.signal.aborted, stopMany: () => { this.stop?.abort(); this.setState({}); },
+      progText: pr ? (pr.done && this.app ? pr.done : pr.k < pr.total || this.app ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round(((pr.k + (pr.part || 0)) / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(found).filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),

@@ -473,7 +473,7 @@ errors routes are the place to honour them.
 | `privacy.senses.home` | switch | worker | `on` | the same, for home: lines seen, tiles and chips tapped, cards answered |
 | `privacy.senses.shell` | switch | worker | `on` | the same, for the ring, the island, Music and Podcasts in front, settings changed (B1) |
 | `privacy.errors` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `privacy.editor_timings` | switch (Reports) | phone | `on` | home passes the editor's timings on to the owner's storage (`th/workshop/timings.js`): how long an open, the full-size pixels, the first full-size view and an export took, with the decoder's start-up, as numbers and a few fixed words only, at most once in six hours, as `editor-timings.json` in the workshop's folder ([API.md §11.27](../engineering/API.md)) |
+| `privacy.editor_timings` | switch (Reports) | phone | `on` | home passes the editor's timings on to the owner's storage (`th/workshop/timings.js`): how long an open, the full-size pixels, the first full-size view and an export took, with the decoder's start-up, as numbers and a few fixed words only, at most once in ten minutes, as `editor-timings.json` in the workshop's folder ([API.md §11.27](../engineering/API.md)) |
 | `privacy.retention` | segments: forever / 1 year / 90 days (Conversations) | worker | `forever` | the prune pass, once a logical day (`areas/conversation/retention.ts`, [DATA.md §10](../engineering/DATA.md)): a conversation unchanged for longer is purged as a deleted one is, with a ledger row; one filed under a topic is kept; the owner's alone |
 
 ### 6.8 About and diagnostics (`about.js`)

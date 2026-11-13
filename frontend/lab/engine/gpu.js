@@ -17,6 +17,7 @@ import { noiseAt } from './noise.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
 import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
+import { autoWhite, samples } from './autowhite.js';
 import { geometry, toSensor, warpPipe, warper } from './warp.js';
 
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
@@ -228,9 +229,11 @@ export async function engine(canvas, img, readback = false) {
   const setGeometry = (o) => { geo = geometry(img.meta, o); geo.spots = spotRows(o.spots, geo, img); fine = !o.draft; bent = false; if (lay()) setProfile(picked); for (const v of views) v.bent(); };
   /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
+  /** Auto white balance (autowhite.js): the light read from the editing copy's colours, as Temp and Tint under the profile. */
+  const autoWb = () => autoWhite(samples(img), asShot, /** @type {any} */ (picked?.profile || fallback));
   /** What full.js builds on. */
   const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
   /** Retouching (heal.js): where a spot's replacement is best taken from. @param {{ x: number, y: number, r: number }} s @param {boolean} [wide] */
   const healSource = (s, wide) => findSource(s, geo, img, wide);
-  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }
