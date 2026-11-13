@@ -34,7 +34,7 @@ const COLOR = 6, SHARP = 8, NR = 0.1, CLARITY = 8;   // High ISO NR: a tenth mor
 // Grain, and Grain size (Small is where it starts). Halved (2026-11-13): Weak 18, Strong 36 and Large 60 were far
 // heavier at 100 % on a 40 MP photo than the camera's. Still guesses until the camera's JPEGs are measured.
 const GRAIN = { Weak: 9, Strong: 18 }, SIZE = { Small: 25, Large: 45 };
-const CHROME = { Weak: 50, Strong: 100 };   // Color Chrome Effect and FX Blue: Chrome and Chrome Blue
+const CHROME = { Weak: 60, Strong: 100 };   // Color Chrome Effect and FX Blue: Chrome and Chrome Blue (Weak 60: fitted to a photo shot with it, against the camera's JPEG, 2026-11-13; engine/grade.js)
 /** Black-and-white toning (Monochromatic Color: warm/cool and magenta/green, −18..18 each) as grading's hue and
  * saturation: warm is 40 degrees on its wheel, green 130, cool 220 and magenta 310, a quarter turn apart, so the
  * setting's direction is the hue; its length 2.5 times is the saturation, to 45 at most. @param {number} wc @param {number} mg */

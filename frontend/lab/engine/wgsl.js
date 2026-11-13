@@ -236,12 +236,13 @@ fn colour(c0: vec3f) -> vec3f {
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c, p.f.y, p.g.z, p.g.w); }
   if (p.k.x != 0.0 || p.k.y != 0.0) { c = vivid(c); }
-  if ((fl & 32768u) != 0u) { c = mixer(c); } if (p.gr[4].z != 0.0 || p.gr[4].w != 0.0) { c = chrome(c); }
+  if ((fl & 32768u) != 0u) { c = mixer(c); }
   if ((fl & 65536u) != 0u) { c = grade(c); }
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
+  if (p.gr[4].z != 0.0 || p.gr[4].w != 0.0) { c = chrome(c); }   // Color Chrome, on the developed colours as the camera does it (grade.js)
   // 1048576: strong colours cut off at the edge, as before (to compare). In a picture's table a point the screen
   // could never have shown is no pixel's colour: it is left alone, so it adds nothing to its neighbours.
   if ((fl & 1048576u) == 0u && ((fl & 2097152u) == 0u || all(mv(p.o0, p.o1, p.o2, c0) >= vec3f(0.0)))) { c = fit(c); }

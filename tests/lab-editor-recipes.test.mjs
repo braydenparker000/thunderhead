@@ -65,10 +65,10 @@ test('nothing set is nothing moved; a hard recipe stays inside every dial', () =
   assert.deepEqual([auto.values.Highlights, auto.values.Whites, auto.left], [-18, -6, []]);
 });
 
-test('Color Chrome and FX Blue, Weak and Strong, are Chrome and Chrome Blue at 50 and 100; grain Weak 9, Strong 18, Large is Grain size 45', () => {
+test('Color Chrome and FX Blue, Weak and Strong, are Chrome and Chrome Blue at 60 and 100; grain Weak 9, Strong 18, Large is Grain size 45', () => {
   const at = (r) => { const v = edit(r, { shotWb: [5500, 10] }).values; return [v.Chrome, v['Chrome Blue'], v.Grain, v['Grain size']]; };
-  assert.deepEqual(at({ colorChrome: 'Weak', colorChromeBlue: 'Strong' }), [50, 100, 0, 25]);
-  assert.deepEqual(at({ colorChrome: 'Off', colorChromeBlue: 'Weak' }), [0, 50, 0, 25]);
+  assert.deepEqual(at({ colorChrome: 'Weak', colorChromeBlue: 'Strong' }), [60, 100, 0, 25]);
+  assert.deepEqual(at({ colorChrome: 'Off', colorChromeBlue: 'Weak' }), [0, 60, 0, 25]);
   assert.deepEqual(at({ grain: { strength: 'Weak', size: 'Large' } }), [0, 0, 9, 45]);
   assert.deepEqual(at({ grain: { strength: 'Strong', size: 'Small' } }), [0, 0, 18, 25]);
   assert.deepEqual(at({ grain: { strength: 'Off', size: 'Large' } }), [0, 0, 0, 25], 'no grain: its size stays where it starts');
