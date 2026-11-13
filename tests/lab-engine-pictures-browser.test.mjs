@@ -94,7 +94,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
     const n = (usual.data.length / 4) * 3, clock = {};
     // its bands are kept as they are made (the editor keeps them on the phone: app/export-kept.js; here in memory)
     const bands = new Map(), keep = { get: async (y, n, w) => bands.get(`${y}-${n}-${w}`)?.slice() || null, put: async (y, n, w, band) => { bands.set(`${y}-${n}-${w}`, band.slice()); }, clear: async () => {} };
-    const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true, { ops: true, keep });
+    const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true, { ops: 96, keep });   // (the passes timed over a small part of a window: a whole one, each way, is minutes on CI's software GPU; tests/lab-engine-grain-browser has the rest)
     // an export that carries on: one band is lost, the rest are read back, and the file is the same to the byte
     const kept = bands.size; bands.delete([...bands.keys()].pop());
     const clock2 = {}, [file2] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock2, true, { keep });

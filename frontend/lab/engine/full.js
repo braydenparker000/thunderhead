@@ -101,7 +101,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, ops: net ? () => net.bench(0, 0) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, ops: net ? (/** @type {number} */ side) => net.bench(0, 0, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');

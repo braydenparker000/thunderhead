@@ -49,8 +49,9 @@ test('the files that draw on the software GPU are known, and a part has time for
     [true, true, true, false, false, false]);
   const files = testFiles(), of = new Map(weights(files).map((w) => [w.file, w.weight]));
   assert.ok(files.filter(heavy).length >= 15, 'the editor\'s browser tests are among the test files');
+  assert.match(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'), /\n    timeout-minutes: 15\n/, 'the job\'s limit this is reckoned against');
   for (const [i, part] of deal(weights(files), PARTS).entries()) {
     const ms = part.filter(heavy).reduce((s, f) => s + of.get(f), 0);
-    assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's ten minutes`);
+    assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's fifteen minutes (CI makes them about twice as slowly)`);
   }
 });

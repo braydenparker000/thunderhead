@@ -250,9 +250,9 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
    * network's passes in order as exported, place). Each of the network's passes is also tried the other ways there
    * are (net-tune.js: `alt`, a list a way), and the fastest that agreed, if clearly faster, is this phone's choice
    * from the next time the network is compiled (`way`). For the phone's own numbers (an export notes them).
-   * @param {number} x0 @param {number} y0 a window's own part starts here */
-  const bench = async (x0, y0) => {
-    const [first, ...rest] = lay(0, [x0, y0, Math.min(CORE, maxW), Math.min(CORE, maxH)], x0, y0, null, 1), last = /** @type {typeof first} */ (rest.pop());
+   * @param {number} x0 @param {number} y0 a window's own part starts here @param {number} [side] how much of the window is made (all of it; a test asks for less) */
+  const bench = async (x0, y0, side = CORE) => {
+    const [first, ...rest] = lay(0, [x0, y0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], x0, y0, null, 1), last = /** @type {typeof first} */ (rest.pop());
     const one = async (/** @type {typeof first} */ [pipe, bind, a, b, c]) => {
       const enc = device.createCommandEncoder(), pass = enc.beginComputePass(), t = performance.now();
       pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, c); pass.end();
