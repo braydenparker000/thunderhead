@@ -71,7 +71,7 @@ function made(way, q) {
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0, again: c.again || 0, held: c.held || 0,
   ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])),
-  ...Object.fromEntries([['op', c.ops], ['alt', c.alt]].flatMap(([k, list]) => (list || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`${k}${i}`, Math.round(v)]))) });   // the network's passes timed apart, as exported and the other way (engine/net-tune.js)
+  ...Object.fromEntries([['op', c.ops], ['alt', c.alt?.[0]], ['wid', c.alt?.[1]]].flatMap(([k, list]) => (list || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`${k}${i}`, Math.round(v)]))) });   // the network's passes timed apart, as exported and each other way (engine/net-tune.js)
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
  * name, once, if that photo is still here. A finished or refused export leaves no mark. */   // (`net`: the network was making it)
 export function cutOff() {

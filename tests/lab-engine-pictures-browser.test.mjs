@@ -102,7 +102,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
     const again = { kept, held: clock2.held, rows: big.height, same: await same(file, file2) };
     const bm = await createImageBitmap(file.blob), N = await import('/lab/engine/neural.js'), proved = (await N.compile(eng.gpu.device)).off;
     big.dispose(); eng.dispose();
-    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length, alt: (clock.alt || []).length }, again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length, alt: (clock.alt || []).map((l) => l.length) }, again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
   });
   // before a GPU uses the network it must give a known grey slope back (neural.js `proof`): a driver that gets it wrong is not used
   assert.ok(r.proved >= 0 && r.proved < r.limit / 4, `the network proved itself on this GPU (off by ${r.proved}, at most ${r.limit})`);
@@ -110,7 +110,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
   assert.deepEqual(r.at, [240, 240]);
   assert.ok(r.light > 20, `the network's view is a picture (mean ${r.light.toFixed(1)} of 255)`);
   assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);
-  assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 13, alt: 11 });   // and, asked, one of the network's windows timed a pass at a time
+  assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 13, alt: [11, 11] });   // and, asked, one of the network's windows timed a pass at a time
   assert.deepEqual(r.file, [240, 240, 240, 240, 'image/png']);
   assert.ok(r.again.kept >= 2 && r.again.held > 0 && r.again.held < r.again.rows && r.again.same, `an export that carries on from kept bands makes the same file (${JSON.stringify(r.again)})`);
   assert.deepEqual(errors, []);

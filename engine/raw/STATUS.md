@@ -818,18 +818,22 @@ passes from 288 channels to 144, most of the rest in six 1 × 1 passes. The owne
 a desktop GPU; a phone's GPU (Mali) has no such memory, and Arm's advice for it is not to copy there. Not assumed:
 measured, on the phone itself.
 
-- `net-tune.js` `direct` writes each of the nine middle passes to read its input and weights where they lie: the
-  same sums in the same order, the same bindings and dispatch. `tune` runs every pass both ways on a real window,
-  compares the two results (24 places across the output), and times them.
-- A pass is used the other way only where it agreed and took under 0.85 of the time. The choice is kept on the
-  phone; `neural.js` compiles the chosen passes next time and still proves the whole network before using it (a
-  choice that fails to compile or prove is forgotten).
+- `net-tune.js` `ways` writes each of the nine middle passes to read its input and weights where they lie: the
+  same sums in the same order, the same bindings and dispatch. The three 3 × 3 passes have a second way, sixteen
+  outputs to an invocation over half the dispatches, so each input read feeds twice the sums. `tune` runs every
+  pass every way on a real window, compares each result with the exported pass's (24 places across the output),
+  and times them.
+- A pass is run another way only where that agreed and took under 0.85 of the time; the fastest such. The choice
+  is kept on the phone; `neural.js` compiles the chosen passes next time and still proves the whole network before
+  using it (a choice that fails to compile or prove is forgotten).
 - It runs with the weekly timing of the passes, after an export, while the files are finished. The timings carry
-  both (`op0`..`op12` as exported, `alt0`..`alt10` the other way; -1 none, -2 it disagreed).
+  all three (`op0`..`op12` as exported, `alt0`..`alt10` read in place, `wid0`..`wid10` sixteen at a time; -1 none,
+  -2 it disagreed).
 
-On the software GPU here (a CPU, so no guide to a phone): the 1 × 1 passes 3 to 9 times faster the other way, the
-first 3 × 3 six times, the two large 3 × 3 the same; every result identical. What the phone finds is in its next
-timings. If the large 3 × 3 passes do not gain there, they need a third way, written with the phone's numbers in hand.
+On the software GPU here (a CPU, so no guide to a phone): the 1 × 1 passes 3 to 9 times faster read in place, the
+large 3 × 3 passes the same read in place and 1.5 times faster sixteen at a time; every result identical, and the
+picture the same to the last bit. What the phone finds is in its next timings. If the large 3 × 3 passes do not
+gain there, they need another way, written with the phone's numbers in hand.
 
 ## How to work here
 
