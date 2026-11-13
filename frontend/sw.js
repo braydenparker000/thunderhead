@@ -90,11 +90,26 @@ async function keepEditor() {
   for (const n of await caches.keys()) if (LAB_CACHE.test(n) && n !== name) await caches.delete(n);
   return { kept: true, fetched };
 }
-/** One of the editor's files: this release's kept copy, else the network, else (no signal) the newest kept. */
+/** Just after a release, until this release's editor is kept whole: which of its files are the kept release's own,
+ * unchanged (the same hash in both lists). Read once from this release's list; a failure is asked again. */
+let carried = /** @type {Promise<{ name: string, same: Set<string> } | null> | null} */ (null);
+const carry = () => (carried ||= (async () => {
+  const name = await keptLab();
+  if (!name || name === `th-lab-${BUILD}`) return null;
+  const res = await fetch(LAB_LIST, { cache: 'no-store' }), list = res.ok ? await res.json() : null;
+  if (list?.build !== BUILD) return null;
+  const had = await (await caches.match(LAB_LIST, { cacheName: name })).json(), old = new Map(had.files.map((f) => [f.path, f.hash]));
+  return { name, same: new Set(list.files.filter((f) => old.get(f.path) === f.hash).map((f) => `/${f.path}`)) };
+})().catch(() => null).then((c) => { if (!c) carried = null; return c; }));
+/** One of the editor's files: this release's kept copy; else the kept release's, where the file did not change
+ * (a release changes a few of them: the decoder and its threads' files, megabytes, need not come over the network
+ * again each time); else the network; else (no signal) the newest kept. */
 async function lab(req, path) {
   const key = path.endsWith('/') ? `${path}index.html` : path;
   const mine = await caches.match(key, { cacheName: `th-lab-${BUILD}` });
   if (mine) return mine;
+  const c = await carry(), same = c?.same.has(key) ? await caches.match(key, { cacheName: c.name }) : undefined;
+  if (same) return same;
   try {
     return await fetch(req);
   } catch (e) {

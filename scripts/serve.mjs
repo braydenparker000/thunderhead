@@ -46,12 +46,13 @@ async function labList(api, build) {
 /** `api`: serve the site as staged for that API address (config.js and CSP); `build`: the release
  * number in sw.js, precache.json and config.js (a test serves build A, then B). */
 export function serve(port = 0, { api = '', build = 1 } = {}) {
-  const opts = { api, build, up: true };
+  const opts = { api, build, up: true }, asked = /** @type {string[]} */ ([]);
   const server = createServer(async (req, res) => {
     if (!opts.up) { req.socket.destroy(); return; }   // no signal: the connection just drops
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^[/\\]+/, '');
     if (path.startsWith('..')) { res.writeHead(400).end(); return; }
     if (path === '' || path.endsWith('/')) path += 'index.html';
+    asked.push(path);
     try {
       if (path === 'precache.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await precacheList(opts.api, opts.build)); return; }
       if (path === 'lab/offline.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await labList(opts.api, opts.build)); return; }
@@ -63,6 +64,8 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
       res.writeHead(404, { 'content-type': TYPES['.html'] }).end(await readFile(join(ROOT, '404.html')));
     }
   });
+  /** Every path asked for, in order (a test empties it and reads what a step fetched). */
+  server.asked = asked;
   /** Switch to another release without restarting (the service worker update test). */
   server.release = (build) => { opts.build = build; };
   /** With `false` every request fails as it does with no signal, for pages and the service worker alike (a browser's
