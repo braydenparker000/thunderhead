@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { deal, durations, testFiles, weights } from '../scripts/test-part.mjs';
+import { deal, durations, heavy, testFiles, weights } from '../scripts/test-part.mjs';
 
 /** The site parts in .github/workflows/checks.yml: "site k/n" in its matrix. */
 const PARTS = Number(/part: \[site 1\/(\d+)/.exec(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'))?.[1]);
@@ -41,4 +41,16 @@ test('the measured table names only test files that exist, and a file it lacks s
   // A new file, not measured yet, counts by its size at the table's own rate: never zero.
   const [estimated] = weights(['tests/test-part.test.mjs', 'tests/site.test.mjs'], { 'tests/site.test.mjs': 1000 });
   assert.ok(estimated.weight > 0, 'an unmeasured file weighs by its bytes');
+});
+
+test('the files that draw on the software GPU are known, and a part has time for its own one after another', () => {
+  // they run after a part's other files, one at a time (a test beside one waited past its own limits, twice in CI)
+  assert.deepEqual(['tests/lab-editor-net-browser.test.mjs', 'tests/lab-engine-pictures-browser.test.mjs', 'tests/lab-compare-browser.test.mjs', 'tests/lab-editor-recipes.test.mjs', 'tests/photos-browser.test.mjs', 'mind/tests/th.test.mjs'].map(heavy),
+    [true, true, true, false, false, false]);
+  const files = testFiles(), of = new Map(weights(files).map((w) => [w.file, w.weight]));
+  assert.ok(files.filter(heavy).length >= 15, 'the editor\'s browser tests are among the test files');
+  for (const [i, part] of deal(weights(files), PARTS).entries()) {
+    const ms = part.filter(heavy).reduce((s, f) => s + of.get(f), 0);
+    assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's ten minutes`);
+  }
 });

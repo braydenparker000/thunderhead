@@ -3,7 +3,8 @@
 // .github/workflows/checks.yml). The test files are dealt by how long each took in one measured full
 // run (scripts/test-durations.json), largest first, each to the part with the least time so far, so
 // the parts take about as long; a file the table doesn't know yet counts by its size at the table's
-// own rate. Every file lands in exactly one part; `npm test` still runs them all in one go.
+// own rate. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
+// part the files that draw on the software GPU (`heavy`) run after the others, one at a time.
 // Usage: node scripts/test-part.mjs <k> <n>   (part k of n, from 1)
 //        node scripts/test-part.mjs --measure (runs every file once and rewrites the table)
 // As a test reporter (--measure passes it to node --test), it writes each file's time to its destination.
@@ -60,6 +61,11 @@ export function deal(files, n) {
   return parts.map((p) => p.files.sort());
 }
 
+/** Whether a test file draws on the software GPU (the editor's and the engine's browser tests): each keeps every
+ * core busy for minutes, and a test beside one has waited past its own limits (a page's 15 s wait, twice in CI).
+ * A part runs these after its other files, one at a time. @param {string} file */
+export const heavy = (file) => /^tests\/lab-.*-browser\.test\.mjs$/.test(file);
+
 /** The reporter for --measure: each file's top-level tests' time, plus its start-up (the gap between
  * the runner starting the file and its first test), as { file: ms }. @param {AsyncIterable<any>} source */
 export default async function* reporter(source) {
@@ -95,9 +101,10 @@ if (isMain && process.argv[2] === '--measure') {
     process.exit(2);
   }
   const all = testFiles();
-  const mine = deal(weights(all), n)[k - 1];
-  console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files`);
+  const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
+  console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
   // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
-  const run = spawnSync(process.execPath, ['--test', '--test-force-exit', ...mine], { cwd: ROOT, stdio: 'inherit' });
-  process.exit(run.status ?? 1);
+  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
+  const first = run(light), second = run(slow, ['--test-concurrency=1']);
+  process.exit(first || second);
 }
