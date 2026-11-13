@@ -8,6 +8,7 @@
 import { lensOf } from './lens.js';
 import { still } from './picture.js';
 import { binned, unpack } from './stack.js';
+import { pushOf } from './exif.js';
 
 /** From the camera JPEG's Exif: how to turn the photo upright (rawler reads no orientation from a RAF), and
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
@@ -105,7 +106,8 @@ self.onmessage = async (e) => {
       const off = v.getUint32(84), len = v.getUint32(88);
       if (off + len <= v.byteLength) {
         info = exifInfo(new DataView(buf, off, len));
-        self.postMessage({ preview: new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings, tag });
+        const told = info.dr; info.dr = pushOf(v) ?? told;   // the RAF's own record of the camera's push, where it has one (exif.js)
+        self.postMessage({ preview: new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }), dr: info.dr, dr0: told, settings: info.settings, tag });   // dr0: by the maker notes' DR setting alone, as it was read until 2026-11-13 (an edit made then keeps it)
       }
     }
     const lens = lensOf(buf), asked = performance.now();

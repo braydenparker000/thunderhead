@@ -111,3 +111,21 @@ export function block(es) {
   put(new DataView(b.buffer), b, es, 8);
   return b;
 }
+
+/** How far the camera pushes this RAF's sensor data to make its JPEG, as the DR number the developer adds back
+ * (100: the usual; 200 a stop more), read from the RAF's own record of it (its raw header's tag 0x9650, the raw
+ * exposure bias in stops: -0.72 on a usual shot). That covers what the maker notes' DR setting does not: DR Auto and
+ * D-Range Priority (a stop or two more), and the extended low ISOs, whose data is exposed a stop over and pulled back
+ * (50: until 2026-11-13 such a shot opened a stop too bright, and a D-Range Priority one a stop too dark).
+ * Undefined where the RAF does not say. @param {DataView} v the RAF */
+export function pushOf(v) {
+  try {
+    const at = v.getUint32(92), end = at + v.getUint32(96);
+    for (let p = at + 4, n = v.getUint32(at); n > 0 && p + 4 <= end; n--) {
+      const size = v.getUint16(p + 2);
+      if (v.getUint16(p) === 0x9650 && size >= 4 && v.getInt16(p + 6)) { const dr = 100 * 2 ** (-0.72 - v.getInt16(p + 4) / v.getInt16(p + 6)); return dr > 12 && dr < 1600 ? Math.round(dr) : undefined; }
+      p += 4 + size;
+    }
+  } catch { /* not a RAF this reads */ }
+  return undefined;
+}

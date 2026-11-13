@@ -61,3 +61,22 @@ test('a file with no Exif says nothing, and nothing is carried', () => {
   assert.deepEqual(shot(bare), { at: 0, camera: '', lens: '', iso: 0, time: 0, f: 0, mm: 0 });
   assert.equal(carry(bare, 'All', true, 10, 10), null);
 });
+
+test('how far the camera pushes a RAF for its JPEG is read from the RAF: the usual, a stop more, an extended low ISO a stop less', async () => {
+  const { pushOf } = await import('../frontend/lab/engine/exif.js');
+  /** A RAF's first bytes with a raw header holding the tags given (each: its number and its bytes). */
+  const raf = (/** @type {[number, number[]][]} */ tags) => {
+    const dir = [0, 0, 0, tags.length, ...tags.flatMap(([t, d]) => [t >> 8, t & 255, d.length >> 8, d.length & 255, ...d])], b = new Uint8Array(160 + dir.length), v = new DataView(b.buffer);
+    b.set(new TextEncoder().encode('FUJIFILMCCD-RAW ')); v.setUint32(92, 160); v.setUint32(96, dir.length); b.set(dir, 160);
+    return v;
+  };
+  const bias = (/** @type {number} */ hundredths) => { const n = new DataView(new ArrayBuffer(4)); n.setInt16(0, hundredths); n.setInt16(2, 100); return [...new Uint8Array(n.buffer)]; };
+  const size = /** @type {[number, number[]]} */ ([0x100, [0, 0, 20, 0, 0, 0, 30, 0]]);
+  assert.equal(pushOf(raf([size, [0x9650, bias(-72)]])), 100, 'the usual shot: as DR100');
+  assert.equal(pushOf(raf([size, [0x9650, bias(-172)]])), 200, 'DR200, DR Auto or D-Range Priority at a stop: a stop more');
+  assert.equal(pushOf(raf([[0x9650, bias(-272)], size])), 400);
+  assert.equal(pushOf(raf([size, [0x9650, bias(28)]])), 50, 'an extended low ISO: its data is a stop over, and pulled back');
+  assert.equal(pushOf(raf([size])), undefined, 'a RAF that does not say');
+  assert.equal(pushOf(raf([[0x9650, [0, 1, 0, 0]]])), undefined, 'a bias with nothing under it');
+  assert.equal(pushOf(new DataView(new ArrayBuffer(40))), undefined, 'not a RAF');
+});
