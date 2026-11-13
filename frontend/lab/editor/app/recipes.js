@@ -20,7 +20,7 @@ export const list = () => all;
 export const groups = () => { const n = /** @type {Map<string, number>} */ (new Map()); for (const r of all) n.set(r.sensor, (n.get(r.sensor) || 0) + 1); return [...n].map(([sensor, count]) => ({ sensor, count })); };
 
 // The dials a recipe takes over: each goes back to its start, then the recipe's own are set.
-const LOOK = new Set(['Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Vibrance', 'Saturation', 'Texture', 'Clarity', 'Dehaze', 'Vignette', 'Grain', 'Sharpening', 'Noise', 'Blending', 'Balance']);
+const LOOK = new Set(['Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Vibrance', 'Saturation', 'Texture', 'Clarity', 'Dehaze', 'Vignette', 'Grain', 'Grain size', 'Chrome', 'Chrome Blue', 'Sharpening', 'Noise', 'Blending', 'Balance']);
 
 /** The open photo's edit wearing a recipe, and what of the recipe is not replicated here.
  * @param {Kept} r @returns {{ st: import('./past.js').State, film: string, left: string[] }} */

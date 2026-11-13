@@ -15,8 +15,8 @@ import * as shown from '../app/shown.js';
 const FACES = ['Light', 'Curve', 'Color', 'Mixer', 'Grading', 'Effects', 'Detail', 'Optics', 'Profile'];
 const LISTS = {
   Light: [['Exposure', '+0.35', 'EV'], ['Contrast', '+12'], ['Highlights', '−48'], ['Shadows', '+31'], ['Whites', '0'], ['Blacks', '−9']],
-  Color: [['Temp', '5,450', 'K'], ['Tint', '+4'], ['Vibrance', '+15'], ['Saturation', '−6']],
-  Effects: [['Texture', '0'], ['Clarity', '+8'], ['Dehaze', '+5'], ['Vignette', '−12'], ['Grain', '0']],
+  Color: [['Temp', '5,450', 'K'], ['Tint', '+4'], ['Vibrance', '+15'], ['Saturation', '−6'], ['Chrome', '0'], ['Chrome Blue', '0', '', 'Chrome blue']],   // a fourth: the name shown, where it is not the value's
+  Effects: [['Texture', '0'], ['Clarity', '+8'], ['Dehaze', '+5'], ['Vignette', '−12'], ['Grain', '0'], ['Grain size', '25']],
   Detail: [['Sharpening', '40'], ['Radius', '1.0'], ['Detail', '25'], ['Noise', '+10'], ['Color noise', '25']],
   Optics: [['Distortion', '0'], ['Vignetting', '0'], ['Defringe', '0']],
 };
@@ -43,8 +43,8 @@ export default class Component extends DCLogic {
     const pickAdj = (name) => { photo.pickWhite(false); set({ adj: { ...S.adj, [face]: name }, wbMenu: false }); };
     if (LISTS[face]) {
       const list = LISTS[face], cur = list.find((a) => a[0] === S.adj[face]) || list[0];
-      ctl = dialLabel = cur[0]; unit = cur[2] || '';
-      chips = list.map(([name, sample]) => ({ name, value: val(name, sample), on: name === ctl, pick: () => pickAdj(name) }));
+      ctl = cur[0]; dialLabel = cur[3] || cur[0]; unit = cur[2] || '';
+      chips = list.map(([name, sample, , shown]) => ({ name: shown || name, value: val(name, sample), on: name === ctl, pick: () => pickAdj(name) }));
       if (face === 'Light') auto = 'AUTO';
       if (face === 'Color') chips.unshift({ name: 'WB', value: (real ? real.wb : app ? '' : S.wb), entry: true, aria: 'White balance', pick: () => set({ wbMenu: !S.wbMenu }) },
         { name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 9, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } });
@@ -84,6 +84,7 @@ export default class Component extends DCLogic {
       faces: FACES.map((f) => ({ label: f, count: counts[f] || 0 })), faceAt: at, pickFace: (i) => { photo.pickWhite(false); set({ face: FACES[i], wbMenu: false }); this._host?.el.querySelector('[role=toolbar]')?.scrollTo({ left: 0 }); },   // a new face's row starts from its beginning
       chips, rowAria: `${face} adjustments`, dialLabel, unit,
       dialValue: point ? point.value : live ? photo.toDial(ctl) : app ? 0 : undefined, dialText: point ? point.text : live ? photo.text(ctl) : app ? '' : undefined,   // the app with no photo: no made-up value
+      dialStart: !point && live ? photo.startDial(ctl) : undefined,
       dialTurn: point ? point.turn : live ? (d) => photo.turn(ctl, d) : undefined, dialReset: point ? point.reset : live ? () => photo.reset(ctl) : undefined,
       auto, pressAuto: real ? photo.auto : undefined,
       plateTop: 915 - plateH, photoH: 915 - plateH - 56, drumTop: plateH - 60, rowTop: plateH - 58,

@@ -582,16 +582,32 @@ A recipe is made for the camera's JPEG engine; here each setting is laid on the 
 | Sharpness | Sharpening 40, 8 a step |
 | High ISO NR | Noise, 5 a step from where the photo's ISO starts it |
 | Clarity | Clarity, 8 a step |
-| Grain Weak, Strong | Grain 18, 36; Large adds 8. Near only: one grain size here |
-| Color Chrome Effect, FX Blue | the mixer's luminance: the Effect lowers every colour but blue and aqua, FX Blue those two. Near only |
+| Grain Weak, Strong; Small, Large | Grain 18, 36; Grain size 25 (where it starts), 60 |
+| Color Chrome Effect, FX Blue: Weak, Strong | Chrome and Chrome Blue 50, 100: their own controls (below) |
 | White Balance | a light or a temperature of the recipe's, else the shot's own; then the Red and Blue shift as Temp and Tint |
 | Exposure Compensation, ISO | not applied: they are for the shooting |
-| Monochromatic Color (toning) | not replicated |
+| Monochromatic Color (toning) | grading's Global wheel: one hue and saturation over the whole picture. The hue from the setting's direction (warm 40°, green 130°, cool 220°, magenta 310°), the saturation 2.5 times its length, to 45 |
 
 These strengths are first guesses, set where each dial's range puts the camera's steps. **Not measured yet**
-against the camera's own JPEGs: that needs a few RAFs shot with a recipe set, beside their JPEGs. What would
-make it true rather than near: Color Chrome as its own control (a deepening of strong colours by how strong
-they are), grain with a size, a dynamic-range shoulder, and toning for black and white.
+against the camera's own JPEGs: that needs a few RAFs shot with a recipe set, beside their JPEGs. Still only
+near: Dynamic Range and D-Range Priority (the camera does them at the shot; a dynamic-range shoulder would make
+them true). Toning lays the tint once, on grading's Global wheel; whether its strength matches the camera's
+±18 is one of the guesses to measure.
+
+**Chrome, Chrome Blue and Grain size (2026-11-12)** are controls of their own on the Edit board (Chrome and
+Chrome blue with Saturation and Vibrance under Color; Grain size beside Grain under Effects), turned by hand like
+any other and carried by presets, looks, copy and paste and the history. Chrome is Fujifilm's Color Chrome
+Effect: a strong colour a little darker the stronger it is (Oklab's lightness down by up to 7 % at 100, about
+0.3 stops, eased in from Oklab chroma 0.06 to 0.2, so greys and skin are left), every hue but the blues; Chrome
+Blue the same for cyan-blue to blue. It is in the colour table (`grade.js` `chrome`, after the mixer), so it
+costs nothing a frame. Measured on the software GPU, a JPEG of flat patches: Chrome 100 takes a red (208, 32, 32)
+to (193, 9, 19), 0.33 stops darker, and a green (32, 160, 64) to (5, 148, 52), 0.25 stops; 50 about half; a grey
+and a pale (200, 184, 168) do not move, skin (224, 172, 140) by one level. Chrome Blue 100 takes a blue (32, 64,
+208) to (26, 52, 197) and a sky (90, 150, 220) to (84, 144, 213), and leaves the red. Grain size 0..100 starts
+at 25, which is the grain as it was to the byte (checked against the build before it); 60 makes each speck 2.2
+times as large and 100 5.7 times (0: 0.56 times), run smoothly into each other rather than as squares, about as strong. At 0
+(Grain size at 25) the pictures are the same bytes as before: `bench-ref.json` did not change.
+`tests/lab-engine-pictures-browser.test.mjs` checks all of it.
 
 ## Less waiting (2026-11-12, from the fluidity review)
 
@@ -626,6 +642,25 @@ stopped for 417 ms; on the thread no task of the page's reached 50 ms and the lo
 17 ms (up to 300 ms on a busy machine, with no long task: the software GPU drawing the frames, so that gap is
 only told). The test fails on a task of 250 ms. Not yet measured on the phone; the Library's Export many takes a
 signal but has no Cancel key yet.
+
+## Under the finger (2026-11-12)
+
+Three things to make the editor feel more fluid on the phone. **Ticks** (`frontend/lab/editor/app/haptic.js`): a
+short buzz (`navigator.vibrate`) when the dial passes the value's start or reaches an end of its range
+(`boards/DialPlate.js`; the Edit board tells the dial where its value starts, `adjust.js` `startDial`), when the
+drum's face clicks into place (`boards/Drum.js`), on Undo and Redo (`app/told.js`) and when an export is done
+(`boards/ExportPlate.js`, and Export many in `app/save.js`). Never one per pixel of a drag, at most one every
+40 ms, off with the new setting `photos.haptics` (Settings › Photos › Editor › Haptics, on at first) and on a
+phone set to reduce motion. **A fling** (`app/fling.js`): a zoomed photo let go while one finger still moves it
+glides on and slows to rest; past an edge it gives (at most 48 design pixels) and comes back inside; any new touch
+stops it where it is. Only the transform changes while it glides; the detail is made once it rests (a detail
+asked for while fingers move or it glides waits for that: `zoom.js` `settle`). **Two fingers tapped undo a step,
+three redo one** (`app/taps.js`, `told.js` `redo`), said by the line over the photo: all fingers down within
+120 ms, up within 250 ms, none moved 10 px, all on the photo, so the end of a pinch, a tap on the controls or a
+finger already at work with Heal's or Masks' tool is none.
+Held by tests/lab-editor-touch-browser.test.mjs, with a stub for the vibration: what the phone is asked for is
+checked, how it feels is not, and none of it has been tried on the phone yet. On this software GPU a fling glides
+for about 40 frames, the worst 17 to 33 ms apart, and gives 18 to 25 px at the edge.
 
 ## How to work here
 
@@ -681,7 +716,7 @@ can tell:
   export take, and whether the tab ever reloads (a photo keeps about 80 MB on the GPU for its sensor pixels, 35 MB
   for the editing copy, and each full-size view its own buffers).
 - **How the controls feel.** Every strength is a first guess: Clarity, Texture, Dehaze, Sharpening, the two Noise
-  sliders, the mixer, grading, vignette, grain, the masks' Temp and Hue, Defringe, the heal's feather.
+  sliders, the mixer, grading, Color Chrome, vignette, grain and its size, the masks' Temp and Hue, Defringe, the heal's feather.
 - **Touch.** The pinch, painting a mask, laying a gradient, dragging a heal source, two fingers against one on
   the Masks and Heal boards: all were driven by synthetic events here.
 - **Their own photos.** High-ISO RAFs for noise reduction, a dusty sky for heal, a backlit edge for Defringe,

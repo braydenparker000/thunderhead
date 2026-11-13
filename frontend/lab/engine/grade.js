@@ -1,13 +1,13 @@
 // @ts-check
-// The colour tools that live inside the colour table (wgsl.js, develop): the mixer's eight colours, grading's
-// four wheels, a look's own table (cube.js), and the point curve. This turns what the boards hold into the rows the frame's settings carry.
+// The colour tools that live inside the colour table (wgsl.js, develop): the mixer's eight colours, Color Chrome,
+// grading's four wheels, a look's own table (cube.js), and the point curve. This turns what the boards hold into the rows the frame's settings carry.
 // None of them costs anything per frame: they are baked into the table with the look and the tone curve.
 
 export const COLOURS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
 export const ZONES = ['Shadows', 'Midtones', 'Highlights', 'Global'];
 /** Their adjustments and where each starts: "Mix Red Hue" … (−100..100), "Grade Shadows Hue" (0..360), "… Sat"
- * (0..100), "… Lum" (−100..100), Blending (0..100) and Balance (−100..100). */
-export const START = /** @type {Record<string, number>} */ ({ Blending: 50, Balance: 0 });
+ * (0..100), "… Lum" (−100..100), Blending (0..100) and Balance (−100..100); Chrome and Chrome Blue (0..100, 0 off). */
+export const START = /** @type {Record<string, number>} */ ({ Blending: 50, Balance: 0, Chrome: 0, 'Chrome Blue': 0 });
 for (const c of COLOURS) for (const a of ['Hue', 'Sat', 'Lum']) START[`Mix ${c} ${a}`] = 0;
 for (const z of ZONES) for (const a of ['Hue', 'Sat', 'Lum']) START[`Grade ${z} ${a}`] = 0;
 
@@ -84,6 +84,18 @@ fn mixer(c: vec3f) -> vec3f {
   v = vec3f(v.x * exp2(a.z * 0.6 * min(1.0, ch / 0.12)), vec2f(v.y * co - v.z * s, v.y * s + v.z * co) * (1.0 + a.y));
   return unlab(v);
 }
+// Color Chrome, as Fujifilm's cameras have it: a strong colour a little darker, the more so the stronger it is, so a
+// red flower or a green leaf keeps its depth and shading; Chrome Blue does the same for blues (skies) alone. Greys
+// and muted colours (skin) are left as they are. Up to 7 % off Oklab's lightness at 100: about 0.3 stops.
+const SKY = vec2f(-0.4008, -0.9162);   // the middle of the blues, 246 degrees in Oklab: from cyan-blue to blue
+fn chrome(c: vec3f) -> vec3f {
+  let v = lab(c); let ch = length(v.yz);
+  if (ch < 1e-5) { return c; }
+  let blue = smoothstep(0.5, 0.92, dot(v.yz / ch, SKY));
+  let k = mix(p.gr[4].z, p.gr[4].w, blue) * smoothstep(0.06, 0.2, ch);
+  if (k <= 0.0) { return c; }
+  return unlab(vec3f(v.x * (1.0 - 0.07 * k), v.yz));
+}
 // Colour grading: a tint and a change of brightness for the shadows, the midtones, the highlights and the whole.
 // Balance moves where shadows end and highlights begin; blending is how far the three run into each other.
 fn grade(c: vec3f) -> vec3f {
@@ -104,12 +116,22 @@ fn cube(e: vec3f) -> vec3f {
   }
   return clamp(mix(e, acc, p.air.w), vec3f(0.0), vec3f(1.0));
 }
-// Grain: a speck for each 1.5 sensor pixels, so it keeps its size at any zoom; strongest in the mid-tones. The
-// editing copy, a third of the size, shows it fainter, as it would average out. spot: 0..1 across the picture.
-fn grain(o: vec3f, spot: vec2f) -> vec3f {
-  let g = vec2u(spot * p.noise.zw * 2.0);
+// Grain: a speck for each 1.5 sensor pixels at its size's start (p.chroma.w, 1 there; larger is coarser), so it keeps
+// its size at any zoom; strongest in the mid-tones. The editing copy, a third of the size, shows it fainter, as it
+// would average out. spot: 0..1 across the picture. Coarser grain runs smoothly from speck to speck, not in squares.
+fn speck(g: vec2u) -> f32 {
   var s = g.x * 2246822519u + g.y * 3266489917u + 374761393u; s = (s ^ (s >> 15u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
+  return (f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0;
+}
+fn grain(o: vec3f, spot: vec2f) -> vec3f {
+  let q = spot * p.noise.zw * 2.0 / p.chroma.w; let g = vec2u(q);
+  var n = speck(g);
+  if (p.chroma.w > 1.0) {   // between the four specks around, eased; a third stronger, as a blend of four is fainter than one
+    let f = q - floor(q); let u = f * f * (3.0 - 2.0 * f);
+    let b = mix(mix(n, speck(g + vec2u(1u, 0u)), u.x), mix(speck(g + vec2u(0u, 1u)), speck(g + vec2u(1u, 1u)), u.x), u.y) * 1.35;
+    n = mix(n, b, min(p.chroma.w - 1.0, 1.0));
+  }
   let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
-  return o + ((f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0) * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
+  return o + n * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
 }
 fn point(x: f32, k: u32) -> f32 { let f = clamp(x, 0.0, 1.0) * 127.0; let i = u32(f); let j = min(i + 1u, 127u); return mix(p.crv[i][k], p.crv[j][k], f - f32(i)); }`;

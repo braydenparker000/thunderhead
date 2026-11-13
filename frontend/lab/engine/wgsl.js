@@ -25,14 +25,14 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
   look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
   wb: vec4f,     // the white balance as gains on camera R, G, B (green 1); then what the stored values are multiplied by (warp.js keeps room above them)
-  chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
+  chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb); then the grain's size (1 at its start)
   fx: vec4f,     // clarity, texture, dehaze (−1..1), vignette (−1 darker corners .. 1 lighter)
   air: vec4f,    // the haze's own colour, for Dehaze (haze.js)
   sharp: vec4f,  // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js); then grain (0..1)
   noise: vec4f,  // noise reduction, in multiples of the sensor's noise: brightness, colour (0: off): full-size views alone
                  // (denoise.js); then the picture's size in editing-copy pixels
   mx: array<vec4f, 8>,     // the colour mixer: hue, saturation and brightness for each of its eight colours (grade.js)
-  gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance
+  gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance, and Color Chrome and Chrome Blue (0..1, grade.js)
   crv: array<vec4f, 128>,  // the point curve: all three channels', then red's, green's, blue's, at 128 steps
   mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56> };   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at (then defringe, for finish.js) · seven rows a mask
 @group(0) @binding(0) var<storage, read> src: array<u32>;
@@ -236,7 +236,7 @@ fn colour(c0: vec3f) -> vec3f {
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c, p.f.y, p.g.z, p.g.w); }
   if (p.k.x != 0.0 || p.k.y != 0.0) { c = vivid(c); }
-  if ((fl & 32768u) != 0u) { c = mixer(c); }
+  if ((fl & 32768u) != 0u) { c = mixer(c); } if (p.gr[4].z != 0.0 || p.gr[4].w != 0.0) { c = chrome(c); }
   if ((fl & 65536u) != 0u) { c = grade(c); }
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }

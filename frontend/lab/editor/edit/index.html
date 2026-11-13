@@ -35,7 +35,7 @@
 
   <div class="plate" style="position: absolute; left: 0; top: calc({{plateTop}}px - var(--cut)); width: 412px; height: 340px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 340px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7); transition: top 320ms cubic-bezier(0.2, 0.85, 0.2, 1)">
     <sc-if value="{{isDial}}"><div style="position: absolute; left: 0; top: 4px">
-      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" auto="{{auto}}" onauto="{{pressAuto}}" left="{{dialLeft}}" hint-size="412px,144px"></dc-import>
+      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" auto="{{auto}}" onauto="{{pressAuto}}" left="{{dialLeft}}" start="{{dialStart}}" hint-size="412px,144px"></dc-import>
     </div></sc-if>
     <sc-if value="{{isTiles}}" hint-placeholder-val="{{false}}">
       <div style="position: absolute; left: 0; top: 4px"><dc-import name="DialPlate" slim="{{isTiles}}" left="{{isTiles}}" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" hint-size="412px,44px"></dc-import></div>

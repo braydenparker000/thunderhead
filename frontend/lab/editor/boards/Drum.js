@@ -2,8 +2,10 @@
 // A drum: a small cylinder standing in the panel that turns up and down, a name on each face. It chooses between a
 // few pages (the Edit board's sections) in the room one of them takes. A finger turns it and it settles on a
 // face; a flick carries it further; a tap above or below the middle steps one face.
-// Props: `faces` [{ label, count }], `at` (the face showing), `onpick(i)`.
+// Props: `faces` [{ label, count }], `at` (the face showing), `onpick(i)`. A new face clicking into place ticks under
+// the finger (app/haptic.js).
 import { DCLogic } from '../dc.js';
+import { tick } from '../app/haptic.js';
 
 const FACE = 26;   // a face's height in the design's pixels
 export default class Component extends DCLogic {
@@ -18,7 +20,7 @@ export default class Component extends DCLogic {
       this.state.angle = (here + d) * step; this.state.ease = this.seen >= 0;
     }
     this.seen = at;
-    const settle = (a) => { const to = Math.round(a / step) * step; this.setState({ angle: to, ease: true }); if (face(to) !== at) this.props.onpick?.(face(to)); };
+    const settle = (a) => { const to = Math.round(a / step) * step; this.setState({ angle: to, ease: true }); if (face(to) !== at) { tick('detent'); this.props.onpick?.(face(to)); } };
     return {
       r: r.toFixed(2), fh: FACE, half: FACE / 2, angle: this.state.angle.toFixed(2), ease: this.state.ease ? 'transform 280ms cubic-bezier(0.2, 0.85, 0.25, 1.1)' : 'none',
       faces: Array.from({ length: slots }, (_, i) => { const f = faces[i % n] || {}, on = i % n === at; const long = String(f.label || '').length; return { label: String(f.label || '').toUpperCase(), size: long > 8 ? 8.5 : 10, gap: long > 8 ? 0.04 : long > 7 ? 0.08 : 0.14, count: f.count ? String(f.count) : '', a: (-i * step).toFixed(2), on: String(on), ink: on ? '#f2efe8' : '#8b8f95', countInk: on ? '#e8202a' : '#5d6166' }; }),

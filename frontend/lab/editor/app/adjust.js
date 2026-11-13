@@ -11,11 +11,11 @@ import { curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
 export function dials(v, curve) {
   const h = (/** @type {string} */ k) => v[k] / 100;
   return { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'),
-    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
+    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), grainSize: 2 ** (((v['Grain size'] ?? 25) - 25) / 30), chrome: (v.Chrome || 0) / 100, chromeBlue: (v['Chrome Blue'] || 0) / 100, cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
 }
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
-const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
+const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], 'Grain size': [0, 100, 1], Chrome: [0, 100, 1], 'Chrome Blue': [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
 /** Whether a control runs from nothing upwards (the dial's window then fills from its left end). @param {string} name */
 export const upward = (name) => !!SPAN[name] && SPAN[name][0] === 0;
 /** @param {string} name */
@@ -28,9 +28,8 @@ export function text(name) {
   if (SPAN[name]) return name === 'Radius' ? v.toFixed(1) : String(Math.round(v));
   return `${sign(v)}${Math.abs(Math.round(v))}`;
 }
-/** The dial's position for a value (its window runs −5..5). @param {string} name */
-export function toDial(name) {
-  const v = value(name);
+/** The dial's position for a value (its window runs −5..5): the control's own now, or `v`. @param {string} name @param {number} [v] */
+export function toDial(name, v = value(name)) {
   if (name === 'Exposure') return v;
   if (name === 'Temp') return cur ? Math.log2(v / cur.shotK) / 0.25 : 0;
   if (name === 'Tint') return (v - shotWb()[1]) / 30;
@@ -54,6 +53,8 @@ export function setValues(patch, key, name, val = '') { if (!cur) return; Object
 export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : cur?.start && name in cur.start ? cur.start[name] : cur?.plain && name in STILL ? STILL[name] : ZERO[name] ?? 0);
+/** The dial's position where an adjustment starts for this photo (the dial ticks there: boards/DialPlate.js). @param {string} name */
+export const startDial = (name) => toDial(name, start(name));
 /** A photo's name without its ending. @param {string} name */
 export const stem = (name) => name.replace(/\.(RAF|JPE?G)$/i, '');
 /** How a shot was taken, in a line (23 mm · f/5.6 · 1/250 · ISO 160): what its Exif says, '' when it says nothing. @param {import('./store.js').Photo['shot']} s */

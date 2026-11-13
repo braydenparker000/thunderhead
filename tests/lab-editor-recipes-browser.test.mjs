@@ -67,15 +67,16 @@ test('the card opens the recipes; one tapped is its profile and settings on the 
     return { v: st.values, wb: st.wb, film: photo.looks().find((l) => l.id === photo.look())?.label, step: h.steps[h.at].name, said: document.querySelector('#stage .plate [role="status"]').textContent,
       on: document.querySelector('#stage [role="option"][aria-label="1960 Chrome"]').getAttribute('aria-selected') };
   });
-  assert.deepEqual([worn.v.Highlights, worn.v.Whites, worn.v.Shadows, worn.v.Blacks, worn.v.Saturation, worn.v.Sharpening, worn.v.Clarity, worn.v.Grain, worn.v['Mix Red Lum'], worn.v['Mix Blue Lum']], [-44, -8, 12, 4, 12, 32, -16, 44, -12, 0]);
+  assert.deepEqual([worn.v.Highlights, worn.v.Whites, worn.v.Shadows, worn.v.Blacks, worn.v.Saturation, worn.v.Sharpening, worn.v.Clarity, worn.v.Grain, worn.v['Grain size'], worn.v.Chrome, worn.v['Chrome Blue'], worn.v['Mix Red Lum']],
+    [-44, -8, 12, 4, 12, 32, -16, 36, 60, 100, 0, 0], 'grain Strong Large, Color Chrome Strong on their own controls; the mixer left alone');
   assert.deepEqual([worn.wb, worn.v.Temp, worn.v.Tint], ['Custom', 6600, 16], 'Fluorescent 1 (6300 K, tint 25), then two steps warmer and six towards green');
   assert.deepEqual([worn.v.Exposure, worn.v.Contrast, worn.v.Vibrance], [0.5, 0, 0], "Exposure is the photo's own; the look's other dials go back to their start");
   assert.deepEqual([worn.step, worn.on], ['Recipe · 1960 Chrome', 'true']);
-  assert.match(worn.said, /^1960 Chrome · near only: Dynamic Range 400, Color Chrome, Grain Large · not here: Exposure compensation, Eterna Bleach Bypass$/);
+  assert.match(worn.said, /^1960 Chrome · near only: Dynamic Range 400 · not here: Exposure compensation, Eterna Bleach Bypass$/);
   // Undo takes the whole recipe back in one step
   await page.evaluate(async () => (await import('/lab/editor/app/session.js')).undo());
-  const back = await page.evaluate(async () => { const st = (await import('/lab/editor/app/session.js')).state(); return [st.values.Contrast, st.values.Vibrance, st.values.Grain, st.wb]; });
-  assert.deepEqual(back, [30, 20, 0, 'As shot']);
+  const back = await page.evaluate(async () => { const st = (await import('/lab/editor/app/session.js')).state(); return [st.values.Contrast, st.values.Vibrance, st.values.Grain, st.values['Grain size'], st.values.Chrome, st.wb]; });
+  assert.deepEqual(back, [30, 20, 0, 25, 0, 'As shot']);
   // another group, and back to the Presets
   await page.locator('#stage [aria-label^="X-Trans IV:"]').click();
   await page.waitForFunction(() => document.querySelector('#stage [role="listbox"][aria-label="Weekly Fuji recipes · X-Trans IV"]')?.querySelectorAll('[role="option"]').length > 150);
