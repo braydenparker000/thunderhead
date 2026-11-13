@@ -851,6 +851,21 @@ where Color Chrome and FX Blue are Strong (a blue sky far darker than ours with 
 tone settings (Shadow -2 lifts the darkest tones about a stop). `recipe-map.js`'s strengths were guesses; these
 photos are what they can now be fitted to.
 
+## The camera's own push, read from the RAF (2026-11-13)
+
+A RAF records how far the camera pushes its sensor data to make the JPEG (its raw header's tag 0x9650, the raw
+exposure bias: -0.72 stops on a usual shot). We went by the maker notes' DR setting alone, which says nothing of
+DR Auto, of D-Range Priority (a stop or two more), or of the extended low ISOs (data a stop over, pulled back).
+Measured against the camera's JPEG, pixel by pixel on small copies: the owner's ISO 100 night shot opened 1 to 2
+stops brighter than the camera's, and the CC0 sample (D-Range Priority) about a stop darker. With the RAF's own
+figure (`exif.js` `pushOf`, given as the DR number the developer adds back) both sit within about a third of a stop
+of the camera's through the middle tones. A photo already edited keeps the brightness its edit was made at (its
+saved edit has no `push` mark and more than its opening step).
+
+Seen and left: on every photo compared, ours is about 0.3 stop brighter than the camera's through the middle. The
+0.25 stop baseline was measured on the sample before its D-Range Priority was known; one neutral photo (PROVIA,
+all settings 0) is not enough to move it for every photo. To settle with more neutral shots.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

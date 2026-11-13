@@ -91,7 +91,7 @@ export async function open(id, quick = false, again = false) {
   const r = await new Promise((res) => ask(buf ? { buf, full: !quick } : plain ? { picture: file } : { stack: file, full: !quick }, buf ? [buf] : [], (d) => {
     if (cur !== me) { d.picture?.close(); return true; }   // a photo left behind, still answering
     if (d.mosaic) { sensor(d.mosaic); return true; }
-    if (d.preview) { me.shotEv = BASELINE_EV + Math.log2((d.dr || 100) / 100); film = filmOf(d.settings); me.shot = d.settings || ''; changed(); return false; }
+    if (d.preview) { me.shotEv = BASELINE_EV + Math.log2(((!edit.push && edit.steps?.length > 1 ? d.dr0 ?? d.dr : d.dr) || 100) / 100); film = filmOf(d.settings); me.shot = d.settings || ''; changed(); return false; }
     res(d);
     return !!d.error || plain || quick || d.meta.cfaWidth !== 6;   // else the sensor's own pixels follow
   }));
@@ -242,7 +242,7 @@ export function save(key, name, val) {
 }
 /** An edit the phone would not keep (its storage full, most often): said on the photo, since nothing else would show it. */
 const unsaved = (/** @type {NonNullable<typeof cur>} */ me, /** @type {unknown} */ err) => { console.warn('edit not saved', err); if (cur === me) say('This edit could not be saved on this phone. Free some space, then change something to try again.'); };
-const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, ...(me.start ? { start0: me.start } : {}), wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) });
+const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, ...(me.start ? { start0: me.start } : {}), wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, push: 1, ...(p ? hist.dump(p) : {}) });
 /** Saves now what `save` would shortly, the tile too: for work that goes straight on to another photo (clip.js). */
 export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }
 let tileT = 0;

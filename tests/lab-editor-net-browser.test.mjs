@@ -29,14 +29,17 @@ test('at 200 % the network makes what shows, once the photo rests, and again aft
   await page.addInitScript(() => { try { localStorage.setItem('th.s.photos.double_tap', '200'); } catch {} });
   await page.goto(`${base}/lab/editor/?readback`, { waitUntil: 'load' });
   await page.waitForSelector('#stage header');
-  await page.evaluate(async (b64) => {
+  const ev = await page.evaluate(async (b64) => {
     const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
     const store = await import('/lab/editor/app/store.js'), photo = await import('/lab/editor/app/session.js');
     await store.add([new File([a], 'DSCF8509.RAF')], () => {});
     await photo.open(store.photos()[0].id);
     document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' }));
     for (let i = 0; i < 3000 && !photo.whole(); i++) await new Promise((r) => setTimeout(r, 100));
+    return photo.current().shotEv;
   }, readFileSync(RAF).toString('base64'));
+  // the sample was shot with D-Range Priority: its RAF says the camera pushed it a stop more than usual, and so it opens (engine/exif.js `pushOf`)
+  assert.equal(ev, 1.25);
   const fines = () => page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]').filter((t) => t.kind === 'fine'));
   const layers = () => page.evaluate(async () => {
     const zoom = await import('/lab/editor/app/zoom.js'), [, , , live, closer] = document.querySelector('.fillphoto').children;

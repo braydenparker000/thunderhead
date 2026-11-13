@@ -23,7 +23,9 @@ jobs:
   check:
     name: ${{ matrix.part }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # 15 (10 until 2026-11-13): CI's machine makes the software-GPU tests about twice as slowly as the measured
+    # table says, and a part that had passed for weeks ran out of time with nothing failing.
+    timeout-minutes: 15
     strategy:
       fail-fast: true
       matrix:
