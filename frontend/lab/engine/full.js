@@ -10,6 +10,7 @@ import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { fringeOf } from './lens.js';
 import { compile as compileNet, demosaicer as network } from './neural.js';
+import { fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
@@ -44,7 +45,16 @@ export async function full(e, img, mosaic) {
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
   if (sensor && img.meta.net) setTimeout(() => compileNet(device).catch(() => {}), 1500);
-  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick, iso: /** @type {number} */ (img.meta.iso) || 100,
+  // How noisy a raw site is, for the network: as the photo says where it says (a made-up one), else read from the
+  // photo's own flat places (noise-fit.js), held to within what this sensor can be; else the sensor's own figure.
+  const told = (() => {
+    if (!sensor) return null;
+    if (img.meta.noise) return /** @type {{ a: number[], b: number[] }} */ (img.meta.noise);
+    const own = sensorNoise(/** @type {number} */ (img.meta.iso) || 100), fit = fitNoise(sensor, W, H, /** @type {number} */ (img.meta.black), /** @type {number} */ (img.meta.white), phase, 3);
+    const n = fit.ok && fit.a > 0.15 * own.a && fit.a < 3 * own.a ? fit : own;
+    return { a: [n.a, n.a, n.a], b: [n.b, n.b, n.b] };
+  })();
+  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick, iso: /** @type {number} */ (img.meta.iso) || 100, noise: told,
     fringe: fringeOf(img.meta.lens, W, H) };   // the lens's colour fringing is undone in the demosaic, where it costs detail least (demosaic.js `lead`)
   const open = /** @type {Set<() => void>} */ (new Set());
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the

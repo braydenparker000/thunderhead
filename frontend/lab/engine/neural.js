@@ -168,7 +168,7 @@ export function compile(device) {
 /** Makes rectangles of the photo by the network, each up to maxW × maxH sensor pixels, as demosaic.js's
  * `demosaicer` does: `run` adds the passes to a frame's commands and the result is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
- * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number }} info `iso`: the photo's, for its noise;
+ * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number, noise?: { a: number[], b: number[] } | null }} info `noise`: a raw site's own (full.js reads it from the photo), else `iso`: the photo's, for the table's;
  *   `smooth`: how much of that noise the network is told of (1: all of it; less keeps more grain, more smooths further)
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
@@ -197,7 +197,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [smooth] this once, in place of `info.smooth` */
   const run = (enc, rx, ry, rw, rh, spots, smooth) => {
-    const noise = noiseAt(info.iso || 100), k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2, g1 = info.wb?.[1] || 1;
+    const noise = info.noise || noiseAt(info.iso || 100), k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2, g1 = info.wb?.[1] || 1;
     let n = 0;
     for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) {
       const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly);
