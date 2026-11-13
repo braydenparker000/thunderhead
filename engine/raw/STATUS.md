@@ -866,6 +866,13 @@ Seen and left: on every photo compared, ours is about 0.3 stop brighter than the
 0.25 stop baseline was measured on the sample before its D-Range Priority was known; one neutral photo (PROVIA,
 all settings 0) is not enough to move it for every photo. To settle with more neutral shots.
 
+## New photos open in Adobe Color (2026-11-13)
+
+The owner starts from Adobe Color, not the camera's film simulation, so that is now what "New photos open in"
+(Settings > Photos > Editor) starts at; the film simulation is the other choice. A photo opened before keeps the
+profile it has. With that, opening a RAF with the camera's own recipe laid on is not wanted and is not planned:
+the recipes stay something the owner puts on.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
