@@ -873,6 +873,23 @@ The owner starts from Adobe Color, not the camera's film simulation, so that is 
 profile it has. With that, opening a RAF with the camera's own recipe laid on is not wanted and is not planned:
 the recipes stay something the owner puts on.
 
+## Color Chrome, fitted to the camera's JPEGs (2026-11-13)
+
+Our render of the owner's RAFs against the camera's own JPEG inside each, pixel by pixel on small copies, sorted
+by how saturated each colour is. With no Color Chrome in camera (a neutral PROVIA shot) the camera's lightness
+over ours is the same at every saturation. With it at Strong the camera's strong colours are 12 to 15 % darker
+than ours (a clear sky most of a stop), and at Weak about 8 %. Ours at 100 moved that sky by 0.02 stop: it worked
+before the tone curve, on a chroma a sky never reaches there.
+
+`grade.js` `chrome` now works on the developed colours (after the tone curve, as the camera does), by saturation
+(chroma over lightness in Oklab, so a dark leaf counts as a bright one): nothing below 0.03, all from 0.18, up to
+15 % off the lightness. On the Strong photo the camera's lightness over ours is within 3 % at every saturation
+(it fell 12 % across them before); on the Weak one within 3 % at 60, which is what a recipe's Weak now sets.
+A photo that already has Chrome on will look deeper than it did: that is the correction.
+
+Not fitted yet: the highlight and shadow tone steps and the colour step. The dial fits did not separate them
+from the baseline (every film-simulation photo wants about 0.2 to 0.4 stop less exposure to match the camera).
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

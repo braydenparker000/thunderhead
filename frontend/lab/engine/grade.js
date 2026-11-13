@@ -84,17 +84,23 @@ fn mixer(c: vec3f) -> vec3f {
   v = vec3f(v.x * exp2(a.z * 0.6 * min(1.0, ch / 0.12)), vec2f(v.y * co - v.z * s, v.y * s + v.z * co) * (1.0 + a.y));
   return unlab(v);
 }
-// Color Chrome, as Fujifilm's cameras have it: a strong colour a little darker, the more so the stronger it is, so a
-// red flower or a green leaf keeps its depth and shading; Chrome Blue does the same for blues (skies) alone. Greys
-// and muted colours (skin) are left as they are. Up to 7 % off Oklab's lightness at 100: about 0.3 stops.
+// Color Chrome, as Fujifilm's cameras have it: a strong colour darker, the more so the stronger it is, so a red
+// flower, a green leaf or a clear sky keeps its depth and shading; Chrome Blue does the same for blues alone. Greys
+// and the palest colours are left as they are. It works on the developed colours, as the camera does (wgsl.js's
+// colour() calls it after the tone curve), by a colour's saturation (its chroma over its lightness, in Oklab, so a
+// dark leaf counts as much as a bright one): nothing below 0.03, all of it from 0.18, up to 15 % off the lightness
+// at 100. Measured on the owner's photos against the camera's own JPEGs (2026-11-13): with the effect at Strong the
+// camera's strong colours were 12 to 15 % darker than ours, a clear sky most of a stop; with this they are within
+// 5 %, and a photo shot with it at Weak agrees at 60. Until then it took up to 7 % off, began at a chroma of 0.06 in
+// the scene's own light and was whole only at 0.2, which a sky never reaches: it did next to nothing.
 const SKY = vec2f(-0.4008, -0.9162);   // the middle of the blues, 246 degrees in Oklab: from cyan-blue to blue
 fn chrome(c: vec3f) -> vec3f {
   let v = lab(c); let ch = length(v.yz);
   if (ch < 1e-5) { return c; }
   let blue = smoothstep(0.5, 0.92, dot(v.yz / ch, SKY));
-  let k = mix(p.gr[4].z, p.gr[4].w, blue) * smoothstep(0.06, 0.2, ch);
+  let k = mix(p.gr[4].z, p.gr[4].w, blue) * smoothstep(0.03, 0.18, ch / max(v.x, 1e-3));
   if (k <= 0.0) { return c; }
-  return unlab(vec3f(v.x * (1.0 - 0.07 * k), v.yz));
+  return unlab(vec3f(v.x * (1.0 - 0.15 * k), v.yz));
 }
 // Colour grading: a tint and a change of brightness for the shadows, the midtones, the highlights and the whole.
 // Balance moves where shadows end and highlights begin; blending is how far the three run into each other.

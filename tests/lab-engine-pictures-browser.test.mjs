@@ -207,8 +207,8 @@ test('the colour table gives what developing each pixel itself gives', opts, asy
 });
 
 test('Color Chrome darkens strong colours and leaves greys and pale ones; Chrome Blue the blues; Grain size makes the grain coarser', opts, async () => {
-  // grade.js `chrome`: Oklab's lightness lowered by up to 7 % (about 0.3 stops) on strong colours, by how strong they
-  // are; Chrome for every hue but the blues, Chrome Blue for those. grain: specks larger than at the start, run smoothly
+  // grade.js `chrome`: Oklab's lightness lowered by up to 15 % (about 0.7 stops) on strong colours, by how saturated
+  // they are; Chrome for every hue but the blues, Chrome Blue for those. grain: specks larger than at the start, run smoothly
   // into each other. At 0 (and Grain size at its start) the picture is the one without them, to the last value.
   const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
   const errors = [];
@@ -247,11 +247,11 @@ test('Color Chrome darkens strong colours and leaves greys and pale ones; Chrome
   const [red, green, blue, sky, grey, pale] = [0, 1, 2, 3, 4, 5];
   for (const i of [red, green]) {
     const s = stops(r.plain[i], r.chrome[i]), w = stops(r.plain[i], r.weak[i]);
-    assert.ok(s < -0.15 && s > -0.5, `Chrome 100 darkens patch ${i} (${r.plain[i]} to ${r.chrome[i]}) by ${s.toFixed(2)} stops`);
-    assert.ok(w < -0.05 && w > s, `Chrome 50 by less (${w.toFixed(2)} stops)`);
+    assert.ok(s < -0.45 && s > -0.9, `Chrome 100 darkens patch ${i} (${r.plain[i]} to ${r.chrome[i]}) by ${s.toFixed(2)} stops`);
+    assert.ok(w < -0.2 && w > s, `Chrome 50 by less (${w.toFixed(2)} stops)`);
   }
   for (const i of [blue, sky, grey, pale]) assert.ok(near(r.plain[i], r.chrome[i]), `Chrome leaves patch ${i} as it was: ${r.plain[i]}, ${r.chrome[i]}`);
-  for (const i of [blue, sky]) assert.ok(stops(r.plain[i], r.blue[i]) < -0.1, `Chrome Blue darkens patch ${i}: ${r.plain[i]} to ${r.blue[i]}`);
+  for (const i of [blue, sky]) assert.ok(stops(r.plain[i], r.blue[i]) < -0.3, `Chrome Blue darkens patch ${i}: ${r.plain[i]} to ${r.blue[i]}`);
   for (const i of [red, green, grey, pale]) assert.ok(near(r.plain[i], r.blue[i]), `Chrome Blue leaves patch ${i}: ${r.plain[i]}, ${r.blue[i]}`);
   assert.equal(r.same, true, 'both at 0 and Grain size at its start: the bytes of a render without them');
   const g = r.grain;
