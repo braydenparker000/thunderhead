@@ -31,8 +31,12 @@ const TONE = 12, EDGE = 4;       // Highlight and Shadow tone: Highlights/Shadow
 const DR = { 200: -10, 400: -20 };   // DR200 and DR400 hold the highlights back: a softer shoulder
 const DRP = /** @type {Record<string, [number, number]>} */ ({ weak: [-20, 15], auto: [-20, 15], strong: [-35, 25] });   // D-Range Priority: the camera's own highlights and shadows, in place of the two tones
 const COLOR = 6, SHARP = 8, NR = 5, CLARITY = 8;
-const GRAIN = { Weak: 18, Strong: 36 }, LARGE = 8;
-const CHROME = { Weak: -6, Strong: -12 }, CHROME_BLUE = { Weak: -8, Strong: -16 };   // strong colours a little deeper (the mixer's Lum)
+const GRAIN = { Weak: 18, Strong: 36 }, SIZE = { Small: 25, Large: 60 };   // Grain, and Grain size (Small is where it starts)
+const CHROME = { Weak: 50, Strong: 100 };   // Color Chrome Effect and FX Blue: Chrome and Chrome Blue
+/** Black-and-white toning (Monochromatic Color: warm/cool and magenta/green, −18..18 each) as grading's hue and
+ * saturation: warm is 40 degrees on its wheel, green 130, cool 220 and magenta 310, a quarter turn apart, so the
+ * setting's direction is the hue; its length 2.5 times is the saturation, to 45 at most. @param {number} wc @param {number} mg */
+export const toning = (wc, mg) => ({ hue: Math.round((((40 + (Math.atan2(-mg, wc) * 180) / Math.PI) % 360) + 360) % 360), sat: Math.round(Math.min(45, 2.5 * Math.hypot(wc, mg))) });
 const MIRED = 3.5, TINT = 1.5;   // a step of the white balance shift: warmer by red less blue, towards magenta by their sum
 /** The camera's white balance settings as a colour temperature and tint here. */
 const LIGHT = /** @type {Record<string, [number, number]>} */ ({ daylight: [5500, 10], shade: [7500, 10], incandescent: [2850, 0], 'fluorescent 1': [6300, 25], 'fluorescent 2': [4800, 25], 'fluorescent 3': [4200, 25] });
@@ -58,10 +62,10 @@ export function edit(r, shot) {
   values.Noise = clamp((shot.noise0 || 0) + NR * n(r.noiseReduction), 0, 100);
   values.Clarity = clamp(CLARITY * n(r.clarity), -100, 100);
   const g = r.grain || {}, grain = GRAIN[/** @type {'Weak' | 'Strong'} */ (g.strength || '')] || 0;
-  values.Grain = grain ? grain + (g.size === 'Large' ? LARGE : 0) : 0;
-  const cc = CHROME[/** @type {'Weak' | 'Strong'} */ (r.colorChrome || '')] || 0, cb = CHROME_BLUE[/** @type {'Weak' | 'Strong'} */ (r.colorChromeBlue || '')] || 0;
-  for (const c of ['Red', 'Orange', 'Yellow', 'Green', 'Magenta']) values[`Mix ${c} Lum`] = cc;
-  for (const c of ['Blue', 'Aqua']) values[`Mix ${c} Lum`] = cb;
+  values.Grain = grain; values['Grain size'] = grain && g.size === 'Large' ? SIZE.Large : SIZE.Small;
+  values.Chrome = CHROME[/** @type {'Weak' | 'Strong'} */ (r.colorChrome || '')] || 0; values['Chrome Blue'] = CHROME[/** @type {'Weak' | 'Strong'} */ (r.colorChromeBlue || '')] || 0;
+  const mono = r.monochromatic, tone = mono && (n(mono.wc) || n(mono.mg)) ? toning(n(mono.wc), n(mono.mg)) : null;   // one tint over the whole picture: grading's Global
+  if (tone) { values['Grade Global Hue'] = tone.hue; values['Grade Global Sat'] = tone.sat; }
   // white balance: where the recipe sets a light or a temperature, that; else the shot's own; then the shift
   const w = r.whiteBalance || {}, mode = String(w.mode || '').toLowerCase(), red = n(w.red), blue = n(w.blue);
   const base = w.kelvin ? /** @type {[number, number]} */ ([w.kelvin, w.kelvin >= 4000 ? 10 : Math.max(0, (10 * (w.kelvin - 2850)) / 1150)]) : LIGHT[mode] || shot.shotWb;
@@ -73,9 +77,6 @@ export function edit(r, shot) {
   // said, not hidden: what is only near, and what is not here at all
   if (drp) left.push(`D-Range Priority ${r.dRangePriority}: only as held highlights and lifted shadows`);
   if (dr && !drp) left.push(`Dynamic Range ${r.dynamicRange}: only as gentler highlights (the camera does it at the shot)`);
-  if (cc || cb) left.push('Color Chrome: as the mixer\'s luminance on strong colours, not the camera\'s own effect');
-  if (g.size && grain) left.push(`Grain ${g.size}: one grain size here`);
-  if (r.monochromatic && (r.monochromatic.wc || r.monochromatic.mg)) left.push('Monochromatic colour (toning): not replicated');
   if (/\+\s*(r|ye?|g)\b/i.test(r.filmSimulation || '')) left.push('The black-and-white colour filter: only where there is a profile with it');
   if (r.exposureCompensation && (r.exposureCompensation.min || r.exposureCompensation.max)) left.push('Exposure compensation: a shooting note, not applied');
   if (/underwater|ambience|white priority/i.test(mode)) left.push(`White balance ${w.mode}: as the shot's own`);

@@ -11,11 +11,11 @@ import { curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
 export function dials(v, curve) {
   const h = (/** @type {string} */ k) => v[k] / 100;
   return { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'),
-    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
+    sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), grainSize: 2 ** (((v['Grain size'] ?? 25) - 25) / 30), chrome: (v.Chrome || 0) / 100, chromeBlue: (v['Chrome Blue'] || 0) / 100, cube: v.Cube / 100, defringe: v.Defringe / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(curve) };
 }
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
-const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
+const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], 'Grain size': [0, 100, 1], Chrome: [0, 100, 1], 'Chrome Blue': [0, 100, 1], Blending: [0, 100, 1], Defringe: [0, 100, 1], Amount: [0, 150, 1], Cube: [0, 150, 1] });
 /** Whether a control runs from nothing upwards (the dial's window then fills from its left end). @param {string} name */
 export const upward = (name) => !!SPAN[name] && SPAN[name][0] === 0;
 /** @param {string} name */

@@ -169,7 +169,7 @@ function touch(/** @type {PointerEvent} */ e) {
     hold(); apply();
   } else if (pts.delete(e.pointerId)) {
     if (pts.size) { begin(); return; }   // one finger of a pinch lifted: the other drags on
-    const was = g, now = performance.now(); g = null;
+    const was = g, now = e.timeStamp; g = null;   // when the finger lifted, not when the page got round to it: a busy moment must not turn a double tap into two taps
     if (tool() && !was?.two) return;   // one finger on a tool board is the board's
     if (was && was.far < 8 && !was.pinch) {   // a tap: the second of two quick ones zooms
       const u = (at.x - f.ox - tx) / (f.w * z), v = (at.y - f.oy - ty) / (f.h * z);   // where on the picture, in shares of it

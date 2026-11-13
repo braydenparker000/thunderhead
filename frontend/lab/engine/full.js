@@ -35,14 +35,15 @@ export async function full(e, img, mosaic) {
   const tex = sensor ? device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }) : upload(device, /** @type {ImageBitmap} */ (mosaic), W, H);
   // the full-size passes compile now, behind the photo already on screen: the first zoom to 100 % then only has to draw
   for (const p of [sensor ? compileDemosaic(device) : compilePicture(device), compileNoise(device), compileSharp(device), deepPipe(device), finishPipe(device, 'rgba8unorm')]) Promise.resolve(p).catch(() => {});
-  // and the network, where it will be used (meta.net: the owner's setting), a moment later so the photo's first frames
-  // are not held up: read, compiled and proved once for the device, so the first rest at 100 % only has to run it
-  if (sensor && img.meta.net) setTimeout(() => compileNet(device).catch(() => {}), 1500);
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
   for (let y = 0; sensor && y < H; y += BAND) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
+  // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
+  // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
+  // first rest at 100 % only has to run it
+  if (sensor && img.meta.net) setTimeout(() => compileNet(device).catch(() => {}), 1500);
   const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick, iso: /** @type {number} */ (img.meta.iso) || 100,
     fringe: fringeOf(img.meta.lens, W, H) };   // the lens's colour fringing is undone in the demosaic, where it costs detail least (demosaic.js `lead`)
   const open = /** @type {Set<() => void>} */ (new Set());

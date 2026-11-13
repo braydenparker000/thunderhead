@@ -13,7 +13,7 @@ import * as kept from './looks.js';
 
 /** Points along each side: the size most editors and cameras take. */
 export const SIZE = 33;
-const NOT = ['Exposure', 'Temp', 'Tint', 'Highlights', 'Shadows', 'Texture', 'Clarity', 'Dehaze', 'Vignette', 'Grain', 'Sharpening', 'Noise', 'Color noise', 'Distortion', 'Vignetting', 'Defringe'];
+const NOT = ['Exposure', 'Temp', 'Tint', 'Highlights', 'Shadows', 'Texture', 'Clarity', 'Dehaze', 'Vignette', 'Grain', 'Grain size', 'Sharpening', 'Noise', 'Color noise', 'Distortion', 'Vignetting', 'Defringe'];
 
 /** The table's text for an edit. @param {import('./past.js').State} st @param {string} title */
 export async function cubeOf(st, title) {

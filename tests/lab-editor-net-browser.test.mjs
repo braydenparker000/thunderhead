@@ -53,7 +53,14 @@ test('at 200 % the network makes what shows, once the photo rests, and again aft
     return out;
   });
   // a double tap on the photo: to 200 %
-  await page.touchscreen.tap(206, 300); await page.touchscreen.tap(206, 300);
+  // (a software GPU at work can hold the browser's second tap back by seconds, and two taps that far apart are not a
+  // double tap: it is tapped again until the two land together)
+  for (let i = 0; i < 4; i++) {
+    await page.touchscreen.tap(206, 300); await page.touchscreen.tap(206, 300);
+    await page.waitForTimeout(600);
+    if (await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).info().pct === 200)) break;
+    await page.waitForTimeout(2500);
+  }
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]').some((t) => t.kind === 'fine'), null, { timeout: 420_000 });
   const first = await layers();
   assert.equal(first.pct, 200);
