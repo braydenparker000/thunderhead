@@ -37,10 +37,12 @@ function exifInfo(j) {
 /** The shot's in-camera settings that change the camera's JPEG (Fujifilm maker notes, as exiftool names them):
  * film simulation, highlight and shadow tone, colour. @param {Record<number, number>} mk */
 function recipe(mk) {
-  const FILM = /** @type {Record<number, string>} */ ({ 0: 'PROVIA', 0x120: 'ASTIA', 0x200: 'Velvia', 0x400: 'Velvia', 0x500: 'Pro Neg Std', 0x501: 'Pro Neg Hi', 0x600: 'CLASSIC CHROME', 0x700: 'ETERNA', 0x800: 'CLASSIC Neg', 0x900: 'ETERNA BB', 0xa00: 'NOSTALGIC Neg', 0xb00: 'REALA ACE' });
+  const FILM = /** @type {Record<number, string>} */ ({ 0: 'PROVIA', 0x120: 'ASTIA', 0x200: 'Velvia', 0x400: 'Velvia', 0x500: 'Pro Neg Std', 0x501: 'Pro Neg Hi', 0x600: 'CLASSIC CHROME', 0x700: 'ETERNA', 0x800: 'CLASSIC Neg', 0x900: 'BLEACH BYPASS', 0xa00: 'NOSTALGIC Neg', 0xb00: 'REALA ACE' });
+  // a black-and-white shot has no film simulation tag: its kind and colour filter are in the saturation tag
+  const MONO = /** @type {Record<number, string>} */ ({ 0x300: 'Monochrome', 0x301: 'Monochrome+R', 0x302: 'Monochrome+Ye', 0x303: 'Monochrome+G', 0x310: 'Sepia', 0x500: 'ACROS', 0x501: 'ACROS+R', 0x502: 'ACROS+Ye', 0x503: 'ACROS+G' });
   const SAT = /** @type {Record<number, string>} */ ({ 0: '0', 0x80: '+1', 0x100: '+2', 0xc0: '+3', 0xe0: '+4', 0x180: '-1', 0x400: '-2', 0x4c0: '-3', 0x4e0: '-4', 0x300: 'B&W', 0x500: 'ACROS', 0x8000: 'film' });
   const tone = (/** @type {number} */ v) => (Number.isFinite(v) ? v === 0 ? '0' : `${v < 0 ? '+' : ''}${-v / 16}` : '?');
-  const film = 0x1401 in mk ? FILM[mk[0x1401]] ?? `0x${mk[0x1401].toString(16)}` : 'B&W';
+  const film = 0x1401 in mk ? FILM[mk[0x1401]] ?? `0x${mk[0x1401].toString(16)}` : MONO[mk[0x1003]] || 'B&W';
   return `${film} · highlights ${tone(mk[0x1041])} · shadows ${tone(mk[0x1040])} · colour ${SAT[mk[0x1003]] ?? `0x${(mk[0x1003] ?? 0).toString(16)}`}`;
 }
 
