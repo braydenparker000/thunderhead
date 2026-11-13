@@ -12,9 +12,9 @@ const MOST = 60, PAUSE = 1500;   // steps kept; a control still for this long st
 // where a mask lies and what was painted are never changed in place (masks.js), so steps share them
 export const copy = (/** @type {State} */ st) => ({ values: { ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo ? { ...st.geo, rect: st.geo.rect && { ...st.geo.rect } } : null, curve: st.curve ? JSON.parse(JSON.stringify(st.curve)) : null, cube: st.cube || '',
   masks: (st.masks || []).map((m) => ({ ...m, vals: { ...m.vals } })), spots: (st.spots || []).map((s) => ({ ...s })) });
-/** Whether two edits are one. Temp and Tint only count when set by hand: otherwise the white balance's name says it. @param {State} a @param {State} b */
+/** Whether two edits are one. Temp and Tint only count when set by hand or read from the photo (Auto): otherwise the white balance's name says it. @param {State} a @param {State} b */
 export const same = (a, b) => a.wb === b.wb && a.profile === b.profile && (a.cube || '') === (b.cube || '') && JSON.stringify(a.masks || []) === JSON.stringify(b.masks || []) && JSON.stringify(a.spots || []) === JSON.stringify(b.spots || []) && JSON.stringify(a.geo || null) === JSON.stringify(b.geo || null) && JSON.stringify(a.curve || null) === JSON.stringify(b.curve || null)
-  && Object.keys({ ...a.values, ...b.values }).every((k) => ((k === 'Temp' || k === 'Tint') && a.wb !== 'Custom') || a.values[k] === b.values[k]);
+  && Object.keys({ ...a.values, ...b.values }).every((k) => ((k === 'Temp' || k === 'Tint') && a.wb !== 'Custom' && a.wb !== 'Auto') || a.values[k] === b.values[k]);
 const sound = (/** @type {any} */ st) => !!st && typeof st === 'object' && !!st.values && typeof st.values === 'object' && typeof st.wb === 'string' && typeof st.profile === 'string';
 
 /** A photo's past from its saved edit. With none saved it starts at `first` (the photo as imported), and holds
