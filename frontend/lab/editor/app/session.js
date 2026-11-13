@@ -16,6 +16,7 @@ import * as hist from './past.js';
 import * as kept from './looks.js';
 import * as store from './store.js';
 import { begin } from './starts.js';
+import { profileFor } from './recipe-map.js';
 import { ask } from './decoder.js';
 import { firstPicture, keepView, note, onScreen, tap } from './kept-view.js';
 
@@ -123,10 +124,8 @@ export async function open(id, quick = false, again = false) {
 /** The shot's film simulation as a profile label to look for, from the camera's settings line. @param {string} [s] */
 const filmOf = (s) => (s || '').split(' · ')[0] || '';
 /** The profile the camera's film simulation stands for (Adobe Color when none matches, else Adobe Standard). */
-function asShot() {
-  const want = film.toUpperCase();
-  return list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want)) || list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want.split(' ')[0]))
-    || list.find((e) => e.label === 'Adobe Color') || list.find((e) => /Adobe Standard/.test(e.label)) || null;
+function asShot() {   // (by family, recipe-map.js: a simulation whose profile is a look's table, as CLASSIC Neg's is, was passed over for CLASSIC CHROME until 2026-11-13)
+  return list[profileFor(film, list.map((e) => e.label))] || list.find((e) => e.label === 'Adobe Color') || list.find((e) => /Adobe Standard/.test(e.label)) || null;
 }
 const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
 /** The shot's own white as the plate shows it: Temp to 50 K, Tint whole. */

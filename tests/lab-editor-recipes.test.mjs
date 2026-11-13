@@ -124,3 +124,18 @@ test('the list the card reads: every recipe has a name, a group and settings tha
   assert.equal([...groups.keys()][0], 'X-Trans V', "the owner's camera's sensor comes first");
   assert.ok(groups.get('X-Trans V') >= 90 && groups.get('X-Trans IV') >= 190);
 });
+
+test('every film simulation the decoder names for a shot is its own profile, the ones kept as a look\'s table too', async () => {
+  // the names decode-worker.js gives a shot's simulation (and, for black and white, its kind and filter)
+  const src = await (await import('node:fs/promises')).readFile(new URL('../frontend/lab/engine/decode-worker.js', import.meta.url), 'utf8');
+  const names = (/** @type {string} */ table) => [...new RegExp(`const ${table} = [^;]*?\\(\\{([^}]*)\\}\\)`).exec(src)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const film = names('FILM'), mono = names('MONO');
+  assert.ok(film.includes('CLASSIC Neg') && film.includes('BLEACH BYPASS') && mono.includes('ACROS+Ye') && mono.length === 9);
+  // a camera's profiles as their labels read in the picker
+  const labels = ['Adobe Color', 'Adobe Standard', 'PROVIA/Standard', 'Velvia/Vivid', 'ASTIA/Soft', 'CLASSIC CHROME', 'REALA ACE', 'REALA ACE v2', 'Pro Neg Hi', 'Pro Neg Std', 'CLASSIC Neg', 'NOSTALGIC Neg', 'ETERNA/Cinema', 'BLEACH BYPASS',
+    'ACROS', 'ACROS+G Filter', 'ACROS+R Filter', 'ACROS+Ye Filter', 'Monochrome', 'Monochrome+G Filter', 'Monochrome+R Filter', 'Monochrome+Ye Filter', 'Sepia'];
+  const got = Object.fromEntries([...new Set([...film, ...mono])].map((f) => [f, labels[profileFor(f, labels)] ?? null]));
+  assert.deepEqual(got, { PROVIA: 'PROVIA/Standard', ASTIA: 'ASTIA/Soft', Velvia: 'Velvia/Vivid', 'Pro Neg Std': 'Pro Neg Std', 'Pro Neg Hi': 'Pro Neg Hi', 'CLASSIC CHROME': 'CLASSIC CHROME', ETERNA: 'ETERNA/Cinema', 'CLASSIC Neg': 'CLASSIC Neg',
+    'BLEACH BYPASS': 'BLEACH BYPASS', 'NOSTALGIC Neg': 'NOSTALGIC Neg', 'REALA ACE': 'REALA ACE', Monochrome: 'Monochrome', 'Monochrome+R': 'Monochrome+R Filter', 'Monochrome+Ye': 'Monochrome+Ye Filter', 'Monochrome+G': 'Monochrome+G Filter',
+    Sepia: 'Sepia', ACROS: 'ACROS', 'ACROS+R': 'ACROS+R Filter', 'ACROS+Ye': 'ACROS+Ye Filter', 'ACROS+G': 'ACROS+G Filter' });
+});

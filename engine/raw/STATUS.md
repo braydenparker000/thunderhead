@@ -835,6 +835,22 @@ large 3 × 3 passes the same read in place and 1.5 times faster sixteen at a tim
 picture the same to the last bit. What the phone finds is in its next timings. If the large 3 × 3 passes do not
 gain there, they need another way, written with the phone's numbers in hand.
 
+## A shot's film simulation, found by family (2026-11-13)
+
+Found while comparing renders with the camera's own JPEG: a photo shot in CLASSIC Neg opened as CLASSIC
+CHROME. `session.js` `asShot` passed over every simulation whose profile is a look's table (CLASSIC Neg,
+NOSTALGIC Neg, BLEACH BYPASS, Sepia on the X-E5) and took the first label that began with the same word. It
+now uses `recipe-map.js` `profileFor`, as the recipes card does. The decoder names BLEACH BYPASS as that (it
+said ETERNA BB, which matched ETERNA), and a black-and-white shot by its kind and filter from the saturation tag
+(Monochrome, ACROS, Sepia, +R, +Ye, +G), not just "B&W".
+
+Measured the same day, not yet acted on: the camera's in-camera settings (highlight and shadow tone, colour, Color
+Chrome, FX Blue, white balance shift, D-Range Priority) are all in the maker notes, and none but the film
+simulation is applied when a RAF opens, as in Lightroom. On the owner's photos the camera's JPEG differs most
+where Color Chrome and FX Blue are Strong (a blue sky far darker than ours with Chrome Blue at 100) and by its
+tone settings (Shadow -2 lifts the darkest tones about a stop). `recipe-map.js`'s strengths were guesses; these
+photos are what they can now be fitted to.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
