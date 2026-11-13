@@ -14,3 +14,5 @@ export function note(kind, ms, more = {}) {
     localStorage.setItem(KEY, JSON.stringify(all.slice(-MOST)));
   } catch {}
 }
+/** The timings kept on this phone, oldest first (the Export board's estimate reads its exports: eta.js). @returns {Record<string, any>[]} */
+export function kept() { try { const all = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(all) ? all : []; } catch { return []; } }

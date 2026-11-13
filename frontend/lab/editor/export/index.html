@@ -36,6 +36,12 @@
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{showTell}}" hint-placeholder-val="{{false}}">
+    <div class="glass" aria-live="polite" data-tell="export" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 10px 12px 10px 14px; box-sizing: border-box; border-radius: 16px; z-index: 3; display: flex; align-items: center; gap: 10px">
+      <div style="flex: 1; min-width: 0"><sc-for list="{{tellLines}}" as="t" hint-placeholder-count="1"><div style="font-size: 11.5px; line-height: 1.4; color: #c9d0d8; font-variant-numeric: tabular-nums">{{t}}</div></sc-for></div>
+      <sc-if value="{{canBest}}" hint-placeholder-val="{{false}}"><button class="hit" onClick="{{bestAgain}}" aria-label="Best quality again" style="flex: none; height: 32px; padding: 0 13px; border-radius: 16px; background: rgba(255,255,255,0.14); color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; white-space: nowrap">BEST AGAIN</button></sc-if>
+    </div>
+  </sc-if>
 
   <div class="plate" style="position: absolute; left: 0; top: calc(659px - var(--cut)); width: 412px; height: 340px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 340px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
     <sc-if value="{{working}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="position: absolute; left: 0; top: 0; height: 2px; width: {{donePct}}%; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.6); transition: width 200ms linear"></span></sc-if>

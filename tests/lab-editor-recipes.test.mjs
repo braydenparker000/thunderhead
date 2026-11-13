@@ -30,7 +30,7 @@ test('a recipe lands on the dials, and says what is only near', () => {
   const e = edit(r, { shotWb: [5500, 10], noise0: 20 });
   assert.equal(e.film, 'REALA ACE');
   assert.deepEqual([e.values.Highlights, e.values.Whites, e.values.Shadows, e.values.Blacks], [-22, -4, 12, 4], 'softer highlights (and DR200), lifted shadows');
-  assert.deepEqual([e.values.Saturation, e.values.Sharpening, e.values.Noise, e.values.Clarity, e.values.Grain, e.values['Grain size']], [24, 32, 0, -16, 18, 25]);
+  assert.deepEqual([e.values.Saturation, e.values.Sharpening, e.values.Noise, e.values.Clarity, e.values.Grain, e.values['Grain size']], [24, 32, 12, -16, 9, 25], 'High ISO NR −4 keeps 60 % of the photo\'s own Noise (20 to 12); grain Weak is 9');
   assert.deepEqual([e.values.Chrome, e.values['Chrome Blue']], [100, 0], 'Color Chrome Strong is Chrome at 100');
   assert.ok(!Object.keys(e.values).some((k) => /^(Mix|Grade) /.test(k)), 'the mixer and grading are left alone');
   assert.equal(e.wb, 'Custom');
@@ -56,7 +56,7 @@ test('nothing set is nothing moved; a hard recipe stays inside every dial', () =
     [0, 0, 0, 40, 25, 0, 0, 25, 0, 0, 'As shot', '', []]);
   const hard = edit({ highlight: 4, shadow: 4, color: 4, sharpness: 4, noiseReduction: 4, clarity: 5, grain: { strength: 'Strong', size: 'Large' }, colorChrome: 'Strong', colorChromeBlue: 'Strong', dynamicRange: 'DR400', filmSimulation: 'Acros+R', monochromatic: { wc: 2, mg: -1 } }, { shotWb: [5500, 10], noise0: 90 });
   for (const [k, v] of Object.entries(hard.values)) assert.ok(v >= -150 && v <= 15000 && Number.isFinite(v), `${k} = ${v}`);
-  assert.deepEqual([hard.values.Noise, hard.values.Grain, hard.values['Grain size'], hard.values.Chrome, hard.values['Chrome Blue'], hard.film], [100, 36, 60, 100, 100, 'ACROS']);
+  assert.deepEqual([hard.values.Noise, hard.values.Grain, hard.values['Grain size'], hard.values.Chrome, hard.values['Chrome Blue'], hard.film], [100, 18, 45, 100, 100, 'ACROS']);
   assert.ok(!hard.left.some((s) => /toning|Chrome|Grain/.test(s)) && hard.left.some((s) => /colour filter/.test(s)), hard.left.join('; '));
   // D-Range Priority takes the place of the two tones and of Dynamic Range; DR Auto is the camera's choice at the shot, nothing here
   const drp = edit({ dRangePriority: 'Strong', highlight: 2, shadow: 2, dynamicRange: '400' }, { shotWb: [5500, 10] });
@@ -65,13 +65,20 @@ test('nothing set is nothing moved; a hard recipe stays inside every dial', () =
   assert.deepEqual([auto.values.Highlights, auto.values.Whites, auto.left], [-18, -6, []]);
 });
 
-test('Color Chrome and FX Blue, Weak and Strong, are Chrome and Chrome Blue at 50 and 100; grain Large is Grain size 60', () => {
+test('Color Chrome and FX Blue, Weak and Strong, are Chrome and Chrome Blue at 50 and 100; grain Weak 9, Strong 18, Large is Grain size 45', () => {
   const at = (r) => { const v = edit(r, { shotWb: [5500, 10] }).values; return [v.Chrome, v['Chrome Blue'], v.Grain, v['Grain size']]; };
   assert.deepEqual(at({ colorChrome: 'Weak', colorChromeBlue: 'Strong' }), [50, 100, 0, 25]);
   assert.deepEqual(at({ colorChrome: 'Off', colorChromeBlue: 'Weak' }), [0, 50, 0, 25]);
-  assert.deepEqual(at({ grain: { strength: 'Weak', size: 'Large' } }), [0, 0, 18, 60]);
-  assert.deepEqual(at({ grain: { strength: 'Strong', size: 'Small' } }), [0, 0, 36, 25]);
+  assert.deepEqual(at({ grain: { strength: 'Weak', size: 'Large' } }), [0, 0, 9, 45]);
+  assert.deepEqual(at({ grain: { strength: 'Strong', size: 'Small' } }), [0, 0, 18, 25]);
   assert.deepEqual(at({ grain: { strength: 'Off', size: 'Large' } }), [0, 0, 0, 25], 'no grain: its size stays where it starts');
+});
+
+test('High ISO NR scales the photo\'s own Noise: −4 keeps 60 %, 0 all of it, +4 140 %', () => {
+  const nr = (step, noise0) => edit({ noiseReduction: step }, { shotWb: [5500, 10], noise0 }).values.Noise;
+  assert.deepEqual([-4, -2, 0, 2, 4].map((s) => nr(s, 30)), [18, 24, 30, 36, 42]);
+  assert.deepEqual([nr(-4, 0), nr(4, 0), nr(4, 80), nr(-4, 1)], [0, 0, 100, 1], 'nothing to scale stays 0; never past 100');
+  for (let n0 = 0; n0 <= 40; n0++) for (let s = -4; s <= 4; s++) assert.ok(nr(s, n0) >= Math.floor(0.6 * n0), `${s} at ${n0}: ${nr(s, n0)}`);
 });
 
 test('black-and-white toning is one tint over the whole picture (grading\'s Global), its hue from the setting\'s direction', () => {
@@ -110,6 +117,8 @@ test('the list the card reads: every recipe has a name, a group and settings tha
       const [lo, hi] = k === 'Temp' ? [2000, 15000] : k === 'Tint' ? [-150, 150] : / Hue$/.test(k) ? [0, 359] : ['Sharpening', 'Noise', 'Grain', 'Grain size', 'Chrome', 'Chrome Blue'].includes(k) || / Sat$/.test(k) ? [0, 100] : [-100, 100];
       assert.ok(Number.isFinite(v) && v >= lo && v <= hi, `${r.name}: ${k} = ${v}`);
     }
+    // High ISO NR never takes Noise below 60 % of where this photo's ISO starts it (it took it to 0 on almost every photo)
+    assert.ok(e.values.Noise >= 12 && e.values.Noise <= 28, `${r.name}: Noise ${e.values.Noise} from 20`);
     groups.set(r.sensor, (groups.get(r.sensor) || 0) + 1);
   }
   assert.equal([...groups.keys()][0], 'X-Trans V', "the owner's camera's sensor comes first");

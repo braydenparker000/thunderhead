@@ -7,8 +7,10 @@ import * as photo from './session.js';
 import { outSize } from './shown.js';
 import { note } from './timings.js';
 import * as store from './store.js';
-import { prefOn } from '/th/pref.js';
+import { pref, prefOn } from '/th/pref.js';
+import { CONFIG } from '/config.js';
 import { tick } from './haptic.js';
+import { noteLine } from './export-note.js';
 
 /** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
  * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
@@ -45,8 +47,25 @@ function download(blob, name) {
 
 const MARK = 'th.editor.export';
 const NET = 'th.editor.net';   // when the network last failed an export on this phone
-/** Whether an export is made by the network (engine/neural.js). */
-const netOn = () => { try { return prefOn('photos.neural', true) && Date.now() - Number(localStorage.getItem(NET) || 0) > 7 * 864e5; } catch { return false; } };
+/** Why an export is or is not made by the network (engine/neural.js): 'on'; 'off-setting', the owner's setting
+ * (Settings > Photos > Editor); 'off-stopped', an export by it was cut off or failed on this phone in the last day.
+ * The Export board says the last before saving, with a key that turns it back on (`bestAgain`).
+ * @returns {'on' | 'off-setting' | 'off-stopped'} */
+export function netWhy() {
+  try { return !prefOn('photos.neural', true) ? 'off-setting' : Date.now() - Number(localStorage.getItem(NET) || 0) > 864e5 ? 'on' : 'off-stopped'; } catch { return 'off-setting'; }
+}
+const netOn = () => netWhy() === 'on';
+/** The network back on for the next export, after it was stopped here. */
+export function bestAgain() { try { localStorage.removeItem(NET); } catch { /* nothing was kept */ } }
+/** What an export of the open photo says of how it was made, written into each file that carries metadata
+ * (export-note.js): the way, the controls moved, the white balance, the look, the crop, masks, spots, the quality.
+ * @param {'network' | 'classic' | 'faster'} way @param {number} q the board's quality */
+function made(way, q) {
+  const st = photo.state(), values = /** @type {Record<string, number>} */ ({});
+  for (const [k, v] of Object.entries(st.values)) if (typeof v === 'number' && photo.edited(k)) values[k] = v;
+  return noteLine({ build: `${CONFIG.build}.${String(CONFIG.commit).slice(0, 7)}`, way, values, wb: st.wb, profile: photo.looks().find((l) => l.id === photo.look())?.label || '',
+    crop: !!photo.geo(), masks: st.masks?.length || 0, spots: st.spots?.length || 0, q });
+}
 /** Where an export's time went (engine/export.js `develop`), as whole numbers for the timings: developing, reading
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0,
@@ -58,7 +77,8 @@ export function cutOff() {
     const m = JSON.parse(localStorage.getItem(MARK) || 'null');
     localStorage.removeItem(MARK);
     // cut off while the network was making it (the phone may have taken the tab back for the work it is): the
-    // network is left alone here for a week, so the next export is made the usual way, and the timings say so
+    // network is left alone here for a day, so the next export is made the usual way (the Export board says so,
+    // with a key to turn it back on), and the timings say so
     if (m?.net) { localStorage.setItem(NET, String(Date.now())); note('save', 0, { net: 1, fell: 2 }); }
     return m && store.photos().some((p) => p.id === m.id) ? /** @type {{ id: string, name: string }} */ (m) : null;
   } catch { return null; }
@@ -75,28 +95,30 @@ export async function save(presets, progress, how = {}) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const began = performance.now(), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
-  const best = netOn();
+  const best = netOn(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);   // the screen kept awake: a phone that sleeps takes the tab back
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
     // each file as plain data (engine/files.js `Spec`), so it can be written on the export's own thread
+    // and, where it carries metadata, the line on how it was made (the way known once the GPU's view is: `clock.net`)
+    const way = () => (clock.net ? 'network' : !photo.current()?.plain && pref('photos.demosaic') === 'faster' ? 'faster' : 'classic');
     const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0,
-      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, kept: carry(head, x.meta, x.gps, w, h) }) }));
-    const way = { signal: how.signal, worker: how.worker, encode: photo.jpegBand };
+      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, kept: carry(head, x.meta, x.gps, w, h), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
+    const run = { signal: how.signal, worker: how.worker, encode: photo.jpegBand };
     const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
     // By the network where it is on (Settings > Photos > Editor) and has not failed here lately; if it fails now, the
-    // export is made again the usual way, and the network is left alone on this phone for a week.
-    let made;
-    try { made = await develop(big, jobsOf(), step, clock, best, way); }
+    // export is made again the usual way, and the network is left alone on this phone for a day.
+    let files;
+    try { files = await develop(big, jobsOf(), step, clock, best, run); }
     catch (err) {
       // given up is not failed: the network is not blamed for an export the owner stopped
       if (!clock.net || photo.whole() !== big || cancelled(err)) throw err;
       try { localStorage.setItem(NET, String(Date.now())); } catch { /* a private window */ }
       for (const k of Object.keys(clock)) delete clock[k];
-      clock.fell = 1; made = await develop(big, jobsOf(), step, clock, false, way);
+      clock.fell = 1; files = await develop(big, jobsOf(), step, clock, false, run);
     }
-    for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
-  }); } finally { try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
+    for (const [k, r] of files.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
+  }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock) });
   return saved;
 }

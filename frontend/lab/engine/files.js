@@ -9,14 +9,23 @@ import { block, entry } from './exif.js';
 /** A JPEG encoder: one band of 8-bit RGB rows to a JPEG of its own (the decoder's, app/decoder.js `jpegBand`).
  * @typedef {(rgb: Uint8Array, w: number, h: number, quality: number, fine: boolean) => Promise<Uint8Array>} Band */
 /** What a file is to be, as plain data that can cross to the export's thread: its format (as the Export board
- * names it), its JPEG quality, and the Exif it carries (exif.js `carry`).
- * @typedef {{ fmt: string, q: number, kept: import('./exif.js').Entry[] | null }} Spec */
+ * names it), its JPEG quality (the board's), the Exif it carries (exif.js `carry`), and a line of text on how it was
+ * made (`note`: a JPEG's comment, a PNG's Comment, a TIFF's ImageDescription), or none.
+ * @typedef {{ fmt: string, q: number, kept: import('./exif.js').Entry[] | null, note?: string }} Spec */
 
 /** The writer a Spec asks for, at w × h. @param {Spec} s @param {number} w @param {number} h @param {Band | null} band @returns {Writer} */
 export function writer(s, w, h, band) {
-  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept)); }
-  return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept)) : tiff(w, h, s.kept);
+  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept), s.note); }
+  return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept), s.note) : tiff(w, h, s.kept, s.note);
 }
+
+/** The encoder's quality for the Export board's (2026-11-13). Up to 90 they are the same; from 90 to 100 the board's
+ * runs to the encoder's 97, a step at a time. At the encoder's 100 every table is 1, which loses nothing and saves
+ * nothing: measured on the owner's 40 MP photo, 100 made 63 MB, 97 37 MB, 95 28 MB (and 95 with half the colour
+ * resolution 21 MB), none of them with a difference an eye finds. @param {number} q the board's quality, 1 to 100 */
+export const encoderQuality = (q) => (q <= 90 ? q : Math.round(90 + (Math.min(100, q) - 90) * 0.7));
+/** A line of text as bytes, anything past ASCII written as JSON's \u escapes (a PNG's text is Latin-1). @param {string} t */
+const ascii = (t) => Uint8Array.from(t.replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`), (c) => c.charCodeAt(0));
 
 const SEED = 0x9e3779b9;
 let seed = SEED;
@@ -35,16 +44,17 @@ function eight(px, out) {
 const bytes = (/** @type {number[]} */ ...b) => new Uint8Array(b);
 
 /** A JPEG. The decoder's encoder makes it a band at a time; every band shares its tables, so their scans join
- * into one file with a restart marker between them. Colour is kept at full resolution from quality 90 up.
- * @param {number} w @param {number} h @param {number} quality 1 to 100
+ * into one file with a restart marker between them. Colour is kept at full resolution from the board's quality 90
+ * up; the encoder is given `encoderQuality` of it (97 at most).
+ * @param {number} w @param {number} h @param {number} quality 1 to 100, as the Export board says it
  * @param {Band} band
- * @param {Uint8Array | null} exif an Exif block @returns {Writer} */
-export function jpeg(w, h, quality, band, exif) {
-  const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell);   // a block of the JPEG, and how many a row
+ * @param {Uint8Array | null} exif an Exif block @param {string} [note] a comment (COM) after the Exif @returns {Writer} */
+export function jpeg(w, h, quality, band, exif, note) {
+  const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell), q = encoderQuality(quality);   // a block of the JPEG, and how many a row
   const deep = Math.max(1, Math.min(256 / cell, Math.floor(65535 / across))) * cell, line = w * 3;   // rows a band
   let blob = new Blob([]), k = 0, hold = new Uint8Array(line * deep), have = 0, y = 0, chain = Promise.resolve();
   const part = async (/** @type {Uint8Array} */ rgb, /** @type {number} */ n) => {
-    const j = await band(rgb, w, n, quality, fine), head = [];
+    const j = await band(rgb, w, n, q, fine), head = [];
     let p = 2;
     const len = () => { if (j[p] !== 0xff || p + 4 > j.length) throw new Error('the JPEG band is not as expected'); return 2 + ((j[p + 2] << 8) | j[p + 3]); };
     for (; j[p + 1] !== 0xda; p += len()) {
@@ -55,6 +65,8 @@ export function jpeg(w, h, quality, band, exif) {
     const scan = j.subarray(p + len(), j.length - 2);
     if (k === 0) {
       const app = exif && exif.length < 65500 ? [bytes(0xff, 0xe1, (exif.length + 8) >> 8, (exif.length + 8) & 255, 0x45, 0x78, 0x69, 0x66, 0, 0), exif] : [];
+      const said = note ? ascii(note).subarray(0, 65000) : null;
+      if (said) app.push(bytes(0xff, 0xfe, (said.length + 2) >> 8, (said.length + 2) & 255), said);   // the comment, near the start: a cut-off file still has it
       const first = head[0]?.[1] === 0xe0 ? 1 : 0, every = across * (deep / cell);   // the JFIF segment leads; blocks between restarts
       blob = new Blob([bytes(0xff, 0xd8), ...head.slice(0, first), ...app, ...head.slice(first), bytes(0xff, 0xdd, 0, 4, every >> 8, every & 255), j.subarray(p, p + len()), scan]);
     } else blob = new Blob([blob, bytes(0xff, 0xd0 + ((k - 1) & 7)), scan]);
@@ -90,11 +102,12 @@ function chunk(type, ...data) {
   return b;
 }
 /** A PNG, 8 bits a colour, packed by the browser's own deflate as the rows arrive.
- * @param {number} w @param {number} h @param {Uint8Array | null} exif an Exif block @returns {Writer} */
-export function png(w, h, exif) {
+ * @param {number} w @param {number} h @param {Uint8Array | null} exif an Exif block @param {string} [note] a tEXt Comment @returns {Writer} */
+export function png(w, h, exif, note) {
   const pack = new CompressionStream('deflate'), wr = pack.writable.getWriter(), line = w * 3, head = new Uint8Array(13);
   new DataView(head.buffer).setUint32(0, w); new DataView(head.buffer).setUint32(4, h); head.set([8, 2, 0, 0, 0], 8);   // 8 bits, RGB
-  let blob = new Blob([bytes(137, 80, 78, 71, 13, 10, 26, 10), chunk('IHDR', head), chunk('sRGB', bytes(0)), ...(exif ? [chunk('eXIf', exif)] : [])]);
+  let blob = new Blob([bytes(137, 80, 78, 71, 13, 10, 26, 10), chunk('IHDR', head), chunk('sRGB', bytes(0)), ...(exif ? [chunk('eXIf', exif)] : []),
+    ...(note ? [chunk('tEXt', ascii('Comment'), bytes(0), ascii(note))] : [])]);
   const packed = (async () => {
     let some = /** @type {Uint8Array[]} */ ([]), size = 0;
     const flush = () => { if (size) blob = new Blob([blob, chunk('IDAT', ...some)]); some = []; size = 0; };
@@ -122,11 +135,12 @@ export function png(w, h, exif) {
   };
 }
 
-/** A TIFF, 16 bits a colour, not compressed, with the photo's Exif directories in its own.
- * @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @returns {Writer} */
-export function tiff(w, h, carried) {
-  const per = 64, strips = Math.ceil(h / per), ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284];
-  const head = (/** @type {number} */ at) => block((carried || []).filter((e) => !ours.includes(e.tag)).concat(
+/** A TIFF, 16 bits a colour, not compressed, with the photo's Exif directories in its own, and the note as its
+ * ImageDescription. @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @param {string} [note] @returns {Writer} */
+export function tiff(w, h, carried, note) {
+  const per = 64, strips = Math.ceil(h / per), ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284, ...(note ? [270] : [])];
+  const said = note ? Uint8Array.from([...ascii(note), 0]) : null, desc = said ? [{ tag: 270, type: 2, count: said.length, data: said }] : [];   // ASCII, ending in a zero
+  const head = (/** @type {number} */ at) => block((carried || []).filter((e) => !ours.includes(e.tag)).concat(desc,
     entry(256, 4, [w]), entry(257, 4, [h]), entry(258, 3, [16, 16, 16]), entry(259, 3, [1]), entry(262, 3, [2]),   // size, bits, no compression, RGB
     entry(273, 4, Array.from({ length: strips }, (_, i) => at + i * per * w * 6)), entry(274, 3, [1]), entry(277, 3, [3]), entry(278, 4, [per]),
     entry(279, 4, Array.from({ length: strips }, (_, i) => Math.min(per, h - i * per) * w * 6)), entry(284, 3, [1])));
