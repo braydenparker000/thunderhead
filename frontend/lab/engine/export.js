@@ -21,7 +21,7 @@ const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how
  * @typedef {{ get: (y: number, n: number, w: number) => Promise<Uint16Array | null>, put: (y: number, n: number, w: number, band: Uint16Array) => Promise<void>, clear: () => Promise<void> }} Keep */
 /** How an export runs: `signal` gives it up (it then rejects with the signal's reason, an AbortError), `encode` is
  * the JPEG encoder, `worker: false` keeps all its work on the page, `ops` times one of the network's windows a
- * pass at a time once the photo is made (`clock.ops`, in ms: neural.js `bench`), and `keep` holds the finished bands.
+ * pass at a time once the photo is made, each pass also the other way (`clock.ops` and `clock.alt`, in ms: neural.js `bench`), and `keep` holds the finished bands.
  * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean, keep?: Keep | null }} How */
 /** An export asked for by the network that the network cannot make here: nothing is made in its place. */
 export class NoBest extends Error { constructor(/** @type {string} */ why) { super(`Best quality cannot run on this phone just now (${why}). Nothing was saved, and no lesser method was put in its place.`); this.name = 'NoBest'; } }
@@ -76,7 +76,7 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
       progress?.((y + n) / sh);
     }
     const t3 = performance.now(), ops = clock && how.ops && v.ops ? v.ops().catch(() => null) : null, blobs = await s.done();   // the network's passes timed apart, while the files are finished
-    if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); if (ops) clock.ops = await ops; }
+    if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); const t = ops && (await ops); if (t) { clock.ops = t.ms; clock.alt = t.alt; } }
     signal?.throwIfAborted();
     return outs.map((o, k) => ({ blob: blobs[k], width: o.ow, height: o.oh }));
   } catch (err) {

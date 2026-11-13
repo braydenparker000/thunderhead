@@ -810,6 +810,27 @@ off for a day. Both are gone.
 Not done: an export still needs the page in front (a phone gives a hidden tab's GPU nothing); what is new is that
 coming back loses one band's work, not the whole export.
 
+## The network's passes, tried another way on each phone (2026-11-13)
+
+Counted: a window (about a megapixel) is 35 thousand million multiply-adds, two thirds of them in the two 3 × 3
+passes from 288 channels to 144, most of the rest in six 1 × 1 passes. The owner's phone makes a window in about
+8 s. The passes as exported stage each tile's input and weights in the workgroup's own memory first, which pays on
+a desktop GPU; a phone's GPU (Mali) has no such memory, and Arm's advice for it is not to copy there. Not assumed:
+measured, on the phone itself.
+
+- `net-tune.js` `direct` writes each of the nine middle passes to read its input and weights where they lie: the
+  same sums in the same order, the same bindings and dispatch. `tune` runs every pass both ways on a real window,
+  compares the two results (24 places across the output), and times them.
+- A pass is used the other way only where it agreed and took under 0.85 of the time. The choice is kept on the
+  phone; `neural.js` compiles the chosen passes next time and still proves the whole network before using it (a
+  choice that fails to compile or prove is forgotten).
+- It runs with the weekly timing of the passes, after an export, while the files are finished. The timings carry
+  both (`op0`..`op12` as exported, `alt0`..`alt10` the other way; -1 none, -2 it disagreed).
+
+On the software GPU here (a CPU, so no guide to a phone): the 1 × 1 passes 3 to 9 times faster the other way, the
+first 3 × 3 six times, the two large 3 × 3 the same; every result identical. What the phone finds is in its next
+timings. If the large 3 × 3 passes do not gain there, they need a third way, written with the phone's numbers in hand.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

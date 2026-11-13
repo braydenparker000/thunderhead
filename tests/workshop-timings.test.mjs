@@ -8,7 +8,7 @@ import { clean, cleanMarks, due, EVERY_MS, fileOf } from '../frontend/th/worksho
 test('only timings of known kinds, with their known fields, are kept', () => {
   const stored = [
     { at: 1000, kind: 'open', ms: 8127.4, file: 'raf', quick: false, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 41.6, kept: 1, name: 'DSCF0042.RAF' },
-    { at: 2000, kind: 'save', ms: 57685, files: 1, px: 39806928, bytes: 7900000, kinds: 'JPEG', note: 'a caption', op0: 3.4, op11: 812.6, op16: 5 },
+    { at: 2000, kind: 'save', ms: 57685, files: 1, px: 39806928, bytes: 7900000, kinds: 'JPEG', note: 'a caption', op0: 3.4, op11: 812.6, op16: 5, alt3: 402.2, alt0: -1 },
     { at: 3000, kind: 'open', ms: 900, file: '../../secret' },
     { at: 4000, kind: 'spy', ms: 1 },
     { kind: 'open', ms: 5 },
@@ -16,7 +16,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
   ];
   assert.deepEqual(clean(stored), [
     { kind: 'open', at: 1000, ms: 8127, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 42, kept: 1, file: 'raf', quick: false },
-    { kind: 'save', at: 2000, ms: 57685, px: 39806928, files: 1, bytes: 7900000, op0: 3, op11: 813, kinds: 'JPEG' },   // the network's passes timed apart: sixteen at most
+    { kind: 'save', at: 2000, ms: 57685, px: 39806928, files: 1, bytes: 7900000, op0: 3, op11: 813, alt0: -1, alt3: 402, kinds: 'JPEG' },   // the network's passes timed apart: sixteen at most
     { kind: 'open', at: 3000, ms: 900 },
   ]);
   assert.deepEqual(clean('not a list'), []);

@@ -47,7 +47,7 @@ function download(blob, name) {
 }
 
 const MARK = 'th.editor.export';
-const OPS = 'th.editor.netops';   // when the network's passes were last timed apart on this phone
+const OPS = 'th.editor.nettune';   // when the network's passes were last timed apart, and tried the other way, on this phone (engine/net-tune.js)
 /** Whether an export is made by the network (engine/neural.js): 'on', or 'off-setting', the owner's setting
  * (Settings > Photos > Editor). Nothing else turns it off: an export it cannot make is refused, never made another way.
  * @returns {'on' | 'off-setting'} */
@@ -71,7 +71,7 @@ function made(way, q) {
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0, again: c.again || 0, held: c.held || 0,
   ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])),
-  ...Object.fromEntries((c.ops || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`op${i}`, Math.round(v)])) });
+  ...Object.fromEntries([['op', c.ops], ['alt', c.alt]].flatMap(([k, list]) => (list || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`${k}${i}`, Math.round(v)]))) });   // the network's passes timed apart, as exported and the other way (engine/net-tune.js)
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
  * name, once, if that photo is still here. A finished or refused export leaves no mark. */   // (`net`: the network was making it)
 export function cutOff() {
