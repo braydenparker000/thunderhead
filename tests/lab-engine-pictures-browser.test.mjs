@@ -92,10 +92,17 @@ test('a full-size view and an export by the network: the same photo, a little ap
     let sum = 0, most = 0, light = 0;
     for (let i = 0; i < usual.data.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(usual.data[i + c] - net.data[i + c]); sum += d; most = Math.max(most, d); light += net.data[i + c]; }
     const n = (usual.data.length / 4) * 3, clock = {};
-    const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true, { ops: true });
+    // its bands are kept as they are made (the editor keeps them on the phone: app/export-kept.js; here in memory)
+    const bands = new Map(), keep = { get: async (y, n, w) => bands.get(`${y}-${n}-${w}`)?.slice() || null, put: async (y, n, w, band) => { bands.set(`${y}-${n}-${w}`, band.slice()); }, clear: async () => {} };
+    const [file] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock, true, { ops: true, keep });
+    // an export that carries on: one band is lost, the rest are read back, and the file is the same to the byte
+    const kept = bands.size; bands.delete([...bands.keys()].pop());
+    const clock2 = {}, [file2] = await develop(big, [{ long: 240, open: (w, h) => files.png(w, h, null) }], undefined, clock2, true, { keep });
+    const same = async (a, b) => { const [x, y] = await Promise.all([a, b].map(async (f) => new Uint8Array(await f.blob.arrayBuffer()))); return x.length === y.length && x.every((v, i) => v === y[i]); };
+    const again = { kept, held: clock2.held, rows: big.height, same: await same(file, file2) };
     const bm = await createImageBitmap(file.blob), N = await import('/lab/engine/neural.js'), proved = (await N.compile(eng.gpu.device)).off;
     big.dispose(); eng.dispose();
-    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
   });
   // before a GPU uses the network it must give a known grey slope back (neural.js `proof`): a driver that gets it wrong is not used
   assert.ok(r.proved >= 0 && r.proved < r.limit / 4, `the network proved itself on this GPU (off by ${r.proved}, at most ${r.limit})`);
@@ -105,7 +112,33 @@ test('a full-size view and an export by the network: the same photo, a little ap
   assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);
   assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 13 });   // and, asked, one of the network's windows timed a pass at a time
   assert.deepEqual(r.file, [240, 240, 240, 240, 'image/png']);
+  assert.ok(r.again.kept >= 2 && r.again.held > 0 && r.again.held < r.again.rows && r.again.same, `an export that carries on from kept bands makes the same file (${JSON.stringify(r.again)})`);
   assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an export asked of the network where the network cannot run is refused, never made another way', opts, async () => {
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  await page.route('**/nets/starfish-xtrans/**/graph.txt', (route) => route.abort());   // the network's files do not come
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), { full } = await import('/lab/engine/full.js'), { develop } = await import('/lab/engine/export.js'), files = await import('/lab/engine/files.js');
+    const k = known(240, 800), eng = await engine(document.createElement('canvas'), k, true);
+    eng.setProfile(null); await eng.render(0.25, 1, { fit: false });
+    const big = await full(eng, k, k.mosaic.slice()), v = await big.view(120, 120, null, true, false, true), view = [v.net, v.lost.length > 0];
+    v.dispose();
+    let opened = 0;
+    const job = () => [{ long: 240, open: (w, h) => { opened++; return files.png(w, h, null); } }];
+    const said = await develop(big, job(), undefined, {}, true).then(() => ['made', ''], (err) => [err?.name, String(err?.message)]);
+    const usual = await develop(big, job(), undefined, {}, false).then((f) => f[0].width, () => 0);   // asked the usual way, it is made the usual way
+    big.dispose(); eng.dispose();
+    return { view, said, opened, usual };
+  });
+  assert.deepEqual(r.view, [false, true], 'a view says the network is not what made it, and why');
+  assert.equal(r.said[0], 'NoBest');
+  assert.match(r.said[1], /^Best quality cannot run on this phone just now \(.+\)\. Nothing was saved, and no lesser method was put in its place\.$/);
+  assert.deepEqual([r.opened, r.usual], [1, 240], 'no file was begun for the refused export');
   await page.close();
 });
 

@@ -22,6 +22,7 @@ import { tile } from './tiles.js';
 import { note } from './timings.js';
 import { fling, gliding, halt, heard, speed, trail } from './fling.js';
 import { hear } from './taps.js';
+import { tell } from './told.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -225,7 +226,7 @@ function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** 
   const q = f.w / f.fw;
   Object.assign(c.style, { left: '0', top: '0', width: `${c.width}px`, height: `${c.height}px`, transformOrigin: '0 0', transform: `translate(${X * q}px, ${Y * q}px) scale(${(w * q) / c.width}, ${(h * q) / c.height})`, display: 'block' });
 }
-let own = false, again = 0;   // a frame the detail asked for itself; the wait before the network's picture is made again
+let own = false, again = 0, lostSaid = false;   // a frame the detail asked for itself; the wait before the network's picture is made again
 /** A frame of an edit came while the network's picture showed (or was waited for): the picture is of the photo as
  * it was, so the live view shows, and the network makes it again once no frame has come for a while. */
 function stale() {
@@ -242,7 +243,7 @@ async function finer(mine, X, Y, w, h) {
   if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
   const t0 = performance.now(); let made = 0;   // how long the network's view took to make, when it had to be (the timings say: the first one of a photo compiles it unless that was done behind the photo, full.js)
   if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { if (fineOf === big) fine?.dispose(); fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; made = performance.now() - t0; }
-  if (!fine.net || mine !== job) return;   // a GPU that will not have the network: the live view is all there is
+  if (!fine.net || mine !== job) { if (fine.lost && !lostSaid) { lostSaid = true; tell('Best quality cannot run on this phone just now: this is the standard view'); } return; }   // a GPU that will not have the network: the live view is all there is, and it is said, once
   const began = performance.now();
   let im = /** @type {ImageData | null} */ (null), at = fine.at();
   await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h); im = await fine.read(); fine.rest(); });

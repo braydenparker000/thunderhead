@@ -3,16 +3,16 @@
 // of the files it saved, `net` 1 when the network made it), and how long is left while one runs. Plain arithmetic,
 // nothing of the page: the Export board (boards/ExportPlate.js) says what it gives.
 
-/** @typedef {{ kind?: string, ms?: number, px?: number, net?: number, fell?: number }} Timing */
+/** @typedef {{ kind?: string, ms?: number, px?: number, net?: number, fell?: number, again?: number, held?: number }} Timing */
 
 /** How many of the last exports by a way the estimate is the median of. */
 export const LAST = 5;
 
 /** This phone's median ms a megapixel for the way asked (`net` true: by the network), from its last few finished
- * exports by that way; null when it has none. An export the network failed and the usual way made again, or one cut
- * off (no time), says nothing of either. @param {Timing[]} timings oldest first @param {boolean} net */
+ * exports by that way; null when it has none. An export cut off (no time), or one that carried on from bands kept
+ * before (its time is not the whole photo's), says nothing of either. @param {Timing[]} timings oldest first @param {boolean} net */
 export function perMp(timings, net) {
-  const rates = timings.filter((t) => t && t.kind === 'save' && Number(t.ms) > 0 && Number(t.px) > 0 && !t.fell && !!t.net === net)
+  const rates = timings.filter((t) => t && t.kind === 'save' && Number(t.ms) > 0 && Number(t.px) > 0 && !t.fell && !t.again && !t.held && !!t.net === net)
     .slice(-LAST).map((t) => Number(t.ms) / (Number(t.px) / 1e6)).sort((a, b) => a - b);
   if (!rates.length) return null;
   const m = rates.length >> 1;

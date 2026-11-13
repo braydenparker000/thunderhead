@@ -74,9 +74,9 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
     out.spot = { was: px(plain, 510, 230), now: px(healed, 510, 230), source: at(90, 110), beside: [px(plain, 540, 230), px(healed, 540, 230)] };
     v.dispose();
     out.timings = JSON.parse(localStorage.getItem('th.editor.timings') || '[]');
-    // an export the page did not live to finish while the network was making it: told once, and the network is left alone here after
+    // an export the page did not live to finish while the network was making it: told once, and the network stays on (the next export carries on by it)
     localStorage.setItem('th.editor.export', JSON.stringify({ id: p.id, name: p.name, net: true }));
-    out.cut = [save.cutOff()?.name, save.cutOff(), Date.now() - Number(localStorage.getItem('th.editor.net')) < 60_000, JSON.parse(localStorage.getItem('th.editor.timings')).at(-1)];
+    out.cut = [save.cutOff()?.name, save.cutOff(), localStorage.getItem('th.editor.net'), save.netWhy(), JSON.parse(localStorage.getItem('th.editor.timings')).at(-1)];
     return out;
   });
   assert.deepEqual(r.added, { added: 1, had: 0, bad: 1 }, 'the JPEG is kept; a file that is no picture is counted, not kept');
@@ -111,8 +111,8 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
   // an export says where its time went: developing, reading back, writing, and its first pieces a step at a time
   for (const k of ['gpu', 'read', 'write', 'demosaic', 'sharpen', 'warp', 'colour']) assert.ok(Number.isFinite(kept[k]) && kept[k] >= 0, `the export's ${k} time is kept (${kept[k]})`);
   assert.ok(kept.gpu > 0 && kept.colour > 0);
-  assert.deepEqual([r.cut[0], r.cut[1], r.cut[2]], ['IMG_0042.jpg', null, true], 'a cut-off export is told once, and one the network was making turns the network off here');
-  assert.deepEqual([r.cut[3].kind, r.cut[3].ms, r.cut[3].net, r.cut[3].fell], ['save', 0, 1, 2]);
+  assert.deepEqual([r.cut[0], r.cut[1], r.cut[2], r.cut[3]], ['IMG_0042.jpg', null, null, 'on'], 'a cut-off export is told once, and the network is not turned off for it');
+  assert.deepEqual([r.cut[4].kind, r.cut[4].ms, r.cut[4].net, r.cut[4].fell], ['save', 0, 1, 2]);
   assert.deepEqual(errors, []);
   await context.close();
 });

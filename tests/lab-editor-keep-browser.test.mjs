@@ -75,7 +75,7 @@ test('an export the page did not live to finish is offered again in the Library,
   await page.reload({ waitUntil: 'load' });
   const sub = page.locator('#stage [role=button]', { hasText: 'did not finish' });
   await sub.waitFor();
-  assert.match(await sub.textContent(), /^The export of DSCF0042 did not finish · tap here to open it again$/);
+  assert.match(await sub.textContent(), /^The export of DSCF0042 did not finish · tap here to carry on$/);
   assert.equal(await page.evaluate(() => localStorage.getItem('th.editor.export')), null, 'offered once');
   await sub.click();
   // The Export board, on that photo.

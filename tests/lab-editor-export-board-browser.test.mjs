@@ -1,8 +1,9 @@
 // What the owner's phone showed of an export (2026-11-13), in the new editor at /lab/editor/: an export keeps the
 // screen awake (app/save.js); a file that carries metadata says how it was made (app/export-note.js, written by
 // engine/files.js on the export's thread, read back by scripts/export-note.mjs); and the Export board says how long
-// an export should take from this phone's own past exports (app/eta.js), how long is left while it runs, and,
-// when the network was stopped by the phone, that this export is made the standard way, with BEST AGAIN.
+// an export should take from this phone's own past exports (app/eta.js) and how long is left while it runs. And
+// what the owner then asked for: an export is never made a lesser way than the one asked for; one that stops keeps
+// what it made (app/export-kept.js), the board says how much, and Save carries on from there.
 // The photo is a JPEG drawn by the test, on a software GPU.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,10 +56,10 @@ test('an export keeps the screen awake, and each file with metadata says how it 
     const files = await save.save([{ ...base, fmt: 'JPEG', q: 100, meta: 'All', file: 'a.jpg' }, { ...base, fmt: 'PNG', q: 95, meta: 'Copyright only', file: 'a.png' },
       { ...base, fmt: 'TIFF 16', q: 95, meta: 'All', file: 'a.tif' }, { ...base, fmt: 'JPEG', q: 85, meta: 'None', file: 'b.jpg' }], () => { if (!log.includes('progress')) log.push('progress'); });
     const heads = await Promise.all(files.map(async (f) => [...new Uint8Array(await f.blob.slice(0, 8192).arrayBuffer())]));
-    // the way the next export is made: the network stopped by the phone 23 hours ago is still off; 25 hours ago, back on
-    const why = [];
-    for (const hours of [23, 25]) { localStorage.setItem('th.editor.net', String(Date.now() - hours * 3600e3)); why.push(save.netWhy()); }
-    save.bestAgain(); why.push(save.netWhy(), localStorage.getItem('th.editor.net'));
+    // the way the next export is made: the owner's setting alone says. A phone that once stopped the network (the mark an older build left) does not turn it off
+    const why = [save.netWhy()];
+    localStorage.setItem('th.editor.net', String(Date.now() - 3600e3)); why.push(save.netWhy());
+    localStorage.setItem('th.s.photos.neural', 'false'); why.push(save.netWhy()); localStorage.removeItem('th.s.photos.neural');
     return { log, heads, why };
   });
   assert.deepEqual(r.log, ['request screen', 'progress', 'release'], 'the screen held awake while it worked, and let go at the end');
@@ -71,7 +72,7 @@ test('an export keeps the screen awake, and each file with metadata says how it 
     assert.deepEqual({ ...note, build: '' }, { th: 1, build: '', way: 'classic', values: { Exposure: 0.5, Contrast: 20 }, wb: 'As shot', profile: '', crop: false, masks: 0, spots: 0, q });
   }
   assert.ok(!notes.join('').includes('IMG_0031'), 'no file name');
-  assert.deepEqual(r.why, ['off-stopped', 'on', 'on', null], 'a day, not a week; BEST AGAIN clears it');
+  assert.deepEqual(r.why, ['on', 'on', 'off-setting'], 'only the owner\'s setting turns the network off');
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -80,7 +81,7 @@ test('an export keeps the screen awake, and each file with metadata says how it 
 const past = [5, 6, 7].flatMap((mp) => [{ at: 1, kind: 'save', ms: 20_000 * mp, px: mp * 1e6, net: 0 }, { at: 1, kind: 'save', ms: 40_000 * mp, px: mp * 1e6, net: 1 }]);
 const tell = (page) => page.evaluate(() => document.querySelector('#stage [data-tell="export"]')?.textContent.trim() ?? '');
 
-test('the Export board says how long it should take, why it is not the best way, and how long is left', opts, async () => {
+test('the Export board says how long it should take and how long is left', opts, async () => {
   const fresh = await opened(1500, 1000);
   await fresh.page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Export' })));
   await fresh.page.getByRole('button', { name: 'SAVE BOTH' }).waitFor();
@@ -92,19 +93,10 @@ test('the Export board says how long it should take, why it is not the best way,
   await page.getByRole('button', { name: 'SAVE BOTH' }).waitFor();
   // both files at 1500 × 1000 (the Small one no larger than the photo): 3 MP at 20 s a megapixel
   await page.waitForFunction(() => /About 1 min, from this phone's past exports/.test(document.querySelector('#stage [data-tell="export"]')?.textContent ?? ''));
-  // a RAF whose export by the network the phone cut off an hour ago: the standard method, said before saving
-  await page.evaluate(async () => { localStorage.setItem('th.editor.net', String(Date.now() - 3600e3)); const photo = await import('/lab/editor/app/session.js'); photo.current().plain = false; photo.changed(); });
-  await page.waitForFunction(() => /Best quality was stopped by the phone last time, so this export uses the standard method\. BEST AGAIN turns it back on\./.test(document.querySelector('#stage [data-tell="export"]')?.textContent ?? ''));
-  assert.match(await tell(page), /About 1 min/, 'still the usual way\'s estimate');
-  const again = page.getByRole('button', { name: 'Best quality again' });
-  // 44 px of room for a finger, as Cancel has: the key answers 5 px above and below its 32 px
-  const room = await again.evaluate((b) => { const r = b.getBoundingClientRect(), x = r.left + r.width / 2; return [r.height, r.width >= 44, [r.top - 5, r.bottom + 5].map((y) => b.contains(document.elementFromPoint(x, y)))]; });
-  assert.deepEqual(room, [32, true, [true, true]]);
-  await again.click();
+  // a RAF is made by the network: its own estimate is said
+  await page.evaluate(async () => { const photo = await import('/lab/editor/app/session.js'); photo.current().plain = false; photo.changed(); });
   await page.waitForFunction(() => /About 2 min/.test(document.querySelector('#stage [data-tell="export"]')?.textContent ?? ''));
-  assert.doesNotMatch(await tell(page), /stopped/, 'the network is on again, and its own estimate is said');
-  assert.equal(await page.evaluate(() => localStorage.getItem('th.editor.net')), null);
-  assert.equal(await again.count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Best quality again' }).count(), 0, 'nothing turns the best way off but the setting: there is no key to turn it back on');
   // while it saves, the time left
   await page.evaluate(async () => { const photo = await import('/lab/editor/app/session.js'); photo.current().plain = true; photo.changed(); });
   await page.waitForFunction(() => /About 1 min/.test(document.querySelector('#stage [data-tell="export"]')?.textContent ?? ''));
@@ -116,6 +108,39 @@ test('the Export board says how long it should take, why it is not the best way,
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.timings')).filter((t) => t.kind === 'save').length);
   assert.equal(kept, past.length + 1, 'and this export is kept for the next estimate');
   console.log(`# while saving: "${during}"`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('an export that stops keeps what it made: the board says how much, and Save carries on from there', opts, async () => {
+  const { context, page, errors } = await opened(1500, 1000, past);
+  // A photo the best way is asked for (as a RAF is), whose export stops after its first band: not the owner's Cancel
+  // but a failure (here the signal's reason is a plain error). It is tried once more from where it stopped, stops
+  // again, and says what happened; no file is made, by this way or any other.
+  const r = await page.evaluate(async () => {
+    const save = await import('/lab/editor/app/save.js'), photo = await import('/lab/editor/app/session.js');
+    photo.current().plain = false; photo.changed();
+    const stop = new AbortController(), steps = [];
+    const said = await save.save([{ long: 99999, gps: false, fmt: 'JPEG', q: 90, meta: 'None', file: 'a.jpg' }], (d) => { steps.push(d); if (d > 0) stop.abort(new Error('the GPU gave up')); }, { signal: stop.signal })
+      .then(() => 'saved', (err) => String(err?.message || err));
+    return { said, steps: steps.length, made: await save.madeAlready() };
+  });
+  assert.match(r.said, /^The export stopped \(the GPU gave up\)\. What was made is kept: Save carries on from there\.$/);
+  assert.ok(r.steps >= 1 && r.made > 0.2 && r.made < 0.6, `the first band of four is kept (${r.made})`);
+  // the board says so before saving, and counts only the rest in its estimate (the whole is about 2 min by the network)
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Export' })));
+  await page.getByRole('button', { name: 'SAVE BOTH' }).waitFor();
+  await page.waitForFunction(() => /\d+ % of this export is already made\. Save carries on from there\./.test(document.querySelector('#stage [data-tell="export"]')?.textContent ?? ''));
+  assert.match(await tell(page), /About 1 min/);
+  // an edit is another export: nothing of the old one counts
+  const edited = await page.evaluate(async () => { const save = await import('/lab/editor/app/save.js'), photo = await import('/lab/editor/app/session.js'); photo.setValues({ Exposure: 0.3 }, 'Exposure', 'Exposure'); const a = await save.madeAlready(); photo.setValues({ Exposure: 0 }, 'Exposure', 'Exposure'); return [a, await save.madeAlready()]; });
+  assert.ok(edited[0] === 0 && edited[1] > 0.2, `${edited}`);
+  // Save carries on: the bands kept are read, the rest made, and when it is saved nothing is kept any more
+  await page.getByRole('button', { name: 'SAVE BOTH' }).click();
+  await page.getByText(/Saved to Downloads/).waitFor({ timeout: 240_000 });
+  const after = await page.evaluate(async () => { const save = await import('/lab/editor/app/save.js'); return { last: JSON.parse(localStorage.getItem('th.editor.timings')).filter((t) => t.kind === 'save').pop(), made: await save.madeAlready() }; });
+  assert.ok(after.last.held > 200 && after.last.held < 600 && !after.last.again, `rows read from what was kept: ${after.last.held}`);
+  assert.equal(after.made, 0);
   assert.deepEqual(errors, []);
   await context.close();
 });

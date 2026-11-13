@@ -13,8 +13,8 @@ const save = (ms, mp, net = 0, more = {}) => ({ at: 1, kind: 'save', ms, px: mp 
 
 test('the estimate is this phone\'s median ms a megapixel for that way, from its last five exports, times the megapixels', () => {
   const t = [save(9e6, 10), save(30_000, 10), save(40_000, 10), save(50_000, 10), save(60_000, 10), save(70_000, 10), save(80_000, 10),   // the first is too old to count
-    save(200_000, 10, 1), save(240_000, 12, 1), { kind: 'open', ms: 900 }, save(0, 0, 1, { fell: 2 }), save(500_000, 10, 0, { fell: 1, net: 0 })];
-  assert.equal(perMp(t, false), 6000, 'classic: 4 000 to 8 000 ms a megapixel, the median of the last five; the cut-off and the fallen-back say nothing');
+    save(200_000, 10, 1), save(240_000, 12, 1), { kind: 'open', ms: 900 }, save(0, 0, 1, { fell: 2 }), save(500_000, 10, 0, { fell: 1, net: 0 }), save(9_000, 10, 1, { held: 3000 }), save(900_000, 10, 1, { again: 1 })];   // and two that carried on from kept bands
+  assert.equal(perMp(t, false), 6000, 'classic: 4 000 to 8 000 ms a megapixel, the median of the last five; the cut-off, the fallen-back and those that carried on from kept bands say nothing');
   assert.equal(perMp(t, true), 20_000, 'by the network: 20 000 both times');
   assert.equal(estimate(t, false, 48e6), 288_000);
   assert.equal(estimate(t, true, 6e6), 120_000);

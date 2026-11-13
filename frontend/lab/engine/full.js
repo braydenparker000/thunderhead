@@ -63,14 +63,15 @@ export async function full(e, img, mosaic) {
    * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one)
    * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats
    * @param {boolean | 'twice' | 'once'} [best] true: the sensor's colours by the network (neural.js): truer and cleaner, and many
-   *   times the work. Where the GPU will not have it, the view is made the usual way and says so (`net`). 'twice' and
+   *   times the work. Where the GPU will not have it, the view is made the usual way and says so (`net`, and `lost`: why). 'twice' and
    *   'once': the usual demosaic looking twice (Best) or once (Faster) whatever the photo is set to, for comparing them */
   const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false) => {
     const format = deep ? 'rgba16float' : 'rgba8unorm', [pipe, last] = await Promise.all([deepPipe(device), finishPipe(device, format)]), size = deep ? 8 : 4;
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
-    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); return null; }) : null;
+    let lost = '';   // why the network, asked for, is not what makes this view
+    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); lost = String(err?.message || err); return null; }) : null;
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
@@ -100,7 +101,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, ops: net ? () => net.bench(0, 0) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, ops: net ? () => net.bench(0, 0) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
