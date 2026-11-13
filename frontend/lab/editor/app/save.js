@@ -47,6 +47,7 @@ function download(blob, name) {
 
 const MARK = 'th.editor.export';
 const NET = 'th.editor.net';   // when the network last failed an export on this phone
+const OPS = 'th.editor.netops';   // when the network's passes were last timed apart on this phone
 /** Why an export is or is not made by the network (engine/neural.js): 'on'; 'off-setting', the owner's setting
  * (Settings > Photos > Editor); 'off-stopped', an export by it was cut off or failed on this phone in the last day.
  * The Export board says the last before saving, with a key that turns it back on (`bestAgain`).
@@ -69,7 +70,8 @@ function made(way, q) {
 /** Where an export's time went (engine/export.js `develop`), as whole numbers for the timings: developing, reading
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0,
-  ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])) });
+  ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])),
+  ...Object.fromEntries((c.ops || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`op${i}`, Math.round(v)])) });
 /** An export the page did not live to finish (it was closed, or the phone took the tab back): the photo's id and
  * name, once, if that photo is still here. A finished or refused export leaves no mark. */   // (`net`: the network was making it)
 export function cutOff() {
@@ -104,7 +106,7 @@ export async function save(presets, progress, how = {}) {
     const way = () => (clock.net ? 'network' : !photo.current()?.plain && pref('photos.demosaic') === 'faster' ? 'faster' : 'classic');
     const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0,
       file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, kept: carry(head, x.meta, x.gps, w, h), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
-    const run = { signal: how.signal, worker: how.worker, encode: photo.jpegBand };
+    const run = { signal: how.signal, worker: how.worker, encode: photo.jpegBand, ops: best && Date.now() - (Number(localStorage.getItem(OPS)) || 0) > 7 * 86_400_000 };   // the network's passes are timed apart once a week
     const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
     // By the network where it is on (Settings > Photos > Editor) and has not failed here lately; if it fails now, the
     // export is made again the usual way, and the network is left alone on this phone for a day.
@@ -119,6 +121,7 @@ export async function save(presets, progress, how = {}) {
     }
     for (const [k, r] of files.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
+  if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
   note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock) });
   return saved;
 }

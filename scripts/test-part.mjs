@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // One part of the site and mind suites, so CI can run the parts at once (TESTING.md §1.1,
 // .github/workflows/checks.yml). The test files are dealt by how long each took in one measured full
-// run (scripts/test-durations.json), largest first, each to the part with the least time so far, so
-// the parts take about as long; a file the table doesn't know yet counts by its size at the table's
-// own rate. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
+// run (scripts/test-durations.json), those that draw on the software GPU first, then largest first, each
+// to the part with the least time so far, so the parts take about as long and share the slow files; a
+// file the table doesn't know yet counts by its size at the table's own rate. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
 // part the files that draw on the software GPU (`heavy`) run after the others, one at a time.
 // Usage: node scripts/test-part.mjs <k> <n>   (part k of n, from 1)
 //        node scripts/test-part.mjs --measure (runs every file once and rewrites the table)
@@ -47,12 +47,14 @@ export function weights(files, ms = durations(), root = ROOT) {
 
 /**
  * The files dealt into `n` parts by weight, largest first, each to the lightest part so far (ties by
- * name, so every machine deals alike). @param {{ file: string, weight: number }[]} files @param {number} n
+ * name, so every machine deals alike). The files that draw on the software GPU (`heavy`) are dealt
+ * first, among themselves: a part runs its own one after another, so no part may be given most of them
+ * (one was, and its job ran out of time). @param {{ file: string, weight: number }[]} files @param {number} n
  * @returns {string[][]}
  */
 export function deal(files, n) {
   const parts = Array.from({ length: n }, () => ({ weight: 0, files: /** @type {string[]} */ ([]) }));
-  const order = [...files].sort((a, b) => b.weight - a.weight || (a.file < b.file ? -1 : 1));
+  const order = [...files].sort((a, b) => Number(heavy(b.file)) - Number(heavy(a.file)) || b.weight - a.weight || (a.file < b.file ? -1 : 1));
   for (const f of order) {
     const lightest = parts.reduce((min, p) => (p.weight < min.weight ? p : min));
     lightest.weight += f.weight;

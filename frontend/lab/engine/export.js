@@ -17,8 +17,9 @@ const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how
  * `open`, its writer given its size (made and written on the page).
  * @typedef {{ long: number, sharpen?: number, file?: (w: number, h: number) => import('./files.js').Spec, open?: (w: number, h: number) => import('./files.js').Writer }} Job */
 /** How an export runs: `signal` gives it up (it then rejects with the signal's reason, an AbortError), `encode` is
- * the JPEG encoder, and `worker: false` keeps all its work on the page.
- * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean }} How */
+ * the JPEG encoder, `worker: false` keeps all its work on the page, and `ops` times one of the network's windows a
+ * pass at a time once the photo is made (`clock.ops`, in ms: neural.js `bench`).
+ * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean }} How */
 
 /** Develops the photo as it now looks on screen, once, for every file asked for: each at its own size (no larger
  * than the sensor's), into its own writer. The photo is developed at full size a band at a time and each file takes
@@ -64,8 +65,8 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
       signal?.throwIfAborted();
       progress?.((y + n) / sh);
     }
-    const t3 = performance.now(), blobs = await s.done();
-    if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); }
+    const t3 = performance.now(), ops = clock && how.ops && v.ops ? v.ops().catch(() => null) : null, blobs = await s.done();   // the network's passes timed apart, while the files are finished
+    if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); if (ops) clock.ops = await ops; }
     signal?.throwIfAborted();
     return outs.map((o, k) => ({ blob: blobs[k], width: o.ow, height: o.oh }));
   } catch (err) {

@@ -11,7 +11,8 @@
 // pixels, of which the outer 30 are context; a rectangle is made a window at a time. Ours are the pass before
 // (`cut`: a window of the sensor, each site brought to green's scale, and each site's noise as noise.js has it
 // at the photo's ISO, which is how the network is told how much to smooth) and the pass after (`place`: the
-// window's middle back to the sensor's scale, in the editing copy's form, the clipped colours flagged).
+// window's middle back to the sensor's scale, in the editing copy's form, the clipped colours flagged, and as
+// much of the grain the network took put back as the Noise dial asks, as brightness only).
 import { phaseOf } from './demosaic.js';
 import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
 import { noiseAt } from './noise.js';
@@ -57,7 +58,7 @@ struct D { at: vec4i,      // the window's first sensor pixel (x, y), and how ma
            phase: vec2i,   // added to a sensor position, it lands on the pattern as demosaic.js lays it out
            black: f32, scale: f32,
            gain: vec4f,    // what brings red, green and blue to green's scale (the shot's white balance)
-           na: vec4f, nb: vec4f,   // a site's noise: its variance is na × its value + nb, for red, green and blue
+           na: vec4f, nb: vec4f,   // a site's noise: its variance is na × its value + nb, for red, green and blue; na.w and nb.w: the grain put back (place)
            n: vec4u,       // spots to retouch (heal.js): how many
            sp: array<vec4f, ${SPOTS * SPOT_ROWS}> };
 @group(0) @binding(0) var mosaic: texture_2d<u32>;
@@ -98,7 +99,20 @@ fn cut(@builtin(global_invocation_id) id: vec3u) {
 fn place(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= d.core.z || i32(id.y) >= d.core.w) { return; }
   let q = d.core.xy + vec2i(id.xy); let w = vec2u(q - d.at.xy); let p = w.y * WIN + w.x; let plane = WIN * WIN;
-  let c3 = vec3f(f32(made[p]), f32(made[plane + p]), f32(made[2u * plane + p])) / d.gain.xyz;
+  var c3 = vec3f(f32(made[p]), f32(made[plane + p]), f32(made[2u * plane + p]));
+  // Grain: a share of what the network took from this site is put back, as brightness only (every colour by the
+  // same factor, so no colour speckle returns): the site's own value less the network's, in units of its noise and
+  // no more than three of them, at the size a green site's noise has here. Less of it the nearer a place's light is
+  // to its noise (d.nb.w: the signal to noise where half is put back), so shadows stay clean.
+  if (d.na.w > 0.0 && own(q) < ${CLIP}) {
+    nearby(vec2f(q) + 0.5, 0.0);
+    let c = colour(q); let v = clamp(raw(q), 0.0, 1.0); let g = d.gain[c];
+    let z = clamp((v * g - c3[c]) / (sqrt(max(d.na[c] * v + d.nb[c], 1e-12)) * g), -3.0, 3.0);
+    let lum = max(dot(c3, vec3f(0.25, 0.5, 0.25)), 1e-6); let sl = sqrt(max(d.na.y * lum + d.nb.y, 0.0));
+    let snr = lum / max(sl, 1e-9);
+    c3 *= max(1.0 + d.na.w * snr * snr / (snr * snr + d.nb.w * d.nb.w) * z * sl / lum, 0.0);
+  }
+  c3 = c3 / d.gain.xyz;
   var clip = 0u;   // which colours clipped at this pixel or beside it, as demosaic.js flags them
   for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let s = q + vec2i(i, j); if (own(s) >= ${CLIP}) { clip |= 1u << colour(s); } } }
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
@@ -168,7 +182,7 @@ export function compile(device) {
 /** Makes rectangles of the photo by the network, each up to maxW × maxH sensor pixels, as demosaic.js's
  * `demosaicer` does: `run` adds the passes to a frame's commands and the result is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
- * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number }} info `iso`: the photo's, for its noise;
+ * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number, noise?: { a: number[], b: number[] } | null }} info `noise`: a raw site's own (full.js reads it from the photo), else `iso`: the photo's, for the table's;
  *   `smooth`: how much of that noise the network is told of (1: all of it; less keeps more grain, more smooths further)
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
@@ -196,23 +210,43 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   })());
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [smooth] this once, in place of `info.smooth` */
-  const run = (enc, rx, ry, rw, rh, spots, smooth) => {
-    const noise = noiseAt(info.iso || 100), k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2, g1 = info.wb?.[1] || 1;
+  const noiseOf = () => info.noise || noiseAt(info.iso || 100), g1 = info.wb?.[1] || 1;
+  /** A window made ready: its settings written, and the passes that make it, in order (cut, the network's, place).
+   * @returns {[GPUComputePipeline, GPUBindGroup, number, number, number][]} each pass with its bindings and how many groups it is dispatched over */
+  const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0) => {
+    const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly), noise = noiseOf();
+    const vw = Math.min(WIN, Math.ceil((x0 + cw + HALO - wx) / 6) * 6), vh = Math.min(WIN, Math.ceil((y0 + ch + HALO - wy) / 6) * 6), s = slot(n);
+    const u = new ArrayBuffer(SIZE), i = new Int32Array(u), f = new Float32Array(u);
+    i.set([wx, wy, vw, vh, x0, y0, cw, ch, rx, ry, rw, rh, px, py]); f[14] = info.black; f[15] = 1 / (info.white - info.black);
+    f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, 0], 16); f.set(noise.a.map((a) => a * k), 20); f.set(noise.b.map((b) => b * k), 24); f[23] = keep; f[27] = quiet;
+    if (spots) { i[28] = spots[0]; f.set(spots.subarray(4), 32); }
+    device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw]));
+    return [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1], ...g.ops.map((o, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number]} */ ([pipes[j], s.ops[j], o.groups[0], o.groups[1], o.groups[2]])), [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1]];
+  };
+  /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
+   * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [smooth] this once, in place of `info.smooth`
+   * @param {number} [keep] the share of the grain the network took out that is put back, as brightness only (0: none)
+   * @param {number} [quiet] the signal to noise where half of that share is put back, and less below it (0: the same everywhere) */
+  const run = (enc, rx, ry, rw, rh, spots, smooth, keep = 0, quiet = 0) => {
+    const k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2;
     let n = 0;
     for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) {
-      const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly);
-      const vw = Math.min(WIN, Math.ceil((x0 + cw + HALO - wx) / 6) * 6), vh = Math.min(WIN, Math.ceil((y0 + ch + HALO - wy) / 6) * 6), s = slot(n++);
-      const u = new ArrayBuffer(SIZE), i = new Int32Array(u), f = new Float32Array(u);
-      i.set([wx, wy, vw, vh, x0, y0, cw, ch, rx, ry, rw, rh, px, py]); f[14] = info.black; f[15] = 1 / (info.white - info.black);
-      f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, 0], 16); f.set(noise.a.map((a) => a * k), 20); f.set(noise.b.map((b) => b * k), 24);
-      if (spots) { i[28] = spots[0]; f.set(spots.subarray(4), 32); }
-      device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw]));
       const pass = enc.beginComputePass();
-      pass.setPipeline(cut); pass.setBindGroup(0, s.cut); pass.dispatchWorkgroups(Math.ceil(vw / 8), Math.ceil(vh / 8));
-      g.ops.forEach((o, j) => { pass.setPipeline(pipes[j]); pass.setBindGroup(0, s.ops[j]); pass.dispatchWorkgroups(o.groups[0], o.groups[1], o.groups[2]); });
-      pass.setPipeline(place); pass.setBindGroup(0, s.place); pass.dispatchWorkgroups(Math.ceil(cw / 8), Math.ceil(ch / 8));
+      for (const [pipe, bind, a, b, c] of lay(n++, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet)) { pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, c); }
       pass.end();
     }
   };
-  return { out, run, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
+  /** One whole window made a pass at a time, each waited for: how long each takes on this GPU, in ms (cut, the
+   * network's passes in order, place). For the phone's own numbers (an export notes them): what it makes is not kept.
+   * @param {number} x0 @param {number} y0 a window's own part starts here @returns {Promise<number[]>} */
+  const bench = async (x0, y0) => {
+    const ms = [];
+    for (const [pipe, bind, a, b, c] of lay(0, [x0, y0, Math.min(CORE, maxW), Math.min(CORE, maxH)], x0, y0, null, 1)) {
+      const enc = device.createCommandEncoder(), pass = enc.beginComputePass(), t = performance.now();
+      pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, c); pass.end();
+      device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone(); ms.push(performance.now() - t);
+    }
+    return ms;
+  };
+  return { out, run, bench, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
 }

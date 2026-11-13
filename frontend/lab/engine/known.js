@@ -82,7 +82,8 @@ export function known(n = 480, iso = 0, fringed = false) {
     for (let c = 0; c < 3; c++) proxy[(py * pw + px) * 4 + c] = Math.max(0, Math.min(65535, Math.floor(((s[c] / k[c] - black) * 65535) / range)));
     proxy[(py * pw + px) * 4 + 3] = flags;
   }
-  const meta = { make: 'Made-up', model: 'Known', width: n, height: n, proxyWidth: pw, proxyHeight: pw, wb: [...wb, 0], xyzToCamD65: CAMERA.xyzToCamD65, orientation: 'Normal', chroma: [0, 0, 0],
+  // (its noise is told as it was made: the table's, a site's own for this made-up sensor; a real photo's is read from the photo, noise-fit.js)
+  const meta = { make: 'Made-up', model: 'Known', width: n, height: n, proxyWidth: pw, proxyHeight: pw, wb: [...wb, 0], xyzToCamD65: CAMERA.xyzToCamD65, orientation: 'Normal', noise: noise || { a: [0, 0, 0], b: [0, 0, 0] }, chroma: [0, 0, 0],
     fullWidth: n, fullHeight: n, black, white, cfa: CFA, cfaWidth: 6, hot: 0, iso: iso || 160, lens: null };
   const fringe = fringed ? { centre: [n / 2, n / 2], reach: n, table: Float32Array.from({ length: 64 }, (_, i) => [FRINGE[0], FRINGE[2], 0, 0][i % 4]) } : null;
   return { n, truth, crisp, mosaic, proxy, meta, fringe, width: pw, height: pw };
