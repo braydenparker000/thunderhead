@@ -123,11 +123,14 @@ test('a zoomed photo flung glides with only its transform, gives at the edge, re
     const loop = (t) => { const m = /translate\(([-\d.e]+)px, ([-\d.e]+)px\)/.exec(z.transform()); log.f.push({ t, x: +m[1], glide: fl.gliding(), busy: p.busy(), stamp: p.stamp() }); if (window.LOG === log) requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   });
-  // A quick drag to the right, let go while moving.
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 100, y: s.y }] });
-  for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 100 + 20 * i, y: s.y }] });
+  // A quick drag to the right, far enough that the finger itself brings the photo to its edge, let go while moving.
+  // Each event says when it happened (8 ms apart: 2.5 px a millisecond), so the speed is the same on any machine:
+  // by the machine's own clock a slow one made the finger slow, and the glide stopped short of the edge.
+  const t0 = Date.now() / 1000, at = (/** @type {number} */ i) => t0 + (i * 8) / 1000;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 60, y: s.y }], timestamp: at(0) });
+  for (let i = 1; i <= 16; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 60 + 20 * i, y: s.y }], timestamp: at(i) });
   const lift = await page.evaluate(() => performance.now());
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: at(17) });
   await until(() => page.evaluate(async () => !(await import('/lab/editor/app/fling.js')).gliding() && window.LOG.f.some((f) => f.glide)), { message: 'the fling glided and came to rest' });
   await until(() => page.evaluate(async () => (await import('/lab/editor/app/session.js')).took.detail > 0), { timeout: 60_000, message: 'the detail was made where it rested' });
   const r = await page.evaluate(() => { const log = window.LOG; window.LOG = null; return log; });
@@ -142,9 +145,11 @@ test('a zoomed photo flung glides with only its transform, gives at the edge, re
   assert.ok(!r.changes.some((t) => t > lift && t <= end), 'the boards heard no change while it glided');
   assert.ok(r.changes.some((t) => t > end), 'the detail was made once it rested');
   // Flung again to the left, and touched while it glides: it stops at once, where it is.
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 320, y: s.y }] });
-  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 320 - 12 * i, y: s.y }] });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  // (its events timed too: 1.5 px a millisecond on any machine)
+  const t1 = Date.now() / 1000, then = (/** @type {number} */ i) => t1 + (i * 8) / 1000;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 320, y: s.y }], timestamp: then(0) });
+  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 320 - 12 * i, y: s.y }], timestamp: then(i) });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: then(9) });
   await until(() => page.evaluate(async () => (await import('/lab/editor/app/fling.js')).gliding()), { message: 'the second fling glides' });
   await page.waitForTimeout(50);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: s.x, y: s.y }] });
