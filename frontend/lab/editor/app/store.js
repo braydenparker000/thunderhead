@@ -1,17 +1,17 @@
 // @ts-check
 // The editor's photos on this phone (docs/design/EDITOR.md, storage): each original (a RAF, or a JPEG) is copied into the
 // browser's private file system (OPFS) with the camera's own JPEG beside it (for a JPEG, a smaller copy of itself) and, once edited, a small picture
-// of the edit for its Library tile; the photo's record and its edit live in IndexedDB. Nothing leaves the phone. Persistent storage is asked for so Chrome
+// of the edit for its Library tile and one the screen's size to show while it opens again (kept-view.js); the photo's record and its edit live in IndexedDB. Nothing leaves the phone. Persistent storage is asked for so Chrome
 // keeps all of it when space runs low.
 import { shot } from '../../engine/exif.js';
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
- *   editFile?: string, backed?: string, kind?: 'jpeg' | 'stack', stamp?: number, deleted?: number, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
+ *   editFile?: string, backed?: string, kind?: 'jpeg' | 'stack', stamp?: number, deleted?: number, view?: string, shot?: { camera: string, lens: string, iso: number, time: number, f: number, mm: number } }} Photo `taken`: when, by the camera's clock where its
  *   Exif says, else the file's time; `stamp`: the file's own time (an import knows a file it has by it); `shot`: what the camera wrote of the shot (engine/exif.js);
  *   `kind`: what the original is when it is not a RAF (a JPEG; frames stacked into one, app/stack.js); `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
  *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js); `deleted`: when it was deleted, while it can
- *   still be brought back (`remove`) */
+ *   still be brought back (`remove`); `view`: the mark of the edit its kept picture was made from (`saveView`) */
 /** @typedef {Record<string, number | string>} Edit */
 
 const open = () => /** @type {Promise<IDBDatabase>} */ (new Promise((res, rej) => {
@@ -49,7 +49,7 @@ export const kept = () => safe;
 export async function sweep(age = 3600e3) {
   const known = new Set(/** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).map((p) => p.id));
   let back = 0;
-  for (const folder of ['raw', 'jpg', 'thumb']) {
+  for (const folder of ['raw', 'jpg', 'thumb', 'view']) {
     const d = await dir(folder);
     for await (const [name, h] of /** @type {any} */ (d).entries()) {
       const id = name.replace(/\.\w+$/, '');
@@ -209,15 +209,21 @@ export async function saveTile(id, blob) {
   const old = tiles.get(id);
   if (old) URL.revokeObjectURL(old);
   tiles.delete(id);
-  if (blob) { await write('thumb', `${id}.jpg`, blob); tiles.set(id, URL.createObjectURL(blob)); } else await (await dir('thumb')).removeEntry(`${id}.jpg`).catch(() => {});
+  if (blob) { await write('thumb', `${id}.jpg`, blob); tiles.set(id, URL.createObjectURL(blob)); } else { await (await dir('thumb')).removeEntry(`${id}.jpg`).catch(() => {}); await dropView(id); }
   await update(id, { edited: !!blob });
 }
+/** Keeps the photo as edited, the screen's size, to show while it opens again (kept-view.js), with `mark`, the mark of
+ * the edit it was made from. It counts in what the Library says is kept here; it is never backed up. @param {string} id @param {Blob} blob @param {string} mark */
+export async function saveView(id, blob, mark) { if (!cache.some((p) => p.id === id)) return; await write('view', `${id}.pic`, blob); await update(id, { view: mark }); }
+/** The kept picture, if there is one. @param {string} id @returns {Promise<Blob | null>} */
+export const viewFile = async (id) => { try { return await (await (await dir('view')).getFileHandle(`${id}.pic`)).getFile(); } catch { return null; } };
+const dropView = async (/** @type {string} */ id) => { const p = cache.find((x) => x.id === id) || bin.find((x) => x.id === id); if (p?.view) { delete p.view; await tx('photos', (s) => s.put(p), 'readwrite'); } await (await dir('view')).removeEntry(`${id}.pic`).catch(() => {}); };
 /** How long a deleted photo can still be brought back. */
 export const KEEP_DAYS = 7;
 /** Deletes photos: they leave the Library at once and can be brought back for KEEP_DAYS (`restore`), after which
  * they go from this phone for good (`init`), or at once with `empty`. @param {string[]} ids */
 export async function remove(ids) {
-  for (const p of cache.filter((x) => ids.includes(x.id))) { p.deleted = Date.now(); await tx('photos', (s) => s.put(p), 'readwrite'); bin.push(p); }
+  for (const p of cache.filter((x) => ids.includes(x.id))) { p.deleted = Date.now(); await tx('photos', (s) => s.put(p), 'readwrite'); bin.push(p); await dropView(p.id); }   // its kept picture goes now: it is made again from the edit
   cache = cache.filter((p) => !ids.includes(p.id));
 }
 /** The photos deleted and not yet gone. */
@@ -231,7 +237,7 @@ export async function restore(ids) {
  * @param {string[]} [ids] every deleted photo when not given */
 export async function empty(ids) {
   for (const { id } of bin.filter((x) => !ids || ids.includes(x.id))) {
-    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
+    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`], ['view', `${id}.pic`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
     for (const m of [urls, tiles]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
     bin = bin.filter((p) => p.id !== id);

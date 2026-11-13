@@ -662,6 +662,34 @@ Held by tests/lab-editor-touch-browser.test.mjs, with a stub for the vibration: 
 checked, how it feels is not, and none of it has been tried on the phone yet. On this software GPU a fling glides
 for about 40 frames, the worst 17 to 33 ms apart, and gives 18 to 25 px at the edge.
 
+## The edit at once when a photo is opened again, and Export many's Cancel (2026-11-13)
+
+Opening a 40 MP RAF takes about 2.3 s on the phone, and until it was developed the screen showed the camera's
+JPEG, not the owner's edit. Now, when an edit is kept, the frame its Library tile is made from (`session.js`
+`keepTile`, 1.5 s after the last change, between the dial's frames) is also kept the screen's size: the editing
+copy, cropped and edited, 1600 pixels on its longer side at most, a JPEG at 0.85 (`app/kept-view.js`). In Chromium a
+JPEG at 0.85 was smaller than a WebP of the same quality on the editor's sample photo (64 KB against about 90 KB at
+46.9 dB; a WebP at 0.85 is 17 KB but visibly softer at 45.0 dB) and encodes ten times faster; a 40 MP photo's should
+be about 60 to 100 KB. It lies beside the tile in the phone's private files (`view/<id>.pic`), with a mark of the edit it was
+made from (the saved edit without its history) in the photo's record; it is made again only when that mark
+changes, and not while a finger is down. On open (`firstPicture`) it shows in place of the camera JPEG only when its
+mark is the mark of the edit saved now: an edit changed another way (another tab, a paste on many) shows the camera
+JPEG as before. The developed picture still takes over after its first frame. A cropped photo's kept picture is its
+cropped frame, so it sits where the developed picture will, at its size (the zoom layer lays the photo out by the
+picture's own shape); only the Crop board, which shows the photo uncropped, would see it change if a photo were
+opened straight onto it. Deleting a photo takes its kept picture at once (`store.remove`; also `empty`, `sweep`);
+the Library's storage figure counts it (the browser's own estimate); backups never carry it. The open's timing now
+has `first` (ms from the tap to the first picture of the photo on screen) and `kept: 1` when that was the kept one.
+A photo edited before this change, or brought back after a delete, has none until its edit next changes.
+
+**Export many** has a CANCEL key beside its count while it runs (44 px of touch room): the file in hand is given up,
+the photo that was open comes back, and the Library says "Export cancelled · 1 file from 1 photo in Downloads".
+
+Held by `tests/lab-editor-reopen-browser.test.mjs` (frames recorded from the tap: the first picture under the
+photo's name is the kept edit by a pixel against both pictures, no frame without one, no jump at the swap, the
+developed picture the same edit; a stale one, a cropped one, a deleted one; Cancel). Not yet seen on the phone: the
+timings file will say how long `first` is there.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

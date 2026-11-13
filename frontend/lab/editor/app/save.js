@@ -106,7 +106,8 @@ export async function save(presets, progress, how = {}) {
  * while it runs (a phone that sleeps stops the page). `step(k, n, part)` as it goes: photos done, of how many, and
  * how far along the one in hand is. The photo that was open is opened again at the end. Returns how many photos
  * and files were saved, and how many photos could not be. `signal` gives the rest up: the photo in hand saves
- * nothing, the photo that was open is opened again, and it rejects with an AbortError (`cancelled`).
+ * nothing, the photo that was open is opened again, and it rejects with an AbortError (`cancelled`) that carries
+ * `done` and `files`, what was saved before.
  * @param {string[]} ids @param {(k: number, n: number, part: number) => void} step @param {AbortSignal} [signal] */
 export async function saveMany(ids, step, signal) {
   const was = photo.current()?.id, list = presets(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);
@@ -128,6 +129,6 @@ export async function saveMany(ids, step, signal) {
   } finally { lock?.release?.().catch(() => {}); }
   if (!stopped) { step(ids.length, ids.length, 0); tick('done'); }
   if (was && was !== photo.current()?.id) await photo.open(was);
-  if (stopped) throw stopped;
+  if (stopped) throw Object.assign(stopped, { done, files });   // what was saved before it stopped, for the Library to say
   return { done, files, bad };
 }
