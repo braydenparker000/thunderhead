@@ -1,6 +1,6 @@
 // What home passes on of the editor's timings, without a browser (frontend/th/workshop/timings-core.js): only
 // known fields of known kinds, so nothing else in the editor's storage can ride along; sent when there is a new
-// one and the last send was six hours ago or more; the file says the build and the phone in a few words.
+// one and the last send was ten minutes ago or more; the file says the build and the phone in a few words.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clean, cleanMarks, due, EVERY_MS, fileOf } from '../frontend/th/workshop/timings-core.js';
@@ -23,7 +23,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
   assert.equal(clean(Array.from({ length: 300 }, (_, i) => ({ at: i + 1, kind: 'full', ms: 1 }))).length, 120);
 });
 
-test('sent when there is a new timing, at most once in six hours', () => {
+test('sent when there is a new timing, at most once in ten minutes', () => {
   const list = [{ at: 5000 }];
   assert.equal(due({}, list, Date.UTC(2026, 10, 12)), true);
   assert.equal(due({}, [], 10_000), false);

@@ -4,7 +4,7 @@
 // and a few fixed words, so nothing else the editor's storage might hold can ride along.
 
 /** At most this often. */
-export const EVERY_MS = 6 * 60 * 60_000;
+export const EVERY_MS = 10 * 60_000;   // (six hours until 2026-11-13: a session's timings then reached the workshop a day late; the file is about a kilobyte)
 const KINDS = ['open', 'full', 'detail', 'fine', 'save'];
 const NUMBERS = ['at', 'ms', 'heard', 'decode', 'threads', 'code', 'wasm', 'pool', 'waited', 'age', 'px', 'files', 'bytes', 'gpu', 'read', 'write', 'demosaic', 'noise', 'sharpen', 'warp', 'colour', 'net', 'fell', 'made', 'wait', 'off', 'first', 'kept'];
 const WORDS = /** @type {Record<string, RegExp>} */ ({ file: /^(raf|jpeg|stack)$/, kinds: /^(JPEG|PNG|TIFF)( (JPEG|PNG|TIFF)){0,7}$/ });

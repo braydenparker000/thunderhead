@@ -125,7 +125,7 @@ test('home passes the editor’s timings on: known fields only, one file, the on
   // Nothing new, or too soon: nothing goes.
   await send();
   assert.equal(w.puts.length, 1);
-  // A new timing, six hours on: a new file, and the one before is removed.
+  // A new timing, well past the ten minutes between sends: a new file, and the one before is removed.
   await page.evaluate((t) => {
     const all = JSON.parse(localStorage.getItem('th.editor.timings')); all.push({ at: t, kind: 'full', ms: 2100 }); localStorage.setItem('th.editor.timings', JSON.stringify(all));
     const sent = JSON.parse(localStorage.getItem('th.workshop.timings')); sent.when -= 7 * 60 * 60_000; localStorage.setItem('th.workshop.timings', JSON.stringify(sent));
