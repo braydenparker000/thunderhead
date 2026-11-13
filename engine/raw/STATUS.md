@@ -750,6 +750,29 @@ Held by `tests/lab-editor-export-eta.test.mjs` (the arithmetic, the mapping, the
 AGAIN) and `tests/lab-editor-export-smooth-browser.test.mjs` (quality 100's tables not all ones, 57 % of the bytes
 of the encoder's own 100 on a test photo). Not yet seen on the phone.
 
+## The network was told a quarter of the noise (2026-11-13)
+
+Found on the owner's own photos, after an export that looked grainy at 100 %. The network (`neural.js`) smooths
+by the noise each sensor site is said to have, and it was told `noise.js`'s table: darktable's profile for the
+camera. That profile is not a raw site's noise. darktable measures it on a demosaiced picture, through the
+finest band of a wavelet (a quarter of a pixel's variance for white noise), so for a site it is about 17
+times too low in variance: the X-E5's full well (22,900 electrons at ISO 125) puts a at 2.2e-4 at ISO 640
+where the table has 1.3e-5, and the owner's ISO 640 photo measures 2.7e-4. The network took out a quarter of
+the noise and left the rest as speckle.
+
+Now `full.js` tells it the photo's own: `noise-fit.js` reads a and b (variance = a·x + b) from the sensor
+data, from the flattest blocks at each brightness (greens one pattern apart, about a slope; Foi and others'
+method, as vkdt and Starfish's own estimator use it), a ninth of the photo, 61 ms for 40 megapixels on a
+desktop. A fit outside 0.15 to 3 times what the sensor can be at that ISO is not believed and the sensor's
+own figure stands. The made-up test photo says its own noise, so the reference pictures did not move.
+
+Seen at 100 % on three real photos (ISO 125, 250, 640), before and after: the speckle goes and the texture
+under it stays. Measured: the fit is 1.20, 1.36 and 0.55 times the sensor's own figure on those three, so
+either may be a third off; telling the network too little is the worse error.
+
+Not done here: the classic noise reduction (`denoise.js`) still uses the table, as it was tuned with it.
+The Noise dial starts at 0 below ISO 400, where 0 already means all of the noise: less cannot be asked for.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
