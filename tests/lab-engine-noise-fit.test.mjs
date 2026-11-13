@@ -3,7 +3,7 @@
 // a photo with nothing flat says it cannot; and the sensor's own figure rises with the ISO.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fitNoise, sensorNoise } from '../frontend/lab/engine/noise-fit.js';
+import { dialled, fitNoise, sensorNoise } from '../frontend/lab/engine/noise-fit.js';
 
 const W = 1800, H = 1200, black = 1022, white = 16383, range = white - black;
 function mosaic(a, b, busy = false) {
@@ -33,4 +33,14 @@ test('a mosaic too small to go by says so; the sensor\'s own figure doubles with
   assert.equal(fitNoise(new Uint16Array(60 * 60).fill(2000), 60, 60, black, white, [0, 0], 1).ok, false);
   const lo = sensorNoise(125), hi = sensorNoise(250), top = sensorNoise(640);
   assert.ok(Math.abs(hi.a / lo.a - 2) < 1e-9 && top.a > 2.2e-4 && top.a < 2.3e-4 && lo.b > 0 && top.b > 0);
+});
+
+test('the Noise dial: at its start most of the grain is put back, at 0 all of it, well above none; the network is never told less than the noise', () => {
+  const at = dialled(14, 14), none = dialled(0, 14), more = dialled(27, 14), far = dialled(60, 14), low = dialled(0, 0);
+  assert.ok(at.smooth === 1 && at.keep > 0.5 && at.keep < 1 && at.quiet > 0, JSON.stringify(at));
+  assert.deepEqual(none, { smooth: 1, keep: 1, quiet: 0 });   // every site's own brightness back, in the shadows too
+  assert.ok(more.keep < at.keep && more.keep > 0 && more.smooth > 1);
+  assert.ok(far.keep === 0 && far.smooth > more.smooth);
+  assert.deepEqual(low, at);   // a low ISO's dial starts at 0: the same as any start
+  for (let d = 0; d <= 100; d++) { const a = dialled(d, 20), b = dialled(d + 1, 20); assert.ok(a.smooth >= 1 && b.keep <= a.keep && b.smooth >= a.smooth, `at ${d}`); }
 });

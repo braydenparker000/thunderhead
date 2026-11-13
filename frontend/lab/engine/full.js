@@ -10,7 +10,7 @@ import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { fringeOf } from './lens.js';
 import { compile as compileNet, demosaicer as network } from './neural.js';
-import { fitNoise, sensorNoise } from './noise-fit.js';
+import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
@@ -81,9 +81,8 @@ export async function full(e, img, mosaic) {
       return [8, 8];
     };
     let fit = room(), cleaned = '';
-    // How much of the photo's noise the network is told of, from the Noise dial: all of it where the dial is at this ISO's
-    // start (session.js `noiseStart`), less below it (more grain kept), more above (smoother).
-    const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), smooth = (/** @type {number} */ dial) => (dial >= start ? 1 + (dial - start) / 60 : 0.25 + (0.75 * dial) / start);
+    // What the Noise dial asks of the network (noise-fit.js `dialled`): how much noise it is told of, and how much grain is put back.
+    const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), asked = (/** @type {number} */ dial) => { const d = dialled(dial, start); return /** @type {[number, number, number]} */ ([d.smooth, d.keep, d.quiet]); };
     const keptOf = (/** @type {Float32Array} */ f) => `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;   // the settings a rectangle's colours are made with
     const dn = await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn.spare);
     // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
@@ -101,7 +100,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, ops: net ? () => net.bench(0, 0) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -123,7 +122,7 @@ export async function full(e, img, mosaic) {
         // what the rectangle was made from: where on the sensor, and (the network) how much noise it was told of
         const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8;
         if (held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
-        if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, smooth(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
+        if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
         enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++;
       }],
       ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours

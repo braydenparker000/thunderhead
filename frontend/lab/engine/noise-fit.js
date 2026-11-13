@@ -68,3 +68,15 @@ export function sensorNoise(iso) {
   const a = iso / (125 * 22900), read = iso < 500 ? 2.5 : 1.25;   // electrons of read noise, as recorded
   return { a, b: (read * a) ** 2 };
 }
+
+const KEEP = 0.75, QUIET = 8;   // chosen by eye on the owner's photos at 100 % (STATUS.md, 2026-11-13): a wall keeps its texture, dark brick stays clean
+/** What the Noise dial asks of the network (neural.js `run`), `start` being where the dial starts for the photo's ISO
+ * (session.js `noiseStart`). The network is always told at least the photo's whole noise, so colour speckle and the
+ * shadows' noise go; what the dial moves is the fine grain: at its start most of it is put back as brightness only
+ * (`keep`, less of it in the shadows: `quiet`), below the start more of it and at 0 all of it, above the start less,
+ * and from 25 past the start none, the network told of more noise than there is the further it goes.
+ * @param {number} dial 0 to 100 @param {number} start @returns {{ smooth: number, keep: number, quiet: number }} */
+export function dialled(dial, start) {
+  const up = Math.max(0, dial - start), down = start > 0 ? Math.max(0, start - dial) / start : 0;
+  return { smooth: 1 + up / 60, keep: down > 0 ? KEEP + (1 - KEEP) * down : KEEP * Math.max(0, 1 - up / 25), quiet: QUIET * (1 - down) };
+}

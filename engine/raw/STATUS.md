@@ -770,8 +770,27 @@ Seen at 100 % on three real photos (ISO 125, 250, 640), before and after: the sp
 under it stays. Measured: the fit is 1.20, 1.36 and 0.55 times the sensor's own figure on those three, so
 either may be a third off; telling the network too little is the worse error.
 
+Then the owner looked at the pairs: the dark brick was far better, but a painted wall in middling light looked
+better before. Told all of the noise, the network takes the wall's fine grain with it, and the wall goes smooth.
+Telling it less (tried: the light's share of the noise at a half, a quarter, an eighth) only trades one for the
+other, and brings the colour speckle back with the grain.
+
+So the network is still told all of it, and its last pass (`neural.js` `place`) puts grain back: at each site,
+what the network took (the site's own value less the network's, no more than three of its noise), returned as
+brightness only, every colour by the same factor, so no colour speckle returns; and less of it where light is
+near its noise, so shadows stay clean (half at a signal to noise of 8). The Noise dial sets the share
+(`noise-fit.js` `dialled`): three quarters at the dial's start, all of it and everywhere at 0, none from 25 past
+the start, where the network is also told of more noise than there is. Seen at 100 % on the owner's ISO 640
+photo: the wall has its texture again without the speckle, the brick's shadows and the sky are as clean as with
+none put back; and on the ISO 125 and 250 photos the grain is hardly there to see. It costs nothing to speak of:
+one more read of the sensor in a pass that was there already.
+
+An export by the network now also times one window a pass at a time, once a week, while its files are being
+finished (`neural.js` `bench`, the timings' `op0` to `op12`: cut, the network's eleven, place), so the phone
+says which of the passes the time goes in.
+
 Not done here: the classic noise reduction (`denoise.js`) still uses the table, as it was tuned with it.
-The Noise dial starts at 0 below ISO 400, where 0 already means all of the noise: less cannot be asked for.
+The Noise dial starts at 0 below ISO 400, so there more grain than the start's cannot be asked for yet.
 
 ## How to work here
 
