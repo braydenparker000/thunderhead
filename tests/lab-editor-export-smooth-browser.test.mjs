@@ -76,6 +76,38 @@ test('the same export made on its own thread and on the page is the same to the 
   await context.close();
 });
 
+// The Export board's quality 100 is the encoder's 97 (files.js `encoderQuality`): at the encoder's 100 every
+// quantisation table is all ones, which made a 63 MB file of a 40 MP photo.
+test('an export at quality 100 is not the encoder\'s 100: its tables are not all ones, and it is smaller', opts, async () => {
+  const { context, page, errors } = await opened(1500, 1000);
+  const r = await page.evaluate(async () => {
+    const save = await import('/lab/editor/app/save.js'), photo = await import('/lab/editor/app/session.js'), { develop } = await import('/lab/engine/export.js');
+    // every quantisation table's values in a JPEG (its DQT segments), 8-bit or 16-bit
+    const tables = (b) => {
+      const out = [];
+      for (let a = 2; b[a] === 0xff && b[a + 1] !== 0xda; a += 2 + ((b[a + 2] << 8) | b[a + 3])) {
+        if (b[a + 1] !== 0xdb) continue;
+        for (let p = a + 4, end = a + 2 + ((b[a + 2] << 8) | b[a + 3]); p < end;) { const wide = b[p] >> 4; p++; const t = []; for (let i = 0; i < 64; i++, p += wide ? 2 : 1) t.push(wide ? (b[p] << 8) | b[p + 1] : b[p]); out.push(t); }
+      }
+      return out;
+    };
+    const [made] = await save.save([{ fmt: 'JPEG', long: 99999, q: 100, meta: 'None', gps: false, file: 'q100.jpg' }], () => {});
+    // the same export with the mapping bypassed: the encoder asked for 100 itself
+    let raw;
+    await photo.alone(async () => { await photo.settle(); [raw] = await develop(photo.whole(), [{ long: 99999, file: () => ({ fmt: 'JPEG', q: 100, kept: null }) }], () => {}, null, false, { encode: (rgb, w, h, q, fine) => photo.jpegBand(rgb, w, h, 100, fine) }); });
+    const a = new Uint8Array(await made.blob.arrayBuffer()), b = new Uint8Array(await raw.blob.arrayBuffer());
+    return { sizes: [a.length, b.length], ours: tables(a), bypassed: tables(b), wh: [made.width, made.height] };
+  });
+  assert.equal(r.wh[0], 1500, 'the whole photo');
+  assert.ok(r.ours.length >= 2 && r.bypassed.length >= 2, `tables found: ${r.ours.length}, ${r.bypassed.length}`);
+  assert.ok(r.bypassed.every((t) => t.every((v) => v === 1)), 'the encoder at 100: every table all ones (no loss, no saving)');
+  assert.ok(r.ours.every((t) => t.some((v) => v > 1)), `the board's 100: no table all ones (${r.ours.map((t) => t.slice(0, 4))})`);
+  assert.ok(r.sizes[0] < r.sizes[1] * 0.8, `smaller than with the mapping bypassed: ${r.sizes[0]} bytes against ${r.sizes[1]}`);
+  console.log(`# quality 100 on a 1500 × 1000 photo: ${r.sizes[0]} bytes, the encoder's own 100 ${r.sizes[1]}`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 // The longest the page may be held by one task while a large photo exports. Measured here (7728 × 1100, the width of
 // the owner's 40 MP sensor; a full-size JPEG sharpened for print and a small one for a screen; 2026-11-12, this
 // software GPU): on its own thread no task of the page's reached 50 ms (the browser reports none shorter) and the
@@ -111,7 +143,7 @@ test('while a large photo exports, the page keeps drawing', opts, async () => {
 });
 
 // An export the network was making, given up: not taken for the network failing (app/save.js leaves the network
-// alone for a week after that). Needs the CC0 X-E5 sample (tests/photos-engine.test.mjs fetches it); skipped without it.
+// alone for a day after that). Needs the CC0 X-E5 sample (tests/photos-engine.test.mjs fetches it); skipped without it.
 const RAF = join(tmpdir(), 'th-photos-engine-sample', 'xe5-8509.raf');
 // It opens a forty-megapixel photo and develops its first band by the network on a software GPU: about six minutes, more
 // than a part of CI may take, so it runs only when asked for (TH_LONG=1), never by chance of the sample being there.

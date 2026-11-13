@@ -476,7 +476,8 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   noise out). The Noise dial says how much of the photo's noise the network is told of: all of it at the
   ISO's own start, less below, more above.
 - An export asks for it (`app/save.js` `netOn`); if it fails the export is made again the usual way and the
-  network is not tried on that phone for a week. The same when the page did not live to finish an export the
+  network is not tried on that phone for a day (a week until 2026-11-13; the Export board now says so, with BEST
+  AGAIN). The same when the page did not live to finish an export the
   network was making (`cutOff`): a phone that takes the tab back for the work must not do so every time. From 100 % in (200 % at first), `app/zoom.js` `finer` makes what shows with
   it once the photo rests and lays it over the live view; an edit's first frame takes it away and it comes
   back 400 ms after the last frame. It is never part of a dial's frame.
@@ -580,9 +581,9 @@ A recipe is made for the camera's JPEG engine; here each setting is laid on the 
 | D-Range Priority | Highlights held and Shadows lifted, in place of the two tones. Near only |
 | Color | Saturation, 6 a step |
 | Sharpness | Sharpening 40, 8 a step |
-| High ISO NR | Noise, 5 a step from where the photo's ISO starts it |
+| High ISO NR | Noise scaled from where the photo's ISO starts it, a tenth a step: −4 keeps 60 %, +4 140 % (2026-11-13; it was 5 a step taken away, which made Noise 0 on almost every photo) |
 | Clarity | Clarity, 8 a step |
-| Grain Weak, Strong; Small, Large | Grain 18, 36; Grain size 25 (where it starts), 60 |
+| Grain Weak, Strong; Small, Large | Grain 9, 18; Grain size 25 (where it starts), 45 (2026-11-13: halved from 18, 36 and 60, far heavier at 100 % on a 40 MP photo than the camera's; still guesses until the camera's JPEGs are measured) |
 | Color Chrome Effect, FX Blue: Weak, Strong | Chrome and Chrome Blue 50, 100: their own controls (below) |
 | White Balance | a light or a temperature of the recipe's, else the shot's own; then the Red and Blue shift as Temp and Tint |
 | Exposure Compensation, ISO | not applied: they are for the shooting |
@@ -718,6 +719,36 @@ value, most moved first by the dial's own scale, at most four ("Exposure +0.75 �
 hint line says the same for four seconds; the header's Undo says "Undid Auto Exposure +0.75 · …". A second tap that
 would change nothing says "Auto: nothing to change" and makes no step. Undo, not a second tap, now takes Auto back
 (the setting's line says so). Held by tests/lab-editor-autowb-browser.test.mjs.
+
+## From the owner's phone (2026-11-13)
+
+The owner exported photos on the phone and was disappointed; the timings and the exported file showed four faults.
+
+- **A cut-off export quietly switched the phone to the lesser way for a week.** An export by the network that the
+  phone cut off (or that failed) left the network off for 7 days, and the next export was the usual way with no
+  word. Now `save()` holds the screen's wake lock as Export many does (a multi-minute export with the screen off is
+  what gets cut off), the stand-down is one day, and the Export board says it before saving: "Best quality was
+  stopped by the phone last time, so this export uses the standard method. BEST AGAIN turns it back on.", with
+  BEST AGAIN (44 px of room) clearing it (`save.js` `netWhy`, `bestAgain`).
+- **How long an export will take.** The board says "About 2 min, from this phone's past exports" before saving:
+  the median ms a megapixel of this phone's last five exports by the same way (network or not), times the pixels
+  of the files that are on; with no past export it says nothing. While saving: "Saving · 1 min 20 s left", from
+  the rate so far, changed at most once a second and never more than a fifth upward (`app/eta.js`).
+- **Quality 100 made a 63 MB file.** At the encoder's 100 every table is 1. The board's 90..100 is now the
+  encoder's 90..97 (`files.js` `encoderQuality`; up to 90 unchanged; colour still whole from the board's 90).
+  Measured on the owner's 40 MP photo: 100 63 MB, 97 37 MB, 95 28 MB, 95 with half the colour 21 MB. The board
+  shows no JPEG size estimate, so there was none to change.
+- **The recipes' High ISO NR and grain were too strong** (the table above): NR now scales the photo's own start
+  (−4, which 302 of the 394 recipes say, keeps 60 %), and grain is halved.
+- **Every export says how it was made.** A file with metadata on carries one line of JSON (under 1,500 bytes): the
+  release, the way (network, classic, faster), the controls moved from their start, white balance, look, crop,
+  how many masks and spots, the board's quality. A JPEG's COM right after the Exif, a PNG's tEXt `Comment`, a TIFF's
+  ImageDescription; no name, no place. `node scripts/export-note.mjs <file>` prints it, from a cut-off JPEG too.
+
+Held by `tests/lab-editor-export-eta.test.mjs` (the arithmetic, the mapping, the note in each writer),
+`tests/lab-editor-export-board-browser.test.mjs` (wake lock, the notes in real exports, the board's lines and BEST
+AGAIN) and `tests/lab-editor-export-smooth-browser.test.mjs` (quality 100's tables not all ones, 57 % of the bytes
+of the encoder's own 100 on a test photo). Not yet seen on the phone.
 
 ## How to work here
 

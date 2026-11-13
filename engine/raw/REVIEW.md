@@ -120,7 +120,7 @@ M several, L a project of its own.
 | 23 | Resize | Area average in linear light | The same |
 | 24 | Output sharpening | Screen or Print, three amounts, after the resize | The same |
 | **25** | Colour space and depth | sRGB only; 8 bits dithered, or 16-bit TIFF | Also Display P3 with a profile embedded; HDR output for phone screens |
-| 26 | JPEG | Full colour resolution from quality 90, standard tables | A smarter encoder (jpegli): smaller files at the same quality |
+| 26 | JPEG | Full colour resolution from quality 90, standard tables; the board's 90..100 is the encoder's 90..97 (100 made every table 1) | A smarter encoder (jpegli): smaller files at the same quality |
 
 ### Around it
 

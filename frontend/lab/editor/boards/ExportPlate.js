@@ -4,11 +4,16 @@
 // so. The two files to save (Full, Small) are cards along the panel's top; the drum's faces are Size, Format,
 // Output and Info; the dial sets the long edge, the quality, or steps through a choice; Save is in the header.
 // The sizes are the ones the files will have (app/shown.js `outSize`, as the Crop board says too). A JPEG's or a
-// PNG's bytes hang on what the picture holds, so no size is guessed for them; a TIFF's is exact.
+// PNG's bytes hang on what the picture holds, so no size is guessed for them; a TIFF's is exact. Before saving it
+// says how long the export should take, from this phone's own past exports (app/eta.js), and, when the network was
+// stopped by the phone last time (app/save.js `netWhy`), that this one is made the standard way, with a key to turn
+// it back on; while saving, how long is left.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
-import { cancelled, day, jobs, keepPresets, presets, save } from '../app/save.js';
+import { bestAgain, cancelled, day, jobs, keepPresets, netWhy, presets, save } from '../app/save.js';
+import { about, countdown, estimate, left } from '../app/eta.js';
+import { kept } from '../app/timings.js';
 import * as shown from '../app/shown.js';
 import { tick as buzz } from '../app/haptic.js';
 
@@ -17,6 +22,7 @@ export default class Component extends DCLogic {
     super(props);
     this.state = { sel: 0, group: 'Size', ctl: 'long', presets: presets(), working: null, done: false, day: '', saved: null, note: '', stopped: false };   // the two files as last set on this phone (app/save.js)
     this.keep('Export', ['sel', 'group', 'ctl']);
+    this.past = kept();   // this phone's timings, read again after each export
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
     if (photo.current()) day().then((d) => this.setState({ day: d }), () => {});
@@ -61,16 +67,18 @@ export default class Component extends DCLogic {
     const start = { long: { size: 'Full', long: full }, q: { q: p.name === 'Small' ? 85 : 95 }, amt: { amt: 'Standard' }, meta: { meta: 'All' }, naming: { naming: 'Camera name' } };
     const chips = rows[S.group].map((o) => ({ name: o.name, value: o.value ?? '', on: !!o.on, pick: o.pick }));
     const W = S.working, on = P.filter((x) => x.on);
+    // how long it should take: this phone's own rate for the way it will be made, times the pixels of the files on
+    const why = real && !real.plain ? netWhy() : 'off-setting', guess = real ? estimate(this.past, why === 'on', on.reduce((n, x) => n + x.long * short(x), 0)) : null;
     const run = () => {
       if (!on.length || W) return;
       if (!real && app) return;   // nothing open: nothing to save
       if (real) {
-        const total = on.length * 12, began = performance.now(), stop = (this.stop = new AbortController());
-        set({ done: false, saved: null, note: '', stopped: false, working: { k: 0, total } });
-        save(jobs(P, real.name, [fw, fh], S.day), (d) => { if (!stop.signal.aborted) this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }); }, { signal: stop.signal })
+        const total = on.length * 12, began = performance.now(), stop = (this.stop = new AbortController()), count = countdown(guess);
+        set({ done: false, saved: null, note: '', stopped: false, working: { k: 0, total, left: guess } });
+        save(jobs(P, real.name, [fw, fh], S.day), (d) => { if (!stop.signal.aborted) this.setState({ working: { k: Math.min(total - 0.01, d * total), total, left: count(d, performance.now() - began) } }); }, { signal: stop.signal })
           .then((saved) => { photo.took.save = (performance.now() - began) / 1000; buzz('done'); this.setState({ working: null, done: true, saved }); },
             (err) => this.setState(cancelled(err) ? { working: null, done: true, stopped: true } : { working: null, done: true, note: String(err?.message || err) }))
-          .finally(() => { if (this.stop === stop) this.stop = null; });
+          .finally(() => { this.past = kept(); if (this.stop === stop) this.stop = null; });
         return;
       }
       let k = 0; const total = on.length * 12;
@@ -79,6 +87,10 @@ export default class Component extends DCLogic {
     };
     // the files just saved, for the phone's share sheet (where it takes files)
     const shares = real && S.saved ? S.saved.map((x) => new File([x.blob], x.file, { type: x.blob.type })) : [];
+    // the line over the photo: before saving, the estimate and why it is not the best way; while saving, the time left
+    const stopped = !W && why === 'off-stopped', tell = !real || S.done ? [] : W ? (W.left == null ? [] : [`Saving · ${left(W.left)}`])
+      : [stopped ? 'Best quality was stopped by the phone last time, so this export uses the standard method. BEST AGAIN turns it back on.' : '',
+        guess !== null && on.length ? `${about(guess)[0].toUpperCase()}${about(guess).slice(1)}, from this phone's past exports.` : ''].filter(Boolean);
     return {
       real: !!real, demo: seen.demo, who: real ? `${stem0} · ${real.plain ? 'JPEG' : (photo.looks().find((l) => l.id === photo.look()) || {}).label || photo.kindLine().split(' · ')[0]}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}`
         : app ? [seen.fileName, seen.status].filter(Boolean).join(' · ') : 'DSCF0412 · Classic Chrome · edited',
@@ -90,6 +102,7 @@ export default class Component extends DCLogic {
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
       // while it saves, Cancel gives it up: nothing is saved, and the board is ready to save again
       cancel: () => this.stop?.abort(),
+      showTell: tell.length > 0, tellLines: tell, canBest: stopped, bestAgain: () => { bestAgain(); this.setState({}); },
       showDone: S.done, doneTitle: S.stopped ? 'Export cancelled' : S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
       doneLines: S.stopped ? [] : S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${facts(x)}`),
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
