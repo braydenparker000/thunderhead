@@ -68,7 +68,7 @@ test('the card opens the recipes; one tapped is its profile and settings on the 
       on: document.querySelector('#stage [role="option"][aria-label="1960 Chrome"]').getAttribute('aria-selected') };
   });
   assert.deepEqual([worn.v.Highlights, worn.v.Whites, worn.v.Shadows, worn.v.Blacks, worn.v.Saturation, worn.v.Sharpening, worn.v.Clarity, worn.v.Grain, worn.v['Grain size'], worn.v.Chrome, worn.v['Chrome Blue'], worn.v['Mix Red Lum']],
-    [-44, -8, 12, 4, 12, 32, -16, 36, 60, 100, 0, 0], 'grain Strong Large, Color Chrome Strong on their own controls; the mixer left alone');
+    [-44, -8, 12, 4, 12, 32, -16, 18, 45, 100, 0, 0], 'grain Strong Large, Color Chrome Strong on their own controls; the mixer left alone');
   assert.deepEqual([worn.wb, worn.v.Temp, worn.v.Tint], ['Custom', 6600, 16], 'Fluorescent 1 (6300 K, tint 25), then two steps warmer and six towards green');
   assert.deepEqual([worn.v.Exposure, worn.v.Contrast, worn.v.Vibrance], [0.5, 0, 0], "Exposure is the photo's own; the look's other dials go back to their start");
   assert.deepEqual([worn.step, worn.on], ['Recipe · 1960 Chrome', 'true']);

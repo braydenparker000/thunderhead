@@ -30,8 +30,10 @@ export function profileFor(film, labels) {
 const TONE = 12, EDGE = 4;       // Highlight and Shadow tone: Highlights/Shadows, and a third as much on Whites/Blacks
 const DR = { 200: -10, 400: -20 };   // DR200 and DR400 hold the highlights back: a softer shoulder
 const DRP = /** @type {Record<string, [number, number]>} */ ({ weak: [-20, 15], auto: [-20, 15], strong: [-35, 25] });   // D-Range Priority: the camera's own highlights and shadows, in place of the two tones
-const COLOR = 6, SHARP = 8, NR = 5, CLARITY = 8;
-const GRAIN = { Weak: 18, Strong: 36 }, SIZE = { Small: 25, Large: 60 };   // Grain, and Grain size (Small is where it starts)
+const COLOR = 6, SHARP = 8, NR = 0.1, CLARITY = 8;   // High ISO NR: a tenth more or less of the photo's own start a step (2026-11-13)
+// Grain, and Grain size (Small is where it starts). Halved (2026-11-13): Weak 18, Strong 36 and Large 60 were far
+// heavier at 100 % on a 40 MP photo than the camera's. Still guesses until the camera's JPEGs are measured.
+const GRAIN = { Weak: 9, Strong: 18 }, SIZE = { Small: 25, Large: 45 };
 const CHROME = { Weak: 50, Strong: 100 };   // Color Chrome Effect and FX Blue: Chrome and Chrome Blue
 /** Black-and-white toning (Monochromatic Color: warm/cool and magenta/green, −18..18 each) as grading's hue and
  * saturation: warm is 40 degrees on its wheel, green 130, cool 220 and magenta 310, a quarter turn apart, so the
@@ -59,7 +61,9 @@ export function edit(r, shot) {
   values.Shadows = clamp(drp ? drp[1] : -TONE * n(r.shadow), -100, 100); values.Blacks = clamp(drp ? 0 : -EDGE * n(r.shadow), -100, 100);
   values.Saturation = clamp(COLOR * n(r.color), -100, 100);
   values.Sharpening = clamp(40 + SHARP * n(r.sharpness), 0, 100);
-  values.Noise = clamp((shot.noise0 || 0) + NR * n(r.noiseReduction), 0, 100);
+  // High ISO NR scales where this photo's ISO starts Noise: −4 (most recipes) keeps 60 % of it, +4 gives 140 %. It
+  // was 5 a step taken away, which made Noise 0 on almost every photo; on the camera −4 is still light noise reduction.
+  values.Noise = clamp(Math.round((shot.noise0 || 0) * (1 + NR * clamp(n(r.noiseReduction), -4, 4))), 0, 100);
   values.Clarity = clamp(CLARITY * n(r.clarity), -100, 100);
   const g = r.grain || {}, grain = GRAIN[/** @type {'Weak' | 'Strong'} */ (g.strength || '')] || 0;
   values.Grain = grain; values['Grain size'] = grain && g.size === 'Large' ? SIZE.Large : SIZE.Small;
