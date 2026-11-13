@@ -210,8 +210,8 @@ export const SETTINGS = [
   // The new editor's own (lab/editor/app/session.js, zoom.js; engine/raw/ROADMAP.md stage 2): what a photo not
   // opened before starts with, and how the full-size view behaves. Each is read when it is used.
   { key: 'photos.new_profile', group: 'photos', section: 'Editor', label: 'New photos open in', kind: 'choice', scope: 'phone', mind: false,
-    default: 'shot', options: o('shot:The camera\'s film simulation', 'adobe-color:Adobe Color'),
-    detail: 'The look a photo has the first time it opens. Any photo can be changed on its Profile face.' },
+    default: 'adobe-color', options: o('adobe-color:Adobe Color', 'shot:The camera\'s film simulation'),
+    detail: 'The look a photo has the first time it opens. Any photo can be changed on its Profile face.' },   // (Adobe Color since 2026-11-13: the owner starts there)
   { key: 'photos.new_noise', group: 'photos', section: 'Editor', label: 'Noise reduction by ISO', kind: 'switch', scope: 'phone', mind: false, default: true,
     detail: 'A photo not opened before starts with the noise reduction its ISO calls for. Off: it starts at none.' },
   { key: 'photos.new_auto', group: 'photos', section: 'Editor', label: 'Auto tone on new photos', kind: 'switch', scope: 'phone', mind: false, default: false,

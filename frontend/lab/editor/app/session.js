@@ -106,7 +106,7 @@ export async function open(id, quick = false, again = false) {
     if (typeof edit.Noise !== 'number') { me.values.Noise = me.noise0; if (past) for (const st of past.steps) st.st.values.Noise = me.noise0; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     // The owner's settings for a photo not opened before (Settings › Photos › Editor): the look it opens in, and Auto.
-    const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') === 'adobe-color' ? l.find((x) => x.label === 'Adobe Color') : null;
+    const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') !== 'shot' ? l.find((x) => x.label === 'Adobe Color') : null;
     if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
     r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true);   // Full-size detail: Faster (engine/demosaic.js)
