@@ -76,7 +76,8 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
   // sixteen outputs at a time; one pixel and thirty-two outputs; a 2 × 2 block with eight outputs, and with four): a page that opens with that choice kept compiles
   // and proves the network so, and makes the same picture.
   let second = page;
-  for (const way of [[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 2, 1, 1, 2, 1, 1, 2, 1, 1, 0], [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0], [0, 4, 1, 1, 4, 1, 1, 4, 1, 1, 0], [0, 5, 3, 3, 5, 3, 3, 5, 3, 3, 0]]) {
+  // (two choices that between them run every way there is: a page each is a quarter of a minute on a software GPU)
+  for (const way of [[0, 1, 1, 3, 2, 3, 1, 4, 1, 3, 0], [0, 3, 3, 1, 5, 1, 3, 3, 3, 1, 0]]) {
     second = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
     second.on('pageerror', (e) => errors.push(e.message));
     await second.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
@@ -103,10 +104,10 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
     }, [r.none, way]);
     console.log(JSON.stringify(o));
     assert.deepEqual(o.way, way);
-    assert.equal(o.groups[4], [18, 18, 9, 5, 18, 36][way[4]], 'sixteen outputs at a time: half the dispatches; thirty-two: a quarter, rounded up; a 2 x 2 block: as exported, and twice with four outputs');
+    assert.deepEqual([1, 4, 7].map((j) => o.groups[j]), [1, 4, 7].map((j) => [18, 18, 9, 5, 18, 36][way[j]]), 'sixteen outputs at a time: half the dispatches; thirty-two: a quarter, rounded up; a 2 x 2 block: as exported, and twice with four outputs');
     assert.ok(o.proved >= 0 && o.proved < o.limit / 4 && o.apart < 0.004, `with every pass another way the network proves itself and makes the same picture (off by ${o.proved}, apart by ${o.apart})`);
     assert.deepEqual([o.odd, o.wrongKind, o.left], [['00000000000', '00000000000', '00000000000', '00000000000'], '00000000000', null]);
-    if (way[1] !== 5) await second.close();
+    if (way[1] !== 3) await second.close();
   }
   await second.close();
 });

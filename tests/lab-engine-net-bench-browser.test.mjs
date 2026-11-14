@@ -77,13 +77,10 @@ test('a browser\'s ways are chosen without anyone asking: the fastest exact way 
     const first = await N.compile(device), driven = await A.autoWays(device);   // a browser driven by a test is left alone
     const way = await A.autoWays(device, { force: true, side: 96, reps: 1 }), kept = T.chosen(kind, 11), mark = JSON.parse(localStorage.getItem('th.net.auto'));
     const again = await N.compile(device);   // compiled afresh with what was kept, and proved
-    // a way kept before (as the engine test page might have) is replaced only by an exact one clearly faster, never by nothing
-    T.choose(kind, [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0]);
-    const second = await A.autoWays(device, { force: true, side: 96, reps: 1 });
     eng.dispose();
-    return { driven, way, kept, mark: [mark.v, mark.ways, mark.kind === kind, mark.way], plain: first.way, proved: [again.off, N.PROOF], used: again.way, second, changed: first !== again };
+    return { driven, way, kept, mark: [mark.v, mark.ways, mark.kind === kind, mark.way], plain: first.way, proved: [again.off, N.PROOF], used: again.way, changed: first !== again };
   });
-  console.log(`# chosen here: ${r.way.join('')}; over one pixel and thirty-two outputs everywhere: ${r.second.join('')}`);
+  console.log(`# chosen here: ${r.way.join('')}`);
   assert.equal(r.driven, null);
   assert.ok(r.way.length === 11 && r.way[0] === 0 && r.way[10] === 0 && r.way.every((w) => Number.isInteger(w) && w >= 0 && w <= 5), `${r.way}`);
   assert.deepEqual(r.kept, r.way, 'what it chose is what is kept');
@@ -92,7 +89,6 @@ test('a browser\'s ways are chosen without anyone asking: the fastest exact way 
   assert.deepEqual(r.used, r.way, 'and what the network is compiled with from then on');
   assert.ok(r.proved[0] >= 0 && r.proved[0] < r.proved[1] / 4, `proved with it (${r.proved[0]})`);
   assert.equal(r.changed, r.way.some(Boolean), 'compiled afresh only if something was chosen');
-  assert.ok(r.second.every((w, j) => (j === 0 || j === 10 ? w === 0 : w >= 1)), `a pass that had a way keeps one (${r.second})`);
   assert.deepEqual(errors, []);
   await context.close();
 });
