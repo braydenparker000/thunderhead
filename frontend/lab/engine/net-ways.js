@@ -5,8 +5,9 @@
 // has no such memory, the workgroup's is the same RAM as any buffer, and Arm's own advice is that copying into it is
 // wasted work. Each way here reads its input and weights where they lie, with the same sums in the same order as the
 // exported pass, behind the exported pass's own head (its constants, bindings, load and store): four pixels and
-// eight outputs to an invocation, as exported; for a 3 x 3 pass also four pixels and sixteen outputs; and one pixel
-// and thirty-two outputs.
+// eight outputs to an invocation, as exported; for a 3 x 3 pass also four pixels and sixteen outputs; one pixel and
+// thirty-two outputs; and, since the owner's phone found the wider ones slower (2026-11-14), the four pixels of a
+// 2 x 2 block, whose neighbourhood is read once, with eight outputs and with four.
 
 // a 3 × 3 pass (01, 04, 07): 16 × 4 invocations a 16 × 16 tile, each four pixels four rows apart and eight outputs
 const MAIN3 = /* wgsl */ `
@@ -198,21 +199,100 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) l
 }
 `;
 
+// a 3 x 3 pass, the four pixels of a 2 x 2 block and eight outputs to an invocation: the block's 4 x 4 neighbourhood
+// is read once a channel (sixteen reads where four pixels apart take thirty-six), each pixel's sums still in the
+// exported order
+const MAIN3B = /* wgsl */ `
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) l: vec3<u32>) {
+    if (wg.x * TX >= valid_w() || wg.y * TY >= valid_h()) { return; }
+    let x = i32(wg.x * TX + 2u * l.x); let y = i32(wg.y * TY + 2u * l.y);
+    if (x >= W || y >= H) { return; }
+    let ob = wg.z;
+    var a: array<vec4<A>, 8>;
+    var n: array<A, 16>;
+    var wt = PWOFF + ob * CINP * KK * 2u;
+    for (var c = 0u; c < CIN; c++) {
+        for (var j = 0; j < 4; j++) {
+            for (var i = 0; i < 4; i++) { n[j * 4 + i] = A(load(c, y + j - R, x + i - R)); }
+        }
+        for (var ky = 0u; ky < K; ky++) {
+            for (var kx = 0u; kx < K; kx++) {
+                let w0 = vec4<A>(pw[wt]);
+                let w1 = vec4<A>(pw[wt + 1u]);
+                wt += 2u;
+                let t = ky * 4u + kx;
+                a[0] += n[t] * w0;      a[1] += n[t] * w1;
+                a[2] += n[t + 1u] * w0; a[3] += n[t + 1u] * w1;
+                a[4] += n[t + 4u] * w0; a[5] += n[t + 4u] * w1;
+                a[6] += n[t + 5u] * w0; a[7] += n[t + 5u] * w1;
+            }
+        }
+    }
+    let bo = PWOFF + NOB * CINP * KK * 2u + ob * 2u;
+    let b0 = vec4<A>(pw[bo]);
+    let b1 = vec4<A>(pw[bo + 1u]);
+    for (var p = 0u; p < 4u; p++) {
+        let px = x + i32(p % 2u); let py = y + i32(p / 2u);
+        if (px >= W || py >= H) { continue; }
+        store(ob * 8u, py, px, a[2u * p] + b0);
+        store(ob * 8u + 4u, py, px, a[2u * p + 1u] + b1);
+    }
+}
+`;
+// the same 2 x 2 block with four outputs to an invocation: half the sums held at once, twice the dispatches
+const MAIN3N = /* wgsl */ `
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) l: vec3<u32>) {
+    if (wg.x * TX >= valid_w() || wg.y * TY >= valid_h()) { return; }
+    let x = i32(wg.x * TX + 2u * l.x); let y = i32(wg.y * TY + 2u * l.y);
+    if (x >= W || y >= H) { return; }
+    let ob = wg.z / 2u;
+    let hh = wg.z % 2u;
+    var a: array<vec4<A>, 4>;
+    var n: array<A, 16>;
+    var wt = PWOFF + ob * CINP * KK * 2u + hh;
+    for (var c = 0u; c < CIN; c++) {
+        for (var j = 0; j < 4; j++) {
+            for (var i = 0; i < 4; i++) { n[j * 4 + i] = A(load(c, y + j - R, x + i - R)); }
+        }
+        for (var ky = 0u; ky < K; ky++) {
+            for (var kx = 0u; kx < K; kx++) {
+                let w0 = vec4<A>(pw[wt]);
+                wt += 2u;
+                let t = ky * 4u + kx;
+                a[0] += n[t] * w0;
+                a[1] += n[t + 1u] * w0;
+                a[2] += n[t + 4u] * w0;
+                a[3] += n[t + 5u] * w0;
+            }
+        }
+    }
+    let b0 = vec4<A>(pw[PWOFF + NOB * CINP * KK * 2u + ob * 2u + hh]);
+    for (var p = 0u; p < 4u; p++) {
+        let px = x + i32(p % 2u); let py = y + i32(p / 2u);
+        if (px >= W || py >= H) { continue; }
+        store(ob * 8u + 4u * hh, py, px, a[p] + b0);
+    }
+}
+`;
+
 /** @typedef {{ code: string, groups: number[] }} Way a pass written another way, and the workgroups it is dispatched over */
 /** The other ways a pass is written here, each in its own place whatever the pass (a way is numbered from 1 by its
  * place; 0 is the pass as exported): first read in place (`MAIN3`, `MAIN1`), second sixteen outputs to an
  * invocation (`MAIN3W`: a 3 x 3 pass with an even number of output blocks only), third one pixel with thirty-two
- * outputs (`MAIN3P`, `MAIN1P`). A place a pass has no way for is null. None at all for a pass that stages nothing
- * (the first and the last), or one of a shape not known here.
+ * outputs (`MAIN3P`, `MAIN1P`), fourth a 2 x 2 block of pixels with eight outputs (`MAIN3B`), fifth that with four
+ * (`MAIN3N`): the last two for a 3 x 3 pass only. A place a pass has no way for is null. None at all for a pass
+ * that stages nothing (the first and the last), or one of a shape not known here.
  * @param {{ code: string, groups: number[] }} o the pass as exported @returns {(Way | null)[]} */
 export function ways(o) {
   const at = o.code.indexOf('@compute');
   if (at < 0 || !/^var<workgroup>/m.test(o.code) || !/@workgroup_size\(16, 4, 1\)/.test(o.code)) return [];
   const head = o.code.slice(0, at).replace(/^var<workgroup>.*\n/gm, ''), has = (/** @type {string[]} */ ...names) => names.every((n) => new RegExp(`\\bconst ${n}\\b`).test(head));
-  const [gx, gy, gz] = o.groups;
-  if (has('KK', 'NOB', 'TX', 'TY')) return [{ code: head + MAIN3, groups: o.groups }, gz % 2 ? null : { code: head + MAIN3W, groups: [gx, gy, gz / 2] }, { code: head + MAIN3P, groups: [gx * 2, gy * 2, Math.ceil(gz / 4)] }];
-  if (has('NGX', 'NOG', 'OCW', 'NP')) return [{ code: head + MAIN1, groups: o.groups }, null, { code: head + MAIN1P, groups: o.groups }];
+  const [gx, gy, gz] = o.groups, way = (/** @type {string} */ main, groups = o.groups) => ({ code: head + main, groups });
+  if (has('KK', 'NOB', 'TX', 'TY')) return [way(MAIN3), gz % 2 ? null : way(MAIN3W, [gx, gy, gz / 2]), way(MAIN3P, [gx * 2, gy * 2, Math.ceil(gz / 4)]), way(MAIN3B), way(MAIN3N, [gx, gy, gz * 2])];
+  if (has('NGX', 'NOG', 'OCW', 'NP')) return [way(MAIN1), null, way(MAIN1P), null, null];
   return [];
 }
 /** How many other ways any pass has at most. */
-export const WAYS = 3;
+export const WAYS = 5;

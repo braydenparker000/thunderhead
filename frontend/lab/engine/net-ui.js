@@ -5,7 +5,7 @@
 import { netBench } from './net-bench.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
-const KEY = 'th.net.bench', TIMINGS = 'th.editor.timings', WAYS = ['read in place', '16 outputs', '1 pixel x 32'];
+const KEY = 'th.net.bench', TIMINGS = 'th.editor.timings', WAYS = ['read in place', '16 outputs', '1 pixel x 32', '2x2 block', '2x2 block x 4 outputs'];
 /** @typedef {import('./net-bench.js').NetRun} NetRun */
 const past = () => { try { const a = JSON.parse(localStorage.getItem(KEY) || '[]'); return /** @type {NetRun[]} */ (Array.isArray(a) ? a : []); } catch { return []; } };
 const ms = (/** @type {number | null | undefined} */ v) => (v == null ? '-' : v >= 100 ? String(Math.round(v)) : v.toFixed(1));
@@ -47,7 +47,7 @@ export function text(r) {
 export function numbers(r) {
   const cpu = (/** @type {string} */ build, /** @type {boolean} */ all) => { const rows = (r.cpu?.rows || []).filter((x) => x.build === build); return Math.round(100 * ((all ? rows.at(-1) : rows[0])?.gmacs || 0)); };
   const row = (/** @type {string} */ name, /** @type {number[]} */ list) => Object.fromEntries(list.map((v, j) => [`${name}${j + 1}`, Math.round(v)]));   // (op0 is the cut, as in an export's timings)
-  return { at: r.at, kind: 'tune', ms: r.took, px: Math.round(r.mp * 1e6), op0: Math.round(r.cut), ...row('op', r.ms), ...row('alt', r.tried.map((t) => t[0]?.ms ?? -1)), ...row('wid', r.tried.map((t) => t[1]?.ms ?? -1)), ...row('one', r.tried.map((t) => t[2]?.ms ?? -1)),
+  return { at: r.at, kind: 'tune', ms: r.took, px: Math.round(r.mp * 1e6), op0: Math.round(r.cut), ...row('op', r.ms), ...row('alt', r.tried.map((t) => t[0]?.ms ?? -1)), ...row('wid', r.tried.map((t) => t[1]?.ms ?? -1)), ...row('one', r.tried.map((t) => t[2]?.ms ?? -1)), ...row('blk', r.tried.map((t) => t[3]?.ms ?? -1)), ...row('nar', r.tried.map((t) => t[4]?.ms ?? -1)),
     whole: Math.round(r.whole.exported), chosen: Math.round(r.whole.chosen ?? -1), floats: Math.round(r.whole.full ?? -1), after: Math.round(r.whole.after), ways: Number(r.kept.join('')) || 0,
     apart: Math.round(1000 * (r.picture.exported?.p999 ?? -0.001)), apartc: Math.round(1000 * (r.picture.chosen?.p999 ?? -0.001)), cpu1: cpu('conv', false), cpun: cpu('conv', true), fuse1: cpu('conv-fused', false), fusen: cpu('conv-fused', true), threads: r.cpu?.cores || 0 };
 }

@@ -921,6 +921,38 @@ An export no longer tries other ways: it times the passes as the phone runs them
 Not checkable here: the software GPU has no half floats, so the ways' 16-bit code first compiles on a phone. The
 page's report says what the phone's compiler says of each.
 
+## What the slower phone found, and what followed (2026-11-14)
+
+The owner ran the page's test on the slower phone (Arm, Valhall, half floats; 211 s). Every way of every pass
+compiled and made the exported pass's result to the last bit, so the first tuner's refusals were its own fault.
+
+| a window, ms | as exported | read in place | 16 outputs | 1 pixel × 32 |
+|---|---|---|---|---|
+| whole | 5391 | 2220 | | |
+| 3 × 3, 288 to 144 (each of two) | 1877 | 765 | 1227 | 1364 |
+| 3 × 3, 37 to 144 | 297 | 100 | 157 | 175 |
+| 1 × 1 (six, together) | 1302 | 689 | | 1244 |
+
+Read in place is 2.4 times faster on the whole window and was kept; the picture is the same (0 levels apart), and
+both are 0.075 levels from full floats on average (0.75 at the 999th of a thousand): what half floats cost. Full
+floats take 6271 ms as exported. The wider ways lose, so more sums held at once is the wrong direction on this GPU.
+The CPU on the heavy pass's work: 4.6 to 5.6 thousand million multiply-adds a second on one core, 13 to 16 on all
+eight, where the GPU now makes 14.9: about as fast as each other.
+
+What followed:
+
+- Two narrower ways for the 3 × 3 passes (`net-ways.js`): the four pixels of a 2 × 2 block, whose 4 × 4
+  neighbourhood is read once a channel (sixteen reads where four pixels apart take thirty-six), with eight outputs
+  to an invocation, and with four. Not yet run on a phone.
+- A browser's ways chosen without anyone asking (`net-auto.js`): a moment after the network is first compiled,
+  each pass is timed each way on a small part of a window, and the fastest that makes exactly the exported
+  result is kept, the whole small window then held to be the same to the last bit. Exactness is its whole test; a
+  way that only rounds apart is the test page's to judge, and what that page kept is replaced only by something
+  exact and clearly faster. Once for each set of ways. A browser driven by a test is left alone.
+
+Next, in this order: the export's overlap (it feeds the network overlapping pieces: maybe 15 to 30 %); then the CPU
+beside the GPU, which the numbers above say is worth building.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

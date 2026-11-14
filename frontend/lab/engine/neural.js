@@ -166,6 +166,8 @@ async function proof(device, g, pipes, held) {
 const kindOf = (/** @type {GPUDevice} */ device) => (device.features.has('shader-f16') ? 'f16' : 'f32');
 /** Whether the network has been asked for on a device (compiled or on its way). @param {GPUDevice} device */
 export const begun = (device) => !!made.get(device)?.has(`${kindOf(device)}:1`);
+/** The network as this phone keeps it is compiled afresh the next time it is asked for (net-auto.js has just chosen other ways). @param {GPUDevice} device */
+export const forget = (device) => { const m = made.get(device); for (const k of m ? [...m.keys()] : []) if (k.endsWith(':1')) m?.delete(k); };
 /** The network on a device: read, compiled and proved once. @param {GPUDevice} device
  * @param {'f16' | 'f32'} [kind] half floats where the device has them, unless told (the engine test page compares the two)
  * @param {boolean | number[]} [kept] false: every pass as exported, whatever this phone has chosen (net-tune.js measures against that);
@@ -180,6 +182,9 @@ export function compile(device, kind = kindOf(device), kept = true) {
       const pipe = (/** @type {GPUShaderModule} */ module, /** @type {string} */ entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } });
       // each pass as exported, or another way where this phone found that faster (net-tune.js): proved below like any
       let way = Array.isArray(kept) ? g.ops.map((_, j) => kept[j] || 0) : kept ? chosen(g.kind, g.ops.length) : g.ops.map(() => 0);
+      // (with nothing chosen the kept network and the exported one are the same: compiled once, found under both)
+      const twin = `${kind}:${way.some(Boolean) ? '' : kept === true ? 0 : kept === false && !chosen(g.kind, g.ops.length).some(Boolean) ? 1 : ''}`;
+      if (!twin.endsWith(':') && !mine.has(twin)) mine.set(twin, /** @type {Promise<Net>} */ (p));
       const exported = g.ops, picked = () => exported.map((o, j) => { const w = way[j] ? ways(o)[way[j] - 1] : null; return w ? { ...o, ...w } : o; });
       const passes = () => Promise.all(g.ops.map((o) => pipe(device.createShaderModule({ code: o.code }), 'main')));
       const [cut, place] = await Promise.all([pipe(mod, 'cut'), pipe(mod, 'place')]);
