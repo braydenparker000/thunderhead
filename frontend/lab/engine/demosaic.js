@@ -277,8 +277,8 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const steps = [group(gauss, [0, 1, 2]), group(guess, [0, 1, 5]), group(level, [1, 5, 6]), group(mean, [0, 1, 3, 5, 6]), group(fix, [0, 1, 2, 3, 7]),
     group(again, [0, 1, 5, 7]), group(level2, [0, 1, 5, 6, 7]), group(pick, [1, 4, 5, 6, 7])];
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
-   * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it */
-  const run = (enc, rx, ry, rw, rh, spots) => {
+   * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [only] this one of its `parts` steps alone (the screen's views give the GPU a step at a time: full.js) */
+  const run = (enc, rx, ry, rw, rh, spots, only) => {
     // the blocks whose direction a pixel of the rectangle, or of the 8 around it (the first look's reach and 2), reads
     const first = (/** @type {number} */ r, /** @type {number} */ ph) => Math.floor((Math.max(r - 8, 0) + ph) / 3);
     const count = (/** @type {number} */ r, /** @type {number} */ n, /** @type {number} */ N, /** @type {number} */ ph) => Math.floor((Math.min(r + n + 7, N - 1) + ph + 1) / 3) - first(r, ph) + 1;
@@ -290,8 +290,8 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
     if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 88); }
     device.queue.writeBuffer(uni, 0, u);
     const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
-    steps.forEach((s, k) => { if (info.quick && (k === 5 || k === 6)) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again
+    steps.forEach((s, k) => { if ((only !== undefined && k !== only) || (info.quick && (k === 5 || k === 6))) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again
     pass.end();
   };
-  return { out, run, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est]) b.destroy(); } };
+  return { out, run, parts: steps.length, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est]) b.destroy(); } };
 }

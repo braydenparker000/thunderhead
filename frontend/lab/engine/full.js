@@ -109,6 +109,7 @@ export async function full(e, img, mosaic) {
     const ctx = canvas && !readback ? /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu')) : null;
     ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
+    /** @typedef {{ stop?: () => boolean, note?: (ms: number) => void }} Pace `stop`: asked after each part; `note`: told how long each took on the GPU */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
     const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, laid: () => (net ? net.laid : 0), ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
@@ -140,6 +141,25 @@ export async function full(e, img, mosaic) {
       ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
       ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe && !net)],   // the network leaves the lens's fringing in: the lens pass undoes it
     ];
+    /** The same work as `steps`, in parts small enough to hand the GPU one at a time, each its own submission and
+     * waited for (the screen's views: `region` with `pace`): the usual demosaic a pass at a time, sharpening a
+     * round at a time, the network a few output blocks at a time (net-pace.js). A part gives false when it was
+     * left undone. @param {Rect} r @param {Float32Array} f @param {Pace} pace */
+    const parts = (r, f, pace) => {
+      const one = (/** @type {(enc: GPUCommandEncoder) => void} */ run) => async () => { const t = performance.now(), enc = device.createCommandEncoder(); run(enc); device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone(); pace.note?.(performance.now() - t); };
+      const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8, spots = e.gpu.geo().spots, usual = /** @type {any} */ (dm), [, noise, , warp] = steps(r, f).map((s) => s[1]);
+      const list = /** @type {(() => Promise<boolean | void>)[]} */ ([]);
+      if (held === key) list.push(one((enc) => { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; }));
+      else {
+        if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), pace));
+        else for (let k = 0; k < (usual.parts || 1); k++) list.push(one((enc) => usual.run(enc, r.rx, r.ry, r.rw, r.rh, spots, usual.parts ? k : undefined)));
+        list.push(one((enc) => { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++; }));
+      }
+      list.push(one(noise));
+      if (f[96] > 0) for (let k = 0; k < crisp.parts; k++) list.push(one((enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], k)));
+      list.push(one(warp));
+      return list;
+    };
     const hook = {
       /** The geometry changed: the same rectangle of the picture now draws on another part of the sensor. */
       bent: () => { fit = room(); held = ''; const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
@@ -184,8 +204,10 @@ export async function full(e, img, mosaic) {
       return (at = { X, Y, cw, ch, rx, ry, rw, rh });
     }
     /** place(), drawn now with the last shown frame's settings (a test, or one band of an export).
-     * @param {number} X @param {number} Y @param {number} cw @param {number} ch @param {Record<string, number> | null} [clock] */
-    async function region(X, Y, cw, ch, clock = null) {
+     * @param {number} X @param {number} Y @param {number} cw @param {number} ch @param {Record<string, number> | null} [clock]
+     * @param {Pace | null} [pace] for the screen: the rectangle's colours are made a part at a time (`parts`), so the page is drawn in between
+     *   and a touch is answered; when `pace.stop` says yes the rest is left undone and null is given @returns {Promise<Rect | null>} */
+    async function region(X, Y, cw, ch, clock = null, pace = null) {
       const r = place(X, Y, cw, ch), u = e.gpu.settings();
       // timed a step at a time for an export's first pieces (`clock` gathers each step's ms): where the phone's time goes
       const timed = async (/** @type {string} */ name, /** @type {(enc: GPUCommandEncoder) => void} */ run) => {
@@ -194,6 +216,10 @@ export async function full(e, img, mosaic) {
       };
       const f = new Float32Array(u);
       if (clock && bind && (!fresh || cleaned !== keptOf(f))) { for (const [name, run] of steps(r, f)) await timed(name, run); fresh = true; cleaned = keptOf(f); }
+      if (pace && bind && (!fresh || cleaned !== keptOf(f))) {
+        for (const part of parts(r, f, pace)) if ((await part()) === false || pace.stop?.()) return null;
+        fresh = true; cleaned = keptOf(f);
+      }
       if (clock) { await timed('colour', (enc) => hook.frame(enc, u)); await hook.after(); return r; }
       const enc = device.createCommandEncoder();
       hook.frame(enc, u);

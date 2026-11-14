@@ -17,6 +17,7 @@ import { phaseOf } from './demosaic.js';
 import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
 import { noiseAt } from './noise.js';
 import { choose, chosen, ways } from './net-tune.js';
+import { canSlice, paced } from './net-pace.js';
 
 export { phaseOf };
 const DIR = new URL('./nets/starfish-xtrans/', import.meta.url);
@@ -139,7 +140,7 @@ export const PROOF = 0.02;
 async function proof(device, g, pipes, held) {
   const N = 96, WIN = g.win, wide = g.kind === 'f16' ? 2 : 4, slope = (/** @type {number} */ x, /** @type {number} */ y) => 0.15 + 0.5 * (x / N) + 0.2 * (y / N);
   const bufs = g.sizes.map((size, id) => held[id] || device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC }));
-  const valid = device.createBuffer({ size: 8, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), back = device.createBuffer({ size: 3 * N * wide, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const valid = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), back = device.createBuffer({ size: 3 * N * wide, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
   try {
     const row = (/** @type {(x: number, y: number) => number} */ of, /** @type {number} */ y) => (wide === 2 ? Uint16Array.from({ length: N }, (_, x) => half(of(x, y))) : Float32Array.from({ length: N }, (_, x) => of(x, y)));
     for (let y = 0; y < N; y++) { device.queue.writeBuffer(bufs[g.mosaic], y * WIN * wide, row(slope, y)); device.queue.writeBuffer(bufs[g.sigma], y * WIN * wide, row(() => 0.002, y)); }
@@ -226,7 +227,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
    * @type {{ uni: GPUBuffer, valid: GPUBuffer, cut: GPUBindGroup, place: GPUBindGroup, ops: GPUBindGroup[] }[]} */
   const slots = [];
   const slot = (/** @type {number} */ k) => (slots[k] ||= (() => {
-    const uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), valid = buf(8, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), valid = buf(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);   // how much of the window is filled, and the output block a pass starts at (net-pace.js; 0 but while a pass is run a part at a time)
     const group = (/** @type {GPUComputePipeline} */ pipe, /** @type {GPUBindGroupEntry[]} */ entries) => device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries });
     return { uni, valid,
       cut: group(cut, [{ binding: 0, resource: view }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: { buffer: bufs[g.mosaic] } }, { binding: 3, resource: { buffer: bufs[g.sigma] } }]),
@@ -264,7 +265,19 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
       pass.end();
     }
   };
+  /** The same rectangle made for the screen, a part of a pass at a time (net-pace.js): the page is drawn in between,
+   * and `stop` saying yes leaves the rest undone. Gives whether all of it was made. `note`: told each part's time.
+   * @param {number} rx @param {number} ry @param {number} rw @param {number} rh @param {Float32Array | null} [spots] @param {number} [smooth]
+   * @param {number} [keep] @param {number} [quiet] @param {{ stop?: () => boolean, note?: (ms: number) => void }} [o] */
+  const pace = async (rx, ry, rw, rh, spots, smooth, keep = 0, quiet = 0, o = {}) => {
+    const k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2;
+    for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) {
+      const passes = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet).map((p, j) => /** @type {import('./net-pace.js').Paced} */ ([...p, canSlice(g.ops[j - 1]?.code || '')]));
+      if (!(await paced(device, passes, slot(0).valid, o))) return false;
+    }
+    return true;
+  };
   /** What net-tune.js measures this network by. `lay(side)`: one window (all of it, or `side` pixels of it) made ready, as its passes. @type {Parts} */
   const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1) };
-  return { out, run, parts, core: CORE, get laid() { return laid; }, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
+  return { out, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
 }

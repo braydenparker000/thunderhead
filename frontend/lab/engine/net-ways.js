@@ -9,6 +9,7 @@
 // thirty-two outputs; and, since the owner's phone found the wider ones slower (2026-11-14), the four pixels of a
 // 2 x 2 block, whose neighbourhood is read once, with eight outputs and with four.
 
+import { sliced } from './net-pace.js';
 // a 3 × 3 pass (01, 04, 07): 16 × 4 invocations a 16 × 16 tile, each four pixels four rows apart and eight outputs
 const MAIN3 = /* wgsl */ `
 @compute @workgroup_size(16, 4, 1)
@@ -289,7 +290,7 @@ export function ways(o) {
   const at = o.code.indexOf('@compute');
   if (at < 0 || !/^var<workgroup>/m.test(o.code) || !/@workgroup_size\(16, 4, 1\)/.test(o.code)) return [];
   const head = o.code.slice(0, at).replace(/^var<workgroup>.*\n/gm, ''), has = (/** @type {string[]} */ ...names) => names.every((n) => new RegExp(`\\bconst ${n}\\b`).test(head));
-  const [gx, gy, gz] = o.groups, way = (/** @type {string} */ main, groups = o.groups) => ({ code: head + main, groups });
+  const [gx, gy, gz] = o.groups, way = (/** @type {string} */ main, groups = o.groups) => ({ code: sliced(head + main), groups });   // (able to be run a part at a time: net-pace.js)
   if (has('KK', 'NOB', 'TX', 'TY')) return [way(MAIN3), gz % 2 ? null : way(MAIN3W, [gx, gy, gz / 2]), way(MAIN3P, [gx * 2, gy * 2, Math.ceil(gz / 4)]), way(MAIN3B), way(MAIN3N, [gx, gy, gz * 2])];
   if (has('NGX', 'NOG', 'OCW', 'NP')) return [way(MAIN1), null, way(MAIN1P), null, null];
   return [];
