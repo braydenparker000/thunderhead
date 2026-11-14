@@ -1145,7 +1145,11 @@ each `.xmp` and `.cube` inside is opened with what the browser has (`Decompressi
 in as before, and what else the pack holds is counted and said. A file may not open to more than the pack says it
 holds, nor to more than 16 MB; a pack may hold 2000 files; a locked or split archive is refused in words.
 
-- Each look remembers its pack. With one of them picked, DELETE PACK (two taps) takes the whole pack away.
+- Each look remembers its pack, and its group there: the one a preset names for itself (`crs:Group`), else the
+  folder it lay in. A pack is one card on the strip of the face its looks belong to (presets on Mine, `.cube`
+  looks on Presets), with how many it holds; a tap opens it, as the recipes' card opens. Opened, the strip holds
+  the pack's looks, walked by its groups when it has more than one, and DELETE PACK (two taps) takes the whole
+  pack away. So a pack of hundreds does not bury the owner's own looks. After IMPORT the pack's card is open.
 - A look that is here already (the same name and the same contents) is not kept twice, so a pack picked again
   adds nothing.
 - The strips of Presets and Mine make their small pictures as they come near, as the recipes' strip did, so a
@@ -1153,9 +1157,9 @@ holds, nor to more than 16 MB; a pack may hold 2000 files; a locked or split arc
 
 Measured in the editor on the software GPU: a pack of 451 presets comes in within 2.3 s.
 
-**What is not done.** A long pack lands in Mine as one long strip: the groups a preset names for itself are not
-read yet, and would be the way to walk a large pack. The older `.lrtemplate` presets are not read. A preset's
-strengths are still not fitted to Lightroom's (ROADMAP.md stage 4), so a look lands near what its maker saw.
+**What is not done.** The older `.lrtemplate` presets are not read. A preset's strengths are still not fitted
+to Lightroom's (ROADMAP.md stage 4), so a look lands near what its maker saw. A pack's card has no picture of
+its own (it shows the photo), and a look cannot be moved from one pack or group to another.
 
 **Where packs come from.** None is bundled: the free collections that were looked at (2026-11-14) are either
 gathered from other people's work or do not say how they were made, and what the site serves is published. The

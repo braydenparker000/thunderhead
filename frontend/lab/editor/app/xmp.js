@@ -20,7 +20,7 @@ const PLAIN = /** @type {Record<string, string>} */ ({ Contrast2012: 'Contrast',
 for (const c of COLOURS) for (const [theirs, ours] of [['Hue', 'Hue'], ['Saturation', 'Sat'], ['Luminance', 'Lum']]) PLAIN[`${theirs}Adjustment${c}`] = `Mix ${c} ${ours}`;
 const CURVES = /** @type {const} */ ([['ToneCurvePV2012', 'RGB'], ['ToneCurvePV2012Red', 'R'], ['ToneCurvePV2012Green', 'G'], ['ToneCurvePV2012Blue', 'B']]);
 
-/** The preset as a look: its name, the edit it stands for, how many of its settings were laid on, and how many it
+/** The preset as a look: its name, the group it names for itself, the edit it stands for, how many of its settings were laid on, and how many it
  * holds that this editor has no control for. Null when the file is not a preset or holds nothing known.
  * @param {string} xml @param {string} [file] its name, for a preset that gives none */
 export function lookOfXmp(xml, file = '') {
@@ -40,5 +40,5 @@ export function lookOfXmp(xml, file = '') {
   if (!used) return null;
   // no profile of its own: wearing it keeps the photo's (session.js `worn`)
   const st = /** @type {import('./past.js').State} */ (/** @type {unknown} */ ({ values, wb: 'As shot', curve }));
-  return { name: p.name, st, used, left: Math.max(0, p.used - used) + p.skipped };
+  return { name: p.name, group: p.tag || '', st, used, left: Math.max(0, p.used - used) + p.skipped };
 }
