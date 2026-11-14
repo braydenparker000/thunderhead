@@ -73,10 +73,10 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
   assert.ok(r.ops.length === 13 && r.ops.every((ms) => ms >= 0 && ms < 600_000), `cut, the network's eleven passes and place are timed apart (${r.ops.map(Math.round)})`);
   await page.close();
   // Every pass another way, as a phone that found them all faster would run it (read in place; the 3 × 3 passes
-  // sixteen outputs at a time; one pixel and thirty-two outputs): a page that opens with that choice kept compiles
+  // sixteen outputs at a time; one pixel and thirty-two outputs; a 2 × 2 block with eight outputs, and with four): a page that opens with that choice kept compiles
   // and proves the network so, and makes the same picture.
   let second = page;
-  for (const way of [[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 2, 1, 1, 2, 1, 1, 2, 1, 1, 0], [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0]]) {
+  for (const way of [[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 2, 1, 1, 2, 1, 1, 2, 1, 1, 0], [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0], [0, 4, 1, 1, 4, 1, 1, 4, 1, 1, 0], [0, 5, 3, 3, 5, 3, 3, 5, 3, 3, 0]]) {
     second = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
     second.on('pageerror', (e) => errors.push(e.message));
     await second.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
@@ -94,7 +94,7 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
       const u = new Uint32Array(read.getMappedRange());
       let apart = 0; for (let i = 0; i < n * n; i++) apart = Math.max(apart, Math.abs((u[i * 2] & 65535) - none[i * 3]), Math.abs((u[i * 2] >>> 16) - none[i * 3 + 1]), Math.abs((u[i * 2 + 1] & 65535) - none[i * 3 + 2]));
       // a choice that cannot be right (a way that is not there, another kind of network, too few passes) is not used; all as exported is forgotten
-      const zero = new Array(11).fill(0), odd = [[0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1], 'x'].map((w) => { localStorage.setItem('th.net.tune', JSON.stringify({ v: 2, kind, way: w })); return T.chosen(kind, 11).join(''); });
+      const zero = new Array(11).fill(0), odd = [[0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1], 'x'].map((w) => { localStorage.setItem('th.net.tune', JSON.stringify({ v: 2, kind, way: w })); return T.chosen(kind, 11).join(''); });
       localStorage.setItem('th.net.tune', JSON.stringify({ v: 1, kind, way })); odd.push(T.chosen(kind, 11).join(''));   // a choice kept for the ways as they were before
       T.choose(kind, way); const wrongKind = T.chosen('f64', 11).join('');
       T.choose(kind, zero);
@@ -103,10 +103,10 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
     }, [r.none, way]);
     console.log(JSON.stringify(o));
     assert.deepEqual(o.way, way);
-    assert.equal(o.groups[4], [18, 18, 9, 5][way[4]], 'sixteen outputs at a time: half the dispatches; thirty-two: a quarter, rounded up');
+    assert.equal(o.groups[4], [18, 18, 9, 5, 18, 36][way[4]], 'sixteen outputs at a time: half the dispatches; thirty-two: a quarter, rounded up; a 2 x 2 block: as exported, and twice with four outputs');
     assert.ok(o.proved >= 0 && o.proved < o.limit / 4 && o.apart < 0.004, `with every pass another way the network proves itself and makes the same picture (off by ${o.proved}, apart by ${o.apart})`);
     assert.deepEqual([o.odd, o.wrongKind, o.left], [['00000000000', '00000000000', '00000000000', '00000000000'], '00000000000', null]);
-    if (way[1] !== 3) await second.close();
+    if (way[1] !== 5) await second.close();
   }
   await second.close();
 });

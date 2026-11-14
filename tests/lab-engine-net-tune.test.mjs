@@ -14,8 +14,8 @@ test('each of the nine middle passes has ways that stage nothing, each in its ow
   for (const kind of ['f16', 'f32']) {
     const ops = readFileSync(new URL(`${kind}/graph.txt`, DIR), 'utf8').split('\n').filter((l) => l.startsWith('op ')).map((l) => l.split(/\s+/)).map((v) => ({ file: v[1], code: readFileSync(new URL(`${kind}/${v[1]}`, DIR), 'utf8'), groups: v.slice(7, 10).map(Number) }));
     assert.equal(ops.length, 11);
-    // read in place | sixteen outputs (a 3 x 3 pass only) | one pixel and thirty-two outputs
-    assert.deepEqual(ops.map((o) => ways(o).map((w) => (w ? 1 : 0)).join('')), ['', '111', '101', '101', '111', '101', '101', '111', '101', '101', '']);
+    // read in place | sixteen outputs (a 3 x 3 pass only) | one pixel and thirty-two outputs | a 2 x 2 block (3 x 3 only) | that with four outputs (3 x 3 only)
+    assert.deepEqual(ops.map((o) => ways(o).map((w) => (w ? 1 : 0)).join('')), ['', '11111', '10100', '10100', '11111', '10100', '10100', '11111', '10100', '10100', '']);
     for (const o of ops) for (const [k, w] of ways(o).entries()) {
       if (!w) continue;
       const f = `${kind}/${o.file} way ${k + 1}`, three = /const KK\b/.test(o.code);
@@ -25,12 +25,12 @@ test('each of the nine middle passes has ways that stage nothing, each in its ow
       assert.equal((w.code.match(/@compute/g) || []).length, 1, f);
       assert.doesNotMatch(w.code.slice(w.code.indexOf('@compute')), /`|\b\d+\.\d+\b(?!u)/, `${f}: no number in it that would need a float's type spelled out`);
       const [gx, gy, gz] = o.groups;
-      assert.deepEqual(w.groups, k === 0 || !three ? o.groups : k === 1 ? [gx, gy, gz / 2] : [gx * 2, gy * 2, Math.ceil(gz / 4)], `${f}: the dispatch its invocations need`);
+      assert.deepEqual(w.groups, k === 0 || k === 3 || !three ? o.groups : k === 1 ? [gx, gy, gz / 2] : k === 2 ? [gx * 2, gy * 2, Math.ceil(gz / 4)] : [gx, gy, gz * 2], `${f}: the dispatch its invocations need`);
       // every workgroup covers the whole 176 x 176 and every output: invocations a workgroup, times workgroups, times pixels and outputs each
       const [wx, wy] = /@workgroup_size\((\d+), (\d+), 1\)/.exec(w.code).slice(1).map(Number);
-      if (three) assert.ok(w.groups[0] * wx * (k === 2 ? 1 : 1) >= 176 && w.groups[1] * wy * (k === 2 ? 1 : 4) >= 176 && w.groups[2] * [8, 16, 32][k] >= 144, `${f}: covers the picture and its outputs`);
+      if (three) assert.ok(w.groups[0] * wx * [1, 1, 1, 2, 2][k] >= 176 && w.groups[1] * wy * [4, 4, 1, 2, 2][k] >= 176 && w.groups[2] * [8, 16, 32, 8, 4][k] >= 144, `${f}: covers the picture and its outputs`);
     }
   }
   assert.deepEqual(ways({ code: 'fn main() {}', groups: [1, 1, 1] }), []);
-  assert.equal(WAYS, 3);
+  assert.equal(WAYS, 5);
 });

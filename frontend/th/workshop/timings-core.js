@@ -7,7 +7,7 @@
 export const EVERY_MS = 10 * 60_000;   // (six hours until 2026-11-13: a session's timings then reached the workshop a day late; the file is about a kilobyte)
 const KINDS = ['open', 'full', 'detail', 'fine', 'save', 'tune'];   // tune: the engine test page's measure of the network (lab/engine/net-ui.js)
 const NUMBERS = ['at', 'ms', 'heard', 'decode', 'threads', 'code', 'wasm', 'pool', 'waited', 'age', 'px', 'files', 'bytes', 'gpu', 'read', 'write', 'demosaic', 'noise', 'sharpen', 'warp', 'colour', 'net', 'fell', 'made', 'wait', 'off', 'first', 'kept', 'again', 'held',
-  ...['op', 'alt', 'wid', 'one'].flatMap((k) => Array.from({ length: 16 }, (_, i) => `${k}${i}`)),   // the network's passes timed apart: as the phone runs them (an export: net-tune.js `timed`), and on the engine test page each other way too (-1 none, -2 it did not compile)
+  ...['op', 'alt', 'wid', 'one', 'blk', 'nar'].flatMap((k) => Array.from({ length: 16 }, (_, i) => `${k}${i}`)),   // the network's passes timed apart: as the phone runs them (an export: net-tune.js `timed`), and on the engine test page each other way too (-1 none, -2 it did not compile)
   'whole', 'chosen', 'floats', 'after', 'ways', 'apart', 'apartc', 'cpu1', 'cpun', 'fuse1', 'fusen'];   // that page's whole-window times, the ways kept, how far the pictures are from full floats (thousandths of a level), and the CPU's speed (hundredths of a thousand million multiply-adds a second)
 const WORDS = /** @type {Record<string, RegExp>} */ ({ file: /^(raf|jpeg|stack)$/, kinds: /^(JPEG|PNG|TIFF)( (JPEG|PNG|TIFF)){0,7}$/ });
 

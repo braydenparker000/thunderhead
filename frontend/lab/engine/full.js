@@ -11,6 +11,7 @@ import { reach, warper } from './warp.js';
 import { fringeOf } from './lens.js';
 import { compile as compileNet, demosaicer as network } from './neural.js';
 import { timed } from './net-tune.js';
+import { autoWays } from './net-auto.js';
 import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
@@ -45,7 +46,7 @@ export async function full(e, img, mosaic) {
   // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
-  if (sensor && img.meta.net) setTimeout(() => compileNet(device).catch(() => {}), 1500);
+  if (sensor && img.meta.net) setTimeout(() => compileNet(device).then(() => autoWays(device)).catch(() => {}), 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
   // How noisy a raw site is, for the network: as the photo says where it says (a made-up one), else read from the
   // photo's own flat places (noise-fit.js), held to within what this sensor can be; else the sensor's own figure.
   const told = (() => {
