@@ -8,7 +8,7 @@
 // Usage: node scripts/test-part.mjs <k> <n>   (part k of n, from 1)
 //        node scripts/test-part.mjs --measure (runs every file once and rewrites the table)
 // As a test reporter (--measure passes it to node --test), it writes each file's time to its destination.
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -82,6 +82,31 @@ export default async function* reporter(source) {
   yield JSON.stringify(ms);
 }
 
+/** How long a run may say nothing before a test is taken to have stalled. The longest single test takes about two
+ * and a half minutes on CI's slowest day; nothing but a stall is silent for five. */
+export const QUIET = 5 * 60_000;
+/** Runs `node --test` on the files and gives its exit status. If it reports nothing for `quiet` ms a test has
+ * stalled (a browser that stopped answering: on CI, 2026-11-14, a part sat silent for thirteen minutes until the
+ * job's limit cancelled it, with no word of which test): the run is ended and the last test it reported is said: the
+ * stalled one is the next after it in its file. (Node's own --test-timeout was tried first: on Node 22 it limits a whole
+ * file, so a long file of quick tests failed, and what it does differs between versions.)
+ * @param {string[]} files @param {string[]} [more] @param {number} [quiet] @param {(text: string) => void} [say] where its words go (a test collects them) @returns {Promise<number>} */
+export function run(files, more = [], quiet = QUIET, say = (text) => { process.stdout.write(text); }) {
+  if (!files.length) return Promise.resolve(0);
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ['--test', '--test-force-exit', ...more, ...files], { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'], detached: true });
+    let last = '', stalled = false;
+    const end = () => { stalled = true; say(`\n✖ nothing was reported for ${Math.round(quiet / 1000)} s: a test has stalled, and the run is ended. The last test it reported was:\n  ${last || '(none yet)'}\n`); try { process.kill(-(child.pid ?? 0), 'SIGKILL'); } catch { child.kill('SIGKILL'); } };
+    let timer = setTimeout(end, quiet);
+    child.stdout.on('data', (d) => {
+      say(String(d));
+      last = String(d).split('\n').filter((l) => /^\s*(✔|✖|ok \d+ - |not ok \d+ - )/.test(l)).at(-1)?.trim() || last;   // the last test it named, in either of the runner's forms
+      clearTimeout(timer); timer = setTimeout(end, quiet);
+    });
+    child.on('exit', (code) => { clearTimeout(timer); resolve(stalled ? 1 : code ?? 1); });
+  });
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain && process.argv[2] === '--measure') {
   // One full run, as `npm test` runs the site and mind suites, with this module as a second reporter.
@@ -108,9 +133,6 @@ if (isMain && process.argv[2] === '--measure') {
   const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
   console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
   // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
-  // --test-timeout: a test with no limit of its own that stops answering (a browser that stalled: CI, 2026-11-14,
-  // thirteen silent minutes until the job's limit cancelled the part) fails in three minutes, by name.
-  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', '--test-timeout=180000', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
-  const first = run(light), second = run(slow, ['--test-concurrency=1']);
+  const first = await run(light), second = await run(slow, ['--test-concurrency=1']);
   process.exit(first || second);
 }
