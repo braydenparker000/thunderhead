@@ -1157,8 +1157,10 @@ are and written here: below Quality 90 a JPEG's colour is kept at half resolutio
 file smaller; from 90 up it is whole), and a file with Copyright only still carries the one line on how it was
 made (`export-note.js`: no name, no place).
 
-Not the board's: Settings > Photos lists four settings that only the Classic editor and its shelf read (Preview
-size, What stays on the phone, Export size, Export format). With Photos opening the new editor they do nothing.
+Not the board's: Settings > Photos listed four settings that the new editor does not read (Preview size, What
+stays on the phone, Export size, Export format): they are the Classic shelf's and editor's. They now sit under
+"Classic shelf and editor" and each says it is Classic's only (`shared/contract/settings.ts`). What stays on the
+phone has one choice that can be made; its other is shown and held shut ("Comes with editing"), as before.
 
 ## A pack of looks in one pick (2026-11-14)
 

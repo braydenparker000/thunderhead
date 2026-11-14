@@ -128,7 +128,8 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
 Google Drive (Connect; or "Connected as" the consenting Google account, the folder by name and Disconnect; a plain line when Google took the access
 back), Preview size (`photos.preview_size`, 1,024 / 2,048 px), What stays on the phone
 (`photos.keep`: previews only; recent originals come with editing and are shown, not yet chosen),
-and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
+and Recently deleted. Since 2026-11-14 these two and the Export sheet's two sit under "Classic shelf and editor",
+each saying it is Classic's only: the new editor reads none of them. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 
 ## 3. Privacy and cost (§3.7, as built)
 

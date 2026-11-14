@@ -87,7 +87,7 @@ export const SETTING_GROUPS = {
   photos: {
     title: 'Photos',
     icon: 'aperture',
-    lead: 'Your Worker keeps the shelf and a small preview of each photo; the originals stay in your Drive.',
+    lead: 'The new editor keeps your RAFs on this phone. The Classic shelf keeps a small preview of each photo with your Worker; its originals stay in your Drive.',
   },
   privacy: { title: 'Privacy and data', icon: 'shield-check', lead: 'What this phone tells your Worker, and what leaves it at all.' },
 } as const satisfies Record<string, { title: string; icon: string; lead: string; notes?: Record<string, string> }>;
@@ -195,13 +195,6 @@ export const SETTINGS = [
   // The editor's timings (th/workshop/timings.js): kept on this phone, passed on by home to the owner's storage.
   { key: 'privacy.editor_timings', group: 'privacy', section: 'Reports', label: 'Editor timings', kind: 'switch', scope: 'phone', mind: false, default: true,
     detail: 'How long opening, zooming and exporting a photo took, and which way you picked on the compare page, as numbers only, to your own storage, so a slow step can be found and fixed. Never a photo or its name.' },
-  // Photos (PHOTOS.md §3.6): the phone makes each preview at this size; what stays on the phone.
-  { key: 'photos.preview_size', group: 'photos', section: 'On this phone', label: 'Preview size', kind: 'choice', ...IN_WORKER,
-    default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),
-    detail: 'The preview your Worker keeps of each photo, its longest side. Smaller is quicker on a slow line.' },
-  { key: 'photos.keep', group: 'photos', section: 'On this phone', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
-    default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
-    detail: 'Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
   // What Photos is (th/registry/apps.js `landing`): the new editor and its own Library, or, with
   // Classic, the shelf and the editor before (kept on hand until its Drive side has moved over).
   { key: 'photos.editor', group: 'photos', section: 'Editor', label: 'Photos opens', kind: 'choice', scope: 'phone', mind: false,
@@ -228,13 +221,22 @@ export const SETTINGS = [
     detail: 'Exports, and the photo at 100 % and closer, are made by a neural network: truer fine detail and far less noise at high ISO. An export takes longer; one that stops carries on from where it stopped, and is never made a lesser way instead. Off: the usual way.' },
   { key: 'photos.haptics', group: 'photos', section: 'Editor', label: 'Haptics', kind: 'switch', scope: 'phone', mind: false, default: true,
     detail: 'A small tick under your finger when a dial passes its start or reaches an end, a section clicks into place, Undo, and an export is done. Off on a phone set to reduce motion.' },
-  // Export (PHOTOS.md, Export): what the Export sheet starts with; each export can change it.
-  { key: 'photos.export_size', group: 'photos', section: 'Export', label: 'Export size', kind: 'choice', ...IN_WORKER,
+  // Classic's own (apps/photos/: PHOTOS.md §3.6 and Export): read only by the shelf and editor before. With Photos
+  // opening the new editor they do nothing, so their section and their words say whose they are (owner, 2026-11-14:
+  // a control does what it says). `photos.keep` has one choice that can be made: the other is shown and held shut
+  // (apps/settings/photos.js: "Comes with editing"), so it says what it is.
+  { key: 'photos.preview_size', group: 'photos', section: 'Classic shelf and editor', label: 'Preview size', kind: 'choice', ...IN_WORKER,
+    default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),
+    detail: 'Classic only. The preview your Worker keeps of each photo, its longest side. Smaller is quicker on a slow line.' },
+  { key: 'photos.keep', group: 'photos', section: 'Classic shelf and editor', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
+    default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
+    detail: 'Classic only. Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
+  { key: 'photos.export_size', group: 'photos', section: 'Classic shelf and editor', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
-    detail: 'The long side of an exported photo. Full size takes longest and makes the biggest file.' },
-  { key: 'photos.export_format', group: 'photos', section: 'Export', label: 'Export format', kind: 'choice', ...IN_WORKER,
+    detail: 'Classic only: the long side its Export sheet starts with. The new editor\'s Export board keeps its own.' },
+  { key: 'photos.export_format', group: 'photos', section: 'Classic shelf and editor', label: 'Export format', kind: 'choice', ...IN_WORKER,
     default: 'jpeg', options: o('jpeg:JPEG', 'heic:HEIC where the phone writes it'),
-    detail: 'JPEG carries your edit inside it, so other apps can read it. HEIC is smaller, up to 2,048 px.' },
+    detail: 'Classic only: the format its Export sheet starts with. JPEG carries your edit inside it; HEIC is smaller, up to 2,048 px.' },
   // Retention (conversation/retention.ts): once a day, conversations past it are purged as a deleted one is.
   { key: 'privacy.retention', group: 'privacy', section: 'Conversations', label: 'Keep conversations', kind: 'choice', ...IN_WORKER,
     default: 'forever', options: o('forever:Forever', '1y:1 year', '90d:90 days'),
