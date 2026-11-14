@@ -50,14 +50,15 @@ export function fromUpright(g, ux, uy, colour = 1) {
   const k = g.lens[i * 4 + colour] + (g.lens[(i + 1) * 4 + colour] - g.lens[i * 4 + colour]) * (t - i);
   return [g.W / 2 + vx * k, g.H / 2 + vy * k];
 }
-/** The sensor rectangle a rectangle of the picture draws on: [x, y, w, h], whole pixels, with room for the
- * resampling's neighbours and noise reduction's neighbourhoods (denoise.js), kept on the sensor. @param {Geo} g @param {number} X @param {number} Y @param {number} w @param {number} h */
-export function reach(g, X, Y, w, h) {
+/** The sensor rectangle a rectangle of the picture draws on: [x, y, w, h], whole pixels, with room (`pad` on every
+ * side) for the resampling's neighbours, sharpening's rounds and noise reduction's neighbourhoods (denoise.js), kept
+ * on the sensor. @param {Geo} g @param {number} X @param {number} Y @param {number} w @param {number} h @param {number} [pad] */
+export function reach(g, X, Y, w, h, pad = 36) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const see = (/** @type {number} */ x, /** @type {number} */ y) => { for (const c of [0, 2]) { const [sx, sy] = toSensor(g, x, y, c); x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy); } };
   for (let i = 0; i <= 16; i++) { see(X + (w * i) / 16, Y); see(X + (w * i) / 16, Y + h); see(X, Y + (h * i) / 16); see(X + w, Y + (h * i) / 16); }
-  const PAD = 36, ax = Math.max(0, Math.floor(x0) - PAD), ay = Math.max(0, Math.floor(y0) - PAD);
-  return [ax, ay, Math.max(8, Math.min(g.W, Math.ceil(x1) + PAD) - ax), Math.max(8, Math.min(g.H, Math.ceil(y1) + PAD) - ay)];
+  const ax = Math.max(0, Math.floor(x0) - pad), ay = Math.max(0, Math.floor(y0) - pad);
+  return [ax, ay, Math.max(8, Math.min(g.W, Math.ceil(x1) + pad) - ax), Math.max(8, Math.min(g.H, Math.ceil(y1) + pad) - ay)];
 }
 
 const WGSL = /* wgsl */ `

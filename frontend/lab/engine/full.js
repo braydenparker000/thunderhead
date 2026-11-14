@@ -75,13 +75,19 @@ export async function full(e, img, mosaic) {
     let lost = '';   // why the network, asked for, is not what makes this view
     const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); lost = String(err?.message || err); return null; }) : null;
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
+    // How much sensor a rectangle takes round what it draws on (warp.js `reach`). An export's piece by the network
+    // needs less: noise reduction's neighbourhoods are not used (the network took the noise out), and the 12 pixels
+    // at each edge of a piece are made to be thrown away (export.js EDGE), so sharpening's rounds have those to fade
+    // in as well. Measured at the strongest sharpening there is (150, radius 3, detail 100): what is kept differs
+    // from a piece with 96 round it by 0.006 of a level of 255 at most, and at the usual radius by nothing.
+    const pad = net && deep ? 16 : 36;
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
       // (by the network, a rectangle also stays inside one of its windows: a few pixels over and a second window is made for them, context and all)
       const lim = net ? net.core : Infinity;
       for (let s = 1; s > 0.2; s *= net ? 0.98 : 0.9) {
         const w = Math.max(8, Math.min(pw, Math.floor(maxW * s))), h = Math.max(8, Math.min(ph, Math.floor(maxH * s)));
-        if ([0, 0.5, 1].every((u) => [0, 0.5, 1].every((v) => { const r = reach(g, (pw - w) * u, (ph - h) * v, w, h); return (r[2] + 8) * (r[3] + 8) <= side * side && r[2] <= lim && r[3] <= lim; }))) return [w, h];
+        if ([0, 0.5, 1].every((u) => [0, 0.5, 1].every((v) => { const r = reach(g, (pw - w) * u, (ph - h) * v, w, h, pad); return (r[2] + 8) * (r[3] + 8) <= side * side && r[2] <= lim && r[3] <= lim; }))) return [w, h];
       }
       return [8, 8];
     };
@@ -173,7 +179,7 @@ export async function full(e, img, mosaic) {
       cw = Math.max(8, Math.min(Math.round(cw), fit[0])); ch = Math.max(8, Math.min(Math.round(ch), fit[1]));
       X = Math.max(0, Math.min(Math.round(X), fw - cw)); Y = Math.max(0, Math.min(Math.round(Y), fh - ch));
       if (at && at.X === X && at.Y === Y && at.cw === cw && at.ch === ch) return at;
-      const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch);
+      const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch, pad);
       fresh = false;
       return (at = { X, Y, cw, ch, rx, ry, rw, rh });
     }

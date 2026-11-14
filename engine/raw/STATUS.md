@@ -968,6 +968,28 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## Less sensor round an export's piece (2026-11-14)
+
+Every rectangle the engine makes takes 36 sensor pixels more on each side than it draws on (`warp.js` `reach`):
+room for the resampling, for sharpening's rounds, and most for noise reduction's neighbourhoods. A piece of an
+export made by the network does not use noise reduction (the network took the noise out), and its own outer 12
+pixels are thrown away (`export.js` EDGE). Measured on the known photo at ISO 3200, a square by the network with
+96 pixels round it against the same square with less, in levels of 255 after a screen's curve, by distance from
+the square's edge:
+
+| round it | Sharpening 40, radius 1 | Sharpening 150, radius 3, detail 100: whole square | the same, 12 pixels in and further |
+|---|---|---|---|
+| 36 | 0 | 0 | 0 |
+| 24 | 0 | 0.005 | 0.005 |
+| 16 | 0 | 1.6 | 0.006 |
+| 12 | 0 | 1.6 | 0.019 |
+| 8 | 0.006 | 1.6 | 0.2 |
+
+So an export's piece by the network takes 16 (`full.js`): what is kept of it is the same picture to 0.006 of a
+level at the strongest sharpening there is, and exactly the same at the usual radius. Everything else keeps 36:
+the usual way (it needs it), and the network on the screen (its edge is shown, not thrown away). On a real
+40 MP photo the network is given 130 % of the photo instead of 140 %.
+
 ## The CPU and the GPU at once, measured before it is built (2026-11-14)
 
 On the slower phone the CPU's eight cores make the network's heavy pass about as fast as its GPU does (15.9
