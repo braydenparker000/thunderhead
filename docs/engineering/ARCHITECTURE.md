@@ -309,6 +309,8 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 3. The shell applies it only when **all** hold: nothing is playing, the ask bar is empty, no sheet is open, and the visible screen is home or an idle app. It then posts `{type:'skipWaiting'}`, waits for `controllerchange`, and reloads behind a 150 ms fade.
 4. If that moment never comes, the update applies at the next cold start.
 5. `TH-Min-Client` above the running build makes the update "wanted". The shell shows the update line and applies at the next safe moment.
+6. The editor's pages (`/lab/editor/`, `/lab/engine/`) do not wait for the shell. The worker in charge serves the editor it kept, the release before's, so a phone that goes straight to them would stay on old code. When one opens with a signal it calls `registration.update()`, applies a waiting worker once nothing is open that a reload would lose (`frontend/lab/engine/fresh.js`), and reloads. Their own label is `lab/engine/build.js`, one of the kept files, so it names the code that ran; `/config.js` is always read fresh and cannot.
+7. When the worker in charge changes under a shell page that did not ask (rule 6), that page reloads at its own next safe moment by rule 3.
 
 ### 8.4 Kill switch
 
