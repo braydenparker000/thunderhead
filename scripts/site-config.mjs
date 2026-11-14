@@ -86,6 +86,13 @@ export function swJs(source, build) {
   return next;
 }
 
+/** The editor's lab/engine/build.js with the release it is part of (a commit's first letters; a test's number). */
+export function labBuildJs(source, build) {
+  const next = source.replace(/^export const BUILD = '[^']*';$/m, `export const BUILD = '${String(build).replace(/[^0-9a-z.-]/gi, '')}';`);
+  if (next === source && !/^export const BUILD = '[^']*';$/m.test(source)) throw new Error("lab/engine/build.js has no \"export const BUILD = '…';\" line");
+  return next;
+}
+
 /** Whether a staged file belongs in /precache.json: everything the shell and its pages use, but not
  * vendor/ (its own cache), Photos' RAW engine (photos/engine/, 2.2 MB, used only with the network), the route stubs (copies of index.html), the ported folders, the worker
  * scripts themselves, or text files no page loads. */

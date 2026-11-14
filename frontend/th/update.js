@@ -38,17 +38,30 @@ export function waiting() {
   return Boolean(reg?.waiting && navigator.serviceWorker.controller);
 }
 
+/** The new release's worker is in charge: reload into it behind a short fade. */
+function reloadNow() {
+  document.documentElement.style.transition = `opacity ${FADE_MS}ms`;
+  document.documentElement.style.opacity = '0';
+  setTimeout(() => location.reload(), FADE_MS);
+}
+
 function tryApply() {
   if (!reg?.waiting || !safeToApply(state())) return;
   const next = reg.waiting;
   if (retry) clearInterval(retry);
   retry = null;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    document.documentElement.style.transition = `opacity ${FADE_MS}ms`;
-    document.documentElement.style.opacity = '0';
-    setTimeout(() => location.reload(), FADE_MS);
-  }, { once: true });
+  mine = true;
   next.postMessage({ type: 'skipWaiting' });
+}
+
+/** Whether this page asked for the change of worker (it was a safe moment then). */
+let mine = false;
+/** The worker in charge changed. Asked for here: reload. Applied by another page (the editor's pages apply a
+ * release when they open, lab/engine/fresh.js): this page's code is the release before's and what it fetches from
+ * now on is the new one's, so it reloads too, at its next safe moment. */
+function changed() {
+  if (mine || safeToApply(state())) { reloadNow(); return; }
+  const t = setInterval(() => { if (safeToApply(state())) { clearInterval(t); reloadNow(); } }, RETRY_MS);
 }
 
 function watchWaiting() {
@@ -80,6 +93,9 @@ export async function startUpdates() {
     return;
   }
   if (!reg) return;
+  // (a first worker taking a page that had none is not a change of release)
+  let had = Boolean(navigator.serviceWorker.controller), told = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!had) { had = true; return; } if (!told) { told = true; changed(); } });
   reg.addEventListener('updatefound', () => {
     const w = reg?.installing;
     w?.addEventListener('statechange', () => { if (w.state === 'installed') watchWaiting(); });

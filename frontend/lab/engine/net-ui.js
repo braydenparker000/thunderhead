@@ -3,6 +3,8 @@
 // text to read and copy, and the last runs kept in this browser. Its numbers also go where the editor's timings go
 // (the owner's own storage, when that setting is on: th/workshop/timings.js), so a run need not be copied by hand.
 import { netBench } from './net-bench.js';
+import { BUILD } from './build.js';
+import { fresh } from './fresh.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const KEY = 'th.net.bench', TIMINGS = 'th.editor.timings', WAYS = ['read in place', '16 outputs', '1 pixel x 32', '2x2 block', '2x2 block x 4 outputs'];
@@ -76,7 +78,7 @@ if (out && go && copy) {
     const say = (/** @type {string} */ s) => { $('nnow').textContent = s; };
     try {
       const q = new URLSearchParams(location.search), r = await netBench({ say, side: Number(q.get('side')) || undefined, reps: Number(q.get('reps')) || undefined, cpu: q.has('cpums') ? { ms: Number(q.get('cpums')) } : true, both: q.has('cpums') ? { ms: 2 * Number(q.get('cpums')), held: 2 } : true });
-      try { r.build = String((await import('/config.js')).CONFIG.commit).slice(0, 7); } catch { /* a local run */ }
+      r.build = BUILD;
       last = r; out.textContent = text(r); /** @type {any} */ (window).__net = r;
       try { localStorage.setItem(KEY, JSON.stringify([r, ...past()].slice(0, 6))); const all = JSON.parse(localStorage.getItem(TIMINGS) || '[]'); all.push(numbers(r)); localStorage.setItem(TIMINGS, JSON.stringify(all.slice(-120))); } catch { /* a private window: nothing is kept */ }
       say('Done. The ways it found faster and as true are kept for the editor on this phone. Copy the result and paste it where it is wanted.');
@@ -87,5 +89,14 @@ if (out && go && copy) {
     const t = `${last ? text(last) : ''}\n${JSON.stringify(last)}`;
     try { await navigator.clipboard.writeText(t); $('nnow').textContent = 'Copied.'; } catch { const r = document.createRange(); r.selectNodeContents(out); getSelection()?.removeAllRanges(); getSelection()?.addRange(r); $('nnow').textContent = 'Select and copy the text above.'; }
   });
-  document.documentElement.dataset.net = 'ready';
+  // A new release is looked for first (fresh.js): a test measures the code this page holds, so it waits to know which.
+  let running = false;
+  go.disabled = true; $('nnow').textContent = 'Looking for a newer release…';
+  go.addEventListener('click', () => { running = true; }, true);
+  fresh({ rest: () => !running || !go.disabled }).then((f) => {
+    if (f === 'changing') { $('nnow').textContent = 'A newer release: reloading into it…'; return; }
+    go.disabled = false;
+    $('nnow').textContent = f === 'late' ? `This page is build ${BUILD}. A newer release is still coming in: the page reloads into it when it is here and no test is running.` : `This page is build ${BUILD}${f === 'current' ? ', the newest' : ''}.`;
+    document.documentElement.dataset.net = 'ready';
+  });
 }

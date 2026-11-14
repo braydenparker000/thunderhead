@@ -85,12 +85,14 @@ test('a later release fetches only what changed, and with no signal the release 
   await page.waitForSelector('#stage header');
   assert.match(await page.textContent('#stage header'), /Library/);
   assert.deepEqual(await labCaches(page), ['th-lab-1'], "release 2's cannot be fetched, so release 1's is what opened");
-  // With a signal again it is kept as release 2's: nothing changed, so nothing is fetched, and release 1's goes.
+  // With a signal again it is kept as release 2's: nothing but its label changed, so nothing else is fetched, and release 1's goes.
   server.signal(true);
   await openEditor(page);
   await page.waitForFunction(() => window.__kept, null, { timeout: 60000 });
   const kept = await page.evaluate(() => window.__kept);
-  assert.deepEqual({ build: kept.build, kept: kept.kept, fetched: kept.fetched }, { build: 2, kept: true, fetched: 0 }, kept.why);
+  // (one file does change with every release: the editor's own label, lab/engine/build.js)
+  const label = (await (await fetch(`${base}/lab/engine/build.js`)).arrayBuffer()).byteLength;
+  assert.deepEqual({ build: kept.build, kept: kept.kept, fetched: kept.fetched }, { build: 2, kept: true, fetched: label }, kept.why);
   assert.deepEqual(await labCaches(page), ['th-lab-2']);
   await context.close();
   server.release(1);
@@ -116,8 +118,8 @@ test('just after a release the editor\'s unchanged files come from what is kept,
   await page.waitForSelector('#stage header');
   await page.waitForFunction(() => window.__kept, null, { timeout: 60000 }).catch(() => {});
   const lab = server.asked.filter((p) => /^lab\/(editor|engine)\//.test(p));
-  // the test server stamps the build only into sw.js, config.js and the lists: no editor file changed
-  assert.deepEqual(lab, [], `the editor's files came from release 1's kept copy (asked over the network: ${lab.slice(0, 6).join(', ')}${lab.length > 6 ? ` and ${lab.length - 6} more` : ''})`);
+  // the test server stamps the build only into sw.js, config.js, the lists and the editor's own label: no other editor file changed
+  assert.deepEqual([...new Set(lab)], ['lab/engine/build.js'], `the editor's files came from release 1's kept copy (asked over the network: ${lab.slice(0, 6).join(', ')}${lab.length > 6 ? ` and ${lab.length - 6} more` : ''})`);
   assert.ok(server.asked.includes('lab/offline.json'), 'only its list was read');
   await context.close();
   server.release(1);
@@ -130,5 +132,41 @@ test('with "Keep the editor for offline use" off, nothing is kept', opts, async 
   await page.waitForTimeout(1500);
   assert.equal(await page.evaluate(() => window.__kept ?? null), null);
   assert.deepEqual(await labCaches(page), []);
+  await context.close();
+});
+
+test('after a release the editor\'s pages take it when they are opened, say which release they are, and the shell follows', opts, async () => {
+  // lab/engine/fresh.js. A new release's worker waits for the shell's safe moment, and the worker in charge serves
+  // the editor it kept, so a phone that went straight to the editor or the engine test page stayed on the release
+  // before's code under the new release's label (the owner's phone, 2026-11-14). The label is now one of the kept
+  // files (lab/engine/build.js), and these pages apply a release themselves.
+  server.release(1); server.signal(true);
+  const { context, page: home } = await controlled();
+  const page = await context.newPage();
+  await openEditor(page);
+  await page.waitForFunction(() => window.__kept, null, { timeout: 60000 });
+  assert.deepEqual(await labCaches(page), ['th-lab-1']);
+  const build = () => page.evaluate(async () => (await import('/lab/engine/build.js')).BUILD);
+  assert.equal(await build(), 'b1');
+  // the engine test page under release 1: it says so, and its test may start
+  await page.goto(`${base}/lab/engine/`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-net=ready]');
+  assert.equal(await page.textContent('#nnow'), 'This page is build b1, the newest.');
+  // release 2 comes out. The page opened again starts from the kept release 1, finds 2, and reloads into it
+  server.release(2);
+  await home.evaluate(() => { window.__before = true; });
+  await page.goto(`${base}/lab/engine/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.getElementById('nnow')?.textContent === 'This page is build b2, the newest.' && document.documentElement.dataset.net === 'ready', null, { timeout: 60000 });
+  assert.equal(await page.isDisabled('#nrun'), false);
+  assert.equal(await build(), 'b2');
+  assert.equal(await page.evaluate(() => crossOriginIsolated), true);
+  // the shell, open on another page, was not asked: it reloads into the release too, at its own safe moment
+  await home.waitForFunction(() => !window.__before && navigator.serviceWorker.controller, null, { timeout: 30000 });
+  await home.waitForFunction(async () => (await caches.keys()).includes('th-2') && !(await caches.keys()).includes('th-1'), null, { timeout: 15000 });
+  // release 3: the editor, opened, takes it at once (nothing is open yet that a reload would lose)
+  server.release(3);
+  await page.goto(`${base}/lab/editor/`, { waitUntil: 'load' });
+  await page.waitForFunction(async () => document.querySelector('#stage header') && (await import('/lab/engine/build.js')).BUILD === 'b3', null, { timeout: 60000 });
+  assert.match(await page.textContent('#stage header'), /Library/);
   await context.close();
 });

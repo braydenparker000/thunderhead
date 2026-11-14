@@ -10,7 +10,7 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FONTS, needed, present } from './fonts.mjs';
 import { createHash } from 'node:crypto';
-import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
+import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
 if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit sha: "${sha}"`);
@@ -42,6 +42,8 @@ const repoUrl = process.env.GITHUB_REPOSITORY ? `${process.env.GITHUB_SERVER_URL
 // A preview build (.github/workflows/preview.yml) names its branch, shown on the pages' label.
 await writeFile(join(out, 'config.js'), configJs({ api, build, commit: sha, repo_url: repoUrl, preview: process.env.TH_PREVIEW ?? '' }));
 await writeFile(join(out, 'sw.js'), swJs(await readFile(join(out, 'sw.js'), 'utf8'), build));
+// The editor's own label (frontend/lab/engine/build.js): one of its kept files, so it names the code that runs.
+await writeFile(join(out, 'lab/engine/build.js'), labBuildJs(await readFile(join(out, 'lab/engine/build.js'), 'utf8'), sha.slice(0, 7)));
 
 // My Media's Drive settings come from the DRIVE_CONFIG_JSON secret (owner ruling 2026-10-28); without
 // it the page says the Drive key is not configured, as the unchanged app does.

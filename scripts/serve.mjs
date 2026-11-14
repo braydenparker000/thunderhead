@@ -7,7 +7,7 @@ import { extname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
+import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
 
 const ROOT = fileURLToPath(new URL('../frontend/', import.meta.url));
 const TYPES = CONTENT_TYPES;
@@ -17,6 +17,7 @@ async function staged(path, api, build) {
   if (path === 'config.js') return Buffer.from(configJs({ api, build }));
   const body = await readFile(join(ROOT, path));
   if (path === 'sw.js') return Buffer.from(swJs(body.toString('utf8'), build));
+  if (path === 'lab/engine/build.js') return Buffer.from(labBuildJs(body.toString('utf8'), `b${build}`));
   return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api, path)) : body;
 }
 

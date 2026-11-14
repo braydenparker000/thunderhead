@@ -14,6 +14,7 @@ import { open as openPhoto, pickWhite, saveNow } from './app/session.js';
 import { undo } from './app/told.js';
 import { warm } from './app/decoder.js';
 import { isolate } from '../engine/isolate.js';
+import { fresh } from '../engine/fresh.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
 const stage = /** @type {HTMLElement} */ (document.getElementById('stage'));
@@ -80,6 +81,10 @@ else {
   // (sw.js `keepEditor`: only the files that changed since the release before), unless the owner turned that off
   // (Settings > Photos > Editor) or the phone is saving data.
   if (navigator.onLine !== false && prefOn('photos.offline', true) && !(/** @type {any} */ (navigator).connection?.saveData)) navigator.serviceWorker?.ready.then((r) => r.active?.postMessage({ type: 'keepEditor' }), () => {});
+  // A new release is taken when the editor opens, not when the shell next finds a moment (lab/engine/fresh.js): at
+  // once if it was already waiting (the address keeps its ask, so the same photo opens), else when the Library shows.
+  const began = Date.now();
+  fresh({ rest: () => history.state?.name === 'Library' || Date.now() - began < 1500 });
   // Android may take a tab in the background without a word: the edit is written the moment the page is hidden,
   // not left to the timer that follows a change (session.js `save`).
   const keepNow = () => { saveNow().catch((e) => console.warn('edit not saved on leaving', e)); };
