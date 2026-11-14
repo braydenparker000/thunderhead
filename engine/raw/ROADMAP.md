@@ -33,7 +33,7 @@ of getting here.
 | 5 | Sensor truth | A black level for each colour; dead pixels mended. **Closed by measurement, 2026-11-14:** the RAFs state one level for every colour, and none of the owner's eight has a dead sensel (STATUS.md) | Known-picture numbers, before and after | Nothing |
 | 6 | Output | Display P3 with a profile embedded (**done 2026-11-14**); a better JPEG encoder (**measured: nothing in the encoder the app has earns its place; another encoder is new third-party code, the owner's to decide**, STATUS.md) | A colour round trip; file size at equal quality | A yes or no on a new encoder |
 | 7 | Layout and feel | The owner's layout notes; transitions, gestures and haptics | The owner's eye | Their notes on what is off |
-| 8 | Presets | An easier import: a pack as one `.zip`, none kept twice, a pack deleted whole (**done 2026-11-14**); sources with clear licences (**looked at: none is clearly its maker's own work under an open licence, so none is bundled; one pack that imports as it is is named in STATUS.md**). Next: the groups a preset names, for a long pack | Imports render as meant | Whether to bundle a pack |
+| 8 | Presets | An easier import: a pack as one `.zip`, none kept twice, a pack deleted whole, and a pack as one card walked by the groups its presets name (**done 2026-11-14**); sources with clear licences (**looked at: none is clearly its maker's own work under an open licence, so none is bundled; one pack that imports as it is is named in STATUS.md**). | Imports render as meant | Whether to bundle a pack |
 
 Not pull requests yet: a larger network trained for the X-E5's own noise (the only way past the best open one
 found; free GPU time in the owner's name, so the owner's call), and the CPU beside the GPU for exports

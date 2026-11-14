@@ -2,7 +2,8 @@
 // stage 4): the Looks board's IMPORT reads an `.xmp` and keeps it as a look of the owner's own, in Mine, its settings
 // laid on this editor's controls by name. What it has no control for is counted and said; a file that is not a
 // preset is refused in words. A pack of looks as one `.zip` (app/pack.js) is opened and every look inside it brought
-// in with one pick; picked again it adds nothing; DELETE PACK takes its looks away together. The presets here are invented.
+// in with one pick; picked again it adds nothing. The pack is one card on the strip: opened, its looks are walked by the
+// groups they name (a preset's own, else its folder), and DELETE PACK takes them away together. The presets here are invented.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -83,7 +84,7 @@ test('IMPORT on the Looks board keeps a preset in Mine and says what it could no
   await context.close();
 });
 
-test('IMPORT takes a pack as one .zip: every look inside it comes in, none twice, and the pack can be deleted whole', opts, async () => {
+test('IMPORT takes a pack as one .zip: every look inside it comes in, none twice; the pack is a card, walked by its groups and deleted whole', opts, async () => {
   const { context, page, errors } = await open();
   const jpeg = await page.evaluate(async () => { const c = new OffscreenCanvas(240, 160), g = c.getContext('2d'); g.fillStyle = '#345'; g.fillRect(0, 0, 240, 160); return [...new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer())]; });
   await page.evaluate(async (raf) => {
@@ -93,7 +94,7 @@ test('IMPORT takes a pack as one .zip: every look inside it comes in, none twice
     document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Looks' }));
   }, [...makeRaf(Uint8Array.from(jpeg))]);
   const cube = ['TITLE "Warm"', 'LUT_3D_SIZE 2', ...[0, 1].flatMap((b) => [0, 1].flatMap((g) => [0, 1].map((r) => `${r} ${g * 0.9} ${b * 0.8}`)))].join('\n');
-  const zip = makeZip([['Evening pack/soft.xmp', XMP], ['Evening pack/Film/', '', 0], ['Evening pack/Film/hard.xmp', XMP.replace('Soft evening', 'Hard noon').replace('Contrast2012="+12"', 'Contrast2012="+40"'), 0],
+  const zip = makeZip([['Evening pack/soft.xmp', XMP.replace('crs:Name=', 'crs:Group="Dusk" crs:Name=')], ['Evening pack/Film/', '', 0], ['Evening pack/Film/hard.xmp', XMP.replace('Soft evening', 'Hard noon').replace('Contrast2012="+12"', 'Contrast2012="+40"'), 0],
     ['Evening pack/Film/warm.cube', cube], ['Evening pack/read me.txt', 'thanks'], ['__MACOSX/Evening pack/._soft.xmp', 'junk'], ['Evening pack/broken.cube', 'LUT_1D_SIZE 4']]);
   const says = (re) => page.waitForFunction((src) => new RegExp(src, 'i').test(document.querySelector('#stage')?.textContent ?? ''), re.source).catch(async () => assert.fail(`waited for ${re}; the board says: ${(await page.textContent('#stage')).slice(-400)}`));
   const pick = page.locator('#stage [aria-label="Import looks"]');
@@ -103,23 +104,33 @@ test('IMPORT takes a pack as one .zip: every look inside it comes in, none twice
   await says(/2 presets added to Mine/);
   let said = await page.textContent('#stage');
   assert.match(said, /1 added to Presets · 2 presets added to Mine · 2 hold settings with no control here · broken\.cube: it is a 1D table, not a look · 1 other file in the pack left/);
-  const kept = () => page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); return [...k.list('cube'), ...k.list('mine')].map((l) => [l.kind, l.name, l.pack, l.kind === 'cube' ? l.cube.n : l.st.values.Contrast]); });
-  assert.deepEqual(await kept(), [['cube', 'warm', 'Evening pack', 2], ['mine', 'Soft evening', 'Evening pack', 12], ['mine', 'Hard noon', 'Evening pack', 40]]);
-  // The same pack again: nothing is kept twice.
-  await page.locator('#stage [role=listbox][aria-label="Sections: Mine"]').press('ArrowUp');   // IMPORT is on the Presets face
+  const kept = () => page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); return [...k.list('cube'), ...k.list('mine')].map((l) => [l.kind, l.name, l.pack, l.group, l.kind === 'cube' ? l.cube.n : l.st.values.Contrast]); });
+  // each remembers its pack, and its group there: the one the preset names, else its folder
+  assert.deepEqual(await kept(), [['cube', 'warm', 'Evening pack', 'Film', 2], ['mine', 'Soft evening', 'Evening pack', 'Dusk', 12], ['mine', 'Hard noon', 'Evening pack', 'Film', 40]]);
+  // The pack's card is open on Mine: its first group in the strip, the other a tap away.
+  const tiles = () => page.locator('#stage [role=listbox].hscroll button[role=option]').evaluateAll((l) => l.map((b) => b.getAttribute('aria-label')));
+  assert.deepEqual(await tiles(), ['Soft evening']);
+  await page.locator('#stage [aria-label="Film: 1 look"]').click();
+  await page.locator('#stage [aria-label="Evening pack · Film"]').waitFor();
+  assert.deepEqual(await tiles(), ['Hard noon']);
+  // Shut, the strip holds the pack as one card beside the owner's own looks, not its looks.
+  await page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); await k.addMine('My own', { values: { Contrast: 5 }, wb: 'As shot', curve: null }); });
+  await page.locator('#stage [aria-label="Back to Mine"]').click();
+  await page.locator('#stage [aria-label="My looks"]').waitFor();
+  assert.deepEqual(await tiles(), ['Evening pack', 'My own']);
+  // The same pack again (IMPORT is on the Presets face): nothing is kept twice, and its card opens there.
+  await page.locator('#stage [role=listbox][aria-label="Sections: Mine"]').press('ArrowUp');
   await bring();
   await says(/3 here already/);
-  assert.equal((await kept()).length, 3);
-  // A look of the pack picked: DELETE PACK, twice, takes all three away; one of the owner's own stays.
-  await page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); await k.addMine('My own', { values: { Contrast: 5 }, wb: 'As shot', curve: null }); });
-  await page.locator('#stage [role=listbox][aria-label="Sections: Presets"]').press('ArrowDown');
-  await page.locator('#stage button', { hasText: 'Hard noon' }).click();
+  assert.equal((await kept()).length, 4);
+  assert.deepEqual(await tiles(), ['warm']);
+  // DELETE PACK, twice, takes all three away; the owner's own stays.
   const all = page.locator('#stage [aria-label="Delete every look of Evening pack"]');
   await all.click();
   await says(/Tap again: all 3/);
   await all.click();
   await says(/3 looks of Evening pack deleted from this phone/);
-  assert.deepEqual(await kept(), [['mine', 'My own', undefined, 5]]);
+  assert.deepEqual(await kept(), [['mine', 'My own', undefined, undefined, 5]]);
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -4,7 +4,8 @@
 // puts one on, a tap on it again takes it off, and the window above the strip sets its strength. MINE are edits
 // saved as looks: a tap lays one over this photo's edit. The camera's own renderings are the Edit board's
 // Profile face. First on the Presets face is the Weekly Fuji recipes card (app/recipes.js): a tap opens the recipes,
-// grouped by the sensor each was made for; a tap on one puts its profile and settings on. In the app with no photo open it shows none (app/shown.js); a screen of the design on its own plays a few samples.
+// grouped by the sensor each was made for; a tap on one puts its profile and settings on. A pack of looks brought in as
+// one `.zip` is a card too, on the face its looks belong to: a tap opens it, and its looks are walked by the groups they name. In the app with no photo open it shows none (app/shown.js); a screen of the design on its own plays a few samples.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as store from '../app/store.js';
@@ -30,29 +31,30 @@ export default class Component extends DCLogic {
   }
   /** IMPORT: `.cube` looks go to Presets; a Lightroom preset (`.xmp`) becomes a look of the owner's own, in Mine
    * (app/xmp.js); a pack of them as one `.zip` is opened and every look inside it brought in (app/pack.js), each
-   * remembering its pack; a look that is here already is not kept twice; the other kinds say they are not read yet. */
+   * remembering its pack and its group there (the one a preset names, else its folder); the pack's card is then
+   * opened; a look that is here already is not kept twice; the other kinds say they are not read yet. */
   pickFiles() {
     const i = document.createElement('input'); i.type = 'file'; i.multiple = true;
     i.onchange = async () => {
-      let added = 0, mine = 0, here = 0, other = 0; const not = [], left = [], files = [];
+      let added = 0, mine = 0, here = 0, other = 0, last = ''; const not = [], left = [], files = [];
       for (const f of i.files || []) {
         if (!/\.zip$/i.test(f.name)) { files.push([f]); continue; }
-        try { for (const e of await (await import('../app/pack.js')).unpack(f)) if (/\.(xmp|cube)$/i.test(e.name)) files.push([e, f.name.replace(/\.zip$/i, '')]); else other++; } catch (e) { not.push(`${f.name}: ${e.message}`); }
+        try { for (const e of await (await import('../app/pack.js')).unpack(f)) if (/\.(xmp|cube)$/i.test(e.name)) files.push([e, (last = f.name.replace(/\.zip$/i, '')), e.path.split('/').slice(0, -1).pop() || '']); else other++; } catch (e) { not.push(`${f.name}: ${e.message}`); }
       }
-      for (const [n, [f, pack]] of files.entries()) {
+      for (const [n, [f, pack, folder]] of files.entries()) {
         if (n && n % 20 === 0) this.setState({ note: `Bringing in ${n} of ${files.length}…` });
         try {
           if (/\.xmp$/i.test(f.name)) {
             const look = f.size <= XMP_MAX_BYTES ? lookOfXmp(await f.text(), f.name) : null;
             if (!look) { not.push(`${f.name}: not a preset this editor reads`); continue; }
-            if (!await kept.addMine(look.name, look.st, pack, true)) { here++; continue; }
+            if (!await kept.addMine(look.name, look.st, { pack, group: pack && (look.group || folder), once: true })) { here++; continue; }
             mine++;
             if (look.left) left.push(`${look.name}: ${look.left} of its settings have no control here`);
           } else if (!/\.cube$/i.test(f.name)) not.push(`${f.name}: only .cube and .xmp looks are read so far`);
-          else if (await kept.addCube(f, pack)) added++; else here++;
+          else if (await kept.addCube(f, { pack, group: folder })) added++; else here++;
         } catch (e) { not.push(`${f.name}: ${e.message}`); }
       }
-      this.setState({ upTo: 8, face: mine ? 'Mine' : added ? 'Presets' : this.state.face, note: [added ? `${added} added to Presets` : '', mine ? `${mine} preset${mine === 1 ? '' : 's'} added to Mine` : '', here ? `${here} here already` : '', left.length > 1 ? `${left.length} hold settings with no control here` : left[0] || '',
+      this.setState({ upTo: 8, group: '', shelf: last ? 'pack:' + last : '', face: mine ? 'Mine' : added ? 'Presets' : this.state.face, note: [added ? `${added} added to Presets` : '', mine ? `${mine} preset${mine === 1 ? '' : 's'} added to Mine` : '', here ? `${here} here already` : '', left.length > 1 ? `${left.length} hold settings with no control here` : left[0] || '',
         not[0] || '', not.length > 1 ? `and ${not.length - 1} more not read` : '', other ? `${other} other file${other === 1 ? '' : 's'} in the pack left` : ''].filter(Boolean).join(' · ') });
     };
     i.click();
@@ -64,13 +66,13 @@ export default class Component extends DCLogic {
     if (photo.cubeOn() === id) photo.pickCube(id);   // off this photo first
     kept.remove(id).then(() => this.setState({ del: '', look: '', note: 'Deleted from this phone' }));
   }
-  /** DELETE PACK, beside Delete when the look that is on came in a pack: every look of that pack, on the second tap. */
+  /** DELETE PACK, in a pack's card: every look of that pack, on the second tap. */
   async dropPack(pack) {
     const all = kept.inPack(pack);
     if (this.state.del !== 'pack') { this.setState({ del: 'pack' }); clearTimeout(this.delT); this.delT = setTimeout(() => this.setState({ del: '' }), 5000); return; }
     clearTimeout(this.delT);
     for (const l of all) { if (photo.cubeOn() === l.id) photo.pickCube(l.id); await kept.remove(l.id); }
-    this.setState({ del: '', look: '', note: `${all.length} looks of ${pack} deleted from this phone` });
+    this.setState({ del: '', look: '', shelf: '', note: `${all.length} looks of ${pack} deleted from this phone` });
   }
   /** The Weekly Fuji recipes card: opened, its list is read (once); shut, the strip is the Presets again. */
   shelf(open) {
@@ -83,24 +85,30 @@ export default class Component extends DCLogic {
     const cubes = real ? kept.list('cube') : app ? [] : sample('Presets'), mine = real ? kept.list('mine') : app ? [] : sample('Mine');
     // the recipes card, open: its groups (the sensor a recipe was made for), and the one group's recipes in the strip
     const fx = face === 'Presets' && S.shelf === 'fxw' && !!real, groups = fx ? recipes.groups() : [], group = groups.find((g) => g.sensor === S.group)?.sensor || groups[0]?.sensor || '', inGroup = fx ? recipes.list().filter((r) => r.sensor === group) : [];
-    const on = face === 'Presets' ? (real ? photo.cubeOn() : S.look) : S.look, own = fx ? undefined : (face === 'Presets' ? cubes : mine).find((l) => l.id === on);
+    // a pack's card, open: its looks of this face, by the groups they name (when there is more than one); shut, the looks that came in no pack
+    const faced = face === 'Presets' ? cubes : mine, packs = real ? [...new Set(faced.map((l) => l.pack).filter(Boolean))] : [], pk = !fx && packs.includes(S.shelf.slice(5)) ? S.shelf.slice(5) : '';
+    const inPack = faced.filter((l) => (l.pack || '') === pk), pgroups = pk ? [...new Set(inPack.map((l) => l.group || ''))] : [], pgroup = pgroups.includes(S.group) ? S.group : pgroups[0] || '';
+    const looks = pgroups.length > 1 ? inPack.filter((l) => (l.group || '') === pgroup) : inPack;
+    const cards = pk ? [] : packs.map((p) => ({ name: p, tag: String(faced.filter((l) => l.pack === p).length), src: photo.jpeg(), pick: () => set({ shelf: 'pack:' + p, group: '', look: '', del: '', note: '', upTo: 8 }) }));
+    const on = face === 'Presets' ? (real ? photo.cubeOn() : S.look) : S.look, own = fx ? undefined : looks.find((l) => l.id === on);
     const save = () => { const name = real ? prompt('Name this look', `My look ${mine.length + 1}`) : ''; if (name?.trim()) kept.addMine(name.trim().slice(0, 40), photo.state()).then((m) => set({ face: 'Mine', look: m.id, note: '' })); };
     const wear = (r) => { const left = recipes.wear(r), film = photo.looks().find((l) => l.id === photo.look())?.label || ''; const names = (l) => l.map((t) => t.split(':')[0]).join(', '), none = left.filter((t) => /not applied|not replicated|no profile/.test(t)), near = left.filter((t) => !none.includes(t));
       set({ look: r.id, del: '', note: [r.name, film, near.length ? `near only: ${names(near)}` : '', none.length ? `not here: ${names(none)}` : ''].filter(Boolean).join(' · ') }); };
-    const card = real ? [{ name: 'Fuji recipes', tag: 'WEEKLY', src: photo.jpeg(), pick: () => this.shelf(true) }] : [];
+    const card = (real && !pk ? [{ name: 'Fuji recipes', tag: 'WEEKLY', src: photo.jpeg(), pick: () => this.shelf(true) }] : []).concat(face === 'Presets' ? cards : []);
     const tiles = fx ? inGroup.map((r, i) => ({ name: r.name, on: r.id === S.look, src: (i < S.upTo && tile('fxw:' + r.id, () => recipes.worn(r).st, 168)) || photo.jpeg(), pick: () => wear(r) }))
       : face === 'Presets'
-      ? card.concat(cubes.map((l, i) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? (i < S.upTo && tile('cube:' + l.id, { ...photo.state(), cube: l.id }, 168, { cube: 1 })) || photo.jpeg() : '', pick: () => { if (real) photo.pickCube(l.id); set({ look: l.id === on ? '' : l.id, del: '', note: '' }); } })))
-      : mine.map((l, i) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? (i < S.upTo && tile('mine:' + l.id, () => photo.worn(l.st), 168)) || photo.jpeg() : '', pick: () => { if (real) photo.wear(l.st, l.name); set({ look: l.id, del: '', note: '' }); } }));
+      ? card.concat(looks.map((l, i) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? (i < S.upTo && tile('cube:' + l.id, { ...photo.state(), cube: l.id }, 168, { cube: 1 })) || photo.jpeg() : '', pick: () => { if (real) photo.pickCube(l.id); set({ look: l.id === on ? '' : l.id, del: '', note: '' }); } })))
+      : cards.concat(looks.map((l, i) => ({ name: l.name, on: l.id === on, filter: l.filter, src: real ? (i < S.upTo && tile('mine:' + l.id, () => photo.worn(l.st), 168)) || photo.jpeg() : '', pick: () => { if (real) photo.wear(l.st, l.name); set({ look: l.id, del: '', note: '' }); } })));
     // AS .CUBE: the look that is picked, or this photo's edit, saved as a table to use elsewhere (app/cube-out.js)
     const asCube = async () => { const { saveCube } = await import('../app/cube-out.js'); set({ note: 'Making the table…' }); saveCube(own?.st ? photo.worn(own.st) : photo.state(), own?.name || photo.stem(real.name)).then((f) => set({ note: `Saved ${f} to Downloads · colour only: no Exposure, white balance, Highlights, Shadows or masks` }), (e) => set({ note: `Not saved: ${e?.message || e}` })); };
     // START: this photo's edit kept as where every photo from its camera and lens begins (app/starts.js); a tap on it again clears it
     const shot = real ? store.photos().find((p) => p.id === real.id)?.shot : null, whose = forWhat(shot), has = !!startFor(shot);
     const asStart = () => { if (has) { dropStart(shot); set({ note: `Photos from the ${whose} start plain again` }); } else set({ note: keepStart(shot, photo.state()) ? `New photos from the ${whose} now start like this one (but for Exposure, white balance and Noise, which stay each photo’s own)` : 'Not kept' }); };
     const chips = fx ? [{ name: '‹ Presets', entry: true, aria: 'Back to Presets', pick: () => this.shelf(false) }].concat(groups.map((g) => ({ name: g.sensor, value: String(g.count), on: g.sensor === group, aria: `${g.sensor}: ${g.count} recipes`, pick: () => set({ group: g.sensor, look: '', note: '', upTo: 8 }) })))
+      : pk ? [{ name: '‹ ' + face, entry: true, aria: 'Back to ' + face, pick: () => set({ shelf: '', look: '', del: '', note: '', upTo: 8 }) }, { name: S.del === 'pack' ? `Tap again: all ${kept.inPack(pk).length}` : 'Delete pack', entry: true, hot: S.del === 'pack', aria: `Delete every look of ${pk}`, pick: () => this.dropPack(pk) }]
+        .concat(pgroups.length > 1 ? pgroups.map((g) => { const n = inPack.filter((l) => (l.group || '') === g).length; return { name: g || 'Other', value: String(n), on: g === pgroup, aria: `${g || 'Other'}: ${n} look${n === 1 ? '' : 's'}`, pick: () => set({ group: g, look: '', del: '', note: '', upTo: 8 }) }; }) : [])
       : (face === 'Presets' ? [{ name: 'Import', entry: true, aria: 'Import looks', pick: () => (real ? this.pickFiles() : set({ note: 'Open a photo to bring looks in' })) }] : [{ name: 'Save current', entry: true, pick: save }, ...(real ? [{ name: 'As .cube', entry: true, aria: 'Save the look as a .cube file', pick: asCube }] : []), ...(whose ? [{ name: has ? 'Start ✓' : 'As start', entry: true, hot: has, aria: has ? `Clear the start for the ${whose}` : `Make this the start for the ${whose}`, pick: asStart }] : [])])
-      .concat(real && own ? [{ name: S.del === on ? 'Tap again to delete' : 'Delete', entry: true, hot: S.del === on, aria: 'Delete this look', pick: () => this.drop(on) }] : [])
-      .concat(real && own?.pack ? [{ name: S.del === 'pack' ? `Tap again: all ${kept.inPack(own.pack).length}` : 'Delete pack', entry: true, hot: S.del === 'pack', aria: `Delete every look of ${own.pack}`, pick: () => this.dropPack(own.pack) }] : []);
+      .concat(real && own ? [{ name: S.del === on ? 'Tap again to delete' : 'Delete', entry: true, hot: S.del === on, aria: 'Delete this look', pick: () => this.drop(on) }] : []);
     // the window sets the strength of the .cube look that is on; otherwise the place says what a tap does
     const strong = face === 'Presets' && !!own && !!real;
     const hint = S.note || (fx ? (groups.length ? `${inGroup.length} recipes by Ritchie Roesch, fujixweekly.com · a tap puts one on · Undo takes it back` : 'Reading the recipes…') : face === 'Presets' ? (cubes.length ? (own ? '' : 'A tap puts a look on · a tap on it again takes it off') : (real ? 'The Weekly Fuji recipes open with a tap · IMPORT brings .cube and .xmp looks in, or a .zip of them' : 'No looks on this phone yet: IMPORT brings .cube and .xmp looks in, or a .zip of them'))
@@ -109,7 +117,7 @@ export default class Component extends DCLogic {
       real: !!real, demo: seen.demo, lookFilter: (!real && own?.filter) || 'none',
       // the drum's counts: Presets, whether one is on; Mine, how many there are
       faces: FACES.map((f) => ({ label: f, count: real ? (f === 'Presets' ? (photo.cubeOn() ? 1 : 0) : mine.length) : 0 })), faceAt: at, pickFace: (i) => set({ face: FACES[i], look: '', del: '', note: '', upTo: 8 }),
-      chips, rowAria: fx ? 'Weekly Fuji recipes' : `${face} actions`, tiles, stripLabel: fx ? `Weekly Fuji recipes · ${group}` : face === 'Presets' ? 'Presets' : 'My looks', noTiles: face === 'Presets' ? '' : 'None of your own yet',
+      chips, rowAria: fx ? 'Weekly Fuji recipes' : pk || `${face} actions`, tiles, stripLabel: fx ? `Weekly Fuji recipes · ${group}` : pk ? [pk, pgroups.length > 1 ? pgroup || 'Other' : ''].filter(Boolean).join(' · ') : face === 'Presets' ? 'Presets' : 'My looks', noTiles: face === 'Presets' ? '' : 'None of your own yet',
       // a long strip's pictures are made as they come near (boards/Strip.js)
       near: (n) => { if (n + 4 > S.upTo) set({ upTo: n + 10 }); },
       strong, plain: !strong, hint, dialLabel: own ? `${own.name} · Amount` : 'Amount',
