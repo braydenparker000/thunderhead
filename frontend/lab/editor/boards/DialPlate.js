@@ -8,9 +8,12 @@
 // choice of a few options spans less, so a short turn steps it). `slim`: no wheel, the window itself is dragged and the number stays under the finger. `onhold` hears true when a
 // finger takes the dial and false once it has let go and the dial is still. `start`: the position where the value
 // starts (0, the middle, unless given; a `left` dial has none unless given): turning past it, or into either end of the
-// range, gives a small tick under the finger (app/haptic.js).
+// range, gives a small tick under the finger (app/haptic.js). How the page kept up while it was turned is noted with
+// the timings (app/moved.js: frames drawn, the longest gap, and how far the photo was zoomed in).
 import { DCLogic } from '../dc.js';
 import { tick } from '../app/haptic.js';
+import { moved } from '../app/moved.js';
+import { info } from '../app/zoom.js';
 
 export default class Component extends DCLogic {
   constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; this.spin = 0; this.tapped = -1e9; }
@@ -54,7 +57,7 @@ export default class Component extends DCLogic {
       wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); this.props.onhold?.(true); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
+      down: (e) => { stop(); this.props.onhold?.(true); moved(() => !!this.drag || !!this.spin, false, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger

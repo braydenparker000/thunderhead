@@ -75,6 +75,10 @@ test('ticks: the dial past its start and at its end, the drum, Undo, an export; 
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForTimeout(300);
   assert.deepEqual(await buzz(page), [8], 'one tick, as the dial passed its start, and none for the 36 moves of the finger');
+  // How the page kept up while the dial was turned is noted with the timings (app/moved.js): the phone's own word on a dial that stutters.
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]').some((t) => t.kind === 'turn'), null, { timeout: 20_000 });
+  const turn = await page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]').filter((t) => t.kind === 'turn').at(-1));
+  assert.ok(turn.frames > 6 && turn.worst > 0 && turn.slow >= 0 && turn.pct > 0 && turn.ms > 100, `a turn of the dial: its frames, the longest gap, and how far the photo was zoomed in (${JSON.stringify(turn)})`);
   // Back to its start, then all the way up by the keys: one tick, at the end.
   await dial.press('Home'); await page.waitForTimeout(200);
   await buzz(page);

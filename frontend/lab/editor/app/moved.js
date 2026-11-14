@@ -1,5 +1,5 @@
 // @ts-check
-// How a pinch, a pan or a glide went on this phone, as numbers (timings.js keeps them): how long it lasted, how
+// How a pinch, a pan or a glide (and a turn of the dial) went on this phone, as numbers (timings.js keeps them): how long it lasted, how
 // many frames were drawn, the longest gap between two of them, and how many gaps were over two frames' time. And
 // whether the GPU was making a full-size view when it began, which is when a gesture has stuttered: that work is
 // now given to the GPU a part at a time and left when a finger comes down (engine/net-pace.js, full.js `region`),
@@ -9,8 +9,10 @@ import { note } from './timings.js';
 let run = 0, wasBusy = false;
 /** A gesture has begun (or goes on): frames are watched until `active` says it is over. A finger that comes down
  * again while one is watched (a glide caught, a second finger) is part of the same. @param {() => boolean} active
- * fingers still move the photo, or it glides @param {boolean} busy the GPU was making a full-size view when a finger came down */
-export function moved(active, busy) {
+ * fingers still move the photo, or it glides @param {boolean} busy the GPU was making a full-size view when a finger came down
+ * @param {'move' | 'turn'} [kind] `turn`: the dial is being turned (boards/DialPlate.js), and what is watched is how the page kept up while it was
+ * @param {Record<string, number>} [more] noted with it (a turn: how far the photo is zoomed in, per cent) */
+export function moved(active, busy, kind = 'move', more = {}) {
   wasBusy ||= busy;
   if (run) return;
   const began = performance.now();
@@ -22,7 +24,7 @@ export function moved(active, busy) {
     idle = active() ? 0 : idle + 1;
     if (idle < 3) { run = requestAnimationFrame(tick); return; }   // over once nothing has moved it for three frames
     run = 0;
-    if (frames > 6) note('move', now - began, { frames, worst: Math.round(worst), slow, busy: wasBusy ? 1 : 0 });   // (a tap is no gesture)
+    if (frames > 6) note(kind, now - began, { frames, worst: Math.round(worst), slow, busy: wasBusy ? 1 : 0, ...more });   // (a tap is no gesture)
     wasBusy = false;
   };
   run = requestAnimationFrame(tick);

@@ -6,7 +6,7 @@
 // owner running a test. Never a photo, its name or its settings: only times, sizes and what kind of file.
 const KEY = 'th.editor.timings', MOST = 120;
 
-/** Keeps one timing. @param {'open' | 'full' | 'detail' | 'fine' | 'save'} kind @param {number} ms @param {Record<string, number | string | boolean>} [more] */
+/** Keeps one timing. @param {'open' | 'full' | 'detail' | 'fine' | 'save' | 'move' | 'turn'} kind @param {number} ms @param {Record<string, number | string | boolean>} [more] */
 export function note(kind, ms, more = {}) {
   try {
     const all = JSON.parse(localStorage.getItem(KEY) || '[]');

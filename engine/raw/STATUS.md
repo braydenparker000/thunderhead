@@ -968,6 +968,18 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## The dial says how the page kept up while it was turned (2026-11-14)
+
+Road map pull request 4, its first step. The owner: the dial and other elements glitch at times. Nothing here
+can feel that, and a check for elements that jump (layout shifts while the dial is turned, a board is
+changed, a photo opens) found none in turning or changing boards. So the phone is asked: every turn of the
+dial is noted with the timings as `turn` (`boards/DialPlate.js`, `app/moved.js`): how long it lasted, the
+frames drawn, the longest gap between two, gaps over two frames' time, and how far the photo was zoomed in
+(`pct`). Never which control. What is expected, from the slower phone's export timings and not yet seen: at
+100 % and closer every frame of a turn also lays out the full-size view, about two megapixels, which by
+those timings is well over a frame's time there. If the turns at 100 % are the slow ones, the view should
+give way to the editing copy while the dial moves and come back when it rests, where a phone needs it.
+
 ## A full-size view is made a part at a time, and left for a touch (2026-11-14)
 
 Road map pull request 3. The owner: zooming and panning lag at times. While fingers move the photo nothing
