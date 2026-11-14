@@ -968,6 +968,41 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## Display P3 files, and what a better JPEG encoder would take (2026-11-14)
+
+Road map pull request 6. REVIEW.md's row 25: sRGB only. A phone's screen shows Display P3, whose reds and
+greens reach further than sRGB's; a strong flower, a sunset or a sign is cut back to sRGB's edge in every file
+this editor wrote.
+
+- **The frame.** `gpu.js` `render(…, { wide: true })` makes a frame in Display P3's numbers (`wgsl.js`
+  `shown`: the last matrix, then sRGB to P3, `icc.js` `SRGB_TO_P3`). The edge strong colours are eased in at
+  (`fit`) is P3's. What measures how strong a colour is for Vibrance stays sRGB's, so an edit looks the same in
+  both. A look's own table and a point curve are made for sRGB's numbers: with either on, the picture is made
+  as sRGB's and written in P3's numbers, the same colours and none wider. Never for the screen: the canvas is
+  sRGB, and `app/save.js` puts the screen's settings back when an export ends.
+- **The profile.** `icc.js` `p3Profile`: 532 bytes, worked out from the published points of the space (its
+  three colours and white, Bradford's adaptation to D50, sRGB's curve as a parametric one), written field by
+  field to the ICC's version 4 format. No profile file was copied. It goes into a JPEG's APP2, a PNG's iCCP (in
+  place of the sRGB chunk) and a TIFF's tag 34675 (`files.js`).
+- **On the board.** Export's Color space row (Format), fixed at sRGB until now, changes it for all of an
+  export's files together: they are cut from the same pieces. An export kept half made is not carried on in the
+  other space.
+- **Measured** (the known photo, Saturation +70, on the software GPU; the browser's own colour management as
+  the second opinion): 15 % of the pixels lie outside sRGB and the P3 frame keeps them. Well inside sRGB the P3
+  frame is the sRGB frame to 0.28 of a level on average and 1.2 at most (rounding). The PNG read back by the
+  browser as Display P3 gives the numbers written, exactly; read back as sRGB it gives the sRGB frame to within
+  one level where the colour is well inside sRGB.
+- **Not done:** the editing screen still shows sRGB, so a P3 file can hold a colour stronger than the one
+  seen while editing (its hue and lightness are the same). A P3 canvas on screens that have it is the rest of
+  this.
+
+**The JPEG encoder** (row 26), measured on a crop of one of the owner's exports with the encoder the app has
+(`jpeg-encoder`): its other quantization tables make larger files for the same SSIM; Huffman tables fitted to
+the picture save 2 to 4.5 % with the same pixels, but need two passes over an export's bands; progressive
+saves nothing at these qualities. Nothing there earns its place. A real gain needs another encoder
+(`mozjpeg-rs`, BSD-3-Clause, with trellis quantization; `jpegli-rs` is AGPL): new third-party code in the
+app, which is the owner's to decide. Not started.
+
 ## The dial says how the page kept up while it was turned (2026-11-14)
 
 Road map pull request 4, its first step. The owner: the dial and other elements glitch at times. Nothing here

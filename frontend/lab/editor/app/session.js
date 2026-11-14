@@ -227,7 +227,7 @@ export const stamp = () => gen;
 export const whole = () => big;
 /** Brings the engine's colour table and tone mask back to the photo as it is on screen: a look's tile or the
  * 100 % view's map may have drawn it another way since. For work that draws without a frame of its own (export). */
-export const settle = () => paint({ fit: false });
+export const settle = (/** @type {{ wide?: boolean }} */ more = {}) => paint({ fit: false, ...more });   // wide: for a Display P3 file's pieces (save.js): never left so for the screen
 export { jpegBand } from './decoder.js';
 /** The upright photo's size in sensor pixels. */
 export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);

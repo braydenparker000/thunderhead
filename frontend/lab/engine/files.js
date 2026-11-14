@@ -2,6 +2,7 @@
 // The files an export writes: JPEG, PNG and 16-bit TIFF. Each takes the photo a few rows at a time and grows a
 // Blob, which the browser keeps, not the page: a 40 MP export never sits whole in the page's memory.
 import { block, entry } from './exif.js';
+import { p3Profile } from './icc.js';
 
 /** A file being written: `rows` takes the next n rows (sRGB, 16 bits a colour, three a pixel).
  * @typedef {{ rows: (px: Uint16Array, n: number) => Promise<void>, done: () => Promise<Blob> }} Writer */
@@ -11,12 +12,14 @@ import { block, entry } from './exif.js';
 /** What a file is to be, as plain data that can cross to the export's thread: its format (as the Export board
  * names it), its JPEG quality (the board's), the Exif it carries (exif.js `carry`), and a line of text on how it was
  * made (`note`: a JPEG's comment, a PNG's Comment, a TIFF's ImageDescription), or none.
- * @typedef {{ fmt: string, q: number, kept: import('./exif.js').Entry[] | null, note?: string }} Spec */
+ * `wide`: its colours are Display P3's, and it carries the profile that says so (icc.js); else sRGB's.
+ * @typedef {{ fmt: string, q: number, kept: import('./exif.js').Entry[] | null, note?: string, wide?: boolean }} Spec */
 
 /** The writer a Spec asks for, at w × h. @param {Spec} s @param {number} w @param {number} h @param {Band | null} band @returns {Writer} */
 export function writer(s, w, h, band) {
-  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept), s.note); }
-  return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept), s.note) : tiff(w, h, s.kept, s.note);
+  const icc = s.wide ? p3Profile() : null;
+  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept), s.note, icc); }
+  return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept), s.note, icc) : tiff(w, h, s.kept, s.note, icc);
 }
 
 /** The encoder's quality for the Export board's (2026-11-13). Up to 90 they are the same; from 90 to 100 the board's
@@ -48,8 +51,9 @@ const bytes = (/** @type {number[]} */ ...b) => new Uint8Array(b);
  * up; the encoder is given `encoderQuality` of it (97 at most).
  * @param {number} w @param {number} h @param {number} quality 1 to 100, as the Export board says it
  * @param {Band} band
- * @param {Uint8Array | null} exif an Exif block @param {string} [note] a comment (COM) after the Exif @returns {Writer} */
-export function jpeg(w, h, quality, band, exif, note) {
+ * @param {Uint8Array | null} exif an Exif block @param {string} [note] a comment (COM) after the Exif
+ * @param {Uint8Array | null} [icc] a colour profile (APP2, after the Exif: a profile this small is one segment) @returns {Writer} */
+export function jpeg(w, h, quality, band, exif, note, icc = null) {
   const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell), q = encoderQuality(quality);   // a block of the JPEG, and how many a row
   const deep = Math.max(1, Math.min(256 / cell, Math.floor(65535 / across))) * cell, line = w * 3;   // rows a band
   let blob = new Blob([]), k = 0, hold = new Uint8Array(line * deep), have = 0, y = 0, chain = Promise.resolve();
@@ -65,6 +69,7 @@ export function jpeg(w, h, quality, band, exif, note) {
     const scan = j.subarray(p + len(), j.length - 2);
     if (k === 0) {
       const app = exif && exif.length < 65500 ? [bytes(0xff, 0xe1, (exif.length + 8) >> 8, (exif.length + 8) & 255, 0x45, 0x78, 0x69, 0x66, 0, 0), exif] : [];
+      if (icc && icc.length < 65000) app.push(bytes(0xff, 0xe2, (icc.length + 16) >> 8, (icc.length + 16) & 255), ascii('ICC_PROFILE'), bytes(0, 1, 1), icc);
       const said = note ? ascii(note).subarray(0, 65000) : null;
       if (said) app.push(bytes(0xff, 0xfe, (said.length + 2) >> 8, (said.length + 2) & 255), said);   // the comment, near the start: a cut-off file still has it
       const first = head[0]?.[1] === 0xe0 ? 1 : 0, every = across * (deep / cell);   // the JFIF segment leads; blocks between restarts
@@ -101,12 +106,19 @@ function chunk(type, ...data) {
   v.setUint32(at, ~c >>> 0);
   return b;
 }
+/** Bytes as a zlib stream that packs nothing (one stored block and its checksum): a PNG's profile must be a zlib
+ * stream, and one of half a kilobyte is not worth waiting on a packer for. @param {Uint8Array} d */
+function stored(d) {
+  let a = 1, b = 0; for (const v of d) { a = (a + v) % 65521; b = (b + a) % 65521; }
+  return Uint8Array.from([0x78, 0x01, 1, d.length & 255, d.length >> 8, ~d.length & 255, (~d.length >> 8) & 255, ...d, b >> 8, b & 255, a >> 8, a & 255]);
+}
 /** A PNG, 8 bits a colour, packed by the browser's own deflate as the rows arrive.
- * @param {number} w @param {number} h @param {Uint8Array | null} exif an Exif block @param {string} [note] a tEXt Comment @returns {Writer} */
-export function png(w, h, exif, note) {
+ * @param {number} w @param {number} h @param {Uint8Array | null} exif an Exif block @param {string} [note] a tEXt Comment
+ * @param {Uint8Array | null} [icc] a colour profile (iCCP, in place of the sRGB chunk) @returns {Writer} */
+export function png(w, h, exif, note, icc = null) {
   const pack = new CompressionStream('deflate'), wr = pack.writable.getWriter(), line = w * 3, head = new Uint8Array(13);
   new DataView(head.buffer).setUint32(0, w); new DataView(head.buffer).setUint32(4, h); head.set([8, 2, 0, 0, 0], 8);   // 8 bits, RGB
-  let blob = new Blob([bytes(137, 80, 78, 71, 13, 10, 26, 10), chunk('IHDR', head), chunk('sRGB', bytes(0)), ...(exif ? [chunk('eXIf', exif)] : []),
+  let blob = new Blob([bytes(137, 80, 78, 71, 13, 10, 26, 10), chunk('IHDR', head), icc ? chunk('iCCP', ascii('Display P3'), bytes(0, 0), stored(icc)) : chunk('sRGB', bytes(0)), ...(exif ? [chunk('eXIf', exif)] : []),
     ...(note ? [chunk('tEXt', ascii('Comment'), bytes(0), ascii(note))] : [])]);
   const packed = (async () => {
     let some = /** @type {Uint8Array[]} */ ([]), size = 0;
@@ -136,10 +148,11 @@ export function png(w, h, exif, note) {
 }
 
 /** A TIFF, 16 bits a colour, not compressed, with the photo's Exif directories in its own, and the note as its
- * ImageDescription. @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @param {string} [note] @returns {Writer} */
-export function tiff(w, h, carried, note) {
-  const per = 64, strips = Math.ceil(h / per), ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284, ...(note ? [270] : [])];
-  const said = note ? Uint8Array.from([...ascii(note), 0]) : null, desc = said ? [{ tag: 270, type: 2, count: said.length, data: said }] : [];   // ASCII, ending in a zero
+ * ImageDescription. @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @param {string} [note]
+ * @param {Uint8Array | null} [icc] a colour profile (tag 34675) @returns {Writer} */
+export function tiff(w, h, carried, note, icc = null) {
+  const per = 64, strips = Math.ceil(h / per), ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284, 34675, ...(note ? [270] : [])];
+  const said = note ? Uint8Array.from([...ascii(note), 0]) : null, desc = [...(said ? [{ tag: 270, type: 2, count: said.length, data: said }] : []), ...(icc ? [{ tag: 34675, type: 7, count: icc.length, data: icc }] : [])];   // ASCII, ending in a zero; the profile as plain bytes
   const head = (/** @type {number} */ at) => block((carried || []).filter((e) => !ours.includes(e.tag)).concat(desc,
     entry(256, 4, [w]), entry(257, 4, [h]), entry(258, 3, [16, 16, 16]), entry(259, 3, [1]), entry(262, 3, [2]),   // size, bits, no compression, RGB
     entry(273, 4, Array.from({ length: strips }, (_, i) => at + i * per * w * 6)), entry(274, 3, [1]), entry(277, 3, [3]), entry(278, 4, [per]),

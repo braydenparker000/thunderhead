@@ -3,6 +3,7 @@
 /** The colour table's points per axis. */
 import { TOOLS } from './grade.js';
 import { LOCAL } from './local.js';
+import { SRGB_TO_P3 } from './icc.js';
 
 /** The frame's settings in bytes (struct P below). */
 export const USIZE = 3632;
@@ -212,7 +213,11 @@ fn vivid(c: vec3f) -> vec3f {
 // within a tenth of the edge eases in ahead of it, so a petal's shading is not all laid on the edge. Colours
 // further in than that are not touched. This runs when the colour table is made, never per pixel.
 const EDGE_KNEE = 0.9;
-fn fits(r: vec3f, l: f32, k: f32) -> bool { let s = mv(p.o0, p.o1, p.o2, strong(r, l, k)); return min(s.r, min(s.g, s.b)) >= 0.0; }
+// The colours a file or the screen is given: sRGB's, or (4194304, for a file: icc.js) Display P3's, whose reds and
+// greens reach further. Linear ProPhoto in; linear in that space out, below nothing where it cannot show the colour.
+const WIDE = mat3x3f(${[0, 1, 2].flatMap((j) => SRGB_TO_P3.map((r) => r[j])).map((v) => v.toFixed(7)).join(', ')});
+fn shown(c: vec3f) -> vec3f { let s = mv(p.o0, p.o1, p.o2, c); if ((p.size.w & 4194304u) != 0u) { return WIDE * s; } return s; }
+fn fits(r: vec3f, l: f32, k: f32) -> bool { let s = shown(strong(r, l, k)); return min(s.r, min(s.g, s.b)) >= 0.0; }
 fn fit(c: vec3f) -> vec3f {
   let q = vec3f(dot(c, vec3f(0.7153289, 0.3529082, -0.0682371)), dot(c, vec3f(0.2743544, 0.6678509, 0.0577947)), dot(c, vec3f(0.1097542, 0.1862089, 0.7040370)));
   let r = sign(q) * pow(abs(q), vec3f(1.0 / 3.0)); let l = dot(r, vec3f(0.2104543, 0.7936178, -0.0040720));
@@ -253,9 +258,12 @@ fn colour(c0: vec3f) -> vec3f {
 // table read between its points blurs one: highlights blown to white came out tinted (244 of 255 in one colour
 // on up to 4 % of a photo a stop over, measured against the exact path) and a strong colour moved by up to 22 levels.
 fn finish(c: vec3f) -> vec3f {
-  let fl = p.size.w; let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = select(1.055 * pow(o, vec3f(1.0 / 2.4)) - 0.055, 12.92 * o, o <= vec3f(0.0031308));
+  let fl = p.size.w; let o = clamp(shown(c), vec3f(0.0), vec3f(1.0)); var e = select(1.055 * pow(o, vec3f(1.0 / 2.4)) - 0.055, 12.92 * o, o <= vec3f(0.0031308));
   if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
+  // 8388608: a Display P3 file of a photo whose look has a table of its own, or a point curve. Both are made for
+  // sRGB's numbers, so the picture is made as sRGB's and then written in P3's numbers: the same colours, none wider.
+  if ((fl & 8388608u) != 0u) { let w = clamp(WIDE * vec3f(dec(e.r), dec(e.g), dec(e.b)), vec3f(0.0), vec3f(1.0)); e = vec3f(enc(w.r), enc(w.g), enc(w.b)); }
   return e;
 }
 fn develop(c0: vec3f) -> vec3f { return finish(colour(c0)); }

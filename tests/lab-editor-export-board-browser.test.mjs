@@ -77,6 +77,33 @@ test('an export keeps the screen awake, and each file with metadata says how it 
   await context.close();
 });
 
+test('Color space on the Export board: Display P3 files carry its profile, sRGB files none, and one choice holds for all of an export\'s files', opts, async () => {
+  // app/save.js, engine/icc.js, engine/files.js. (That the P3 file's colours are right is the engine's test: tests/lab-engine-pictures-browser.test.mjs.)
+  const { context, page, errors } = await opened(1200, 800);
+  const r = await page.evaluate(async () => {
+    const save = await import('/lab/editor/app/save.js');
+    const base = { long: 99999, gps: false, q: 90, meta: 'None' }, three = (space) => [{ ...base, fmt: 'JPEG', file: 'a.jpg', space }, { ...base, fmt: 'PNG', file: 'a.png', space }, { ...base, fmt: 'TIFF 16', file: 'a.tif', space }];
+    const heads = async (list) => Promise.all((await save.save(list, () => {})).map(async (f) => new TextDecoder('latin1').decode(new Uint8Array(await f.blob.slice(0, 4096).arrayBuffer()))));
+    const wide = await heads(three('Display P3')), plain = await heads(three('sRGB'));
+    const marks = (h) => [h.includes('ICC_PROFILE'), h.includes('iCCP'), h.includes('mntrRGB XYZ'), h.includes('sRGB')];
+    return { wide: wide.map(marks), plain: plain.map(marks) };
+  });
+  // [a JPEG's ICC segment, a PNG's iCCP chunk, the profile's own header, a PNG's sRGB chunk]
+  assert.deepEqual(r.wide, [[true, false, true, false], [false, true, true, false], [false, false, true, false]], 'JPEG, PNG and TIFF each carry the Display P3 profile, in its own place');
+  assert.deepEqual(r.plain, [[false, false, false, false], [false, false, false, true], [false, false, false, false]], 'an sRGB export carries none (a PNG says sRGB, as before)');
+  // on the board, the row changes every file of the export together and is kept
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Export' })));
+  await page.locator('#stage [role=option]', { hasText: /^\s*format\s*$/i }).first().click();   // the drum turned to Format: the kinds of file, Quality, Color space
+  const row = page.locator('#stage button', { hasText: /color space/i }).first();
+  await row.waitFor({ timeout: 20_000 });
+  assert.match(await row.textContent(), /sRGB/i);
+  await row.click();
+  await page.waitForFunction(() => /Display P3/i.test([...document.querySelectorAll('#stage button')].find((b) => /color space/i.test(b.textContent))?.textContent || ''));
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.export.presets')).map((x) => x.space)), ['Display P3', 'Display P3']);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 // this phone's past exports: the usual way 20 s a megapixel, the network 40 s
 const past = [5, 6, 7].flatMap((mp) => [{ at: 1, kind: 'save', ms: 20_000 * mp, px: mp * 1e6, net: 0 }, { at: 1, kind: 'save', ms: 40_000 * mp, px: mp * 1e6, net: 1 }]);
 const tell = (page) => page.evaluate(() => document.querySelector('#stage [data-tell="export"]')?.textContent.trim() ?? '');

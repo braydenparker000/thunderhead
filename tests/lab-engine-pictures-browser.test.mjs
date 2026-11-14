@@ -206,6 +206,62 @@ test('an export asked of the network where the network cannot run is refused, ne
   await page.close();
 });
 
+test('a Display P3 file: sRGB\'s colours where sRGB has them, stronger ones where it has not, and a profile the browser reads as P3', opts, async () => {
+  // icc.js, wgsl.js `shown`, files.js. The frame is made in P3's numbers (never for the screen), the edge strong colours
+  // are eased in at is P3's, and the file carries a profile written here. The browser's own colour management is the
+  // second opinion: it must read the file's numbers back as they were written when asked for P3, and as the sRGB
+  // frame's when asked for sRGB.
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), files = await import('/lab/engine/files.js'), { SRGB_TO_P3, inverse, p3Profile } = await import('/lab/engine/icc.js');
+    const eng = await engine(document.createElement('canvas'), known(480), true);
+    eng.setProfile(null);
+    const shot = async (/** @type {boolean} */ wide) => { await eng.render(0.25, 1, { saturation: 0.7, dither: false, wide }); return eng.snapshot(); };
+    const narrow = await shot(false), wide = await shot(true), again = await shot(false), w = narrow.width, h = narrow.height, back = inverse(SRGB_TO_P3);
+    const dec = (/** @type {number} */ v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }, enc = (/** @type {number} */ x) => 255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055);
+    const well = (/** @type {number[]} */ lin) => Math.min(...lin) >= 0.3 * Math.max(...lin);   // well inside sRGB: its weakest part at least three tenths of its strongest
+    // each pixel of the P3 frame, brought to sRGB's numbers: inside sRGB it must be the sRGB frame's pixel; outside, a part of it is below nothing
+    let inside = 0, outside = 0, off = 0, most = 0, differ = 0;
+    for (let i = 0; i < w * h * 4; i += 4) {
+      const lin = [0, 1, 2].map((c) => dec(wide.data[i + c])), s = back.map((row) => row[0] * lin[0] + row[1] * lin[1] + row[2] * lin[2]);
+      if (wide.data[i] !== narrow.data[i] || wide.data[i + 1] !== narrow.data[i + 1] || wide.data[i + 2] !== narrow.data[i + 2]) differ++;
+      if (Math.min(...s) < -0.004) { outside++; continue; }
+      // (a colour within a tenth of sRGB's edge is eased in for an sRGB frame, wgsl.js `fit`, and need not be for P3: only colours well inside are held to be the same)
+      if (!well(s) || [0, 1, 2].some((c) => narrow.data[i + c] < 3 || narrow.data[i + c] > 252)) continue;
+      inside++;
+      for (let c = 0; c < 3; c++) { const d = Math.abs(enc(Math.max(0, s[c])) - narrow.data[i + c]); off += d; if (d > most) most = d; }
+    }
+    // the file: a PNG with the profile, read back by the browser
+    const file = files.png(w, h, null, undefined, p3Profile()), px = new Uint16Array(w * h * 3);
+    for (let i = 0, j = 0; i < w * h * 4; i += 4) { px[j++] = wide.data[i] * 257; px[j++] = wide.data[i + 1] * 257; px[j++] = wide.data[i + 2] * 257; }
+    await file.rows(px, h);
+    const blob = await file.done(), bytes = new Uint8Array(await blob.arrayBuffer()), text = new TextDecoder('latin1').decode(bytes.subarray(0, 900));
+    const read = async (/** @type {PredefinedColorSpace} */ space) => { const c = new OffscreenCanvas(w, h), g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d', { colorSpace: space })); g.drawImage(await createImageBitmap(blob), 0, 0); return g.getImageData(0, 0, w, h, { colorSpace: space }).data; };
+    const asP3 = await read('display-p3'), asSrgb = await read('srgb');
+    let p3Off = 0, sOff = 0, sN = 0;
+    for (let i = 0; i < w * h * 4; i += 4) for (let c = 0; c < 3; c++) {
+      p3Off = Math.max(p3Off, Math.abs(asP3[i + c] - wide.data[i + c]));
+      if (well([0, 1, 2].map((k) => dec(narrow.data[i + k]))) && [0, 1, 2].every((k) => narrow.data[i + k] >= 3 && narrow.data[i + k] <= 252)) { sOff = Math.max(sOff, Math.abs(asSrgb[i + c] - narrow.data[i + c])); sN++; }
+    }
+    eng.dispose();
+    return { px: w * h, inside, outside, mean: off / Math.max(1, inside * 3), most, differ, same: narrow.data.every((v, i) => v === again.data[i]), chunks: [text.includes('iCCP'), text.includes('sRGB'), text.includes('Display P3')], p3Off, sOff, sN };
+  });
+  console.log(`# P3: ${JSON.stringify(r)}`);
+  assert.ok(r.outside > r.px / 200, `with colour strengthened, part of the photo is outside sRGB and the P3 frame keeps it (${r.outside} of ${r.px} pixels)`);
+  assert.ok(r.inside > r.px / 4 && r.mean < 0.6 && r.most <= 2, `well inside sRGB the P3 frame holds the sRGB frame's colours (${r.mean.toFixed(3)} levels on average, ${r.most.toFixed(1)} at most, over ${r.inside} pixels)`);
+  assert.ok(r.differ > r.px / 2, 'and its numbers are P3\'s, not sRGB\'s');
+  assert.equal(r.same, true, 'the screen\'s frame after it is the screen\'s frame as before');
+  assert.deepEqual(r.chunks, [true, false, true], 'the PNG carries the profile, named, in place of the sRGB chunk');
+  assert.ok(r.p3Off <= 1, `read as Display P3 the file's numbers come back as written (off by ${r.p3Off})`);
+  assert.ok(r.sN > r.px / 2 && r.sOff <= 2, `read as sRGB they come back as the sRGB frame's, where the colour is well inside sRGB (off by ${r.sOff})`);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('an edit that pushes strong colours past the screen\'s edge brings them back to it, never to black', opts, async () => {
   // Whites, Contrast and Auto strengthen colour, and a strong yellow or green then lies past what a screen shows.
   // wgsl.js `fit` takes its strength down to the edge. It used to hand tanh an argument too large for a GPU,
