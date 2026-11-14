@@ -738,6 +738,14 @@ The owner exported photos on the phone and was disappointed; the timings and the
   encoder's 90..97 (`files.js` `encoderQuality`; up to 90 unchanged; colour still whole from the board's 90).
   Measured on the owner's 40 MP photo: 100 63 MB, 97 37 MB, 95 28 MB, 95 with half the colour 21 MB. The board
   shows no JPEG size estimate, so there was none to change.
+  **Undone 2026-11-14, at the owner's word: 100 means 100.** The owner saw the files grow much smaller and asked
+  whether quality had gone. It had: the top of the dial was less than it said. Measured on a piece of an ISO 640
+  photo made by the network (error against the picture before the JPEG, levels of 255; size at that piece's rate
+  for 40 MP): the encoder's 94 (the board's 95 that day) 1.43 and 14 MB; 95, 1.33 and 16 MB; 97 (the board's 100
+  that day) 1.03 and 21 MB; 100, 0.49 and 44 MB. The board's number is now the encoder's, number for number
+  (`files.js` `jpeg`); `encoderQuality` is gone. The same day's question, whether the faster export had cost
+  quality: the same piece by the network with the code of the 13th's evening and with the live code came to
+  files of 618,203 and 618,080 bytes, no value more than 1 level apart (the dither).
 - **The recipes' High ISO NR and grain were too strong** (the table above): NR now scales the photo's own start
   (−4, which 302 of the 394 recipes say, keeps 60 %), and grain is halved.
 - **Every export says how it was made.** A file with metadata on carries one line of JSON (under 1,500 bytes): the

@@ -76,9 +76,9 @@ test('the same export made on its own thread and on the page is the same to the 
   await context.close();
 });
 
-// The Export board's quality 100 is the encoder's 97 (files.js `encoderQuality`): at the encoder's 100 every
-// quantisation table is all ones, which made a 63 MB file of a 40 MP photo.
-test('an export at quality 100 is not the encoder\'s 100: its tables are not all ones, and it is smaller', opts, async () => {
+// The Export board's quality 100 is the encoder's 100 (owner, 2026-11-14): every quantisation table all ones, the
+// most a JPEG can keep. And 95 is the encoder's 95: a smaller file, by tables that are not all ones.
+test('an export at quality 100 is the encoder\'s 100: every table all ones; at 95 it is smaller', opts, async () => {
   const { context, page, errors } = await opened(1500, 1000);
   const r = await page.evaluate(async () => {
     const save = await import('/lab/editor/app/save.js'), photo = await import('/lab/editor/app/session.js'), { develop } = await import('/lab/engine/export.js');
@@ -96,14 +96,16 @@ test('an export at quality 100 is not the encoder\'s 100: its tables are not all
     let raw;
     await photo.alone(async () => { await photo.settle(); [raw] = await develop(photo.whole(), [{ long: 99999, file: () => ({ fmt: 'JPEG', q: 100, kept: null }) }], () => {}, null, false, { encode: (rgb, w, h, q, fine) => photo.jpegBand(rgb, w, h, 100, fine) }); });
     const a = new Uint8Array(await made.blob.arrayBuffer()), b = new Uint8Array(await raw.blob.arrayBuffer());
-    return { sizes: [a.length, b.length], ours: tables(a), bypassed: tables(b), wh: [made.width, made.height] };
+    const [less] = await save.save([{ fmt: 'JPEG', long: 99999, q: 95, meta: 'None', gps: false, file: 'q95.jpg' }], () => {}), c = new Uint8Array(await less.blob.arrayBuffer());
+    return { sizes: [a.length, b.length, c.length], ours: tables(a), bypassed: tables(b), at95: tables(c), wh: [made.width, made.height] };
   });
   assert.equal(r.wh[0], 1500, 'the whole photo');
   assert.ok(r.ours.length >= 2 && r.bypassed.length >= 2, `tables found: ${r.ours.length}, ${r.bypassed.length}`);
   assert.ok(r.bypassed.every((t) => t.every((v) => v === 1)), 'the encoder at 100: every table all ones (no loss, no saving)');
-  assert.ok(r.ours.every((t) => t.some((v) => v > 1)), `the board's 100: no table all ones (${r.ours.map((t) => t.slice(0, 4))})`);
-  assert.ok(r.sizes[0] < r.sizes[1] * 0.8, `smaller than with the mapping bypassed: ${r.sizes[0]} bytes against ${r.sizes[1]}`);
-  console.log(`# quality 100 on a 1500 × 1000 photo: ${r.sizes[0]} bytes, the encoder's own 100 ${r.sizes[1]}`);
+  assert.ok(r.ours.every((t) => t.every((v) => v === 1)), `the board's 100: every table all ones too (${r.ours.map((t) => t.slice(0, 4))})`);
+  assert.ok(Math.abs(r.sizes[0] - r.sizes[1]) < r.sizes[1] * 0.01, `the same size as the encoder asked for 100 itself: ${r.sizes[0]} bytes against ${r.sizes[1]}`);
+  assert.ok(r.at95.every((t) => t.some((v) => v > 1)) && r.sizes[2] < r.sizes[0] * 0.8, `95 is less than 100: ${r.sizes[2]} bytes against ${r.sizes[0]}`);
+  console.log(`# quality 100 on a 1500 × 1000 photo: ${r.sizes[0]} bytes, the encoder's own 100 ${r.sizes[1]}, quality 95 ${r.sizes[2]}`);
   assert.deepEqual(errors, []);
   await context.close();
 });

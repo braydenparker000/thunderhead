@@ -1,11 +1,11 @@
 // An export's numbers, without a browser: how long it should take from this phone's own past exports and how long
-// is left while it runs (frontend/lab/editor/app/eta.js); the encoder's quality for the Export board's
-// (frontend/lab/engine/files.js `encoderQuality`); and the line a file carries on how it was made
+// is left while it runs (frontend/lab/editor/app/eta.js); the Export board's quality asked of the encoder as it is
+// (frontend/lab/engine/files.js `jpeg`); and the line a file carries on how it was made
 // (app/export-note.js), written by the PNG and TIFF writers and read back by scripts/export-note.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { about, countdown, estimate, left, perMp } from '../frontend/lab/editor/app/eta.js';
-import { encoderQuality, jpeg, png, tiff } from '../frontend/lab/engine/files.js';
+import { jpeg, png, tiff } from '../frontend/lab/engine/files.js';
 import { MOST, noteLine } from '../frontend/lab/editor/app/export-note.js';
 import { noteIn } from '../scripts/export-note.mjs';
 
@@ -46,12 +46,13 @@ test('the time left follows the rate measured so far, at most once a second, and
   assert.equal(countdown(60_000)(0, 0), 60_000, 'with an estimate, that is the start');
 });
 
-test('the board\'s quality 100 is the encoder\'s 97; up to 90 they are the same', () => {
-  assert.deepEqual([1, 50, 85, 89, 90, 91, 93, 95, 97, 99, 100].map(encoderQuality), [1, 50, 85, 89, 90, 91, 92, 94, 95, 96, 97]);
-  for (let q = 50; q < 100; q++) assert.ok(encoderQuality(q + 1) >= encoderQuality(q) && encoderQuality(q + 1) - encoderQuality(q) <= 1, `smooth at ${q}`);
+test('the board\'s quality is the encoder\'s, number for number: 100 is 100', async () => {
+  const asked = [], band = async (rgb, w, h, q, fine) => { asked.push([q, fine]); return new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0, 4, 0, 1, 0xff, 0xc0, 0, 11, 8, 0, h, 0, w, 1, 1, 0x11, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 9, 9, 0xff, 0xd9]); };
+  for (const q of [1, 50, 85, 89, 90, 91, 95, 97, 99, 100]) { const w = jpeg(4, 2, q, band, null); await w.rows(new Uint16Array(4 * 2 * 3), 2); await w.done(); }
+  assert.deepEqual(asked, [1, 50, 85, 89, 90, 91, 95, 97, 99, 100].map((q) => [q, q >= 90]), 'each asked of the encoder as the board says it; colour whole from 90');
 });
 
-test('a JPEG writer asks the encoder for the mapped quality and puts the note just after the Exif', async () => {
+test('a JPEG writer asks the encoder for the board\'s quality and puts the note just after the Exif', async () => {
   // a stand-in encoder: a band as a small JPEG of the shape the writer expects (tables, frame, scan)
   const asked = [], band = async (rgb, w, h, q, fine) => {
     asked.push([q, fine]);
@@ -62,7 +63,7 @@ test('a JPEG writer asks the encoder for the mapped quality and puts the note ju
   const w = jpeg(4, 2, 100, band, exif, line);
   await w.rows(new Uint16Array(4 * 2 * 3), 2);
   const b = new Uint8Array(await (await w.done()).arrayBuffer());
-  assert.deepEqual(asked, [[97, true]], 'the encoder is asked for 97, colour kept whole');
+  assert.deepEqual(asked, [[100, true]], 'the encoder is asked for 100, colour kept whole');
   const com = [...b].findIndex((v, i) => v === 0xff && b[i + 1] === 0xfe), app1 = [...b].findIndex((v, i) => v === 0xff && b[i + 1] === 0xe1);
   assert.equal(com, app1 + 2 + ((b[app1 + 2] << 8) | b[app1 + 3]), 'the comment follows the Exif');
   assert.equal(noteIn(b), line);
