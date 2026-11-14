@@ -1136,6 +1136,33 @@ What it decides: if the two together, kept up, are well above the GPU alone (say
 are worth building, on as many cores as the best pair used. If they are not, the time is in the phone, not in
 how its work is divided, and the CPU stays out.
 
+## A pack of looks in one pick (2026-11-14)
+
+Presets made by others are passed around as packs: one `.zip` holding hundreds of `.xmp` files, sometimes in
+folders. IMPORT read `.xmp` and `.cube` files already, but a pack had to be opened elsewhere and its files picked
+by hand. Now IMPORT takes the `.zip` itself (`frontend/lab/editor/app/pack.js`): the archive's own list is read,
+each `.xmp` and `.cube` inside is opened with what the browser has (`DecompressionStream`; no library) and brought
+in as before, and what else the pack holds is counted and said. A file may not open to more than the pack says it
+holds, nor to more than 16 MB; a pack may hold 2000 files; a locked or split archive is refused in words.
+
+- Each look remembers its pack. With one of them picked, DELETE PACK (two taps) takes the whole pack away.
+- A look that is here already (the same name and the same contents) is not kept twice, so a pack picked again
+  adds nothing.
+- The strips of Presets and Mine make their small pictures as they come near, as the recipes' strip did, so a
+  long strip does not ask for hundreds of pictures at once.
+
+Measured in the editor on the software GPU: a pack of 451 presets comes in within 2.3 s.
+
+**What is not done.** A long pack lands in Mine as one long strip: the groups a preset names for itself are not
+read yet, and would be the way to walk a large pack. The older `.lrtemplate` presets are not read. A preset's
+strengths are still not fitted to Lightroom's (ROADMAP.md stage 4), so a look lands near what its maker saw.
+
+**Where packs come from.** None is bundled: the free collections that were looked at (2026-11-14) are either
+gathered from other people's work or do not say how they were made, and what the site serves is published. The
+one that fits this import as it is: `peva3/EmulsionPresets` on GitHub (MIT by its licence file; 451 `.xmp` film
+looks as one 440 KB zip in its releases; its notes cite outside recipes and do not say how they were adapted).
+The HaldCLUT film collections (RawTherapee's, G'MIC's) are pictures, not `.cube` files, and are not read here.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
