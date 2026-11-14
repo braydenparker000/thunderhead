@@ -33,8 +33,7 @@ const pill = el('div', 'past');
 /** The card's height lifts the conversation's end above it. */
 const dock = new ResizeObserver(() => {
   if (!pill.isConnected) return;
-  // A conversation already at its end stays there: when the card's height came after the scroll to the end
-  // (a slow phone), the end was left that much short, under the card.
+  // (a conversation at its end stays there: the card's height may come after the scroll to the end)
   const c = $('#convo'), atEnd = c.scrollHeight - c.scrollTop - c.clientHeight < 4;
   document.documentElement.style.setProperty('--past-h', `${pill.offsetHeight + 10}px`);
   if (atEnd) c.scrollTop = c.scrollHeight;
