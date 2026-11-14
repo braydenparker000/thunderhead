@@ -22,11 +22,6 @@ export function writer(s, w, h, band) {
   return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept), s.note, icc) : tiff(w, h, s.kept, s.note, icc);
 }
 
-/** The encoder's quality for the Export board's (2026-11-13). Up to 90 they are the same; from 90 to 100 the board's
- * runs to the encoder's 97, a step at a time. At the encoder's 100 every table is 1, which loses nothing and saves
- * nothing: measured on the owner's 40 MP photo, 100 made 63 MB, 97 37 MB, 95 28 MB (and 95 with half the colour
- * resolution 21 MB), none of them with a difference an eye finds. @param {number} q the board's quality, 1 to 100 */
-export const encoderQuality = (q) => (q <= 90 ? q : Math.round(90 + (Math.min(100, q) - 90) * 0.7));
 /** A line of text as bytes, anything past ASCII written as JSON's \u escapes (a PNG's text is Latin-1). @param {string} t */
 const ascii = (t) => Uint8Array.from(t.replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`), (c) => c.charCodeAt(0));
 
@@ -48,13 +43,15 @@ const bytes = (/** @type {number[]} */ ...b) => new Uint8Array(b);
 
 /** A JPEG. The decoder's encoder makes it a band at a time; every band shares its tables, so their scans join
  * into one file with a restart marker between them. Colour is kept at full resolution from the board's quality 90
- * up; the encoder is given `encoderQuality` of it (97 at most).
+ * up. The encoder is given the board's quality as it is: 100 is the encoder's 100, where every table is 1 and the
+ * file is the largest a JPEG can be (owner, 2026-11-14: for a day the board's 90 to 100 had been made the encoder's
+ * 90 to 97 to keep files small, which made the top of the dial less than it said).
  * @param {number} w @param {number} h @param {number} quality 1 to 100, as the Export board says it
  * @param {Band} band
  * @param {Uint8Array | null} exif an Exif block @param {string} [note] a comment (COM) after the Exif
  * @param {Uint8Array | null} [icc] a colour profile (APP2, after the Exif: a profile this small is one segment) @returns {Writer} */
 export function jpeg(w, h, quality, band, exif, note, icc = null) {
-  const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell), q = encoderQuality(quality);   // a block of the JPEG, and how many a row
+  const fine = quality >= 90, cell = fine ? 8 : 16, across = Math.ceil(w / cell), q = Math.max(1, Math.min(100, Math.round(quality)));   // a block of the JPEG, and how many a row
   const deep = Math.max(1, Math.min(256 / cell, Math.floor(65535 / across))) * cell, line = w * 3;   // rows a band
   let blob = new Blob([]), k = 0, hold = new Uint8Array(line * deep), have = 0, y = 0, chain = Promise.resolve();
   const part = async (/** @type {Uint8Array} */ rgb, /** @type {number} */ n) => {
