@@ -106,7 +106,9 @@ if (isMain && process.argv[2] === '--measure') {
   const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
   console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
   // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
-  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
+  // --test-timeout: a test with no limit of its own that stops answering (a browser that stalled: CI, 2026-11-14,
+  // thirteen silent minutes until the job's limit cancelled the part) fails in three minutes, by name.
+  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', '--test-timeout=180000', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
   const first = run(light), second = run(slow, ['--test-concurrency=1']);
   process.exit(first || second);
 }
