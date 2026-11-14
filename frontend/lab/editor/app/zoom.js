@@ -23,6 +23,7 @@ import { note } from './timings.js';
 import { fling, gliding, halt, heard, speed, trail } from './fling.js';
 import { hear } from './taps.js';
 import { tell } from './told.js';
+import { moved } from './moved.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -157,7 +158,7 @@ function touch(/** @type {PointerEvent} */ e) {
   const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; trail.length = 0; };   // two: two fingers were down at some point of this gesture
   if (e.type === 'pointerdown') {
     if (pts.size > 1) return;
-    pts.set(e.pointerId, at); begin();
+    pts.set(e.pointerId, at); begin(); moved(() => !!g || gliding(), making2 > 0);
     if (pts.size > 1) for (const id of pts.keys()) ear().setPointerCapture(id);
   } else if (e.type === 'pointermove') {
     if (!pts.has(e.pointerId) || !g) return;
@@ -234,6 +235,9 @@ function stale() {
   closer.style.display = 'none'; fined = -1; clearTimeout(again);
   again = window.setTimeout(() => { again = 0; if (z / full() >= FINE) settle(0); }, 400);
 }
+/** A full-size view is made for the screen a part at a time (engine/full.js `region`) and left undone the moment fingers move the photo, it glides, a newer job has begun or an edit's frame waits; `took` gathers each part's time. */
+let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); } });
+const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const FINE = 0.999;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best)
 /** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
  * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
@@ -246,10 +250,11 @@ async function finer(mine, X, Y, w, h) {
   if (!fine.net || mine !== job) { if (fine.lost && !lostSaid) { lostSaid = true; tell('Best quality cannot run on this phone just now: this is the standard view'); } return; }   // a GPU that will not have the network: the live view is all there is, and it is said, once
   const began = performance.now();
   let im = /** @type {ImageData | null} */ (null), at = fine.at();
-  await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h); im = await fine.read(); fine.rest(); });
-  if (mine !== job || !im || !at) return;
+  const took = /** @type {number[]} */ ([]);
+  making2++; try { await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h, null, pace(mine, took)); im = at && (await fine.read()); fine.rest(); }); } finally { making2--; }
+  if (mine !== job || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...parts(took) }); return; }
   closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d')).putImageData(im, 0, 0);
-  place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}) });
+  place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...parts(took) });
 }
 async function detail(/** @type {number} */ mine) {
   mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
@@ -264,7 +269,9 @@ async function detail(/** @type {number} */ mine) {
     if (Math.abs(p - 1) < 0.001) { tx += (Math.round(dx) - dx) / k; ty += (Math.round(dy) - dy) / k; apply(); }   // at 100 % exactly, on whole screen pixels
     const [rw, rh] = v.room(), w = Math.min(X1 - X + 2, rw), h = Math.min(Y1 - Y + 2, rh);   // strongly straightened, the view holds less than a screenful: its middle
     v.place(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h);
-    own = true; try { await photo.frame(); } finally { own = false; }
+    // its colours are made first, a part at a time, and left if a finger comes down; the frame that follows only lays them out
+    let ok = false; own = true; making2++; try { await photo.alone(async () => { ok = mine === job && !!(await v.region(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h, null, pace(mine, []))); }); if (ok) await photo.frame(); } finally { own = false; making2--; }
+    if (!ok) return;
     if (mine === job) { still.style.display = 'none'; tiled = -1; }
     if (mine === job && p >= FINE && prefOn('photos.neural', true)) await finer(mine, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2).catch((e) => console.warn('zoom network', e)); else if (mine === job) { closer.style.display = 'none'; fined = -1; }
     return;
@@ -275,7 +282,7 @@ async function detail(/** @type {number} */ mine) {
   live.style.display = 'none'; still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high';
   for (let y = Y; y < Y1; y += th) for (let x = X; x < X1; x += tw) {
     let im = /** @type {ImageData | null} */ (null), at = at0;
-    await photo.alone(async () => { if (mine !== job) return; await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y)); im = await v.read(); v.rest(); });
+    await photo.alone(async () => { if (mine !== job) return; await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y), null, pace(mine, [])); im = at && (await v.read()); v.rest(); });
     if (mine !== job || !im || !at) return;
     const bm = await createImageBitmap(im);
     ctx.drawImage(bm, (at.X - X) * p, (at.Y - Y) * p, at.cw * p, at.ch * p); bm.close();

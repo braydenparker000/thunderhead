@@ -170,6 +170,8 @@ export async function draw(fit = true) {
 }
 /** Whether a frame is being drawn or waiting to be (check scripts wait on this, not on a clock). */
 export const busy = () => drawing || again;
+/** Whether a frame is waiting on a job that has the engine to itself (zoom.js leaves a full-size view it is making). */
+export const wanted = () => again;
 /** Runs a job that needs the engine to itself, between the dial's frames. @param {() => Promise<void>} job */
 export async function alone(job) {
   while (drawing) await sleep(30);
