@@ -953,6 +953,21 @@ What followed:
 Next, in this order: the export's overlap (it feeds the network overlapping pieces: maybe 15 to 30 %); then the CPU
 beside the GPU, which the numbers above say is worth building.
 
+## An export's pieces fit the network's windows (2026-11-14)
+
+On the slower phone an export took 1.5 to 1.8 times as long a megapixel as a bare window. Reckoned on one of the
+owner's photos (no network run: the pieces an export cuts, and the windows each needs): a piece was 960 × 512 of
+the picture, and with its edge and the lens's reach (about 80 sensor pixels on this lens) nearly every piece
+spilled a few pixels into a second window, which was made for them with all its context: 96 pieces, 171
+windows, the network given 169 % of the photo. `full.js` `room` now keeps a network view's rectangle inside one
+window (990 sensor pixels a side) wherever on the picture it lies, and an export asks for pieces that fill one
+(`export.js` `NET_SIDE`): 54 pieces, 54 windows, 140 %. What is left is the context round each window, the edge
+each piece is made past for sharpening, and the lens's reach; less than that would need the network's result
+kept across pieces.
+
+With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
+carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

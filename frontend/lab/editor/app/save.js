@@ -127,7 +127,7 @@ export async function save(presets, progress, how = {}) {
     for (const [k, r] of files.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
-  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock) });
+  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
   return saved;
 }
 

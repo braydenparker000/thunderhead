@@ -102,7 +102,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
     const again = { kept, held: clock2.held, rows: big.height, same: await same(file, file2) };
     const bm = await createImageBitmap(file.blob), N = await import('/lab/engine/neural.js'), proved = (await N.compile(eng.gpu.device)).off;
     big.dispose(); eng.dispose();
-    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, laid: [clock.laid, clock2.laid, big.width * big.height], again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
   });
   // before a GPU uses the network it must give a known grey slope back (neural.js `proof`): a driver that gets it wrong is not used
   assert.ok(r.proved >= 0 && r.proved < r.limit / 4, `the network proved itself on this GPU (off by ${r.proved}, at most ${r.limit})`);
@@ -112,8 +112,39 @@ test('a full-size view and an export by the network: the same photo, a little ap
   assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);
   assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 13 });   // and, asked, one of the network's windows timed a pass at a time
   assert.deepEqual(r.file, [240, 240, 240, 240, 'image/png']);
+  // what the network was given: the photo and the context round its piece, once; in the export that carried on, only the band made again
+  assert.ok(r.laid[0] > r.laid[2] && r.laid[0] < 2.5 * r.laid[2] && r.laid[1] > 0 && r.laid[1] < r.laid[0], `the network was given ${r.laid[0]} sensor pixels for a photo of ${r.laid[2]} (${r.laid[1]} for the band made again)`);
   assert.ok(r.again.kept >= 2 && r.again.held > 0 && r.again.held < r.again.rows && r.again.same, `an export that carries on from kept bands makes the same file (${JSON.stringify(r.again)})`);
   assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a piece made by the network stays inside one of its windows, whatever the lens bends', opts, async () => {
+  // full.js `room`: a few sensor pixels past a window and a second window is made for them, context and all. On the
+  // owner's photos an export was given 1.7 times the photo so; cut to fit, 1.4 (2026-11-14).
+  const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
+  await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('html[data-bench=ready]');
+  const r = await page.evaluate(async () => {
+    const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), { full } = await import('/lab/engine/full.js');
+    const k = known(1320), eng = await engine(document.createElement('canvas'), k, true);
+    eng.setProfile(null);
+    eng.setGeometry({ distortion: -0.12, vignetting: 0, crop: null, spots: [] });   // a lens that bends: a piece of the picture draws on a wider piece of the sensor
+    await eng.render(0.25, 1, { fit: false });
+    const big = await full(eng, k, k.mosaic.slice()), out = {};
+    for (const [name, best] of [['network', true], ['usual', false]]) {
+      const v = await big.view(1014, 1014, null, true, true, best), [w, h] = v.room(), rects = [];
+      for (const [u, t] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) { const at = v.place((big.width - w) * u, (big.height - h) * t, w, h); rects.push([at.rw, at.rh]); }
+      out[name] = { net: v.net, room: [w, h], widest: Math.max(...rects.flat()) };
+      v.dispose();
+    }
+    big.dispose(); eng.dispose();
+    return { raw: big.raw, size: [big.width, big.height], ...out };
+  });
+  assert.equal(r.raw, true);
+  assert.equal(r.network.net, true);
+  assert.ok(r.network.widest <= 990 && r.network.room[0] >= 700, `by the network every piece draws on at most 990 sensor pixels a side (${JSON.stringify(r.network)})`);
+  assert.ok(r.usual.widest > 990 && r.usual.room[0] > r.network.room[0], `the usual way is held only by its buffers (${JSON.stringify(r.usual)})`);
   await page.close();
 });
 
