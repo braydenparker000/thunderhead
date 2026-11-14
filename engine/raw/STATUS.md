@@ -968,6 +968,24 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## The pictures are checked on the phone without anyone asking (2026-11-14)
+
+Road map pull request 2. The owner's first doubt: whether every stage is truly what it claims, on their phone.
+The weakest proof was there: the half-float network a phone runs cannot run on any test machine, and the check
+that develops the known photo on the phone's own chip and holds it against the reference (`bench.js`
+`pictures`, since stage 1) was a button the owner had to find, press and paste from.
+
+Now `frontend/lab/engine/checked.js` makes that check once for each release: twelve seconds after the editor's
+Library shows, if it is still what shows (`boot.js`). It keeps the verdict on the phone (`th.pictures.checked`)
+and notes it with the timings as kind `check`: how many pictures, how many are the reference's, which are not
+(a bit each), the furthest off, and how true the network was to the scene, clean and at ISO 6400. Numbers
+about the made-up photo only. The engine test page's button makes the same check and keeps it the same way,
+and the page opens saying what the last one came to. Both pages' run labels are the editor's own
+(`build.js`), not `/config.js`.
+
+What it cannot say: how good the method is (that is the known-picture numbers in `quality/`), only that this
+phone computes the same picture the reference does.
+
 ## The phone ran the release before's editor under the newest label (2026-11-14)
 
 The owner ran the network test on build 769383a and the report came back with three ways a pass, not five, and

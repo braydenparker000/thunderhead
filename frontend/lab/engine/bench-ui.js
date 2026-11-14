@@ -1,7 +1,9 @@
 // @ts-check
 // The test bench's part of the engine page: its buttons, the result as text to copy, and the last runs kept in
 // this browser so a run can be read against the one before (bench.js does the measuring).
-import { NEAR, judge, phone, pictures, timings } from './bench.js';
+import { NEAR, phone, timings } from './bench.js';
+import { BUILD } from './build.js';
+import { check as checkPictures, last as checked, line } from './checked.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const out = $('bout'), KEY = 'th.bench', buttons = /** @type {HTMLButtonElement[]} */ (['ball', 'bcheck'].map($)), file = /** @type {HTMLInputElement} */ ($('bfile'));
@@ -32,15 +34,15 @@ export function text(r, before) {
 }
 const show = () => { const before = past().find((p) => p.at !== run.at); out.textContent = text(run, before); /** @type {HTMLButtonElement} */ ($('bcopy')).disabled = !run.at; /** @type {any} */ (window).__bench = run; };
 const begin = async () => {
-  if (!run.at) { run = { v: 1, at: Date.now(), build: 'dev' }; try { run.build = String((await import('/config.js')).CONFIG.commit).slice(0, 7); } catch { /* a local run */ } run.phone = await phone(); }
+  if (!run.at) { run = { v: 1, at: Date.now(), build: BUILD }; run.phone = await phone(); }   // (the editor's own label: /config.js names the newest release, which may not be the code that runs)
   for (const b of buttons) b.disabled = true; file.disabled = true;
 };
 const end = (/** @type {unknown} */ err) => { for (const b of buttons) b.disabled = false; file.disabled = false; say(err ? `Stopped: ${/** @type {any} */ (err)?.message || err}` : 'Done. Copy the result and paste it where it is wanted.'); if (!err) keep(run); show(); };
 
 async function check() {
   say('Developing the known photo on this phone…');
-  const [got, ref] = await Promise.all([pictures(), fetch('/lab/engine/bench-ref.json').then((r) => r.json())]);
-  run.gpu = got.gpu; run.shots = got.shots; run.verdict = judge(got.shots, ref.shots);
+  const got = await checkPictures();   // kept, and noted with the timings, as the editor's own check is (checked.js)
+  run.gpu = got.gpu; run.shots = got.shots; run.verdict = got.verdict;
   show();
 }
 async function time(/** @type {ArrayBuffer} */ buf) {
@@ -85,5 +87,6 @@ $('bcopy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(t); say('Copied.'); } catch { const r = document.createRange(); r.selectNodeContents(out); getSelection()?.removeAllRanges(); getSelection()?.addRange(r); say('Select and copy the text above.'); }
 });
 const last = past()[0];
-if (last) { out.textContent = `The last run on this phone:\n${text(last, past()[1])}`; }
+// what the editor's own check came to on this phone (it makes one for each release: checked.js), then the last run here
+out.textContent = `${line(checked())}${last ? `\n\nThe last run on this phone:\n${text(last, past()[1])}` : ''}`;
 document.documentElement.dataset.bench = 'ready';   // the buttons answer from here on (the page may reload once first, to run threads)
