@@ -55,3 +55,13 @@ test('the files that draw on the software GPU are known, and a part has time for
     assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's fifteen minutes (CI makes them about twice as slowly)`);
   }
 });
+
+test('on a branch a re-run of the checks cannot pass: a failing test is fixed, not retried into green', () => {
+  // TESTING.md §1 rule 8, kept by the workflow itself since the day it was broken by hand three times (2026-11-14).
+  const checks = readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'), ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const steps = checks.slice(checks.indexOf('    steps:'));
+  assert.match(steps, /^    steps:\n(      #.*\n)*      - if: \$\{\{ inputs\.first_only && github\.run_attempt > 1 \}\}\n        run: \|\n.*\n          exit 1\n/, 'the first step of every part fails a re-run');
+  assert.match(ci, /uses: \.\/\.github\/workflows\/checks\.yml\n    with:\n(      .*\n)*?      first_only: true\n/, 'Test asks for it');
+  assert.doesNotMatch(readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8'), /first_only/, 'Deploy does not: its re-run after an outage stays possible');
+});
+
