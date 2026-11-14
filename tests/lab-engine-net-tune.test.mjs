@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { WAYS, ways } from '../frontend/lab/engine/net-tune.js';
+import { canSlice, sliced } from '../frontend/lab/engine/net-pace.js';
 
 const DIR = new URL('../frontend/lab/engine/nets/starfish-xtrans/', import.meta.url);
 
@@ -20,7 +21,9 @@ test('each of the nine middle passes has ways that stage nothing, each in its ow
       if (!w) continue;
       const f = `${kind}/${o.file} way ${k + 1}`, three = /const KK\b/.test(o.code);
       assert.doesNotMatch(w.code, /var<workgroup>|workgroupBarrier|\bsx\[|\bsw\[/, `${f}: nothing staged`);
-      assert.equal(w.code.slice(0, w.code.indexOf('@compute')).trimEnd(), o.code.slice(0, o.code.indexOf('@compute')).replace(/^var<workgroup>.*\n/gm, '').trimEnd(), `${f}: the exported pass's own constants, bindings, load and store`);
+      // (but for one word more in its window's settings: the output block it starts at, so the screen's can be run a part at a time, net-pace.js)
+      assert.equal(w.code.slice(0, w.code.indexOf('@compute')).trimEnd(), o.code.slice(0, o.code.indexOf('@compute')).replace(/^var<workgroup>.*\n/gm, '').replace('struct Valid { h: u32, w: u32 }', 'struct Valid { h: u32, w: u32, z0: u32 }').trimEnd(), `${f}: the exported pass's own constants, bindings, load and store`);
+      assert.ok(canSlice(w.code) && !/\b(wg|g)\.z\b(?! \+ valid\.z0)/.test(w.code) && !canSlice(o.code), `${f}: every use of its place along z starts from that block; the exported pass has none`);
       assert.deepEqual([...w.code.matchAll(/@binding\((\d)\)/g)].map((m) => m[1]), [...o.code.matchAll(/@binding\((\d)\)/g)].map((m) => m[1]), `${f}: the same bindings`);
       assert.equal((w.code.match(/@compute/g) || []).length, 1, f);
       assert.doesNotMatch(w.code.slice(w.code.indexOf('@compute')), /`|\b\d+\.\d+\b(?!u)/, `${f}: no number in it that would need a float's type spelled out`);
@@ -33,4 +36,12 @@ test('each of the nine middle passes has ways that stage nothing, each in its ow
   }
   assert.deepEqual(ways({ code: 'fn main() {}', groups: [1, 1, 1] }), []);
   assert.equal(WAYS, 5);
+});
+
+test('a sliced way starts at the block its window names; code with no such place is left as it is', () => {
+  const code = 'struct Valid { h: u32, w: u32 }\nfn main() { let ob = wg.z * 2u; let hh = wg.z % 2u; let other = swg.z; let ox = g.z * 4u; }';
+  assert.equal(sliced(code), 'struct Valid { h: u32, w: u32, z0: u32 }\nfn main() { let ob = (wg.z + valid.z0) * 2u; let hh = (wg.z + valid.z0) % 2u; let other = swg.z; let ox = (g.z + valid.z0) * 4u; }');
+  assert.equal(canSlice(sliced(code)), true);
+  assert.equal(sliced('fn main() {}'), 'fn main() {}');
+  assert.equal(canSlice('fn main() {}'), false);
 });

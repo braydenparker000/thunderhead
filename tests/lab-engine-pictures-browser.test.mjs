@@ -101,6 +101,17 @@ test('a full-size view and an export by the network: the same photo, a little ap
     const big = await full(eng, k, k.mosaic.slice());
     const shot = async (/** @type {boolean} */ best) => { const v = await big.view(240, 240, null, true, false, best), at = await v.region(120, 120, 240, 240), im = await v.read(), net = v.net; v.dispose(); return { net, at: [at.cw, at.ch], data: im.data }; };
     const usual = await shot(false), net = await shot(true);
+    // For the screen the same rectangle is made a part at a time (region's `pace`): the same picture to the last value,
+    // in many submissions; stopped, it gives nothing, and made whole afterwards it is right.
+    const paced = async (/** @type {boolean} */ best, /** @type {Uint8ClampedArray} */ whole) => {
+      const v = await big.view(240, 240, null, true, false, best), took = [], same = (/** @type {Uint8ClampedArray} */ d) => d.length === whole.length && d.every((x, i) => x === whole[i]);
+      let asked = 0; const left = await v.region(120, 120, 240, 240, null, { stop: () => ++asked >= 4 });
+      const at = await v.region(120, 120, 240, 240, null, { note: (ms) => took.push(ms) }), a = same((await v.read()).data);
+      v.rest(); const moved = await v.region(100, 100, 240, 240), back = await v.region(120, 120, 240, 240), b = same((await v.read()).data);
+      v.dispose();
+      return { left, asked, made: !!at && !!moved && !!back, same: a, parts: took.length, whole: b };
+    };
+    const pace = { usual: await paced(false, usual.data), net: await paced(true, net.data) };
     let sum = 0, most = 0, light = 0;
     for (let i = 0; i < usual.data.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(usual.data[i + c] - net.data[i + c]); sum += d; most = Math.max(most, d); light += net.data[i + c]; }
     const n = (usual.data.length / 4) * 3, clock = {};
@@ -114,11 +125,15 @@ test('a full-size view and an export by the network: the same photo, a little ap
     const again = { kept, held: clock2.held, rows: big.height, same: await same(file, file2) };
     const bm = await createImageBitmap(file.blob), N = await import('/lab/engine/neural.js'), proved = (await N.compile(eng.gpu.device)).off;
     big.dispose(); eng.dispose();
-    return { proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, laid: [clock.laid, clock2.laid, big.width * big.height], again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
+    return { pace, proved, limit: N.PROOF, nets: [usual.net, net.net], at: net.at, mean: sum / n, most, light: light / n, clock: { net: clock.net, gpu: clock.gpu > 0, steps: Object.keys(clock.split || {}), ops: (clock.ops || []).length }, laid: [clock.laid, clock2.laid, big.width * big.height], again, file: [file.width, file.height, bm.width, bm.height, file.blob.type] };
   });
   // before a GPU uses the network it must give a known grey slope back (neural.js `proof`): a driver that gets it wrong is not used
   assert.ok(r.proved >= 0 && r.proved < r.limit / 4, `the network proved itself on this GPU (off by ${r.proved}, at most ${r.limit})`);
   assert.deepEqual(r.nets, [false, true], 'the view says which way it was made');
+  for (const [way, p] of Object.entries(r.pace)) {
+    assert.deepEqual([p.left, p.asked, p.made, p.same, p.whole], [null, 4, true, true, true], `${way}: made a part at a time it is the same picture; stopped it gives nothing; made whole after, it is right (${JSON.stringify(p)})`);
+    assert.ok(p.parts >= 15, `${way}: in many submissions (${p.parts})`);
+  }
   assert.deepEqual(r.at, [240, 240]);
   assert.ok(r.light > 20, `the network's view is a picture (mean ${r.light.toFixed(1)} of 255)`);
   assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);

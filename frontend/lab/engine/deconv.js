@@ -79,16 +79,21 @@ export async function sharpener(device, raw, spare = []) {
   return {
     /** @param {GPUCommandEncoder} enc @param {number} rw @param {number} rh the rectangle's size @param {number[]} wb the shot's white balance
      * @param {number} amount Sharpening as the frame carries it (1 at the plate's 40: the spread taken out; less: part of that; more: past it)
-     * @param {number} radius the plate's Radius (1: a spread of 0.7 of a pixel) @param {number} detail 0..1: how little is held back as noise */
-    run(enc, rw, rh, wb, amount, radius, detail) {
+     * @param {number} radius the plate's Radius (1: a spread of 0.7 of a pixel) @param {number} detail 0..1: how little is held back as noise
+     * @param {number} [only] this one of its `parts` alone: 0 the start, then a round each, then the end (the screen's views give the GPU a part at a time: full.js) */
+    run(enc, rw, rh, wb, amount, radius, detail, only) {
       if (!(amount > 0)) return;
       const u = new ArrayBuffer(48), g = wb?.[1] || 1;
       new Uint32Array(u).set([rw, rh, 0, 0]); new Float32Array(u).set([(wb?.[0] || g) / g, 1, (wb?.[2] || g) / g, 0, 0.7 * Math.max(0.3, radius), (1 - Math.max(0, Math.min(1, detail))) * 0.06, amount <= 1 ? amount : 1 + (amount - 1) / 2.75, 0], 4);
       device.queue.writeBuffer(uni, 0, u);
       const pass = enc.beginComputePass(), go = (/** @type {{ pipe: GPUComputePipeline, bind: GPUBindGroup }} */ s) => { pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(rw / 8), Math.ceil(rh / 8)); };
-      go(begin); for (let r = 0; r < ROUNDS; r++) round.forEach(go); go(end);
+      const part = (/** @type {number} */ k) => only === undefined || only === k;
+      if (part(0)) go(begin);
+      for (let r = 0; r < ROUNDS; r++) if (part(r + 1)) round.forEach(go);
+      if (part(ROUNDS + 1)) go(end);
       pass.end();
     },
+    parts: ROUNDS + 2,
     destroy: () => { for (const b of [uni, ...own]) b.destroy(); },
   };
 }

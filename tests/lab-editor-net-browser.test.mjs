@@ -22,7 +22,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-test('at 200 % the network makes what shows, once the photo rests, and again after an edit', opts, async () => {
+test('at 200 % the network makes what shows, once the photo rests, and again after an edit; a finger that moves the photo meanwhile is answered at once', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, serviceWorkers: 'block' });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -79,6 +79,28 @@ test('at 200 % the network makes what shows, once the photo rests, and again aft
   const second = await layers();
   assert.equal(second.shown, true);
   assert.ok(second.light > first.light + 5, 'and it comes back brighter by the edit');
+  // It was made a part at a time (engine/net-pace.js, full.js `region`), so the page is drawn while it is made.
+  const made = await fines();
+  assert.ok(made.every((t) => t.parts > 10 && t.part > 0 && !t.left), `each of its pictures was made in many turns on the GPU (${JSON.stringify(made.map((t) => [t.parts, t.part]))})`);
+  // A finger that moves the photo while a view is being made: the work is left at once, the gesture is noted, and
+  // the picture is made for where the photo comes to rest. (The photo is first moved to a new place, so there is
+  // real work to leave: an edit alone keeps the network's colours and only lays them out again.)
+  const count = made.length, cdp = await context.newCDPSession(page);
+  const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 300, id: 7 }] });
+  const drag = async (from, to) => { await touch('touchStart', from); for (let i = 1; i <= 8; i++) { await touch('touchMove', from + ((to - from) * i) / 8); await new Promise((r) => setTimeout(r, 30)); } };
+  await drag(206, 120); await touch('touchEnd', 0);
+  // its views are being made for the new place, and have been for a second and a half: the network's long work is under way
+  for (let on = 0, began = Date.now(); on < 15; on = (await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).info().making)) ? on + 1 : 0) { assert.ok(Date.now() - began < 120_000, 'a view is made after the photo is moved'); await new Promise((r) => setTimeout(r, 100)); }
+  // a real touch, held down and moving for two seconds (the network takes far longer than that here)
+  await touch('touchStart', 206);
+  for (let i = 1; i <= 60; i++) { await touch('touchMove', 166 - 30 * Math.sin(i / 6)); await new Promise((r) => setTimeout(r, 30)); }
+  const held = await page.evaluate(async () => ({ making: (await import('/lab/editor/app/zoom.js')).info().making, fines: JSON.parse(localStorage.getItem('th.editor.timings') || '[]').filter((t) => t.kind === 'fine' && !t.left).length }));
+  assert.deepEqual(held, { making: false, fines: count }, 'with a finger on the photo no view is being made, and the one that was has not been finished behind it');
+  await touch('touchEnd', 0);
+  await page.waitForFunction((n) => { const t = JSON.parse(localStorage.getItem('th.editor.timings') || '[]'); return t.filter((x) => x.kind === 'fine' && !x.left).length > n && t.some((x) => x.kind === 'move' && x.busy === 1); }, count, { timeout: 420_000 });
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]')), move = after.filter((t) => t.kind === 'move' && t.busy === 1).at(-1);
+  assert.ok(move.frames > 6 && move.worst > 0 && move.busy === 1, `the gesture is noted, and that a view was being made when it began (${JSON.stringify(move)})`);
+  assert.equal((await layers()).shown, true, 'and the picture is made where the photo came to rest');
   assert.deepEqual(errors, []);
   await context.close();
 });
