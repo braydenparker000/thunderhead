@@ -31,7 +31,7 @@ of getting here.
 | 3 | Zoom and pan | Frame times recorded during a pinch, a pan and a fling on the phone; then whatever stalls a frame | No frame over 33 ms during a gesture on the phone, by its own numbers | To use it with timings on; a recording of a lag helps |
 | 4 | The dial and the controls | The jumps, flicker and layout shifts found and mended | A test for each fault found | A recording of a glitch |
 | 5 | Sensor truth | A black level for each colour; dead pixels mended. **Closed by measurement, 2026-11-14:** the RAFs state one level for every colour, and none of the owner's eight has a dead sensel (STATUS.md) | Known-picture numbers, before and after | Nothing |
-| 6 | Output | Display P3 with a profile embedded; a better JPEG encoder | A colour round trip; file size at equal quality | Nothing |
+| 6 | Output | Display P3 with a profile embedded (**done 2026-11-14**); a better JPEG encoder (**measured: nothing in the encoder the app has earns its place; another encoder is new third-party code, the owner's to decide**, STATUS.md) | A colour round trip; file size at equal quality | A yes or no on a new encoder |
 | 7 | Layout and feel | The owner's layout notes; transitions, gestures and haptics | The owner's eye | Their notes on what is off |
 | 8 | Presets | Sources with clear licences; an easier import | Imports render as meant | Nothing |
 

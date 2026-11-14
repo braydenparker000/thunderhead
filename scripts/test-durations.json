@@ -107,6 +107,7 @@
     "tests/lab-engine-exif.test.mjs": 1000,
     "tests/lab-engine-checked.test.mjs": 1100,
     "tests/lab-engine-cpu.test.mjs": 1300,
+    "tests/lab-engine-icc.test.mjs": 1100,
     "tests/lab-engine-grain-browser.test.mjs": 103700,
     "tests/lab-engine-net-bench-browser.test.mjs": 152000,
     "tests/lab-engine-net-tune.test.mjs": 1100,
