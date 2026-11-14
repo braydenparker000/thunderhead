@@ -147,9 +147,12 @@ test('a pan flung past the edge springs back inside; a double tap animates back 
   const lo = (await page.evaluate(() => innerWidth)) / 2 / (await page.locator('.estage').boundingBox()).width / v.z;
   console.log(`# fling: ${fling.moving.length} frames gliding, worst ${fling.worstMoving.toFixed(1)} ms; past the edge to u ${fling.minCu.toFixed(3)}, rests at ${v.cu.toFixed(3)} (edge ${lo.toFixed(3)})`);
   timing(fling.worstMoving <= 32, `a glide frame took ${fling.worstMoving.toFixed(1)} ms`);
-  assert.ok(fling.moving.length > 5, 'the fling did not glide');
+  // How many frames the glide took and how far past the edge one of them caught it measure the machine as much as
+  // the fling (under load both failed here, 2026-11-14: few frames, none of them past the edge): diagnostics on CI
+  // (TESTING.md §10.1). That it comes to rest inside the photo is the logic, and stays hard.
+  timing(fling.moving.length > 5, `the fling glided over ${fling.moving.length} frames`);
   assert.ok(inside, `the view rests outside the photo: ${JSON.stringify(v)}`);
-  assert.ok(fling.minCu < v.cu - 0.01, `the edge did not give: ${fling.minCu} against ${v.cu}`);
+  timing(fling.minCu < v.cu - 0.01, `no frame caught the edge giving: ${fling.minCu} against ${v.cu}`);
   // Double tap: animated, about 200 ms, to fit.
   await idle(page);
   await record(page);

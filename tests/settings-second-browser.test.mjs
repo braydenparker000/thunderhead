@@ -96,8 +96,9 @@ test('the three rows are on their pages; the name goes to the Worker and the she
 test('Auto flips at the owner’s hours, 07:00 and 22:00 unless set, with a faked clock', opts, async () => {
   const { page, context, errors, w } = await open({}, { theme: 'auto', clock: new Date('2026-11-04T21:59:00Z') });
   // A fast-forward fires the flip's timer, but its callback can land just after fastForward resolves
-  // (seen in the headless shell CI uses): wait up to 2 s for the expected theme, then assert as before.
-  const theme = (want) => page.waitForFunction((t) => document.documentElement.dataset.theme === t, want, { timeout: 2000 }).catch(() => {})
+  // (seen in the headless shell CI uses): wait for the expected theme, then assert as before. (Up to 15 s: on a
+  // loaded machine 2 s was once too little, 2026-11-14. A theme that is already right is read at once.)
+  const theme = (want) => page.waitForFunction((t) => document.documentElement.dataset.theme === t, want, { timeout: 15_000 }).catch(() => {})
     .then(() => page.evaluate(() => document.documentElement.dataset.theme));
   assert.equal(await theme('light'), 'light', '21:59: day');
   await page.clock.fastForward('01:30');
