@@ -102,7 +102,7 @@
     "tests/lab-editor-safe-browser.test.mjs": 12800,
     "tests/lab-editor-stack-browser.test.mjs": 104200,
     "tests/lab-editor-touch-browser.test.mjs": 30300,
-    "tests/lab-editor-xmp-browser.test.mjs": 4000,
+    "tests/lab-editor-xmp-browser.test.mjs": 8000,
     "tests/lab-engine-autowhite.test.mjs": 1300,
     "tests/lab-engine-exif.test.mjs": 1000,
     "tests/lab-engine-checked.test.mjs": 1100,

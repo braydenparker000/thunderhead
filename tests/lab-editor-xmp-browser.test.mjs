@@ -1,11 +1,18 @@
 // A Lightroom preset brought into the new editor at /lab/editor/ (frontend/lab/editor/app/xmp.js; engine/raw/ROADMAP.md
 // stage 4): the Looks board's IMPORT reads an `.xmp` and keeps it as a look of the owner's own, in Mine, its settings
 // laid on this editor's controls by name. What it has no control for is counted and said; a file that is not a
-// preset is refused in words. The preset here is invented.
+// preset is refused in words. A pack of looks as one `.zip` (app/pack.js) is opened and every look inside it brought
+// in with one pick; picked again it adds nothing; DELETE PACK takes its looks away together. The presets here are invented.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import zlib from 'node:zlib';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { serve } from '../scripts/serve.mjs';
+import { PACK_MAX_FILES, unpack } from '../frontend/lab/editor/app/pack.js';
 import { makeRaf } from './fixtures/make-raf.mjs';
 
 const opts = { skip: Boolean(process.env.SITE_URL) && 'local only', timeout: 120_000 };
@@ -74,4 +81,105 @@ test('IMPORT on the Looks board keeps a preset in Mine and says what it could no
   assert.deepEqual(kept, [{ name: 'Soft evening', kind: 'mine', contrast: 12, curve: 3 }]);
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('IMPORT takes a pack as one .zip: every look inside it comes in, none twice, and the pack can be deleted whole', opts, async () => {
+  const { context, page, errors } = await open();
+  const jpeg = await page.evaluate(async () => { const c = new OffscreenCanvas(240, 160), g = c.getContext('2d'); g.fillStyle = '#345'; g.fillRect(0, 0, 240, 160); return [...new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer())]; });
+  await page.evaluate(async (raf) => {
+    const store = await import('/lab/editor/app/store.js'), photo = await import('/lab/editor/app/session.js');
+    await store.add([new File([new Uint8Array(raf)], 'DSCF0007.RAF', { lastModified: 1_700_000_000_000 })], () => {});
+    photo.open(store.photos()[0].id);
+    document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Looks' }));
+  }, [...makeRaf(Uint8Array.from(jpeg))]);
+  const cube = ['TITLE "Warm"', 'LUT_3D_SIZE 2', ...[0, 1].flatMap((b) => [0, 1].flatMap((g) => [0, 1].map((r) => `${r} ${g * 0.9} ${b * 0.8}`)))].join('\n');
+  const zip = makeZip([['Evening pack/soft.xmp', XMP], ['Evening pack/Film/', '', 0], ['Evening pack/Film/hard.xmp', XMP.replace('Soft evening', 'Hard noon').replace('Contrast2012="+12"', 'Contrast2012="+40"'), 0],
+    ['Evening pack/Film/warm.cube', cube], ['Evening pack/read me.txt', 'thanks'], ['__MACOSX/Evening pack/._soft.xmp', 'junk'], ['Evening pack/broken.cube', 'LUT_1D_SIZE 4']]);
+  const says = (re) => page.waitForFunction((src) => new RegExp(src, 'i').test(document.querySelector('#stage')?.textContent ?? ''), re.source).catch(async () => assert.fail(`waited for ${re}; the board says: ${(await page.textContent('#stage')).slice(-400)}`));
+  const pick = page.locator('#stage [aria-label="Import looks"]');
+  await pick.waitFor();
+  const bring = async () => { const [chooser] = await Promise.all([page.waitForEvent('filechooser'), pick.click()]); await chooser.setFiles([{ name: 'Evening pack.zip', mimeType: 'application/zip', buffer: zip }]); };
+  await bring();
+  await says(/2 presets added to Mine/);
+  let said = await page.textContent('#stage');
+  assert.match(said, /1 added to Presets · 2 presets added to Mine · 2 hold settings with no control here · broken\.cube: it is a 1D table, not a look · 1 other file in the pack left/);
+  const kept = () => page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); return [...k.list('cube'), ...k.list('mine')].map((l) => [l.kind, l.name, l.pack, l.kind === 'cube' ? l.cube.n : l.st.values.Contrast]); });
+  assert.deepEqual(await kept(), [['cube', 'warm', 'Evening pack', 2], ['mine', 'Soft evening', 'Evening pack', 12], ['mine', 'Hard noon', 'Evening pack', 40]]);
+  // The same pack again: nothing is kept twice.
+  await page.locator('#stage [role=listbox][aria-label="Sections: Mine"]').press('ArrowUp');   // IMPORT is on the Presets face
+  await bring();
+  await says(/3 here already/);
+  assert.equal((await kept()).length, 3);
+  // A look of the pack picked: DELETE PACK, twice, takes all three away; one of the owner's own stays.
+  await page.evaluate(async () => { const k = await import('/lab/editor/app/looks.js'); await k.addMine('My own', { values: { Contrast: 5 }, wb: 'As shot', curve: null }); });
+  await page.locator('#stage [role=listbox][aria-label="Sections: Presets"]').press('ArrowDown');
+  await page.locator('#stage button', { hasText: 'Hard noon' }).click();
+  const all = page.locator('#stage [aria-label="Delete every look of Evening pack"]');
+  await all.click();
+  await says(/Tap again: all 3/);
+  await all.click();
+  await says(/3 looks of Evening pack deleted from this phone/);
+  assert.deepEqual(await kept(), [['mine', 'My own', undefined, 5]]);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+// The pack's reader on its own (it has no need of a page): the files inside a zip are named and opened; folders and a
+// Mac's hidden files are left out; what is not a zip, is cut short, or opens to more than it says is refused in
+// words. One archive is written by Python's own zipfile when it is at hand, so the reader is held against a zip this
+// repository did not make.
+// A zip made here, so no archive is kept in the repository: each file deflated, or stored as it is.
+/** @param {[name: string, data: string | Uint8Array, how?: 0 | 8][]} files @returns {Buffer} */
+function makeZip(files) {
+  const parts = [], dir = [];
+  let at = 0;
+  for (const [name, data, how = 8] of files) {
+    const nm = Buffer.from(name), raw = Buffer.from(data), body = how === 8 ? zlib.deflateRawSync(raw) : raw, crc = zlib.crc32(raw);
+    const h = Buffer.alloc(30), c = Buffer.alloc(46);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(how, 8); h.writeUInt32LE(crc, 14); h.writeUInt32LE(body.length, 18); h.writeUInt32LE(raw.length, 22); h.writeUInt16LE(nm.length, 26);
+    c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(how, 10); c.writeUInt32LE(crc, 16); c.writeUInt32LE(body.length, 20); c.writeUInt32LE(raw.length, 24); c.writeUInt16LE(nm.length, 28); c.writeUInt32LE(at, 42);
+    parts.push(h, nm, body); dir.push(c, nm); at += 30 + nm.length + body.length;
+  }
+  const d = Buffer.concat(dir), e = Buffer.alloc(22);
+  e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(files.length, 8); e.writeUInt16LE(files.length, 10); e.writeUInt32LE(d.length, 12); e.writeUInt32LE(at, 16);
+  return Buffer.concat([...parts, d, e]);
+}
+
+const LONG = 'a look, '.repeat(20_000);
+
+test('the files of a zip, deflated or stored, in folders or not; folders and hidden files left out', async () => {
+  const z = makeZip([['soft.xmp', 'hello'], ['Film/', '', 0], ['Film/warm.cube', LONG], ['__MACOSX/._soft.xmp', 'junk'], ['Film/.DS_Store', 'junk', 0], ['read me.txt', 'stored', 0]]);
+  const l = await unpack(new Blob([z]));
+  assert.deepEqual(l.map((f) => [f.name, f.path, f.size]), [['soft.xmp', 'soft.xmp', 5], ['warm.cube', 'Film/warm.cube', LONG.length], ['read me.txt', 'read me.txt', 6]]);
+  assert.deepEqual([await l[0].text(), await l[1].text(), await l[2].text()], ['hello', LONG, 'stored']);
+});
+
+test('what is not a zip, is cut short, or lies about its size is refused in words', async () => {
+  await assert.rejects(unpack(new Blob(['only words, no archive here'])), /not a zip file/);
+  const z = makeZip([['a.xmp', LONG]]);
+  await assert.rejects(unpack(new Blob([z.subarray(100)])), /cut short/);
+  const lie = Buffer.from(z);
+  lie.writeUInt32LE(10, lie.length - 22 - 46 - 5 + 24);   // the directory says ten bytes; the file opens to more
+  await assert.rejects(async () => (await unpack(new Blob([lie])))[0].bytes(), /larger than the pack says/);
+  const short = Buffer.from(z);
+  short.writeUInt32LE(LONG.length + 10, short.length - 22 - 46 - 5 + 24);
+  await assert.rejects(async () => (await unpack(new Blob([short])))[0].bytes(), /cut short/);
+  const locked = Buffer.from(z);
+  locked.writeUInt16LE(1, locked.length - 22 - 46 - 5 + 8);
+  await assert.rejects(async () => (await unpack(new Blob([locked])))[0].bytes(), /password/);
+  const many = Buffer.from(z);
+  many.writeUInt16LE(PACK_MAX_FILES + 1, many.length - 22 + 10);
+  await assert.rejects(unpack(new Blob([many])), /more than/);
+});
+
+test('an archive written by another tool reads the same', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'th-pack-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'p.zip');
+  try {
+    execFileSync('python3', ['-I', '-c', 'import sys, zipfile\nz = zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED)\nz.writestr("Pack/one.xmp", "hello preset")\nz.writestr("Pack/Film/two.cube", "a look, " * 20000)\nz.writestr(zipfile.ZipInfo("Pack/three.txt"), "stored")\nz.close()', file]);
+  } catch { t.skip('no python3 here'); return; }
+  const l = await unpack(new Blob([readFileSync(file)]));
+  assert.deepEqual(l.map((f) => f.path), ['Pack/one.xmp', 'Pack/Film/two.cube', 'Pack/three.txt']);
+  assert.deepEqual([await l[0].text(), await l[1].text(), await l[2].text()], ['hello preset', LONG, 'stored']);
 });
