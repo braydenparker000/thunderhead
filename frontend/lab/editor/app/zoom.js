@@ -55,7 +55,7 @@ const most = () => Math.max(1, 3 * full());
 /** Where a double-tap goes: 100 %, or 200 % with the owner's setting (Settings › Photos › Editor). */
 const tapTo = () => Math.min(most(), full() * (pref('photos.double_tap') === '200' ? 2 : 1));
 /** Whether the photo is zoomed, and to what per cent of the sensor's pixels. */
-export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100) });
+export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100), making: making2 > 0 });   // making: a full-size view is being made
 /** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
 export const fitted = () => ({ left: f.ox, top: f.oy, width: f.w, height: f.h });
 const tool = () => win?.dataset.zoom === 'tool';
@@ -238,6 +238,7 @@ function stale() {
 /** A full-size view is made for the screen a part at a time (engine/full.js `region`) and left undone the moment fingers move the photo, it glides, a newer job has begun or an edit's frame waits; `took` gathers each part's time. */
 let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); } });
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
+const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
 const FINE = 0.999;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best)
 /** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
  * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
@@ -252,7 +253,7 @@ async function finer(mine, X, Y, w, h) {
   let im = /** @type {ImageData | null} */ (null), at = fine.at();
   const took = /** @type {number[]} */ ([]);
   making2++; try { await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h, null, pace(mine, took)); im = at && (await fine.read()); fine.rest(); }); } finally { making2--; }
-  if (mine !== job || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...parts(took) }); return; }
+  if (mine !== job || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...parts(took) }); again1(mine); return; }
   closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d')).putImageData(im, 0, 0);
   place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...parts(took) });
 }
@@ -271,7 +272,7 @@ async function detail(/** @type {number} */ mine) {
     v.place(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h);
     // its colours are made first, a part at a time, and left if a finger comes down; the frame that follows only lays them out
     let ok = false; own = true; making2++; try { await photo.alone(async () => { ok = mine === job && !!(await v.region(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h, null, pace(mine, []))); }); if (ok) await photo.frame(); } finally { own = false; making2--; }
-    if (!ok) return;
+    if (!ok) { if (mine !== job || g || gliding()) note('detail', 0, { left: 1 }); again1(mine); return; }
     if (mine === job) { still.style.display = 'none'; tiled = -1; }
     if (mine === job && p >= FINE && prefOn('photos.neural', true)) await finer(mine, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2).catch((e) => console.warn('zoom network', e)); else if (mine === job) { closer.style.display = 'none'; fined = -1; }
     return;
@@ -283,7 +284,7 @@ async function detail(/** @type {number} */ mine) {
   for (let y = Y; y < Y1; y += th) for (let x = X; x < X1; x += tw) {
     let im = /** @type {ImageData | null} */ (null), at = at0;
     await photo.alone(async () => { if (mine !== job) return; await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y), null, pace(mine, [])); im = at && (await v.read()); v.rest(); });
-    if (mine !== job || !im || !at) return;
+    if (mine !== job || !im || !at) { again1(mine); return; }
     const bm = await createImageBitmap(im);
     ctx.drawImage(bm, (at.X - X) * p, (at.Y - Y) * p, at.cw * p, at.ch * p); bm.close();
   }
