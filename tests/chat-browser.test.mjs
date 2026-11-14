@@ -423,13 +423,16 @@ test('the working card: the mind\'s title, its live line and chips dock above th
     await eventually(async () => (await workCard(page))?.note, 'Picking twelve');
     await shot(page, 'working', theme);
     if (theme === 'dark') {
+      // What the chip asks to be opened is noted and goes no further (heard first, and stopped). Left to open,
+      // Memory's page came a moment after the tap: the Escape that followed was pressed before it was there, and
+      // on a loaded machine the page then covered the card and the next tap landed on it (the soak, 2026-11-14).
       await page.evaluate(() => {
         window.opened = [];
-        document.addEventListener('th:open', (e) => window.opened.push(e.detail));
+        document.addEventListener('th:open', (e) => { window.opened.push(e.detail); e.stopImmediatePropagation(); }, true);
       });
       await page.click('#working .wkchip >> nth=0');
       assert.deepEqual(await page.evaluate(() => window.opened), [{ name: 'memory', focus: FACT }], 'a fact opens Memory at it');
-      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('.spage').count(), 0);
       await page.click('#working .wkchip >> nth=2', { force: true });
       await page.waitForFunction(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('example.org')));
       assert.equal(await page.evaluate(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('/running'))), false, 'a source says its host only');

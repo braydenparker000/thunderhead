@@ -244,18 +244,14 @@ test('Settings › Photos: Drive by its folder, Disconnect, Connect to Google’
   await shot(page, 'settings');
   await page.click('.sphotos .btn');
   await page.click('.csheet .btn.danger');
-  await page.waitForSelector('.sphotos .btn:text("Connect Google Drive")');
+  // The button's words exactly: `:text("Connect Google Drive")` is also found in "Disconnect Google Drive", so this
+  // never waited for the new button, and when the page was a moment late the tap below pressed Disconnect again
+  // and Google's page was never asked for (this test's failure on CI and under load, about one run in thirty).
+  await page.waitForSelector('.sphotos .btn:text-is("Connect Google Drive")');
   let consent = null;
   await context.route('https://accounts.google.com/**', (route) => { consent = route.request().url(); return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>consent</p>' }); });
-  // (this wait has failed on CI a few times and never here: when it does, it says what the page was doing)
-  const asked = [];
-  page.on('request', (r) => asked.push(`${r.method()} ${new URL(r.url()).pathname}`));
-  page.on('requestfailed', (r) => asked.push(`failed ${new URL(r.url()).pathname}: ${r.failure()?.errorText}`));
   await page.click('.sphotos .btn');
-  await until(() => consent !== null).catch(async (e) => {
-    const seen = await page.evaluate(() => ({ box: document.querySelector('.sphotos')?.textContent, toasts: [...document.querySelectorAll('.toast, [role="status"]')].map((t) => t.textContent), sheet: Boolean(document.querySelector('.csheet')), focus: document.activeElement?.outerHTML.slice(0, 80) })).catch((x) => String(x));
-    throw new Error(`${e.message}: Google's consent page was never asked for. The page is at ${page.url()}; after the tap it asked for [${asked.join(', ')}]; it shows ${JSON.stringify(seen)}`);
-  });
+  await until(() => consent !== null);
   assert.match(consent, /scope=drive\.file/);
   assert.deepEqual(errors, []);
   await context.close();
