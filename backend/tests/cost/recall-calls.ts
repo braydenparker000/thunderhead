@@ -45,19 +45,25 @@ async function step(e: Env): Promise<Response> {
   return new Response(null, { status: 204 });
 }
 
-/** Rings Core's alarm while one is due within five seconds. The calls before these leave some (the listening
- * history's import, a message just written), and on a slow machine one rang while a call below was being
- * measured: its reading was counted as the call's (CI, 2026-11-14: a search read 113 rows where every other
- * run reads 95). Rung first, what is measured is the call alone. */
+/** Lets Core's alarms that are due within five seconds come and go before a call is measured. The calls before
+ * these leave some, and one that rings while a call is measured has its reading counted as the call's (CI,
+ * 2026-11-14, twice: a search read 113 rows where every other run reads 95). A job's time is the clock's: an alarm
+ * rung early finds nothing due and is set again for the same moment. The one that did it was the music catalogue's
+ * job, due a second after the listening history's import: ringing it early, which is all this did at first, moved
+ * nothing, and on a slow machine it then rang inside the search. So this waits for the moment itself, lets the
+ * alarm ring, and looks again; if one is still due after all that, it says so rather than let a call be measured. */
 async function quiet(): Promise<void> {
   const stub = core() as unknown as DurableObjectStub<Core>;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 40; i++) {
     const due = await runInDurableObject(stub, async (_o: Core, state) => {
       const at = await state.storage.getAlarm();
-      return at !== null && at - Date.now() < 5000;
+      return at === null ? null : at - Date.now();
     });
-    if (!due || !(await runDurableObjectAlarm(stub))) return;
+    if (due === null || due >= 5000) return;
+    if (due > 0) await new Promise((r) => setTimeout(r, due + 25));
+    else await runDurableObjectAlarm(stub);
   }
+  throw new Error('Core still has an alarm due within five seconds: a call measured now would count its rows too');
 }
 
 export async function recallCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
