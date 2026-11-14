@@ -126,9 +126,9 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
 ## 2. Settings › Photos (§3.6, as built)
 
 Google Drive (Connect; or "Connected as" the consenting Google account, the folder by name and Disconnect; a plain line when Google took the access
-back), Preview size (`photos.preview_size`, 1,024 / 2,048 px), What stays on the phone
-(`photos.keep`: previews only; recent originals come with editing and are shown, not yet chosen),
-and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
+back), Preview size (`photos.preview_size`, 1,024 / 2,048 px; under "Classic shelf and editor" with the Export
+sheet's two since 2026-11-14, each saying it is Classic's only), and Recently deleted. ("What stays on the phone",
+`photos.keep`, was listed until then; nothing read it, so it is gone.) [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 
 ## 3. Privacy and cost (§3.7, as built)
 
