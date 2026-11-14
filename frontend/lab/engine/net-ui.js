@@ -40,8 +40,23 @@ export function text(r) {
     const heavy = r.gmac.map((gm, j) => ({ gm, j })).sort((a, b) => b.gm - a.gm)[0], t = r.tried[heavy.j] || [], best = Math.min(...t.filter((x) => x.ms >= 0).map((x) => x.ms), Infinity);
     if (heavy.gm > 0) lines.push(`  the GPU on that pass (${r.names[heavy.j]}, ${heavy.gm} thousand million): ${(heavy.gm / (r.ms[heavy.j] / 1000)).toFixed(1)} as exported${Number.isFinite(best) ? `, ${(heavy.gm / (best / 1000)).toFixed(1)} by the fastest of its other ways` : ''}`);
   }
+  if (r.both) {
+    const b = r.both, sum = (/** @type {{ cpu: number, gpu: number }} */ p) => (p.cpu + p.gpu).toFixed(1), row = (/** @type {typeof b.pairs[number]} */ p) => `${p.cores} cores ${p.cpu} + GPU ${p.gpu} = ${sum(p)}`;
+    lines.push(`The CPU and the GPU at once (the GPU alone on its heavy pass: ${b.alone}; the CPU's build: ${b.build === 'conv' ? 'multiply and add' : b.build ? 'fused' : 'none'}):`);
+    for (const p of b.pairs) lines.push(`  ${row(p)}   ${b.alone > 0 ? `${((p.cpu + p.gpu) / b.alone).toFixed(2)} times the GPU alone` : ''}`);
+    if (b.held.length) lines.push(`  kept up with ${b.held[0].cores} cores: ${b.held.map(sum).join(' · ')}`);
+    for (const n of b.notes) lines.push(`  ${n}`);
+  }
   return lines.join('\n');
 }
+
+/** The CPU and the GPU at once, as numbers (hundredths of a thousand million multiply-adds a second): the GPU alone, the best of the two together and on how many cores, and the last of that kept up. @param {NetRun} r */
+const two = (r) => {
+  const b = r.both, h = (/** @type {number} */ v) => Math.round(100 * v);
+  if (!b || !b.pairs.length) return {};
+  const best = b.pairs.reduce((a, p) => (p.cpu + p.gpu > a.cpu + a.gpu ? p : a)), last = b.held.at(-1);
+  return { gpu1: h(b.alone), tog: h(best.cpu + best.gpu), togn: best.cores, ...(last ? { togl: h(last.cpu + last.gpu) } : {}) };
+};
 
 /** The run's numbers as one of the editor's timings (th/workshop/timings-core.js passes on the fields it knows). @param {NetRun} r */
 export function numbers(r) {
@@ -49,7 +64,7 @@ export function numbers(r) {
   const row = (/** @type {string} */ name, /** @type {number[]} */ list) => Object.fromEntries(list.map((v, j) => [`${name}${j + 1}`, Math.round(v)]));   // (op0 is the cut, as in an export's timings)
   return { at: r.at, kind: 'tune', ms: r.took, px: Math.round(r.mp * 1e6), op0: Math.round(r.cut), ...row('op', r.ms), ...row('alt', r.tried.map((t) => t[0]?.ms ?? -1)), ...row('wid', r.tried.map((t) => t[1]?.ms ?? -1)), ...row('one', r.tried.map((t) => t[2]?.ms ?? -1)), ...row('blk', r.tried.map((t) => t[3]?.ms ?? -1)), ...row('nar', r.tried.map((t) => t[4]?.ms ?? -1)),
     whole: Math.round(r.whole.exported), chosen: Math.round(r.whole.chosen ?? -1), floats: Math.round(r.whole.full ?? -1), after: Math.round(r.whole.after), ways: Number(r.kept.join('')) || 0,
-    apart: Math.round(1000 * (r.picture.exported?.p999 ?? -0.001)), apartc: Math.round(1000 * (r.picture.chosen?.p999 ?? -0.001)), cpu1: cpu('conv', false), cpun: cpu('conv', true), fuse1: cpu('conv-fused', false), fusen: cpu('conv-fused', true), threads: r.cpu?.cores || 0 };
+    apart: Math.round(1000 * (r.picture.exported?.p999 ?? -0.001)), apartc: Math.round(1000 * (r.picture.chosen?.p999 ?? -0.001)), cpu1: cpu('conv', false), cpun: cpu('conv', true), fuse1: cpu('conv-fused', false), fusen: cpu('conv-fused', true), threads: r.cpu?.cores || 0, ...two(r) };
 }
 
 const out = $('nout'), go = /** @type {HTMLButtonElement} */ ($('nrun')), copy = /** @type {HTMLButtonElement} */ ($('ncopy'));
@@ -60,7 +75,7 @@ if (out && go && copy) {
     go.disabled = true; copy.disabled = true;
     const say = (/** @type {string} */ s) => { $('nnow').textContent = s; };
     try {
-      const q = new URLSearchParams(location.search), r = await netBench({ say, side: Number(q.get('side')) || undefined, reps: Number(q.get('reps')) || undefined, cpu: q.has('cpums') ? { ms: Number(q.get('cpums')) } : true });
+      const q = new URLSearchParams(location.search), r = await netBench({ say, side: Number(q.get('side')) || undefined, reps: Number(q.get('reps')) || undefined, cpu: q.has('cpums') ? { ms: Number(q.get('cpums')) } : true, both: q.has('cpums') ? { ms: 2 * Number(q.get('cpums')), held: 2 } : true });
       try { r.build = String((await import('/config.js')).CONFIG.commit).slice(0, 7); } catch { /* a local run */ }
       last = r; out.textContent = text(r); /** @type {any} */ (window).__net = r;
       try { localStorage.setItem(KEY, JSON.stringify([r, ...past()].slice(0, 6))); const all = JSON.parse(localStorage.getItem(TIMINGS) || '[]'); all.push(numbers(r)); localStorage.setItem(TIMINGS, JSON.stringify(all.slice(-120))); } catch { /* a private window: nothing is kept */ }

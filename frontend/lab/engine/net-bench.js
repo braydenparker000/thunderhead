@@ -14,6 +14,7 @@ import { CAMERA, known } from './known.js';
 import { demosaicer, phaseOf } from './neural.js';
 import { WAYS, choose, once, tune } from './net-tune.js';
 import { cpuBench } from './cpu-bench.js';
+import { both } from './net-both.js';
 
 /** A way must take under this share of the exported pass's time to be worth choosing (less is within what a timing wanders by). */
 export const FASTER = 0.92;
@@ -58,12 +59,12 @@ export function fastest(ms, tried, not = new Set()) {
  *   whole: { exported: number, chosen: number | null, full: number | null, after: number },
  *   way: number[], kept: number[], verdict: string, dropped: string[],
  *   picture: { exported: Apart | null, chosen: Apart | null, between: Apart | null },
- *   cpu: Awaited<ReturnType<typeof cpuBench>> | null, took: number }} NetRun */
+ *   cpu: Awaited<ReturnType<typeof cpuBench>> | null, both: Awaited<ReturnType<typeof both>> | null, took: number }} NetRun */
 
 /** Measures the network on this phone and keeps the ways it should run. `side`: how much of a window is made (all of
  * it; a test asks for less); `reps`: how often each timing is taken (the least is kept); `cpu`: false leaves the CPU
- * out; `keep`: false measures and judges but leaves the phone's kept choice as it was.
- * @param {{ say?: (s: string) => void, side?: number, reps?: number, cpu?: boolean | Parameters<typeof cpuBench>[0], keep?: boolean }} [o] @returns {Promise<NetRun>} */
+ * out, `both`: false the two at once (net-both.js); `keep`: false measures and judges but leaves the phone's kept choice as it was.
+ * @param {{ say?: (s: string) => void, side?: number, reps?: number, cpu?: boolean | Parameters<typeof cpuBench>[0], both?: boolean | Parameters<typeof both>[3], keep?: boolean }} [o] @returns {Promise<NetRun>} */
 export async function netBench(o = {}) {
   const say = o.say || (() => {}), began = performance.now(), reps = o.reps || 2;
   const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
@@ -130,10 +131,17 @@ export async function netBench(o = {}) {
     const ops = small.parts.exported, names = ops.map((op, j) => (of(op.code, 'CIN') && of(op.code, 'COUT') ? `${/const KK\b/.test(op.code) ? '3x3' : '1x1'} ${of(op.code, 'CIN')}>${of(op.code, 'COUT')}` : j === 0 ? 'first' : 'last'));
     const cells = Math.min(176, Math.ceil((core + 66) / 6)) ** 2;   // the part of the window's 176 x 176 that is made (its own part and the context round it)
     const gmac = ops.map((op) => Math.round((of(op.code, 'CIN') * of(op.code, 'COUT') * (/const KK\b/.test(op.code) ? 9 : 1) * cells) / 1e7) / 100);
+    // the CPU and the GPU at once: the heavy pass as this phone will run it from now on (the ways just kept)
+    let two = null;
+    if (o.both !== false && o.cpu !== false) {
+      const heavy = gmac.indexOf(Math.max(...gmac)), fast = way.some(Boolean) ? await net(kind, way, core) : small;
+      await whole(fast);
+      two = await both(device, fast.parts.lay(core)[heavy + 1], gmac[heavy], { say, ...(typeof o.both === 'object' ? o.both : {}) });
+    }
     return { v: 1, at: Date.now(), build: 'dev', gpu, kind, side: core, mp: Math.round((core * core) / 1e4) / 100, reps, cut: r1(cut), ms: t.ms.map(r1), names, gmac,
       tried: t.tried.map((row) => row.map((w) => ({ ...w, ms: w.ms < 0 ? w.ms : r1(w.ms), ...(w.made === undefined ? {} : { made: Math.round(w.made) }), ...(w.rms === undefined ? {} : { rms: Number.isFinite(w.rms) ? Math.round(w.rms * 1e5) / 1e5 : -1, max: Math.round((w.max || 0) * 1e4) / 1e4 }) }))),
       whole: { exported: r1(first.ms), chosen: chosen ? r1(chosen.ms) : null, full: full ? r1(full.ms) : null, after: r1(after) },
-      way, kept: o.keep === false ? [] : way, verdict, dropped, picture: { exported, chosen: picture, between: chosen ? apart(chosen.px, first.px) : null }, cpu, took: Math.round(performance.now() - began) };
+      way, kept: o.keep === false ? [] : way, verdict, dropped, picture: { exported, chosen: picture, between: chosen ? apart(chosen.px, first.px) : null }, cpu, both: two, took: Math.round(performance.now() - began) };
   } finally { for (const m of made) m.destroy(); device.destroy(); }
 }
 export { WAYS };

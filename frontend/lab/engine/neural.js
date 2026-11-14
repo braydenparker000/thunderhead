@@ -237,11 +237,13 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [smooth] this once, in place of `info.smooth` */
   const noiseOf = () => info.noise || noiseAt(info.iso || 100), g1 = info.wb?.[1] || 1;
+  let laid = 0;   // the sensor pixels the network has been given so far, its context round each window with them
   /** A window made ready: its settings written, and the passes that make it, in order (cut, the network's, place).
    * @returns {[GPUComputePipeline, GPUBindGroup, number, number, number][]} each pass with its bindings and how many groups it is dispatched over */
   const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0) => {
     const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly), noise = noiseOf();
     const vw = Math.min(WIN, Math.ceil((x0 + cw + HALO - wx) / 6) * 6), vh = Math.min(WIN, Math.ceil((y0 + ch + HALO - wy) / 6) * 6), s = slot(n);
+    laid += vw * vh;
     const u = new ArrayBuffer(SIZE), i = new Int32Array(u), f = new Float32Array(u);
     i.set([wx, wy, vw, vh, x0, y0, cw, ch, rx, ry, rw, rh, px, py]); f[14] = info.black; f[15] = 1 / (info.white - info.black);
     f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, 0], 16); f.set(noise.a.map((a) => a * k), 20); f.set(noise.b.map((b) => b * k), 24); f[23] = keep; f[27] = quiet;
@@ -264,5 +266,5 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   };
   /** What net-tune.js measures this network by. `lay(side)`: one window (all of it, or `side` pixels of it) made ready, as its passes. @type {Parts} */
   const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1) };
-  return { out, run, parts, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
+  return { out, run, parts, core: CORE, get laid() { return laid; }, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
 }

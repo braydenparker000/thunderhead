@@ -8,7 +8,7 @@ import { thread, work } from './export-thread.js';
 export { OUTPUT, crisp } from './reduce.js';
 
 const SPLIT = 4;   // an export's first pieces are timed a step at a time (full.js `region`), for the phone's own numbers
-const NET_TILE = 960, NET_BAND = 512;   // a piece by the network: with its edge and the lens's reach, inside one of the network's windows
+const NET_SIDE = 966;   // a piece by the network, each way: with its edge, one of the network's windows whole (990 sensor pixels; full.js `room` takes the lens's reach off). Until 2026-11-14 a piece was 960 x 512, and with the lens's reach spilled a few pixels into a second window, which was made for them with all its context: the network was given about 1.4 times the photo
 const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
 // straightened); and how far past a piece it is developed, so sharpening sees the same neighbours either side of a join
 
@@ -33,7 +33,7 @@ export class NoBest extends Error { constructor(/** @type {string} */ why) { sup
  * @param {Job[]} jobs each file @param {(done: number) => void} [progress] 0 to 1
  * @param {Record<string, any> | null} [clock] filled with where the time went, in ms: `gpu` developing, `read` bringing pieces back, `write` reducing
  *   and encoding, `wait` the page waiting on the export's thread, `off`: 1 when that was on its own thread, `split`: the first pieces' steps by
- *   name over `splitPx` pixels, and `net`: 1 when the network made the colours
+ *   name over `splitPx` pixels, `net`: 1 when the network made the colours, and `laid`: the sensor pixels the network was given (the photo's and the context round each piece)
  *   and `held`: how many of the photo's rows were not made now but read from `how.keep`
  * @param {boolean} [best] the sensor's colours by the network (full.js `view`): where it cannot run the export is refused (`NoBest`), never made another way
  * @param {How} [how] */
@@ -42,8 +42,8 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
   signal?.throwIfAborted();
   const off = how.worker !== false && jobs.every((j) => j.file) ? thread() : Promise.resolve(null);   // started while the GPU makes ready
   // The network works a window of the sensor at a time (neural.js: 990 pixels of each 1056 are its own), so its pieces
-  // are cut to sit in one window each, and taller: less of its work then goes on the context round a piece.
-  const [wide, rows] = best ? [NET_TILE, NET_BAND] : [TILE, BAND];
+  // are cut to sit in one window each and to fill it: the least of its work then goes on the context round a piece.
+  const [wide, rows] = best && big.raw ? [NET_SIDE, NET_SIDE] : [TILE, BAND];   // (a picture with no sensor data is not the network's, whatever is asked)
   const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best).catch(async (err) => { (await off)?.terminate(); throw err; });
   if (v.lost) { const why = v.lost; v.dispose(); (await off)?.terminate(); throw new NoBest(why); }
   if (clock) clock.net = v.net ? 1 : 0;
@@ -67,6 +67,7 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
         const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
         if (clock) { clock.gpu = (clock.gpu || 0) + t1 - t0; clock.read = (clock.read || 0) + performance.now() - t1; if (split) clock.splitPx = (clock.splitPx || 0) + at.cw * at.ch; } pieces++;
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
+        if (v.net) progress?.((y + (n * (x + w)) / sw) / sh);   // (the network's pieces are large: said a piece at a time, not a band)
       }
       if (!was) await how.keep?.put(y, n, sw, band);
       const t2 = performance.now();
@@ -75,6 +76,7 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
       signal?.throwIfAborted();
       progress?.((y + n) / sh);
     }
+    if (clock && v.net) clock.laid = v.laid();
     const t3 = performance.now(), ops = clock && how.ops && v.ops ? v.ops(how.ops === true ? 0 : how.ops).catch(() => null) : null, blobs = await s.done();   // the network's passes timed apart, while the files are finished
     if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); const t = ops && (await ops); if (t) clock.ops = t; }
     signal?.throwIfAborted();

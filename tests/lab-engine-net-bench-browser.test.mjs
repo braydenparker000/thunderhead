@@ -1,6 +1,6 @@
 // "The network on this phone" on the engine test page (frontend/lab/engine/net-ui.js, net-bench.js): one tap
 // measures a window of the network a pass at a time, every way each pass is written, judges the fastest ways on the
-// whole picture, keeps them for the editor, and measures the CPU on the heavy pass's work. Here on a small part of
+// whole picture, keeps them for the editor, measures the CPU on the heavy pass's work, and then the two at once. Here on a small part of
 // a window and for a moment each, on a software GPU (which has no half floats: what a phone's 16-bit sums do is the
 // phone's to say, and the page's report is made to say it). Local only.
 import { test, before, after } from 'node:test';
@@ -53,6 +53,14 @@ test('one tap measures the network every way, judges the picture, keeps the ways
   // the CPU: both builds, on one core and more, each a speed
   assert.deepEqual(n.cpu.notes, []);
   assert.ok(n.cpu.rows.length >= 2 && n.cpu.rows.every((x) => x.gmacs > 0 && x.runs >= x.cores) && ['conv', 'conv-fused'].every((b) => n.cpu.rows.some((x) => x.build === b)), JSON.stringify(n.cpu.rows));
+  // the two at once: the GPU alone, then with some of the CPU's cores, then the best of those kept up
+  const b = n.both;
+  assert.deepEqual(b.notes, []);
+  assert.ok(b.alone > 0 && b.build === 'conv-fused' && b.pairs.length >= 1 && b.held.length === 2 && [...b.pairs, ...b.held].every((p) => p.cpu > 0 && p.gpu > 0 && p.cores >= 1), JSON.stringify(b));
+  assert.ok(b.held.every((p) => p.cores === b.held[0].cores) && b.pairs.some((p) => p.cores === b.held[0].cores), 'what is kept up is one of those tried');
+  assert.match(r.text, /\nThe CPU and the GPU at once \(the GPU alone on its heavy pass: [\d.]+; the CPU's build: fused\):\n {2}\d+ cores [\d.]+ \+ GPU [\d.]+ = [\d.]+ {3}[\d.]+ times the GPU alone\n/);
+  assert.match(r.text, /\n {2}kept up with \d+ cores: [\d.]+ · [\d.]+(\n|$)/);
+  assert.ok(r.timing.gpu1 > 0 && r.timing.tog > 0 && r.timing.togn >= 1 && r.timing.togl > 0, JSON.stringify(r.timing));
   // the report, the copy key, the run kept, and its numbers among the editor's timings
   assert.match(r.text, /^Thunderhead network test · .* · took \d+ s\nGPU: .*half floats no \(the network runs in f32\)\nOne window \(96 x 96, 0\.01 MP\), each time the least of 1:/);
   assert.match(r.text, /\n +5 3x3 288>144 +[\d.]+( \| [\d.]+\*? \(0\)){5}\n/);

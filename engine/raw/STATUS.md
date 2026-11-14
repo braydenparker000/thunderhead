@@ -953,6 +953,39 @@ What followed:
 Next, in this order: the export's overlap (it feeds the network overlapping pieces: maybe 15 to 30 %); then the CPU
 beside the GPU, which the numbers above say is worth building.
 
+## An export's pieces fit the network's windows (2026-11-14)
+
+On the slower phone an export took 1.5 to 1.8 times as long a megapixel as a bare window. Reckoned on one of the
+owner's photos (no network run: the pieces an export cuts, and the windows each needs): a piece was 960 × 512 of
+the picture, and with its edge and the lens's reach (about 80 sensor pixels on this lens) nearly every piece
+spilled a few pixels into a second window, which was made for them with all its context: 96 pieces, 171
+windows, the network given 169 % of the photo. `full.js` `room` now keeps a network view's rectangle inside one
+window (990 sensor pixels a side) wherever on the picture it lies, and an export asks for pieces that fill one
+(`export.js` `NET_SIDE`): 54 pieces, 54 windows, 140 %. What is left is the context round each window, the edge
+each piece is made past for sharpening, and the lens's reach; less than that would need the network's result
+kept across pieces.
+
+With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
+carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
+
+## The CPU and the GPU at once, measured before it is built (2026-11-14)
+
+On the slower phone the CPU's eight cores make the network's heavy pass about as fast as its GPU does (15.9
+against 14.9 thousand million multiply-adds a second, each alone). If the two could work at once, an export
+could give some of its windows to the CPU and take up to half the time. But a phone's CPU and GPU share its
+memory and its heat, and the GPU's driver needs a core, so the speeds may not add, and the whole network on the
+CPU is a large thing to build on a guess.
+
+So the engine test page's network test now ends by measuring it (`frontend/lab/engine/net-both.js`): the GPU
+runs its heavy pass again and again, as the phone will run it (the ways just kept), first alone, then while half
+the cores, all but two and all of them make the same kind of layer; then the best of those is kept up for four
+more stretches, to see whether it holds as the phone warms. The report says each pair, the sum against the GPU
+alone, and the stretches; the numbers go with the timings (`gpu1`, `tog`, `togn`, `togl`).
+
+What it decides: if the two together, kept up, are well above the GPU alone (say 1.4 times), windows on the CPU
+are worth building, on as many cores as the best pair used. If they are not, the time is in the phone, not in
+how its work is divided, and the CPU stays out.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no

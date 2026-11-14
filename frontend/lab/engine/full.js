@@ -77,9 +77,11 @@ export async function full(e, img, mosaic) {
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     const room = () => {
       const [pw, ph] = pic(), g = e.gpu.geo();
-      for (let s = 1; s > 0.2; s *= 0.9) {
+      // (by the network, a rectangle also stays inside one of its windows: a few pixels over and a second window is made for them, context and all)
+      const lim = net ? net.core : Infinity;
+      for (let s = 1; s > 0.2; s *= net ? 0.98 : 0.9) {
         const w = Math.max(8, Math.min(pw, Math.floor(maxW * s))), h = Math.max(8, Math.min(ph, Math.floor(maxH * s)));
-        if ([0, 0.5, 1].every((u) => [0, 0.5, 1].every((v) => { const r = reach(g, (pw - w) * u, (ph - h) * v, w, h); return (r[2] + 8) * (r[3] + 8) <= side * side; }))) return [w, h];
+        if ([0, 0.5, 1].every((u) => [0, 0.5, 1].every((v) => { const r = reach(g, (pw - w) * u, (ph - h) * v, w, h); return (r[2] + 8) * (r[3] + 8) <= side * side && r[2] <= lim && r[3] <= lim; }))) return [w, h];
       }
       return [8, 8];
     };
@@ -103,7 +105,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, laid: () => (net ? net.laid : 0), ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -198,5 +200,5 @@ export async function full(e, img, mosaic) {
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };
-  return { get width() { return pic()[0]; }, get height() { return pic()[1]; }, view, dispose: () => { for (const d of [...open]) d(); tex.destroy(); } };
+  return { get width() { return pic()[0]; }, get height() { return pic()[1]; }, raw: !!sensor, view, dispose: () => { for (const d of [...open]) d(); tex.destroy(); } };
 }
