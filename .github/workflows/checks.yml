@@ -39,13 +39,13 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      # A lab-only change (TESTING.md §1, "Lab changes"): part site 1/4 runs the lab checks, the others pass.
-      - if: ${{ inputs.lab == '' || matrix.part == 'site 1/4' }}
+      # A lab-only change (TESTING.md §1, "Lab changes"): the site's parts run the lab's tests between them, the Worker's passes.
+      - if: ${{ inputs.lab == '' || matrix.part != 'worker' }}
         run: npm ci --ignore-scripts
-      - if: ${{ matrix.part != 'worker' && (inputs.lab == '' || matrix.part == 'site 1/4') }}
+      - if: ${{ matrix.part != 'worker' }}
         run: npx playwright install --with-deps --only-shell chromium
       # Switzer is fetched, not kept here (its licence forbids a public repository; scripts/fonts.mjs).
-      - if: ${{ matrix.part != 'worker' && (inputs.lab == '' || matrix.part == 'site 1/4') }}
+      - if: ${{ matrix.part != 'worker' }}
         run: node scripts/fonts.mjs
       # Local checks only: the live checks run after a deploy, against what went live.
       - name: Test
@@ -57,11 +57,13 @@ jobs:
           LAB: ${{ inputs.lab }}
         run: |
           if [[ -n "$LAB" ]]; then
-            if [[ "$PART" != 'site 1/4' ]]; then echo "lab-only change: part 1 runs its checks"; exit 0; fi
-            # the types, the contract and the page budgets as preflight checks them, then the lab tests
-            npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"
+            if [[ "$PART" == worker ]]; then echo "lab-only change: the Worker's suite is not run"; exit 0; fi
+            # part 1: the types, the contract and the page budgets as preflight checks them. Then the lab's tests,
+            # dealt over the four parts as the whole suite is (one part could not hold the editor's in its time)
+            if [[ "$PART" == 'site 1/4' ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
             read -ra files <<< "$LAB"
-            node --test "${files[@]}"
+            part="${PART#site }"
+            node scripts/test-part.mjs "${part%/*}" "${part#*/}" --only "${files[@]}"
           elif [[ "$PART" == worker ]]; then
             npm run test:backend
           else

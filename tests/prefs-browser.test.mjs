@@ -155,6 +155,9 @@ test('a short notice stays as long as the owner set', async () => {
   for (const [prefs, ms] of [[{}, 2000], [{ 'appearance.toast_ms': 5 }, 5000]]) {
     const { page, close } = await home(prefs, { clock: true });
     await page.clock.runFor(1000);
+    // The page's clock stands still but for the steps below. Installed alone it also runs with the real one, so on a
+    // slow machine the notice's time ran out between two steps of this test ("still there at 4800 ms", CI, more than once).
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
     await page.evaluate(() => document.querySelector('[data-toast]').click());
     assert.ok(await page.$eval('#toast', (t) => t.classList.contains('show')));
     await page.clock.runFor(ms - 200);

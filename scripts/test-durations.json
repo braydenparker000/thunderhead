@@ -95,7 +95,7 @@
     "tests/lab-editor-many-browser.test.mjs": 28500,
     "tests/lab-editor-match-browser.test.mjs": 18700,
     "tests/lab-editor-net-browser.test.mjs": 121900,
-    "tests/lab-editor-offline-browser.test.mjs": 24700,
+    "tests/lab-editor-offline-browser.test.mjs": 33000,
     "tests/lab-editor-recipes-browser.test.mjs": 15000,
     "tests/lab-editor-recipes.test.mjs": 1000,
     "tests/lab-editor-reopen-browser.test.mjs": 51200,

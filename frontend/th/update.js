@@ -43,12 +43,20 @@ function tryApply() {
   const next = reg.waiting;
   if (retry) clearInterval(retry);
   retry = null;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  next.postMessage({ type: 'skipWaiting' });
+}
+
+/** The worker in charge changed: asked for here, or by an editor page as it opened (lab/engine/fresh.js).
+ * This page is the release before's now, so it reloads behind a short fade, at a safe moment. */
+function changed() {
+  const go = () => {
+    if (!safeToApply(state())) return false;
     document.documentElement.style.transition = `opacity ${FADE_MS}ms`;
     document.documentElement.style.opacity = '0';
     setTimeout(() => location.reload(), FADE_MS);
-  }, { once: true });
-  next.postMessage({ type: 'skipWaiting' });
+    return true;
+  };
+  if (!go()) { const t = setInterval(() => { if (go()) clearInterval(t); }, RETRY_MS); }
 }
 
 function watchWaiting() {
@@ -80,6 +88,9 @@ export async function startUpdates() {
     return;
   }
   if (!reg) return;
+  // (a first worker taking a page that had none is no change of release)
+  let had = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) changed(); had = true; }, { once: !!had });
   reg.addEventListener('updatefound', () => {
     const w = reg?.installing;
     w?.addEventListener('statechange', () => { if (w.state === 'installed') watchWaiting(); });

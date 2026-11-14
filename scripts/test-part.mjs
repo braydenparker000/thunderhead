@@ -97,16 +97,20 @@ if (isMain && process.argv[2] === '--measure') {
   console.log(`measured ${Object.keys(ms).length} of ${files.length} test files into scripts/test-durations.json`);
   process.exit(run.status ?? 1);
 } else if (isMain) {
-  const [k, n] = process.argv.slice(2).map(Number);
+  // `--only <files>`: a lab change's tests (scripts/lab-scope.mjs), dealt over the parts like the whole suite
+  const args = process.argv.slice(2), at = args.indexOf('--only'), only = at < 0 ? null : new Set(args.slice(at + 1));
+  const [k, n] = args.slice(0, 2).map(Number);
   if (!(Number.isInteger(n) && n >= 1 && Number.isInteger(k) && k >= 1 && k <= n)) {
-    console.error('usage: node scripts/test-part.mjs <k> <n>  |  node scripts/test-part.mjs --measure');
+    console.error('usage: node scripts/test-part.mjs <k> <n> [--only <test files>]  |  node scripts/test-part.mjs --measure');
     process.exit(2);
   }
-  const all = testFiles();
+  const all = testFiles().filter((f) => !only || only.has(f));
   const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
   console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
   // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
-  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
+  // --test-timeout: a test with no limit of its own that stops answering (a browser that stalled: CI, 2026-11-14,
+  // thirteen silent minutes until the job's limit cancelled the part) fails in three minutes, by name.
+  const run = (/** @type {string[]} */ files, /** @type {string[]} */ more = []) => (files.length ? spawnSync(process.execPath, ['--test', '--test-force-exit', '--test-timeout=180000', ...more, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1 : 0);
   const first = run(light), second = run(slow, ['--test-concurrency=1']);
   process.exit(first || second);
 }

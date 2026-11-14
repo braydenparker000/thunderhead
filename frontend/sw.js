@@ -110,6 +110,9 @@ async function lab(req, path) {
   if (mine) return mine;
   const c = await carry(), same = c?.same.has(key) ? await caches.match(key, { cacheName: c.name }) : undefined;
   if (same) return same;
+  // (the keeping may have finished between those two looks: the kept release's cache is gone, and this release's is whole)
+  const now = c?.same.has(key) ? await caches.match(key, { cacheName: `th-lab-${BUILD}` }) : undefined;
+  if (now) return now;
   try {
     return await fetch(req);
   } catch (e) {

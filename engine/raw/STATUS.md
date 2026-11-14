@@ -968,6 +968,22 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## The phone ran the release before's editor under the newest label (2026-11-14)
+
+The owner ran the network test on build 769383a and the report came back with three ways a pass, not five, and
+no CPU-and-GPU part: the code of two releases before. A new release's service worker waits for the shell's safe
+moment (ARCHITECTURE.md §8.3), and until then the worker in charge serves the editor it kept (`sw.js` `lab`). A
+phone that goes straight to the editor or this test page never gives the shell that moment. The report's build
+came from `/config.js`, which is always read fresh, so the label was the newest release's and the code was not.
+Every phone measurement since the editor has been kept for offline use may have been of an older release than
+it said; the export the owner timed at "still 7 minutes" may have been too.
+
+Now: the editor's pages look for a release when they open, apply it when a reload would lose nothing, and
+reload into it (`frontend/lab/engine/fresh.js`; the test page holds its button until it knows which release it
+is). The shell, open elsewhere, reloads at its own next safe moment (`th/update.js`). The label is
+`lab/engine/build.js`, stamped by `scripts/stage.mjs` and kept with the rest, so it names the code that ran.
+`tests/lab-editor-offline-browser.test.mjs` serves three releases in turn and holds all of it.
+
 ## Less sensor round an export's piece (2026-11-14)
 
 Every rectangle the engine makes takes 36 sensor pixels more on each side than it draws on (`warp.js` `reach`):
