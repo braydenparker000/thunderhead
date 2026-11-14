@@ -249,11 +249,7 @@ test('a long imported old chat shows its newest 200, then earlier ones above', o
   const count = () => page.$$eval('#past [data-id]', (n) => n.length);
   assert.equal(await count(), 200);
   // The scroll to the end lands after layout settles: a wait, not a read (TESTING.md §10.1).
-  // (this wait has failed on CI and never here: when it does, it says where the conversation stood)
-  await until(() => page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), { message: 'scrolled to the bottom' }).catch(async (e) => {
-    const seen = await page.evaluate(() => { const c = document.querySelector('#convo'); return { scrollHeight: c.scrollHeight, scrollTop: c.scrollTop, clientHeight: c.clientHeight, messages: document.querySelectorAll('#past [data-id]').length, pastH: getComputedStyle(document.documentElement).getPropertyValue('--past-h'), fonts: document.fonts.status, visible: document.visibilityState }; }).catch((x) => String(x));
-    throw new Error(`${e.message}: ${JSON.stringify(seen)}`);
-  });
+  await until(() => page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), { message: 'scrolled to the bottom' });
   await page.click('#past .earlier');
   await eventually(count, 230);
   assert.equal(await page.$('#past .earlier'), null);

@@ -36,6 +36,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       lab: ${{ needs.scope.result == 'success' && needs.scope.outputs.lab || '' }}
+      first_only: true
   # The mind's weekly improvement (EVALS.md §7, RA-P9-02): its evals line must match the Worker's
   # record, no suite may drop, and it may not change an eval and the mind together.
   eval-diff:

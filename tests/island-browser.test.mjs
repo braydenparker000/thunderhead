@@ -526,9 +526,11 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     assert.ok(await page.evaluate(()=>performance.now()-chatLoadedAt>=2900),'three-second fallback');
     await readyOpen(page,'music');await settle(page);await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     // A title past 60% of the viewport: the capsule stops at 234 px and fades the title's last 16 px.
-    await page.evaluate(()=>{const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'island-title',title:'An invented title, a little too long'}];p.index=0;});
-    await page.waitForFunction(()=>document.querySelector('.title').textContent.includes('invented'));
-    const shown=await page.evaluate(()=>performance.now());await settle(page);
+    // (when the title showed is noted on the page as it happens: read afterwards, the mark came late on a loaded machine and the two seconds below measured short)
+    await page.evaluate(()=>{window.__shownAt=0;const note=()=>{if(!window.__shownAt&&document.querySelector('.title')?.textContent.includes('invented'))window.__shownAt=performance.now();};new MutationObserver(note).observe(document.querySelector('.th-island'),{childList:true,characterData:true,subtree:true});
+      const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'island-title',title:'An invented title, a little too long'}];p.index=0;});
+    await page.waitForFunction(()=>window.__shownAt>0);
+    const shown=await page.evaluate(()=>window.__shownAt);await settle(page);
     near((await rect(page,'.th-island')).width,234,'60% of the viewport');
     assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('long')),true,'the long title is masked');
     // Two seconds at rest, then one pass to its end at 40 px/s (25 ms a pixel, 16 px past the end).

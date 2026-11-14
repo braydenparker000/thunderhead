@@ -8,7 +8,48 @@ Sizes: **S** one pull request, **M** several, **L** a project of its own. "New" 
 before. Every quality item is measured before and after, and anything that does not earn its place is dropped
 and written down.
 
+## The road from 2026-11-14: eight pull requests, in order
+
+Agreed with the owner on 2026-11-14, after a day in which five unrelated tests stopped merges, the phone
+turned out to be running the release before's editor, and the owner said what troubles them. This replaces
+the order of what is left; the sections below stay as the record.
+
+**The standard (the owner's correction, 2026-11-14).** The best picture that can be made from what the sensor
+recorded. Lightroom is a reference, a thing the owner knows well: not a guide and not the goal. A stage is
+proven against the truth (a scene whose right answer is known) and against the best published method for it.
+
+**What troubles the owner, in their order:** whether every stage is truly of high quality or only looks it;
+whether an export is the highest quality, and why it takes so long; zooming and panning lag at times; the dial
+and other elements glitch at times; the layout is almost right, not quite; it still feels a little like a web
+page; more presets are wanted; whether the one building it knows how to make the best pipeline; and the pain
+of getting here.
+
+| # | Pull request | What is in it | Done when | Needs the owner |
+|---|---|---|---|---|
+| 1 | CI that cannot be re-run into green | The re-run guard, the stall watchdog, the tests a soak under load found | The soak passes three times; Test fails any second attempt | Nothing |
+| 2 | Proof on the phone | The engine test page develops the known photo on the phone's own GPU (the half-float network no test machine can run) and holds it against the reference numbers; the result goes with the timings | The page says pass or fail with the numbers, and they arrive | To open the page once |
+| 3 | Zoom and pan | Frame times recorded during a pinch, a pan and a fling on the phone; then whatever stalls a frame | No frame over 33 ms during a gesture on the phone, by its own numbers | To use it with timings on; a recording of a lag helps |
+| 4 | The dial and the controls | The jumps, flicker and layout shifts found and mended | A test for each fault found | A recording of a glitch |
+| 5 | Sensor truth | A black level for each colour; dead pixels mended | Known-picture numbers, before and after | Nothing |
+| 6 | Output | Display P3 with a profile embedded; a better JPEG encoder | A colour round trip; file size at equal quality | Nothing |
+| 7 | Layout and feel | The owner's layout notes; transitions, gestures and haptics | The owner's eye | Their notes on what is off |
+| 8 | Presets | Sources with clear licences; an easier import | Imports render as meant | Nothing |
+
+Not pull requests yet: a larger network trained for the X-E5's own noise (the only way past the best open one
+found; free GPU time in the owner's name, so the owner's call), and the CPU beside the GPU for exports
+(measured at 1.88 times the GPU alone on the slower phone, held over four stretches; a large build, to be
+decided after one real export time on the current build).
+
+**How each is kept small and quick.** One line of "done when", a measurement, before any code. What turns up
+on the way and is not needed for that line becomes its own row. The affected tests run here before the pull
+request is opened, and it is opened once, complete: one CI run each, and if one needs a second the owner is
+told why then. Once live, the live build is checked before the owner is told. Something unexpected (as the
+phone's old code was) stops the work and is said; it becomes its own row unless it blocks the one in hand.
+
 ## The road from 2026-11-12: close the gap with Lightroom
+
+(Read with the correction above: Lightroom is the owner's reference, not the goal.)
+
 
 The owner, on 2026-11-12: the goal is a product as good as or better than Lightroom; the work had become
 running in circles; they want to manage less. What went wrong, said plainly: the stages below were a list of

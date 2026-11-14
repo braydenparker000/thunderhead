@@ -213,7 +213,9 @@ const budgets = [
   // (2026-11-03, @muse) 65,000 → 70,205 measured (+6,071 over main's 64,134): the Tasks group and
   // its sheet (tasks.js, 5,640) and their place in the menu (menu.js, +431).
   // (2026-11-04, verbs batch 2) +111 measured (70,316): a row's topic (thread.file) before its summary.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_316],
+  // (2026-11-14) +239 measured (70,555): an old chat stays at its end when the card's height comes late
+  // (convos/past.js; it ended a card's height short on a slow phone).
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_555],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's

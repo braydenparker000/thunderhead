@@ -13,7 +13,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 5. **Live checks are read-only.** They never send a message, write a row or sign in.
 6. **Fixtures are synthetic.** No real names, places, messages, songs, notes, scripture text or dates tied to the owner. The repo is public.
 7. **Evals with personal data run only inside mind sessions**, never in Actions.
-8. **A flaky test is a bug.** It is fixed or deleted within a day, never retried into green (the one built-in exception is the live check's single retry, which covers network blips). Browser tests wait for conditions, never for time, and their timing reads are diagnostics on CI (§10.1).
+8. **A flaky test is a bug.** It is fixed or deleted within a day, never retried into green (the one built-in exception is the live check's single retry, which covers network blips). On a branch the workflow keeps this itself: a re-run of Test's checks fails at its first step (`checks.yml`, `first_only`), so the way to green is a commit that fixes what failed (since 2026-11-14, when the rule was broken by hand three times in a day and each re-run hid a test that failed again later). Browser tests wait for conditions, never for time, and their timing reads are diagnostics on CI (§10.1).
 9. **A release that touches gestures, audio or the service worker isn't done** until the real-device checklist passes on the A15.
 
 ---

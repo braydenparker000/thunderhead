@@ -32,7 +32,11 @@ function el(tag, cls, text) {
 const pill = el('div', 'past');
 /** The card's height lifts the conversation's end above it. */
 const dock = new ResizeObserver(() => {
-  if (pill.isConnected) document.documentElement.style.setProperty('--past-h', `${pill.offsetHeight + 10}px`);
+  if (!pill.isConnected) return;
+  // (a conversation at its end stays there: the card's height may come after the scroll to the end)
+  const c = $('#convo'), atEnd = c.scrollHeight - c.scrollTop - c.clientHeight < 4;
+  document.documentElement.style.setProperty('--past-h', `${pill.offsetHeight + 10}px`);
+  if (atEnd) c.scrollTop = c.scrollHeight;
 });
 const info = el('div', 'pinfo');
 const label = el('span', 'ptl');

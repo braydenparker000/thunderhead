@@ -14,6 +14,10 @@ on:
         description: "Test's lab scope (scripts/lab-scope.mjs): empty = every suite; else the test files of a lab-only change"
         type: string
         default: ''
+      first_only:
+        description: "Test sets this: a re-run of these checks fails (TESTING.md §1 rule 8: a failing test is fixed, never retried into green)"
+        type: boolean
+        default: false
 permissions:
   contents: read
 defaults:
@@ -31,6 +35,14 @@ jobs:
       matrix:
         part: [site 1/4, site 2/4, site 3/4, site 4/4, worker]
     steps:
+      # A failing test is fixed, never retried into green (TESTING.md §1 rule 8). The rule was broken by hand three
+      # times in one day (2026-11-14), each re-run hiding a test that failed again later, so on a branch a re-run
+      # cannot pass: the way to green is a commit that fixes what failed. Deploy does not set this (its job re-run
+      # after an outage must stay possible); the same checks passed on the branch first.
+      - if: ${{ inputs.first_only && github.run_attempt > 1 }}
+        run: |
+          echo "::error::A re-run of the checks does not count: a failing test is fixed, not retried into green (docs/engineering/TESTING.md §1, rule 8). Push the fix."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}

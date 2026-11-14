@@ -102,7 +102,10 @@ test('Auto flips at the owner’s hours, 07:00 and 22:00 unless set, with a fake
   assert.equal(await theme('light'), 'light', '21:59: day');
   await page.clock.fastForward('01:30');
   assert.equal(await theme('dark'), 'dark', '22:00: night');
-  // The owner moves their hours on another phone: home's next read of the settings brings them.
+  // The owner moves their hours on another phone: home's next read of the settings brings them. (Home's first
+  // read, made as the page opened, must have landed by then: when it landed after this one it brought the old
+  // hours back, and the theme stayed as it was. That was this test's failure under load, one run in fifteen.)
+  await page.waitForFunction(() => localStorage.getItem('th.p.settings') !== null);
   Object.assign(w.stored, { 'mind.night_start': '23:00', 'mind.day_start': '06:00' });
   await page.evaluate((s) => import('/th/copy.js').then((m) => m.keepShell(s)), w.stored);
   assert.equal(await theme('light'), 'light', '22:00 with evening from 23:00: day');
