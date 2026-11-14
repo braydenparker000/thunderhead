@@ -30,7 +30,7 @@ of getting here.
 | 2 | Proof on the phone | The engine test page develops the known photo on the phone's own GPU (the half-float network no test machine can run) and holds it against the reference numbers; the result goes with the timings | The page says pass or fail with the numbers, and they arrive | To open the page once |
 | 3 | Zoom and pan | Frame times recorded during a pinch, a pan and a fling on the phone; then whatever stalls a frame | No frame over 33 ms during a gesture on the phone, by its own numbers | To use it with timings on; a recording of a lag helps |
 | 4 | The dial and the controls | The jumps, flicker and layout shifts found and mended | A test for each fault found | A recording of a glitch |
-| 5 | Sensor truth | A black level for each colour; dead pixels mended | Known-picture numbers, before and after | Nothing |
+| 5 | Sensor truth | A black level for each colour; dead pixels mended. **Closed by measurement, 2026-11-14:** the RAFs state one level for every colour, and none of the owner's eight has a dead sensel (STATUS.md) | Known-picture numbers, before and after | Nothing |
 | 6 | Output | Display P3 with a profile embedded; a better JPEG encoder | A colour round trip; file size at equal quality | Nothing |
 | 7 | Layout and feel | The owner's layout notes; transitions, gestures and haptics | The owner's eye | Their notes on what is off |
 | 8 | Presets | Sources with clear licences; an easier import | Imports render as meant | Nothing |

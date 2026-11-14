@@ -968,6 +968,53 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## A full-size view is made a part at a time, and left for a touch (2026-11-14)
+
+Road map pull request 3. The owner: zooming and panning lag at times. While fingers move the photo nothing
+is drawn (it is moved and scaled), so the lag is not the gesture's own work. What was found: every full-size
+view was one submission to the GPU. On the slower phone, by its own test page, the network's is two seconds
+and its two heavy passes are each one dispatch of 0.6 s that nothing can interrupt; the usual demosaic's is
+over a second for half a megapixel. At 100 % the two follow each other after every rest. A pan or a pinch
+begun meanwhile could not be shown until the GPU was free: "at times" is whenever the photo had just come
+to rest.
+
+Now, for what shows on the screen (an export is as before, one submission a window):
+
+- `full.js` `region(…, pace)` makes a rectangle's colours a part at a time, each its own submission and
+  waited for: the usual demosaic a pass at a time (`demosaic.js` `run(…, only)`), sharpening a round at a
+  time (`deconv.js`), and the network a few output blocks at a time (`net-pace.js`: a way's workgroups
+  along z are its output blocks, and each way's code gains the block it starts at, `z0`, in its window's
+  settings; how many blocks go in a submission is found as it goes, aiming at 12 ms). When `pace.stop` says
+  yes the rest is left undone.
+- `app/zoom.js` asks for paced regions for the live 100 % view, the 40 to 100 % tiles and the network's
+  picture, and stops them the moment fingers move the photo, it glides, a newer job begins or an edit's
+  frame waits (a view left for a waiting frame is asked for again 400 ms later).
+- The same sums in the same order: on the software GPU the paced picture is the unpaced one to the last
+  bit, for the usual way and for every one of the network's five ways (the pictures and grain tests).
+- A pass still run as exported has no `z0` and is one submission (the first and last always: 8 and 66 ms on
+  the slower phone; the middle ones only where a phone's ways were never chosen).
+
+What the phone will say (not known until it has): each gesture is noted with the timings as `move`
+(frames drawn, the longest gap between two, gaps over two frames' time, and whether a view was being made
+when a finger came down: `app/moved.js`), and each view made a part at a time carries how many parts, the
+longest on the GPU (`part`), and whether it was left (`left`). The aim: no gap over 33 ms in a gesture, and
+no part much over a frame. By the slower phone's test-page numbers a block of its heavy pass is about 17 ms.
+
+## The sensor needs no mending this camera does not already do (2026-11-14)
+
+Road map pull request 5, closed by measurement. REVIEW.md had two rows behind the best known: one black
+level for every colour, and dead sensels not mended.
+
+- **Black level.** All nine X-E5 RAFs state one level for all 36 sites of the pattern (1023; one file
+  1022). A level for each colour read from the file would be the same number three times. A true one would
+  need a frame shot with the lens cap on, which was not asked for.
+- **Dead sensels.** Across the owner's eight RAFs, a site that reads under a quarter of every site of its
+  colour within two, in a lit place (those sites over 5 % of the range): 16 in all, none in more than one
+  photo. A dead sensel would be in all of them. The hot ones are mended already (77 and 100 in the two
+  photos at the highest ISO).
+
+Nothing was changed.
+
 ## The pictures are checked on the phone without anyone asking (2026-11-14)
 
 Road map pull request 2. The owner's first doubt: whether every stage is truly what it claims, on their phone.
