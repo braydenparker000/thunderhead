@@ -49,6 +49,17 @@ test('the known photo develops to the reference numbers', opts, async () => {
     assert.equal(v.same, true, `${name} is the reference's picture`);
     assert.ok((v.db ?? 0) <= TIGHT.db && v.grid <= TIGHT.grid, `${name}: off by ${v.db} dB and ${v.grid}; if the change was meant, make the reference again`);
   }
+  // (the test server stamps the editor's label as b1.) The check is kept and noted with the timings, as the editor's own is (engine/checked.js: it makes one for each
+  // release by itself; a browser a test drives is left alone unless asked), and the page says what it came to.
+  const kept = await page.evaluate(async () => {
+    const C = await import('/lab/engine/checked.js');
+    return { last: C.last(), line: C.line(C.last()), timing: JSON.parse(localStorage.getItem('th.editor.timings')).at(-1), driven: await C.onceForBuild() };
+  });
+  assert.deepEqual([kept.last.build, kept.last.shots, kept.last.same, kept.last.different, kept.last.gpu], ['b1', 10, 10, [], run.gpu]);
+  assert.equal(kept.line, "Checked on this phone, build b1: all 10 pictures are the reference's.");
+  assert.deepEqual([kept.timing.kind, kept.timing.shots, kept.timing.same, kept.timing.diff, kept.timing.netdb, kept.timing.netndb], ['check', 10, 10, 0, Math.round(100 * run.shots.network.psnr), Math.round(100 * run.shots.networkNoisy.psnr)]);
+  assert.ok(kept.timing.offdb <= 100 * TIGHT.db && kept.timing.ms > 0, JSON.stringify(kept.timing));
+  assert.equal(kept.driven, null, 'not made again unasked in a browser a test drives');
   // The numbers mean something: the demosaic is true to the scene, sharpening wins detail back against the scene
   // before the lens, and an edit changes the frame.
   assert.ok(ref.demosaic.psnr > 34 && ref.demosaic.green > 40, 'the demosaic');
@@ -66,9 +77,10 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.equal((text.match(/SAME/g) || []).length, 10);
   assert.doesNotMatch(text, /DIFFERENT/);
   assert.equal(await page.isEnabled('#bcopy'), true);
-  // The run is kept on this phone and shown the next time the page opens.
+  // The run is kept on this phone and shown the next time the page opens, under what the last check came to.
   await page.reload({ waitUntil: 'load' });
-  assert.match(await page.textContent('#bout'), /^The last run on this phone:[\s\S]*demosaic/);
+  await page.waitForSelector('html[data-bench=ready]');
+  assert.match(await page.textContent('#bout'), /^Checked on this phone, build b1: all 10 pictures are the reference's\.\n\nThe last run on this phone:\nThunderhead engine test · [\s\S]*demosaic/);
   assert.deepEqual(errors, []);
   await page.close();
 });

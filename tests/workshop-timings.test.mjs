@@ -10,6 +10,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
     { at: 1000, kind: 'open', ms: 8127.4, file: 'raf', quick: false, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 41.6, kept: 1, name: 'DSCF0042.RAF' },
     { at: 2000, kind: 'save', ms: 57685, files: 1, px: 39806928, bytes: 7900000, kinds: 'JPEG', note: 'a caption', op0: 3.4, op11: 812.6, op16: 5, alt3: 402.2, alt0: -1, wid4: -2 },
     { at: 2500, kind: 'tune', ms: 61234, px: 968256, op0: 12.2, op5: 1893.4, alt5: 1410, wid5: 980.6, one5: -2, whole: 5641, chosen: 3200, floats: 7000, after: 5900, ways: 2112112110, apart: 250, apartc: 262, cpu1: 210, cpun: 890, fuse1: 240, fusen: 1010, threads: 8, why: 'line 12: a message' },
+    { at: 2700, kind: 'check', ms: 6100.4, shots: 10, same: 9, diff: 32, offdb: 41, offgrid: 12, netdb: 3954, netndb: 3612, gpu: 'arm valhall', different: ['network'] },
     { at: 3000, kind: 'open', ms: 900, file: '../../secret' },
     { at: 4000, kind: 'spy', ms: 1 },
     { kind: 'open', ms: 5 },
@@ -19,6 +20,7 @@ test('only timings of known kinds, with their known fields, are kept', () => {
     { kind: 'open', at: 1000, ms: 8127, heard: 7001, decode: 1399, threads: 8, code: 40, wasm: 300, pool: 5000, waited: 5400, age: 12, px: 39814656, first: 42, kept: 1, file: 'raf', quick: false },
     { kind: 'save', at: 2000, ms: 57685, px: 39806928, files: 1, bytes: 7900000, op0: 3, op11: 813, alt0: -1, alt3: 402, wid4: -2, kinds: 'JPEG' },   // the network's passes timed apart: sixteen at most
     { kind: 'tune', at: 2500, ms: 61234, threads: 8, px: 968256, op0: 12, op5: 1893, alt5: 1410, wid5: 981, one5: -2, whole: 5641, chosen: 3200, floats: 7000, after: 5900, ways: 2112112110, apart: 250, apartc: 262, cpu1: 210, cpun: 890, fuse1: 240, fusen: 1010 },   // the engine test page's measure of the network: numbers only
+    { kind: 'check', at: 2700, ms: 6100, shots: 10, same: 9, diff: 32, offdb: 41, offgrid: 12, netdb: 3954, netndb: 3612 },   // the picture check: numbers only (the chip's name and the pictures' names stay on the phone)
     { kind: 'open', at: 3000, ms: 900 },
   ]);
   assert.deepEqual(clean('not a list'), []);

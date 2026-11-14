@@ -5,10 +5,11 @@
 
 /** At most this often. */
 export const EVERY_MS = 10 * 60_000;   // (six hours until 2026-11-13: a session's timings then reached the workshop a day late; the file is about a kilobyte)
-const KINDS = ['open', 'full', 'detail', 'fine', 'save', 'tune'];   // tune: the engine test page's measure of the network (lab/engine/net-ui.js)
+const KINDS = ['open', 'full', 'detail', 'fine', 'save', 'tune', 'check'];   // tune: the engine test page's measure of the network (lab/engine/net-ui.js); check: the known photo developed on the phone and held against the reference (lab/engine/checked.js)
 const NUMBERS = ['at', 'ms', 'heard', 'decode', 'threads', 'code', 'wasm', 'pool', 'waited', 'age', 'px', 'files', 'bytes', 'gpu', 'read', 'write', 'demosaic', 'noise', 'sharpen', 'warp', 'colour', 'net', 'fell', 'made', 'wait', 'off', 'first', 'kept', 'again', 'held',
   ...['op', 'alt', 'wid', 'one', 'blk', 'nar'].flatMap((k) => Array.from({ length: 16 }, (_, i) => `${k}${i}`)),   // the network's passes timed apart: as the phone runs them (an export: net-tune.js `timed`), and on the engine test page each other way too (-1 none, -2 it did not compile)
-  'laid', 'whole', 'chosen', 'floats', 'after', 'ways', 'apart', 'apartc', 'cpu1', 'cpun', 'fuse1', 'fusen', 'gpu1', 'tog', 'togn', 'togl'];   // that page's whole-window times, the ways kept, how far the pictures are from full floats (thousandths of a level), and the CPU's speed (hundredths of a thousand million multiply-adds a second)
+  'laid', 'whole', 'chosen', 'floats', 'after', 'ways', 'apart', 'apartc', 'cpu1', 'cpun', 'fuse1', 'fusen', 'gpu1', 'tog', 'togn', 'togl',
+  'shots', 'same', 'diff', 'offdb', 'offgrid', 'netdb', 'netndb'];   // the picture check: how many pictures, how many the reference's, which are not (a bit each), the furthest off, the network's truth to the scene (lab/engine/checked.js `numbers`)   // that page's whole-window times, the ways kept, how far the pictures are from full floats (thousandths of a level), and the CPU's speed (hundredths of a thousand million multiply-adds a second)
 const WORDS = /** @type {Record<string, RegExp>} */ ({ file: /^(raf|jpeg|stack)$/, kinds: /^(JPEG|PNG|TIFF)( (JPEG|PNG|TIFF)){0,7}$/ });
 
 /** The stored list made safe: each entry's known fields only. @param {unknown} stored @returns {Record<string, number | string | boolean>[]} */

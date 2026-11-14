@@ -94,4 +94,7 @@ else {
     if (all?.length) warm();   // the decoder starts while the Library is looked at (decoder.js)
     if (wanted && all?.some((p) => p.id === wanted)) { openPhoto(wanted); show('Edit'); } else show('Library');
   });
+  // Once for each release: the known photo developed on this phone's own graphics chip and held against the
+  // reference (engine/checked.js), a while after the Library shows and only if it is still what shows.
+  setTimeout(() => { if (history.state?.name === 'Library') import('../engine/checked.js').then((m) => m.onceForBuild()).catch((e) => console.warn('the picture check:', e)); }, 12_000);
 }
