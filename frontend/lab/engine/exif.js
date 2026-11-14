@@ -74,16 +74,19 @@ export function shot(jpeg) {
     iso: num(get(x, 0x8827)), time: num(get(x, 0x829a)), f: num(get(x, 0x829d)), mm: num(get(x, 0x920a)) };
 }
 
-/** What an export carries of the photo's Exif, or null for nothing.
+/** What an export carries of the photo's Exif, or null for nothing. The camera's Exif says sRGB, of its own JPEG; the
+ * export says what it is itself: sRGB, or for a file in a wider space "uncalibrated" (65535, which is how Exif says
+ * "see the profile"), without the camera's interoperability directory, whose R98 means sRGB too.
  * @param {Uint8Array} jpeg the camera's JPEG @param {'All' | 'Copyright only' | 'None'} keep
- * @param {boolean} place keep where it was taken @param {number} w @param {number} h the export's size @returns {Entry[] | null} */
-export function carry(jpeg, keep, place, w, h) {
+ * @param {boolean} place keep where it was taken @param {number} w @param {number} h the export's size
+ * @param {boolean} [wide] the file is not sRGB (Display P3, with its profile) @returns {Entry[] | null} */
+export function carry(jpeg, keep, place, w, h, wide = false) {
   let es = keep === 'None' ? null : read(jpeg);
   if (!es) return null;
   if (keep !== 'All') { es = es.filter((e) => e.tag === 0x013b || e.tag === 0x8298); return es.length ? es : null; }   // artist, copyright
   es = es.filter((e) => e.tag !== 0x0112 && (place || e.tag !== 0x8825)).concat(entry(0x0112, 3, [1]));   // upright now
   const x = es.find((e) => e.tag === 0x8769);
-  if (x?.sub) x.sub = x.sub.filter((e) => ![0xa001, 0xa002, 0xa003].includes(e.tag)).concat(entry(0xa001, 3, [1]), entry(0xa002, 4, [w]), entry(0xa003, 4, [h]));   // sRGB, the size
+  if (x?.sub) x.sub = x.sub.filter((e) => ![0xa001, 0xa002, 0xa003].includes(e.tag) && !(wide && e.tag === 0xa005)).concat(entry(0xa001, 3, [wide ? 65535 : 1]), entry(0xa002, 4, [w]), entry(0xa003, 4, [h]));   // the colour space, the size
   return es;
 }
 
