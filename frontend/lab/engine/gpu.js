@@ -157,13 +157,16 @@ export async function engine(canvas, img, readback = false) {
    * highlights as the sensor gave them; dither: false leaves the banding guard off; edge: false cuts colours the screen
    * cannot show off at its edge instead of easing them in with their hue held (wgsl.js `fit`: to compare); mask: false sets Highlights and
    * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
-   * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries */
+   * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries;
+   * wide: the frame's colours are Display P3's, for a file that says so (icc.js): never for the screen */
   const render = async (ev, contrast, more = {}) => {
     if (painted.sync(more.masks)) setProfile(picked);   // a first brush mask made the layers' texture: everything that binds it binds again
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
+    // wide: for a Display P3 file (wgsl.js `shown`). A look's own table and the point curve are made for sRGB's numbers: with either, sRGB's colours in P3's numbers
+    const wide = !more.wide ? 0 : (state.u.flags & 262144) || more.curve ? 8388608 : 4194304;
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
-    n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (img.meta.picture ? 2097152 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (img.meta.picture ? 2097152 : 0) | wide | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, more.grainSize || 1], 80);
     if (more.dehaze && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }   // the haze's colour, once for each profile and white balance
     f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, more.cube ?? 1, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);
@@ -175,7 +178,7 @@ export async function engine(canvas, img, readback = false) {
     const lo = localRows(more.masks, geo, more.showMaskNo ?? -1, (more.baseEv ?? ev) + state.u.offset);   // the masks: laid on in the frame pass, not the table
     if (lo) f.set(lo, 668);
     f[683] = more.defringe || 0;   // for the full-size views' last pass (finish.js)
-    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join(), more.edge === false, more.chrome || 0, more.chromeBlue || 0].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
+    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join(), more.edge === false, more.chrome || 0, more.chromeBlue || 0, wide].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine, true); bent = true; masked = fined = hazed = ''; }

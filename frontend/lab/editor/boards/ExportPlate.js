@@ -34,7 +34,7 @@ export default class Component extends DCLogic {
     // a photo's own size and name; what its export can't do yet is off, whatever the preset says
     const seen = shown.face(), real = seen.real ? photo.current() : null, app = shown.app;
     const [fw, fh] = (real && shown.outSize()) || (real ? photo.shape() : [7728, 5152]), full = Math.max(fw, fh), stem0 = real ? real.name.replace(/\.\w+$/, '') : app ? '' : 'DSCF0412';
-    const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: 'sRGB', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
+    const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: x.space === 'Display P3' ? 'Display P3' : 'sRGB', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
     const keepP = (list) => { if (document.body.dataset.board === 'App') keepPresets(list); set({ presets: list, done: false }); };
     const setP = (patch) => keepP(S.presets.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)));
     const sizeList = [['Full', full], ['4K', 3840], ['2048', 2048], ['1080', 1080]].filter(([k, px]) => k === 'Full' || px < full);
@@ -49,7 +49,7 @@ export default class Component extends DCLogic {
       Size: sizeList.map(([k, px]) => ({ name: k, value: String(px), on: p.size === k, pick: () => setP({ size: k, long: px }) }))
         .concat([{ name: 'Custom', value: p.size === 'Custom' ? String(p.long) : '', on: p.size === 'Custom', pick: () => { setP({ size: 'Custom' }); set({ ctl: 'long' }); } }]),
       Format: ['JPEG', 'PNG', 'TIFF 16'].map((f) => ({ name: f, on: p.fmt === f, pick: () => setP({ fmt: f }) }))
-        .concat([{ name: 'Quality', value: p.fmt === 'JPEG' ? String(p.q) : '—', on: S.ctl === 'q', pick: () => set({ ctl: 'q' }) }, { name: 'Color space', value: p.space, pick: () => (real ? null : setP({ space: p.space === 'sRGB' ? 'Display P3' : 'sRGB' })) }]),
+        .concat([{ name: 'Quality', value: p.fmt === 'JPEG' ? String(p.q) : '—', on: S.ctl === 'q', pick: () => set({ ctl: 'q' }) }, { name: 'Color space', value: p.space, pick: () => keepP(S.presets.map((x) => ({ ...x, space: p.space === 'sRGB' ? 'Display P3' : 'sRGB' }))) }]),   // one space for all of an export's files: they are cut from the same pieces (app/save.js)
       Output: ['Off', 'Screen', 'Print'].map((s) => ({ name: s === 'Off' ? 'No sharpen' : s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
         .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) }, real ? { name: 'Watermark', value: 'LATER', pick: () => {} } : { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
       Info: [{ name: 'Metadata', value: p.meta, on: S.ctl === 'meta', pick: () => set({ ctl: 'meta' }) }, { name: 'Location', value: p.gps ? 'ON' : 'OFF', on: p.gps, pick: () => setP({ gps: !p.gps }) },

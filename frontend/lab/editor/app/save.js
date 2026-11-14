@@ -13,7 +13,7 @@ import { tick } from './haptic.js';
 import { noteLine } from './export-note.js';
 import { keep, keyOf, rowsKept, sweep } from './export-kept.js';
 
-/** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
+/** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string, space?: string }} Preset
  * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
 
 const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', mark: false, meta: 'All', gps: false, naming: 'Camera name' }, KEPT = 'th.editor.export.presets';
@@ -32,7 +32,7 @@ export function jobs(list, name, shape, date) {
   const full = Math.max(shape[0], shape[1]), stem0 = name.replace(/\.\w+$/, '');
   return list.filter((x) => x.on).map((x) => {
     const stem = x.naming === 'Date + number' ? `${date || 'photo'}_${(stem0.match(/\d+$/) || [stem0])[0]}` : stem0;
-    return { fmt: x.fmt, long: x.size === 'Full' ? full : Math.min(full, x.long), q: x.q, meta: /** @type {Preset['meta']} */ (x.meta), gps: x.gps, sharpen: x.sharpen, amt: x.amt, file: `${stem}${x.name === 'Small' ? '_small' : ''}.${x.fmt === 'JPEG' ? 'jpg' : x.fmt === 'PNG' ? 'png' : 'tif'}` };
+    return { fmt: x.fmt, long: x.size === 'Full' ? full : Math.min(full, x.long), q: x.q, meta: /** @type {Preset['meta']} */ (x.meta), gps: x.gps, sharpen: x.sharpen, amt: x.amt, space: x.space, file: `${stem}${x.name === 'Small' ? '_small' : ''}.${x.fmt === 'JPEG' ? 'jpg' : x.fmt === 'PNG' ? 'png' : 'tif'}` };
   });
 }
 
@@ -51,11 +51,13 @@ const OPS = 'th.editor.nettune';   // when the network's passes were last timed 
 /** Whether an export is made by the network (engine/neural.js): 'on', or 'off-setting', the owner's setting
  * (Settings > Photos > Editor). Nothing else turns it off: an export it cannot make is refused, never made another way.
  * @returns {'on' | 'off-setting'} */
+/** Whether the files that are on are to be Display P3 (the Export board's Color space: one for all of an export's files, since they are cut from the same pieces). */
+const widePick = () => presets().some((x) => x.on && x.space === 'Display P3');
 export function netWhy() { try { return prefOn('photos.neural', true) ? 'on' : 'off-setting'; } catch { return 'off-setting'; } }
 const netOn = () => netWhy() === 'on';
 /** What an export of the open photo is made from, as a short name (export-kept.js): the photo, its edit, its size, the
  * method, the editor's settings and the build. @param {boolean} best */
-const keyNow = (best) => { const p = photo.current(), big = photo.whole(); return keyOf({ id: p?.id, edit: photo.state(), size: [big?.width, big?.height], best, set: Object.keys(localStorage).filter((k) => k.startsWith('th.s.photos.')).sort().map((k) => [k, localStorage.getItem(k)]), build: CONFIG.commit }); };
+const keyNow = (best) => { const p = photo.current(), big = photo.whole(); return keyOf({ id: p?.id, edit: photo.state(), size: [big?.width, big?.height], best, wide: widePick(), set: Object.keys(localStorage).filter((k) => k.startsWith('th.s.photos.')).sort().map((k) => [k, localStorage.getItem(k)]), build: CONFIG.commit }); };
 /** How much of the open photo's export is made already and kept (0 to 1): one that stopped carries on from there. */
 export async function madeAlready() { try { const big = photo.whole(); return big && netOn() && !photo.current()?.plain ? Math.min(1, (await rowsKept(await keyNow(true))) / big.height) : 0; } catch { return 0; } }
 /** What an export of the open photo says of how it was made, written into each file that carries metadata
@@ -100,12 +102,13 @@ export async function save(presets, progress, how = {}) {
   const best = netOn(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);   // the screen kept awake: a phone that sleeps takes the tab back
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
-    await photo.settle();
+    const wide = presets.some((x) => x.space === 'Display P3');   // Display P3's colours in every piece, and each file carries the profile that says so (engine/icc.js)
+    await photo.settle({ wide });
     // each file as plain data (engine/files.js `Spec`), so it can be written on the export's own thread
     // and, where it carries metadata, the line on how it was made (the way known once the GPU's view is: `clock.net`)
     const way = () => (clock.net ? 'network' : !photo.current()?.plain && pref('photos.demosaic') === 'faster' ? 'faster' : 'classic');
     const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0,
-      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, kept: carry(head, x.meta, x.gps, w, h), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
+      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, wide, kept: carry(head, x.meta, x.gps, w, h), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
     const run = { signal: how.signal, worker: how.worker, encode: photo.jpegBand, ops: best && Date.now() - (Number(localStorage.getItem(OPS)) || 0) > 7 * 86_400_000 };   // the network's passes are timed apart once a week
     const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
     // By the network where it is on (Settings > Photos > Editor), and then by nothing else: where it cannot run the
@@ -113,7 +116,7 @@ export async function save(presets, progress, how = {}) {
     // or with the tab) carries on from there: at once, once, and after that at the next Save.
     const held = best && !p.plain ? await keyNow(true).then(keep).catch(() => null) : null;
     let files;
-    for (let tries = 0; ; tries++) {
+    try { for (let tries = 0; ; tries++) {
       try { files = await develop(big, jobsOf(), step, clock, best, { ...run, keep: held }); break; }
       catch (err) {
         if (cancelled(err)) { await held?.clear(); throw err; }   // given up by the owner: nothing of it is kept
@@ -122,7 +125,7 @@ export async function save(presets, progress, how = {}) {
         for (const k of Object.keys(clock)) delete clock[k];
         clock.again = 1;
       }
-    }
+    } } finally { if (wide) await photo.settle().catch(() => {}); }   // the screen's own colours again, whatever became of the export
     await held?.clear();
     for (const [k, r] of files.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
