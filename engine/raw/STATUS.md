@@ -826,7 +826,7 @@ measured, on the phone itself.
 - A pass is run another way only where that agreed and took under 0.85 of the time; the fastest such. The choice
   is kept on the phone; `neural.js` compiles the chosen passes next time and still proves the whole network before
   using it (a choice that fails to compile or prove is forgotten).
-- It runs with the weekly timing of the passes, after an export, while the files are finished. The timings carry
+- It ran with the weekly timing of the passes, after an export (until the engine test page took the measuring over: see below). The timings carry
   all three (`op0`..`op12` as exported, `alt0`..`alt10` read in place, `wid0`..`wid10` sixteen at a time; -1 none,
   -2 it disagreed).
 
@@ -889,6 +889,37 @@ A photo that already has Chrome on will look deeper than it did: that is the cor
 
 Not fitted yet: the highlight and shadow tone steps and the colour step. The dial fits did not separate them
 from the baseline (every film-simulation photo wants about 0.2 to 0.4 stop less exposure to match the camera).
+
+## The network measured on the engine test page (2026-11-13)
+
+What the owner's slower phone said of an export on the build with the first tuner: 40 megapixels in 438 s, a
+window in 5.6 s (the two 3 × 3 passes from 288 channels 1.9 s each), and every pass written another way
+turned down. That tuner gave one mark to a way that would not compile and to a way whose result differed, and
+held 16-bit sums to a tolerance made on a GPU that has none; it could not say which it was. It is replaced.
+
+`/lab/engine/` has "The network on this phone" (`net-ui.js`, `net-bench.js`): one tap, a minute or two.
+
+- Each pass every way (`net-tune.js` `tune`, the ways in `net-ways.js`): compiled with whatever the GPU's
+  compiler says kept; timed, the least of two; its result against the exported pass's on the same input as
+  numbers (the difference over the result's own size, the largest difference, values not finite counted). Three
+  ways now: read in place; for a 3 × 3 pass, sixteen outputs to an invocation; one pixel and thirty-two outputs
+  (the pixels of a workgroup lie together, where the exported pass's are four rows apart as its staging wanted).
+- The choice is made on the whole picture. The window is made by the exported network in half floats, by the
+  fastest way of each pass, and by the exported network in full floats, the truth both are held against. The
+  ways are kept only if their picture is as near the truth as the exported half-float one is (mean and 999th of
+  a thousand, in levels of 255 after a screen's curve), and the whole window clearly faster. If not as true,
+  the way furthest from its exported pass is dropped and the rest tried again. Two orders of one 16-bit sum
+  round apart; that is not an error, and the full-float picture says how much of it there is.
+- The CPU, for the same work (`cpu-bench.js`, `engine/netcpu`): the heavy pass written for a CPU in WebAssembly's
+  vector maths (the input pixel by pixel, eight outputs' weights to an input value, four pixels at a time),
+  checked to the last bit against a plain loop, timed on one, two, four and all cores, with and without a fused
+  multiply-add. Thousand millions of multiply-adds a second, beside the GPU's for that pass.
+- The result is text to read and copy, kept on the phone, and its numbers go with the editor's timings.
+
+An export no longer tries other ways: it times the passes as the phone runs them (`timed`), once a week.
+
+Not checkable here: the software GPU has no half floats, so the ways' 16-bit code first compiles on a phone. The
+page's report says what the phone's compiler says of each.
 
 ## How to work here
 

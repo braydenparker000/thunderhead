@@ -16,7 +16,7 @@
 import { phaseOf } from './demosaic.js';
 import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
 import { noiseAt } from './noise.js';
-import { choose, chosen, tune, ways } from './net-tune.js';
+import { choose, chosen, ways } from './net-tune.js';
 
 export { phaseOf };
 const DIR = new URL('./nets/starfish-xtrans/', import.meta.url);
@@ -25,7 +25,12 @@ const CLIP = 0.97;   // demosaic.js's: a site this near the sensor's white has c
 
 /** @typedef {{ kind: 'f16' | 'f32', win: number, halo: number, cfa: number[], sizes: number[], files: (string | null)[], mosaic: number, sigma: number, output: number,
  *   ops: { code: string, binds: number[], groups: number[] }[], weights: Map<number, ArrayBuffer> }} Graph */
-/** @type {WeakMap<GPUDevice, Promise<{ g: Graph, pipes: GPUComputePipeline[], cut: GPUComputePipeline, place: GPUComputePipeline, held: GPUBuffer[], off: number, way: number[], exported: Graph['ops'] }>>} */
+/** The network compiled on a device: `exported` its passes as exported, `g.ops` the ones it runs (a phone's chosen ways, `way`), `off` how near its proof came.
+ * @typedef {{ g: Graph, pipes: GPUComputePipeline[], cut: GPUComputePipeline, place: GPUComputePipeline, held: GPUBuffer[], off: number, way: number[], exported: Graph['ops'] }} Net */
+/** What net-tune.js measures a network by: the device, the network, its buffers, the passes that make a window (cut, its own, place).
+ * @typedef {{ device: GPUDevice, g: Graph, exported: Graph['ops'], pipes: GPUComputePipeline[], bufs: GPUBuffer[], valid: GPUBuffer, unhalf: (h: number) => number,
+ *   lay: (side?: number) => [GPUComputePipeline, GPUBindGroup, number, number, number][] }} Parts */
+/** @type {WeakMap<GPUDevice, Map<string, Promise<Net>>>} each kind of the network on a device, with and without the phone's kept choice */
 const made = new WeakMap();
 
 /** Reads the export: its graph, its passes and its weights. @param {'f16' | 'f32'} kind @returns {Promise<Graph>} */
@@ -158,17 +163,23 @@ async function proof(device, g, pipes, held) {
   } finally { valid.destroy(); back.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); }
 }
 
+const kindOf = (/** @type {GPUDevice} */ device) => (device.features.has('shader-f16') ? 'f16' : 'f32');
 /** Whether the network has been asked for on a device (compiled or on its way). @param {GPUDevice} device */
-export const begun = (device) => made.has(device);
-/** The network on a device: read, compiled and proved once. @param {GPUDevice} device */
-export function compile(device) {
-  let p = made.get(device);
+export const begun = (device) => !!made.get(device)?.has(`${kindOf(device)}:1`);
+/** The network on a device: read, compiled and proved once. @param {GPUDevice} device
+ * @param {'f16' | 'f32'} [kind] half floats where the device has them, unless told (the engine test page compares the two)
+ * @param {boolean | number[]} [kept] false: every pass as exported, whatever this phone has chosen (net-tune.js measures against that);
+ *   a list: those ways, a number a pass (the engine test page tries a choice before it is kept) @returns {Promise<Net>} */
+export function compile(device, kind = kindOf(device), kept = true) {
+  const mine = made.get(device) || new Map(), key = `${kind}:${Array.isArray(kept) ? kept.join('') : kept ? 1 : 0}`;
+  made.set(device, mine);
+  let p = mine.get(key);
   if (!p) {
     p = (async () => {
-      const g = await read(device.features.has('shader-f16') ? 'f16' : 'f32'), mod = device.createShaderModule({ code: ours(g) });
+      const g = await read(kind), mod = device.createShaderModule({ code: ours(g) });
       const pipe = (/** @type {GPUShaderModule} */ module, /** @type {string} */ entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } });
       // each pass as exported, or another way where this phone found that faster (net-tune.js): proved below like any
-      let way = chosen(g.kind, g.ops.length);
+      let way = Array.isArray(kept) ? g.ops.map((_, j) => kept[j] || 0) : kept ? chosen(g.kind, g.ops.length) : g.ops.map(() => 0);
       const exported = g.ops, picked = () => exported.map((o, j) => { const w = way[j] ? ways(o)[way[j] - 1] : null; return w ? { ...o, ...w } : o; });
       const passes = () => Promise.all(g.ops.map((o) => pipe(device.createShaderModule({ code: o.code }), 'main')));
       const [cut, place] = await Promise.all([pipe(mod, 'cut'), pipe(mod, 'place')]);
@@ -179,10 +190,10 @@ export function compile(device) {
       g.weights.clear();
       // a choice that will not compile or prove here is forgotten, and the passes run as exported
       let off = pipes ? await proof(device, g, pipes, held).catch((err) => { if (!way.some(Boolean)) throw err; return -1; }) : -1;
-      if (off < 0) { way = way.map(() => 0); choose(g.kind, way); g.ops = exported; pipes = await passes(); off = await proof(device, g, pipes, held); }
+      if (off < 0) { way = way.map(() => 0); if (kept === true) choose(g.kind, way); g.ops = exported; pipes = await passes(); off = await proof(device, g, pipes, held); }
       return { g, pipes: /** @type {GPUComputePipeline[]} */ (pipes), cut, place, held, off, way, exported };
     })();
-    made.set(device, p);
+    mine.set(key, p);
     p.catch(() => {});   // a GPU that fails keeps failing: it is not tried again on this device
   }
   return p;
@@ -193,9 +204,9 @@ export function compile(device) {
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
  * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number, noise?: { a: number[], b: number[] } | null }} info `noise`: a raw site's own (full.js reads it from the photo), else `iso`: the photo's, for the table's;
  *   `smooth`: how much of that noise the network is told of (1: all of it; less keeps more grain, more smooths further)
- * @param {number} maxW @param {number} maxH */
-export async function demosaicer(device, mosaic, info, maxW, maxH) {
-  const { g, pipes, cut, place, held, way: now, exported } = await compile(device), [px, py] = info.phase, WIN = g.win, HALO = g.halo, CORE = WIN - 2 * HALO - 6;
+ * @param {number} maxW @param {number} maxH @param {{ kind?: 'f16' | 'f32', kept?: boolean | number[] }} [o] which network (`compile`): the engine test page asks for others than the usual */
+export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
+  const { g, pipes, cut, place, held, exported } = await compile(device, o.kind, o.kept), [px, py] = info.phase, WIN = g.win, HALO = g.halo, CORE = WIN - 2 * HALO - 6;
   // where the network's pattern sits on this sensor: a window starts on a sensor pixel that is its pattern's first
   const at = (/** @type {number} */ x, /** @type {number} */ y) => +LAYOUT[((((y + py) % 6) + 6) % 6) * 6 + ((((x + px) % 6) + 6) % 6)];
   let lead = /** @type {number[] | null} */ (null);
@@ -203,7 +214,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   if (!lead) throw new Error('the network is for another pattern');
   const [lx, ly] = lead, snap = (/** @type {number} */ v, /** @type {number} */ l) => v - ((((v - l) % 6) + 6) % 6);
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)),   // (read from when its passes are compared: `bench`)
+  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)),   // (read from when its passes are compared: net-tune.js)
      out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);
   const SIZE = 128 + SPOTS * SPOT_ROWS * 16, view = mosaic.createView();
   /** A window's own settings and bindings: several windows are laid in one frame's commands, each read when it runs.
@@ -246,22 +257,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
       pass.end();
     }
   };
-  /** One whole window made a pass at a time, each waited for: how long each takes on this GPU, in ms (`ms`: cut, the
-   * network's passes in order as exported, place). Each of the network's passes is also tried the other ways there
-   * are (net-tune.js: `alt`, a list a way), and the fastest that agreed, if clearly faster, is this phone's choice
-   * from the next time the network is compiled (`way`). For the phone's own numbers (an export notes them).
-   * @param {number} x0 @param {number} y0 a window's own part starts here @param {number} [side] how much of the window is made (all of it; a test asks for less) */
-  const bench = async (x0, y0, side = CORE) => {
-    const [first, ...rest] = lay(0, [x0, y0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], x0, y0, null, 1), last = /** @type {typeof first} */ (rest.pop());
-    const one = async (/** @type {typeof first} */ [pipe, bind, a, b, c]) => {
-      const enc = device.createCommandEncoder(), pass = enc.beginComputePass(), t = performance.now();
-      pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, c); pass.end();
-      device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone(); return performance.now() - t;
-    };
-    const before = await one(first), plain = now.some(Boolean) ? await Promise.all(exported.map((o) => device.createComputePipelineAsync({ layout: 'auto', compute: { module: device.createShaderModule({ code: o.code }), entryPoint: 'main' } }))) : pipes;
-    const t = await tune(device, { ...g, ops: exported }, plain, bufs, slots[0].valid, unhalf);
-    choose(g.kind, t.way);
-    return { ms: [before, ...t.ms, await one(last)], alt: t.alt, way: t.way };
-  };
-  return { out, run, bench, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
+  /** What net-tune.js measures this network by. `lay(side)`: one window (all of it, or `side` pixels of it) made ready, as its passes. @type {Parts} */
+  const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1) };
+  return { out, run, parts, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
 }

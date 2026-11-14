@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/lab/engine/engine.css">
 <script type="module" src="/lab/engine/engine.js"></script>
 <script type="module" src="/lab/engine/bench-ui.js"></script>
+<script type="module" src="/lab/engine/net-ui.js"></script>
 </head>
 <body>
 <main>
@@ -23,6 +24,14 @@
 <canvas id="bview" aria-label="The photo being timed" hidden></canvas>
 <pre id="bout"></pre>
 <button id="bcopy" type="button" disabled>Copy the result</button>
+</section>
+<section id="net">
+<h2>The network on this phone</h2>
+<p class="lead">The neural network that makes the picture at 100 % and in an export, measured here: how long one window of a photo takes on this phone's graphics chip, where in its eleven passes the time goes, whether the passes written other ways are faster on this chip and make as true a picture, and how fast the phone's processor cores would do the same work. It takes a minute or two and warms the phone. The ways it finds faster and as true are kept for the editor. Its numbers go with the editor's timings to your own storage when that setting is on; nothing else leaves the phone.</p>
+<div class="bar"><button id="nrun" type="button" class="go">Test the network</button></div>
+<p class="now" id="nnow" aria-live="polite"></p>
+<pre id="nout"></pre>
+<button id="ncopy" type="button" disabled>Copy the result</button>
 </section>
 <h2>The engine by hand</h2>
 <div class="bar"><label class="pick">Open a RAF<input type="file" id="file" accept=".raf,.RAF,image/x-fuji-raf,*/*"></label>
