@@ -4,7 +4,7 @@
 // numbers of four bytes, was read as one: every export carried a wrong shutter time, aperture and focal length.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { block, carry, find, shot } from '../frontend/lab/engine/exif.js';
+import { block, carry, entry, find, shot } from '../frontend/lab/engine/exif.js';
 
 /** A JPEG's first bytes with an invented Exif block: the camera, an Exif directory (shutter 1/250, f/5.6, ISO 400,
  * 23 mm, a lens, a date), and an orientation. @param {boolean} le little-endian, or big */
@@ -54,6 +54,16 @@ test("a camera that names its clock's zone is taken at its word, wherever the ph
   const jpeg = withExif(Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]), { make: 'FUJIFILM', model: 'X-E5', taken: '2026:10:30 17:00:05', zone: '-03:00', width: 640, height: 427, film: 0x600 });
   assert.equal(shot(jpeg).at, Date.UTC(2026, 9, 30, 20, 0, 5));
   assert.equal(shot(jpeg).camera, 'FUJIFILM X-E5');
+});
+
+test('an export says its own colour space: sRGB, or for a Display P3 file "see the profile", without the camera\'s word for sRGB', async () => {
+  const { withExif } = await import('./fixtures/make-raf.mjs');
+  const jpeg = withExif(Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]), { make: 'FUJIFILM', model: 'X-E5', taken: '2026:10:30 17:00:05', width: 640, height: 427, film: 0x600 });
+  const space = (/** @type {any} */ es) => { const x = es.find((/** @type {any} */ e) => e.tag === 0x8769).sub; return { space: [...x.find((/** @type {any} */ e) => e.tag === 0xa001).data], spaces: x.filter((/** @type {any} */ e) => e.tag === 0xa001).length, interop: x.some((/** @type {any} */ e) => e.tag === 0xa005) }; };
+  const srgb = space(carry(jpeg, 'All', false, 400, 300)), p3 = space(carry(jpeg, 'All', false, 400, 300, true));
+  assert.deepEqual([srgb.space, srgb.spaces], [[...entry(0xa001, 3, [1]).data], 1]);
+  assert.deepEqual([p3.space, p3.spaces, p3.interop], [[...entry(0xa001, 3, [65535]).data], 1, false]);
+  assert.notDeepEqual(p3.space, srgb.space);
 });
 
 test('a file with no Exif says nothing, and nothing is carried', () => {

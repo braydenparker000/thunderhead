@@ -108,7 +108,7 @@ export async function save(presets, progress, how = {}) {
     // and, where it carries metadata, the line on how it was made (the way known once the GPU's view is: `clock.net`)
     const way = () => (clock.net ? 'network' : !photo.current()?.plain && pref('photos.demosaic') === 'faster' ? 'faster' : 'classic');
     const jobsOf = () => presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0,
-      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, wide, kept: carry(head, x.meta, x.gps, w, h), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
+      file: (/** @type {number} */ w, /** @type {number} */ h) => ({ fmt: x.fmt, q: x.q, wide, kept: carry(head, x.meta, x.gps, w, h, wide), ...(x.meta === 'None' ? {} : { note: made(way(), x.q) }) }) }));
     const run = { signal: how.signal, worker: how.worker, encode: photo.jpegBand, ops: best && Date.now() - (Number(localStorage.getItem(OPS)) || 0) > 7 * 86_400_000 };   // the network's passes are timed apart once a week
     const step = (/** @type {number} */ d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); };
     // By the network where it is on (Settings > Photos > Editor), and then by nothing else: where it cannot run the

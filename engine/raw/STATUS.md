@@ -1144,6 +1144,22 @@ What it decides: if the two together, kept up, are well above the GPU alone (say
 are worth building, on as many cores as the best pair used. If they are not, the time is in the phone, not in
 how its work is divided, and the CPU stays out.
 
+## Each export control does what it says: a check (2026-11-14)
+
+After the Quality dial was found to give less than it said, every control of the Export board was read against
+the code that acts on it. Found and mended: a Display P3 file's Exif still said sRGB (the camera's own word for
+its JPEG, and its interoperability directory's R98): it now says 65535, Exif's "see the profile", and the
+directory is left out (`exif.js` `carry`). As they say: Size (the long edge, no larger than the photo), Format
+(JPEG 8 bits dithered, PNG 8 bits dithered, TIFF 16 bits uncompressed), Color space, Output sharpening and its
+amount, Metadata (All; Copyright only: the artist and copyright lines; None), Location (off: the GPS directory is
+not carried), File name. Watermark says LATER and does nothing. Two things a number does not say, left as they
+are and written here: below Quality 90 a JPEG's colour is kept at half resolution (the usual way to make a small
+file smaller; from 90 up it is whole), and a file with Copyright only still carries the one line on how it was
+made (`export-note.js`: no name, no place).
+
+Not the board's: Settings > Photos lists four settings that only the Classic editor and its shelf read (Preview
+size, What stays on the phone, Export size, Export format). With Photos opening the new editor they do nothing.
+
 ## A pack of looks in one pick (2026-11-14)
 
 Presets made by others are passed around as packs: one `.zip` holding hundreds of `.xmp` files, sometimes in
