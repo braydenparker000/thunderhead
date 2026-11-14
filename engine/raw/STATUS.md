@@ -968,6 +968,24 @@ kept across pieces.
 With larger pieces an export by the network says how far it is a piece at a time, not a band; and its timings
 carry `laid`, what the network was given as a percentage of the photo, so the phone says what this came to.
 
+## The CPU and the GPU at once, measured before it is built (2026-11-14)
+
+On the slower phone the CPU's eight cores make the network's heavy pass about as fast as its GPU does (15.9
+against 14.9 thousand million multiply-adds a second, each alone). If the two could work at once, an export
+could give some of its windows to the CPU and take up to half the time. But a phone's CPU and GPU share its
+memory and its heat, and the GPU's driver needs a core, so the speeds may not add, and the whole network on the
+CPU is a large thing to build on a guess.
+
+So the engine test page's network test now ends by measuring it (`frontend/lab/engine/net-both.js`): the GPU
+runs its heavy pass again and again, as the phone will run it (the ways just kept), first alone, then while half
+the cores, all but two and all of them make the same kind of layer; then the best of those is kept up for four
+more stretches, to see whether it holds as the phone warms. The report says each pair, the sum against the GPU
+alone, and the stretches; the numbers go with the timings (`gpu1`, `tog`, `togn`, `togl`).
+
+What it decides: if the two together, kept up, are well above the GPU alone (say 1.4 times), windows on the CPU
+are worth building, on as many cores as the best pair used. If they are not, the time is in the phone, not in
+how its work is divided, and the CPU stays out.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
