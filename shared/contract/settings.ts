@@ -223,10 +223,14 @@ export const SETTINGS = [
     detail: 'A small tick under your finger when a dial passes its start or reaches an end, a section clicks into place, Undo, and an export is done. Off on a phone set to reduce motion.' },
   // Classic's own (apps/photos/: PHOTOS.md §3.6 and Export): read only by the shelf and editor before. With Photos
   // opening the new editor they do nothing, so their section and their words say whose they are (owner, 2026-11-14:
-  // a control does what it says). `photos.keep` ("What stays on the phone") was here until then: nothing ever read it.
+  // a control does what it says). `photos.keep` has one choice that can be made: the other is shown and held shut
+  // (apps/settings/photos.js: "Comes with editing"), so it says what it is.
   { key: 'photos.preview_size', group: 'photos', section: 'Classic shelf and editor', label: 'Preview size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),
     detail: 'Classic only. The preview your Worker keeps of each photo, its longest side. Smaller is quicker on a slow line.' },
+  { key: 'photos.keep', group: 'photos', section: 'Classic shelf and editor', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
+    default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
+    detail: 'Classic only. Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
   { key: 'photos.export_size', group: 'photos', section: 'Classic shelf and editor', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
     detail: 'Classic only: the long side its Export sheet starts with. The new editor\'s Export board keeps its own.' },

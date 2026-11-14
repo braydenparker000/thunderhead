@@ -452,6 +452,7 @@ opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this pa
 | `photos.haptics` | switch (Editor) | phone | `on` | the new editor's ticks under the finger (`lab/editor/app/haptic.js` `tick`, read at each tick): the dial passing its start or reaching an end (`boards/DialPlate.js`), the drum's face clicking into place (`boards/Drum.js`), Undo and Redo (`app/told.js`), an export done (`boards/ExportPlate.js`, `app/save.js`); off, or on a phone set to reduce motion, or with no vibration in the browser, nothing |
 | `photos.export_size` | segments: full size / 2,048 / 1,080 px (Classic shelf and editor) | worker | `2048` | the Export sheet, as the size it starts with (`apps/photos/edit/export.js`, from `th.p.settings`); Classic only: the new editor's Export board keeps its own |
 | `photos.export_format` | segments: JPEG / HEIC where the phone writes it (Classic shelf and editor) | worker | `jpeg` | the Export sheet, as the format it starts with; HEIC only where the browser encodes it, up to 2,048 px; Classic only: the new editor's Export board keeps its own |
+| `photos.keep` | segments: previews only / recent originals too (Classic shelf and editor) | worker | `previews` | nothing yet: previews are kept on every phone; recent originals come with editing (P1c), and that choice is shown but held shut; Classic only |
 
 
 Senses per app and error reports, then Keep conversations, then a read-only group, What leaves this phone, then Your data
