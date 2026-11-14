@@ -121,7 +121,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
 
 test('a piece made by the network stays inside one of its windows, whatever the lens bends', opts, async () => {
   // full.js `room`: a few sensor pixels past a window and a second window is made for them, context and all. On the
-  // owner's photos an export was given 1.7 times the photo so; cut to fit, 1.4 (2026-11-14).
+  // owner's photos an export was given 1.7 times the photo so; cut to fit, 1.4, and with less room round each piece 1.3 (2026-11-14).
   const page = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
   await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
   await page.waitForSelector('html[data-bench=ready]');
@@ -135,15 +135,21 @@ test('a piece made by the network stays inside one of its windows, whatever the 
     for (const [name, best] of [['network', true], ['usual', false]]) {
       const v = await big.view(1014, 1014, null, true, true, best), [w, h] = v.room(), rects = [];
       for (const [u, t] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) { const at = v.place((big.width - w) * u, (big.height - h) * t, w, h); rects.push([at.rw, at.rh]); }
-      out[name] = { net: v.net, room: [w, h], widest: Math.max(...rects.flat()) };
+      out[name] = { net: v.net, room: [w, h], widest: Math.max(...rects.flat()), mid: v.place(400, 400, 300, 300).rw };
       v.dispose();
     }
+    // the same network on the screen (not an export's piece) keeps the usual room round what it draws on
+    const shown = await big.view(1014, 1014, null, true, false, true);
+    out.shown = shown.place(400, 400, 300, 300).rw; shown.dispose();
     big.dispose(); eng.dispose();
     return { raw: big.raw, size: [big.width, big.height], ...out };
   });
   assert.equal(r.raw, true);
   assert.equal(r.network.net, true);
   assert.ok(r.network.widest <= 990 && r.network.room[0] >= 700, `by the network every piece draws on at most 990 sensor pixels a side (${JSON.stringify(r.network)})`);
+  // an export's piece by the network takes 16 sensor pixels round what it draws on, not 36: noise reduction's
+  // neighbourhoods are not used and the piece's own edge is thrown away (measured in engine/raw/STATUS.md)
+  assert.deepEqual([r.shown - r.network.mid, r.usual.mid - r.network.mid], [40, 40]);
   assert.ok(r.usual.widest > 990 && r.usual.room[0] > r.network.room[0], `the usual way is held only by its buffers (${JSON.stringify(r.usual)})`);
   await page.close();
 });
