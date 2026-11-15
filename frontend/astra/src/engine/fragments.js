@@ -18,11 +18,11 @@ export function fragmentWriter(queue, stats, kind, generation, early = null) {
   return new MB.Output({format, target: new MB.NullTarget()});
 }
 
-/** One decoded sample as stereo at the same rate. */
-export function stereoSample(sample) {
+/** One decoded sample as stereo at the same rate, its centre channel (if any) multiplied by `centre`. */
+export function stereoSample(sample, centre = 1) {
   const all = new Float32Array(sample.allocationSize({planeIndex: 0, format: 'f32'}) / 4);
   sample.copyTo(all, {planeIndex: 0, format: 'f32'});
-  return new MB.AudioSample({data: toStereo(all, sample.numberOfChannels), format: 'f32', numberOfChannels: 2, sampleRate: sample.sampleRate, timestamp: sample.timestamp});
+  return new MB.AudioSample({data: toStereo(all, sample.numberOfChannels, centre), format: 'f32', numberOfChannels: 2, sampleRate: sample.sampleRate, timestamp: sample.timestamp});
 }
 
 function concat(parts) {

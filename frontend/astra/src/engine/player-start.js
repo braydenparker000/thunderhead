@@ -32,6 +32,7 @@ export const startMethods = {
     session.addEventListener('stall', e => this.record('stall', e.detail));
     session.addEventListener('audioended', () => { if (this.session === session) this.resume('The sound in this file ended before the picture.', {silent: true}); });
     this.session = session;
+    this.soundToSession(session); // the sound tap, dialogue lift and sound advance (player-sound.js)
     this.applyDataSaver(); // how far ahead it reads, with the data saver on or off
     this.startScanner();
     await session.start(startTime);

@@ -20,6 +20,7 @@ import {adaptiveMethods} from './adaptive.js';
 import {startMethods} from './player-start.js';
 import {finishChapters} from './chapters.js';
 import {dataMethods} from './player-data.js';
+import {soundMethods} from './player-sound.js';
 
 const MEDIA_ERRORS = {
   1: 'Playback was stopped.',
@@ -293,4 +294,4 @@ export {baseLanguage};
 
 // Starting each pipeline (player-start.js), subtitles (player-subtitles.js, with libass and the second track), adaptive
 // streams (adaptive.js), the data count and saver (player-data.js) and the sound features (player-sound.js) live apart.
-Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods);
+Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods, soundMethods);

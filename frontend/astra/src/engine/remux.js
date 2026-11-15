@@ -11,11 +11,12 @@ import * as MB from '../../vendor/mediabunny.js';
 import {mediaSourceClass} from './capabilities.js';
 import {AppendQueue, bufferedAt, bufferedAhead, bufferedEnd} from './mse.js';
 import {audioMime, videoMime} from './plan.js';
-import {mixable} from './downmix.js';
-import {fragmentWriter, stereoSample} from './fragments.js';
+import {fragmentWriter} from './fragments.js';
+import {pumpAudio} from './remux-audio.js';
 import {EarlyCuts} from './early.js';
 import {loadDecoders} from './audio-decoders.js';
 import {StallWatch} from './stall-watch.js';
+import {hasCentre} from '../enhance/sound-chain.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
 // and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
@@ -52,6 +53,9 @@ export class RemuxSession extends EventTarget {
     this.chain = Promise.resolve(); // restarts and audio changes, one at a time
     this.tickets = {};
     this.offset = 0; // the file's first timestamp; media time = file time - offset
+    this.advance = 0; // seconds the sound plays ahead of the picture (setAdvance)
+    this.centre = 1; // gain on the centre channel of rebuilt sound (setCentre)
+    this.tap = null; // the sound tap (sound-tap.js), set by the player
     this.onSeeking = () => this.seeking();
     this.wakers = new Set();
     this.onProgress = () => { for (const w of this.wakers) w(); };
@@ -87,7 +91,8 @@ export class RemuxSession extends EventTarget {
     const fatal = error => this.fail(error);
     if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal);
     if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track)), this.video, fatal);
-    if (this.offset) for (const q of Object.values(this.queues)) q.buffer.timestampOffset = -this.offset;
+    if (this.queues.video) this.queues.video.buffer.timestampOffset = -this.offset;
+    if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
     this.video.addEventListener('seeking', this.onSeeking);
     for (const type of ['timeupdate', 'seeking', 'playing']) this.video.addEventListener(type, this.onProgress);
     if (startTime > 0) this.video.currentTime = startTime;
@@ -148,17 +153,36 @@ export class RemuxSession extends EventTarget {
     if (this.destroyed || !this.queues.audio) return;
     const ticket = this.tickets.audio = (this.tickets.audio || 0) + 1; // a track chosen later wins, even while this one's decoder downloads
     if (choice.delivery === 'rebuilt') { this.emit('status', 'Loading the audio decoder…'); await loadDecoders(choice.track.codec); }
-    return this.serial('audio', async () => {
-      const mime = choice.delivery === 'rebuilt' ? OPUS : audioMime(choice.track);
-      const was = this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track);
-      this.audio = choice;
-      this.ended.audio = false;
-      const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});
-      if (this.destroyed) return;
-      if (this.offset) this.queues.audio.buffer.timestampOffset = -this.offset;
-      this.flushAudio = generation; // see room()
-      this.pumpAudio(generation, Math.max(0, this.video.currentTime - 0.3) + this.offset).catch(e => this.fail(e));
-    }, ticket);
+    return this.serial('audio', () => this.refillAudio(choice), ticket);
+  }
+
+  /** Empties the audio buffer and fills it again from just before the playhead: another track, or the same one changed. */
+  async refillAudio(choice = this.audio) {
+    const mime = choice.delivery === 'rebuilt' ? OPUS : audioMime(choice.track);
+    const was = this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track);
+    this.audio = choice;
+    this.ended.audio = false;
+    const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});
+    if (this.destroyed) return;
+    this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
+    this.flushAudio = generation; // see room()
+    this.pumpAudio(generation, Math.max(0, this.video.currentTime + this.advance - 0.3) + this.offset).catch(e => this.fail(e));
+  }
+
+  /** Sound `seconds` (0-1) earlier than the picture: the audio buffer's timestamps move back that much, refilled. */
+  setAdvance(seconds) {
+    const d = Math.min(1, Math.max(0, Number(seconds) || 0));
+    if (d === this.advance) return;
+    this.advance = d;
+    if (this.queues.audio) return this.serial('refill', () => this.refillAudio()); // after any track change asked before it
+  }
+
+  /** The gain on the centre channel as rebuilt sound is mixed to stereo (dialogue lift); sound not yet mixed is mixed again. */
+  setCentre(gain) {
+    const g = gain > 0 ? gain : 1;
+    if (g === this.centre) return;
+    this.centre = g;
+    if (this.queues.audio && this.audio?.delivery === 'rebuilt' && hasCentre(this.audio.track.channels)) return this.serial('refill', () => this.refillAudio());
   }
 
   /** Waits while the pipeline is far enough ahead of the playhead. */
@@ -216,49 +240,8 @@ export class RemuxSession extends EventTarget {
     if (this.queues.video.generation === generation) { this.ended.video = true; this.finish(); }
   }
 
-  async pumpAudio(generation, from) {
-    const choice = this.audio, track = choice.track.ref;
-    const output = this.output('audio', generation);
-    if (choice.delivery === 'rebuilt') {
-      await loadDecoders(track.codec);
-      if (this.audio !== choice || this.queues.audio.generation !== generation) return;
-      const sink = new MB.AudioSampleSink(track);
-      // Mixed to stereo here, a sample at a time (downmix.js); only sound that also needs resampling goes through Mediabunny's transform.
-      const own = mixable(track.sampleRate);
-      const source = new MB.AudioSampleSource({codec: 'opus', bitrate: 192000, ...(own ? {} : {transform: {numberOfChannels: 2, sampleRate: 48000}})});
-      output.addAudioTrack(source);
-      await output.start();
-      for await (const sample of sink.samples(from)) {
-        if (this.audio !== choice || !await this.room('audio', sample.timestamp, generation)) { sample.close(); await output.cancel(); return; }
-        // An MP4's first sample can start a few milliseconds before zero, which the writer refuses.
-        if (sample.timestamp >= 0) {
-          const mixed = own ? stereoSample(sample) : sample;
-          await source.add(mixed);
-          if (own) mixed.close();
-        }
-        sample.close();
-      }
-    } else {
-      const sink = new MB.EncodedPacketSink(track);
-      const start = await sink.getPacket(from) ?? await sink.getFirstPacket();
-      if (!start) { this.ended.audio = true; return this.finish(); }
-      const source = new MB.EncodedAudioPacketSource(track.codec);
-      output.addAudioTrack(source);
-      await output.start();
-      let first = true;
-      for await (const packet of inOrder(sink, start)) {
-        if (this.audio !== choice || !await this.room('audio', packet.timestamp, generation)) { await output.cancel(); return; }
-        if (packet.timestamp < 0) continue;
-        await source.add(packet, first ? {decoderConfig: choice.track.decoderConfig} : undefined);
-        first = false;
-      }
-    }
-    await output.finalize();
-    if (this.queues.audio.generation !== generation || this.audio !== choice) return;
-    if (this.flushAudio === generation) { await this.queues.audio.idle(); this.room('audio', this.video.currentTime, generation); }
-    this.ended.audio = true;
-    this.finish();
-  }
+  /** One audio pipeline (remux-audio.js): the chosen track from `from` (file time) into the audio buffer. */
+  pumpAudio(generation, from) { return pumpAudio(this, generation, from, inOrder); }
 
   async finish() {
     if (!this.ended.video || !this.ended.audio || this.ms.readyState !== 'open') return;
