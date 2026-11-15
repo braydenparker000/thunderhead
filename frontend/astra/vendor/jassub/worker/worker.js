@@ -600,7 +600,7 @@ var Canvas2DRenderer = class extends CanvasRendererBase {
     this.ctx.imageSmoothingEnabled = false;
   }
   // this should be an svg filter which is cheaper, but not supported
-  // https://issues.chromium.org/u/1/issues/40910142
+  // issues.chromium.org/u/1/issues/40910142
   setColorConversion(matrix) {
     this.colorMatrix = matrix;
   }

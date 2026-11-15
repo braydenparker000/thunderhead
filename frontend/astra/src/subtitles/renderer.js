@@ -2,8 +2,10 @@
 // Style and timing offset are the viewer's; positions come from the cue.
 // Picture subtitles (PGS, VobSub) are drawn on canvases placed over the part
 // of the element the video actually fills, so Fit, Fill and Zoom line up.
+// An ASS/SSA track can instead be drawn by libass (useLibass, libass.js).
 
 import {MAX_FRAME} from './pgs.js';
+import {LibassLayer} from './libass.js';
 
 // Drawn pictures are kept only for a re-draw (a resize, a style change, a
 // short seek back): the last few, and never more than 32 MB of pixels. A
@@ -66,6 +68,8 @@ export class SubtitleRenderer {
     this.style = {...DEFAULT_STYLE};
     this.shown = '';
     this.frame = 0;
+    this.libass = null; // the LibassLayer for this track, once asked for
+    this.libassDraws = false; // true once it has started: this renderer then draws no text
     layer.classList.add('astra-subs');
     layer.setAttribute('aria-live', 'off');
     this.zones = Object.fromEntries(ZONES.map(z => { const el = document.createElement('div'); el.className = 'astra-subs-zone ' + z; layer.append(el); return [z, el]; }));
@@ -89,7 +93,7 @@ export class SubtitleRenderer {
 
   /** Asks for the next frame. Not while there is nothing to draw (no track, or subtitles off): the page then sleeps between frames. */
   schedule() {
-    if (this.frame || !this.list.size || this.listening.signal.aborted) return;
+    if (this.frame || !this.list.size || this.libassDraws || this.listening.signal.aborted) return;
     this.frame = this.video.requestVideoFrameCallback ? this.video.requestVideoFrameCallback(this.tick) : requestAnimationFrame(this.tick);
     this.frameKind = this.video.requestVideoFrameCallback ? 'video' : 'animation';
   }
@@ -100,8 +104,9 @@ export class SubtitleRenderer {
     this.frame = 0;
   }
 
-  /** Replaces all cues (switching track). */
+  /** Replaces all cues (switching track; a libass layer for the last track ends). */
   setCues(cues = []) {
+    this.dropLibass();
     this.list = new CueList(); this.list.add(cues); this.shown = null; this.render();
     this.dropPictures(); // the last track's pictures, except any still on screen
     if (this.list.size) this.schedule(); else this.unschedule();
@@ -113,7 +118,38 @@ export class SubtitleRenderer {
   refresh() { this.list.refresh(); this.shown = null; this.render(); }
 
   setStyle(style) { this.style = {...this.style, ...style}; this.applyStyle(); }
-  setDelay(seconds) { this.delay = Math.round(seconds * 10) / 10; this.shown = null; this.render(); }
+  setDelay(seconds) { this.delay = Math.round(seconds * 10) / 10; this.shown = null; this.render(); this.libass?.setDelay(this.delay); }
+
+  /**
+   * Hands the current ASS/SSA track to libass; call it after setCues() for that track. Returns the
+   * layer at once: give it the track's events (addBlocks for a film's blocks, addEvents for Dialogue
+   * lines) as they are read; those given before it has started wait for it. Keep giving this renderer
+   * the track's cues too: they are drawn here until libass draws, and for good if it cannot start.
+   * Once it draws, this renderer draws no text for the track. Of the viewer's subtitle style only the
+   * delay reaches libass: size, colour, box, outline and offset would need JASSUB's style override,
+   * which replaces every style of the script and so undoes its signs and typesetting.
+   * @param {{header: string, fonts?: Array<{name?: string, data: Uint8Array}>}} script
+   */
+  useLibass(script) {
+    this.dropLibass();
+    const libass = this.libass = new LibassLayer(this.video, this.layer, {rect: () => this.pictureRect()});
+    libass.setDelay(this.delay);
+    libass.start(script).then(ok => {
+      if (this.libass !== libass) return;
+      if (!ok) { this.libass = null; return; }
+      this.libassDraws = true; this.unschedule(); this.shown = null; this.render();
+    });
+    return libass;
+  }
+
+  /** Ends libass for this track; this renderer draws its cues again. */
+  dropLibass() {
+    if (!this.libass) return;
+    this.libass.destroy();
+    this.libass = null;
+    this.libassDraws = false;
+    this.shown = null; this.render(); this.schedule();
+  }
 
   applyStyle() {
     // Sized from the picture's height, but never below a phone-readable size
@@ -141,6 +177,7 @@ export class SubtitleRenderer {
     this.pictures.replaceChildren();
     for (const cue of active) {
       if (cue.image) { this.drawPicture(cue.image); continue; }
+      if (this.libassDraws) continue;
       const el = document.createElement('div');
       el.className = 'astra-sub ' + columnOf(cue.align || 2);
       for (const span of cue.spans) {
@@ -228,6 +265,7 @@ export class SubtitleRenderer {
   }
 
   destroy() {
+    this.dropLibass();
     this.listening.abort();
     this.resize.disconnect();
     this.unschedule();

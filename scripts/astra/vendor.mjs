@@ -89,9 +89,14 @@ function jassub(pkg, tmp) {
   const esbuild = esbuildCommand();
   const bundle = (entry, name, extra = []) => {
     execFileSync(esbuild[0], [...esbuild.slice(1), join(dist, entry), '--bundle', '--format=esm', '--platform=browser', '--legal-comments=inline', '--charset=utf8', `--outfile=${join(VENDOR, name)}`, '--log-level=warning', ...extra], { cwd: tmp, stdio: 'inherit' });
-    const text = readFileSync(join(VENDOR, name), 'utf8');
+    // A link in a comment is no request, but the site's checks forbid outside addresses in its files:
+    // the scheme is dropped from links in line comments, and any other link stops the vendoring.
+    const text = readFileSync(join(VENDOR, name), 'utf8').replace(/^(\s*\/\/.*?)https?:\/\//gm, '$1');
     const bare = /(?:^|[;\n])\s*(?:import|export)[^'"\n]*from\s*["'](?![./])([^"']+)["']/m.exec(text);
     if (bare) throw new Error(`${name} still imports ${bare[1]}`);
+    const link = /https?:\/\/[^\s"'()<>]+/.exec(text);
+    if (link) throw new Error(`${name} names ${link[0]}`);
+    writeFileSync(join(VENDOR, name), text);
     return name;
   };
   const files = [
@@ -103,7 +108,7 @@ function jassub(pkg, tmp) {
     if (name.endsWith('.js') && /^\s*import\s/m.test(readFileSync(join(dist, 'wasm', name), 'utf8'))) throw new Error(`wasm/${name} has imports`);
     files.push(copy(join(dist, 'wasm', name), `jassub/wasm/${name}`));
   }
-  files.push(copy(join(dist, 'default.woff2'), 'jassub/default.woff2'), copy(join(pkg.jassub, 'LICENSE'), 'jassub/LICENSE'));
+  files.push(copy(join(dist, 'default.woff2'), 'jassub/default.woff2'), copy(join(pkg.jassub, 'LICENSE'), 'jassub/LICENSE.txt'));
   // JASSUB 2.5 leaves its WebGPU renderer unimported; make sure a later version does not pull it in unseen.
   if (readFileSync(join(VENDOR, 'jassub/worker/worker.js'), 'utf8').includes('WebGPURenderer')) throw new Error('the WebGPU renderer was bundled');
   return files;

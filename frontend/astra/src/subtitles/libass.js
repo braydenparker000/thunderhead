@@ -2,8 +2,8 @@
 // canvas from a worker), so signs, typesetting, karaoke and the film's own
 // fonts look as authored. The engine hands this layer the script's header,
 // its events as they are read, and the fonts attached to the film; nothing
-// here knows Matroska. JASSUB is fetched on the first start only (about
-// 2.4 MB, vendor/jassub/), and every failure is a `false` from start(), so
+// here knows Matroska. JASSUB is fetched on the first start only (2.4 to
+// 2.5 MB, vendor/jassub/), and every failure is a `false` from start(), so
 // the caller keeps Astra's own renderer.
 //
 // The drawing is ours to pace: a frame is asked of libass only while the
@@ -12,7 +12,6 @@
 // Without cross-origin isolation (this site cannot send the headers) JASSUB
 // renders on one thread, which is enough for a phone's picture size.
 
-import {CueList} from './renderer.js';
 import {parseAssHeader} from './ass.js';
 import {parseTime} from './markup.js';
 
@@ -33,7 +32,7 @@ export class LibassLayer {
     this.video = video;
     this.layer = layer;
     this.rect = rect || (() => containRect(video, layer));
-    this.times = new CueList(); // when each event shows, so frames are asked only while one does
+    this.times = new Times(); // when each event shows, so frames are asked only while one does
     this.seen = new Set(); // Dialogue lines already given (a seek may read them again)
     this.delay = 0;
     this.visible = true;
@@ -43,6 +42,8 @@ export class LibassLayer {
     this.ready = false;
     this.dead = false;
     this.format = null;
+    // Events given before start() has finished wait for it; after a failed start they are dropped.
+    this.started = new Promise(resolve => { this.settle = resolve; });
   }
 
   /**
@@ -51,12 +52,18 @@ export class LibassLayer {
    * Resolves true once libass draws, false when it cannot (never rejects).
    * @param {{header: string, fonts?: Array<{name?: string, data: Uint8Array}>}} script
    */
-  async start({header, fonts = []}) {
+  async start(script) {
+    const ok = await this.open(script || {});
+    this.settle(ok);
+    return ok;
+  }
+
+  async open({header, fonts = []}) {
     if (this.dead || this.jassub) return false;
     let text = String(header ?? '').replace(/^﻿/, '');
     // libass needs the events' Format line to read later blocks; old Matroska muxers left it out.
     if (!/^\s*\[events\]/im.test(text)) text += '\n[Events]\n' + EVENTS_FORMAT + '\n';
-    else if (!/^\[events\][^[]*^\s*format\s*:/im.test(text)) text = text.replace(/^(\s*\[events\]\s*)$/im, '$1\n' + EVENTS_FORMAT);
+    else if (!/^\s*\[events\][^[]*^\s*format\s*:/im.test(text)) text = text.replace(/^(\s*\[events\]\s*)$/im, '$1\n' + EVENTS_FORMAT);
     this.format = parseAssHeader(text).eventFormat;
     for (const line of text.split(/\r?\n/)) if (/^Dialogue\s*:/i.test(line)) this.note(line);
     const canvas = document.createElement('canvas');
@@ -85,6 +92,7 @@ export class LibassLayer {
         jassub._worker.addEventListener('error', () => reject(new Error('worker')), {once: true});
         timer = setTimeout(() => reject(new Error('timeout')), START_TIMEOUT);
       });
+      broken.catch(() => {}); // a late worker error after the race is no page error
       await Promise.race([jassub.ready, broken]).finally(() => clearTimeout(timer));
       if (this.dead) return false;
       this.ready = true;
@@ -121,7 +129,7 @@ export class LibassLayer {
   addBlocks(blocks) {
     const fresh = (blocks || []).filter(b => typeof b?.text === 'string' && Number.isFinite(b.start) && Number.isFinite(b.duration));
     if (!fresh.length) return;
-    this.times.add(fresh.map(b => ({start: b.start, end: b.start + b.duration, key: 'b' + b.text.slice(0, b.text.indexOf(','))})));
+    for (const b of fresh) this.times.add(b.start, b.start + b.duration, 'b' + b.text.slice(0, b.text.indexOf(',')));
     this.feed(r => Promise.all(fresh.map(b => r.processChunk(b.text, Math.round(b.start * 1000), Math.round(b.duration * 1000)))));
   }
 
@@ -164,15 +172,15 @@ export class LibassLayer {
     const fields = line.slice(line.indexOf(':') + 1).split(',');
     const format = this.format || ['layer', 'start', 'end'];
     const start = parseTime(fields[format.indexOf('start')] ?? ''), end = parseTime(fields[format.indexOf('end')] ?? '');
-    if (start != null && end != null && end > start) this.times.add([{start, end, key: line}]);
+    if (start != null && end != null && end > start) this.times.add(start, end, line);
     return true;
   }
 
-  /** Sends to the worker once started (or drops it once destroyed), then shows what changed. */
+  /** Sends to the worker once started (dropped after a failed start or once destroyed), then shows what changed. */
   feed(send) {
-    if (this.dead || !this.jassub) return;
-    Promise.resolve(this.jassub.ready).then(() => {
-      if (this.dead || !this.ready) return;
+    if (this.dead) return;
+    this.started.then(ok => {
+      if (!ok || this.dead || !this.jassub) return;
       return Promise.resolve(send(this.jassub.renderer)).then(() => this.redraw());
     }).catch(() => {});
   }
@@ -206,7 +214,7 @@ export class LibassLayer {
   draw(time, repaint) {
     const jassub = this.jassub, video = this.video;
     if (!this.ready || !this.visible || !jassub || !video.videoWidth) return;
-    const on = this.times.at(time - this.delay).length > 0;
+    const on = this.times.at(time - this.delay);
     if (!on && !this.drawn) return;
     this.drawn = on;
     jassub.timeOffset = -this.delay;
@@ -236,6 +244,25 @@ export class LibassLayer {
       frame.close();
       this.feed(r => r._setColorSpace(matrix, fullRange));
     } catch {} // a picture from another origin without CORS cannot be read: colours stay as written
+  }
+}
+
+/** When events show: start-sorted, so "is any on screen at t" looks back only as far as the longest. */
+class Times {
+  constructor() { this.starts = []; this.ends = []; this.keys = new Set(); this.longest = 0; this.size = 0; }
+  add(start, end, key) {
+    if (this.keys.has(key)) return;
+    this.keys.add(key);
+    this.longest = Math.max(this.longest, end - start);
+    let i = this.starts.length;
+    while (i > 0 && this.starts[i - 1] > start) i--; // events mostly arrive in order
+    this.starts.splice(i, 0, start); this.ends.splice(i, 0, end); this.size++;
+  }
+  at(t) {
+    let lo = 0, hi = this.starts.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.starts[mid] <= t) lo = mid + 1; else hi = mid; }
+    for (let i = lo - 1; i >= 0 && this.starts[i] >= t - this.longest; i--) if (this.ends[i] > t) return true;
+    return false;
   }
 }
 
