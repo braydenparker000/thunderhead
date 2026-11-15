@@ -29,6 +29,7 @@ export const DEFAULTS = Object.freeze({
   sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
   deband: false, // smooth banding
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
+  seekPreviews: true, // the picture in the seek bar's bubble (seek-preview.js); never with the data saver on
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 
