@@ -196,11 +196,12 @@ export class SubtitleRenderer {
   pictureCanvas(part, image) {
     let canvas = this.canvases.get(part);
     if (canvas) { this.canvases.delete(part); this.canvases.set(part, canvas); return canvas; }
-    // A part's size is the file's claim: nothing larger than its frame gets
-    // a canvas, and the canvas is made only once the pixels exist.
+    // A part's size is the file's claim. The decoders hold it to its frame
+    // (a VobSub .idx without a size gives 720×576 only for placing it); here
+    // nothing past the hard cap gets a canvas, made only once the pixels exist.
     const w = part.width, h = part.height;
     if (!(Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0)) return null;
-    if (w > Math.min(image.frameWidth || MAX_FRAME.width, MAX_FRAME.width) || h > Math.min(image.frameHeight || MAX_FRAME.height, MAX_FRAME.height)) return null;
+    if (w > MAX_FRAME.width || h > MAX_FRAME.height) return null;
     try {
       const pixels = part.draw();
       const data = new ImageData(new Uint8ClampedArray(pixels.buffer, pixels.byteOffset, pixels.byteLength), w, h);
