@@ -8,6 +8,7 @@ import {icon} from '../ui/icons.js';
 import {image, longPress, sheet, toast, emptyCard} from '../ui/components.js';
 import {fetchStreams, supports} from '../addons/client.js';
 import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, bytesOf, filtersFrom, minutesOf, perHour, shown} from '../addons/stream-facts.js';
+import {playsMark, soundNote} from '../addons/device-facts.js';
 import {episodeCode, videoTitle} from '../app/content.js';
 import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
 
@@ -19,15 +20,11 @@ const NEEDS_DEBRID = 'Torrents need a debrid add-on such as TorBox.';
 const skeletonStream = () => h('div', {class: 'stream-skeleton', 'aria-hidden': 'true'}, h('i', {class: 'skeleton'}), h('i', {class: 'skeleton'}));
 const sizeLabel = n => !n ? '' : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB' : Math.round(n / 1e6) + ' MB';
 
-/** A best-effort size from the stream's own text ("💾 4.2 GB"). */
-export function sizeFrom(stream) {
-  if (stream.size) return sizeLabel(stream.size);
-  const m = /(\d+(?:[.,]\d+)?)\s*(GB|MB|GiB|MiB)\b/i.exec(stream.title + ' ' + stream.name);
-  return m ? `${m[1].replace(',', '.')} ${m[2].toUpperCase().replace('I', '')}` : '';
-}
+/** A best-effort size from the stream's own number or text ("💾 4.2 GB", "1,400 MB"), as "1.4 GB". */
+export function sizeFrom(stream) { return sizeLabel(bytesOf(stream)); }
 
 /** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */
-const overLimit = (s, mb) => { const m = mb && /^([\d.]+) (GB|MB)$/.exec(sizeFrom(s)); return !!m && Number(m[1]) * (m[2] === 'GB' ? 1000 : 1) > mb; };
+const overLimit = (s, mb) => !!mb && (bytesOf(s) ?? 0) > mb * 1e6;
 
 export class StreamsScreen {
   constructor(app, meta, video = null, {startTime = 0, headless = false} = {}) {
@@ -280,7 +277,9 @@ export class StreamsScreen {
       }},
       h('b', {class: 'stream-name'}, (s.name || group.addon.name).replace(/\s*\n\s*/g, ' ')),
       s.title ? h('span', {class: 'stream-desc'}, s.title) : null,
-      h('span', {class: 'stream-badges'}, size ? h('em', {}, size) : null, hourly ? h('em', {}, hourly) : null, !playable && s.infoHash ? h('em', {class: 'muted'}, 'Torrent') : null));
+      h('span', {class: 'stream-badges'}, size ? h('em', {}, size) : null, hourly ? h('em', {}, hourly) : null, !playable && s.infoHash ? h('em', {class: 'muted'}, 'Torrent') : null,
+        playable && soundNote(s) ? h('em', {class: 'sound'}, soundNote(s)) : null),
+      playable ? playsMark(s) : null); // how it will most likely play here (addons/device-facts.js); informs only
     if (playable) longPress(card, () => sheet(s.name?.replace(/\s+/g, ' ') || group.addon.name, [
       {label: 'Copy stream link', icon: 'copy', run: () => navigator.clipboard.writeText(s.url).then(() => toast('Link copied'), () => toast('Copy failed'))},
       canOpenExternally() ? {label: 'Play in another app', icon: 'play', run: () => { const url = externalPlayerUrl(s.url, {title: this.meta.name || ''}); if (url) location.href = url; }} : null,

@@ -375,6 +375,11 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 .stream-badges { display: flex; gap: 6px; }
 .stream-badges:empty { display: none; }
 .stream-badges em { font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); background: var(--card); color: var(--text-2); }
+/* How a stream will most likely play here (addons/device-facts.js): one quiet line whose room is
+   held before the browser answers, and never wraps, so nothing moves when the words arrive. */
+.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--warning); }
+.stream-badges:has(.sound) { flex-wrap: wrap; }
 .stream-footer { margin: 12px var(--gutter); color: var(--muted); font-size: 13px; text-align: center; }
 .stream-footer:empty { display: none; }
 

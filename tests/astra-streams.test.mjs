@@ -3,7 +3,8 @@
 // the picture sizes and codecs), and what an hour of a stream costs in data. Invented streams only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NO_FILTERS, anyFilter, bytesOf, factsOf, filtersFrom, minutesOf, passes, perHour, shown } from '../frontend/astra/src/addons/stream-facts.js';
+import { NO_FILTERS, anyFilter, bytesOf, factsOf, filtersFrom, minutesOf, passes, perHour, playFactsOf, shown } from '../frontend/astra/src/addons/stream-facts.js';
+import { DIRECT, SOFTWARE, SOUND, questionOf, soundNote, wordsFor } from '../frontend/astra/src/addons/device-facts.js';
 
 const s = (name, title, more = {}) => ({ name, title, ...more });
 
@@ -48,4 +49,63 @@ test('filters as stored are made safe; data an hour from size and runtime', () =
   assert.equal(perHour(150e6, 24), '380 MB an hour');
   assert.equal(perHour(null, 118), '');
   assert.equal(perHour(1e9, null), '');
+  assert.equal(perHour(1e5, 60), '', 'under 1 MB an hour says nothing, not "0 MB an hour"');
+  assert.equal(perHour(3e6, 60), '3 MB an hour');
+});
+
+test('sizes as people write them: thousands, decimal commas, binary units, terabytes', () => {
+  const b = (t) => bytesOf(s('Example', t));
+  assert.equal(b('💾 1,400 MB'), 1400e6);
+  assert.equal(b('1.400,5 MB'), 1400.5e6);
+  assert.equal(b('1,400.5 MB'), 1400.5e6);
+  assert.equal(b('1 400 MB'), 1400e6);
+  assert.equal(b('1.4 GiB'), Math.round(1.4 * 2 ** 30));
+  assert.equal(b('700 MiB'), 700 * 2 ** 20);
+  assert.equal(b('Film 1.400 GB'), 1.4e9, 'one separator in GB is a decimal point');
+  assert.equal(b('S01E02 400 MB'), 400e6, 'an episode code is not part of the size');
+  assert.equal(b('2.1 TB'), 2.1e12);
+  // A terabyte file is hidden under any limit; one of unknown size stays unknown (and hidden too).
+  assert.equal(passes(factsOf(s('a', '2.1 TB')), { ...NO_FILTERS, maxMb: 3000 }), false);
+  assert.equal(b('no size here'), null);
+});
+
+test('picture size and codec: a file size is never a picture size; underscores and spaced names read', () => {
+  const f = (t) => factsOf(s('Example', t));
+  for (const t of ['💾 720 MB', '480 MB', '1080 MB']) assert.equal(f(t).res, null, t);
+  assert.deepEqual(factsOf(s('Example', '', { filename: 'Film_2020_1080p_x265_HEVC.mkv' })), { bytes: null, res: '1080', codec: 'hevc' });
+  assert.equal(f('UHD BluRay 1080p').res, '1080', 'an explicit 1080 wins over UHD');
+  assert.deepEqual(['H 265', 'H-265', 'HEVC10bit'].map((t) => f(t).codec), ['hevc', 'hevc', 'hevc']);
+  assert.deepEqual(['3840x2160', '1920x1080', '1920x800'].map((t) => f(t).res), ['4k', '1080', '1080']);
+  assert.equal(f('Film 1080p VP9').codec, 'vp9');
+  const p = playFactsOf(s('Example', '2160p DV HDR x265 DDP5.1 Atmos HEVC10bit'));
+  assert.deepEqual([p.tenBit, p.hdr, p.sound], [true, true, true]);
+  assert.equal(playFactsOf(s('Example', 'x264 AAC DTS')).sound, false, 'with AAC named, the sound may play as it is');
+});
+
+test('plays on this phone: the label gives the question, the browser answer gives the words', () => {
+  const q = (t, more) => questionOf(s('Example', t, more));
+  const video = (t, more) => q(t, more)?.config.video;
+  assert.deepEqual(video('Ep 1 720p x265'), { contentType: 'video/mp4; codecs="hvc1.1.6.L120.90"', width: 1280, height: 720, bitrate: 4e6, framerate: 24 });
+  assert.equal(q('Ep 1 720p x265').config.type, 'media-source');
+  assert.equal(video('2160p HDR HEVC').contentType, 'video/mp4; codecs="hvc1.2.4.L150.B0"', 'HDR asks for Main10');
+  assert.deepEqual([video('2160p HDR HEVC').width, video('Film AV1').width], [3840, 1920], 'no picture size named: 1080p');
+  assert.equal(video('Film AV1 10bit').contentType, 'video/mp4; codecs="av01.0.12M.10"');
+  assert.equal(video('Film VP9 HDR').contentType, 'video/mp4; codecs="vp09.02.40.10"');
+  assert.equal(video('Film x264').contentType, 'video/mp4; codecs="avc1.640028"');
+  assert.equal(video('Anime Hi10P x264').contentType, 'video/mp4; codecs="avc1.6e0028"');
+  assert.equal(video('Film HDR x264').contentType, 'video/mp4; codecs="avc1.640028"', 'HDR alone does not make H.264 10-bit');
+  assert.equal(video('Ep 1', { filename: 'ep1.mp4' }).contentType, 'video/mp4; codecs="avc1.640028"', 'an unlabelled MP4 is asked as H.264');
+  assert.equal(q('Ep 1', { filename: 'ep1.mkv' }), null, 'an unlabelled MKV may hold anything: nothing said');
+  assert.equal(q('Ep 1'), null);
+  // The words: direct only for a smooth, power-efficient decoder.
+  const hevc = q('720p x265'), avc = q('x264'), hi10 = q('Hi10P x264');
+  assert.equal(wordsFor(hevc, { supported: true, smooth: true, powerEfficient: true }), DIRECT);
+  assert.equal(wordsFor(hevc, { supported: true, smooth: true, powerEfficient: false }), SOFTWARE);
+  assert.equal(wordsFor(hevc, { supported: false, smooth: false, powerEfficient: false }), SOFTWARE);
+  assert.equal(wordsFor(hevc, null), '', 'no answer: nothing guessed');
+  assert.equal(wordsFor(avc, null), DIRECT, 'no answer: 8-bit H.264 still plays directly');
+  assert.equal(wordsFor(hi10, null), '');
+  assert.equal(wordsFor(null, { supported: true, smooth: true, powerEfficient: true }), '');
+  assert.equal(SOFTWARE, 'Needs the software decoder (uses more battery)');
+  assert.deepEqual([soundNote(s('a', 'x265 DTS')), soundNote(s('a', 'x265 AAC'))], [SOUND, '']);
 });
