@@ -21,7 +21,7 @@ import {hasCentre} from '../enhance/sound-chain.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
 // and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
-export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: false}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
+export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
 const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
