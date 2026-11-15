@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-15-astra-player",
+  "id": "2026-11-15-astra-sooner",
   "date": "2026-11-15",
   "lines": [
     {
-      "text": "Astra's player has a Playback menu: speed, sleep timer, repeat a part, sound only. Chapter marks and pinch to zoom.",
+      "text": "Astra's films start much sooner, in about a second on a slow link, and resuming is as quick. Less is fetched ahead.",
       "open": "astra"
     },
     {
-      "text": "Skip intro works: Astra learns a series' opening from its sound, on your phone. Anime subtitles show their signs."
+      "text": "Settings, Playback has Get ready ahead: Astra reads your TorBox list early and prepares the next episode."
     },
     {
-      "text": "Audio has a Sound tab (volume boost, night mode, dialogue) and Stream info can sharpen the picture."
+      "text": "Sound has Even loudness and Headphone surround. Picture has an Animation upscaler, and HDR films can be sharpened."
     },
     {
-      "text": "Films no longer download whole behind your back, seeks land in about a second, and streams say how they will play."
+      "text": "Dolby sound plays straight through where your phone can decode it. Every film Astra can read gets its full player."
     }
   ]
 }
