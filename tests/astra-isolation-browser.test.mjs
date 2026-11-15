@@ -76,7 +76,8 @@ test('the second opening is cross-origin isolated, and posters, films, the softw
   // The second opening: isolated, and the add-on's row shows all four posters, with CORS headers or without.
   await page.goto(`${base}/astra/`);
   assert.equal(await page.evaluate(() => crossOriginIsolated), true, 'isolated from the second opening');
-  await page.waitForFunction(() => [...document.querySelectorAll('img')].filter((i) => /\/p\d\.png/.test(i.src) && i.complete && i.naturalWidth).length === 4, null, { timeout: 10_000 });
+  // (each poster is drawn twice: in the hero and in the row)
+  await page.waitForFunction(() => { const all = [...document.querySelectorAll('img')].filter((i) => /\/p\d\.png/.test(i.src)); return all.length >= 4 && all.every((i) => i.complete && i.naturalWidth) && new Set(all.map((i) => i.src)).size === 4; }, null, { timeout: 10_000 });
 
   // A film the page may not read is handed to the browser and plays; a readable one plays through Astra.
   assert.deepEqual(await play(page, `${host.url('plain.mp4')}?nocors`), { mode: 'native', played: true, error: null });
@@ -88,7 +89,9 @@ test('the second opening is cross-origin isolated, and posters, films, the softw
     assert.ok(soft.played, JSON.stringify(soft));
     const cores = await page.evaluate(() => ({ cap: Math.max(1, Math.min(4, navigator.hardwareConcurrency - 1)), url: globalThis.CHEAP_POLYFILL_URL, off: globalThis.CHEAP_DISABLE_THREAD }));
     assert.ok(cores.url?.startsWith('blob:') && !cores.off, 'libmedia runs threads');
-    assert.match(await page.evaluate((u) => fetch(u).then((r) => r.text()), cores.url), new RegExp(`value: ${cores.cap}\\b`));
+    // A worker as libmedia starts one: its script first, then what it reads as the phone's cores.
+    const seen = await page.evaluate((u) => new Promise((r) => { const w = new Worker(URL.createObjectURL(new Blob([`importScripts('${u}'); postMessage(navigator.hardwareConcurrency);`], { type: 'text/javascript' }))); w.onmessage = (e) => { r(e.data); w.terminate(); }; }), cores.url);
+    assert.equal(seen, cores.cap, 'libmedia\'s workers are told one core fewer, at most 4');
   }
   await page.evaluate(() => window.p?.destroy());
 

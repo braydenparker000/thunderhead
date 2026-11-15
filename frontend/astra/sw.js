@@ -23,12 +23,15 @@
 // credentialless, not require-corp: artwork, add-on answers and films from other hosts
 // load as before, only without cookies, which Astra never sends them. The first visit
 // comes before this worker controls anything and is not isolated; nothing reloads for it.
+// Off (ISOLATE): measured 2026-11-15, isolation works for everything Astra does, but the
+// threads it brings start a film and libass later, and libass's (JASSUB starts as many as
+// the phone has cores less two) cannot be held; see tests/astra-isolation-browser.test.mjs.
 
 const PREFIX = 'astra-app-';
 const STATE = 'astra-sw-state';
 const OLD = ['astra-v1']; // the network-first cache of earlier versions
 const GRACE = 60_000; // a page being opened is not yet listed among the clients
-const ISOLATE = true;
+const ISOLATE = false;
 
 const known = new Map(); // client id -> release, mirrors state.clients
 const lists = new Map(); // release -> its files.json list (or null: none)

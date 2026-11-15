@@ -8,9 +8,11 @@
 // script every one of its workers runs first (CHEAP_POLYFILL_URL), which tells
 // them the phone has that many cores. With THREADS off, an isolated page
 // decodes on one thread too (CHEAP_DISABLE_THREAD). Both are read when
-// libmedia loads, so this runs before its script is added.
+// libmedia loads, so this runs before its script is added. Off for now: Astra's
+// pages are not isolated (ISOLATE in sw.js), and measured on an isolated page the
+// threads decoded up to twice as many frames a second but showed the first later.
 
-export const THREADS = true;
+export const THREADS = false;
 export const MAX_THREADS = 4;
 
 /** The threads libmedia may use on a phone with `cores` cores: one fewer, at most MAX_THREADS, at least 1. */
@@ -32,9 +34,9 @@ export function prepareThreads(scope = globalThis, threads = THREADS) {
 }
 
 /** What the lab's device report says: whether the page is isolated and the cores the software decoder uses. */
-export function threadsReport(scope = globalThis) {
+export function threadsReport(scope = globalThis, threads = THREADS) {
   const cores = Number(scope.navigator?.hardwareConcurrency) || 0;
   if (!scope.crossOriginIsolated) return `Not isolated: one core (opens isolated from the second visit)`;
-  if (!THREADS) return `Isolated; threads switched off: one core`;
+  if (!threads) return `Isolated; threads switched off: one core`;
   return `Isolated: up to ${threadCap(cores)} of ${cores} cores`;
 }

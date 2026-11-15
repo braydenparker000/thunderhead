@@ -38,7 +38,7 @@ function site(release, files, { list = true, legacy = false } = {}) {
 }
 const listOf = (s) => ({ tree: s.release, files: Object.fromEntries(Object.entries(s.files).map(([p, b]) => [p, fileHash(b)])) });
 
-function worker(caches, web) {
+function worker(caches, web, source = SOURCE) {
   const listeners = new Map(), told = [];
   const self = {
     location: { origin: ORIGIN },
@@ -58,7 +58,7 @@ function worker(caches, web) {
     return basic(path in s.files ? new Response(s.files[path]) : new Response('', { status: 404 }));
   };
   const context = vm.createContext({ self, fetch, caches, crypto: globalThis.crypto, URL, Response, Headers, JSON, Promise, Date: { now: () => Date.now() + (web.skew ?? 0) }, Map, Set, Object, Uint8Array, setTimeout, Error });
-  vm.runInContext(SOURCE, context);
+  vm.runInContext(source, context);
   const jobs = [];
   const run = async (type, event) => {
     let answer;
@@ -175,10 +175,18 @@ test('a site without lists (release.json with a commit only) works as before', a
   assert.equal(await w.get('p2', 'src/main.js'), 'main 2');
 });
 
-test('the pages it serves are cross-origin isolated, the workers they start get COEP, nothing else does', async () => {
+const policy = (res) => [res.headers.get('cross-origin-opener-policy'), res.headers.get('cross-origin-embedder-policy')];
+const ISOLATED = SOURCE.replace('const ISOLATE = false;', 'const ISOLATE = true;');
+
+test('as shipped, isolation is off: no page gets the headers', async () => {
+  assert.notEqual(ISOLATED, SOURCE, 'the switch is there');
+  const w = worker(fakeCaches(), { site: site('A', { ...APP }) });
+  assert.deepEqual(policy(await w.respond(req(SCOPE, 'navigate'), { resultingClientId: 'p1' })), [null, null]);
+});
+
+test('switched on, the pages it serves are cross-origin isolated, the workers they start get COEP, nothing else does', async () => {
   const caches = fakeCaches(), web = { site: site('A', { ...APP, 'lab/index.html': 'lab', 'src/w.js': 'worker' }) };
-  const w = worker(caches, web);
-  const policy = (res) => [res.headers.get('cross-origin-opener-policy'), res.headers.get('cross-origin-embedder-policy')];
+  const w = worker(caches, web, ISOLATED);
   const isolatedPage = ['same-origin', 'credentialless'];
   // The first page from the network (it is saved as it loads), then from the saved copy, and the lab.
   const first = await w.respond(req(SCOPE, 'navigate'), { resultingClientId: 'p1' });
