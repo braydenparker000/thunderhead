@@ -109,7 +109,7 @@ class MkvPackets {
   /**
    * The frame of `track` at or before `ticks` that passes `test`, found by the cue index; `stop` ends a scan early.
    * `cued`: the track's own key frames are what its cues point at, so the cued one is the answer when the next cue is
-   * past the place, or there is none (a key frame the index leaves out is passed over: the start is then a little earlier).
+   * past the place (after the last cue, once frames half a second past the place show no key frame can still come) (a key frame the index leaves out is passed over: the start is then a little earlier).
    * `near`: when the cued cluster's first frame is later than the place by no more than two of its own lengths, it is
    * the answer rather than the one before it, which sits at the end of the cluster before (unknown without reading
    * from the cue before, perhaps many clusters back): the sound at a key frame that begins a cluster.
@@ -131,7 +131,7 @@ class MkvPackets {
           first ??= f;
           if (f.ticks <= ticks && test(f) && (!best || f.ticks >= best.ticks)) best = f;
           // Past the place, or at the cued frame when the next cue is past it: nothing later can be a better answer.
-          if (stop(f) || (cued && best && cue && best.ticks >= cue.ticks && !(nextCue?.ticks <= ticks))) break scan;
+          if (stop(f) || (cued && best && cue && best.ticks >= cue.ticks && (nextCue ? nextCue.ticks > ticks : f.ticks > ticks + this.factor / 2))) break scan;
         }
         pos = await this.next(c);
       }
