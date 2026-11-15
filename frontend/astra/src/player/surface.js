@@ -1,12 +1,15 @@
 // Touch on the picture: tap to show or hide the controls, double tap to
 // seek, hold to play faster, swipe across to seek, swipe up or down for
-// brightness (left) and volume (right). Which of these a finger is doing is
+// brightness (left) and volume (right), pinch to zoom and, zoomed, drag to
+// move the picture (zoom.js). Which of these a finger is doing is
 // decided by gestures.js (Gesture); this file does what it decides.
 
 import {clock, haptic} from '../ui/dom.js';
 import * as G from './gestures.js';
 import {FEEDBACK_MS} from './controls.js';
 import {put} from './view.js';
+import {savePrefs} from './prefs.js';
+import {Zoom} from './zoom.js';
 
 const coarse = () => matchMedia('(pointer: coarse)').matches;
 
@@ -14,6 +17,7 @@ export class Surface {
   constructor(p) {
     this.p = p;
     this.g = new G.Gesture();
+    this.zoom = new Zoom(p);
     this.holding = false;
     this.holdBase = 1;
     this.brightness = 1;
@@ -31,9 +35,11 @@ export class Surface {
     const at = e => { const r = s.getBoundingClientRect(); return {id: e.pointerId, x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height}; };
     s.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
-      const started = this.g.down({...at(e), gestures: p.prefs.gestures && !p.ctl.locked, canHold: !p.ctl.locked && !p.video.paused});
-      if (!started) return; // a second finger: the first one's gesture goes on
+      const free = p.prefs.gestures && !p.ctl.locked;
+      const started = this.g.down({...at(e), gestures: free, canHold: !p.ctl.locked && !p.video.paused, zoom: free, zoomed: this.zoom.zoomed});
+      if (!started) return; // a finger too late to pinch: the first one's gesture goes on
       try { s.setPointerCapture(e.pointerId); } catch {}
+      if (started.pinch) { clearTimeout(this.holdTimer); this.zoom.startPinch(); return; }
       if (started.holdIn) this.holdTimer = setTimeout(() => this.act(this.g.hold()), started.holdIn);
     });
     s.addEventListener('pointermove', e => {
@@ -44,7 +50,7 @@ export class Surface {
     const end = e => {
       if (!this.g.active) return;
       const a = e.type === 'pointerup' ? this.g.up(at(e)) : this.g.cancel(e.pointerId);
-      if (this.g.active) return; // another pointer's event
+      if (this.g.active) { this.act(a); return; } // one finger of a pinch (which ends it), or an ignored finger (nothing)
       clearTimeout(this.holdTimer);
       if (p.ctl.locked) { if (e.type === 'pointerup') p.ctl.showLockHint(); return; }
       this.act(a);
@@ -60,12 +66,16 @@ export class Surface {
     if (!a) return;
     const p = this.p;
     if (a.type === 'hold') this.startHold();
-    else if (a.type === 'drag') { clearTimeout(this.holdTimer); this.startDrag(a.kind); }
+    else if (a.type === 'drag') { clearTimeout(this.holdTimer); if (a.kind === 'pan') this.zoom.startPan(); else this.startDrag(a.kind); }
     else if (a.type === 'seek') this.dragSeek(a.dx);
     else if (a.type === 'level') this.dragLevel(a.kind, a.dy);
+    else if (a.type === 'pinch') this.zoom.pinch(a);
+    else if (a.type === 'pan') this.zoom.pan(a.dx, a.dy);
     else if (a.type === 'end') {
       if (a.kind === 'hold') this.endHold();
       else if (a.kind === 'seek') this.endSeekDrag(a.cancelled);
+      else if (a.kind === 'pinch') this.zoom.endPinch();
+      else if (a.kind === 'pan') this.zoom.endPan();
       else this.endLevel(a.kind);
     } else if (a.type === 'tap' && !p.ctl.locked) this.tapAt(a.x, a.w);
   }
@@ -104,7 +114,7 @@ export class Surface {
   startHold() {
     const p = this.p;
     this.holding = true;
-    this.holdBase = p.video.playbackRate;
+    this.holdBase = p.prefs.speed || p.video.playbackRate; // the chosen speed, which the lift goes back to
     p.video.playbackRate = p.prefs.holdSpeed;
     p.feedback.textContent = `${p.prefs.holdSpeed}x ▸▸`;
     p.feedback.className = 'ap-feedback show hold';
@@ -163,8 +173,12 @@ export class Surface {
     bar.querySelector('i').style.transform = `scaleY(${value / max})`;
   }
 
+  /** The level is kept for the next film (prefs.js). */
   endLevel(kind) {
+    const p = this.p;
     this.drag = null;
+    if (kind === 'volume') p.prefs.volume = p.video.muted ? 0 : p.video.volume; else p.prefs.brightness = this.brightness;
+    savePrefs(p.prefs);
     clearTimeout(this.levelTimers[kind]);
     this.levelTimers[kind] = setTimeout(() => { this.p.levelBars[kind].hidden = true; }, FEEDBACK_MS);
   }
@@ -189,8 +203,8 @@ export class Surface {
     this.endHold();
   }
 
-  /** A new title starts at the picture's own brightness. */
-  reset() { this.setBrightness(1); }
+  /** A new title starts at the brightness last chosen, and not zoomed. */
+  reset() { const b = this.p.prefs.brightness; this.setBrightness(Number.isFinite(b) ? Math.max(0.2, Math.min(1.5, b)) : 1); this.zoom.reset(); }
 
   close() {
     this.abort();

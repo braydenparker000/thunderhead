@@ -104,10 +104,12 @@ export class RemuxSession extends EventTarget {
   }
 
   seeking() {
-    // Nothing to do when the running pipelines are reading here, or will reach it shortly. Media still buffered from
-    // before a far seek back is not enough: the pipelines are elsewhere, and would not follow on from it.
-    const t = this.video.currentTime;
-    if (Object.keys(this.queues).every(k => t >= this.from - 0.5 && t <= this.readAt[k] + 5)) return;
+    // Nothing to do when the running pipelines have brought this place (and it is still buffered), or will reach it
+    // shortly. Media still buffered from before a far seek back is not enough: the pipelines are elsewhere, and would
+    // not follow on from it; nor is a place they passed whose media has since been let go.
+    const t = this.video.currentTime, d = this.ms?.duration || Infinity;
+    const covered = ([k, q]) => t >= this.from - 0.5 && t <= this.readAt[k] + 5 && (t >= this.readAt[k] - 1 || bufferedAt(q.buffer, t, 0.5, d));
+    if (Object.entries(this.queues).every(covered)) return;
     clearTimeout(this.seekTimer);
     this.seekTimer = setTimeout(() => this.jumpTo(this.video.currentTime), 150); // scrubbing settles first
   }

@@ -40,15 +40,21 @@ export function classifyDrag({dx, dy, startX, startY, width, height, slop = 8}) 
 }
 
 /**
- * One finger on the picture, as a small state machine: down, move, up and
- * cancel go in; what the player should do comes out. Only the first finger
- * counts: a second one is ignored, so the first one's lift still ends what it
- * started. Moving past the slop rules out a hold and a tap, even when the
- * drag never becomes a seek or a level (a diagonal, or gestures turned off).
+ * Fingers on the picture, as a small state machine: down, move, up and
+ * cancel go in; what the player should do comes out. The first finger
+ * decides. A second finger that lands before the first has moved past the
+ * slop or held starts a pinch (zoom), which rules out the hold; once a hold,
+ * a drag or a pinch is under way any other finger is ignored, so the first
+ * one's lift still ends what it started. A pinch ends with either finger's
+ * lift; the finger left on the glass then does nothing until it lifts.
+ * Moving past the slop rules out a hold and a tap, even when the drag never
+ * becomes a seek or a level (a diagonal, or gestures turned off). While the
+ * picture is zoomed, a one-finger drag pans it instead of seeking.
  * The hold's timer is the caller's: down() says how long, hold() fires it.
- *   down(): {holdIn} | null      move(): [actions]      up()/cancel(): action | null
+ *   down(): {holdIn, pinch?} | null      move(): [actions]      up()/cancel(): action | null
  * Actions: {type: 'hold'} | {type: 'drag', kind} (once) | {type: 'seek', dx} |
- * {type: 'level', kind, dy} | {type: 'end', kind, cancelled} | {type: 'tap', x, w}
+ * {type: 'level', kind, dy} | {type: 'pan', dx, dy} | {type: 'pinch', ratio, focus, mid} |
+ * {type: 'end', kind, cancelled} | {type: 'tap', x, w}
  */
 export class Gesture {
   constructor({slop = 8} = {}) { this.slop = slop; this.p = null; }
@@ -56,10 +62,21 @@ export class Gesture {
   get active() { return !!this.p; }
   get kind() { return this.p?.kind || null; }
 
-  /** `rect` is the surface's size; `gestures` the viewer's setting; `canHold` whether the video plays. */
-  down({id, x, y, w, h, gestures = true, canHold = false}) {
-    if (this.p) return null; // a second finger
-    this.p = {id, x, y, w, h, gestures, kind: null, moved: false, holdable: gestures && canHold};
+  /**
+   * `w`, `h` are the surface's size; `gestures` the viewer's setting; `canHold` whether the video plays;
+   * `zoom` whether a pinch may start (not while locked); `zoomed` whether the picture is enlarged (drags pan).
+   */
+  down({id, x, y, w, h, gestures = true, canHold = false, zoom = false, zoomed = false}) {
+    const p = this.p;
+    if (p) {
+      if (!p.zoom || p.kind || p.moved || p.second) return null; // a finger too late to pinch: ignored
+      p.kind = 'pinch'; p.holdable = false;
+      p.second = {id, x, y};
+      p.start = Math.max(1, Math.hypot(x - p.cx, y - p.cy));
+      p.focus = {x: (x + p.cx) / 2, y: (y + p.cy) / 2};
+      return {holdIn: 0, pinch: true};
+    }
+    this.p = {id, x, y, cx: x, cy: y, w, h, gestures, zoom, zoomed, kind: null, moved: false, holdable: gestures && canHold};
     return this.p.holdable ? {holdIn: HOLD_MS} : {holdIn: 0};
   }
 
@@ -73,14 +90,23 @@ export class Gesture {
 
   move({id, x, y}) {
     const p = this.p, out = [];
-    if (!p || id !== p.id) return out;
+    if (!p) return out;
+    if (p.kind === 'pinch') {
+      if (id === p.id) { p.cx = x; p.cy = y; } else if (id === p.second.id) { p.second.x = x; p.second.y = y; } else return out;
+      out.push({type: 'pinch', ratio: Math.hypot(p.second.x - p.cx, p.second.y - p.cy) / p.start, focus: p.focus, mid: {x: (p.second.x + p.cx) / 2, y: (p.second.y + p.cy) / 2}});
+      return out;
+    }
+    if (id !== p.id) return out;
+    p.cx = x; p.cy = y;
     const dx = x - p.x, dy = y - p.y;
     if (!p.moved && Math.hypot(dx, dy) > this.slop) { p.moved = true; p.holdable = false; }
+    if (!p.kind && p.moved && p.zoomed) { p.kind = 'pan'; out.push({type: 'drag', kind: 'pan'}); }
     if (!p.kind && p.moved && p.gestures) {
       const kind = classifyDrag({dx, dy, startX: p.x, startY: p.y, width: p.w, height: p.h, slop: this.slop});
       if (kind) { p.kind = kind; if (kind !== 'none') out.push({type: 'drag', kind}); }
     }
     if (p.kind === 'seek') out.push({type: 'seek', dx});
+    else if (p.kind === 'pan') out.push({type: 'pan', dx, dy});
     else if (p.kind === 'brightness' || p.kind === 'volume') out.push({type: 'level', kind: p.kind, dy});
     return out;
   }
@@ -92,7 +118,14 @@ export class Gesture {
 
   finish(id, cancelled) {
     const p = this.p;
-    if (!p || (id != null && id !== p.id)) return null;
+    if (!p) return null;
+    if (p.kind === 'pinch' && id != null && (id === p.id || id === p.second.id)) {
+      // One finger of the two lifted: the pinch is over; the other is spent until it lifts too.
+      const left = id === p.id ? p.second : {id: p.id, x: p.cx, y: p.cy};
+      this.p = {id: left.id, x: left.x, y: left.y, cx: left.x, cy: left.y, w: p.w, h: p.h, gestures: false, zoom: false, zoomed: false, kind: 'none', moved: true, holdable: false};
+      return {type: 'end', kind: 'pinch', cancelled};
+    }
+    if (id != null && id !== p.id) return null;
     this.p = null;
     if (p.kind && p.kind !== 'none') return {type: 'end', kind: p.kind, cancelled};
     if (cancelled || p.moved) return null;

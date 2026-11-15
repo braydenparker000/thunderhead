@@ -121,7 +121,9 @@ function stopLibmedia(AVPlayer, engine) {
     if (AVPlayer.Instances?.length || typeof AVPlayer.stopPipelines !== 'function') return;
     const context = AVPlayer.audioContext;
     await AVPlayer.stopPipelines().catch(() => {});
-    context?.close?.().catch(() => {});
+    // Closed before the next start: libmedia's own listener for the context's change reads it from every player.
+    await context?.close?.().catch(() => {});
+    await new Promise(resolve => setTimeout(resolve, 0));
   });
   return stopping;
 }

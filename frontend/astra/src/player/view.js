@@ -28,7 +28,11 @@ export function build(p) {
   const video = r.video = h('video', {class: 'ap-video', playsinline: true, preload: 'auto'});
   video.setAttribute('playsinline', '');
   const subs = r.subsEl = h('div', {class: 'ap-subs'});
+  r.subs2El = h('div', {class: 'ap-subs second'}); // a second subtitle track, above the first (the engine draws it, where it can)
   r.dim = h('div', {class: 'ap-dim', 'aria-hidden': 'true'}); // darkens the picture (the brightness swipe), not the subtitles
+  r.pictureLayer = h('div', {class: 'ap-picture-layer', 'aria-hidden': 'true'}); // over the video, under the subtitles: the picture filter's canvas
+  // The video and everything laid over it, in one element: zooming moves them together (zoom.js).
+  r.stage = h('div', {class: 'ap-stage'}, video, r.pictureLayer, r.dim, r.subs2El, subs);
 
   // Feedback
   r.feedback = h('div', {class: 'ap-feedback', 'aria-live': 'polite'});
@@ -59,11 +63,12 @@ export function build(p) {
   r.thumb = h('div', {class: 'ap-thumb', 'aria-hidden': 'true'});
   r.bubble = h('div', {class: 'ap-bubble', 'aria-hidden': 'true', hidden: true});
   r.timeline = h('div', {class: 'ap-timeline', role: 'slider', tabindex: 0, 'aria-label': 'Seek', 'aria-valuemin': 0},
-    h('div', {class: 'ap-track'}, r.buffered, r.played), r.thumb, r.bubble);
+    r.track = h('div', {class: 'ap-track'}, r.buffered, r.played, r.marks = h('div', {class: 'ap-marks', 'aria-hidden': 'true'})), r.thumb, r.bubble);
   r.timeEl = h('button', {class: 'ap-time', type: 'button', onclick: () => { p.remaining = !p.remaining; p.updateTime(); }});
   r.playBtn = iconButton('play', 'Play', () => p.togglePlay(), {class: 'ap-icon-btn ap-play'});
   r.spinner = h('div', {class: 'ap-spinner', hidden: true, role: 'progressbar', 'aria-label': 'Loading'});
-  r.speedBtn = h('button', {class: 'ap-text-btn', type: 'button', onclick: () => p.cycleSpeed()}, 'Speed 1x');
+  r.speedBtn = h('button', {class: 'ap-text-btn', type: 'button', 'aria-haspopup': 'dialog', onclick: () => p.menus.openModal('playback')}, 'Speed 1x');
+  r.sleepEl = h('p', {class: 'ap-sleep-left', hidden: true}); // the sleep timer's time left, quietly
   r.actions = h('div', {class: 'ap-actions'});
   r.actionButtons = {
     next: iconButton('next', 'Next episode', () => p.markers.playNext()),
@@ -83,9 +88,12 @@ export function build(p) {
   r.controls = h('div', {class: 'ap-controls'},
     h('div', {class: 'ap-shade-top'}), h('div', {class: 'ap-shade-bottom'}),
     h('div', {class: 'ap-top'}, r.pipBtn, r.rotateBtn, r.lockBtn, iconButton('back', 'Close player', () => p.close('user'))),
+    h('div', {class: 'ap-top-mid'}, r.sleepEl),
     h('div', {class: 'ap-center'},
       iconButton('replay', 'Back 10 seconds', () => p.seekBy(-10), {class: 'ap-icon-btn ap-side', iconText: '10'}),
+      iconButton('chevronLeft', 'Previous frame', () => p.extras.frames.step(-1), {class: 'ap-icon-btn ap-frame'}),
       h('div', {class: 'ap-play-wrap'}, r.playBtn),
+      iconButton('chevronRight', 'Next frame', () => p.extras.frames.step(1), {class: 'ap-icon-btn ap-frame'}),
       iconButton('forward', 'Forward 10 seconds', () => p.seekBy(10), {class: 'ap-icon-btn ap-side', iconText: '10'})),
     r.bottomEl = h('div', {class: 'ap-bottom'},
       h('div', {class: 'ap-meta'}, r.titleEl, r.episodeEl, r.releaseEl, r.viaEl),
@@ -108,8 +116,9 @@ export function build(p) {
   r.panel = h('div', {class: 'ap-panel', hidden: true, role: 'dialog', 'aria-modal': 'true'});
 
   r.surface = h('div', {class: 'ap-surface'});
+  r.soundOnly = h('div', {class: 'ap-sound-only', hidden: true}); // the picture covered (sound-only.js)
   r.root = h('div', {class: 'ap', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Player', hidden: true, tabindex: -1},
-    video, r.dim, subs, r.surface, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
+    r.stage, r.surface, r.soundOnly, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
     r.controls, h('div', {class: 'ap-buffering'}, r.spinner), r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
   p.parent.append(r.root);
   return r;
@@ -142,13 +151,15 @@ export function layout(p) {
   // Skip, the next-episode card and lifted subtitles sit above the controls' measured bottom block.
   const bottomH = p.bottomEl?.offsetHeight || 0;
   p.root.style.setProperty('--ap-bottom-h', bottomH + 'px');
-  const box = p.subsEl.style;
   let pictureBottom = H;
-  if (!W || !H || !vw || !vh || p.prefs.aspect !== 'fit') box.left = box.top = box.width = box.height = '';
-  else {
-    const scale = Math.min(W / vw, H / vh), w = vw * scale, h = vh * scale;
-    pictureBottom = (H + h) / 2;
-    Object.assign(box, {left: ((W - w) / 2).toFixed(1) + 'px', top: ((H - h) / 2).toFixed(1) + 'px', width: w.toFixed(1) + 'px', height: h.toFixed(1) + 'px'});
+  // Both subtitle layers cover the picture (the second track sits at its top).
+  for (const box of [p.subsEl.style, p.subs2El.style]) {
+    if (!W || !H || !vw || !vh || p.prefs.aspect !== 'fit') box.left = box.top = box.width = box.height = '';
+    else {
+      const scale = Math.min(W / vw, H / vh), w = vw * scale, h = vh * scale;
+      pictureBottom = (H + h) / 2;
+      Object.assign(box, {left: ((W - w) / 2).toFixed(1) + 'px', top: ((H - h) / 2).toFixed(1) + 'px', width: w.toFixed(1) + 'px', height: h.toFixed(1) + 'px'});
+    }
   }
   // Portrait with room under the picture: subtitles go there, in the black,
   // clear of the picture and of the buttons over it.

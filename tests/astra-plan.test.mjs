@@ -137,3 +137,13 @@ test('a Matroska track of MPEG Layer I or II is named Layer III as the file is r
   assert.equal(fixMkvLayers(new Uint8Array(0)).length, 0);
 });
 
+
+test('a file with no picture and no sound that can play is not handed to a pipeline', () => {
+  const subtitlesOnly = plan(file('Matroska', null, [], { subtitles: [{ id: 'mkv:3', format: 'srt', language: 'en' }] }));
+  assert.equal(subtitlesOnly.mode, 'unsupported');
+  assert.match(subtitlesOnly.reason, /no picture or sound/);
+  const deaf = plan(file('Matroska', null, [audio('truehd', 'mlpa', { label: 'TrueHD' })]), caps(), { allowSilent: true });
+  assert.equal(deaf.mode, 'unsupported');
+  // Sound alone still plays.
+  assert.equal(plan(file('Matroska', null, [audio('aac', 'mp4a.40.2'), audio('aac', 'mp4a.40.2', { id: 3 })])).mode, 'remux');
+});
