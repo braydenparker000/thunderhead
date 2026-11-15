@@ -110,7 +110,7 @@ export class HttpSource {
   // brought nothing for a few seconds is asked again at once, without counting a failure.
   restartQuiet() {
     const now = Date.now();
-    for (const s of [...this.streams]) if (now - s.lastAt >= TIMING.quiet) { s.restart = true; s.abort(); }
+    for (const s of [...this.streams]) if (!s.paused && now - s.lastAt >= TIMING.quiet) { s.restart = true; s.abort(); }
   }
 
   /** One bounded range request of its own (seek previews), outside the downloads and the cache. */
@@ -209,8 +209,9 @@ export class HttpSource {
     for (const s of this.streams) {
       if (start > s.at + window || s.at - end > reach + BLOCK) continue;
       s.until = Math.max(s.until, end);
-      if (!this.probing) s.held = false;
-      if (end > s.want) { s.want = end; s.wake?.(); }
+      const freed = !this.probing && s.held;
+      if (freed) s.held = false;
+      if (end > s.want || freed) { s.want = Math.max(s.want, end); s.wake?.(); }
     }
   }
 

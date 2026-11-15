@@ -16,6 +16,13 @@
 import {stereoMatrix} from './sound-chain.js';
 
 const H = Math.SQRT1_2;
+/**
+ * The placed mix's trim: Chromium's HRTF gives a speaker's sound about 2 dB more power (both ears
+ * together, speech-like noise; measured: +2.1 dB at 30°, +2.0 at 110°, +1.7 at 0°) than the plain mix
+ * gives it, so the placed mix is turned down 2 dB to be as loud as the plain one. With the centre's
+ * -3 dB that leaves dialogue about 3 dB under the fronts, against level in the plain mix.
+ */
+export const TRIM = 10 ** (-2 / 20);
 
 /** The standard angle of each channel in degrees (negative: left), in the usual order; null for the bass channel. */
 export function speakerAngles(channels) {
@@ -51,6 +58,7 @@ export const speakerGain = (i, channels, centre = 1) => i === 2 ? H * centre : M
  */
 export function placeSpeakers(ctx, split, channels, keep, centre = 1) {
   const out = keep(ctx.createGain()), lifts = [];
+  out.gain.value = TRIM;
   Object.assign(out, {channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers'});
   speakerAngles(channels).forEach((angle, i) => {
     const g = keep(ctx.createGain());
@@ -58,7 +66,7 @@ export function placeSpeakers(ctx, split, channels, keep, centre = 1) {
     split.connect(g, i);
     if (angle == null) {
       // The bass channel: low-passed, -6 dB, the same in both ears (a mono node into a stereo 'speakers' input is copied to both).
-      g.gain.value = 0.5;
+      g.gain.value = 0.5 / TRIM; // -6 dB after the trim
       const lp = keep(Object.assign(ctx.createBiquadFilter(), {type: 'lowpass'}));
       lp.frequency.value = 120;
       g.connect(lp); lp.connect(out);

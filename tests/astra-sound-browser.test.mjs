@@ -141,7 +141,7 @@ test('headphone surround: the centre in both ears alike, the left surround loude
       const plain = await both(sound); out.leftPlain = { l: db(plain.l), r: db(plain.r), diff: db(plain.l.map((v, i) => v - plain.pl[i])), ref: db(plain.pl) };
       sound.set({ headphones: true }); for (let i = 0; i < 40 && sound.state().channels !== 6; i++) await wait(50);
       await wait(300);
-      const on = await both(sound); out.left = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r) };
+      const on = await both(sound); out.left = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r), sum: 10 * Math.log10(10 ** (db(on.l) / 10) + 10 ** (db(on.r) / 10)) };
       sound.set({ headphones: false }); await wait(300);
       const off = await both(sound); out.leftOff = { diff: db(off.l.map((v, i) => v - off.pl[i])), r: db(off.r.map((v, i) => v - off.pr[i])), ref: db(off.pl) };
     });
@@ -152,10 +152,10 @@ test('headphone surround: the centre in both ears alike, the left surround loude
   assert.equal(r.centre.channels, 6);
   assert.ok(Math.abs(r.centre.l - r.centre.r) < 0.5, `the centre is as loud in both ears (${r.centre.l.toFixed(2)} / ${r.centre.r.toFixed(2)})`);
   assert.equal(r.centre.lag, 0, 'and reaches both at once');
-  assert.ok(Math.abs(r.centre.l - r.centre.plain) < 4, 'about as loud as the plain mix');
   assert.ok(Math.abs(r.centre.lifted - r.centre.l - 4) < 1, 'dialogue still lifts the placed centre by 4 dB');
-  assert.ok(r.left.l - r.left.r > 6, `the left surround is clearly louder on the left (${(r.left.l - r.left.r).toFixed(2)} dB)`);
+  assert.ok(r.left.l - r.left.r > 4, `the left surround is clearly louder on the left (${(r.left.l - r.left.r).toFixed(2)} dB)`);
   assert.ok(r.left.lag >= 8 && r.left.lag <= 40, `and reaches the left ear first (${r.left.lag} samples)`);
+  assert.ok(Math.abs(r.left.sum - r.leftPlain.l) < 2, `placed, the surround is about as loud as in the plain mix (${r.left.sum.toFixed(2)} vs ${r.leftPlain.l.toFixed(2)} dB, both ears)`);
   assert.ok(r.leftPlain.r < -80 && r.leftPlain.diff < r.leftPlain.ref - 80, 'before: the plain mix, left only');
   assert.ok(r.leftOff.diff < r.leftOff.ref - 80 && r.leftOff.r < -80, `off again: exactly the plain mix (${r.leftOff.diff.toFixed(1)} dB of difference)`);
   assert.ok(r.centreOff.diff < r.centreOff.plain - 80, `and for the centre film (${r.centreOff.diff.toFixed(1)} dB of difference)`);

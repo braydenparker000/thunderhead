@@ -127,3 +127,12 @@ test('a block a seek began inside is made whole on the side once a subtitle scan
   source.close();
   TIMING.hole = saved;
 });
+
+test('the film’s name is its size and the hash of its first 64 KiB; the subtitle hash needs no request when both ends are at hand', async () => {
+  const { headKey, remoteFileHash, openSubtitlesHash, HASH_CHUNK } = await import('../frontend/astra/src/engine/file-hash.js');
+  const head = new Uint8Array(HASH_CHUNK + 10).map((_, i) => i & 255), tail = new Uint8Array(HASH_CHUNK).fill(7);
+  assert.equal(await headKey(SIZE, head), await headKey(SIZE, head.slice(0, HASH_CHUNK)), 'only the first 64 KiB count');
+  assert.notEqual(await headKey(SIZE, head), await headKey(SIZE + 1, head));
+  const fetchFn = () => { throw Error('no request expected'); };
+  assert.equal(await remoteFileHash('https://files.example/film.mkv', SIZE, { head, tail, fetchFn }), openSubtitlesHash(SIZE, head, tail));
+});

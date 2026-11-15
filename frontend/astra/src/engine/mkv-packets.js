@@ -108,10 +108,13 @@ class MkvPackets {
 
   /**
    * The frame of `track` at or before `ticks` that passes `test`, found by the cue index; `stop` ends a scan early.
-   * `cued`: the track's own key frames are what its cues point at, so the cued one is the answer once the next cue is
-   * past the place (a key frame the index leaves out is passed over: the start is then a little earlier).
+   * `cued`: the track's own key frames are what its cues point at, so the cued one is the answer when the next cue is
+   * past the place, or there is none (a key frame the index leaves out is passed over: the start is then a little earlier).
+   * `near`: when the cued cluster's first frame is later than the place by no more than two of its own lengths, it is
+   * the answer rather than the one before it, which sits at the end of the cluster before (unknown without reading
+   * from the cue before, perhaps many clusters back): the sound at a key frame that begins a cluster.
    */
-  async find(track, ticks, test, stop, cued = false) {
+  async find(track, ticks, test, stop, cued = false, near = false) {
     const {cues} = this.tracks.get(track);
     let i = -1;
     for (let lo = 0, hi = cues.length - 1; lo <= hi;) { const m = (lo + hi) >> 1; if (cues[m].ticks <= ticks) { i = m; lo = m + 1; } else hi = m - 1; }
@@ -119,19 +122,21 @@ class MkvPackets {
     for (let guard = 0; guard < 64; guard++) {
       const cue = i >= 0 ? cues[i] : null, nextCue = cues[i + 1];
       const relative = jump && cue?.relative ? cue.relative : 0;
-      let pos = cue ? cue.position : this.layout.firstCluster, from = relative, best = null;
+      let pos = cue ? cue.position : this.layout.firstCluster, from = relative, best = null, first = null;
       scan: for (; pos != null; from = 0) {
         const c = this.cluster(pos, from, track);
         for (let k = 0; ; k++) {
           const f = await this.frame(c, track, k);
           if (!f) break;
+          first ??= f;
           if (f.ticks <= ticks && test(f) && (!best || f.ticks >= best.ticks)) best = f;
           // Past the place, or at the cued frame when the next cue is past it: nothing later can be a better answer.
-          if (stop(f) || (cued && best && cue && nextCue && best.ticks >= cue.ticks && nextCue.ticks > ticks)) break scan;
+          if (stop(f) || (cued && best && cue && best.ticks >= cue.ticks && !(nextCue?.ticks <= ticks))) break scan;
         }
         pos = await this.next(c);
       }
       if (best) return best;
+      if (near && !relative && first && first.ticks - ticks <= 2 * first.packet.duration * this.factor) return first;
       if (relative) jump = false;
       else if (i < 0) return null;
       else { i--; jump = true; }
@@ -168,7 +173,7 @@ class TrackSink {
   /** The last packet shown at or before `time` (the sound's starting place). */
   async getPacket(time) {
     const video = this.info.kind === 'video', at = this.ticks(time);
-    const f = await this.reader.find(this.track, at, () => true, f => f.ticks > at && (!video || f.key));
+    const f = await this.reader.find(this.track, at, () => true, f => f.ticks > at && (!video || f.key), false, !video);
     return f?.packet || null;
   }
 

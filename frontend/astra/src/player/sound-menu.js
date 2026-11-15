@@ -157,13 +157,15 @@ export class SoundControl {
     const w = this.wanted, why = this.why(), off = !!why;
     const chip = (label, on, onclick, extra = {}) => h('button', {class: 'ap-chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(on), disabled: off, onclick, ...extra}, label);
     const group = (title, ...children) => h('div', {class: 'ap-pb-group'}, h('span', {class: 'ap-label'}, title), ...children);
-    const toggle = (key, label) => h('div', {class: 'ap-chips'}, chip(w[key] ? 'On' : 'Off', w[key], () => this.change({[key]: !w[key]}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w[key]), 'aria-label': label}));
+    // A switch with its line beside it rather than under it: six groups fit a landscape phone with less scrolling.
+    const toggle = (key, title, note) => h('div', {class: 'ap-pb-group'}, h('span', {class: 'ap-label'}, title), h('div', {class: 'ap-sound-switch'},
+      chip(w[key] ? 'On' : 'Off', w[key], () => this.change({[key]: !w[key]}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w[key]), 'aria-label': title}), h('p', {class: 'ap-pb-note'}, note)));
     const min = this.advance ? -1 : 0, d = this.delay, nudge = by => () => this.change({delay: nudgeDelay(d, by, min)});
     return h('div', {class: 'ap-sound'}, why ? h('p', {class: 'ap-sound-why', role: 'note'}, why) : null, h('div', {class: 'ap-pb'},
       group('Volume boost', h('div', {class: 'ap-chips'}, ...BOOSTS.map(b => chip(`${b * 100} %`, b === w.boost, () => this.change({boost: b}), {'aria-label': `Volume boost ${b * 100} %`})))),
-      group('Night mode', toggle('night', 'Night mode'), h('p', {class: 'ap-pb-note'}, 'Quiet sound comes up and loud bangs go down, for watching late.')),
-      group('Even loudness', toggle('loudness', 'Even loudness'), h('p', {class: 'ap-pb-note'}, 'Every film at the same loudness, so the volume can stay put.')),
-      this.surround() ? group('Headphone surround', toggle('headphones', 'Headphone surround'), h('p', {class: 'ap-pb-note'}, 'For headphones: places the film\'s speakers around you.')) : null,
+      toggle('night', 'Night mode', 'Quiet sound comes up and loud bangs go down, for watching late.'),
+      toggle('loudness', 'Even loudness', 'Every film at the same loudness, so the volume can stay put.'),
+      this.surround() ? toggle('headphones', 'Headphone surround', 'For headphones: places the film\'s speakers around you.') : null,
       group('Dialogue', h('div', {class: 'ap-chips'}, ...DIALOGUE.map(([v, label]) => chip(label, v === w.dialogue, () => this.change({dialogue: v}), {'aria-label': v ? `Dialogue ${label}` : 'Dialogue off'}))),
         h('p', {class: 'ap-pb-note'}, 'Lifts voices over music and effects.')),
       group('Sound delay', h('div', {class: 'ap-step wrap'}, h('div', {},

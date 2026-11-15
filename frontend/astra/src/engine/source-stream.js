@@ -49,41 +49,82 @@ export async function ask(source, headers, signal, ms, late, method = 'GET') {
   } finally { clearTimeout(timer); }
 }
 
-/** Reads one download into the source's blocks until it ends, pauses for good or is closed. Rejects when it breaks off. */
+/**
+ * Asks for bytes [from, to) of the file (to the end when `to` is the size) and checks the answer is that part of
+ * that file. Resolves the answer and the end of what it will bring: a host that ignores a range's end sends to
+ * the end of the file, and is then asked open-ended from here on (source.bounded false).
+ */
+async function request(source, stream, from, to) {
+  const bounded = to < source.size && source.bounded !== false;
+  const response = await ask(source, {Range: bounded ? `bytes=${from}-${to - 1}` : `bytes=${from}-`}, stream.controller.signal, TIMING.stall, 'stall');
+  const range = parseContentRange(response.headers.get('content-range'));
+  if (response.status !== 206 || (range && (range.start !== from || (range.size != null && range.size !== source.size)))) {
+    response.body?.cancel().catch(() => {});
+    if (response.status === 206) throw new SourceError('status', 'The host answered with another part of the file, or another file.');
+    throw new SourceError(response.status === 200 ? 'range' : 'status', `The host answered ${response.status} to a range request.`, response.status);
+  }
+  if (response.url) source.url = response.url; // where a redirect led, for the requests that follow
+  return finish(source, response, from, bounded ? to : source.size);
+}
+
+/** The end of what an answer from `from` brings: what its Content-Range says, else what was asked for. */
+function finish(source, response, from, to) {
+  const range = parseContentRange(response.headers.get('content-range'));
+  const end = range ? Math.min(source.size, range.end + 1) : to;
+  if (to < source.size && end > to) source.bounded = false;
+  else if (to < source.size && end === to) source.bounded = true;
+  return {response, end};
+}
+
+/**
+ * Reads one download into the source's blocks until it ends, pauses for good or is closed. Rejects when it
+ * breaks off. A download asks for what the reader wants and its reach, then for the next part once the reader
+ * has come within half the reach of its end: a paused open-ended answer would go on filling the connection's
+ * window (megabytes) with bytes a seek or a stop throws away. A host that ignores ranges' ends is read
+ * open-ended and paused instead (TCP backpressure).
+ */
 export async function runStream(source, stream, response) {
   const signal = stream.controller.signal;
-  let index = Math.floor(stream.at / BLOCK), rec = null;
+  let index = Math.floor(stream.at / BLOCK), rec = null, reader = null;
+  // Where a download may read to now: a little past the last byte asked while the file is described, else the reach.
+  const limit = () => Math.min(source.size, stream.held ? stream.until + PROBE_MARGIN : stream.want + source.reach());
+  const open = async answer => {
+    stream.end = answer.end; stream.lastAt = Date.now(); reader = answer.response.body.getReader();
+    const r = reader; signal.addEventListener('abort', () => r.cancel().catch(() => {}), {once: true});
+  };
   try {
     if (!response) {
       // A download that broke off inside this block left its first part: go on from the byte it reached.
       rec = takePart(source, index, stream.at);
-      if (rec) stream.at = index * BLOCK + rec.filled;
-      const from = stream.at;
-      if (rec) source.filling.add(rec);
-      response = await ask(source, {Range: `bytes=${from}-`}, signal, TIMING.stall, 'stall');
-      const range = parseContentRange(response.headers.get('content-range'));
-      if (response.status !== 206 || (range && (range.start !== from || (range.size != null && range.size !== source.size)))) {
-        response.body?.cancel().catch(() => {});
-        if (response.status === 206) throw new SourceError('status', 'The host answered with another part of the file, or another file.');
-        throw new SourceError(response.status === 200 ? 'range' : 'status', `The host answered ${response.status} to a range request.`, response.status);
-      }
-      if (response.url) source.url = response.url; // where a redirect led, for the requests that follow
-    }
-    const reader = response.body.getReader();
-    signal.addEventListener('abort', () => reader.cancel().catch(() => {}), {once: true});
+      if (rec) { stream.at = index * BLOCK + rec.filled; source.filling.add(rec); }
+      await open(await request(source, stream, stream.at, Math.max(limit(), Math.min(source.size, stream.at + PIECE))));
+    } else await open(finish(source, response, stream.at, source.size));
     if (!rec) { const off = stream.at - index * BLOCK; rec = {index, bytes: new Uint8Array(source.blockLength(index)), from: off, filled: off}; source.filling.add(rec); }
     while (index < source.blockCount()) {
       // What comes next is already here (another download fetched it): nothing to add.
       if (rec.filled === rec.from && source.blocks.has(index)) { stream.abort(); return; }
-      // Stop reading (TCP backpressure) when far ahead of every reader.
-      while (stream.at - stream.want > source.reach() && !signal.aborted) await new Promise(r => { stream.wake = r; });
-      if (signal.aborted) return;
+      if (stream.at >= stream.end) {
+        // All that was asked for came: the next part is asked for once the reader wants half a reach more.
+        stream.paused = true;
+        while (limit() - stream.at < Math.min(source.reach() / 2, source.size - stream.at) && !(stream.held && limit() > stream.at) && !signal.aborted) await new Promise(r => { stream.wake = r; });
+        stream.paused = false;
+        if (signal.aborted) return;
+        await open(await request(source, stream, stream.at, limit()));
+      } else if (stream.at - stream.want > source.reach()) {
+        // Far ahead of every reader on an open-ended answer: asked again in parts where the host allows it, else paused.
+        if (source.bounded !== false) { reader.cancel().catch(() => {}); stream.end = stream.at; continue; }
+        stream.paused = true;
+        while (stream.at - stream.want > source.reach() && !signal.aborted) await new Promise(r => { stream.wake = r; });
+        stream.paused = false;
+        if (signal.aborted) return;
+      }
       // A connection that goes quiet (no error, no bytes) would hang reads forever.
       let stall;
       const {done, value} = await Promise.race([reader.read(), new Promise((_, reject) => { stall = setTimeout(() => reject(new SourceError('stall', 'The host stopped sending.')), TIMING.stall); })])
         .catch(error => { reader.cancel().catch(() => {}); throw error; })
         .finally(() => clearTimeout(stall));
-      // The answer ended before the file did.
+      if (done && stream.at >= stream.end) continue;
+      // The answer ended before the part asked for did.
       if (done) throw new SourceError('network', 'The host ended its answer early.');
       source.bytesFetched += value.length; stream.received += value.length; stream.lastAt = Date.now();
       if (stream.received >= PIECE && (source.failures || source.failingSince)) source.calm(); // the host is sending again
@@ -101,9 +142,9 @@ export async function runStream(source, stream, response) {
       }
       source.arrived();
       if (ended) { stream.abort(); return; }
-      // While the file is being described, a download stops a little past the last byte asked of it: where
-      // playback will start is not known yet, and a paused connection still fills its window.
-      if (stream.held && stream.at > stream.until + PROBE_MARGIN) { stream.abort(); return; }
+      // While the file is being described, an open-ended download stops a little past the last byte asked of
+      // it: where playback will start is not known yet, and a paused connection still fills its window.
+      if (stream.held && stream.end >= source.size && stream.at > stream.until + PROBE_MARGIN) { stream.abort(); return; }
     }
   } finally {
     source.streams.delete(stream);

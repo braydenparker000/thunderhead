@@ -129,6 +129,22 @@ test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrat
   source.close();
 });
 
+test('a download asks for its reach in parts, so a seek or a stop throws away little that was sent', async () => {
+  const { source, calls } = await open({ pace: 0 });
+  source.learn(SIZE / (BLOCK / 4)); // 10 s is 2.5 MiB
+  await source.read(0, 16);
+  await settle(source);
+  const reached = source.cachedUntil(0);
+  assert.ok(reached >= 2.5 * BLOCK && reached < 3 * BLOCK, `the first answer was left near the reach (${reached})`);
+  assert.equal(calls.length, 1, 'nothing asked yet past it');
+  const want = 2 * BLOCK + 16;
+  await source.read(2 * BLOCK, want);
+  await settle(source);
+  assert.deepEqual([calls[1].from, calls[1].to], [reached, want + 2.5 * BLOCK], 'the next part: from where it stopped to the new reach');
+  assert.equal(source.bytesFetched, want + 2.5 * BLOCK, 'and only that was sent');
+  source.close();
+});
+
 test('a side read is one bounded request of its own: playback’s download goes on untouched', async () => {
   const { source, calls } = await open({ pace: 3 });
   await source.read(0, 16);
