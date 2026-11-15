@@ -187,3 +187,21 @@ Read whole: `boards/LibraryPlate.js`, `app/tiles.js`, `scope.js`, `fling.js`, `t
 Checked and sound: delete, the seven days, bring back, empty (each two taps); the three "many" actions armed by
 a second tap within five seconds; a cancelled export of many; Find's words.
 
+### Part 8, continued: the View, Export, Curve and Grading boards, the drum and the rows
+
+Read whole: `boards/ViewTools.js`, `ExportPlate.js`, `Drum.js`, `Row.js`, `Strip.js`, `CurveOverlay.js`,
+`GradeWheel.js`. Driven on the real RAF.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 8.4 | B | Proven | **Before and after do not show the same picture once a photo is cropped.** The "before" is the photo as imported, drawn whole (`ViewTools.js` `tile('before:', first.st, 0)`: the first step has no crop), and laid into the cropped picture's box. With a crop to the right half and a 6° straighten: left of the line the whole uncropped scene, squeezed to the crop's shape; right of it the crop. Press and hold shows the same squeezed whole. A crop is the commonest edit there is. |
+| 8.5 | B | Proven | **The fitted photo carries false colour on fine lines.** The editing copy is each 3 × 3 block of the sensor averaged by colour with no demosaic, so a thin line lands on the block's reds, greens and blues unevenly. On the solar panels of the real file its fine colour speckle is 6.7 / 9.1 (red and blue against green, rms levels), where the sensor's own pixels brought to the same size give 1.9 / 3.8. It shows where the editing copy is near one of its pixels to a screen pixel: a crop, or any zoom short of the 40 % at which the sensor's pixels take over (`zoom.js:263`), and on every board that shows only the editing copy (Crop, Export's preview). Saturation makes it plainer. |
+| 8.6 | C | Proven | On the View board the line under a photo's name wraps to a second row at 412 wide ("… · ISO" / "125"): its header has three keys where Edit's has two. |
+| 8.7 | C | By reading | A point of the curve cannot be taken off again (`CurveOverlay.js`: a touch adds or moves; only Reset straightens the whole channel), and the curve's two ends move up and down only: the black point cannot be pulled along the floor. |
+| 8.8 | C | Proven | With no camera profile on the phone a RAF is developed by the camera's matrix and a plain curve, yet the boards still name its film simulation ("DSCF0021 · PROVIA · edited"). If the private profile set is ever lost from the phone's storage, nothing says so. |
+| 8.9 | C | By reading | The Export board's long-edge dial steps 64 pixels in 3.2° of the wheel and its choices by a third of the window: both are open to 1.1 (the wheel moving after the finger lifts). |
+
+Checked and sound: the drum's settle and flick; a row's fade where it runs on; a strip bringing its chosen tile
+to the middle; the grading wheel's hues against the engine's (`towards`); an export's two taps, its estimate,
+cancel and the share sheet; the histogram's counts.
+
