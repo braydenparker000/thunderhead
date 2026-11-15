@@ -4,6 +4,7 @@
 // pipeline is running.
 //
 // Events: 'status' (detail: text), 'ready', 'tracks', 'error' (detail: {message, detail}).
+// `chapters` ([{start, end, title}] in seconds, [] when none) is set before 'ready'.
 
 import {probe, describeInfo} from './probe.js';
 import {planPlayback, audioLabel, subtitleLabel} from './plan.js';
@@ -17,6 +18,8 @@ import {preferredLanguages, languageName, baseLanguage} from './languages.js';
 import {subtitleMethods} from './player-subtitles.js';
 import {adaptiveMethods} from './adaptive.js';
 import {startMethods} from './player-start.js';
+import {finishChapters} from './chapters.js';
+import {dataMethods} from './player-data.js';
 
 const MEDIA_ERRORS = {
   1: 'Playback was stopped.',
@@ -40,6 +43,7 @@ export class AstraPlayer extends EventTarget {
     this.mode = null;
     this.plan = null;
     this.info = null;
+    this.chapters = [];
     this.audio = [];
     this.textTracks = []; // {id, label, language, kind: 'embedded'|'external'|'stream', supported, reason, source, exact}
     this.cues = new Map(); // track id -> cues
@@ -133,9 +137,11 @@ export class AstraPlayer extends EventTarget {
     try {
       if (!this.probed?.source || this.probed.source.closed) {
         const source = new HttpSource(this.url, {headers: this.headers});
+        this.bytesBefore = (this.bytesBefore || 0) + (this.probed?.source?.bytesFetched || 0); // what the film cost so far still counts
         await source.open(this.abort?.signal);
         if (id !== this.load_) { source.close(); return; }
         this.probed = {...this.probed, source};
+        this.applyDataSaver();
       }
       this.mode = 'software';
       this.plan = {...this.plan, mode: 'software', notes: [...(this.plan?.notes || []), `Switched to the software decoder: ${reason}`]};
@@ -143,6 +149,7 @@ export class AstraPlayer extends EventTarget {
       if (id !== this.load_) return;
       this.emit('tracks');
       if (play) this.video.play().catch(() => {});
+      this.offerChapters();
       this.emit('ready', this.plan);
     } catch (error) {
       if (id !== this.load_) return;
@@ -161,7 +168,7 @@ export class AstraPlayer extends EventTarget {
     const languages = prefs.languages || preferredLanguages();
     const controller = this.abort = new AbortController(), signal = controller.signal;
     try {
-      const probed = await probe(url, {headers, signal, onStatus: t => this.status(t), onSource: s => { if (id === this.load_) this.source = s; }});
+      const probed = await probe(url, {headers, signal, onStatus: t => this.status(t), onSource: s => { if (id === this.load_) { this.source = s; this.applyDataSaver(); } }});
       if (id !== this.load_) { probed.source?.close(); probed.input?.dispose(); return; }
       this.probed = probed;
       // The connection to the host lost and found again while playing (the reader keeps trying meanwhile).
@@ -192,6 +199,7 @@ export class AstraPlayer extends EventTarget {
       if (id !== this.load_) return;
       this.addSubtitleTracks(subtitles.map(s => ({...s, source: s.source || 'This stream'})), id);
       if (autoplay) this.video.play().catch(() => {});
+      this.offerChapters();
       this.emit('ready', this.plan);
       return this.plan;
     } catch (error) {
@@ -199,6 +207,9 @@ export class AstraPlayer extends EventTarget {
       this.fail(error?.message || 'Playback could not start.', String(error?.stack || error));
     }
   }
+
+  /** The file's chapters on the film's clock: shifted as the pipeline shifts the media (files that start after zero). */
+  offerChapters() { this.chapters = finishChapters(this.info?.chapters, this.info?.duration, this.session?.offset || 0); }
 
   /** The audio choices: [{id, label, language, supported, reason, selected}]. */
   audioOptions() { return this.audio.map(a => ({id: a.id, label: a.label, language: a.language, supported: a.supported, reason: a.reason, delivery: a.delivery, selected: a.id === this.selectedAudio})); }
@@ -259,15 +270,17 @@ export class AstraPlayer extends EventTarget {
     this.pulledCues = null;
     this.probed?.input?.dispose?.(); this.probed?.source?.close?.(); this.probed = null;
     this.source?.close?.(); this.source = null; // the reader of a file still being described
-    this.mode = null; this.plan = null; this.info = null;
+    this.mode = null; this.plan = null; this.info = null; this.chapters = []; this.bytesBefore = 0; this.adaptiveBytes = null;
     this.audio = []; this.textTracks = []; this.cues = new Map(); this.selectedAudio = null; this.selectedSubtitle = null;
     this.subtitles.clear();
+    this.video.removeAttribute('crossorigin'); // set again only for a native film whose host lets the page read it
     this.video.removeAttribute('src');
     try { this.video.load(); } catch {}
   }
 
   destroy() {
     this.reset();
+    this.stopDataSaver();
     this.video.removeEventListener('error', this.onVideoError);
     for (const type of ['playing', 'pause']) this.video.removeEventListener(type, this.onRun);
     this.video.removeEventListener('loadeddata', this.onFirstFrame);
@@ -278,6 +291,6 @@ export class AstraPlayer extends EventTarget {
 
 export {baseLanguage};
 
-// Starting each pipeline (player-start.js), the subtitle tracks (player-subtitles.js) and adaptive streams
-// (adaptive.js) live in modules of their own.
-Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods);
+// Starting each pipeline (player-start.js), the subtitle tracks (player-subtitles.js), adaptive streams
+// (adaptive.js) and the data count and saver (player-data.js) live in modules of their own.
+Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods);

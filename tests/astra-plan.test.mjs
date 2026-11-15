@@ -52,13 +52,28 @@ test('a picture only the software decoder has goes to it, named or not', () => {
   assert.equal(prores.external, true);
 });
 
+test('Dolby TrueHD is decoded and converted on the device, like Dolby Digital', () => {
+  const thd = plan(file('Matroska', video('avc', 'avc1.640028'), [audio('truehd', 'mlpa', { label: 'Dolby TrueHD', channels: 8 })]));
+  assert.equal(thd.mode, 'remux');
+  assert.equal(thd.audio.delivery, 'rebuilt');
+  assert.match(thd.notes.join(' '), /Dolby TrueHD audio is converted/);
+  // Beside a track the browser takes as it is, that one is chosen first; TrueHD stays on the menu.
+  const both = plan(file('Matroska', video('avc', 'avc1.640028'), [audio('truehd', 'mlpa', { label: 'Dolby TrueHD' }), audio('aac', 'mp4a.40.2', { id: 3 })]));
+  assert.equal(both.audio.track.id, 3);
+  assert.deepEqual(both.audioOptions.map((o) => o.delivery), ['rebuilt', 'direct']);
+  // G.711 (µ-law, A-law), which Mediabunny decodes like any PCM.
+  for (const codec of ['ulaw', 'alaw', 'pcm-s16be', 'pcm-f64']) assert.equal(plan(file('QuickTime File Format', video('avc', 'avc1.640028'), [audio(codec, codec)])).audio.delivery, 'rebuilt', codec);
+  // No Opus encoder here, and the software decoder has no TrueHD build: refused with the reason.
+  assert.equal(plan(file('Matroska', video('avc', 'avc1.640028'), [audio('truehd', 'mlpa', { label: 'Dolby TrueHD' })]), caps({ opusEncode: false })).mode, 'unsupported');
+});
+
 test('sound only the software decoder has takes the whole file there', () => {
   // A browser that cannot convert audio (no Opus encoder): Dolby Digital still plays, through the software decoder.
   const ac3 = plan(file('Matroska', video('avc', 'avc1.64001e'), [audio('ac3', 'ac-3', { label: 'Dolby Digital' })]), caps({ opusEncode: false }));
   assert.equal(ac3.mode, 'software');
   assert.match(ac3.notes.join(' '), /Dolby Digital in this file plays only through Astra's software decoder/);
   // Sound nothing here decodes: refused, or silent when the viewer said so.
-  for (const [id, label] of [['A_TRUEHD', 'Dolby TrueHD'], ['A_MS/ACM', 'Windows audio (WMA)']]) {
+  for (const [id, label] of [['A_ALAC', 'ALAC'], ['A_MS/ACM', 'Windows audio (WMA)']]) {
     const film = file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: id, label })]);
     assert.equal(plan(film).mode, 'unsupported', id);
     assert.equal(plan(film).silent, true);
@@ -142,7 +157,7 @@ test('a file with no picture and no sound that can play is not handed to a pipel
   const subtitlesOnly = plan(file('Matroska', null, [], { subtitles: [{ id: 'mkv:3', format: 'srt', language: 'en' }] }));
   assert.equal(subtitlesOnly.mode, 'unsupported');
   assert.match(subtitlesOnly.reason, /no picture or sound/);
-  const deaf = plan(file('Matroska', null, [audio('truehd', 'mlpa', { label: 'TrueHD' })]), caps(), { allowSilent: true });
+  const deaf = plan(file('Matroska', null, [audio(null, null, { internalCodec: 'A_ALAC', label: 'ALAC' })]), caps(), { allowSilent: true });
   assert.equal(deaf.mode, 'unsupported');
   // Sound alone still plays.
   assert.equal(plan(file('Matroska', null, [audio('aac', 'mp4a.40.2'), audio('aac', 'mp4a.40.2', { id: 3 })])).mode, 'remux');

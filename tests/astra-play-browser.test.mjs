@@ -1,7 +1,9 @@
 // Astra's engine playing real (small, synthetic) films in a real browser, from a file host on
-// another origin (tests/fixtures/astra-host.mjs): each way of playing starts and runs, seeks land,
-// the sound track changes, a film closed early lets go of its connections, and a host that is gone,
-// silent or cutting connections is met with words or a retry, never a spinner for good.
+// another origin (tests/fixtures/astra-host.mjs): each way of playing starts and runs (HLS and DASH
+// through players served by the site itself), seeks land, the sound track changes, Dolby TrueHD is
+// heard, chapters and the frame rate are read, a native film is read with CORS where the host allows
+// it, a film closed early lets go of its connections, and a host that is gone, silent or cutting
+// connections is met with words or a retry, never a spinner for good.
 // The films are made by scripts/astra/fixtures.sh. Local only: nothing here reaches the internet.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -51,6 +53,25 @@ async function player(t) {
   const state = () => page.evaluate(() => ({ mode: window.p.mode, t: window.p.video.currentTime, audio: window.p.audioOptions(), subs: window.p.subtitleOptions(), ...window.seen }));
   return { page, errors, load, runs, seek, state };
 }
+/** The loudest pitch the video element plays (Hz), heard through an AnalyserNode over `ms`; 0 for silence. */
+const heard = (page, ms = 1500) => page.evaluate(async (ms) => {
+  const v = window.p.video;
+  if (!window.ear) {
+    const ctx = new AudioContext(), a = ctx.createAnalyser();
+    a.fftSize = 8192; ctx.createMediaElementSource(v).connect(a); a.connect(ctx.destination);
+    window.ear = { ctx, a };
+    await ctx.resume();
+  }
+  v.muted = false; v.volume = 1;
+  const { ctx, a } = window.ear, bins = new Float32Array(a.frequencyBinCount);
+  let best = -Infinity, at = 0;
+  for (const until = performance.now() + ms; performance.now() < until;) {
+    await new Promise((r) => setTimeout(r, 100));
+    a.getFloatFrequencyData(bins);
+    bins.forEach((db, i) => { if (db > best) { best = db; at = i; } });
+  }
+  return best > -70 ? Math.round((at * ctx.sampleRate) / a.fftSize) : 0;
+}, ms);
 const idle = async (ms = 4000) => { const until = Date.now() + ms; while (host.stats.open && Date.now() < until) await new Promise((r) => setTimeout(r, 100)); return host.stats.open; };
 
 test('a film unpacked on the device: plays, lists its tracks, changes sound, and every seek lands', opts, async (t) => {
@@ -62,6 +83,10 @@ test('a film unpacked on the device: plays, lists its tracks, changes sound, and
   assert.equal(s.mode, 'remux');
   assert.deepEqual(s.audio.map((a) => [a.language, a.supported]), [['eng', true], ['jpn', true]]);
   assert.equal(s.subs.filter((x) => x.kind === 'embedded').length, 1, 'the SRT track inside the film is listed');
+  assert.deepEqual(await p.page.evaluate(() => window.p.chapters), [
+    { start: 0, end: 8, title: 'Opening' }, { start: 8, end: 50, title: 'The story' }, { start: 50, end: 60, title: 'Credits' },
+  ], 'its chapters are offered');
+  assert.equal(await p.page.evaluate(() => window.p.info.video[0].frameRate), 12, 'and its frame rate');
   await p.page.evaluate(() => window.p.selectAudio(window.p.audioOptions()[1].id));
   await p.runs(1);
   // Far ahead, back to the start, then into what was buffered before the seek back: each shows a picture.
@@ -91,6 +116,73 @@ test('Dolby Digital is rebuilt as it plays; a plain MP4 and a WebM play as they 
   const s = await p.state();
   assert.deepEqual(s.errors, []);
   assert.deepEqual(p.errors, []);
+});
+
+test('Dolby TrueHD is decoded and rebuilt on the device, and heard', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  await p.load(host.url('truehd.mkv'));
+  await p.runs(1);
+  const s = await p.state();
+  assert.equal(s.mode, 'remux');
+  assert.deepEqual(s.audio.map((a) => [a.label, a.delivery, a.supported]), [['English · Dolby TrueHD Stereo', 'rebuilt', true]]);
+  assert.equal(await p.page.evaluate(() => window.p.dataUsed()), 290_907, 'the whole film was read, and counted once');
+  const hz = await heard(p.page);
+  assert.ok(Math.abs(hz - 770) < 15, `the film's 770 Hz tone is heard (loudest: ${hz} Hz)`);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual(p.errors, []);
+});
+
+test('HLS and DASH play through their own players, loaded from the site itself', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  const scripts = () => p.page.evaluate(() => [...document.scripts].map((s) => s.src).filter((src) => /hls|dash/.test(src)).map((src) => new URL(src).pathname));
+  const used = () => p.page.evaluate(() => window.p.dataUsed());
+  await p.load(host.url('hls/index.m3u8'));
+  await p.runs(1.5);
+  assert.equal((await p.state()).mode, 'hls');
+  assert.ok(await used() >= 21_808, `what the stream cost is counted (${await used()} bytes; the first piece is 21,808)`);
+  await p.load(host.url('dash/index.mpd'));
+  await p.runs(1.5);
+  const s = await p.state();
+  assert.equal(s.mode, 'dash');
+  assert.ok(await used() >= 11_036 && await used() < 100_000, `and counted afresh for the next stream (${await used()} bytes)`);
+  assert.deepEqual((await scripts()).sort(), ['/astra/vendor/dash/dash.all.min.js', '/astra/vendor/hls/hls.min.js']);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual(p.errors, []);
+});
+
+test('a playlist host that ignores byte ranges still plays as HLS', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  host.control.noRange = true; // every answer is the whole file, with 200
+  await p.load(host.url('hls/index.m3u8'));
+  await p.runs(1.5);
+  const s = await p.state();
+  assert.equal(s.mode, 'hls');
+  assert.deepEqual(s.errors, []);
+});
+
+test('a film the browser plays itself is asked for with CORS where the host allows it, so its frames can be read', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  const frame = () => p.page.evaluate(() => {
+    const v = window.p.video, c = Object.assign(document.createElement('canvas'), { width: 32, height: 18 }), g = c.getContext('2d');
+    g.drawImage(v, 0, 0, 32, 18);
+    try { return { crossOrigin: v.crossOrigin, pixels: g.getImageData(0, 0, 32, 18).data.some((x) => x > 0) }; } catch (e) { return { crossOrigin: v.crossOrigin, error: e.name }; }
+  });
+  await p.load(host.url('plain.mp4'));
+  await p.runs(1);
+  assert.equal((await p.state()).mode, 'native');
+  assert.deepEqual(await frame(), { crossOrigin: 'anonymous', pixels: true });
+  // A host that does not let a page read the file: still plays, asked plainly (CORS would be refused).
+  host.control.noCors = true;
+  await p.load(host.url('plain.mp4'));
+  await p.runs(1);
+  const s = await p.state();
+  assert.equal(s.mode, 'native');
+  assert.deepEqual(await frame(), { crossOrigin: null, error: 'SecurityError' });
+  assert.deepEqual(s.errors, []);
 });
 
 test('a film started at a place starts there', opts, async (t) => {

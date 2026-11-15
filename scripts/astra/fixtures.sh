@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 1.5 MB in
+# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 2.5 MB in
 # all). Each is a moving test picture with a clock and a sine tone per sound track, so a check can
 # tell by pitch which track is heard. Needs ffmpeg. Usage: bash scripts/astra/fixtures.sh [film…]
 # (names such as anime.mkv make only those films; x264 builds differ, so remaking all churns them).
@@ -62,5 +62,24 @@ want anime.mkv && ff -f lavfi -i "$(pic 20)" -f lavfi -i "$(tone 550 20)" -i "$o
   -map 0:v -map 1:a -map 2:s "${x264[@]}" -c:a aac -b:a 24k -ac 2 -c:s ass -metadata:s:s:0 language=eng -metadata:s:s:0 title=Signs \
   -attach "$out/../../../frontend/astra/fonts/inter-700.woff2" -metadata:s:t:0 mimetype=font/woff2 -metadata:s:t:0 filename=Inter-Bold.woff2 \
   "$out/anime.mkv"
+
+# centre.mkv: H.264 with AAC 5.1 whose only sound is a 1 kHz tone in the centre channel (dialogue lift). 8 s.
+want centre.mkv && ff -f lavfi -i "$(pic 8)" -f lavfi -i "$(tone 1000 8)" -filter_complex "[1]pan=5.1|FC=c0[a]" -map 0:v -map "[a]" \
+  -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2 -c:a aac -b:a 64k "$out/centre.mkv"
+
+# truehd.mkv: H.264 with Dolby TrueHD stereo, 770 Hz (decoded and rebuilt on the device). ffmpeg's TrueHD
+# encoder is experimental (-strict -2); lossless sound is large, so the film is 6 s (under 300 kB).
+want truehd.mkv && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 770 6)" -map 0:v -map 1:a \
+  -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2 -c:a truehd -strict -2 -ac 2 \
+  -metadata:s:a:0 language=eng "$out/truehd.mkv"
+
+# hls/ and dash/: the same 6 s of picture and a 440 Hz tone as an HLS stream (three 2 s transport-stream segments
+# and their playlist) and as a DASH stream (2 s fragmented-MP4 segments, picture and sound apart, and the manifest).
+adaptive=(-f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 440 6)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p
+  -b:v 40k -g 24 -keyint_min 24 -sc_threshold 0 -bf 2 -c:a aac -b:a 24k -ac 2)
+want hls && rm -rf "$out/hls" && mkdir -p "$out/hls" && ff "${adaptive[@]}" -f hls -hls_time 2 -hls_playlist_type vod \
+  -hls_segment_filename "$out/hls/seg%d.ts" "$out/hls/index.m3u8"
+want dash && rm -rf "$out/dash" && mkdir -p "$out/dash" && ff "${adaptive[@]}" -f dash -seg_duration 2 -use_template 1 -use_timeline 0 \
+  -init_seg_name 'init-$RepresentationID$.m4s' -media_seg_name 'chunk-$RepresentationID$-$Number$.m4s' "$out/dash/index.mpd"
 
 ls -l "$out"

@@ -67,13 +67,34 @@ export function addonError(error) {
   return Object.assign(Error(offline ? 'This phone is offline.' : message, {cause: error}), {kind: error.name});
 }
 
-export async function getJson(url, {signal, timeout = TIMEOUT} = {}) {
+// An add-on's answer (a catalog page, a title's details, its streams) is well under this; one that runs on, or never
+// ends, is cut here rather than filling the phone's memory.
+export const MAX_ANSWER = 5 << 20;
+
+export async function getJson(url, {signal, timeout = TIMEOUT, limit = MAX_ANSWER} = {}) {
   const timer = AbortSignal.timeout(timeout);
   try {
     const response = await fetch(url, {signal: signal ? AbortSignal.any([signal, timer]) : timer, credentials: 'omit', referrerPolicy: 'no-referrer'});
     if (!response.ok) throw Object.assign(Error(`The add-on answered ${response.status}.`), {kind: 'http', status: response.status});
-    return await response.json();
+    return JSON.parse(await bodyText(response, limit));
   } catch (error) { throw addonError(error); }
+}
+
+/** The body as text, read no further than `limit` bytes (a larger one is refused as soon as it is known to be). */
+async function bodyText(response, limit) {
+  const tooLarge = () => Object.assign(Error(`The add-on sent too much (more than ${Math.round(limit / 1048576)} MB).`), {kind: 'size'});
+  if (Number(response.headers.get('content-length')) > limit) { response.body?.cancel().catch(() => {}); throw tooLarge(); }
+  if (!response.body) return response.text();
+  const reader = response.body.getReader(), parts = [];
+  for (let total = 0; ;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) { reader.cancel().catch(() => {}); throw tooLarge(); }
+    parts.push(value);
+  }
+  const decoder = new TextDecoder();
+  return parts.map(p => decoder.decode(p, {stream: true})).join('') + decoder.decode();
 }
 
 const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);

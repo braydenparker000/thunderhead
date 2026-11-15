@@ -1,5 +1,6 @@
 // Adaptive streams (HLS, DASH) for AstraPlayer (player.js), through hls.js and
-// dash.js, pinned and integrity-checked, loaded only when needed. Mixed into
+// dash.js, served from the site's own vendor/ (scripts/astra/vendor.mjs pins
+// them) and integrity-checked, loaded only when a stream needs one. Mixed into
 // AstraPlayer's prototype, so `this` is the player. Every wait ends when the
 // load is replaced or closed (`signal`), and a library that arrives after that
 // is never attached to the video element.
@@ -7,9 +8,10 @@
 import {languageName} from './languages.js';
 import {markupSpans} from '../subtitles/parse.js';
 
-const LIBRARIES = {
-  hls: {src: 'https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js', integrity: 'sha384-z+tuLqMWl1/cPv7O+39RO0EURSNvorimpcCaMgeNwU+qFBx+AlUIl7jaAwg0cYil', global: 'Hls'},
-  dash: {src: 'https://cdn.jsdelivr.net/npm/dashjs@5.2.0/dist/modern/umd/dash.all.min.js', integrity: 'sha384-DUqWPzOl/i7/DGF7SBoe4NrlZOMxxomlJsg3X0daS5SBeFxco3dmwWQPFr2oauXn', global: 'dashjs'},
+const VENDOR = new URL('../../vendor/', import.meta.url);
+const LIBRARIES = { // hls.js 1.6.13 and dash.js 5.2.0, as vendor/vendor.json pins them
+  hls: {src: new URL('hls/hls.min.js', VENDOR).href, integrity: 'sha384-z+tuLqMWl1/cPv7O+39RO0EURSNvorimpcCaMgeNwU+qFBx+AlUIl7jaAwg0cYil', global: 'Hls'},
+  dash: {src: new URL('dash/dash.all.min.js', VENDOR).href, integrity: 'sha384-DUqWPzOl/i7/DGF7SBoe4NrlZOMxxomlJsg3X0daS5SBeFxco3dmwWQPFr2oauXn', global: 'dashjs'},
 };
 const loaded = {};
 function library(name) {
@@ -60,6 +62,10 @@ export const adaptiveMethods = {
     hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, refresh);
     hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, refresh);
     hls.on(Hls.Events.SUBTITLE_FRAG_PROCESSED, () => { if (id === this.load_) this.pullTextTrackCues(); });
+    // What the stream has cost (dataUsed): every piece and playlist loaded, as hls.js counts it.
+    for (const event of [Hls.Events.FRAG_LOADED, Hls.Events.MANIFEST_LOADED, Hls.Events.LEVEL_LOADED, Hls.Events.AUDIO_TRACK_LOADED, Hls.Events.SUBTITLE_TRACK_LOADED]) {
+      hls.on(event, (_, d) => { if (id === this.load_) this.countAdaptive(d?.frag?.stats?.loaded ?? d?.stats?.loaded ?? d?.payload?.byteLength ?? 0); });
+    }
     hls.subtitleDisplay = false;
     await until(new Promise((resolve, reject) => {
       hls.once(Hls.Events.MANIFEST_PARSED, resolve);
@@ -73,8 +79,12 @@ export const adaptiveMethods = {
     const dashjs = await until(library('dash'), signal);
     if (id !== this.load_) return;
     const player = dashjs.MediaPlayer().create();
+    // A live stream that names no clock of its own is timed from its own host's answer, not dash.js's default (a third party's).
+    player.updateSettings({streaming: {utcSynchronization: {defaultTimingSource: {scheme: 'urn:mpeg:dash:utc:http-head:2014', value: url}}}});
     this.dash = player;
     const events = dashjs.MediaPlayer.events;
+    // What the stream has cost (dataUsed): every piece dash.js loaded.
+    player.on(events.FRAGMENT_LOADING_COMPLETED, e => { if (id === this.load_) this.countAdaptive(e?.request?.bytesLoaded || e?.response?.byteLength || 0); });
     await until(new Promise((resolve, reject) => {
       player.on(events.STREAM_INITIALIZED, resolve);
       player.on(events.ERROR, e => {

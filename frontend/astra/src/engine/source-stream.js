@@ -7,7 +7,7 @@
 // was waiting on. Read-ahead nobody waits for is reopened quietly or left.
 
 export const BLOCK = 1 << 20;
-export const READ_AHEAD = 24 * BLOCK; // a stream pauses this far past the furthest block read from it
+export const READ_AHEAD = 24 * BLOCK; // a stream pauses this far past the furthest block read from it (the source's readAhead; less with the data saver)
 export const PROBE_AHEAD = 2 * BLOCK; // ...and this far while the file is being described: where playback starts is not known yet
 export const REUSE_WINDOW = 12 * BLOCK; // a request this close ahead of a stream waits for it
 const RETRIES = 3; // for answers that will not change by asking again (a refused range)
@@ -71,7 +71,7 @@ export async function runStream(source, stream, response) {
       // What comes next is already here (another download fetched it): nothing to add.
       if (!filled && source.blocks.has(index)) { stream.abort(); return; }
       // Stop reading (TCP backpressure) when far ahead of every reader.
-      while ((index - stream.want) * BLOCK > (source.probing ? PROBE_AHEAD : READ_AHEAD) && !signal.aborted) await new Promise(r => { stream.wake = r; });
+      while ((index - stream.want) * BLOCK > (source.probing ? PROBE_AHEAD : source.readAhead ?? READ_AHEAD) && !signal.aborted) await new Promise(r => { stream.wake = r; });
       if (signal.aborted) return;
       // A connection that goes quiet (no error, no bytes) would hang reads forever.
       let stall;

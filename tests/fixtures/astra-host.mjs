@@ -8,8 +8,8 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('./astra/', import.meta.url));
-const TYPES = { '.mkv': 'video/x-matroska', '.mp4': 'video/mp4', '.webm': 'video/webm', '.srt': 'application/x-subrip', '.vtt': 'text/vtt', '.ass': 'text/x-ssa', '.m3u8': 'application/vnd.apple.mpegurl' };
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length' };
+const TYPES = { '.mkv': 'video/x-matroska', '.mp4': 'video/mp4', '.webm': 'video/webm', '.srt': 'application/x-subrip', '.vtt': 'text/vtt', '.ass': 'text/x-ssa', '.m3u8': 'application/vnd.apple.mpegurl', '.ts': 'video/mp2t', '.mpd': 'application/dash+xml', '.m4s': 'video/iso.segment' };
+const ALLOW = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length' };
 
 /**
  * Starts the host. `root` is the folder served (the committed films by default); a test that needs a
@@ -20,12 +20,14 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
  *  control.cutAfter bytes: each answer's connection is destroyed after that many bytes
  *  control.bps      bytes a second per connection (0: as fast as it goes)
  *  control.noRange  true: Range is ignored and the whole file sent with 200
+ *  control.noCors   true: no CORS headers, so a page on another origin may play the film but not read it
  *  stats            {requests, open, bytes, ranges: [[start, end]…]}
  */
 export async function astraHost({ root = ROOT } = {}) {
-  const control = { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false };
+  const control = { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false };
   const stats = { requests: 0, open: 0, bytes: 0, ranges: [] };
   const server = http.createServer((req, res) => {
+    const CORS = control.noCors ? {} : ALLOW;
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
     stats.requests++;
     if (control.hang) return; // the socket stays open and silent
@@ -76,7 +78,7 @@ export async function astraHost({ root = ROOT } = {}) {
   return {
     origin, control, stats,
     url: (name) => `${origin}/${name}`,
-    reset() { Object.assign(control, { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false }); Object.assign(stats, { requests: 0, bytes: 0, ranges: [] }); },
+    reset() { Object.assign(control, { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false }); Object.assign(stats, { requests: 0, bytes: 0, ranges: [] }); },
     close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }),
   };
 }

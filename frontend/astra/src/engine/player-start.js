@@ -11,6 +11,9 @@ const NETWORK_KINDS = new Set(['network', 'stall', 'timeout']);
 
 export const startMethods = {
   async startNative(url, startTime, signal) {
+    // A host the probe found lets the page read the file (CORS) is asked with CORS, so the page may use the film's
+    // sound and frames (the sound features, frame capture); any other would refuse such a request, so it is asked plainly.
+    if (this.readable) this.video.crossOrigin = 'anonymous'; else this.video.removeAttribute('crossorigin');
     this.video.src = url;
     // Ends with the load, so a load whose metadata never comes cannot move a later film.
     if (startTime > 0) this.video.addEventListener('loadedmetadata', () => { this.video.currentTime = startTime; }, {once: true, signal});
@@ -29,6 +32,7 @@ export const startMethods = {
     session.addEventListener('stall', e => this.record('stall', e.detail));
     session.addEventListener('audioended', () => { if (this.session === session) this.resume('The sound in this file ended before the picture.', {silent: true}); });
     this.session = session;
+    this.applyDataSaver(); // how far ahead it reads, with the data saver on or off
     this.startScanner();
     await session.start(startTime);
     if (id !== this.load_) return;

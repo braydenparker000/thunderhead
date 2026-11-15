@@ -36,7 +36,8 @@ export class HttpSource {
     this.progressAt = 0; // when a download last brought a fair part of the file
     this.partials = new Map(); // index -> {bytes, filled}: the first part of a block a download broke off in
     this.stateListeners = new Set();
-    this.bytesFetched = 0;
+    this.bytesFetched = 0; // body bytes received, kept or not: what the film has cost
+    this.readAhead = READ_AHEAD; // how far a download runs past the furthest block read (setReadAhead)
     this.probing = false;
     // Back online: waiting retries go now instead of at the end of their back-off.
     this.retries = new Set();
@@ -69,6 +70,12 @@ export class HttpSource {
 
   request(headers, signal, method = 'GET') {
     return this.fetchFn(this.url, {method, headers: {...this.headers, ...headers}, signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
+  }
+
+  /** Changes how far downloads read ahead (the data saver), for the downloads running now too. */
+  setReadAhead(bytes) {
+    this.readAhead = bytes;
+    for (const s of this.streams) s.wake?.(); // one paused short of a longer reach reads on; one past a shorter one pauses at its next piece
   }
 
   /** Reading the header is over: streams read ahead fully again. */
@@ -188,7 +195,7 @@ export class HttpSource {
   advance(index) {
     const at = index * BLOCK;
     for (const s of this.streams) {
-      if (at <= s.position + REUSE_WINDOW && s.position - at <= READ_AHEAD + BLOCK && index > s.want) { s.want = index; s.wake?.(); }
+      if (at <= s.position + REUSE_WINDOW && s.position - at <= this.readAhead + BLOCK && index > s.want) { s.want = index; s.wake?.(); }
     }
   }
 
@@ -215,7 +222,7 @@ export class HttpSource {
     // is closed rather than paused, since a paused connection still fills its window (megabytes)
     // with data that is not needed, taking the phone's bandwidth from the stream that is.
     if (!this.probing) for (const s of [...this.streams]) {
-      if (Math.abs(s.position - position) > READ_AHEAD + REUSE_WINDOW && !this.servingWaiter(s)) s.abort();
+      if (Math.abs(s.position - position) > this.readAhead + REUSE_WINDOW && !this.servingWaiter(s)) s.abort();
     }
     const stream = {position, want, delivered: 0, received: 0, controller: new AbortController(), wake: null};
     stream.abort = () => { stream.controller.abort(); this.streams.delete(stream); stream.wake?.(); };

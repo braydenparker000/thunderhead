@@ -3,7 +3,8 @@
 import * as MB from '../../vendor/mediabunny.js';
 import {HttpSource, SourceError} from './http-source.js';
 import {readLayout, subtitleTracks} from './mkv.js';
-import {readMp4Subtitles} from './mp4.js';
+import {readMoov, readMp4Subtitles} from './mp4.js';
+import {mp4Chapters} from './chapters.js';
 import {languageName} from './languages.js';
 import {videoCodecName, audioCodecName} from './labels.js';
 import {adaptiveKind} from './plan.js';
@@ -74,6 +75,9 @@ async function describe(url, source, opened, signal, onStatus, keep) {
       hearingImpaired: !!disposition.hearingImpaired,
     };
     if (t.isVideoTrack()) {
+      // An MP4's frame times are in its index, already read: Mediabunny works the rate out from the first frames' times.
+      const fps = /mp4|quicktime|mov/.test(container) ? frameRate(await t.computeFrameRateMetrics({targetPacketCount: 48}).then(m => m.underlyingFrameRate ?? m.bestGuessFrameRate, () => null)) : undefined;
+      if (fps) base.frameRate = fps;
       return {...base, type: 'video', width: t.displayWidth, height: t.displayHeight, hdr: await t.hasHighDynamicRange().catch(() => false), decoderConfig: await t.getDecoderConfig().catch(() => null)};
     }
     return {...base, type: 'audio', channels: t.numberOfChannels, sampleRate: t.sampleRate, decoderConfig: await t.getDecoderConfig().catch(() => null)};
@@ -86,16 +90,24 @@ async function describe(url, source, opened, signal, onStatus, keep) {
   let duration = await input.getDurationFromMetadata().catch(() => null);
   if (!duration) duration = await input.computeDuration().catch(() => null);
 
-  let layout = null, subtitles = [];
+  let layout = null, subtitles = [], chapters = [];
   if (container.includes('matroska') || container.includes('webm')) {
     try {
       layout = await readLayout((s, e) => source.read(s, e), source.size);
       subtitles = subtitleTracks(layout);
+      chapters = layout.chapters;
       const dv = layout.tracks.find(t => t.type === 1 && t.dolbyVision)?.dolbyVision;
       if (dv && video[0]) video[0].dolbyVision = dv;
+      // The frame rate as the header gives it (each frame's duration); read from the frames themselves it would cost clusters.
+      const each = layout.tracks.find(t => t.type === 1)?.defaultDuration;
+      if (each > 0 && video[0] && !video[0].frameRate) video[0].frameRate = frameRate(1e9 / each);
     } catch {}
   } else if (/mp4|quicktime|mov/.test(container)) {
-    try { subtitles = await readMp4Subtitles((s, e) => source.read(s, e), source.size); } catch {}
+    try {
+      const moov = await readMoov((s, e) => source.read(s, e), source.size);
+      subtitles = await readMp4Subtitles(null, 0, moov);
+      chapters = moov ? mp4Chapters(moov) : [];
+    } catch {}
   }
   for (const s of subtitles) s.languageName = languageName(s.language);
   // Mediabunny lists no picture it cannot name in a transport stream (MPEG-2) or an Ogg file (Theora).
@@ -103,9 +115,12 @@ async function describe(url, source, opened, signal, onStatus, keep) {
   source.doneProbing();
   return {
     readable: true, source, input,
-    info: {container: format.name || container, mime: await input.getMimeType().catch(() => ''), size: source.size, duration, video, audio, subtitles, layout, hiddenVideo},
+    info: {container: format.name || container, mime: await input.getMimeType().catch(() => ''), size: source.size, duration, video, audio, subtitles, layout, hiddenVideo, chapters},
   };
 }
+
+/** A frame rate fit to show and to step by (23.976, 25, 59.94), or undefined when there is none worth the name. */
+export const frameRate = fps => Number.isFinite(fps) && fps >= 1 && fps <= 1000 ? Math.round(fps * 1000) / 1000 : undefined;
 
 const pathOf = url => { try { return new URL(url).pathname; } catch { return String(url); } };
 

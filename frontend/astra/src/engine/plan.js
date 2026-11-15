@@ -16,7 +16,8 @@ import {channelName} from './labels.js';
 import {UNREADABLE, softwareAudio, softwareVideo} from './software.js';
 
 const DIRECT_AUDIO = new Set(['aac', 'opus', 'flac', 'mp3']);
-const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'vorbis']);
+const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'truehd', 'vorbis']);
+const PCM = /^(pcm|ulaw$|alaw$)/; // uncompressed sound, G.711 (telephone and some camera recordings) among it
 const NATIVE_CONTAINERS = /^(mp4|quicktime|webm)$/i;
 
 /** Guesses an adaptive stream from its address or MIME type. */
@@ -39,7 +40,7 @@ function softwareDelivery(track) {
 export function audioDelivery(track, caps) {
   const codec = track.codec || '';
   if (DIRECT_AUDIO.has(codec) && caps.mse(audioMime(track))) return {delivery: 'direct'};
-  if ((REBUILT_AUDIO.has(codec) || codec.startsWith('pcm') || DIRECT_AUDIO.has(codec)) && track.channels) {
+  if ((REBUILT_AUDIO.has(codec) || PCM.test(codec) || DIRECT_AUDIO.has(codec)) && track.channels) {
     return caps.opusEncode ? {delivery: 'rebuilt'} : {delivery: 'unsupported', reason: 'This browser cannot convert audio.'};
   }
   return {delivery: 'unsupported', reason: `${track.label || 'This audio format'} cannot be decoded in a browser.`};

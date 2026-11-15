@@ -17,8 +17,8 @@ import {EarlyCuts} from './early.js';
 import {loadDecoders} from './audio-decoders.js';
 import {StallWatch} from './stall-watch.js';
 
-// Read-ahead limits (seconds; tests shorten them). Picture and sound read to the same place, `apart` at most, so one
-// download serves both: kept apart, on a high-bitrate film, the gap outgrew the reader's cache.
+// Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
+// and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
 export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20};
 const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
@@ -183,7 +183,7 @@ export class RemuxSession extends EventTarget {
     // far past the picture, and the picture's blocks out of the reader's cache.
     const other = kind === 'video' ? 'audio' : 'video';
     const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
-    while (current() && (this.readAt[kind] - this.video.currentTime > TUNING.ahead || apart() || queue.pending() > TUNING.maxQueued)) {
+    while (current() && (this.readAt[kind] - this.video.currentTime > (this.ahead ?? TUNING.ahead) || apart() || queue.pending() > TUNING.maxQueued)) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);

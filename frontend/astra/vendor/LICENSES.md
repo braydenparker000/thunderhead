@@ -6,23 +6,42 @@ packages pinned in `vendor.json`, which also records each file's sha256
 
 ## Mediabunny
 
-Copied unmodified, except that the two decoder extensions import
+Copied unmodified, except that the three decoder extensions import
 `./mediabunny.js` instead of the bare name `mediabunny`.
 
 | File | Package | Source |
 | --- | --- | --- |
-| `mediabunny.js` | mediabunny@1.55.7 (`dist/bundles/mediabunny.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.55.7 |
-| `mediabunny-ac3.js` | @mediabunny/ac3@1.55.7 (`dist/bundles/mediabunny-ac3.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.55.7 |
-| `mediabunny-dts.js` | @mediabunny/dts@1.55.7 (`dist/bundles/mediabunny-dts.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.55.7 |
+| `mediabunny.js` | mediabunny@1.66.0 (`dist/bundles/mediabunny.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.66.0 |
+| `mediabunny-ac3.js` | @mediabunny/ac3@1.66.0 (`dist/bundles/mediabunny-ac3.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.66.0 |
+| `mediabunny-dts.js` | @mediabunny/dts@1.66.0 (`dist/bundles/mediabunny-dts.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.66.0 |
+| `mediabunny-truehd.js` | @mediabunny/truehd@1.66.0 (`dist/bundles/mediabunny-truehd.min.mjs`) | https://github.com/Vanilagy/mediabunny/tree/v1.66.0 |
 
-Copyright Vanilagy and contributors. The three packages are distributed under
+Copyright Vanilagy and contributors. The four packages are distributed under
 the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/); the source form
 of every file is available at the addresses above and in the npm tarballs.
 
-The AC-3/E-AC-3 and DTS decoders contain WebAssembly builds of decoders from
+The AC-3/E-AC-3, DTS and TrueHD decoders contain WebAssembly builds of decoders from
 FFmpeg (https://ffmpeg.org/), which FFmpeg distributes under the GNU Lesser
 General Public License 2.1 or later. Their source and build scripts are in the
 same upstream repository.
+
+## hls.js and dash.js (`hls/`, `dash/`)
+
+The players for adaptive streams, copied unmodified from their npm packages
+and loaded only when an HLS or DASH stream is played. `engine/adaptive.js`
+loads each with the same integrity hash that `vendor.json` pins (the files
+are the ones the CDN used to serve).
+
+| File | Package | Licence | Source |
+| --- | --- | --- | --- |
+| `hls/hls.min.js` | hls.js@1.6.13 (`dist/hls.min.js`) | Apache-2.0 (`hls/LICENSE.txt`). Copyright (c) 2017 Dailymotion | https://github.com/video-dev/hls.js/tree/v1.6.13 |
+| `dash/dash.all.min.js` | dashjs@5.2.0 (`dist/modern/umd/dash.all.min.js`) | BSD-3-Clause (`dash/LICENSE.md`). Copyright (c) 2015, Dash Industry Forum | https://github.com/Dash-Industry-Forum/dash.js/tree/v5.2.0 |
+
+dash.js's build also holds small libraries whose notices it ships beside it
+(`dash/dash.all.min.js.LICENSE.txt`): the browser `buffer` module and
+`ieee754` (MIT and BSD-3-Clause, Feross Aboukhadijeh), codem-isoboxer
+0.3.10 (MIT) and `String.fromCodePoint` (MIT, Mathias Bynens). hls.js's
+build is all its own code.
 
 ## JASSUB and libass (`jassub/`)
 

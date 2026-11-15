@@ -1,17 +1,19 @@
-// The Matroska facts Mediabunny does not expose: the file's subtitle tracks
-// and the subtitle blocks inside its clusters. Audio and video are left to
+// The Matroska facts Mediabunny does not expose: the file's subtitle tracks,
+// its chapters (chapters.js) and the subtitle blocks inside its clusters. Audio and video are left to
 // Mediabunny; this reader only walks the element tree.
 //
 // `read(start, end)` returns bytes [start, end) of the file.
+
+import {mkvChapters} from './chapters.js';
 
 const ID = {
   EBML: 0x1a45dfa3, Segment: 0x18538067, SeekHead: 0x114d9b74, Seek: 0x4dbb, SeekID: 0x53ab, SeekPosition: 0x53ac,
   Info: 0x1549a966, TimestampScale: 0x2ad7b1, Duration: 0x4489,
   Tracks: 0x1654ae6b, TrackEntry: 0xae, TrackNumber: 0xd7, TrackType: 0x83, FlagDefault: 0x88, FlagForced: 0x55aa,
-  FlagHearingImpaired: 0x55ab, FlagCommentary: 0x55af, Name: 0x536e, Language: 0x22b59c, LanguageBCP47: 0x22b59d,
+  FlagHearingImpaired: 0x55ab, FlagCommentary: 0x55af, DefaultDuration: 0x23e383, Name: 0x536e, Language: 0x22b59c, LanguageBCP47: 0x22b59d,
   CodecID: 0x86, CodecPrivate: 0x63a2, ContentEncodings: 0x6d80, ContentEncoding: 0x6240, ContentEncodingType: 0x5033,
   ContentCompression: 0x5034, ContentCompAlgo: 0x4254, ContentCompSettings: 0x4255,
-  Cues: 0x1c53bb6b, CuePoint: 0xbb, CueTime: 0xb3, CueTrackPositions: 0xb7, CueClusterPosition: 0xf1,
+  Chapters: 0x1043a770, Cues: 0x1c53bb6b, CuePoint: 0xbb, CueTime: 0xb3, CueTrackPositions: 0xb7, CueClusterPosition: 0xf1,
   Cluster: 0x1f43b675, Timestamp: 0xe7, SimpleBlock: 0xa3, BlockGroup: 0xa0, Block: 0xa1, BlockDuration: 0x9b,
   BlockAdditionMapping: 0x41e4, BlockAddIDType: 0x41e7, BlockAddIDExtraData: 0x41ed,
 };
@@ -89,6 +91,7 @@ function parseTrack(bytes, start, end) {
     else if (c.id === ID.FlagForced) t.forced = uint(bytes, c.dataStart, c.dataEnd) === 1;
     else if (c.id === ID.FlagHearingImpaired) t.hearingImpaired = uint(bytes, c.dataStart, c.dataEnd) === 1;
     else if (c.id === ID.FlagCommentary) t.commentary = uint(bytes, c.dataStart, c.dataEnd) === 1;
+    else if (c.id === ID.DefaultDuration) t.defaultDuration = uint(bytes, c.dataStart, c.dataEnd); // nanoseconds a frame lasts
     else if (c.id === ID.BlockAdditionMapping) {
       let type = 0, extra = null;
       for (const f of children(bytes, c.dataStart, c.dataEnd)) {
@@ -126,7 +129,7 @@ export async function readLayout(read, size) {
   const segment = header(head, ebml.dataStart + ebml.size);
   if (!segment || segment.id !== ID.Segment) throw Error('Matroska segment not found');
   const segmentStart = segment.dataStart, segmentEnd = segment.size == null ? size : Math.min(size, segmentStart + segment.size);
-  const layout = {segmentStart, timestampScale: 1e6, duration: null, tracks: [], cues: null, firstCluster: null};
+  const layout = {segmentStart, timestampScale: 1e6, duration: null, tracks: [], cues: null, firstCluster: null, chapters: []};
   const seeks = new Map();
   const load = async (start, length) => (start + length <= head.length ? head.subarray(start, start + length) : read(start, start + length));
   const parseTop = async (h, pos) => {
@@ -152,6 +155,8 @@ export async function readLayout(read, size) {
       for (const e of children(body, 0, body.length)) if (e.id === ID.TrackEntry) layout.tracks.push(parseTrack(body, e.dataStart, e.dataEnd));
     } else if (h.id === ID.Cues) {
       layout.cues = parseCues(body, segmentStart, layout.timestampScale);
+    } else if (h.id === ID.Chapters) {
+      layout.chapters = mkvChapters(body);
     }
     return pos;
   };
@@ -170,11 +175,11 @@ export async function readLayout(read, size) {
     if (!h) break;
     if (h.id === ID.Cluster) { layout.firstCluster = pos; layout.unknownClusterSizes = h.size == null; break; }
     if (h.size == null) break;
-    if ([ID.SeekHead, ID.Info, ID.Tracks, ID.Cues].includes(h.id) && h.size < (16 << 20)) { await parseTop(h, pos); seen.add(h.id); }
+    if ([ID.SeekHead, ID.Info, ID.Tracks, ID.Cues, ID.Chapters].includes(h.id) && h.size < (16 << 20)) { await parseTop(h, pos); seen.add(h.id); }
     pos = h.dataStart + h.size;
   }
   // Elements placed after the clusters (usually the cue index) via the seek head.
-  for (const id of [ID.Info, ID.Tracks, ID.Cues]) {
+  for (const id of [ID.Info, ID.Tracks, ID.Cues, ID.Chapters]) {
     const at = seeks.get(id);
     if (seen.has(id) || at == null || at >= size) continue;
     const bytes = await read(at, Math.min(size, at + 12));

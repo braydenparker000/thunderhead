@@ -67,8 +67,8 @@ export function sampleTable(bytes, stbl, timescale, mediaStart = 0) {
   return samples.filter(x => x.start != null);
 }
 
-/** Finds the movie box and lists text subtitle tracks with their samples. */
-export async function readMp4Subtitles(read, size) {
+/** The movie box's bytes (null when there is none, or it is unreasonably large). */
+export async function readMoov(read, size) {
   let pos = 0, moov = null;
   for (let guard = 0; pos + 8 <= size && guard < 4096; guard++) {
     const head = await read(pos, Math.min(size, pos + 16));
@@ -79,13 +79,24 @@ export async function readMp4Subtitles(read, size) {
     if (type === 'moov') { moov = {pos, length}; break; }
     pos += length;
   }
-  if (!moov || moov.length > (64 << 20)) return [];
-  const bytes = await read(moov.pos, moov.pos + moov.length);
+  if (!moov || moov.length > (64 << 20)) return null;
+  return read(moov.pos, moov.pos + moov.length);
+}
+
+/** Lists text subtitle tracks with their samples, from the movie box (read here when not given). */
+export async function readMp4Subtitles(read, size, moov) {
+  const bytes = moov === undefined ? await readMoov(read, size) : moov;
+  if (!bytes) return [];
   const root = boxes(bytes).next().value;
   if (!root) return [];
-  const tracks = [];
-  for (const trak of boxes(bytes, root.start, root.end)) {
-    if (trak.type !== 'trak') continue;
+  const tracks = [], traks = [...boxes(bytes, root.start, root.end)].filter(b => b.type === 'trak');
+  // A text track another names as its chapters (tref 'chap', as ffmpeg and QuickTime write) is chapter titles, not subtitles.
+  const chapterTracks = new Set();
+  for (const trak of traks) {
+    const chap = (() => { const tref = child(bytes, trak, 'tref'); return tref && child(bytes, tref, 'chap'); })();
+    for (let p = chap?.start; chap && p + 4 <= chap.end; p += 4) chapterTracks.add(u32(bytes, p));
+  }
+  for (const trak of traks) {
     const mdia = child(bytes, trak, 'mdia'), tkhd = child(bytes, trak, 'tkhd');
     if (!mdia || !tkhd) continue;
     const hdlr = child(bytes, mdia, 'hdlr'), mdhd = child(bytes, mdia, 'mdhd'), stbl = (() => { const minf = child(bytes, mdia, 'minf'); return minf && child(bytes, minf, 'stbl'); })();
@@ -99,6 +110,7 @@ export async function readMp4Subtitles(read, size) {
     const timescale = u32(bytes, mdhd.start + (v1 ? 20 : 12));
     const lang = language(bytes[mdhd.start + (v1 ? 32 : 20)] << 8 | bytes[mdhd.start + (v1 ? 33 : 21)]);
     const trackId = u32(bytes, tkhd.start + (bytes[tkhd.start] === 1 ? 20 : 12));
+    if (chapterTracks.has(trackId)) continue;
     const enabled = !!(bytes[tkhd.start + 3] & 1);
     let mediaStart = 0;
     const elst = (() => { const edts = child(bytes, trak, 'edts'); return edts && child(bytes, edts, 'elst'); })();

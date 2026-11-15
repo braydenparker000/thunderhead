@@ -215,3 +215,25 @@ test('a key frame that repeats an earlier time begins no fragment, so later frag
   assert.deepEqual(seen, [false, true, true, false]);
   assert.deepEqual(cuts.forced, []);
 });
+
+test('the frame rate, from a Matroska header or an MP4 index: a number to step by, or nothing', async () => {
+  const { frameRate } = await import('../frontend/astra/src/engine/probe.js');
+  const film = readFileSync(new URL('./fixtures/astra/multi.mkv', import.meta.url));
+  const layout = await readLayout(async (s, e) => film.subarray(s, e), film.length);
+  assert.equal(frameRate(1e9 / layout.tracks.find((t) => t.type === 1).defaultDuration), 12);
+  assert.equal(frameRate(1e9 / 41708333), 23.976);
+  assert.equal(frameRate(30000 / 1001), 29.97);
+  for (const nonsense of [null, NaN, 0, 0.2, Infinity, 1e6]) assert.equal(frameRate(nonsense), undefined, String(nonsense));
+  // An MP4 (through Mediabunny, as the probe asks): the rate from the first frames' times in its index.
+  const output = new MB.Output({ format: new MB.Mp4OutputFormat(), target: new MB.BufferTarget() });
+  const source = new MB.EncodedVideoPacketSource('avc');
+  output.addVideoTrack(source);
+  await output.start();
+  const config = { codec: 'avc1.42001e', codedWidth: 16, codedHeight: 16, description: new Uint8Array([1, 0x42, 0, 0x1e, 0xff, 0xe0, 0]) };
+  for (let i = 0; i < 60; i++) await source.add(new MB.EncodedPacket(new Uint8Array([0, 0, 0, 1, 0x65]), i % 25 ? 'delta' : 'key', i / 25, 1 / 25), i ? undefined : { decoderConfig: config });
+  await output.finalize();
+  const input = new MB.Input({ source: new MB.BufferSource(output.target.buffer), formats: MB.ALL_FORMATS });
+  const [track] = await input.getVideoTracks();
+  const m = await track.computeFrameRateMetrics({ targetPacketCount: 48 });
+  assert.equal(frameRate(m.underlyingFrameRate ?? m.bestGuessFrameRate), 25);
+});

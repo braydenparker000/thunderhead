@@ -1,7 +1,7 @@
 // Names people recognise for codecs and channel layouts.
 
 const VIDEO_NAMES = {avc: 'H.264', hevc: 'HEVC', av1: 'AV1', vp9: 'VP9', vp8: 'VP8', prores: 'ProRes'};
-const AUDIO_NAMES = {aac: 'AAC', opus: 'Opus', mp3: 'MP3', vorbis: 'Vorbis', flac: 'FLAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital Plus', dts: 'DTS'};
+const AUDIO_NAMES = {aac: 'AAC', opus: 'Opus', mp3: 'MP3', vorbis: 'Vorbis', flac: 'FLAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital Plus', dts: 'DTS', truehd: 'Dolby TrueHD', ulaw: 'PCM µ-law', alaw: 'PCM A-law'};
 // Codecs Mediabunny reads as "unknown", named by their container ids.
 const INTERNAL_NAMES = {
   A_TRUEHD: 'Dolby TrueHD', A_MLP: 'MLP', 'A_DTS/LOSSLESS': 'DTS-HD MA', 'A_DTS/EXPRESS': 'DTS Express', A_ALAC: 'ALAC',

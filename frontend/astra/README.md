@@ -22,7 +22,7 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/subtitles/` | SRT, WebVTT and ASS parsing, and the renderer that draws cues over the video. |
 | `src/addons/` | The Stremio add-on protocol client, and TorBox link resolution (`debrid.js`). |
 | `src/styles/tokens.css` | Colours, type, radii, motion and shared controls. |
-| `vendor/` | Mediabunny and its AC-3 and DTS decoders, copied by `node scripts/astra/vendor.mjs` (see `vendor/LICENSES.md`). |
+| `vendor/` | Mediabunny and its AC-3, DTS and TrueHD decoders, hls.js and dash.js, and JASSUB, copied by `node scripts/astra/vendor.mjs` (see `vendor/LICENSES.md`). |
 
 ## The app
 
@@ -168,11 +168,14 @@ Everything is kept in this browser under `astra.v2.*` (`src/app/store.js`).
 `AstraPlayer.load()` (`src/engine/player.js`) does three things, in order, and
 never switches pipeline mid-play:
 
-1. **Read before playing** (`probe.js`, `http-source.js`, `mkv.js`). One
-   open-ended range request streams the file into a 1 MiB block cache. The
-   header gives the container, video codec, every audio track (language,
-   codec, channels) and every subtitle track. If the host does not let a web
-   page read the file (CORS) or ignores ranges, that is known at once.
+1. **Read before playing** (`probe.js`, `http-source.js`, `mkv.js`,
+   `chapters.js`). One open-ended range request streams the file into a
+   1 MiB block cache. The header gives the container, video codec and frame
+   rate, every audio track (language, codec, channels), every subtitle track
+   and the chapters (Matroska's own, or an MP4's chapter list), offered as
+   `engine.chapters` before playback starts. If the host does not let a web
+   page read the file (CORS) or ignores ranges, that is known at once; a
+   playlist is known by its address or its type even then.
 2. **Decide once** (`plan.js`, pure, tested in `tests/astra-plan.test.mjs`).
    Using answers from the browser itself (`capabilities.js`): `native` for a
    plain one-track MP4/WebM the browser plays whole (its picture and its
@@ -184,9 +187,10 @@ never switches pipeline mid-play:
    (AVI, FLV, MPEG-PS) or did not list the picture (MPEG-2 in a transport
    stream), `hls`/`dash` for adaptive streams, or `unsupported` with a
    reason and an offer to play the file in another app. Audio tracks are
-   `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3, E-AC-3, DTS, Vorbis, MP3,
-   PCM: decoded and re-encoded to Opus on the device) or `unsupported`
-   (TrueHD and other codecs no browser decoder exists for); a file with
+   `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3, E-AC-3, DTS, Dolby TrueHD,
+   Vorbis, MP3, PCM and G.711: decoded and re-encoded to Opus on the device;
+   each decoder downloads only when a film needs it) or `unsupported` (ALAC
+   and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
    (profile 5 has no standard picture underneath).
@@ -195,10 +199,22 @@ never switches pipeline mid-play:
    the phone's hardware decoder does the work;
    audio has its own SourceBuffer, so changing track refills only the audio.
    Fragments carry absolute timestamps, so a seek outside the buffer starts
-   fresh pipelines at the nearest key frame. Text subtitles in MKV are read
-   from clusters already downloaded (`embedded-subtitles.js`) and drawn by
-   `src/subtitles/renderer.js`. Files whose timestamps start after zero
-   (MPEG-TS) are shifted to start at 0:00.
+   fresh pipelines at the nearest key frame, and a seek inside what is
+   already buffered (or just ahead of where reading is) starts nothing. Text
+   subtitles in MKV and MP4 are read from data already downloaded
+   (`embedded-subtitles.js`) and drawn by `src/subtitles/renderer.js`;
+   picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
+   timestamps start after zero (MPEG-TS) are shifted to start at 0:00, and
+   their chapters and subtitles with them. A film the browser plays itself
+   from a host that lets the page read it is asked for with CORS, so the
+   sound features and frame capture work on it too.
+   A watchdog (`stall-watch.js`) looks once a second at a film that is stuck
+   with nothing on its way: it steps over a hole of up to three seconds in
+   the sound or the picture; when the sound ends before the picture, the
+   film carries on from the same place without sound (the stream's notes say
+   so), rather than stopping for good.
+   HLS and DASH streams play through hls.js and dash.js, served from Astra's
+   own `vendor/` and loaded only when such a stream is played.
 4. **Software decoding** (`software.js`): libmedia's AVPlayer (LGPL-3.0,
    served from `frontend/assets/libmedia/`, loaded only when needed) decodes with
    WebCodecs where the browser has the decoder and WebAssembly otherwise,
@@ -211,7 +227,26 @@ never switches pipeline mid-play:
    decoder) is met first with a fresh pipeline at the same place, with
    fragments only at key frames, then with the software decoder there. A file whose picture has no decoder stops
    with that reason at once; one whose sound has none plays with a notice.
-5. **Another app**: when nothing in the browser can play a file, the player
+5. **Reading the file** (`http-source.js`, `source-stream.js`). Playback's
+   reads pull one download along; it pauses 24 MiB past the furthest block
+   read (8 MiB with the data saver) and only 2 MiB while the file is being
+   described, since where playback starts is not known yet. The subtitle
+   readers only peek at what playback already fetched, so they cost nothing
+   and never pull the download along. A seek ends the downloads and reads of
+   the place it left, so the new place has the whole connection. A download
+   that breaks off after bringing a fair part of the file (a host that cuts
+   every connection after so many bytes) is continued from the byte it
+   reached; one that brings nothing is tried again with a growing pause for
+   up to a minute (at once when the phone is back online) while the buffer
+   plays. `engine.dataUsed()` is what the film has downloaded so far, as the
+   reader counts it (for HLS and DASH, as their players count it).
+6. **The data saver** (`player-data.js`, Settings > Playback > Save mobile
+   data). Automatic by default: on when the phone asks to save data or is on
+   a mobile network. With it on, the reader pauses 8 MiB ahead instead of 24
+   and the pipelines keep 20 s ahead instead of 40; a change applies to the
+   film that is playing. On a three-minute 3.3 Mbit/s film, 40 s in, it had
+   downloaded 32 MB instead of 56.
+7. **Another app**: when nothing in the browser can play a file, the player
    offers it to the phone's video apps (VLC, MX Player…) through an Android
    intent with the title and position (`src/player/external.js`).
 
@@ -235,14 +270,16 @@ Before this pass 38 of the first 64 played and 14 showed black or stalled.
 | MPEG-1, MPEG-2 | MPG, VOB, TS, MKV | software decoder |
 | Theora | MKV | software decoder |
 
-Sound: AAC, Opus, FLAC and MP3 as they are; AC-3, E-AC-3, DTS, Vorbis and
-PCM converted as they play (or decoded by the software decoder when it
-plays the file); Windows Media Audio and ADPCM in an AVI.
+Sound: AAC, Opus, FLAC and MP3 as they are; AC-3, E-AC-3, DTS, Dolby
+TrueHD, Vorbis, PCM (every kind in MOV and MKV) and G.711 (µ-law and A-law,
+in MOV) converted as they play, and so is MP3 in a MOV file (or, all but
+TrueHD and G.711, decoded by the software decoder when it plays the file);
+Windows Media Audio and ADPCM in an AVI.
 
 Stops with a reason (and the offer of another app): the Windows Media
 container (WMV, ASF) and RealMedia, which nothing here unpacks; Theora in
 an Ogg file; H.263 in 3GP; Motion JPEG in MOV; Sorenson Spark in FLV;
-ProRes; a file whose only sound is TrueHD, ALAC or WMA in an MKV. Still
+ProRes; a file whose only sound is ALAC or WMA in an MKV. Still
 broken: H.264 inside an AVI, where libmedia 1.3.1 fails on a stream with
 no decoder setup in its header ("Offset is outside the bounds of the
 DataView" in its worker); it stops with "could not show a picture" after
@@ -299,13 +336,15 @@ Three things made the difference.
   to a file for ffmpeg, which decoded every frame of nine films, HEVC, VP9
   and AV1 among them, with the same key frames as their sources).
 
-The audio decoder (1.1 MB for Dolby Digital, 1.6 MB for DTS) also downloads
-while the first video is read instead of before it.
+The audio decoder (1.2 MB for Dolby Digital, 1.7 MB for DTS, 0.7 MB for
+TrueHD) also downloads while the first video is read instead of before it.
 
 What is left, and why: the first frame still waits for one whole Matroska
-cluster (up to 5 MB or 5 s), because Mediabunny reads a cluster whole before
-it hands out its first packet, and on a first play for the audio decoder's
-download. Changing the audio track stops the picture for about a third of a
+cluster (up to 5 MB or 5 s), because Mediabunny (1.66 as well) reads a
+cluster whole before it hands out its first packet, and for the whole 1 MiB
+block of the reader that holds its end; and on a first play for the audio
+decoder's download. On a connection of 300 kB/s that is 3.2 s for the small
+test film (one block) and 10.3 s for a 3.3 Mbit/s film with 5 s clusters. Changing the audio track stops the picture for about a third of a
 second (the seek in place that flushes the old sound). None of this was
 measured on the phone itself.
 

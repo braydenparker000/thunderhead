@@ -6,7 +6,9 @@
 //   node scripts/astra/vendor.mjs --check  verify every vendored file against vendor.json (no network)
 //
 // To move a library on, change its pin in vendor.json, run the script, try the result, commit both.
-// Mediabunny is copied as published (the two decoders import ./mediabunny.js instead of the bare name).
+// Mediabunny is copied as published (its decoders import ./mediabunny.js instead of the bare name).
+// hls.js and dash.js are copied as published (their minified UMD builds and licences), and their files must
+// match the integrity hashes pinned beside each pin, which engine/adaptive.js also gives the browser.
 // JASSUB ships ES modules with bare imports and the site has no build step, so its main module and its
 // worker are bundled here with esbuild (a vendoring-time tool, not a site dependency) into
 // self-contained modules; its wasm glue, the two .wasm builds and its default font are copied as they are.
@@ -22,6 +24,11 @@ const VENDOR = join(ROOT, 'frontend/astra/vendor');
 const MANIFEST = join(VENDOR, 'vendor.json');
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+// The adaptive-stream players: the build Astra loads and the licence files that go with it.
+const ADAPTIVE = {
+  'hls.js': { from: 'dist/hls.min.js', to: 'hls/hls.min.js', licences: [['LICENSE', 'hls/LICENSE.txt']] },
+  dashjs: { from: 'dist/modern/umd/dash.all.min.js', to: 'dash/dash.all.min.js', licences: [['LICENSE.md', 'dash/LICENSE.md'], ['dist/modern/umd/dash.all.min.js.LICENSE.txt', 'dash/dash.all.min.js.LICENSE.txt']] },
+};
 
 if (process.argv.includes('--check')) process.exit(check());
 build();
@@ -42,7 +49,7 @@ function build() {
   const tmp = mkdtempSync(join(tmpdir(), 'astra-vendor-'));
   try {
     const pkg = fetchPackages(tmp);
-    const written = [...mediabunny(pkg), ...jassub(pkg, tmp)];
+    const written = [...mediabunny(pkg), ...adaptive(pkg), ...jassub(pkg, tmp)];
     const files = {};
     for (const name of written) files[name] = sha256(join(VENDOR, name));
     for (const [name, hash] of Object.entries(files)) if (manifest.files[name] !== hash) console.log(`${manifest.files[name] ? 'changed' : 'new'}: ${name}`);
@@ -77,7 +84,19 @@ function mediabunny(pkg) {
     if (local === text || /from\s*["']mediabunny["']/.test(local)) throw new Error(`@mediabunny/${id}: the import of mediabunny was not where expected`);
     return write(`mediabunny-${id}.js`, local);
   };
-  return [copy(join(pkg.mediabunny, 'dist/bundles/mediabunny.min.mjs'), 'mediabunny.js'), decoder('ac3'), decoder('dts')];
+  return [copy(join(pkg.mediabunny, 'dist/bundles/mediabunny.min.mjs'), 'mediabunny.js'), decoder('ac3'), decoder('dts'), decoder('truehd')];
+}
+
+/** hls.js and dash.js for adaptive streams, each checked against the integrity hash pinned in vendor.json. */
+function adaptive(pkg) {
+  const files = [];
+  for (const [name, { from, to, licences }] of Object.entries(ADAPTIVE)) {
+    const file = join(pkg[name], from);
+    const got = 'sha384-' + createHash('sha384').update(readFileSync(file)).digest('base64');
+    if (got !== manifest.integrity[name]) throw new Error(`${name}: ${from} is ${got}, pinned ${manifest.integrity[name]}`);
+    files.push(copy(file, to), ...licences.map(([source, dest]) => copy(join(pkg[name], source), dest)));
+  }
+  return files;
 }
 
 function jassub(pkg, tmp) {
