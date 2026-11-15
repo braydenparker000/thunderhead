@@ -70,6 +70,22 @@ export function decodePgsRle(rle, width, height) {
   return out;
 }
 
+// The sizes in a file are claims, and a picture is only ever as large as the
+// frame it is shown in: nothing wider or taller than the composition's frame
+// is kept or drawn, and no frame counts as larger than 4096×2304.
+export const MAX_FRAME = Object.freeze({width: 4096, height: 2304});
+function frameLimit(pcs) {
+  return {width: Math.min(pcs?.width || MAX_FRAME.width, MAX_FRAME.width), height: Math.min(pcs?.height || MAX_FRAME.height, MAX_FRAME.height)};
+}
+
+/** The part of a picture a composition asks for, kept inside the picture; null when nothing is left. */
+function cropWithin(crop, obj) {
+  if (!crop) return {x: 0, y: 0, width: obj.width, height: obj.height};
+  const x = Math.min(crop.x, obj.width), y = Math.min(crop.y, obj.height);
+  const width = Math.min(crop.width, obj.width - x), height = Math.min(crop.height, obj.height - y);
+  return width > 0 && height > 0 ? {x, y, width, height} : null;
+}
+
 /**
  * One PGS track. decode() takes a display set and its time and returns a cue
  * {start, end, key, image} when it shows something, or {clear: time} when it
@@ -96,11 +112,16 @@ export class PgsDecoder {
         const id = data[0] << 8 | data[1], flags = data[3];
         if (flags & 0x80) { // first fragment: length (3 bytes, includes width/height), width, height
           if (data.length < 11) continue;
-          const obj = {width: data[7] << 8 | data[8], height: data[9] << 8 | data[10], parts: [data.slice(11)], complete: !!(flags & 0x40)};
+          // Whole when the last piece is flagged or as many bytes as the header promised have come.
+          const obj = {width: data[7] << 8 | data[8], height: data[9] << 8 | data[10], parts: [data.slice(11)], need: (data[4] << 16 | data[5] << 8 | data[6]) - 4, have: data.length - 11, complete: !!(flags & 0x40)};
+          if (obj.need > 0 && obj.have >= obj.need) obj.complete = true;
+          // A picture larger than the frame it is shown in is a damaged or hostile file: forget the id.
+          const frame = frameLimit(pcs);
+          if (obj.width > frame.width || obj.height > frame.height) { fresh.delete(id); this.objects.delete(id); continue; }
           fresh.set(id, obj); this.objects.set(id, obj);
         } else {
           const obj = fresh.get(id) || this.objects.get(id);
-          if (obj) { obj.parts.push(data.slice(4)); if (flags & 0x40) obj.complete = true; }
+          if (obj && !obj.complete) { obj.parts.push(data.slice(4)); obj.have += data.length - 4; if (flags & 0x40 || (obj.need > 0 && obj.have >= obj.need)) obj.complete = true; }
         }
       } else if (type === WDS || type === END) {
         // windows only clip; the end marker closes the set
@@ -110,12 +131,14 @@ export class PgsDecoder {
     if (!pcs.objects.length) return {clear: time};
     const palette = this.palettes.get(pcs.paletteId);
     if (!palette) return null;
-    const parts = [];
+    const parts = [], frame = frameLimit(pcs);
     for (const o of pcs.objects) {
       const obj = this.objects.get(o.objectId);
-      if (!obj || !obj.width || !obj.height) continue;
+      // Only whole pictures are drawn: one still missing its last piece would decode to rubbish.
+      if (!obj || !obj.complete || !obj.width || !obj.height || obj.width > frame.width || obj.height > frame.height) continue;
       if (!obj.rle) { const total = obj.parts.reduce((n, p) => n + p.length, 0); obj.rle = new Uint8Array(total); let at = 0; for (const p of obj.parts) { obj.rle.set(p, at); at += p.length; } }
-      const crop = o.crop || {x: 0, y: 0, width: obj.width, height: obj.height};
+      const crop = cropWithin(o.crop, obj);
+      if (!crop) continue;
       const entries = palette.entries, rle = obj.rle, w = obj.width, h = obj.height;
       parts.push({x: o.x, y: o.y, width: crop.width, height: crop.height, draw: () => {
         const indexes = decodePgsRle(rle, w, h);
@@ -134,7 +157,8 @@ export class PgsDecoder {
 
 /**
  * Keeps a track's shows and clears in time order so each picture ends when
- * the next display set starts, whatever order the sets were read in.
+ * the next display set starts, whatever order the sets were read in (after a
+ * seek the film is read from the middle, and earlier parts later).
  */
 export class PgsTimeline {
   constructor() { this.events = []; } // {time, cue|null}
@@ -148,13 +172,22 @@ export class PgsTimeline {
     let i = this.events.length;
     while (i > 0 && this.events[i - 1].time > time) i--;
     this.events.splice(i, 0, {time, cue});
-    let changed = false;
+    // Ends are set as a length from the cue's own start: the player may have
+    // moved a cue's times to another clock since it was handed over.
+    const show = (c, seconds) => { const end = c.start + seconds; if (c.provisional || Math.abs(c.end - end) > 1e-3) { c.end = end; c.provisional = false; return true; } return false; };
     if (cue) {
-      const next = this.events[i + 1];
-      if (duration) { cue.end = time + duration; cue.provisional = false; } else if (next) { cue.end = next.time; cue.provisional = false; }
+      // The next set known may be an hour on, read before a seek back: only a
+      // near one (under a minute) ends this picture. Otherwise the block's
+      // own length, or ten seconds until this picture's clear is read.
+      const until = this.events[i + 1] ? this.events[i + 1].time - time : Infinity;
+      if (duration) show(cue, Math.min(duration, until));
+      else if (until < 60) show(cue, until);
     }
+    // The set just read always cuts the picture before it: at once when it
+    // falls inside that picture's time, and from a guessed end when it is near.
     const prev = this.events[i - 1];
-    if (prev?.cue && prev.cue.provisional && time - prev.time < 60) { prev.cue.end = time; prev.cue.provisional = false; changed = true; }
-    return changed;
+    if (!prev?.cue) return false;
+    const gap = time - prev.time, shown = prev.cue.end - prev.cue.start;
+    return gap < shown - 1e-3 || (prev.cue.provisional && gap < 60) ? show(prev.cue, gap) : false;
   }
 }

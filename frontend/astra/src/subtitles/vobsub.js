@@ -5,13 +5,20 @@
 // pictures and a control list saying when to show and hide them, which four
 // palette colours to use and how transparent each is.
 
-/** Reads the .idx header: {width, height, palette: Uint32Array(16) RGB}. */
+import {MAX_FRAME} from './pgs.js';
+
+/**
+ * Reads the .idx header: {width, height, sized, palette: Uint32Array(16) RGB}.
+ * `sized` is false when the file gives no frame size, or one no film has
+ * (then 720×576 is assumed for placing the pictures).
+ */
 export function parseIdx(text) {
   const size = /size:\s*(\d+)x(\d+)/i.exec(text);
+  const sized = !!size && +size[1] > 0 && +size[2] > 0 && +size[1] <= MAX_FRAME.width && +size[2] <= MAX_FRAME.height;
   const palette = new Uint32Array(16);
   const line = /palette:\s*([0-9a-f,\s]+)/i.exec(text);
   if (line) line[1].split(',').map(s => s.trim()).filter(Boolean).slice(0, 16).forEach((hex, i) => { palette[i] = parseInt(hex, 16) >>> 0; });
-  return {width: size ? +size[1] : 720, height: size ? +size[2] : 576, palette};
+  return {width: sized ? +size[1] : 720, height: sized ? +size[2] : 576, sized, palette};
 }
 
 const TICK = 1024 / 90000; // control delays are in 1024 / 90 kHz units
@@ -50,7 +57,7 @@ export function parseSpu(spu) {
 /** Decodes the two interlaced fields into 2-bit colour values, one byte per pixel. */
 export function decodeSpuPicture(spu, {area, offsets}) {
   const width = area.x2 - area.x1 + 1, height = area.y2 - area.y1 + 1;
-  if (width <= 0 || height <= 0 || width > 4096 || height > 4096) return null;
+  if (width <= 0 || height <= 0 || width > MAX_FRAME.width || height > MAX_FRAME.height) return null;
   const out = new Uint8Array(width * height);
   for (let field = 0; field < 2; field++) {
     let nibble = offsets[field] * 2;
@@ -85,6 +92,10 @@ export class VobSubDecoder {
     if (!control) return null;
     const {area, colors, alpha} = control;
     const width = area.x2 - area.x1 + 1, height = area.y2 - area.y1 + 1;
+    // The area is the packet's own claim (64 bytes can ask for 4096×4096): a
+    // picture is never larger than the frame it is shown in.
+    const frame = this.idx.sized ? this.idx : MAX_FRAME;
+    if (width <= 0 || height <= 0 || width > frame.width || height > frame.height) return null;
     const rgb = colors.map(c => this.idx.palette[c] || 0);
     const rgba = rgb.map((c, i) => ((alpha[i] * 17) << 24 | (c & 0xff) << 16 | (c >> 8 & 0xff) << 8 | c >> 16 & 0xff) >>> 0);
     const start = time + control.start;
