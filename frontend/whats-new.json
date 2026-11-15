@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-11-thirty-hours",
-  "date": "2026-11-11",
+  "id": "2026-11-15-astra-player",
+  "date": "2026-11-15",
   "lines": [
     {
-      "text": "Apps open already built: the one under your finger in the ring starts loading before you let go."
+      "text": "Astra's player has a Playback menu: speed, sleep timer, repeat a part, sound only. Chapter marks and pinch to zoom.",
+      "open": "astra"
     },
     {
-      "text": "Settings has 34 new choices (springs, clock, ask bar, island), and 12 old ones that did nothing now work."
+      "text": "Skip intro works: Astra learns a series' opening from its sound, on your phone. Anime subtitles show their signs."
     },
     {
-      "text": "Photos: Edit opens the new editor for a RAF. The one before is under Settings, Photos, Editor.",
-      "open": "photos"
+      "text": "Audio has a Sound tab (volume boost, night mode, dialogue) and Stream info can sharpen the picture."
     },
     {
-      "text": "Astra plays many more formats; Music's queue can be edited and comes back after a restart."
+      "text": "Films no longer download whole behind your back, seeks land in about a second, and streams say how they will play."
     }
   ]
 }

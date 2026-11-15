@@ -52,7 +52,8 @@ export class SoundControl {
   /** What the owner asked for: the saved prefs and this title's timing. */
   get wanted() { const s = this.p.prefs; return {boost: settle(s).boost, night: !!s.night, dialogue: settle(s).dialogue, delay: this.delay}; }
   get rebuilt() { return this.p.engine.audioOptions?.().find(a => a.selected)?.delivery === 'rebuilt'; }
-  get advance() { return has(this.p.engine, 'setAudioAdvance'); }
+  // Only where the engine fills the sound buffer itself (remux): elsewhere it accepts the value and does nothing.
+  get advance() { return has(this.p.engine, 'setAudioAdvance') && this.p.engine.mode === 'remux'; }
 
   /** '' when the sound can be changed now, else why not (plain words). */
   why() {

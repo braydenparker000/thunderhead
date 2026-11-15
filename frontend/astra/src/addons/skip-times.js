@@ -1,6 +1,7 @@
 // Public skip times for anime (AniSkip), off unless the owner turns it on.
-// It sends two outside services a show's public id and an episode number,
-// nothing else: no cookies, no referrer, no stream or add-on address.
+// It sends two outside services a show's public id, an episode number and (to
+// AniSkip) the file's length in seconds, nothing else: no cookies, no referrer,
+// no stream or add-on address.
 //  1. api.ani.zip maps a Kitsu or IMDb id to a MyAnimeList id.
 //  2. api.aniskip.com answers the opening, ending and recap for that episode.
 // Both let any web page read their answers. Answers, "nothing known"

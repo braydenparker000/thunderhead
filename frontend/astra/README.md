@@ -13,16 +13,18 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | Path | What it is |
 | --- | --- |
 | `index.html`, `src/main.js` | The app at `/astra/`. Installable (`manifest.webmanifest`); `sw.js` opens it from a saved copy (below). |
-| `src/app/` | `app.js` (tabs, screen stack, playing a stream), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu). |
+| `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged) and `intro-store.js` (what Skip intro has learned, in IndexedDB). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
-| `lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
-| `src/engine/` | The playback engine (below). |
-| `src/player/` | The full-screen player (Nuvio's layout and gestures): `player-screen.js`, pure gesture rules in `gestures.js`, saved choices in `prefs.js`. |
+| `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `adaptive.js` (HLS and DASH). Reading: `probe.js`, `http-source.js` and `source-stream.js` (the range reader), `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`. Playing: `remux.js`, `remux-audio.js`, `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js` and `software-sound.js` (libmedia). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
+| `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0; see `LICENSES.md` there), `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
-| `src/subtitles/` | SRT, WebVTT and ASS parsing, and the renderer that draws cues over the video. |
-| `src/addons/` | The Stremio add-on protocol client, and TorBox link resolution (`debrid.js`). |
-| `src/styles/tokens.css` | Colours, type, radii, motion and shared controls. |
-| `vendor/` | Mediabunny and its AC-3, DTS and TrueHD decoders, hls.js and dash.js, and JASSUB, copied by `node scripts/astra/vendor.mjs` (see `vendor/LICENSES.md`). |
+| `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
+| `src/addons/` | The Stremio add-on protocol client (`client.js`), TorBox link resolution (`debrid.js`), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
+| `src/styles/` | `tokens.css` (colours, type, radii, motion and shared controls) and `app.css`. |
+| `vendor/` | Mediabunny 1.66.0 and its AC-3, DTS and TrueHD decoders, hls.js 1.6.13, dash.js 5.2.0 and JASSUB 2.5.37 (libass), copied by `node scripts/astra/vendor.mjs` from the npm packages pinned in `vendor.json`, which also holds a hash of every file (see `vendor/LICENSES.md`). |
+| `fonts/`, `icons/` | Inter (SIL OFL 1.1, `fonts/LICENSE.md`) and the app's icons. |
 
 ## The app
 
@@ -58,21 +60,66 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   its place with placeholder cards while it is asked and is filled in place,
   so cards already on screen never move to a new element under the finger.
   Continue Watching opens Streams at once from what was saved. Nothing is
-  ranked or picked for you. Long-press a stream to copy it, open it in VLC or check it in the
-  lab. TorBox links from add-ons are resolved to the file just before play.
+  ranked or picked for you. Long-press a stream to copy it, play it in
+  another app, open it in VLC or check it in the lab (the stream goes to the
+  lab in the address's fragment, which never reaches a server or a cache,
+  and the lab takes it out of the address bar once read). TorBox links from
+  add-ons are resolved to the file just before play.
+- **What a stream card says.** Its size and, when the title's runtime is
+  known, what an hour of it costs ("710 MB an hour"). Under it, one quiet
+  line on how it will most likely play on this phone (`device-facts.js`):
+  "Plays directly", or "Needs the software decoder (uses more battery)" with
+  a dot. It is read from the label (codec, picture size, 10-bit or HDR) and
+  the browser's own answer to whether it decodes that smoothly and
+  power-efficiently (`navigator.mediaCapabilities.decodingInfo`, asked once
+  per codec and size a visit), never from the browser's name. An MP4 that
+  names no codec is asked as H.264; an MKV or WebM that names none says
+  nothing; without an answer from the browser only 8-bit H.264 is said to
+  play directly. A second note, "Sound converted on the phone", shows when
+  the label names Dolby Digital or DTS and no AAC, Opus, MP3 or FLAC. The
+  line's room is held before the answer arrives, so nothing moves under a
+  finger. Both inform only: nothing is hidden, ranked or picked by them.
+- **The owner's filter chips** (a second row under the add-ons'; the
+  reading is in `stream-facts.js`): Smallest first, one size limit (under
+  700 MB, 1.5 GB or 3 GB), any of 720p, 1080p, 4K and SD, any of HEVC and
+  AV1, and Clear. They are kept between titles, the list's footer says how
+  many they hide, and with a size limit on a stream of unknown size is
+  hidden (it may be any size). A stream's size comes from the add-on's own
+  number, else the first size in its name, description or file name, read
+  as people write it: "1,400 MB", "1.4 GB", "700MiB", "1 400 MB"; one
+  separator before three digits groups thousands in KB and MB but is a
+  decimal point in GB and TB ("1.400 GB" is 1.4 GB). A picture size is read
+  with sizes taken out ("720 MB" is not 720p) and "1920x800" by its width; a
+  written 2160, 1080 or 720 wins over the words UHD and 4K. Codec names may
+  run into a bit depth ("HEVC10bit"). A word is a word only between
+  non-letters, so "1080p_x265" is read as both.
 - **Nothing plays without a tap.** The next-episode card and skip buttons are
-  taps; there are no countdowns.
+  taps; there are no countdowns. Next, or an episode picked in the player,
+  stops what plays and collects that episode's streams: when the stream
+  playing names a release group (`bingeGroup`) and one of the new streams
+  has the same group, that one plays on; otherwise the player shows the
+  episode's sources, through your filters (those they hide are counted and
+  can be shown), and loads nothing until you pick one.
 - Progress is saved every 10 s while playing, and on pause, close and leaving the app. Streams under 121 s are
   placeholder clips and are not tracked. At 90% a title counts as watched and
-  Continue Watching offers the next episode instead.
+  Continue Watching offers the next episode instead. A resumed film saves
+  nothing until it has reached its saved place (or played a minute), so the
+  early times of a resume never overwrite it.
 - **Settings**: appearance, which catalogs Home shows, add-ons (install,
-  enable, reorder, configure, remove), playback defaults (preferred audio and
-  subtitle language, subtitle style) and your data (export, restore, clear).
-  Install takes what people paste (`stremio://`, a `/configure` page, a
-  trailing slash or `#…`), installs on Enter, ignores a second tap while
-  checking, and offers to replace an add-on already installed from another
-  address (same manifest id). Each add-on says Loading…, Active, or why it
-  could not load, with Retry.
+  enable, reorder, configure, remove), playback and your data (export,
+  restore, clear). Install takes what people paste (`stremio://`, a
+  `/configure` page, a trailing slash or `#…`), installs on Enter, ignores a
+  second tap while checking, and offers to replace an add-on already
+  installed from another address (same manifest id). Each add-on says
+  Loading…, Active, or why it could not load, with Retry.
+- **Settings › Playback**: touch gestures, the hold speed (1.25x to 3x),
+  the pause overlay, picture size, rotation, picture-in-picture on leaving
+  the app, and **Save mobile data** (Automatic, Always, Never; below). Under
+  **Skip intro**: **Find intros by sound** (on unless turned off; works on
+  this phone and sends nothing) and **Look up anime skip times** (off unless
+  you turn it on; see Skip intro below). Then OpenSubtitles on or off, and
+  the remembered audio and subtitle languages with a way to forget them.
+  Subtitle style is set in the player.
 
 ## When add-ons misbehave
 
@@ -81,7 +128,9 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   are arrays; catalogs without an id and type are dropped) and `normaliseMeta`
   every title (names as string lists, season and episode as numbers or null,
   unreadable dates dropped and counted as aired). Home, Search and Discover
-  also skip, one add-on at a time, anything that still fails.
+  also skip, one add-on at a time, anything that still fails. An answer
+  larger than 5 MB is refused as soon as that is known, and one that never
+  ends is cut there, so it cannot fill the phone's memory.
 - **Failures are shown, not hidden**: a Home row whose catalog fails keeps
   its title with "Couldn't load this row · Retry"; Streams marks an add-on
   that did not answer and offers Retry for it alone; Search says "Couldn't
@@ -131,11 +180,15 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 - **Only the start-up code loads at start-up.** `index.html` preloads the
   modules `main.js` imports (`tests/astra-startup.test.mjs` keeps the list
   exact); the player and the engine load on the first Play, fetched early
-  while Details or Streams is open.
+  while Details or Streams is open. Skip intro's finder, its store and the
+  lookup load with the first episode; JASSUB with the first styled
+  subtitle; hls.js, dash.js and each audio decoder with the first film that
+  needs it.
 
 ## Saved data
 
-Everything is kept in this browser under `astra.v2.*` (`src/app/store.js`).
+Astra's own data is kept in this browser under `astra.v2.*`
+(`src/app/store.js`).
 
 - Each saved value is checked when read: a damaged entry is dropped and a
   value of the wrong shape counts as unsaved, so one bad value cannot stop
@@ -143,15 +196,17 @@ Everything is kept in this browser under `astra.v2.*` (`src/app/store.js`).
   offers **Export raw data** (what is stored, as text) and **Reset Astra
   data** (removes only `astra.v2.*`; classic Astra's data stays and is
   copied again, as on a first launch).
-- A backup holds add-ons, library, progress, watched, settings and recent
-  searches.
+- A backup holds add-ons, library, progress, watched, settings (Skip
+  intro's two switches among them) and recent searches.
 - **Restore** (Settings > Your data) checks the whole file first. A file that
   isn't an Astra backup, or has a part of the wrong shape, is refused and
   nothing changes; damaged entries inside a good part are skipped and
   counted. Otherwise it replaces this device's data all or nothing: what the
-  backup lacks is removed. Player choices, Library layout and sort, and the
-  last stream filter stay, because they describe this phone rather than what
-  you saved or watched. The message says what came back.
+  backup lacks is removed. Player choices (speed, volume, brightness, the
+  Sound and Picture settings, the data saver, subtitle style), Library
+  layout and sort, and the last stream filter stay, because they describe
+  this phone rather than what you saved or watched. The message says what
+  came back.
 - After a restore or "Copy again from classic Astra" nothing is written until
   the reload, and progress is only written when there is something new to
   save, so leaving the page cannot undo either.
@@ -162,11 +217,15 @@ Everything is kept in this browser under `astra.v2.*` (`src/app/store.js`).
 - When the browser cannot save (storage full, or site data blocked) Astra
   says so once instead of failing silently; with site data blocked it still
   opens.
+- What Skip intro learns by sound is kept apart, in IndexedDB `astra-intro`
+  (`src/app/intro-store.js`; localStorage is too small for fingerprints): at
+  most 60 series, the most recently used kept, and eight episodes each. It
+  is not in a backup and Reset leaves it; without IndexedDB nothing is kept.
 
 ## How a file plays
 
-`AstraPlayer.load()` (`src/engine/player.js`) does three things, in order, and
-never switches pipeline mid-play:
+`AstraPlayer.load()` (`src/engine/player.js`) reads the file, decides once
+how it plays and plays it; it never switches pipeline mid-play. In detail:
 
 1. **Read before playing** (`probe.js`, `http-source.js`, `mkv.js`,
    `chapters.js`). One open-ended range request streams the file into a
@@ -259,6 +318,10 @@ no HEVC decoder of its own, so HEVC shows the software route): 57 play,
 read "56 play, four of them without sound", and that was the checker's
 fault: see MPEG Layer II below).
 Before this pass 38 of the first 64 played and 14 showed black or stalled.
+These counts were made with Mediabunny 1.55.7, before the TrueHD decoder
+and the engine work of 2026-11-15, and the matrix has not been run again
+since. Dolby TrueHD, then among the files that stop, now plays
+(`truehd.mkv` in `tests/astra-play-browser.test.mjs`).
 
 | Picture | Where | How |
 |---|---|---|
@@ -307,6 +370,8 @@ wired but were not tried: no test film could be made here.
 with Dolby Digital 5.1 (converted as it plays) and a second AAC track, in
 desktop Chrome; the slowed columns have the page's thread six times slower
 and the connection limited to 20 Mbit/s, which is nearer a slow phone.
+Measured with Mediabunny 1.55.7, before the engine work of 2026-11-15; not
+measured again since.
 
 | | Fast machine | Slowed, 20 Mbit/s: before | after |
 |---|---|---|---|
@@ -351,7 +416,8 @@ measured on the phone itself.
 ## The player screen
 
 `new PlayerScreen().open({stream, meta, sources, episodes, next, segments})`
-must be called from a tap: it goes full screen. It follows the phone's
+must be called from a tap: it goes full screen. With no `stream` nothing
+loads and the Sources panel opens for a pick. It follows the phone's
 rotation unless Settings > Playback > Rotation says Landscape or Portrait;
 the rotate button in the top bar switches until the player closes (and says
 so where the screen cannot be turned, as on a desktop). In
@@ -365,27 +431,100 @@ measured height, so nothing covers the title or the buttons.
 - Horizontal swipe seeks (a full width is 60, 90 or 120 s by length), with a
   preview; vertical swipe on the left changes the picture's brightness (a page
   cannot change the screen's), on the right the volume.
-- Hold anywhere but a button plays at 2x until release.
+- Hold anywhere but a button plays at the hold speed (2x unless changed in
+  Settings) until release, and gives the chosen speed back.
+- **Pinch to zoom** (`zoom.js`): two fingers enlarge the picture from 1x to
+  4x, a one-finger drag then moves it within its edges (instead of
+  seeking), and a pinch back to about 1x or the picture-size button puts it
+  back. The picture filter's canvas moves with it; subtitles stay where they
+  are, so they never leave the screen.
 - Lock hides everything; any touch shows "Tap to unlock" and how far along
   playback is.
 - Sound turned all the way down shows a "Sound off" chip in the corner; a tap
   turns it back on.
-- Menus: audio, subtitles (a Tracks tab with language and track; a Style tab
-  with delay, size, position, colour, background, outline and bold, which
-  leaves the picture showing so changes can be seen), stream info; side
-  panels for sources and episodes, opened at the current one. Back closes the
-  menu first, then the player; on a phone in full screen, Android's back
-  (which leaves full screen) does the same, and does nothing while locked.
-- With a keyboard, a menu takes focus and Escape gives it back; the app
-  behind the player cannot be reached while it is open.
-- Skip intro/recap/outro from `segments`; the next-episode card appears at
-  99% (or when the outro starts) and plays only when tapped. An episode not
-  out yet says when it is out, and Next does not play it.
+- **Remembered between films**: the volume, the brightness and the speed
+  go on every film as it opens, as do the Sound and Picture settings below.
+  A resume more than a minute in says "Resumed at 12:34" for 7 s across the
+  top, with **Start over**; a source switch or Try again does not.
+- **The Playback menu** (the Speed button, which shows the speed): speed
+  from 0.5x to 2x with the pitch kept; a **sleep timer** of 15, 30, 45 or
+  60 minutes or the end of the episode, which pauses the film (so its place
+  is saved), says so, and shows what is left quietly at the top (at the end
+  of the episode the next-episode card is not offered); **Repeat a part**:
+  a tap marks A, a second marks B, and playback goes back to A each time it
+  reaches B until Stop repeating or a seek outside the part; **Sound only**:
+  the picture is covered with black showing the title, the time, play and
+  Show picture, the screen is let go so the phone may sleep, and leaving the
+  app does not open picture-in-picture (the lock screen's play resumes it).
+  The sleep timer and Sound only last until the player closes.
+- **The seek bar** shows the skippable parts (intro, recap, outro) as tinted
+  spans, the chapters as thin gaps (none closer than 6 px), and A and B
+  while repeating; dragging shows the chapter's name under the time. A
+  stream with no length (live) shows a full bar marked Live that cannot be
+  dragged or swiped across.
+- **Frame by frame**: while paused, the buttons beside play step one frame
+  back or on (the file's frame rate when known, else 24).
+- Menus: audio (Tracks and Sound tabs), subtitles (a Tracks tab with
+  language and track; a Style tab with delay, size, position, colour,
+  background, outline and bold, which leaves the picture showing so changes
+  can be seen), stream info, Playback; side panels for sources and
+  episodes, opened at the current one. Back closes the menu first, then the
+  player; on a phone in full screen, Android's back (which leaves full
+  screen) does the same, and does nothing while locked.
+- **Subtitle delay** in steps of 0.1 s and 1 s, up to a minute either way
+  (z and x on a keyboard move it 0.1 s); it is kept for the next episode of
+  the same series and starts at 0 with another title. **Find a line**
+  (subtitles menu, while a text track shows) searches every line of the
+  track, case and accents ignored, and a tap goes to a second before it.
+  **Second subtitle** (for learning a language): another text track at the
+  top of the picture, smaller, in the first one's colours and with its
+  delay; never a picture track, an HLS or DASH stream's own track, or the
+  track the first shows (a styled track shows there as plain text).
+- **Stream info** says how the film plays, its picture, sound, file, frames
+  shown and dropped, the notes of the plan, **Data used** ("412 MB so far",
+  refreshed while open; not counted when Chrome plays the film itself), the
+  chapters (a tap goes there), and **Save this frame**: the frame at the
+  video's own size, without subtitles, as a PNG named after the title and
+  the time (never the stream or the add-on). A film from a host that does
+  not let the page read it says it cannot be saved.
+- **The audio menu's Sound tab** (`sound-menu.js`, `enhance/sound.js`):
+  **volume boost** (100, 150, 200 or 300 %, through a limiter, shown as a
+  "Boost 200 %" chip by the corner whose tap opens the tab; the volume
+  level stays 0 to 100 %), **night mode** (quiet sound up, loud bangs
+  down), **dialogue** (+1 or +2: the centre channel lifted, or the speech
+  band in stereo; for sound the engine converts, the centre is lifted in
+  its own mix-down), and **sound delay** in 0.05 s steps up to a second
+  later, or earlier where the engine re-wraps the film (the page itself can
+  only make sound later). Boost, night mode and dialogue are kept for every
+  film; the delay belongs to one title. The tab is greyed with the reason
+  before the film has started and for a film played straight from a host
+  that does not let the page read it (its sound would be silenced). In the
+  software decoder the same chain goes into libmedia's own sound path. With
+  everything off the sound passes untouched, and nothing takes the film's
+  sound until a feature is first turned on.
+- **The Picture section** at the top of Stream info (`picture-menu.js`,
+  `enhance/picture.js`): **sharpen** (Low, Medium, High: AMD FSR 1.0's
+  edge-adaptive upscale and sharpening, in WebGL2, up to 1080p output) and
+  **smooth banding**, kept for every film. The film is drawn through the
+  filter onto a canvas over the video only when a new frame is presented,
+  not while the page is hidden or in picture-in-picture. HDR films keep the
+  plain picture (the filter would clip their highlights), and so does a
+  film from a host that does not let the page read it; the section says
+  why. When frames start to be missed it steps itself down (smooth banding
+  off, then a smaller output) and then off, and says so once.
+- **Skip intro, recap, outro** (`markers.js`): the Skip button appears while
+  the playhead is in a segment and skips only on a tap; without the
+  controls it stays 10 s, then waits for them. The next-episode card
+  appears at 99% (or when an outro that runs to the end starts), for titles
+  over two minutes, and plays only when tapped; while it shows, the outro's
+  Skip does not. An episode not out yet says when it is out, and Next does
+  not play it. Where the segments come from is under Skip intro below.
 - Picture-in-picture (top bar): the video moves to Android's floating window
   and the app can be used; expanding the window brings the player back (also
   after pausing in the window), closing it ends playback. Leaving Astra while playing opens it by itself
   where Chrome allows (Settings > Playback > Picture-in-picture). Android leaves full screen on the way
-  into and out of the window; those changes are not taken for the back button.
+  into and out of the window; those changes are not taken for the back button,
+  and nor is the full screen Android drops when Chrome goes to the background.
 - A load that runs past 5 s shows how long and how much has arrived; past 10 s it says what it is
   waiting on (the debrid service, a host that has not answered, or a slow one) and offers the other
   sources and another app.
@@ -396,12 +535,59 @@ measured height, so nothing covers the title or the buttons.
   the player stop, offering Try again from where it stopped. A dead link
   (404/410) asks for another source; a host that does not answer in 15 s
   says so. Another app is offered only for files the browser cannot play.
-- Media Session controls, screen kept awake.
+- Media Session controls (the lock screen's play, pause, seek and next
+  episode, with the position line); the screen is kept awake while playing,
+  except in Sound only.
+- With a keyboard, a menu takes focus and Escape gives it back; the app
+  behind the player cannot be reached while it is open. Space or k, the
+  arrows or j and l, m, f, c, z and x do what a desktop player's do.
 - Unpacking a file gives the page a turn every 8 ms, so taps (Close
   included) answer while a film starts.
 - While a file is being described, Astra reads only 2 MB ahead of what it
   asked for; resuming halfway then closes the connection at the start, so it
   does not share the phone's bandwidth with the one that is needed.
+- **Close** (the back arrow, back, or closing the floating window) stops
+  everything at once: the sleep timer, Sound only, the picture filter's
+  canvas, Find a line, menus, gestures, notices, full screen, the wake
+  lock, picture-in-picture and the lock-screen controls; the app is
+  reachable again, where playback got to is saved, a debrid lookup or play
+  still on its way is dropped, Skip intro's finder stops and keeps what it
+  learned, and the engine lets go of the film and its connections.
+
+## Skip intro
+
+The segments the Skip button offers come from two places (`src/app/skip.js`),
+merged by kind; nothing ever skips by itself, and movies get neither.
+
+- **Found by sound, on this phone** (Settings › Playback › Find intros by
+  sound, on unless turned off). While an episode plays, the engine hands
+  decoded sound to a finder (`engine/sound-tap.js`, `intro-finder.js`) as
+  it reads it, for the first six and last four minutes. It is fingerprinted
+  (`fingerprint.js`: pitch-class and band energies below 3.5 kHz, compared
+  with each other and half a second earlier, so loudness and the encoder
+  hardly matter) and matched against episodes of the same series heard
+  before (`fingerprint-match.js`) in slices of a few milliseconds, so the
+  page stays free. A segment is offered once its start and end have been
+  heard here and in the other episode; once two pairs of episodes agree on
+  the opening, its fingerprint is kept as the series' intro and new
+  episodes are matched against it first. What was found before shows at
+  once next time. Nothing is sent anywhere; what is kept is in
+  `astra-intro` (Saved data above). The tap works only where Astra reads
+  the sound itself, a re-wrapped film (`remux`): a film Chrome plays
+  itself, an HLS or DASH stream and the software decoder give it nothing,
+  so the first episodes of a series find nothing until two have been heard.
+- **Looked up, for anime** (Settings › Playback › Look up anime skip times,
+  off unless you turn it on; `src/addons/skip-times.js`). For a series whose
+  id is a MyAnimeList (`mal:`), Kitsu (`kitsu:`) or IMDb id (`tt…`, first
+  season only), once the episode's length is known, Astra asks
+  api.ani.zip for the MyAnimeList id that matches a Kitsu or IMDb id (the
+  id is the only thing in the request), then api.aniskip.com for that id
+  and episode number, with the opening, ending, mixed and recap kinds and
+  the file's length in whole seconds (to pick the timing that fits this
+  release). No cookies and no referrer go with either; no add-on, stream
+  or title name. Answers, "nothing known" included, are kept in memory for
+  the visit. A looked-up segment wins over one found by sound of the same
+  kind, and recaps come only from the lookup.
 
 ## Subtitles
 
@@ -409,12 +595,25 @@ measured height, so nothing covers the title or the buttons.
   OpenSubtitles v3 unless turned off in Settings > Playback. When Astra can
   read the file it sends the OpenSubtitles hash and size (`file-hash.js`), so
   subtitles timed for that exact release are marked "Exact match" and come
-  first. Files are downloaded only when chosen (`src/addons/subtitles.js`).
+  first. Files are downloaded only when chosen (`src/addons/subtitles.js`),
+  and one over 8 MB is refused.
 - **Inside the file**: SRT, ASS and WebVTT in MKV; PGS (Blu-ray) and VobSub
   (DVD) picture subtitles in MKV (`src/subtitles/pgs.js`, `vobsub.js`); 3GPP
   timed text and WebVTT in MP4 (`src/engine/mp4.js`). They are read from data
   the video pipeline already downloaded (`embedded-subtitles.js`), block by
   block as it arrives, so seeking works with or without a cue index.
+- **Styled subtitles (ASS/SSA) are drawn by libass** (`subtitles/libass.js`:
+  JASSUB, libass in WebAssembly, drawing on its own canvas from a worker),
+  so signs, typesetting, karaoke and positioned lines look as authored. For
+  a film's own track the fonts attached to the film are read
+  (`engine/mkv-attachments.js`: fonts only, bounded in number and size,
+  read a header at a time so cover pictures and the film around them are
+  not downloaded); Liberation Sans is the fallback, and the phone's own
+  fonts and online font services are never asked. An .ass file from an
+  add-on or the phone is drawn the same way. JASSUB (2.4 to 2.5 MB) is
+  fetched when a styled track is first chosen; a frame is asked of it only
+  while a line is on screen. Until it draws, and for good if it cannot
+  start, Astra's own renderer shows the track's text.
 - **In adaptive streams**: an HLS or DASH stream's own subtitle tracks are
   listed; hls.js and dash.js load them and Astra copies each cue once into
   its own renderer, so they take the same style as every other subtitle.
@@ -422,43 +621,103 @@ measured height, so nothing covers the title or the buttons.
 - The remembered language is shown by itself: the file's own track first,
   then an exact match, then the first add-on file. Choosing Off forgets it.
 - Old code pages (Cyrillic, Arabic, Central European and others) and UTF-16
-  files are decoded by language, from add-ons' two- or three-letter codes.
+  files are decoded by language, from add-ons' two- or three-letter codes
+  (or the language picked in the menu for a file from the phone); the
+  language is a hint checked against the bytes, so French loaded under
+  "Russian" does not come out in Cyrillic letters.
 - A file's format is read from its first line (an .srt named
   "Glass.Onion" stays SRT); a file one reader finds empty is offered to the
   others. A host that blocks reading the file is said in the subtitles menu
   (add-on subtitles still work).
+- **Files as people find them**: a timing line starts a cue whether or not
+  blank lines (or lines holding only a space) separate cues; a number just
+  above a timing line is that cue's counter, and a cue whose text is a
+  number keeps it in a file that does not count its cues; hours or the
+  fraction may be missing; a timing line that cannot be read ends the cue
+  above and starts none; old .ssa colours and styles are read; an entity
+  that is no character stays as written.
+- **Picture subtitles stay small**: pictures stay run-length coded until
+  shown, and only the last few drawn are kept (never more than 32 MB of
+  pixels) for a redraw. Sizes a file claims are held to a real film's frame
+  (4096x2304 at most), and a VobSub file that gives no frame size, or an
+  impossible one, is placed as 720x576.
 
 ## Tests
 
-- `tests/astra-*.test.mjs` (root `npm test`): planner, subtitles (text and
-  picture decoders, the MP4 reader, the block scanner, the file hash, add-on
-  subtitles), the MKV reader, the range reader, the add-on client, saved
-  data (`astra-store.test.mjs`: sanitising, restore, two windows, saving
-  only what changed), rows and the Play button.
-- `backend/tests/astra-playback-browser.test.js` (`npm run test:backend`
-  with `JARVIS_CHROME`): real playback in Chrome against synthetic files on a
-  separate origin, including audio switching measured by pitch, subtitles,
-  seeking, blocked hosts and HEVC refusal. The HLS subtitle test runs when
-  `ASTRA_HLS_JS` names a local copy of the pinned `hls.min.js` (tests never
-  reach the CDN).
-- `backend/tests/astra-player-browser.test.js`: the player screen at phone
-  landscape size: gestures, hold, lock, back order, menus, skip; and in
-  portrait: rotation settings, the rotate button, picture-in-picture.
-- `backend/tests/astra-shell-browser.test.js`: Android back in the awkward
-  cases, long-press and sheet dragging with real touch input, and the
-  confirm dialog (back, Escape, focus, one run per choice).
-- `backend/tests/astra-app-browser.test.js`: the app at phone portrait size
-  against a fixture add-on (`backend/tests/helpers/astra-media-server.js`):
-  Home, back, Continue Watching, the lift menu, Library, episodes, paging,
-  Search, add-on settings, the classic import, add-on subtitles, the saved
-  copy (offline start, a new release announced), backup restore, damaged and
-  blocked storage, the recovery card and two windows at once, and
-  misbehaving add-ons (`/broken`, `/flaky`, `/small` on the fixture server:
-  a malformed manifest, failing streams and meta, five-item pages, a
-  seasonless channel).
-- `tests/astra-addon-data.test.mjs`: manifest and metadata normalisation,
-  pasted addresses, and how failed requests are described.
-- Fixtures: `bash scripts/astra/make-fixtures.sh` regenerates
-  `tests/fixtures/astra/` (needs ffmpeg). Each audio track is a sine tone at a
-  different pitch.
-- Vendored files: `node scripts/astra/vendor.mjs --check`.
+The `tests/astra-*.test.mjs` files run in the root `npm test` (and `npm run
+test:site`). Those named `-browser` drive a real Chromium through
+Playwright (`CHROMIUM_PATH=/opt/pw-browsers/chromium` in agent sessions) on
+the site served by `scripts/serve.mjs`, reach nothing on the internet, and
+are skipped against a deployed site (`SITE_URL`); checks that need H.264
+skip in a browser without it.
+
+| File | What it covers |
+| --- | --- |
+| `astra-plan.test.mjs` | The planner and the software decoder's tables: which way each kind of file plays. |
+| `astra-engine.test.mjs` | The range reader against hosts that cut, stall, answer nothing or move; headers read without trusting their sizes (MKV, clusters, MP4); the stall watchdog; early fragments; playlists without byte ranges. |
+| `astra-source.test.mjs` | After a seek the dropped pipelines' reads end and their downloads close. |
+| `astra-early.test.mjs`, `astra-downmix.test.mjs` | Half-second fragments; converted sound mixed a sample at a time. |
+| `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
+| `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running. |
+| `astra-feed.test.mjs` | A film's attached fonts (bounded), which files libass can draw, the second track moved to the top, the sound tap's bookkeeping. |
+| `astra-subtitles.test.mjs` | The parsers on files as people find them, and picture subtitles with impossible sizes or out of order. |
+| `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
+| `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs. |
+| `astra-addon-json.test.mjs` | Add-on answers over 5 MB refused, and one that never ends cut. |
+| `astra-skip.test.mjs` | The sound fingerprint and its matching, what the intro store keeps, and the skip-times lookup against invented answers. |
+| `astra-player.test.mjs` | The gesture rules, when progress may overwrite the saved place, the next episode's sources through the filters, and `player/rules.js`. |
+| `astra-enhance.test.mjs` | The sound chain's stereo mix against the engine's, and the picture's sizes. |
+| `astra-startup.test.mjs` | `index.html` preloads exactly what start-up imports. |
+| `astra-sw.test.mjs` | The service worker in a vm with Cache Storage that outlives it: releases, updates, restarts. |
+| `astra-sw-browser.test.mjs` | The worker in Chromium: offline start, a one-file update, the Reload offer staying, a page keeping its release across an update and a restart, no query as a key. |
+| `astra-play-browser.test.mjs` | The engine on real films from another origin: every way of playing (HLS and DASH from `vendor/`), seeks, changing sound track, TrueHD heard, chapters and frame rate, CORS for native films, connections let go on close, a host that is gone, silent or cutting. |
+| `astra-player-browser.test.mjs` | The player screen at phone size with touch and a stubbed engine: resume point, picture-in-picture, holds, close, controls, live seek bar, focus, lock, full screen lost in the background. |
+| `astra-features-browser.test.mjs` | The Playback menu, remembered volume, Start over, seek-bar marks, subtitle delay, Find a line, the second subtitle, frames and stills, pinch to zoom, data used, the source line, the lab's address. |
+| `astra-feed-browser.test.mjs` | On the real page and CSP: libass with the film's font, the second subtitle's layer, the sound tap, dialogue lift and earlier sound in the engine. |
+| `astra-libass-browser.test.mjs` | The libass layer: placement, drawing only while a line shows, the film's font, delay, destroy, and a start that fails falling back. |
+| `astra-enhance-browser.test.mjs` | Sound measured after the chain and the picture read back from the canvas, on real films. |
+| `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |
+| `astra-app-play-browser.test.mjs` | The app end to end: an invented add-on, a tap on a stream, chapters, the sound tap fed, data used, the Sound tab, Find a line, another source drawn by libass, no page error. |
+| `astra-open-browser.test.mjs` | The Thunderhead's link (`?find=…&max_mb=…`) opens Details, the size chip, nothing plays by itself. |
+
+- **Films**: `tests/fixtures/astra/` (about 2.7 MB, committed) is made by
+  `bash scripts/astra/fixtures.sh [film…]` (needs ffmpeg; name films to
+  remake only those, since x264 builds differ). Each is a moving test
+  picture with a clock and a sine tone per sound track at its own pitch, so
+  a check can tell by ear which track plays: `multi.mkv` (two AAC tracks,
+  SRT, chapters), `surround.mkv` (Dolby Digital 5.1), `plain.mp4` (plays
+  natively), `open.webm` (VP9, Opus), `anime.mkv` (the hand-written,
+  invented `signs.ass` with Inter Bold attached), `centre.mkv` (a tone in
+  the centre channel only), `truehd.mkv`, `hevc.mkv` (software decoder in
+  the test browser), `hls/` and `dash/`; `beside.srt` loads beside a film.
+- **The file host** (`tests/fixtures/astra-host.mjs`) serves them as a real
+  host does (byte ranges, readable from another origin) and counts what was
+  asked and sent. Its switches make it misbehave: `hang` (never answers),
+  `status` (answers every request with that code), `cutAfter` (drops each
+  connection after so many bytes), `bps` (a slow connection), `noRange`
+  (sends the whole file), `noCors` (no CORS headers; `?nocors` on one
+  film's address does it for that film alone).
+- Vendored files: `node scripts/astra/vendor.mjs --check` checks every
+  file in `vendor/` against the hashes in `vendor.json`, without the
+  network.
+- Measuring a real Chrome on larger films (the tables above) is
+  `scripts/astra/` (its README); none of it runs in CI.
+
+## Not checked on a phone
+
+Everything above was run in desktop Chrome or the headless Chromium of the
+tests, never on the Galaxy A15. Until it is, these are not proven:
+
+- the picture filter's speed on the phone's graphics chip, and how soon it
+  steps itself down;
+- Sound only with the screen off and the phone asleep, and the lock
+  screen's play resuming it;
+- picture-in-picture and full screen on Android: going in and out, closing
+  the floating window, leaving the app while playing;
+- the wake lock keeping the screen on through a film;
+- Skip intro on real episodes of a real series, by sound and by lookup;
+- the software decoder's speed (HEVC, 10-bit H.264, AVI) on the phone;
+- libass on the phone's processor (the build without SIMD, used on phones
+  with 2 GB of memory or less);
+- the data saver's Automatic, which depends on what Chrome on Android says
+  about the connection.

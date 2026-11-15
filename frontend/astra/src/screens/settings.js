@@ -193,7 +193,7 @@ export class SettingsScreen {
       // Both are Astra settings, so they travel in a backup; the lookup is only ever turned on here, by the owner.
       group('Skip intro',
         switchRow('Find intros by sound', 'Works out a series’ opening and ending on this phone by comparing episodes. Nothing is sent anywhere.', this.app.settings.findIntros !== false, v => { this.app.saveSettings({findIntros: v}); page.render(); }),
-        switchRow('Look up anime skip times', 'Asks AniSkip for an episode’s opening and ending. Sends the show’s public id and the episode number to api.aniskip.com and api.ani.zip; nothing else.', this.app.settings.skipLookup === true, v => { this.app.saveSettings({skipLookup: v}); page.render(); })),
+        switchRow('Look up anime skip times', 'Asks AniSkip for an episode’s opening and ending. Sends the show’s public id, the episode number and the file’s length to api.aniskip.com and api.ani.zip; nothing else.', this.app.settings.skipLookup === true, v => { this.app.saveSettings({skipLookup: v}); page.render(); })),
       group('Subtitles',
         switchRow('OpenSubtitles', 'Also look for subtitles on OpenSubtitles, Stremio’s subtitle add-on, as well as your installed add-ons', this.app.settings.openSubtitles !== false, v => { this.app.saveSettings({openSubtitles: v}); page.render(); })),
       group('Languages',

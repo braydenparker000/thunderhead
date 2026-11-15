@@ -61,7 +61,7 @@ test('no outside hosts anywhere in the site', async () => {
       // engine/lightcraft-web/README.md; the engine test page's pkg-threads/, engine/raw/README.md): its licence notice and a bug link, comments, never fetched.
       if (/^(photos\/engine\/threads|lab\/lightcraft\/threads|lab\/engine\/pkg-threads)\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
       // Astra's skip-times lookup (ASTRA.md, Skip intro): AniSkip and the id mapping it needs, asked only when the
-      // owner has turned "Look up anime skip times" on (off unless they do), with a show's public id and episode number.
+      // owner has turned "Look up anime skip times" on (off unless they do), with a show's public id, episode number and the file's length.
       if (relative(SITE, f) === 'astra/src/addons/skip-times.js' && ['https://api.aniskip.com/v2/skip-times', 'https://api.ani.zip/mappings'].includes(url)) continue;
       // Astra's vendored players (astra/vendor/, pinned and hashed in vendor.json): names inside the libraries, never
       // fetched: licence and sample links, XML and scheme identifiers, and dash.js's built-in clock source, which
