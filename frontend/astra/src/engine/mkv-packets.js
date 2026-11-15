@@ -97,6 +97,7 @@ class MkvPackets {
 
   /** Frame `i` of `track` in cluster `c` (read on until it is there), or null when the cluster has no more. */
   async frame(c, track, i) {
+    while (c.successor) c = c.successor;
     for (let again = true; ; again = false) {
       try {
         const list = c.list(track);
@@ -107,13 +108,14 @@ class MkvPackets {
         // dropped; a new pipeline that took the same cluster meanwhile reads it afresh (the same frames, in order).
         if (!again || e?.kind !== 'closed') throw e;
         const held = this.clusters.get(c.pos);
-        c = held && held !== c && !held.error && held.from === c.from && held.wanted.has(track) ? held : this.replace(c.pos, c.from);
+        c = c.successor ??= held && held !== c && !held.error && held.from === c.from && held.wanted.has(track) ? held : this.replace(c.pos, c.from);
       }
     }
   }
 
   /** Where the cluster after `c` begins, or null at the end of the film. */
   async next(c) {
+    while (c.successor) c = c.successor;
     if (this.after.has(c.pos)) return this.after.get(c.pos);
     let at = c.cut ? null : c.endPos;
     for (let guard = 0; at != null; guard++) {
@@ -133,7 +135,8 @@ class MkvPackets {
   /**
    * The frame of `track` at or before `ticks` that passes `test`, found by the cue index; `stop` ends a scan early.
    * `cued`: the track's own key frames are what its cues point at, so the cued one is the answer when the next cue is
-   * past the place (after the last cue, once frames half a second past the place show no key frame can still come) (a key frame the index leaves out is passed over: the start is then a little earlier).
+   * past the place, or after the last cue once frames half a second past the place show no key frame can still come
+   * (a key frame the index leaves out is passed over: the start is then a little earlier).
    * `near`: when the cued cluster's first frame is later than the place by no more than two of its own lengths, it is
    * the answer rather than the one before it, which sits at the end of the cluster before (unknown without reading
    * from the cue before, perhaps many clusters back): the sound at a key frame that begins a cluster.
