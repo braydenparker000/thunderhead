@@ -70,8 +70,9 @@ test('sound: a straight wire when off, boost, delay, and the film still heard af
     // The level with no chain (the element's own sound, straight from its source node) and after it, read at once.
     const ctx = sound.ctx, a = ctx.createAnalyser(), raw = ctx.createAnalyser(); a.fftSize = raw.fftSize = 8192;
     sound.chain.out.connect(a); sound.source.connect(raw);
-    await wait(400); out.off = level(a); out.plain = level(raw);
-    sound.set({ night: true }); await wait(300); sound.set({ night: false, dialogue: 1 }); await wait(300); sound.set({ dialogue: 0 }); await wait(300);
+    // A switch takes 0.25 s (sound-chain.js: WARM and FADE): each reading waits for it.
+    await wait(700); out.off = level(a); out.plain = level(raw);
+    sound.set({ night: true }); await wait(300); sound.set({ night: false, dialogue: 1 }); await wait(300); sound.set({ dialogue: 0 }); await wait(600);
     out.again = level(a); out.plainAgain = level(raw);
     sound.set({ boost: 2 }); await wait(600); out.boost = level(a); out.off2 = level(raw);
     sound.set({ boost: 1, delay: 0.5 });
@@ -82,7 +83,7 @@ test('sound: a straight wire when off, boost, delay, and the film still heard af
     const at = {}; const t0 = performance.now(); video.play();
     while (performance.now() - t0 < 3000 && !(at.pre && at.post)) { if (!at.pre && level(pre) > -60) at.pre = performance.now(); if (!at.post && level(post) > -60) at.post = performance.now(); await wait(4); }
     out.shift = (at.post - at.pre) / 1000;
-    sound.close(); await wait(400); out.closed = level(a); out.rawClosed = level(raw); out.state = sound.state();
+    sound.close(); await wait(600); out.closed = level(a); out.rawClosed = level(raw); out.state = sound.state();
     return out;
   }, host.url('multi.mkv'));
   t.diagnostic(`dB: plain ${r.plain.toFixed(2)}, off ${r.off.toFixed(2)}, boost 2 ${r.boost.toFixed(2)} (raw ${r.off2.toFixed(2)}); delay 0.5 s moved the click ${r.shift.toFixed(3)} s`);

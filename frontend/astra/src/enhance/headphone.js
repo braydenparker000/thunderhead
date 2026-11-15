@@ -38,6 +38,31 @@ export function speakerAngles(channels) {
 /** True when headphone surround can place this layout: it has a centre and surrounds. */
 export const placeable = channels => !!speakerAngles(channels);
 
+const hrtf = new Map(); // sample rate → true once the browser's HRTF data is in, or the promise of it
+
+/**
+ * True when the browser's HRTF data is ready for this context's sample rate. Chromium loads it in the
+ * background the first time an HRTF panner is made (about 0.4 s here), and until then its panners pass
+ * the sound through unplaced, 5.7 dB louder than placed for a centre tone. An offline render waits for
+ * the data, and the data is shared by sample rate, so a tiny one loads it; `then` runs once it is in.
+ * Where there is no offline rendering, or it fails, the panners are used as they are.
+ */
+export function hrtfReady(ctx, then) {
+  const rate = ctx.sampleRate, known = hrtf.get(rate);
+  if (known === true) return true;
+  if (!known) {
+    let job;
+    try {
+      const o = new OfflineAudioContext(2, 256, rate), pan = new PannerNode(o, {panningModel: 'HRTF', positionX: 1});
+      const src = new ConstantSourceNode(o); src.connect(pan); pan.connect(o.destination); src.start();
+      job = o.startRendering();
+    } catch (e) { job = Promise.reject(e); }
+    hrtf.set(rate, job.then(() => hrtf.set(rate, true), () => hrtf.set(rate, true)));
+  }
+  hrtf.get(rate).then(() => then());
+  return false;
+}
+
 /** Where a speaker at `degrees` sits, one metre from a listener facing -z (Web Audio's default): [x, y, z]. */
 export function position(degrees) {
   const r = degrees * Math.PI / 180;

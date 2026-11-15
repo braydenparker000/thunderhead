@@ -62,7 +62,7 @@ export class Leveller {
     this.known = known; this.set(db, 0.05);
   }
 
-  /** Measures `input` (the chain's input node); called again after every rebuild, which disconnects it. */
+  /** Measures `input` (the chain's input node). */
   listen(input) {
     this.input = input;
     if (this.meter) { input.connect(this.meter); return; }
@@ -102,7 +102,8 @@ export class Leveller {
   close() {
     this.settle();
     this.closed = true;
-    this.meter?.disconnect(); this.meter = null;
+    if (this.meter) { try { this.input?.disconnect(this.meter); } catch {} this.meter.disconnect(); }
+    this.meter = null;
     this.gain.disconnect();
   }
 }

@@ -183,6 +183,47 @@ test('headphone surround: the centre in both ears alike, the left surround loude
   assert.deepEqual(errors, []);
 });
 
+test('switching on Headphone surround and Even loudness: no jump above the settled level, no dip, no click', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const { page: p, errors } = await page(t);
+  const r = await p.evaluate(async (url) => {
+    const { Sound } = await import('/astra/src/enhance/sound.js');
+    const out = {};
+    // The chain's level less the plain sound's (the element's own, mixed by the browser), in 50 ms steps over 3 s,
+    // with the switch made 0.5 s in; the largest sample-to-sample step of each, for a click.
+    const across = async (sound, change) => {
+      const ctx = sound.ctx, hop = Math.round(0.05 * ctx.sampleRate);
+      setTimeout(() => sound.set(change), 500);
+      const [[l], [pl]] = await record(ctx, [sound.chain.out, sound.source], 3000);
+      const trace = [];
+      for (let i = 0; i + hop <= l.length; i += hop) trace.push(db(l.subarray(i, i + hop)) - db(pl.subarray(i, i + hop)));
+      const jump = (x) => x.reduce((m, v, i) => (i ? Math.max(m, Math.abs(v - x[i - 1])) : m), 0);
+      return { trace, jump: jump(l), plainJump: jump(pl) };
+    };
+    // A fresh page: the first HRTF panner of the page, while the channel count is still unknown, as on a first switch.
+    for (const [name, change] of [['headphones', { headphones: true }], ['loudness', { loudness: true }]]) {
+      const { video, player } = await film(url); video.loop = true;
+      const sound = new Sound(video); sound.mode = player.mode;
+      sound.set({ delay: 0.001 }); await wait(100); sound.set({ delay: 0 }); await wait(400);
+      await room(video, 4);
+      out[name] = await across(sound, change); out[name].settings = sound.state().settings;
+      player.destroy(); video.remove();
+    }
+    return out;
+  }, host.url('centre.mkv'));
+  for (const [name, { trace, jump, plainJump }] of Object.entries(r)) {
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length, before = mean(trace.slice(0, 8)), settled = mean(trace.slice(-10));
+    const between = trace.filter((v) => Math.abs(v - before) > 1 && Math.abs(v - settled) > 1).length;
+    t.diagnostic(`${name}: before ${before.toFixed(2)} dB, settled ${settled.toFixed(2)} dB; steps ${trace.map((v) => v.toFixed(1)).join(' ')}`);
+    assert.ok(Math.max(...trace) <= Math.max(before, settled) + 1, `${name}: no 50 ms step more than 1 dB above the level settled at (${Math.max(...trace).toFixed(2)} dB)`);
+    assert.ok(Math.min(...trace) >= Math.min(before, settled) - 1.5, `${name}: and no dip below it (${Math.min(...trace).toFixed(2)} dB)`);
+    if (name === 'headphones') assert.ok(settled < before - 3, `the placed mix took over within the 3 s (${settled.toFixed(2)} dB for this centre tone)`);
+    assert.ok(between <= 2, `${name}: from one level to the other within two steps (${between} steps between)`);
+    assert.ok(jump <= plainJump * 1.5 * 10 ** (Math.max(0, settled) / 20), `${name}: no click (largest step ${jump.toFixed(3)}, the film's own ${plainJump.toFixed(3)})`);
+  }
+  assert.deepEqual(errors, []);
+});
+
 test('the Sound tab: Even loudness is saved and remembers each title\'s gain; Headphone surround is offered only for 5.1 the page receives', opts, async (t) => {
   if (!h264) return t.skip('this browser has no H.264 decoder');
   host.reset();
@@ -220,7 +261,7 @@ test('the Sound tab: Even loudness is saved and remembers each title\'s gain; He
   assert.ok(centre.includes('Headphone surround'), '5.1 the page receives: offered');
   assert.match(await page.locator('.ap-sound').textContent(), /For headphones: places the film's speakers around you\./);
   await page.locator('[aria-label="Headphone surround"]').click();
-  const placed = await page.evaluate(async () => { for (let i = 0; i < 40 && p.extras.sound.sound.state().channels !== 6; i++) await wait(50); const s = p.extras.sound.sound; return { settings: s.state().settings, key: s.chain.key }; });
+  const placed = await page.evaluate(async () => { for (let i = 0; i < 100 && !/^6,true/.test(p.extras.sound.sound.chain?.key); i++) await wait(50); const s = p.extras.sound.sound; return { settings: s.state().settings, key: s.chain.key }; });
   assert.equal(placed.settings.headphones, true);
   assert.match(placed.key, /^6,true/, 'the chain places the six channels');
   await page.evaluate((u) => film(u, 'tt-one'), host.url('multi.mkv'));
