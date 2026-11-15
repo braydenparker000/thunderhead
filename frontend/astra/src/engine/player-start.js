@@ -30,13 +30,19 @@ export const startMethods = {
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     session.addEventListener('stall', e => this.record('stall', e.detail));
-    session.addEventListener('audioended', () => { if (this.session === session) this.resume('The sound in this file ended before the picture.', {silent: true}); });
+    session.addEventListener('audioended', () => {
+      if (this.session !== session) return;
+      // Sound passed through that never reached its buffer did not end: the browser did not take it (player-routes.js).
+      if (!session.queues.audio?.buffer.buffered.length && this.passThroughFailed('The sound did not start.')) return;
+      this.resume('The sound in this file ended before the picture.', {silent: true});
+    });
     this.session = session;
     this.soundToSession(session); // the sound tap, dialogue lift and sound advance (player-sound.js)
     this.applyDataSaver(); // how far ahead it reads, with the data saver on or off
     this.startScanner();
     await session.start(startTime);
     if (id !== this.load_) return;
+    this.watchPassedSound(session); // sound the browser said it plays as it is, until it does
     if (plan.subtitle) this.selectSubtitle(plan.subtitle.id);
   },
 
@@ -46,12 +52,16 @@ export const startMethods = {
     probed.input?.dispose?.();
     const session = new SoftwareSession(this.video, {source: probed.source});
     session.addEventListener('status', e => this.status(e.detail));
-    session.addEventListener('error', e => { this.record('error', {message: 'software', detail: String(e.detail?.message || e.detail)}); this.emit('error', {message: 'The software decoder could not continue with this file.', detail: String(e.detail?.message || e.detail), plan: this.plan}); });
+    session.addEventListener('error', e => { if (this.session === session) this.routeSoftwareFailed(); this.record('error', {message: 'software', detail: String(e.detail?.message || e.detail)}); this.emit('error', {message: 'The software decoder could not continue with this file.', detail: String(e.detail?.message || e.detail), plan: this.plan}); });
     session.addEventListener('tracks', () => this.emit('tracks'));
     this.session = session;
     this.startScanner();
-    await session.start(startTime, {autoplay: false}); // throws, kind 'closed', when this load was replaced meanwhile
+    try { await session.start(startTime, {autoplay: false}); } catch (error) { // throws, kind 'closed', when this load was replaced meanwhile
+      if (id === this.load_) this.routeSoftwareFailed();
+      throw error;
+    }
     if (id !== this.load_) return;
+    this.watchSoftwareRoute(session, startTime); // a picture that fell back here is confirmed once it plays
     // Audio tracks as libmedia numbers them, labelled from the probe when it read the same file.
     const streams = session.audioStreams(), known = info?.audio || [], same = known.length === streams.length;
     this.audio = streams.map((s, i) => {

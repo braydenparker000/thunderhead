@@ -5,6 +5,8 @@
 //   caps.native(mime)  <video>.canPlayType says yes
 //   caps.opusEncode    WebCodecs can encode Opus (to rebuild unsupported audio)
 //   caps.software      the software decoder (libmedia) can run here
+//   caps.passFailed?(codec)  this device failed to play that sound as it is (route-memory.js)
+//   caps.failedRoute?(codecString)  this picture failed in the browser and played in software
 //
 // Modes: 'native' (the browser plays the address itself), 'remux' (Astra
 // unpacks the file and feeds the browser video plus the chosen audio),
@@ -17,6 +19,9 @@ import {UNREADABLE, softwareAudio, softwareVideo} from './software.js';
 
 const DIRECT_AUDIO = new Set(['aac', 'opus', 'flac', 'mp3']);
 const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'truehd', 'vorbis']);
+// Dolby Digital (Plus) and DTS go to the browser as they are where it says it decodes them (some Android
+// phones): surround kept, no decoder download, no converting. Elsewhere, or once failed here, they are rebuilt.
+export const PASSABLE = new Set(['ac3', 'eac3', 'dts']);
 const PCM = /^(pcm|ulaw$|alaw$)/; // uncompressed sound, G.711 (telephone and some camera recordings) among it
 const NATIVE_CONTAINERS = /^(mp4|quicktime|webm)$/i;
 
@@ -40,6 +45,7 @@ function softwareDelivery(track) {
 export function audioDelivery(track, caps) {
   const codec = track.codec || '';
   if (DIRECT_AUDIO.has(codec) && caps.mse(audioMime(track))) return {delivery: 'direct'};
+  if (PASSABLE.has(codec) && track.codecString && !caps.passFailed?.(codec) && caps.mse(audioMime(track))) return {delivery: 'direct'};
   if ((REBUILT_AUDIO.has(codec) || PCM.test(codec) || DIRECT_AUDIO.has(codec)) && track.channels) {
     return caps.opusEncode ? {delivery: 'rebuilt'} : {delivery: 'unsupported', reason: 'This browser cannot convert audio.'};
   }
@@ -130,7 +136,9 @@ export function planPlayback(probe, caps, prefs = {}) {
   // One picture, one sound, nothing to choose, and the browser plays both as they are.
   const plain = NATIVE_CONTAINERS.test(info.container) && info.video.length <= 1 && info.audio.length <= 1 && !subtitles.length;
   const codecs = [video, info.audio[0]].filter(Boolean).map(t => t.codecString);
-  const whole = plain && (!video || nativeOk) && codecs.every(Boolean) && caps.native(`${type}; codecs="${codecs.join(', ')}"`);
+  // A picture that failed in the browser's decoder on this device before and then played in software starts there.
+  const shunned = !!video?.codecString && !!caps.failedRoute?.(video.codecString) && caps.software && softwareVideo(video);
+  const whole = !shunned && plain && (!video || nativeOk) && codecs.every(Boolean) && caps.native(`${type}; codecs="${codecs.join(', ')}"`);
   // A picture Mediabunny did not list: MPEG-2 in a transport stream, which the software decoder plays, or Theora in an Ogg file, which nothing here does.
   if (!video && info.hiddenVideo === 'ogg') return {mode: 'unsupported', reason: 'The picture in this Ogg file (Theora) cannot be decoded in a browser.', notes, audioOptions: [], subtitleOptions, external: true};
   if (!video && info.hiddenVideo && caps.software) {
@@ -138,7 +146,7 @@ export function planPlayback(probe, caps, prefs = {}) {
     return {mode: 'software', notes, audioOptions: [], subtitleOptions};
   }
   const muxable = !video || (!!video.codec && caps.mse(videoMime(video)));
-  let software = !muxable && !whole;
+  let software = shunned || (!muxable && !whole);
   if (software && !(caps.software && softwareVideo(video))) {
     if (nativeOk) {
       notes.push('Astra has no way to unpack this picture itself. Chrome will play it as-is: no audio track choice and no built-in subtitles.');
@@ -167,7 +175,8 @@ export function planPlayback(probe, caps, prefs = {}) {
   // Nothing to show and nothing to hear (only subtitles, or sound none of which plays): there is no film to play.
   if (!video && !audio) return {mode: 'unsupported', reason: info.audio.length ? 'This file has no picture, and its sound cannot play in a browser.' : 'This file has no picture or sound to play.', notes, audioOptions, subtitleOptions, external: true};
   if (software) {
-    notes.push(muxable ? `${audio?.track.label || 'The sound'} in this file plays only through Astra's software decoder. That uses more battery.`
+    notes.push(shunned ? `${name} video failed in this phone's own decoder before, so Astra decodes it in software. That uses more battery.`
+      : muxable ? `${audio?.track.label || 'The sound'} in this file plays only through Astra's software decoder. That uses more battery.`
       : `This phone has no ${name} decoder for browsers, so Astra decodes it in software. That uses more battery and may stutter at high resolutions.`);
     return {mode: 'software', video, audio, audioOptions, subtitle, subtitleOptions, notes};
   }

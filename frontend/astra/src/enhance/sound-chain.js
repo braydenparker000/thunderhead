@@ -1,10 +1,23 @@
 // The sound chain itself, on any AudioContext: louder (boost through a
 // limiter), night mode (a gentle compressor), clearer speech (a lifted centre
-// channel, or a lifted speech band in stereo) and sound later than the picture.
+// channel, or a lifted speech band in stereo), sound later than the picture,
+// even loudness from film to film (leveller.js) and 5.1 placed around the head
+// for headphones (headphone.js).
+//
+// In order: the mix to stereo (plain, with the centre lifted, or placed for
+// headphones), the even-loudness gain, night mode, boost, the limiter, the
+// delay. The loudness gain comes first so night mode's threshold meets every
+// film at the same level and works the same on each; boost is the owner's own
+// "louder" on top of the evened level; the limiter comes after both, so
+// neither a lift nor a boost can clip.
+//
 // It runs from its own input gain to its own output gain, so the same chain can
 // sit after a <video> element (sound.js) or inside the software decoder's own
 // audio graph. With every feature off the input is wired straight to the
 // output: nothing touches a sample.
+
+import {Leveller} from './leveller.js';
+import {placeSpeakers, placeable} from './headphone.js';
 
 /** Decibels one dialogue step adds (to the centre channel, or to the speech band in stereo). */
 export const STEP_DB = 4;
@@ -28,12 +41,15 @@ const H = Math.SQRT1_2;
 const clamp = (x, lo, hi, d) => Number.isFinite(+x) ? Math.min(hi, Math.max(lo, +x)) : d;
 const step = s => Math.round(clamp(s, 0, 2, 0));
 
-/** The settings as the chain uses them: boost 1 to 3, night on or off, dialogue 0 to 2 steps, delay 0 to 1 s. */
+/**
+ * The settings as the chain uses them: boost 1 to 3, night on or off, dialogue 0 to 2 steps, delay 0 to 1 s,
+ * and the two later switches, loudness (even loudness) and headphones (headphone surround), present only while on.
+ */
 export function settle(s = {}) {
-  return {boost: clamp(s.boost, 1, 3, 1), night: !!s.night, dialogue: step(s.dialogue), delay: clamp(s.delay, 0, 1, 0)};
+  return {boost: clamp(s.boost, 1, 3, 1), night: !!s.night, dialogue: step(s.dialogue), delay: clamp(s.delay, 0, 1, 0), ...(s.loudness ? {loudness: true} : {}), ...(s.headphones ? {headphones: true} : {})};
 }
 export const OFF = Object.freeze(settle());
-export const isOff = s => s.boost === 1 && !s.night && !s.dialogue && !s.delay;
+export const isOff = s => s.boost === 1 && !s.night && !s.dialogue && !s.delay && !s.loudness && !s.headphones;
 
 /**
  * The gain on the centre channel for a dialogue step (0, 1 or 2): 1, +4 dB,
@@ -77,9 +93,15 @@ export function makeupGain({threshold, ratio}) {
 }
 
 export class SoundChain {
-  /** @param {BaseAudioContext} ctx */
-  constructor(ctx) {
+  /**
+   * @param {BaseAudioContext} ctx
+   * @param {{volume?: () => number, onSettle?: (id: string, db: number) => void}} [options] for even loudness (leveller.js)
+   */
+  constructor(ctx, options = {}) {
     this.ctx = ctx;
+    this.options = options;
+    this.level = null; // the even-loudness meter and gain, while on
+    this.start = {id: null, db: 0, known: false}; // the film playing, and where its loudness gain starts
     this.in = ctx.createGain();
     this.out = ctx.createGain();
     this.in.connect(this.out);
@@ -90,14 +112,23 @@ export class SoundChain {
     this.channels = 0;
   }
 
+  /** The film playing (its id) and where its loudness gain starts ({db, known}: startLevel in loudness.js). */
+  film(id, {db = 0, known = false} = {}) {
+    this.start = {id, db, known};
+    this.level?.film(id, this.start);
+  }
+
   /** Sets the features; `channels` is what the input really carries (0 while unknown). */
   apply(settings, channels = this.channels) {
     const s = this.settings = settle(settings);
     this.channels = channels;
-    const centre = s.dialogue > 0 && hasCentre(channels), mid = s.dialogue > 0 && channels > 0 && !hasCentre(channels);
-    const limit = s.boost > 1 || s.dialogue > 0;
-    const key = isOff(s) ? 'off' : [centre && channels, mid, s.night, limit, s.delay > 0].join();
-    if (key !== this.key) this.build(s, {centre, mid, limit}, key);
+    const phones = !!s.headphones && placeable(channels);
+    const centre = !phones && s.dialogue > 0 && hasCentre(channels), mid = s.dialogue > 0 && channels > 0 && !hasCentre(channels);
+    const limit = s.boost > 1 || s.dialogue > 0 || !!s.loudness || phones;
+    if (s.loudness && !this.level) { this.level = new Leveller(this.ctx, this.options); this.level.film(this.start.id, this.start); this.key = ''; }
+    if (!s.loudness && this.level) { this.level.close(); this.level = null; this.key = ''; }
+    const key = isOff(s) ? 'off' : [(centre || phones) && channels, phones, mid, s.loudness, s.night, limit, s.delay > 0].join();
+    if (key !== this.key) this.build(s, {centre, mid, limit, phones}, key);
     const {boost, peak, lifts, delay} = this.ref, t = this.ctx.currentTime;
     if (boost) boost.gain.value = s.boost;
     if (peak) peak.gain.value = STEP_DB * s.dialogue;
@@ -105,12 +136,14 @@ export class SoundChain {
     if (delay) delay.delayTime.setTargetAtTime(s.delay, t, 0.03);
   }
 
-  build(s, {centre, mid, limit}, key) {
+  build(s, {centre, mid, limit, phones}, key) {
     const ctx = this.ctx;
     this.in.disconnect();
     for (const n of this.nodes) n.disconnect();
+    this.level?.gain.disconnect();
     this.nodes = []; this.ref = {}; this.key = key;
     if (key === 'off') { this.in.connect(this.out); return; }
+    this.level?.listen(this.in); // the meter measures the film as it arrives, before any feature
     const keep = n => (this.nodes.push(n), n);
     const gain = (v = 1, channels = 0, interpretation = 'speakers') => {
       const g = keep(ctx.createGain());
@@ -120,7 +153,14 @@ export class SoundChain {
     };
     let node = this.in;
     const then = n => { node.connect(n); node = n; return n; };
-    if (centre) {
+    if (phones) {
+      // Headphones: each speaker placed around the head instead of the plain mix, the centre still lifted for dialogue.
+      const n = this.channels, split = keep(ctx.createChannelSplitter(n));
+      then(gain(1, n, 'discrete')).connect(split);
+      const placed = placeSpeakers(ctx, split, n, keep, centreGain(s.dialogue));
+      this.ref.lifts = placed.lifts;
+      node = placed.out;
+    } else if (centre) {
       // The browser would mix 5.1 down only after this chain, so mix it here, with the centre raised.
       const n = this.channels, split = keep(ctx.createChannelSplitter(n)), merge = keep(ctx.createChannelMerger(2));
       then(gain(1, n, 'discrete')).connect(split);
@@ -146,6 +186,7 @@ export class SoundChain {
       diff.connect(merge, 0, 0); diff.connect(flip); flip.connect(merge, 0, 1);
       node = merge;
     }
+    if (this.level) then(this.level.gain);
     if (s.night) then(compressor(ctx, NIGHT, keep));
     if (s.boost > 1) this.ref.boost = then(gain(s.boost));
     if (limit) { then(compressor(ctx, LIMIT, keep)); then(gain(1 / makeupGain(LIMIT))); }

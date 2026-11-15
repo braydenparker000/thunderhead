@@ -1,6 +1,6 @@
 // Better sound for the film's <video>: louder for quiet films, night mode,
-// clearer speech and sound later than the picture (the chain is in
-// sound-chain.js). No UI: the player's menus call set() and read state().
+// clearer speech, sound later than the picture, even loudness and headphone
+// surround (the chain is in sound-chain.js). No UI: the player's menus call set() and read state().
 //
 // Two things are permanent once done, so this file is careful about both:
 // - createMediaElementSource takes the element's sound for good: from then on
@@ -46,11 +46,14 @@ const COUNTER = `registerProcessor('astra-channels', class extends AudioWorkletP
 export class Sound {
   /**
    * @param {HTMLVideoElement} video
-   * @param {{onReport?: (reason: string) => void}} [options]  told why a setting could not be applied, or that the sound went silent
+   * @param {{onReport?: (reason: string) => void, onSettle?: (id: string, db: number) => void}} [options]
+   *   onReport: told why a setting could not be applied, or that the sound went silent; onSettle: a film's settled loudness gain
    */
-  constructor(video, {onReport} = {}) {
+  constructor(video, {onReport, onSettle} = {}) {
     this.video = video;
     this.onReport = onReport || (() => {});
+    this.onSettle = onSettle || (() => {});
+    this.opening = [null, {}]; // the film playing and where its loudness gain starts, for a chain made later
     this.mode = null; // the engine's mode for the film playing; the player sets it on each load
     this.settings = OFF;
     this.ctx = null; this.source = null; this.chain = null; this.counter = null;
@@ -70,7 +73,7 @@ export class Sound {
   report(reason) { this.reason = reason; this.onReport(reason); }
 
   /**
-   * Turns features on or off: {boost: 1-3, night: bool, dialogue: 0-2, delay: 0-1 s}.
+   * Turns features on or off: {boost: 1-3, night: bool, dialogue: 0-2, delay: 0-1 s, loudness: bool, headphones: bool}.
    * Missing keys keep their value. Returns false when the film's sound cannot be changed (see state().reason).
    */
   set(next = {}) {
@@ -85,6 +88,12 @@ export class Sound {
     this.reason = '';
     if (this.source) this.update(); else this.start();
     return true;
+  }
+
+  /** The film playing (the player's title id) and where its loudness gain starts ({db, known}). */
+  film(id, start = {}) {
+    this.opening = [id, start];
+    this.chain?.film(id, start);
   }
 
   state() {
@@ -126,7 +135,9 @@ export class Sound {
     if (whyNot(this.video, this.mode)) { this.report(whyNot(this.video, this.mode)); return; } // the film changed while waiting for a tap
     const ctx = /** @type {AudioContext} */ (this.ctx);
     this.source = ctx.createMediaElementSource(this.video);
-    this.chain = new SoundChain(ctx);
+    // The element's volume is applied before the chain: the loudness meter takes it back out.
+    this.chain = new SoundChain(ctx, {volume: () => this.video.muted ? 0 : this.video.volume, onSettle: (id, db) => this.onSettle(id, db)});
+    this.chain.film(...this.opening);
     this.source.connect(this.chain.in);
     this.chain.out.connect(ctx.destination);
     this.update();
@@ -134,12 +145,12 @@ export class Sound {
 
   update() {
     if (!this.chain) return;
-    if (this.settings.dialogue > 0) this.count();
+    if (this.settings.dialogue > 0 || this.settings.headphones) this.count();
     else if (this.counter instanceof AudioWorkletNode) { this.counter.disconnect(); this.counter = null; }
     this.chain.apply(this.settings, this.channels);
   }
 
-  // The channel counter runs only while dialogue is on: it is the one feature that depends on the layout.
+  // The channel counter runs only while dialogue or headphone surround is on: they are the features that depend on the layout.
   async count() {
     if (this.counter) return;
     const ctx = /** @type {AudioContext} */ (this.ctx);

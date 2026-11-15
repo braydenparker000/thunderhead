@@ -29,3 +29,12 @@ export async function remoteFileHash(url, size, {headers = {}, head = null, sign
   const [first, last] = await Promise.all([head && head.length >= HASH_CHUNK ? head : range(0, HASH_CHUNK), range(size - HASH_CHUNK, size)]);
   return openSubtitlesHash(size, first, last);
 }
+
+/**
+ * A film's name for Astra's own memory of it (film-memory.js): its size and a SHA-256 of its first 64 KiB, the
+ * bytes the range reader reads first and the hash above reuses. Never its address, which carries secrets.
+ */
+export async function headKey(size, head) {
+  const bytes = head.subarray(0, HASH_CHUNK), sum = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return `${size}:${[...sum].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+}

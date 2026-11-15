@@ -162,3 +162,39 @@ test('a file with no picture and no sound that can play is not handed to a pipel
   // Sound alone still plays.
   assert.equal(plan(file('Matroska', null, [audio('aac', 'mp4a.40.2'), audio('aac', 'mp4a.40.2', { id: 3 })])).mode, 'remux');
 });
+
+test('Dolby Digital (Plus) and DTS go through as they are where the browser says it decodes them, until that failed here', () => {
+  const surround = (more = {}) => file('Matroska', video('avc', 'avc1.640028'), [audio('ac3', 'ac-3', { label: 'Dolby Digital', channels: 6 }), audio('eac3', 'ec-3', { id: 3, label: 'Dolby Digital Plus', channels: 6 }), audio('dts', 'dtsc', { id: 4, label: 'DTS', channels: 6 })], more);
+  const dolbyPhone = caps({ mse: (mime) => /avc1|mp4a|opus|ac-3|ec-3/.test(mime) });
+  const p = plan(surround(), dolbyPhone);
+  assert.equal(p.mode, 'remux');
+  assert.deepEqual(p.audioOptions.map((o) => o.delivery), ['direct', 'direct', 'rebuilt']);
+  assert.equal(p.audio.delivery, 'direct');
+  assert.doesNotMatch(p.notes.join(' '), /converted/, 'nothing is said about converting');
+  // DTS too, the day a browser says yes to it.
+  assert.equal(plan(surround(), caps({ mse: (mime) => /avc1|dtsc/.test(mime) })).audioOptions[2].delivery, 'direct');
+  // A browser that says no: rebuilt as before.
+  assert.deepEqual(plan(surround()).audioOptions.map((o) => o.delivery), ['rebuilt', 'rebuilt', 'rebuilt']);
+  // Passed through once and failed on this device: rebuilt from then on, the other codec still passed through.
+  const failed = plan(surround(), { ...dolbyPhone, passFailed: (codec) => codec === 'ac3' });
+  assert.deepEqual(failed.audioOptions.map((o) => o.delivery), ['rebuilt', 'direct', 'rebuilt']);
+  assert.equal(failed.audio.track.codec, 'eac3', 'the track that plays as it is is preferred');
+  const onlyAc3 = plan(file('Matroska', video('avc', 'avc1.640028'), [audio('ac3', 'ac-3', { label: 'Dolby Digital' })]), { ...dolbyPhone, passFailed: () => true });
+  assert.match(onlyAc3.notes.join(' '), /Dolby Digital audio is converted/);
+  // A track whose codec string was not read is never passed through on a guess.
+  assert.equal(plan(file('Matroska', video('avc', 'avc1.640028'), [audio('ac3', null)]), dolbyPhone).audio.delivery, 'rebuilt');
+});
+
+test('a picture that failed in the browser and played in software on this device starts in software', () => {
+  const hevc = () => file('Matroska', video('hevc', 'hvc1.1.6.L120.90', { label: 'HEVC' }), [audio('aac', 'mp4a.40.2')]);
+  const hevcPhone = caps({ mse: (mime) => /avc1|hvc1|mp4a/.test(mime) });
+  assert.equal(plan(hevc(), hevcPhone).mode, 'remux');
+  const remembered = plan(hevc(), { ...hevcPhone, failedRoute: (c) => c === 'hvc1.1.6.L120.90' });
+  assert.equal(remembered.mode, 'software');
+  assert.match(remembered.notes.join(' '), /HEVC video failed in this phone's own decoder before/);
+  // Another codec string is not affected, and with no software decoder the memory changes nothing.
+  assert.equal(plan(hevc(), { ...hevcPhone, failedRoute: (c) => c === 'hvc1.2.4.L120.90' }).mode, 'remux');
+  assert.equal(plan(hevc(), { ...hevcPhone, software: false, failedRoute: () => true }).mode, 'remux');
+  // A plain MP4 the browser would play whole goes to software too: the same decoder failed.
+  assert.equal(plan(file('MP4', video('avc', 'avc1.64001e'), [audio('aac', 'mp4a.40.2')]), caps({ failedRoute: () => true })).mode, 'software');
+});

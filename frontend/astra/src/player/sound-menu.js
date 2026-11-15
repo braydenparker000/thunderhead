@@ -1,8 +1,14 @@
-// The Sound tab of the audio menu: volume boost, night mode, clearer speech
-// and the sound's timing against the picture (enhance/sound.js does the
-// work). Boost, night and dialogue are prefs, put back on every film they can
-// be; the timing belongs to one title and starts at 0 with the next, like the
-// subtitle delay. One Sound per player, made on the first change that needs it.
+// The Sound tab of the audio menu: volume boost, night mode, clearer speech,
+// even loudness, headphone surround and the sound's timing against the
+// picture (enhance/sound.js does the work). All but the timing are prefs, put
+// back on every film they can be; the timing belongs to one title and starts
+// at 0 with the next, like the subtitle delay. Even loudness remembers each
+// title's settled gain (prefs.levels), so the next play starts at it. One
+// Sound per player, made on the first change that needs it.
+//
+// Headphone surround is offered only for sound that reaches the page with a
+// centre and surrounds: not for a track the engine converts (it arrives mixed
+// to stereo) nor for the software decoder (its chain gets stereo).
 //
 // Where the engine does part of the job, it is asked to (each call only when
 // the engine has the method): a track the engine converts (Dolby Digital,
@@ -20,6 +26,8 @@ import {h} from '../ui/dom.js';
 import {Sound, whyNot} from '../enhance/sound.js';
 import {SoundChain, settle, isOff} from '../enhance/sound-chain.js';
 import {savePrefs} from './prefs.js';
+import {startLevel, remember} from '../enhance/loudness.js';
+import {placeable} from '../enhance/headphone.js';
 
 export const BOOSTS = [1, 1.5, 2, 3];
 export const DIALOGUE = [[0, 'Off'], [1, '+1'], [2, '+2']];
@@ -50,7 +58,7 @@ export class SoundControl {
   }
 
   /** What the owner asked for: the saved prefs and this title's timing. */
-  get wanted() { const s = this.p.prefs; return {boost: settle(s).boost, night: !!s.night, dialogue: settle(s).dialogue, delay: this.delay}; }
+  get wanted() { const s = this.p.prefs; return {boost: settle(s).boost, night: !!s.night, dialogue: settle(s).dialogue, delay: this.delay, loudness: !!s.loudness, headphones: !!s.headphones}; }
   get rebuilt() { return this.p.engine.audioOptions?.().find(a => a.selected)?.delivery === 'rebuilt'; }
   // Only where the engine fills the sound buffer itself (remux): elsewhere it accepts the value and does nothing.
   get advance() { return has(this.p.engine, 'setAudioAdvance') && this.p.engine.mode === 'remux'; }
@@ -67,6 +75,7 @@ export class SoundControl {
   opened(o) {
     const key = o.meta?.id || o.meta?.title || '';
     if (key !== this.title) { this.title = key; this.delay = 0; }
+    this.fresh = true; // the loudness measure starts again with each film or episode
     this.chip.hidden = true; // until this film is ready and the boost is on its sound
   }
 
@@ -76,24 +85,43 @@ export class SoundControl {
     const engineDialogue = this.rebuilt && has(e, 'setDialogue');
     if (has(e, 'setDialogue')) e.setDialogue(engineDialogue ? w.dialogue : 0);
     if (this.advance) e.setAudioAdvance(w.delay < 0 ? -w.delay : 0);
-    const chain = {boost: w.boost, night: w.night, dialogue: engineDialogue ? 0 : w.dialogue, delay: Math.max(0, w.delay)};
+    const chain = this.chainSettings();
     if (this.load !== e.load_) { this.load = e.load_; this.chain = null; this.routed = false; } // a new load builds a new sound path
     if (this.sound) this.sound.mode = e.mode;
     if (e.mode === 'software') {
       if (this.chain) this.chain.apply(chain, 2);
       else if (!this.routed && !isOff(settle(chain)) && has(e, 'routeSoftwareSound')) {
         // Once per load (the engine keeps makeChain for every sound path it builds), or again later if the film had no sound path yet.
-        this.routed = e.routeSoftwareSound(ctx => { this.chain = new SoundChain(ctx); this.chain.apply(this.chainSettings(), 2); this.showChip(); return this.chain; }) !== false;
+        this.routed = e.routeSoftwareSound(ctx => {
+          this.chain = new SoundChain(ctx, {onSettle: (id, db) => this.settled(id, db)}); // libmedia's volume comes after the chain: nothing to take out
+          this.chain.film(this.title, startLevel(p.prefs.levels, this.title)); this.fresh = false;
+          this.chain.apply(this.chainSettings(), 2); this.showChip(); return this.chain;
+        }) !== false;
       }
     } else if (!this.why() && (this.sound || !isOff(settle(chain)))) {
-      this.sound ??= new Sound(p.video, {onReport: r => this.reported(r)});
+      this.sound ??= new Sound(p.video, {onReport: r => this.reported(r), onSettle: (id, db) => this.settled(id, db)});
       this.sound.mode = e.mode;
       this.sound.set(chain);
     }
+    const target = e.mode === 'software' ? this.chain : this.sound;
+    if (this.fresh && target) { this.fresh = false; target.film(this.title, startLevel(p.prefs.levels, this.title)); }
     this.showChip();
   }
 
   chainSettings() { const w = this.wanted; return {...w, dialogue: this.rebuilt && has(this.p.engine, 'setDialogue') ? 0 : w.dialogue, delay: Math.max(0, w.delay)}; }
+
+  /** A title's loudness gain has settled: remembered, so its next play starts there. */
+  settled(id, db) { const p = this.p; p.prefs.levels = remember(p.prefs.levels, id, db); savePrefs(p.prefs); }
+
+  /** Whether the sound reaching the page has a centre and surrounds to place: what the chain counted, else what the track says. */
+  surround() {
+    const e = this.p.engine;
+    if (!this.p.ready || e.mode === 'software' || this.rebuilt) return false;
+    const counted = this.sound?.state().channels;
+    if (counted) return placeable(counted);
+    const track = e.audio?.find?.(a => a.id === e.selectedAudio), n = track?.option?.track?.channels;
+    return n ? placeable(n) : /\b[5-7]\.1\b/.test(track?.label || '');
+  }
 
   // The Sound object's own reports: only one that changes what is heard is worth a notice.
   reported(reason) { if (/without sound|silent/i.test(reason)) this.p.notice(reason); }
@@ -129,11 +157,13 @@ export class SoundControl {
     const w = this.wanted, why = this.why(), off = !!why;
     const chip = (label, on, onclick, extra = {}) => h('button', {class: 'ap-chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(on), disabled: off, onclick, ...extra}, label);
     const group = (title, ...children) => h('div', {class: 'ap-pb-group'}, h('span', {class: 'ap-label'}, title), ...children);
+    const toggle = (key, label) => h('div', {class: 'ap-chips'}, chip(w[key] ? 'On' : 'Off', w[key], () => this.change({[key]: !w[key]}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w[key]), 'aria-label': label}));
     const min = this.advance ? -1 : 0, d = this.delay, nudge = by => () => this.change({delay: nudgeDelay(d, by, min)});
     return h('div', {class: 'ap-sound'}, why ? h('p', {class: 'ap-sound-why', role: 'note'}, why) : null, h('div', {class: 'ap-pb'},
       group('Volume boost', h('div', {class: 'ap-chips'}, ...BOOSTS.map(b => chip(`${b * 100} %`, b === w.boost, () => this.change({boost: b}), {'aria-label': `Volume boost ${b * 100} %`})))),
-      group('Night mode', h('div', {class: 'ap-chips'}, chip(w.night ? 'On' : 'Off', w.night, () => this.change({night: !w.night}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w.night), 'aria-label': 'Night mode'})),
-        h('p', {class: 'ap-pb-note'}, 'Quiet sound comes up and loud bangs go down, for watching late.')),
+      group('Night mode', toggle('night', 'Night mode'), h('p', {class: 'ap-pb-note'}, 'Quiet sound comes up and loud bangs go down, for watching late.')),
+      group('Even loudness', toggle('loudness', 'Even loudness'), h('p', {class: 'ap-pb-note'}, 'Every film at the same loudness, so the volume can stay put.')),
+      this.surround() ? group('Headphone surround', toggle('headphones', 'Headphone surround'), h('p', {class: 'ap-pb-note'}, 'For headphones: places the film\'s speakers around you.')) : null,
       group('Dialogue', h('div', {class: 'ap-chips'}, ...DIALOGUE.map(([v, label]) => chip(label, v === w.dialogue, () => this.change({dialogue: v}), {'aria-label': v ? `Dialogue ${label}` : 'Dialogue off'}))),
         h('p', {class: 'ap-pb-note'}, 'Lifts voices over music and effects.')),
       group('Sound delay', h('div', {class: 'ap-step wrap'}, h('div', {},
