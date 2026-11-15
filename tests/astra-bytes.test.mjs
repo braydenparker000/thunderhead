@@ -8,6 +8,7 @@ import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-sou
 import { saverTuning } from '../frontend/astra/src/engine/player-data.js';
 import { TAIL } from '../frontend/astra/src/engine/source-tail.js';
 import { GAP, REUSE_WINDOW, SOON, soon } from '../frontend/astra/src/engine/source-stream.js';
+import { until } from './fixtures/waits.mjs';
 
 const SIZE = 64 * BLOCK;
 const byteAt = (offset) => (offset * 11 + (offset >> 18)) & 255;
@@ -81,7 +82,8 @@ test('while the file is described, a download stops a little past the last byte 
   await source.open();
   await source.read(0, 761);
   await source.read(0, 65536);
-  await sleep(150);
+  // The first download stops by itself and the tail arrives: waited for (a fixed 150 ms was too short on a busy machine).
+  await until(() => source.streams.size === 0 && !source.tail, { timeout: 10_000, message: 'the first download stopped and the tail arrived' });
   assert.equal(source.streams.size, 0, 'the first download stopped');
   // Besides it, the film's last 256 KiB were asked for at once (source-tail.js).
   const first = h.calls.find((c) => c.from === 0).sent;

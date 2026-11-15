@@ -4,9 +4,11 @@
 // with posters from a host that sends no CORS headers, a film the page may not read played by the browser
 // itself, a readable one through Astra's own engine, and the software decoder (with threads, held to one
 // core fewer than the machine has). Back from Astra returns to the shell at /, a page that is not isolated.
+// Both switches are off as shipped (ISOLATE in sw.js, THREADS in software-threads.js): a small server in
+// front of the site turns them on, so this check says what switching them on would do.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
@@ -15,12 +17,28 @@ const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (the worker is on for a local server, synthetic films)', timeout: 60_000 };
 // A 1×1 PNG, and an invented add-on whose posters come from its own host, two of four without CORS headers.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64');
-let site, host, addon, browser, base, other;
+let site, front, host, addon, browser, base, other;
+const ON = { '/astra/sw.js': ['const ISOLATE = false;', 'const ISOLATE = true;'], '/astra/src/engine/software-threads.js': ['export const THREADS = false;', 'export const THREADS = true;'] };
 
 before(async () => {
   if (live) return;
   site = await serve(0, {});
-  base = `http://127.0.0.1:${site.address().port}`;
+  front = createServer((req, res) => {
+    const on = ON[new URL(req.url, 'http://x').pathname];
+    const headers = on ? { ...req.headers, 'accept-encoding': 'identity' } : req.headers;
+    req.pipe(request({ port: site.address().port, path: req.url, method: req.method, headers }, (r) => {
+      if (!on) { res.writeHead(r.statusCode, r.headers); return r.pipe(res); }
+      const parts = [];
+      r.on('data', (c) => parts.push(c)).on('end', () => {
+        const body = Buffer.concat(parts).toString('utf8');
+        assert.ok(body.includes(on[0]), `${req.url} still has its switch`);
+        const { 'content-length': _, etag: __, ...rest } = r.headers;
+        res.writeHead(r.statusCode, rest).end(body.replace(on[0], on[1]));
+      });
+    }));
+  });
+  await new Promise((r) => front.listen(0, '127.0.0.1', r));
+  base = `http://127.0.0.1:${front.address().port}`;
   host = await astraHost();
   addon = createServer((req, res) => {
     const u = new URL(req.url, 'http://x'), cors = u.searchParams.has('nocors') ? {} : { 'Access-Control-Allow-Origin': '*' };
@@ -34,7 +52,7 @@ before(async () => {
   other = `http://127.0.0.1:${addon.address().port}`;
   browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'], ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
 });
-after(async () => { await browser?.close(); site?.close(); addon?.close(); await host?.close(); });
+after(async () => { await browser?.close(); front?.close(); site?.close(); addon?.close(); await host?.close(); });
 
 /** Plays `url` through Astra's engine in the page; {mode, played} once it has moved on half a second, or {error}. */
 const play = (page, url) => page.evaluate(async (url) => {
