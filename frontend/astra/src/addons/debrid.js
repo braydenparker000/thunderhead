@@ -3,6 +3,8 @@
 // account's own list; never adds, removes or changes a torrent.
 
 const API = 'https://api.torbox.app/v1/api/';
+/** TorBox's origin, for a connection opened ahead of need (app/ready.js). */
+export const TORBOX_ORIGIN = new URL(API).origin;
 const isInt = v => /^\d+$/.test(String(v)) && Number.isSafeInteger(Number(v));
 const fileName = v => String(v || '').split(/[\\/]/).pop();
 

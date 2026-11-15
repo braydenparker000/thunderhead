@@ -5,11 +5,10 @@
 // converter a listed stream would need fetched. All of it stays in memory (addons/debrid.js); none of it
 // happens with Settings › Playback › "Get ready ahead" off, or with the data saver on.
 
-import {identifyTorbox, warmList, resolveDebrid} from '../addons/debrid.js';
+import {identifyTorbox, warmList, resolveDebrid, TORBOX_ORIGIN as TORBOX} from '../addons/debrid.js';
 import {saverOn} from '../engine/player-data.js';
 import {loadPrefs} from '../player/prefs.js';
 
-const TORBOX = 'https://api.torbox.app';
 // Sound a label names that Astra converts on most phones, and the codec string the planner would ask about.
 const SOUNDS = [
   ['truehd', /true[ ._-]?hd/i, 'mlpa'],

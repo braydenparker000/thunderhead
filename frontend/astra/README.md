@@ -13,12 +13,12 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | Path | What it is |
 | --- | --- |
 | `index.html`, `src/main.js` | The app at `/astra/`. Installable (`manifest.webmanifest`); `sw.js` opens it from a saved copy (below). |
-| `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged) and `intro-store.js` (what Skip intro has learned, in IndexedDB). |
+| `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `adaptive.js` (HLS and DASH). Reading: `probe.js`, `http-source.js` and `source-stream.js` (the range reader), `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`. Playing: `remux.js`, `remux-audio.js`, `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js` and `software-sound.js` (libmedia). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
-| `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0; see `LICENSES.md` there), `origin.js` (whether the page may read what the video shows). |
+| `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
 | `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
 | `src/addons/` | The Stremio add-on protocol client (`client.js`), TorBox link resolution (`debrid.js`), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
@@ -64,7 +64,27 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   another app, open it in VLC or check it in the lab (the stream goes to the
   lab in the address's fragment, which never reaches a server or a cache,
   and the lab takes it out of the address bar once read). TorBox links from
-  add-ons are resolved to the file just before play.
+  add-ons are resolved to the file at the press that starts a tap (with Get
+  ready ahead on), else at the tap.
+- **Get ready ahead** (Settings › Playback, on by default; `app/ready.js`,
+  `app/next-ready.js`). With it on and the data saver off, what a tap will
+  need is asked for while the list is read: when streams are listed Astra
+  opens a connection to TorBox and reads the owner's own TorBox list, once
+  per account (`addons/debrid.js` keeps it in memory ten minutes, never
+  stores it); a finger coming down on a TorBox stream starts resolving it,
+  and the tap that follows takes that answer (a press that becomes a scroll
+  or a long-press starts nothing more); and the sound converter a listed
+  stream's label asks for, when this phone would convert that sound, is
+  fetched ahead on an unmetered connection (on a metered one only when it is
+  already in the saved copy). While an episode plays, once the next-episode
+  card is due (or a known outro is two minutes off), the next episode's
+  streams are collected; only when the stream playing names a release group
+  and one of them has the same group is that stream resolved and its file
+  described (header and index, nothing of the picture or sound), then
+  closed. Next within ten minutes takes that list. With the switch off, or
+  the data saver on, nothing is asked of TorBox, an add-on or a film's host
+  before a tap. Either way nothing plays without a tap, and no stream is
+  ranked, picked or pre-selected.
 - **What a stream card says.** Its size and, when the title's runtime is
   known, what an hour of it costs ("710 MB an hour"). Under it, one quiet
   line on how it will most likely play on this phone (`device-facts.js`):
@@ -76,7 +96,9 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   names no codec is asked as H.264; an MKV or WebM that names none says
   nothing; without an answer from the browser only 8-bit H.264 is said to
   play directly. A second note, "Sound converted on the phone", shows when
-  the label names Dolby Digital or DTS and no AAC, Opus, MP3 or FLAC. The
+  the label names Dolby Digital or DTS and no AAC, Opus, MP3 or FLAC, unless
+  every sound it names is one this phone's browser says it plays as it is
+  and has not failed to here (How a file plays, below). The
   line's room is held before the answer arrives, so nothing moves under a
   finger. Both inform only: nothing is hidden, ranked or picked by them.
 - **The owner's filter chips** (a second row under the add-ons'; the
@@ -99,7 +121,9 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   playing names a release group (`bingeGroup`) and one of the new streams
   has the same group, that one plays on; otherwise the player shows the
   episode's sources, through your filters (those they hide are counted and
-  can be shown), and loads nothing until you pick one.
+  can be shown), and loads nothing until you pick one. Getting the next
+  episode ready (Get ready ahead, above) follows this same rule and only
+  saves the waiting; it never plays it.
 - Progress is saved every 10 s while playing, and on pause, close and leaving the app. Streams under 121 s are
   placeholder clips and are not tracked. At 90% a title counts as watched and
   Continue Watching offers the next episode instead. A resumed film saves
@@ -114,7 +138,9 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   Loading…, Active, or why it could not load, with Retry.
 - **Settings › Playback**: touch gestures, the hold speed (1.25x to 3x),
   the pause overlay, picture size, rotation, picture-in-picture on leaving
-  the app, and **Save mobile data** (Automatic, Always, Never; below). Under
+  the app, **Save mobile data** (Automatic, Always, Never; below) and **Get
+  ready ahead** (on unless turned off; above; an Astra setting, so it is in
+  a backup). Under
   **Skip intro**: **Find intros by sound** (on unless turned off; works on
   this phone and sends nothing) and **Look up anime skip times** (off unless
   you turn it on; see Skip intro below). Then OpenSubtitles on or off, and
@@ -221,6 +247,11 @@ Astra's own data is kept in this browser under `astra.v2.*`
   (`src/app/intro-store.js`; localStorage is too small for fingerprints): at
   most 60 series, the most recently used kept, and eight episodes each. It
   is not in a backup and Reset leaves it; without IndexedDB nothing is kept.
+- A film's header and index are kept in IndexedDB `astra-films`
+  (`src/engine/film-memory.js`; How a file plays, below), and what this
+  phone's decoders failed at in localStorage `astra-routes`
+  (`src/engine/route-memory.js`). Neither is in a backup, Reset leaves both,
+  and neither holds an address.
 
 ## How a file plays
 
@@ -228,31 +259,52 @@ Astra's own data is kept in this browser under `astra.v2.*`
 how it plays and plays it; it never switches pipeline mid-play. In detail:
 
 1. **Read before playing** (`probe.js`, `http-source.js`, `mkv.js`,
-   `chapters.js`). One open-ended range request streams the file into a
-   1 MiB block cache. The header gives the container, video codec and frame
+   `chapters.js`). The range reader (5. below) opens the file and reads
+   only what describing it asks for. The header gives the container, video codec and frame
    rate, every audio track (language, codec, channels), every subtitle track
    and the chapters (Matroska's own, or an MP4's chapter list), offered as
    `engine.chapters` before playback starts. If the host does not let a web
    page read the file (CORS) or ignores ranges, that is known at once; a
    playlist is known by its address or its type even then.
 2. **Decide once** (`plan.js`, pure, tested in `tests/astra-plan.test.mjs`).
-   Using answers from the browser itself (`capabilities.js`): `native` for a
-   plain one-track MP4/WebM the browser plays whole (its picture and its
-   sound together, so a WebM with VP8 and Vorbis or an MP4 with MP3 is not
-   unpacked) or an unreadable host, `remux` for everything else Astra can
-   play, `software` when the phone has no browser decoder for the video
+   Using answers from the browser itself (`capabilities.js`): `remux` for
+   every film the page can read and Astra can unpack, a plain one-track
+   MP4 or WebM too (so it has the data saver, the read-ahead by bitrate, the
+   data count, the sound features and reconnecting); `native` (the browser
+   plays the address itself) only for a host that does not let the page
+   read the file, a file written like a live recording (Matroska clusters
+   of unknown size), or a picture or sound Astra cannot unpack that the
+   browser plays (VP8 has no place in the MP4 that Media Source takes);
+   `software` when the phone has no browser decoder for the video
    (HEVC, AV1 or VP9 without hardware support, 10-bit H.264, and the older
    codecs in the table below), when Mediabunny cannot read the container
    (AVI, FLV, MPEG-PS) or did not list the picture (MPEG-2 in a transport
    stream), `hls`/`dash` for adaptive streams, or `unsupported` with a
-   reason and an offer to play the file in another app. Audio tracks are
-   `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3, E-AC-3, DTS, Dolby TrueHD,
-   Vorbis, MP3, PCM and G.711: decoded and re-encoded to Opus on the device;
-   each decoder downloads only when a film needs it) or `unsupported` (ALAC
+   reason and an offer to play the file in another app. A plain MP4 or WebM
+   the browser would play whole is marked so (`whole`): if unpacking it
+   fails before the first picture, it goes to the browser once, by itself
+   (`player-start.js`). Audio tracks are `direct` (AAC, Opus, FLAC, MP3, and
+   Dolby Digital, Dolby Digital Plus and DTS where the browser says it
+   decodes them: passed to the phone's own decoder, surround kept, no
+   converter downloaded), `rebuilt` (AC-3, E-AC-3 and DTS elsewhere, Dolby
+   TrueHD, Vorbis, PCM and G.711: decoded and re-encoded to Opus on the
+   device; each decoder downloads only when a film needs it) or `unsupported` (ALAC
    and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
    (profile 5 has no standard picture underneath).
+   **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
+   localStorage `astra-routes`, per device, each entry for 30 days so a
+   browser update gets another chance). A browser can say it decodes Dolby
+   Digital or DTS and then fail: a decode error, a failed start, or a sound
+   buffer that stays empty for 5 s while the picture's holds 2 s switches
+   that sound to `rebuilt` at the same place, once per film, and later films
+   start rebuilt; if the rebuilt sound fails the same way straight after,
+   the sound was not the cause and the memory is taken back. A picture that
+   fails in the browser's decoder and then plays in the software decoder is
+   remembered by its codec string (at most 40), so the next film with it
+   starts in software; Try again, when the software decoder failed too,
+   forgets it.
 3. **Play** (`remux.js`, `mse.js`, `early.js`, `downmix.js`). Video packets
    are re-wrapped as fragmented MP4 untouched, in half-second fragments, so
    the phone's hardware decoder does the work;
@@ -265,15 +317,40 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
    timestamps start after zero (MPEG-TS) are shifted to start at 0:00, and
    their chapters and subtitles with them. A film the browser plays itself
-   from a host that lets the page read it is asked for with CORS, so the
-   sound features and frame capture work on it too.
+   from a host that lets the page read it (the one-time fallback above) is
+   asked for with CORS, so the sound features and frame capture work on it
+   too.
+   **Astra's own Matroska reader** (`mkv-packets.js`, `mkv-blocks.js`,
+   `mkv-sink.js`; `TUNING.ownMkv` in `remux.js`, on). For a Matroska or
+   WebM film the picture and the sound passed through as they are are read
+   here rather than by Mediabunny, which loads a whole cluster (up to 5 MB
+   or 5 s) before it hands out its first packet: each block is handed out
+   as soon as its bytes have arrived, so a start or a far seek waits for its
+   first frames, not for the cluster. A seek goes by the cue index kept from
+   the description, straight to the key frame's block where the cue says
+   where it sits. Mediabunny still reads a film without cues, a track with
+   zlib compression, encryption or more than one encoding, and anything the
+   reader meets mid-film that it will not guess at (an element larger than
+   its cluster, a second cluster time, a cue that points at no block, lace
+   sizes that do not add up): that ends its use for the film
+   (`MkvFallback`), and Mediabunny's reader takes over from the place
+   playing. Converted sound (Dolby Digital, DTS, TrueHD where they are
+   `rebuilt`) is decoded through Mediabunny's own sample reader, which still
+   reads it a whole cluster at a time.
    A watchdog (`stall-watch.js`) looks once a second at a film that is stuck
    with nothing on its way: it steps over a hole of up to three seconds in
    the sound or the picture; when the sound ends before the picture, the
    film carries on from the same place without sound (the stream's notes say
    so), rather than stopping for good.
    HLS and DASH streams play through hls.js and dash.js, served from Astra's
-   own `vendor/` and loaded only when such a stream is played.
+   own `vendor/` and loaded only when such a stream is played, with a
+   phone's settings in place of their desktop defaults
+   (`adaptive-tuning.js`): a level no larger than the player shows it (its
+   size times the screen's pixel ratio, counted at most 2, so a phone held
+   sideways is not given 4K), 40 s read ahead and 30 s kept behind, and with
+   the data saver on 20 s ahead and a ceiling of 720p (where a stream does
+   not give picture sizes, 3 Mbit/s); the saver's change reaches a stream
+   already playing.
 4. **Software decoding** (`software.js`): libmedia's AVPlayer (LGPL-3.0,
    served from `frontend/assets/libmedia/`, loaded only when needed) decodes with
    WebCodecs where the browser has the decoder and WebAssembly otherwise,
@@ -286,25 +363,72 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    decoder) is met first with a fresh pipeline at the same place, with
    fragments only at key frames, then with the software decoder there. A file whose picture has no decoder stops
    with that reason at once; one whose sound has none plays with a notice.
-5. **Reading the file** (`http-source.js`, `source-stream.js`). Playback's
-   reads pull one download along; it pauses 24 MiB past the furthest block
-   read (8 MiB with the data saver) and only 2 MiB while the file is being
-   described, since where playback starts is not known yet. The subtitle
-   readers only peek at what playback already fetched, so they cost nothing
-   and never pull the download along. A seek ends the downloads and reads of
-   the place it left, so the new place has the whole connection. A download
-   that breaks off after bringing a fair part of the file (a host that cuts
-   every connection after so many bytes) is continued from the byte it
-   reached; one that brings nothing is tried again with a growing pause for
-   up to a minute (at once when the phone is back online) while the buffer
-   plays. `engine.dataUsed()` is what the film has downloaded so far, as the
-   reader counts it (for HLS and DASH, as their players count it).
+5. **Reading the file** (`http-source.js` with `source-stream.js`,
+   `source-blocks.js`, `source-tuning.js`, `side-read.js`, `source-tail.js`,
+   `film-memory.js`). Playback's reads pull one download along (two at
+   most), held in 1 MiB blocks; a read is answered as soon as its own bytes
+   have arrived, not when its block is whole, and a read far inside a block
+   is fetched from its own byte.
+   - *While a film is described*, only what is asked for is fetched: a
+     download stops 64 KiB past the last byte asked of it (and never runs
+     more than 2 MiB ahead), since where playback starts is not known yet;
+     resuming halfway then closes the connection at the start.
+   - *Read-ahead by bitrate* (`source-tuning.js`). Once the size and the
+     length give the film's bitrate, a download runs about 10 s of the film
+     past the furthest byte read (5 s with the data saver), never under
+     2 MiB nor over 24 MiB (8 MiB with the saver); before that, the byte
+     limit alone. It asks for that in bounded requests, the next part once
+     playback has come within half a reach of its end, so a seek or a stop
+     throws away little the connection already carried (a host that ignores
+     a range's end is read open-ended and paused instead). The block cache
+     keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
+     40 s and the reach; 55 s with the saver), between 16 and 96 MiB.
+   - *Both ends at once* (`source-tail.js`). On a film's first open, as soon
+     as the first answer gives the size, its last 64 KiB are asked for beside
+     its start, in a request of their own: the subtitle hash needs them, and
+     a short film's index (Matroska's cues, an MP4's index written at the
+     back) often lies there too, so a read of
+     the end waits for those bytes instead of costing another round trip.
+   - *A film remembered* (`film-memory.js`). What describing a film read is
+     kept in IndexedDB `astra-films`: at most 4 MB a film and 60 films, the
+     least recently opened dropped first. A film is known by its size and a
+     SHA-256 of its first 64 KiB, never by its address (which carries
+     secrets). On the next open, once those 64 KiB have arrived (the lookup
+     waits at most 1.5 s), the description's reads are answered from memory
+     and its end is not asked for; a kept range is used only when size, hash
+     and its own checksum match, a damaged entry is dropped and replaced, and
+     storage that fails or is missing changes nothing but the cost.
+   - *Side reads* (`side-read.js`): the film's end beside its start, and the
+     first part of a block a seek's download began inside (fetched once
+     playback is under way, for the subtitle scanners), are bounded
+     requests of their own that never end, starve or redirect a download
+     playback reads from; their bytes count in what the film cost.
+   - *Waiting or asking.* A read just ahead of a running download waits for
+     it only when the download will get there within about a second at the
+     speed it has shown (at least 256 KiB, at most 12 MiB); further ahead,
+     the read asks for its own bytes, so a resume ten seconds in does not
+     wait for megabytes the viewer skips on a slow link.
+   The subtitle readers only peek at what playback already fetched, so they
+   cost nothing and never pull the download along. A seek ends the
+   downloads and reads of the place it left, so the new place has the whole
+   connection. A download that breaks off after bringing a fair part of the
+   file (a host that cuts every connection after so many bytes) is continued
+   from the byte it reached; one that brings nothing is tried again with a
+   growing pause for up to a minute (at once when the phone is back online)
+   while the buffer plays. When the network changes (Wi-Fi to mobile data,
+   or back online), a download that has brought nothing for 3 s is asked
+   again at once, without counting a failure. `engine.dataUsed()` is what
+   the film has downloaded so far, as the reader counts it (for HLS and
+   DASH, as their players count it).
 6. **The data saver** (`player-data.js`, Settings > Playback > Save mobile
    data). Automatic by default: on when the phone asks to save data or is on
-   a mobile network. With it on, the reader pauses 8 MiB ahead instead of 24
-   and the pipelines keep 20 s ahead instead of 40; a change applies to the
-   film that is playing. On a three-minute 3.3 Mbit/s film, 40 s in, it had
-   downloaded 32 MB instead of 56.
+   a mobile network. With it on, the reader reads about 5 s of the film
+   ahead instead of 10 (at most 8 MiB instead of 24), the cache keeps 55 s
+   instead of 80, the pipelines keep 20 s ahead instead of 40, HLS and DASH
+   are held to 720p and 20 s ahead, and nothing is got ready before a tap; a
+   change applies to the film that is playing. With the earlier fixed
+   read-ahead (8 MiB instead of 24), a three-minute 3.3 Mbit/s film, 40 s
+   in, had downloaded 32 MB instead of 56.
 7. **Another app**: when nothing in the browser can play a file, the player
    offers it to the phone's video apps (VLC, MX Player…) through an Android
    intent with the title and position (`src/player/external.js`).
@@ -325,7 +449,7 @@ since. Dolby TrueHD, then among the files that stop, now plays
 
 | Picture | Where | How |
 |---|---|---|
-| H.264, VP9, AV1 | MP4, MOV, MKV, WebM, TS, M2TS | the phone's decoder (`native` or `remux`) |
+| H.264, VP9, AV1 | MP4, MOV, MKV, WebM, TS, M2TS | the phone's decoder (`remux`; when the matrix ran, a plain MP4 or WebM went `native`) |
 | H.264 | FLV | software decoder |
 | HEVC (8 and 10 bit) | MP4, MKV, TS | the phone's decoder where it has one, else software |
 | VP8 | WebM as it is; MKV in software | |
@@ -404,14 +528,39 @@ Three things made the difference.
 The audio decoder (1.2 MB for Dolby Digital, 1.7 MB for DTS, 0.7 MB for
 TrueHD) also downloads while the first video is read instead of before it.
 
-What is left, and why: the first frame still waits for one whole Matroska
-cluster (up to 5 MB or 5 s), because Mediabunny (1.66 as well) reads a
-cluster whole before it hands out its first packet, and for the whole 1 MiB
-block of the reader that holds its end; and on a first play for the audio
-decoder's download. On a connection of 300 kB/s that is 3.2 s for the small
-test film (one block) and 10.3 s for a 3.3 Mbit/s film with 5 s clusters. Changing the audio track stops the picture for about a third of a
+What is left, and why: these figures were taken when the first frame
+waited for one whole Matroska cluster (up to 5 MB or 5 s), because
+Mediabunny (1.66 as well) reads a cluster whole before it hands out its
+first packet, and for the whole 1 MiB block of the reader that holds its
+end: on a connection of 300 kB/s, 3.2 s for the small test film (one
+block) and 10.3 s for a 3.3 Mbit/s film with 5 s clusters. Neither wait is
+there now for the picture and passed-through sound: Astra's own Matroska
+reader hands out each block as it arrives and the reader answers each read
+as its bytes come (`tests/astra-mkv-browser.test.mjs`: paced at 375 kB/s,
+a film of 2.5 MB clusters shows its first picture after well under one
+cluster, from the start and after a seek). Converted sound (Dolby Digital,
+DTS, TrueHD where they are rebuilt) still waits for its whole cluster,
+since Mediabunny decodes it, and on a first play for its decoder's
+download. Changing the audio track stops the picture for about a third of a
 second (the seek in place that flushes the old sound). None of this was
 measured on the phone itself.
+
+### Several cores (present, switched off)
+
+The code for using more than one core is in place and off: `ISOLATE =
+false` in `sw.js` (with it on, the worker gives the pages it serves COOP
+`same-origin` and COEP `credentialless`, so they are cross-origin isolated
+from the second visit and have SharedArrayBuffer) and `THREADS = false` in
+`src/engine/software-threads.js` (with it on, on an isolated page,
+libmedia decodes on one core fewer than the phone has, at most 4). Measured
+2026-11-15 in desktop Chromium: threads raised the frames the software
+decoder showed when cores were free, but delayed the first picture by 0.4
+to 0.8 s; and isolation makes JASSUB start as many threads as the phone has
+cores less two, which made libass start about twice as slowly and draw no
+faster. To switch it on, set both to `true`; it also needs JASSUB's thread
+count held (it has no switch Astra uses today), or libass will be slower
+than it is now. `tests/astra-isolation-browser.test.mjs` serves the site
+with both on and checks that everything Astra does still works isolated.
 
 ## The player screen
 
@@ -493,25 +642,66 @@ measured height, so nothing covers the title or the buttons.
   level stays 0 to 100 %), **night mode** (quiet sound up, loud bangs
   down), **dialogue** (+1 or +2: the centre channel lifted, or the speech
   band in stereo; for sound the engine converts, the centre is lifted in
-  its own mix-down), and **sound delay** in 0.05 s steps up to a second
+  its own mix-down), **even loudness**, **headphone surround** (both below,
+  off unless turned on), and **sound delay** in 0.05 s steps up to a second
   later, or earlier where the engine re-wraps the film (the page itself can
-  only make sound later). Boost, night mode and dialogue are kept for every
-  film; the delay belongs to one title. The tab is greyed with the reason
+  only make sound later). Boost, night mode, dialogue, even loudness and
+  headphone surround are kept for every film; the delay belongs to one
+  title. The chain runs, in order: the mix to stereo (plain, with the
+  centre lifted, or placed for headphones), the even-loudness gain, night
+  mode, boost, the limiter, the delay (`enhance/sound-chain.js`), so night
+  mode meets every film at the same level and neither a lift nor a boost
+  can clip. The tab is greyed with the reason
   before the film has started and for a film played straight from a host
   that does not let the page read it (its sound would be silenced). In the
   software decoder the same chain goes into libmedia's own sound path. With
   everything off the sound passes untouched, and nothing takes the film's
   sound until a feature is first turned on.
+  - **Even loudness** (`enhance/loudness.js`, `leveller.js`): a meter on the
+    chain's input (an AudioWorklet, before every feature, so it measures
+    the film and not what Boost or the gain made of it) measures its
+    programme loudness as EBU R 128 / ITU-R BS.1770-4 does (K-weighting,
+    400 ms blocks every 100 ms, surrounds weighted 1.41, the bass channel
+    left out, the -70 LUFS and relative -10 LU gates), and a gain moves
+    towards the level that brings it to -18 LUFS, never more than 12 dB
+    up or down. It holds for the first 2 s of sound, then moves at up to
+    3 dB a second, and once 10 s have been measured at most 1 dB per 2 s.
+    The element's volume is divided out of what is measured, so the
+    owner's own volume swipe is never taken for a quieter film and undone.
+    Each title's settled gain (after 30 s of measure) is remembered in the
+    player's prefs, at most 200 titles: its next play starts there and
+    moves only slowly after 10 s; a title never measured starts from the
+    middle of those remembered, else 5 dB up.
+  - **Headphone surround** (`enhance/headphone.js`): a 5.1 or 7.1 film is
+    placed around the listener with the browser's own binaural rendering
+    (Web Audio's HRTF panner, each speaker a metre away at its standard
+    angle; no outside data), each channel at its level in the stereo mix,
+    the centre at -3 dB (the dialogue lift still works on it), the bass
+    channel to both ears at -6 dB through a 120 Hz low-pass, and the whole
+    2 dB down to be as loud as the plain mix. It is offered only for sound
+    that reaches the page with a centre and surrounds: not for a track the
+    engine converts (it arrives already mixed to stereo), nor in the
+    software decoder.
 - **The Picture section** at the top of Stream info (`picture-menu.js`,
-  `enhance/picture.js`): **sharpen** (Low, Medium, High: AMD FSR 1.0's
-  edge-adaptive upscale and sharpening, in WebGL2, up to 1080p output) and
-  **smooth banding**, kept for every film. The film is drawn through the
+  `enhance/picture.js`, `filter.js`): **upscale** (Standard: AMD FSR 1.0's
+  edge-adaptive upscale, `fsr.js`; or Animation: Anime4K's "Upscale CNN x2
+  (S)" network for drawn films, `anime4k.js`), **sharpen** (Off, Low,
+  Medium, High: FSR's RCAS) and **smooth banding**, in WebGL2 up to 1080p
+  output, kept for every film. The film is drawn through the
   filter onto a canvas over the video only when a new frame is presented,
-  not while the page is hidden or in picture-in-picture. HDR films keep the
-  plain picture (the filter would clip their highlights), and so does a
-  film from a host that does not let the page read it; the section says
-  why. When frames start to be missed it steps itself down (smooth banding
-  off, then a smaller output) and then off, and says so once.
+  not while the page is hidden or in picture-in-picture. Animation runs
+  only where the phone can draw into half-float targets and the picture is
+  shown more than 1.2 times larger both ways (Anime4K's own rule); the
+  section says when Standard is drawn instead and why. **HDR films** are
+  uploaded as half floats and tone-mapped to the screen (`tonemap.js`:
+  ITU-R BT.2390's curve on the PQ signal, 1,000 nits assumed for the
+  source, mid-tones placed where Chrome's own picture puts them; into
+  Display P3 on a P3 screen, else sRGB) before the other passes; a phone
+  that cannot draw into half floats keeps the plain picture for them. A
+  film from a host that does not let the page read it keeps the plain
+  picture too; the section says why. When frames start to be missed it
+  steps itself down (Animation to Standard, then smooth banding off, then
+  a smaller output) and then off, and says so once.
 - **Skip intro, recap, outro** (`markers.js`): the Skip button appears while
   the playhead is in a segment and skips only on a tap; without the
   controls it stays 10 s, then waits for them. The next-episode card
@@ -543,9 +733,10 @@ measured height, so nothing covers the title or the buttons.
   arrows or j and l, m, f, c, z and x do what a desktop player's do.
 - Unpacking a file gives the page a turn every 8 ms, so taps (Close
   included) answer while a film starts.
-- While a file is being described, Astra reads only 2 MB ahead of what it
-  asked for; resuming halfway then closes the connection at the start, so it
-  does not share the phone's bandwidth with the one that is needed.
+- While a file is being described, Astra reads only a little past what it
+  asked for (How a file plays, 5.); resuming halfway then closes the
+  connection at the start, so it does not share the phone's bandwidth with
+  the one that is needed.
 - **Close** (the back arrow, back, or closing the floating window) stops
   everything at once: the sleep timer, Sound only, the picture filter's
   canvas, Find a line, menus, gestures, notices, full screen, the wake
@@ -573,8 +764,11 @@ merged by kind; nothing ever skips by itself, and movies get neither.
   episodes are matched against it first. What was found before shows at
   once next time. Nothing is sent anywhere; what is kept is in
   `astra-intro` (Saved data above). The tap works only where Astra reads
-  the sound itself, a re-wrapped film (`remux`): a film Chrome plays
-  itself, an HLS or DASH stream and the software decoder give it nothing,
+  the sound itself, a re-wrapped film (`remux`, a plain MP4 or WebM
+  included): a film Chrome plays itself, an HLS or DASH stream, the
+  software decoder, and Dolby or DTS sound passed to the phone's own
+  decoder where WebCodecs cannot decode it (it is asked first; the log
+  says so in one line) give it nothing,
   so the first episodes of a series find nothing until two have been heard.
 - **Looked up, for anime** (Settings › Playback › Look up anime skip times,
   off unless you turn it on; `src/addons/skip-times.js`). For a series whose
@@ -653,50 +847,78 @@ skip in a browser without it.
 
 | File | What it covers |
 | --- | --- |
-| `astra-plan.test.mjs` | The planner and the software decoder's tables: which way each kind of file plays. |
+| `astra-plan.test.mjs` | The planner and the software decoder's tables: which way each kind of file plays; a plain MP4 or WebM unpacked like any other film; Dolby and DTS passed through where the browser says it decodes them, until that failed here; a picture that failed in the browser starting in software. |
+| `astra-routes.test.mjs` | What the device remembers of a failed route (30 days, at most 40 pictures, broken storage), the lab's words on Dolby and DTS sound, and the phone settings hls.js and dash.js get, with the saver's 720p ceiling. |
 | `astra-engine.test.mjs` | The range reader against hosts that cut, stall, answer nothing or move; headers read without trusting their sizes (MKV, clusters, MP4); the stall watchdog; early fragments; playlists without byte ranges. |
 | `astra-source.test.mjs` | After a seek the dropped pipelines' reads end and their downloads close. |
-| `astra-early.test.mjs`, `astra-downmix.test.mjs` | Half-second fragments; converted sound mixed a sample at a time. |
+| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, and waiting for a download by time rather than bytes. |
+| `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
+| `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
+| `astra-early.test.mjs` | Half-second fragments. |
+| `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
 | `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
-| `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running. |
+| `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running, and the player handing the film's length to the reader. |
 | `astra-feed.test.mjs` | A film's attached fonts (bounded), which files libass can draw, the second track moved to the top, the sound tap's bookkeeping. |
+| `astra-sound-tap.test.mjs` | Skip intro's tap on sound passed through: WebCodecs asked first, one plain line and no error where it cannot decode it. |
 | `astra-subtitles.test.mjs` | The parsers on files as people find them, and picture subtitles with impossible sizes or out of order. |
 | `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
-| `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs. |
+| `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs, and the card's sound note against what this phone plays and what failed here. |
+| `astra-debrid.test.mjs` | TorBox's list asked once and kept in memory ten minutes per token, asked again once when a pick is not in it. |
+| `astra-tap.test.mjs` | What is fetched ahead for a list and a saver state, a press that starts a resolve the tap takes, the next episode made ready only for the same release group, and a film's tail asked for beside its start. |
 | `astra-addon-json.test.mjs` | Add-on answers over 5 MB refused, and one that never ends cut. |
 | `astra-skip.test.mjs` | The sound fingerprint and its matching, what the intro store keeps, and the skip-times lookup against invented answers. |
 | `astra-player.test.mjs` | The gesture rules, when progress may overwrite the saved place, the next episode's sources through the filters, and `player/rules.js`. |
-| `astra-enhance.test.mjs` | The sound chain's stereo mix against the engine's, and the picture's sizes. |
+| `astra-enhance.test.mjs` | The sound chain's stereo mix against the engine's, dialogue steps, the picture's sizes, and the BT.2390 curve. |
+| `astra-loudness.test.mjs` | The BS.1770 measure against the standard's coefficients and EBU Tech 3341's test signals, channel weights, the gain law, and the remembered gains. |
+| `astra-software-threads.test.mjs` | How many cores libmedia may use, and that as shipped it stays on one thread. |
 | `astra-startup.test.mjs` | `index.html` preloads exactly what start-up imports. |
-| `astra-sw.test.mjs` | The service worker in a vm with Cache Storage that outlives it: releases, updates, restarts. |
+| `astra-sw.test.mjs` | The service worker in a vm with Cache Storage that outlives it: releases, updates, restarts, and isolation off as shipped and right when switched on. |
 | `astra-sw-browser.test.mjs` | The worker in Chromium: offline start, a one-file update, the Reload offer staying, a page keeping its release across an update and a restart, no query as a key. |
-| `astra-play-browser.test.mjs` | The engine on real films from another origin: every way of playing (HLS and DASH from `vendor/`), seeks, changing sound track, TrueHD heard, chapters and frame rate, CORS for native films, connections let go on close, a host that is gone, silent or cutting. |
+| `astra-isolation-browser.test.mjs` | Isolation and threads switched on by a server in front of the site: the second opening is isolated, and posters, a film the page may not read, the engine and the software decoder still work. |
+| `astra-play-browser.test.mjs` | The engine on real films from another origin: every way of playing (HLS and DASH from `vendor/`), seeks, changing sound track, TrueHD heard, a plain MP4 and a WebM unpacked, the one-time fallback to the browser (with CORS where allowed), connections let go on close, a host that is gone, silent or cutting. |
+| `astra-mkv-browser.test.mjs` | Astra's own Matroska reader in the browser: 5-second clusters and front cues played and seeked, the fall back to Mediabunny mid-film, and the first picture after well under one cluster on a paced host. |
+| `astra-routes-browser.test.mjs` | A browser that claims Dolby Digital and then fails three ways, each met with the sound rebuilt in place and remembered; a picture's software fallback remembered; HLS levels by player size and the saver; DASH with the phone settings. |
+| `astra-adaptive-browser.test.mjs` | hls.js on a dense screen: the pixel ratio counted at most 2. |
 | `astra-player-browser.test.mjs` | The player screen at phone size with touch and a stubbed engine: resume point, picture-in-picture, holds, close, controls, live seek bar, focus, lock, full screen lost in the background. |
 | `astra-features-browser.test.mjs` | The Playback menu, remembered volume, Start over, seek-bar marks, subtitle delay, Find a line, the second subtitle, frames and stills, pinch to zoom, data used, the source line, the lab's address. |
 | `astra-feed-browser.test.mjs` | On the real page and CSP: libass with the film's font, the second subtitle's layer, the sound tap, dialogue lift and earlier sound in the engine. |
 | `astra-libass-browser.test.mjs` | The libass layer: placement, drawing only while a line shows, the film's font, delay, destroy, and a start that fails falling back. |
 | `astra-enhance-browser.test.mjs` | Sound measured after the chain and the picture read back from the canvas, on real films. |
+| `astra-sound-browser.test.mjs` | Even loudness bringing two films 12 dB apart together while the volume stays the owner's, headphone surround placing the left surround, and the Sound tab's two switches. |
+| `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped close to the browser's own picture, read back from the canvas. |
 | `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |
 | `astra-app-play-browser.test.mjs` | The app end to end: an invented add-on, a tap on a stream, chapters, the sound tap fed, data used, the Sound tab, Find a line, another source drawn by libass, no page error. |
+| `astra-tap-browser.test.mjs` | From a tap to the first picture in the real app with Get ready ahead on, off and under the saver: the list read once, the press's resolve taken by the tap, the next episode made ready so Next asks nothing, nothing before a tap when off, nothing ever playing without one. |
 | `astra-open-browser.test.mjs` | The Thunderhead's link (`?find=…&max_mb=…`) opens Details, the size chip, nothing plays by itself. |
 
-- **Films**: `tests/fixtures/astra/` (about 2.7 MB, committed) is made by
-  `bash scripts/astra/fixtures.sh [film…]` (needs ffmpeg; name films to
-  remake only those, since x264 builds differ). Each is a moving test
-  picture with a clock and a sine tone per sound track at its own pitch, so
-  a check can tell by ear which track plays: `multi.mkv` (two AAC tracks,
-  SRT, chapters), `surround.mkv` (Dolby Digital 5.1), `plain.mp4` (plays
-  natively), `open.webm` (VP9, Opus), `anime.mkv` (the hand-written,
-  invented `signs.ass` with Inter Bold attached), `centre.mkv` (a tone in
-  the centre channel only), `truehd.mkv`, `hevc.mkv` (software decoder in
-  the test browser), `hls/` and `dash/`; `beside.srt` loads beside a film.
+- **Films**: `tests/fixtures/astra/` (about 3.4 MB, committed). Most are
+  made by `bash scripts/astra/fixtures.sh [film…]` (needs ffmpeg; name
+  films to remake only those, since x264 builds differ). Each is a moving
+  test picture with a clock and a sine tone per sound track at its own
+  pitch, so a check can tell by ear which track plays: `multi.mkv` (two AAC
+  tracks, SRT, chapters), `surround.mkv` (Dolby Digital 5.1), `plain.mp4`
+  (a plain MP4, unpacked by Astra like any other film), `open.webm` (VP9,
+  Opus), `anime.mkv` (the hand-written, invented `signs.ass` with Inter Bold
+  attached), `centre.mkv` (a tone in the centre channel only), `truehd.mkv`,
+  `hevc.mkv` (software decoder in the test browser), `clusters.mkv` (a
+  cluster every 5 s and a key frame every 10 s, so half the clusters begin
+  between key frames: Astra's Matroska reader), `frontcues.mkv` (its cue
+  index before the clusters), `hls/` and `dash/`; `beside.srt` loads beside
+  a film. Three are made by the command in their test's header:
+  `hls2/` (two picture-only levels, 320x180 and 1920x1080, for the level a
+  player's size takes; `astra-routes-browser.test.mjs`),
+  `hdr-patches.webm` (VP9 profile 2, PQ, BT.2020 grey and colour patches at
+  known levels, for the tone mapping; `astra-picture-browser.test.mjs`) and
+  `surround-left.mkv` (5.1 AAC with a burst in the left surround only, for
+  headphone surround; `astra-sound-browser.test.mjs`).
 - **The file host** (`tests/fixtures/astra-host.mjs`) serves them as a real
   host does (byte ranges, readable from another origin) and counts what was
   asked and sent. Its switches make it misbehave: `hang` (never answers),
   `status` (answers every request with that code), `cutAfter` (drops each
-  connection after so many bytes), `bps` (a slow connection), `noRange`
-  (sends the whole file), `noCors` (no CORS headers; `?nocors` on one
-  film's address does it for that film alone).
+  connection after so many bytes), `bps` (a slow connection), `delay`
+  (milliseconds each request waits before it is answered: a far host's
+  round trip), `noRange` (sends the whole file), `noCors` (no CORS headers;
+  `?nocors` on one film's address does it for that film alone).
 - Vendored files: `node scripts/astra/vendor.mjs --check` checks every
   file in `vendor/` against the hashes in `vendor.json`, without the
   network.
@@ -721,3 +943,20 @@ tests, never on the Galaxy A15. Until it is, these are not proven:
   with 2 GB of memory or less);
 - the data saver's Automatic, which depends on what Chrome on Android says
   about the connection.
+
+These were run only in the tests' desktop Chromium, which has no Dolby
+decoder, no phone graphics chip, no HDR screen and no real network:
+
+- Dolby Digital and DTS passed to the decoder of a phone that has one (the
+  tests play a browser that only claims it), and the fall back to
+  converting when it fails;
+- Anime4K's speed on the phone's graphics chip, and how soon Animation
+  steps down to Standard;
+- an HDR film on a real HDR screen and on a P3 screen (the tests read back
+  an sRGB canvas);
+- the preconnect to TorBox and to a film's host on Android, and what Get
+  ready ahead saves before the first picture there;
+- a film remembered (`astra-films`) on a real connection: how much sooner
+  it opens the second time;
+- headphone surround's cost on the phone's processor;
+- a real network change (Wi-Fi to mobile data) while a film plays.
