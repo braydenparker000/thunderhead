@@ -5,7 +5,7 @@
 // calls onSegments once a segment's start and end have both been heard here
 // and in the other episode. On close it keeps this episode's fingerprint.
 
-import {Fingerprinter, keepEnds, sliceFingerprint, spansToTimes, STEP} from './fingerprint.js';
+import {Fingerprinter, joinGaps, keepEnds, sliceFingerprint, spansToTimes, STEP} from './fingerprint.js';
 import {matchSteps, segmentsFrom} from './fingerprint-match.js';
 
 const HEAD = 360, TAIL = 240;   // seconds fingerprinted at each end
@@ -39,6 +39,9 @@ export class IntroFinder {
   get headEnd() { return this.duration > 0 ? Math.min(HEAD, this.duration * 0.35 + 30) : HEAD; }
   get tailStart() { return this.duration > HEAD ? Math.max(HEAD, this.duration - TAIL) : Infinity; }
 
+  /** Whether sound at media time t (seconds) is wanted: the engine can skip decoding or copying the rest. */
+  wants(t, len = 0) { return !this.closed && !(t >= this.headEnd && t + len <= this.tailStart) && !(this.segments.length >= 2); }
+
   /** Decoded sound: one Float32Array per channel, its rate, the media time of its first sample. */
   feed(channels, sampleRate, mediaTime) {
     const len = (channels?.[0]?.length || 0) / sampleRate;
@@ -55,6 +58,12 @@ export class IntroFinder {
     const want = ['intro', 'outro'].filter(t => !this.segments.some(s => s.type === t));
     if (!want.length) return;
     this.busy = true; this.matchedAt = this.fed;
+    this.wait(() => this.round(want));
+  }
+
+  /** One round, run a slice at a time: this episode so far against each candidate. */
+  round(want) {
+    if (this.closed) return;
     const b = this.fp.fingerprint(), jobs = [];
     const parts = {intro: sliceFingerprint(b, 0, this.headEnd), outro: sliceFingerprint(b, this.tailStart, Infinity)};
     for (const type of want) {
@@ -80,12 +89,12 @@ export class IntroFinder {
       this.busy = false;
       if (this.again) { this.again = false; this.match(); }
     };
-    if (jobs.length) this.wait(step); else this.busy = false;
+    step();
   }
 
   /** Keeps a run whose two ends have been heard, in this episode and in the other. */
   take({type, c, theirs, mine}, runs) {
-    const heardB = spansToTimes(mine), heardA = spansToTimes(theirs);
+    const heardB = spansToTimes(joinGaps(mine)), heardA = spansToTimes(joinGaps(theirs));
     // Heard in one stretch, with MARGIN heard before the start (or the stretch starts the file) and after the end.
     const within = (heard, t0, t1) => heard.some(h => t0 >= h.start - STEP && t1 <= h.end + STEP &&
       (t0 - h.start >= MARGIN || h.start <= STEP * 8) && h.end - t1 >= MARGIN);

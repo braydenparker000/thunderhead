@@ -99,8 +99,9 @@ export function hashFrames(f) {
  */
 export class Fingerprinter {
   constructor() {
-    this.frames = new Map();   // frame index -> features
-    this.items = new Map();    // step index -> item, worked out once (frames never change)
+    this.frames = [];          // frame index -> features (a sparse array: no sorting to walk it)
+    this.items = [];           // step index -> item, worked out once (frames never change)
+    this.lo = Infinity; this.hi = -Infinity;
     this.run = null;
     this.re = new Float64Array(N); this.im = new Float64Array(N);
   }
@@ -112,7 +113,8 @@ export class Fingerprinter {
     let r = this.run;
     if (!r || r.sr !== sampleRate || Math.abs(r.t0 + r.srcN / sampleRate - mediaTime) > GAP) r = this.run = this.newRun(sampleRate, mediaTime);
     // Mix to mono, then low-pass with two biquads in one pass (4th order) before resampling.
-    const f = new Float32Array(n), nc = channels.length, gain = 1 / nc;
+    if (!(this.mono?.length >= n)) this.mono = new Float32Array(n);
+    const f = this.mono.subarray(0, n).fill(0), nc = channels.length, gain = 1 / nc;
     for (let c = 0; c < nc; c++) { const ch = channels[c]; for (let i = 0; i < n; i++) f[i] += ch[i] * gain; }
     if (r.lp) {
       const [b0, b1, b2, a1, a2] = r.lp.c, z = r.lp.z;
@@ -146,7 +148,7 @@ export class Fingerprinter {
     for (;;) {
       const k = r.next, s = Math.round((k * STEP - r.t0) * RATE) - HALF - r.base;
       if (s + N > r.len) break;
-      if (s >= 0 && !this.frames.has(k)) this.frames.set(k, frameFeatures(r.buf, s, this.re, this.im));
+      if (s >= 0 && !this.frames[k]) { this.frames[k] = frameFeatures(r.buf, s, this.re, this.im); this.lo = Math.min(this.lo, k); this.hi = Math.max(this.hi, k); }
       r.next++;
     }
     const keep = Math.round((r.next * STEP - r.t0) * RATE) - HALF - r.base;
@@ -158,21 +160,18 @@ export class Fingerprinter {
 
   /** The fingerprint so far, optionally only items with times in [from, to): {step, spans: [{start, hashes}]}. */
   fingerprint({from = 0, to = Infinity} = {}) {
-    const keys = [...this.frames.keys()].sort((a, b) => a - b), spans = [];
+    const fr = this.frames, items = this.items, spans = [];
     let cur = null;
-    for (const k of keys) {
-      const t = k * STEP;
-      if (t < from || t >= to) continue;
-      let h = this.items.get(k);
+    for (let k = Math.max(this.lo, Math.ceil(from / STEP)), last = Math.min(this.hi, Math.ceil(to / STEP) - 1); k <= last; k++) {
+      let h = items[k];
       if (h === undefined) {
-        const f = [k - 3, k - 2, k - 1, k, k + 1].map(i => this.frames.get(i));
-        if (f.some(x => !x)) { cur = null; continue; }
-        this.items.set(k, h = hashFrames(f));
+        if (!(fr[k - 3] && fr[k - 2] && fr[k - 1] && fr[k] && fr[k + 1])) { cur = null; continue; }
+        items[k] = h = hashFrames([fr[k - 3], fr[k - 2], fr[k - 1], fr[k], fr[k + 1]]);
       }
-      if (!cur || cur.start + cur.list.length !== k) spans.push(cur = {start: k, list: []});
-      cur.list.push(h);
+      if (!cur) spans.push(cur = {start: k, end: k});
+      cur.end = k + 1;
     }
-    return {step: STEP, spans: spans.map(s => ({start: s.start, hashes: Uint32Array.from(s.list)}))};
+    return {step: STEP, spans: spans.map(s => ({start: s.start, hashes: Uint32Array.from(items.slice(s.start, s.end))}))};
   }
 }
 
@@ -210,4 +209,18 @@ export function mergeFingerprints(a, b) {
     cur.list.push(all.get(k));
   }
   return {step: STEP, spans: spans.map(s => ({start: s.start, hashes: Uint32Array.from(s.list)}))};
+}
+
+/** Spans less than `gap` seconds apart joined into one, the missing items 0 (unknown). */
+export function joinGaps(fp, gap = 3) {
+  const spans = [];
+  for (const s of [...(fp?.spans || [])].sort((x, y) => x.start - y.start)) {
+    const last = spans[spans.length - 1], lastEnd = last ? last.start + last.hashes.length : -Infinity;
+    if (last && s.start - lastEnd <= gap / STEP && s.start >= lastEnd) {
+      const joined = new Uint32Array(s.start + s.hashes.length - last.start);
+      joined.set(last.hashes); joined.set(s.hashes, s.start - last.start);
+      last.hashes = joined;
+    } else spans.push({start: s.start, hashes: s.hashes});
+  }
+  return {step: STEP, spans};
 }

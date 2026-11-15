@@ -8,14 +8,14 @@
 // half; each is then checked item by item at its best shift, and its two ends
 // are put where the bit errors step from low to high.
 
-import {STEP} from './fingerprint.js';
+import {joinGaps, STEP} from './fingerprint.js';
 
 const COARSE = 4;            // first pass: every fourth item
 const SMOOTH = 10;           // first pass average: 10 samples, 5 s
 const LOOSE = 0.36;          // first pass: an average below this is worth a look
-const MATCH = 0.33;          // second pass: the level the ends are measured against
+const MATCH = 0.33;          // second pass: a run's mean must be below this
 const EDGE = 24;             // 3 s either side when placing an end
-const BUDGET = 20000;        // compares between yields
+const BUDGET = 10000;        // compares between yields
 
 function bits(x) {
   x -= (x >>> 1) & 0x55555555;
@@ -24,6 +24,27 @@ function bits(x) {
 }
 /** Share of differing bits between two items; 0.5 when either is silent or missing. */
 const err = (x, y) => (x && y ? bits(x ^ y) / 32 : 0.5);
+const ring = new Int32Array(SMOOTH);
+
+/** First pass at one shift d (index in B minus index in A): stretches worth a look go to `found`. Returns the compares made. */
+function scanShift(sa, sb, d, minItems, found) {
+  const A = sa.hashes, B = sb.hashes, i0 = Math.max(0, -d), i1 = Math.min(A.length, B.length - d);
+  const n = Math.floor((i1 - i0) / COARSE), limit = LOOSE * 32 * SMOOTH;
+  let sum = 0, runFrom = -1;
+  for (let j = 0; j < n; j++) {
+    const i = i0 + j * COARSE, x = A[i], y = B[i + d], e = x && y ? bits(x ^ y) : 16;
+    sum += e - (j >= SMOOTH ? ring[j % SMOOTH] : 0);
+    ring[j % SMOOTH] = e;
+    const low = j >= SMOOTH - 1 && sum < limit;
+    if (low && runFrom < 0) runFrom = j - SMOOTH + 1;
+    if ((!low || j === n - 1) && runFrom >= 0) {
+      const to = low ? j + 1 : j;
+      if ((to - runFrom) * COARSE >= minItems * 0.6) found.push({sa, sb, d, from: i0 + runFrom * COARSE, to: i0 + to * COARSE});
+      runFrom = -1;
+    }
+  }
+  return n;
+}
 
 /**
  * The work of matchRuns in small steps: a generator that yields every few
@@ -33,34 +54,23 @@ const err = (x, y) => (x && y ? bits(x ^ y) / 32 : 0.5);
 export function* matchSteps(a, b, {minSeconds = 20, maxSeconds = 240} = {}) {
   const minItems = Math.round(minSeconds / STEP), found = [];
   let work = 0;
-  for (const sa of a?.spans || []) for (const sb of b?.spans || []) {
+  // A short gap (a seek, a lost chunk) does not cut a run in two.
+  a = joinGaps(a); b = joinGaps(b);
+  for (const sa of a.spans) for (const sb of b.spans) {
     const A = sa.hashes, B = sb.hashes;
     if (A.length < minItems || B.length < minItems) continue;
     // d: index in B minus index in A; both indexes within their arrays.
     for (let d = -(A.length - minItems); d <= B.length - minItems; d++) {
-      const i0 = Math.max(0, -d), i1 = Math.min(A.length, B.length - d);
-      const n = Math.floor((i1 - i0) / COARSE);
-      let sum = 0, runFrom = -1;
-      const e = new Float32Array(n);
-      for (let j = 0; j < n; j++) {
-        const i = i0 + j * COARSE;
-        e[j] = err(A[i], B[i + d]); sum += e[j];
-        if (j >= SMOOTH) sum -= e[j - SMOOTH];
-        const low = j >= SMOOTH - 1 && sum / SMOOTH < LOOSE;
-        if (low && runFrom < 0) runFrom = j - SMOOTH + 1;
-        if ((!low || j === n - 1) && runFrom >= 0) {
-          const to = low ? j + 1 : j;
-          if ((to - runFrom) * COARSE >= minItems * 0.6) found.push({sa, sb, d, from: i0 + runFrom * COARSE, to: i0 + to * COARSE});
-          runFrom = -1;
-        }
-      }
-      if ((work += n) > BUDGET) { work = 0; yield; }
+      if ((work += scanShift(sa, sb, d, minItems, found)) > BUDGET) { work = 0; yield; }
     }
   }
+  // Longest first; a stretch found again a shift or two away, inside a run already checked, is done.
   const runs = [];
+  found.sort((x, y) => (y.to - y.from) - (x.to - x.from));
   for (const c of found) {
+    if (runs.some(r => r.sa === c.sa && r.sb === c.sb && Math.abs(r.d - c.d) <= 3 && c.from >= r.start - EDGE && c.to <= r.end + EDGE)) continue;
     const r = refine(c);
-    work += (c.to - c.from) * 6;
+    work += (c.to - c.from) * 6 + 30 * EDGE;
     if (r && r.end - r.start >= minItems && r.end - r.start <= maxSeconds / STEP) runs.push(r);
     if (work > BUDGET) { work = 0; yield; }
   }
@@ -81,7 +91,8 @@ export function matchRuns(a, b, opts) {
   for (;;) { const s = it.next(); if (s.done) return s.value; }
 }
 
-const overlaps = (x, y) => x.sa === y.sa && x.sb === y.sb && share(x.start, x.end, y.start, y.end) && share(x.start + x.d, x.end + x.d, y.start + y.d, y.end + y.d);
+// A shorter run inside a longer one in either episode is that music repeating (a chorus), not a run of its own.
+const overlaps = (x, y) => x.sa === y.sa && x.sb === y.sb && (share(x.start, x.end, y.start, y.end) || share(x.start + x.d, x.end + x.d, y.start + y.d, y.end + y.d));
 const share = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0) > 0.5 * Math.min(a1 - a0, b1 - b0);
 
 /** Checks a first-pass stretch item by item: the best shift nearby, then each end placed to the step. */
@@ -94,15 +105,17 @@ function refine({sa, sb, d, from, to}) {
     for (let i = from; i < to; i++) s += at(dd, i);
     if (!best || s < best.s) best = {dd, s};
   }
-  const dd = best.dd, lo = from - 2 * SMOOTH * COARSE, hi = to + 2 * SMOOTH * COARSE;
+  // Errors at the best shift from 10 s before to 10 s after, summed up for quick windows.
+  const dd = best.dd, lo = from - 2 * SMOOTH * COARSE - EDGE, hi = to + 2 * SMOOTH * COARSE + EDGE;
+  const sum = new Float64Array(hi - lo + 1);
+  for (let i = lo; i < hi; i++) sum[i - lo + 1] = sum[i - lo] + at(dd, i);
+  const S = (x, y) => sum[y - lo] - sum[x - lo];
   // An end goes where errors are low on one side and high on the other, over 3 s each way.
   const edge = (around, startEdge) => {
     let pick = around, top = -Infinity;
-    for (let x = Math.max(lo, around - 6 * EDGE); x <= Math.min(hi, around + 6 * EDGE); x++) {
-      let s = 0;
-      for (let i = x - EDGE; i < x; i++) s += startEdge ? at(dd, i) - MATCH : MATCH - at(dd, i);
-      for (let i = x; i < x + EDGE; i++) s += startEdge ? MATCH - at(dd, i) : at(dd, i) - MATCH;
-      if (s > top) { top = s; pick = x; }
+    for (let x = Math.max(lo + EDGE, around - 6 * EDGE); x <= Math.min(hi - EDGE, around + 6 * EDGE); x++) {
+      const v = startEdge ? S(x - EDGE, x) - S(x, x + EDGE) : S(x, x + EDGE) - S(x - EDGE, x);
+      if (v > top) { top = v; pick = x; }
     }
     return pick;
   };
