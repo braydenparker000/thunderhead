@@ -100,7 +100,7 @@ test('a film Astra’s reader will not read past goes back to Mediabunny’s rea
   assert.deepEqual([s.errors, p.errors], [[], []]);
 });
 
-/** Bytes the host sent before the first picture at `time`, playing from a fresh load (`startTime`) or a seek. */
+/** Bytes the host sent, and milliseconds, before the first picture at `time`, from a fresh load (`startTime`) or a seek. */
 async function firstPicture(t, film, own, time, how) {
   const p = await player(t, own);
   host.reset();
@@ -111,14 +111,14 @@ async function firstPicture(t, film, own, time, how) {
     await p.page.evaluate(() => window.p.video.pause());
   }
   host.control.bps = 375_000;
-  const from = host.stats.bytes;
+  const from = host.stats.bytes, began = Date.now();
   if (how === 'seek') await p.page.evaluate((time) => { window.p.video.currentTime = time; window.p.video.play(); }, time);
   else await p.load(host.url(film), { startTime: time });
   await p.at(time, 60_000);
-  const sent = host.stats.bytes - from;
+  const sent = host.stats.bytes - from, ms = Date.now() - began;
   assert.equal((await p.state()).own, own);
   await p.page.close();
-  return sent;
+  return {sent, ms};
 }
 
 test('paced at 375 kB/s, a film of 2.5 MB clusters shows its first picture after well under one, from the start and after a seek', opts, async (t) => {
@@ -130,12 +130,15 @@ test('paced at 375 kB/s, a film of 2.5 MB clusters shows its first picture after
     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-cluster_time_limit', '5000', '-cluster_size_limit', '50000000', join(dir, 'big.mkv')]);
   await host.close();
   host = await astraHost({ root: dir + '/' });
-  const cluster = 2_500_000;
+  const cluster = 2_500_000, oneCluster = (cluster / 375_000) * 1000;
   const before = await firstPicture(t, 'big.mkv', false, 0, 'load');
   const start = await firstPicture(t, 'big.mkv', true, 0, 'load');
   const seek = await firstPicture(t, 'big.mkv', true, 10, 'seek');
-  t.diagnostic(`first picture after ${Math.round(before / 1e3)} kB with Mediabunny's reader, ${Math.round(start / 1e3)} kB with Astra's; after a seek ${Math.round(seek / 1e3)} kB`);
-  assert.ok(before > cluster * 0.9, 'Mediabunny’s reader needed the whole first cluster');
-  assert.ok(start < cluster / 2, 'Astra’s reader, well under one cluster');
-  assert.ok(seek < cluster / 2, 'and after a seek');
+  const kB = (n) => Math.round(n / 1e3);
+  t.diagnostic(`first picture: Mediabunny's reader ${kB(before.sent)} kB, ${before.ms} ms; Astra's ${kB(start.sent)} kB, ${start.ms} ms; after a seek ${seek.ms} ms`);
+  assert.ok(before.sent > cluster * 0.9, 'Mediabunny’s reader needed the whole first cluster');
+  assert.ok(start.sent < cluster / 2, 'Astra’s reader, well under one cluster');
+  // After a seek the bytes also count the old download's last moments, so the time is what is held: under half of
+  // what one cluster takes to arrive.
+  assert.ok(seek.ms < oneCluster / 2, `and after a seek (${seek.ms} ms)`);
 });
