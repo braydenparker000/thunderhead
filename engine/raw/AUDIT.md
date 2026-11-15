@@ -99,6 +99,27 @@ The editor notes how the page kept up (`app/moved.js`: a frame over 34 ms is "sl
 |---|---|---|---|
 | P.1 | **A** | Proven (the phones' logs; the cause here) | **The dial stutters when the photo is zoomed in.** Fitted, a turn is smooth on both phones. At 300 % one frame in nine (4 GB) or one in four (8 GB) is late, with gaps to 166 ms. A turn's frame draws the fitted photo and the full-size view both (`session.js:162` `draw()` → `gpu.js:196`), though at 100 % and beyond the view covers the fitted photo whole. On the software GPU with a phone's screenful (1083 × 1939): both 6483 ms, the view alone 2533, the fitted photo alone 4065: 62 % of a zoomed turn's frame goes on a picture that cannot be seen. `draw(false)` already draws the view alone. |
 | P.2 | B | Proven (the phones' logs) | **Zooming and panning stall now and then**: 200 to 283 ms on both phones, once 1155 ms. The road map's own line for this ("no frame over 33 ms during a gesture") is not met. Cause not found here: the log does not say what the page was doing in the gap. |
-| P.3 | B | Proven (the phones' logs) | **A best-quality export takes two minutes on the 4 GB phone**, nearly all of it the network on the GPU. `laid: 129` in both phones' logs: the network was given 1.29 times the photo (the fix of 2026-11-14, `export.js` `NET_SIDE`, is in the build the 8 GB phone ran, and its log still says 129: either that export ran before the fix reached the phone or the fix does not do what its comment says. Not settled here). |
+| P.3 | B | Proven (the phones' logs) | **A best-quality export takes two minutes on the 4 GB phone**, nearly all of it the network on the GPU. `laid: 129` in both logs: the network is given 1.29 times the photo, which is what one window a piece comes to (of a window's 1056 pixels each way, 30 at each side are context, 16 the lens pass's margin and 12 the join's: about 940 are kept). |
 | P.4 | C | By reading | The dial's own record never says whether a full-size view was being made when the finger came down (`DialPlate.js:60` passes `false` for `busy`), so the logs cannot tell a turn that waited on the network from one that did not. |
+
+## Part 4: masks, the brush, heal, crop and level
+
+Read whole: `engine/local.js`, `brush.js`, `heal.js`, `mend.js`, `crop.js`, `level.js`; `editor/app/masks.js`,
+`app/heal.js`; `boards/MaskPlate.js`, `CropPlate.js`, and `HealPlate.js`'s size and dial. Driven on the real RAF.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 4.1 | B | Proven | **Auto level undoes itself on a second press.** `CropPlate.js` (`auto`) reads the lean from the picture as it is now cropped and straightened (`session.js` `level()` → `pixels()`), then sets Angle to minus that, where it should take it off the angle already set. On the real file: as opened the picture leans 0.64°; after AUTO the angle is −0.6 and it leans 0.08; after a second AUTO the angle is −0.1 and it leans 0.52; after a third −0.5. |
+| 4.2 | C | Proven | The Heal board says a spot's size two ways at once: the dial's window in pixels on screen ("12 px") and the row under it as the dial's own 0 to 100 ("6") (`HealPlate.js:37, 83`). |
+| 4.3 | C | By reading | A painted mask is 1024 pixels on its longer side (`brush.js` `LONG`), so its finest edge is 7.5 sensor pixels wide on a 40 MP photo whatever the brush's feather. |
+| 4.4 | C | By reading | A radial mask cannot be turned: its axes always lie along the upright picture's (`local.js` writes its turn as 1, 0; the board has no handle for it). |
+| 4.5 | C | By reading | How fast a slow brush stroke builds up depends on how often the phone reports the finger (`brush.js` lays at least one dab for each reported move): the same stroke builds faster on a 120 Hz screen than on a 60 Hz one. Drawn again it is always the same. |
+| 4.6 | C | By reading | A range mask at full size reads each sensor pixel's own colour, the fitted photo each 3 × 3 mean: at 100 % a colour or brightness range has a noisier edge than the fitted photo showed. |
+
+Checked and sound. A radial mask's centre, a linear mask's end, a brush stroke's first point, a heal spot and its
+source were each followed through a quarter turn, a flip, a 7° straighten, a perspective tilt and a crop: each
+stays on the same sensor pixel to within one (`raf5.mjs` in the audit's scratch). The heal's fit is the membrane
+solution on a disc to its third harmonic, and the shader adds up the same terms `heal.js` fits. The source's
+offset is a whole pattern in every pass. The mask and spot limits (eight masks, four painted, 32 spots) are held
+where they are added. The crop's perspective and its "least enlargement that covers".
 
