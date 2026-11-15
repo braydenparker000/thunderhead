@@ -1,6 +1,9 @@
 // What a title's timeline carries besides the film: segments that can be
 // skipped (intro, recap, outro) and the next-episode card near the end.
-// Both are offers: nothing skips or plays without a tap.
+// Both are offers: nothing skips or plays without a tap. One action at a
+// time near the end: while the next-episode card shows, the outro's Skip
+// button does not (the card's Play is the way on; skipping the credits would
+// only land where the card already is).
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
@@ -25,14 +28,19 @@ export class Markers {
     this.skipped = new Set();
   }
 
-  /** Skip times that arrived after the film started: a segment the playhead is already in is offered at once. */
+  /**
+   * Skip times that arrived after the film started (found by sound, looked
+   * up): a segment the playhead is already in is offered at once; a kind
+   * already skipped stays skipped, whatever its new times.
+   */
   setSegments(segments) { this.segments = segments.filter(s => s.end > s.start); this.skipSegmentShown = null; }
 
-  activeSegment(t) { return this.segments.find(s => t >= s.start && t < s.end - 0.5 && !this.skipped.has(s)); }
+  activeSegment(t) { return this.segments.find(s => t >= s.start && t < s.end - 0.5 && !this.skipped.has(s.type)); }
 
   updateSkip(t) {
     const p = this.p;
-    const seg = this.activeSegment(t);
+    let seg = this.activeSegment(t);
+    if (seg && (seg.type === 'outro' || seg.type === 'credits') && this.nextDue(t, p.video.duration)) seg = null; // the card is the one action
     if (!seg || p.ctl.locked) { show(p.skipBtn, false); this.skipSegmentShown = null; return; }
     if (this.skipSegmentShown !== seg) {
       this.skipSegmentShown = seg;
@@ -52,9 +60,10 @@ export class Markers {
     const p = this.p;
     const seg = this.activeSegment(p.video.currentTime);
     if (!seg) return;
-    this.skipped.add(seg);
+    this.skipped.add(seg.type);
     p.video.currentTime = Math.min(seg.end, (p.video.duration || seg.end) - 0.5);
     p.skipBtn.hidden = true;
+    p.emitProgress(true); // the saved place is where the skip landed, not where it started
   }
 
   renderNext() {
@@ -72,15 +81,18 @@ export class Markers {
     card.onpointerup = e => { if (startX != null && e.clientX - startX >= 60) { this.nextDismissed = true; card.hidden = true; } startX = null; };
   }
 
-  updateNext(t, d) {
+  /** Whether the next-episode card is offered at t: from the outro (when it runs to the end) or the last 1 %. */
+  nextDue(t, d) {
     const p = this.p;
     // A sleep timer set for the end of the episode: nothing else is offered.
-    if (!p.options?.next || this.nextDismissed || p.extras?.sleep.episodeEnd || !(d > 120) || !Number.isFinite(d)) { show(p.nextCard, false); return; }
+    if (!p.options?.next || this.nextDismissed || p.extras?.sleep.episodeEnd || !(d > 120) || !Number.isFinite(d)) return false;
     const outro = this.segments.find(s => (s.type === 'outro' || s.type === 'credits') && d - s.end < 30);
     const at = outro ? outro.start : d * 0.99;
     const credits = this.segments.some(s => s.type === 'postcredits' && t >= s.start);
-    show(p.nextCard, !(t < at || credits));
+    return !(t < at || credits);
   }
+
+  updateNext(t, d) { show(this.p.nextCard, this.nextDue(t, d)); }
 
   playNext() {
     const p = this.p, n = p.options.next;

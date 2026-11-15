@@ -245,6 +245,8 @@ let toastTimer = 0, pinned = null;
 export function toast(text, {action = null, stay = false} = {}) {
   let el = document.querySelector('.toast');
   if (!el) { el = h('div', {class: 'toast', role: 'status', 'aria-live': 'polite'}); document.body.append(el); }
+  // As wide as its words up to the CSS max-width (left: 50% alone squeezes it to half the screen).
+  el.style.width = 'max-content';
   if (stay) pinned = {text, action};
   const hide = () => { pinned = null; el.classList.remove('show'); };
   const later = stay ? h('button', {type: 'button', onclick: hide}, 'Later') : null;

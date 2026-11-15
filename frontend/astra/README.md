@@ -96,14 +96,28 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 
 ## Opening fast
 
-- **A saved copy of the app** (`sw.js`, over https). A release of Astra is the
-  Git tree of `frontend/astra` named in the site's `/release.json`. The first
-  visit saves the files it loaded under that release; later visits open from
-  the saved copy, offline too, and look for a newer release in the
-  background (one small request). A newer release is saved whole before open
-  pages are told; they offer **Reload** and never mix files from two releases.
-  On a local `http` server the worker is off unless `localStorage`
-  `astra.dev.sw` is `1`.
+- **A saved copy of the app** (`sw.js`, over https). A release of Astra is
+  named in the site's `/release.json` (`components.astra.tree`: a hash of
+  every file under `frontend/astra` as staged, so a commit elsewhere in the
+  site is not a new release) and listed with a hash of each file in
+  `/astra/files.json` (`scripts/astra/files.mjs`, written by
+  `scripts/stage.mjs`). The first visit saves the app's own files whole
+  (`vendor/` is saved when a film first needs it); later visits open from the
+  saved copy, offline too, and look for a newer release in the background
+  (one small request). A newer release is saved whole before open pages are
+  told: a file whose hash did not change is copied from the release in use,
+  the rest are fetched and checked against their hash, and a try that fails
+  or is cut short (or meets a deploy part-way) is never used, and is carried
+  on from where it stopped on the next visit. A page keeps the release it
+  started on until it is closed, even when the worker is stopped and started
+  again (each page's release is kept in `astra-sw-state`), and so do the
+  workers it starts; no release a page is open on is deleted. The page
+  offers **Reload** until it is tapped or put off with **Later**. Pages are
+  saved by address without their query (a stream address in one is never
+  kept). Files Astra loads from outside its folder (`/assets/`, `/config.js`,
+  `/th/`) are not saved: they always come from the network and must keep
+  working with an older Astra. On a local `http` server the worker is off
+  unless `localStorage` `astra.dev.sw` is `1`.
 - **Add-on answers are kept** (`src/app/cache.js`, Cache Storage
   `astra-data-v1`). Manifests (6 h), Home's catalogs (30 min) and title pages
   (12 h) paint at once from the last answer while a fresh one is fetched;

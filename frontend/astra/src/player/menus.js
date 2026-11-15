@@ -36,6 +36,7 @@ export class Menus {
     this.subLang = null;
     this.subTab = 'tracks';
     this.subTarget = 'first'; // or 'second': the subtitles menu is choosing the second track
+    this.audioTab = 'tracks'; // or 'sound' (sound-menu.js)
   }
 
   subtitleModal() { return subtitleModal(this); }
@@ -113,7 +114,7 @@ export class Menus {
     const key = el => el.getAttribute('aria-label') || el.textContent;
     const focused = p.modal.contains(document.activeElement) && document.activeElement.matches('button') ? key(document.activeElement) : null;
     // Picking tracks hides the picture; styling leaves it showing, so the change can be seen. The wide menus (Playback, the search) are solid too.
-    const scrim = 'ap-modal-scrim' + (name === 'playback' || name === 'find' ? ' solid' : name !== 'subtitles' ? '' : this.subTab === 'style' ? ' preview' : ' solid');
+    const scrim = 'ap-modal-scrim' + (name === 'playback' || name === 'find' || (name === 'audio' && this.audioTab === 'sound') ? ' solid' : name !== 'subtitles' ? '' : this.subTab === 'style' ? ' preview' : ' solid');
     p.modal.replaceChildren(h('div', {class: scrim, onclick: () => this.dismiss()}), h('div', {class: 'ap-modal-body ' + name}, close, body));
     for (const [selector, top] of kept) { const el = p.modal.querySelector(selector); if (el) el.scrollTop = top; }
     if (focused != null) [...p.modal.querySelectorAll('button')].find(b => key(b) === focused)?.focus({preventScroll: true});
@@ -127,7 +128,11 @@ export class Menus {
       onclick: () => { p.engine.selectAudio(a.id); p.prefs.audioLanguage = baseLanguage(a.language); savePrefs(p.prefs); },
     }, h('span', {class: 'ap-row-text'}, h('b', {}, a.label), a.supported ? (a.delivery === 'rebuilt' ? h('small', {}, 'Converted on this device') : null) : h('small', {}, a.reason || 'Not playable here')), a.selected ? icon('check', {size: 20}) : null))
       : [h('p', {class: 'ap-empty'}, p.engine.mode === 'native' ? 'This source plays directly in Chrome, which does not let pages choose its audio track.' : 'No other audio tracks.')];
-    return [h('h3', {}, 'Audio'), h('div', {class: 'ap-rail wide'}, ...rows)];
+    // Two tabs: the tracks, and what can be done to the sound (sound-menu.js).
+    const tab = this.audioTab === 'sound' ? 'sound' : 'tracks';
+    const tabs = h('div', {class: 'ap-tabs', role: 'tablist'}, ...[['tracks', 'Tracks'], ['sound', 'Sound']].map(([id, label]) =>
+      h('button', {class: 'ap-tab' + (id === tab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(id === tab), onclick: () => { this.audioTab = id; this.renderModal(); }}, label)));
+    return [h('div', {class: 'ap-modal-head'}, h('h3', {}, 'Audio'), tabs), tab === 'sound' ? p.extras.sound.body() : h('div', {class: 'ap-rail wide'}, ...rows)];
   }
 
   infoModal() {
@@ -144,7 +149,7 @@ export class Menus {
     const external = canOpenExternally() && externalPlayerUrl(p.stream?.url);
     const extra = p.extras.info; // data used, chapters, save a frame
     rows.push(...extra.rows());
-    return [h('h3', {}, 'Stream info'), h('dl', {class: 'ap-info'}, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), ...extra.after(),
+    return [h('h3', {}, 'Stream info'), p.extras.picture.body(), h('dl', {class: 'ap-info'}, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), ...extra.after(),
       external ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null];
   }
 

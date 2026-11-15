@@ -50,10 +50,22 @@ export async function astraHost({ root = ROOT } = {}) {
     res.on('close', finish);
     const body = createReadStream(file, { start, end, highWaterMark: 64 * 1024 });
     body.on('data', (chunk) => {
+      // A cut sends exactly `cutAfter` bytes and destroys the connection once they have left, as a host that
+      // drops connections does; destroyed with bytes still queued here, the cut would race them.
+      if (control.cutAfter && sent + chunk.length >= control.cutAfter) {
+        const last = chunk.subarray(0, control.cutAfter - sent);
+        sent += last.length; stats.bytes += last.length;
+        body.destroy();
+        return res.write(last, () => res.destroy());
+      }
       sent += chunk.length; stats.bytes += chunk.length;
-      if (control.cutAfter && sent >= control.cutAfter) { body.destroy(); return res.destroy(); }
-      if (!res.write(chunk)) { body.pause(); res.once('drain', () => body.resume()); }
-      else if (control.bps) { body.pause(); setTimeout(() => body.resume(), (chunk.length / control.bps) * 1000); }
+      // The next chunk waits for this one to drain and, with `bps`, for its share of time: both, since a 64 kB
+      // chunk always overfills the socket's buffer (write() answers false), which once skipped the pacing.
+      body.pause();
+      let waits = control.bps ? 2 : 1;
+      const go = () => { if (--waits === 0) body.resume(); };
+      if (res.write(chunk)) go(); else res.once('drain', go);
+      if (control.bps) setTimeout(go, (chunk.length / control.bps) * 1000);
     });
     body.on('end', () => res.end());
     body.on('error', () => res.destroy());

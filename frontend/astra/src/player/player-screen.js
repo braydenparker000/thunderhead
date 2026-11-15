@@ -177,6 +177,7 @@ export class PlayerScreen extends EventTarget {
     this.errorCard.hidden = true;
     this.viaEl.textContent = stream.name ? 'Via ' + viaName(stream.name) : ''; // the add-on's name once
     const prefs = {languages: [...new Set([this.prefs.audioLanguage, ...((navigator.languages || []).map(baseLanguage))].filter(Boolean))], subtitleLanguage: this.prefs.subtitleLanguage || null, allowSilent};
+    this.extras.loading();
     this.engine.load({url: stream.url, headers: stream.headers || {}, startTime, autoplay: true, prefs, subtitles: stream.subtitles || []});
     this.system.mediaSession();
   }

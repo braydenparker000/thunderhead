@@ -63,6 +63,13 @@ export function outputSize(shown, dpr, film, scale = 1) {
   return [w, h];
 }
 
+/** An element's place in the page from its offsets, which leave out CSS transforms. */
+function offsetOf(el) {
+  let x = 0, y = 0;
+  for (let e = el; e; e = e.offsetParent) { x += e.offsetLeft + (e === el ? 0 : e.clientLeft); y += e.offsetTop + (e === el ? 0 : e.clientTop); }
+  return [x, y];
+}
+
 export class Picture {
   /**
    * @param {HTMLVideoElement} video
@@ -151,8 +158,11 @@ export class Picture {
   place() {
     const c = this.canvas, v = this.video;
     if (!c || !this.filter) return;
-    const box = v.getBoundingClientRect(), base = this.layer.getBoundingClientRect(), css = getComputedStyle(v);
-    Object.assign(c.style, {left: `${box.left - base.left}px`, top: `${box.top - base.top}px`, width: `${box.width}px`, height: `${box.height}px`, objectFit: css.objectFit, objectPosition: css.objectPosition});
+    // Untransformed boxes (offset sizes, not getBoundingClientRect): a pinch zoom scales the layer and the
+    // canvas in it with the video, so a measured, already-zoomed size would be zoomed a second time.
+    const at = offsetOf(v), base = offsetOf(this.layer), css = getComputedStyle(v);
+    const box = {left: at[0] - base[0] - this.layer.clientLeft, top: at[1] - base[1] - this.layer.clientTop, width: v.offsetWidth, height: v.offsetHeight};
+    Object.assign(c.style, {left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, objectFit: css.objectFit, objectPosition: css.objectPosition});
     const film = [v.videoWidth, v.videoHeight];
     if (!film[0]) return;
     const [w, h] = outputSize(shownSize([box.width, box.height], film, css.objectFit), devicePixelRatio || 1, film, SCALES[Math.max(0, this.level - 1)]);

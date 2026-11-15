@@ -20,6 +20,12 @@ export const DEFAULTS = Object.freeze({
   speed: 1, // playback speed, one of SPEEDS, kept for every film until changed
   volume: 1, // the volume swipe's level (0..1), applied on open
   brightness: 1, // the brightness swipe's level (0..1.5), applied on open
+  boost: 1, // the Sound section's volume boost (1..3), put on every film it can be (sound-menu.js)
+  night: false, // night mode: quiet sound up, loud sound down
+  dialogue: 0, // clearer speech, 0..2 steps
+  sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
+  deband: false, // smooth banding
+  dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 

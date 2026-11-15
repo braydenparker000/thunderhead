@@ -63,3 +63,16 @@
 .ap-so-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .ap-so-play { color: rgba(255,255,255,.62); }
 .ap-sound-only .ap-chip { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); }
+
+/* Sound (sound-menu.js): the boost chip where "Sound off" sits, shown with the controls; the tab's one-line reason. */
+.ap-boost { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: var(--ap-accent); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease); }
+.ap.controls .ap-boost { opacity: 1; pointer-events: auto; }
+.ap-muted:not([hidden]) ~ .ap-boost { top: calc(max(12px, var(--safe-top)) + 52px); }
+.ap.locked .ap-boost, .ap.overlay .ap-boost, .ap.mini .ap-boost, .ap.sound-only .ap-boost { display: none; }
+.ap-sound-why { max-width: 640px; margin: 0 0 16px; padding: 10px 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); font-size: 14px; line-height: 20px; }
+.ap-sound .ap-pb { gap: 16px 40px; }
+
+/* Picture (picture-menu.js), at the top of Stream info */
+.ap-picture { max-width: 820px; margin: 0 0 20px; }
+.ap-picture .ap-pb { gap: 16px 40px; }
+.ap-picture-status { margin-top: 10px; }

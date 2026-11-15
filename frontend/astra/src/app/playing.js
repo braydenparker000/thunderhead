@@ -14,6 +14,7 @@ import {filtersFrom, shown} from '../addons/stream-facts.js';
 import {sizeFrom} from '../screens/streams.js';
 import {h} from '../ui/dom.js';
 import {toast} from '../ui/components.js';
+import {SkipTimes} from './skip.js';
 
 // "Out 3 Nov" for an episode with a date to come; "Not out yet" without one.
 const outOn = v => { const t = v?.released ? new Date(v.released) : null; return t && !Number.isNaN(t.getTime()) ? 'Out ' + t.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : 'Not out yet'; };
@@ -77,11 +78,15 @@ function describe(meta, video) {
   }};
 }
 
+/** The episode skip.js looks for, or null for a movie. */
+export const skipEpisode = (meta, video) => video && meta?.type !== 'movie' && video.id ? {series: {type: meta.type, id: meta.id}, video: video.id, season: video.season, episode: video.episode} : null;
+
 function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0}, ticket) {
   app.setCovered(true);
   const {next, options} = describe(meta, video);
   app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}};
   app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true});
+  app.skip?.episode(skipEpisode(meta, video));
   resolveAndLoad(app, source.stream, startTime, ticket);
 }
 
@@ -92,6 +97,7 @@ async function resolveAndLoad(app, stream, startTime, ticket) {
 
 export function bindPlayer(app) {
   const player = app.player;
+  app.skip = new SkipTimes(player, {settings: () => app.settings});
   const save = (time, duration) => {
     const p = app.playing;
     if (!p || !keepProgress(time, p.load)) return;
@@ -103,6 +109,7 @@ export function bindPlayer(app) {
   player.addEventListener('progress', e => { save(e.detail.time, e.detail.duration); if (e.detail.final) app.progress.flush(true); });
   player.addEventListener('close', () => {
     app.playTicket++; // whatever was on its way is dropped
+    app.skip.stop();
     app.progress.flush(true); app.playing = null; app.subtitleSearch?.abort(); app.subtitleSearch = null; app.setCovered(app.stack.length > 0);
   });
   player.addEventListener('episode', e => switchEpisode(app, e.detail.episode.video));
@@ -114,6 +121,7 @@ export function bindPlayer(app) {
     e.preventDefault();
     const {source, startTime} = e.detail, ticket = ++app.playTicket;
     Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}});
+    app.skip.episode(skipEpisode(p.meta, p.video)); // the same episode keeps its finder; one picked from a new episode's list starts
     player.defer(source.stream, startTime);
     resolveAndLoad(app, source.stream, startTime, ticket);
   });
@@ -131,6 +139,7 @@ async function switchEpisode(app, video) {
   const player = app.player;
   if (!meta || !player.isOpen) return;
   const ticket = ++app.playTicket;
+  app.skip?.stop(); // this episode is left
   const group = player.stream?.bingeGroup;
   player.video.pause();
   player.showLoading(true);

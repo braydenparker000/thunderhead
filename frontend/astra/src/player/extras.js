@@ -6,6 +6,7 @@
 //   sound-only.js the black screen         resume.js   "Start over"
 //   marks.js      marks on the seek bar    frames.js   frame step, save a still
 //   find.js       search the subtitles     info-extras.js  data used, chapters
+//   sound-menu.js the audio menu's Sound tab   picture-menu.js  the Picture section
 // The second subtitle's layer is handed to the engine when it can draw one
 // (engine.setSecondLayer); zoom lives with the gestures (surface.js).
 
@@ -18,6 +19,8 @@ import {Marks} from './marks.js';
 import {Frames} from './frames.js';
 import {Find} from './find.js';
 import {InfoExtras} from './info-extras.js';
+import {SoundControl} from './sound-menu.js';
+import {PictureControl} from './picture-menu.js';
 import {h} from '../ui/dom.js';
 
 export class Extras {
@@ -34,6 +37,8 @@ export class Extras {
     this.frames = new Frames(p);
     this.find = new Find(p);
     this.info = new InfoExtras(p);
+    this.sound = new SoundControl(p);
+    this.picture = new PictureControl(p);
     Object.assign(p.menus.bodies, {playback: () => this.playback.body(), find: () => this.find.body()});
     if (typeof p.engine.setSecondLayer === 'function') p.engine.setSecondLayer(p.subs2El);
   }
@@ -52,10 +57,17 @@ export class Extras {
     this.resume.opened(o);
     this.soundOnly.named();
     this.marks.render();
+    this.sound.opened(o);
+  }
+
+  /** Before each load (a film, another source, a retry): how far ahead to read on mobile data, when the engine can be told. */
+  loading() {
+    const e = this.p.engine, d = this.p.prefs.dataSaver;
+    if (typeof e.setDataSaver === 'function') e.setDataSaver(d === 'always' ? true : d === 'never' ? false : 'auto');
   }
 
   close() {
-    for (const part of [this.sleep, this.soundOnly, this.resume, this.find, this.info]) part.close();
+    for (const part of [this.sleep, this.soundOnly, this.resume, this.find, this.info, this.sound, this.picture]) part.close();
     this.repeat.clear();
   }
 }
