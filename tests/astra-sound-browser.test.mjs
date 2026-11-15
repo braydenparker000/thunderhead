@@ -52,16 +52,36 @@ async function page(t) {
       await new Promise((r) => { const on = () => (video.currentTime > 0.3 ? r() : setTimeout(on, 50)); on(); });
       return { video, player };
     };
-    // Records each node's first two channels side by side for `ms`: [[left, right] per node], Float32Arrays.
+    // Records each node's first two channels side by side for `ms` of the sound's own time (exactly that many samples,
+    // however late the page's thread runs): [[left, right] per node], Float32Arrays.
     window.record = async (ctx, nodes, ms) => {
       const merge = ctx.createChannelMerger(nodes.length * 2), sp = ctx.createScriptProcessor(4096, nodes.length * 2, 1), got = nodes.map(() => [[], []]);
+      const frames = Math.round((ms / 1000) * ctx.sampleRate);
       nodes.forEach((n, i) => { const s = ctx.createChannelSplitter(2), two = Object.assign(ctx.createGain(), { channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' }); n.connect(two); two.connect(s); s.connect(merge, 0, 2 * i); s.connect(merge, 1, 2 * i + 1); });
-      sp.onaudioprocess = (e) => got.forEach((pair, i) => pair.forEach((ch, side) => ch.push(new Float32Array(e.inputBuffer.getChannelData(2 * i + side)))));
-      merge.connect(sp); sp.connect(ctx.destination);
-      await wait(ms);
+      let have = 0;
+      await new Promise((done) => {
+        sp.onaudioprocess = (e) => {
+          if (have >= frames) return;
+          got.forEach((pair, i) => pair.forEach((ch, side) => ch.push(new Float32Array(e.inputBuffer.getChannelData(2 * i + side)))));
+          if ((have += e.inputBuffer.length) >= frames) done();
+        };
+        merge.connect(sp); sp.connect(ctx.destination);
+      });
       sp.disconnect(); merge.disconnect();
-      const join = (parts) => { const out = new Float32Array(parts.reduce((s, p) => s + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
+      const join = (parts) => { const out = new Float32Array(parts.reduce((s, p) => s + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out.subarray(0, frames); };
       return got.map((pair) => pair.map(join));
+    };
+    // Waits for a node's sound to settle after a change: a limiter just built takes up to a second or so to reach its
+    // steady gain, which a fixed 300 ms covered only on a quiet machine. Settled: two half-second stretches (a whole
+    // period of either film's sound) within 0.1 dB of each other.
+    window.steady = async (ctx, node) => {
+      for (let i = 0, last = NaN; i < 16; i++) { const [[l]] = await record(ctx, [node], 500), now = db(l); if (Math.abs(now - last) < 0.1) return; last = now; }
+    };
+    // Enough of the film left to settle and measure (`s` seconds), else back near its start (its sound repeats), playing.
+    window.room = async (video, s) => {
+      if (video.duration - video.currentTime >= s) return;
+      video.currentTime = 0.3;
+      await new Promise((r) => { const on = () => (!video.seeking && video.currentTime > 0.6 ? r() : setTimeout(on, 50)); on(); });
     };
     window.db = (x) => 10 * Math.log10(x.reduce((s, v) => s + v * v, 0) / x.length + 1e-18);
     // The lag (in samples) at which `b` best matches `a`: positive when b comes later.
@@ -128,22 +148,23 @@ test('headphone surround: the centre in both ears alike, the left surround loude
       await run(sound, video); player.destroy();
     };
     // Each film: the chain's output beside the plain path (the element's sound mixed by the browser), recorded together.
-    const both = async (sound) => { const [[l, r], [pl, pr]] = await record(sound.ctx, [sound.chain.out, sound.source], 1500); return { l, r, pl, pr }; };
-    await take(centre, async (sound) => {
-      sound.set({ headphones: true }); for (let i = 0; i < 40 && sound.state().channels !== 6; i++) await wait(50);
-      await wait(300);
-      const on = await both(sound); out.centre = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r), plain: db(on.pl), channels: sound.state().channels };
-      sound.set({ dialogue: 1 }); await wait(300); const lifted = await both(sound); out.centre.lifted = db(lifted.l);
-      sound.set({ headphones: false, dialogue: 0 }); await wait(300);
-      const off = await both(sound); out.centreOff = { diff: db(off.l.map((v, i) => v - off.pl[i])), plain: db(off.pl) };
+    // Settled first (and with film enough left for it), then recorded.
+    const both = async (sound, video) => { await room(video, 4); await steady(sound.ctx, sound.chain.out); const [[l, r], [pl, pr]] = await record(sound.ctx, [sound.chain.out, sound.source], 1500); return { l, r, pl, pr }; };
+    // The channel count comes from a worklet the switch loads: waited for, on a busy machine as long as it takes.
+    const six = async (sound) => { for (let i = 0; i < 300 && sound.state().channels !== 6; i++) await wait(50); };
+    await take(centre, async (sound, video) => {
+      sound.set({ headphones: true }); await six(sound);
+      const on = await both(sound, video); out.centre = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r), plain: db(on.pl), channels: sound.state().channels };
+      sound.set({ dialogue: 1 }); const lifted = await both(sound, video); out.centre.lifted = db(lifted.l);
+      sound.set({ headphones: false, dialogue: 0 });
+      const off = await both(sound, video); out.centreOff = { diff: db(off.l.map((v, i) => v - off.pl[i])), plain: db(off.pl) };
     });
-    await take(left, async (sound) => {
-      const plain = await both(sound); out.leftPlain = { l: db(plain.l), r: db(plain.r), diff: db(plain.l.map((v, i) => v - plain.pl[i])), ref: db(plain.pl) };
-      sound.set({ headphones: true }); for (let i = 0; i < 40 && sound.state().channels !== 6; i++) await wait(50);
-      await wait(300);
-      const on = await both(sound); out.left = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r), sum: 10 * Math.log10(10 ** (db(on.l) / 10) + 10 ** (db(on.r) / 10)) };
-      sound.set({ headphones: false }); await wait(300);
-      const off = await both(sound); out.leftOff = { diff: db(off.l.map((v, i) => v - off.pl[i])), r: db(off.r.map((v, i) => v - off.pr[i])), ref: db(off.pl) };
+    await take(left, async (sound, video) => {
+      const plain = await both(sound, video); out.leftPlain = { l: db(plain.l), r: db(plain.r), diff: db(plain.l.map((v, i) => v - plain.pl[i])), ref: db(plain.pl) };
+      sound.set({ headphones: true }); await six(sound);
+      const on = await both(sound, video); out.left = { l: db(on.l), r: db(on.r), lag: lag(on.l, on.r), sum: 10 * Math.log10(10 ** (db(on.l) / 10) + 10 ** (db(on.r) / 10)) };
+      sound.set({ headphones: false });
+      const off = await both(sound, video); out.leftOff = { diff: db(off.l.map((v, i) => v - off.pl[i])), r: db(off.r.map((v, i) => v - off.pr[i])), ref: db(off.pl) };
     });
     return out;
   }, [host.url('centre.mkv'), host.url('surround-left.mkv')]);
