@@ -184,7 +184,7 @@ test('a plain film whose unpacking fails before the first picture goes to the br
   await p.runs(1);
   const whole = await p.page.evaluate(() => ({ mode: window.p.mode, notes: window.p.plan.notes, fallbacks: window.p.log.filter((l) => l.kind === 'fallback').length }));
   assert.deepEqual([whole.mode, whole.fallbacks], ['native', 1]);
-  assert.match(whole.notes.join(' '), /Chrome plays it as it is \(an invented failure\)/);
+  assert.match(whole.notes.join(" "), /Astra could not unpack this file \(an invented failure\)\. Chrome will play it as-is/);
   assert.deepEqual(await frame(), { crossOrigin: 'anonymous', pixels: true });
   await p.page.evaluate(async () => { const { RemuxSession } = await import('/astra/src/engine/remux.js'); RemuxSession.prototype.start = window.realStart; });
   // A host that does not let a page read the file: still plays, asked plainly (CORS would be refused).

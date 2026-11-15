@@ -12,6 +12,7 @@
 
 import {resolveDebrid} from '../addons/debrid.js';
 import {aheadSetting, saverNow} from './ready.js';
+import {aired} from './content.js';
 
 export const KEEP = 10 * 60e3; // what was collected is used for this long
 const BEFORE_OUTRO = 120; // seconds before a known outro's start
@@ -46,7 +47,7 @@ export class NextReady {
   /** Collects the next episode's streams and, for a same-release stream, describes its file. Resolves the job, or null. */
   async prepare() {
     const app = this.app, p = app.playing, group = app.player?.stream?.bingeGroup;
-    if (!p?.next || !p.meta || !this.allowed() || this.job?.video === p.next.id) return null;
+    if (!p?.next || !p.meta || !aired(p.next) || !this.allowed() || this.job?.video === p.next.id) return null;
     this.stop();
     const job = this.job = {video: p.next.id, group: group || null, at: this.now(), all: null, abort: new AbortController(), bytes: 0, described: false};
     const live = () => this.job === job && !job.abort.signal.aborted;

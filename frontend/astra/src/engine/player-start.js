@@ -60,7 +60,7 @@ export const startMethods = {
     this.session?.destroy(); this.session = null;
     this.probed?.input?.dispose?.(); this.probed?.source?.close?.(); // Chrome reads the file itself from here (the software decoder reopens it)
     this.mode = 'native';
-    this.plan = {...this.plan, mode: 'native', notes: [...(this.plan?.notes || []), `Astra could not unpack this file, so Chrome plays it as it is (${reason}).`]};
+    this.plan = {...this.plan, mode: 'native', notes: [...(this.plan?.notes || []), `Astra could not unpack this file (${reason}). Chrome will play it as-is: no audio track choice and no built-in subtitles.`]};
     this.video.removeAttribute('src');
     try { this.video.load(); } catch {}
     await this.startNative(this.url, at, this.abort?.signal);

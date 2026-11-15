@@ -14,7 +14,7 @@ import {recall, HEAD} from './film-memory.js';
 // The hash's 64 KiB, which also holds a small or short film's index. Measured on a paced host (80 ms a request,
 // 375 kB/s), a 256 KiB tail took longer to arrive than the index read it saved; 64 KiB costs no byte the hash
 // would not have fetched anyway.
-export const TAIL = 256 << 10;
+export const TAIL = 64 << 10;
 
 /** Records, as film-memory.js lays them, for `bytes` from byte `start` of the file; `at` is each one's place in `bytes`. */
 export function records(start, bytes, filled = bytes.length) {
