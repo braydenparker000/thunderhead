@@ -134,7 +134,7 @@ test('a converted 5.1 track lifts dialogue in the engine; a film the page cannot
   } else t.diagnostic(`surround.mkv played as ${r.delivery}: the rebuilt path was not exercised`);
   // plain.mp4 plays natively from the other origin: nothing captures it; the tab says why, its chips are disabled.
   const p2 = await player(t, { prefs: { boost: 2 } });
-  assert.equal(await p2.page.evaluate((u) => film(u, 'Plain film'), host.url('plain.mp4')), 'native');
+  assert.equal(await p2.page.evaluate((u) => film(u, 'Plain film'), host.url('plain.mp4') + '?nocors'), 'native');
   await p2.page.evaluate(() => { p.menus.audioTab = 'sound'; p.menus.openModal('audio'); });
   const n = await p2.page.evaluate(async () => {
     const t0 = p.video.currentTime; await wait(600);

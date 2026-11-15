@@ -117,7 +117,7 @@ test('sound: 5.1 reaches the chain whole and dialogue lifts the centre; a film t
     out.mode = other.player.mode; out.can = canProcess(other.video, other.player.mode);
     out.set = refused.set({ boost: 2 }); out.captured = refused.state().captured; out.ctx = refused.ctx;
     return out;
-  }, [host.url('centre.mkv'), host.url('plain.mp4')]);
+  }, [host.url('centre.mkv'), host.url('plain.mp4') + '?nocors']);
   t.diagnostic(`centre dB: flat ${r.flat.toFixed(2)}, one step ${r.one.toFixed(2)}, two ${r.two.toFixed(2)}; channels ${r.channels}`);
   assert.equal(r.channels, 6, 'the element hands Web Audio all six channels');
   assert.ok(Math.abs(r.one - r.flat - 4) < 1, `one step lifts the centre by about 4 dB (${(r.one - r.flat).toFixed(2)})`);

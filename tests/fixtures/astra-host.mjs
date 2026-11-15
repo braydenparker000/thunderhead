@@ -21,13 +21,14 @@ const ALLOW = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Header
  *  control.bps      bytes a second per connection (0: as fast as it goes)
  *  control.noRange  true: Range is ignored and the whole file sent with 200
  *  control.noCors   true: no CORS headers, so a page on another origin may play the film but not read it
+ *                   (a single film: add ?nocors to its address)
  *  stats            {requests, open, bytes, ranges: [[start, end]…]}
  */
 export async function astraHost({ root = ROOT } = {}) {
   const control = { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false };
   const stats = { requests: 0, open: 0, bytes: 0, ranges: [] };
   const server = http.createServer((req, res) => {
-    const CORS = control.noCors ? {} : ALLOW;
+    const CORS = control.noCors || /[?&]nocors\b/.test(req.url) ? {} : ALLOW; // or for one film alone: its address with ?nocors
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
     stats.requests++;
     if (control.hang) return; // the socket stays open and silent

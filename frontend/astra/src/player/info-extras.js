@@ -15,7 +15,7 @@ export function dataText(bytes) {
 export class InfoExtras {
   constructor(p) { this.p = p; this.timer = 0; }
 
-  used() { const e = this.p.engine; if (typeof e.dataUsed !== 'function') return null; try { return dataText(e.dataUsed()); } catch { return null; } }
+  used() { const e = this.p.engine; if (typeof e.dataUsed !== 'function') return null; try { return dataText(e.dataUsed()) || null; } catch { return null; } }
 
   /** Rows for the facts list: [label, value]. */
   rows() {
