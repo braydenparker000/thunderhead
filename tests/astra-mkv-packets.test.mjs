@@ -73,6 +73,28 @@ test('a cluster is read as it arrives: the first frames come after a few kilobyt
   assert.ok(reached - second < 40_000);
 });
 
+test('a read refused because playback moved does not stop a new pipeline that took the same cluster: it is read afresh', async () => {
+  const bytes = film('clusters');
+  let refuse = false;
+  const reader = await open(bytes, async (s, e) => {
+    if (refuse && s >= second) { refuse = false; await null; throw Object.assign(new Error('Playback moved elsewhere.'), { kind: 'closed' }); }
+    return bytes.slice(s, Math.min(e, bytes.length));
+  });
+  const second = reader.layout.trackCues.get(1)[1].position;
+  const video = reader.sink({ id: 1, type: 'video', codec: 'avc' });
+  // The old pipeline reads on into the cluster at 10 s just as playback jumps there; the new one asks for 10 s at once.
+  let last = await video.getKeyPacket(9.5);
+  while (last.timestamp < 9.8) last = await video.getNextPacket(last);
+  refuse = true;
+  const old = video.getNextPacket(last).catch((e) => e); // the old pipeline: stopped by its own generation check anyway
+  const fresh = await video.getKeyPacket(10);
+  await old;
+  assert.equal(fresh.timestamp, 10);
+  let p = fresh;
+  for (let i = 0; i < 40; i++) p = await video.getNextPacket(p);
+  assert.ok(p.timestamp > 12);
+});
+
 // ---- Films built byte by byte -----------------------------------------------------------------
 
 const cat = (...parts) => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let at = 0; for (const p of parts) { out.set(p, at); at += p.length; } return out; };

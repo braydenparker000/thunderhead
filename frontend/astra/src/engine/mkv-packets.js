@@ -83,6 +83,11 @@ class MkvPackets {
   cluster(pos, from, track) {
     const held = this.clusters.get(pos);
     if (held && held.wanted.has(track) && held.from <= from && !held.error) { this.clusters.delete(pos); this.clusters.set(pos, held); return held; }
+    return this.replace(pos, from);
+  }
+
+  /** A fresh read of the cluster at `pos`, from `from`, held in place of any before it. */
+  replace(pos, from) {
     const c = new Cluster(this, pos, from);
     this.clusters.delete(pos);
     this.clusters.set(pos, c);
@@ -92,9 +97,19 @@ class MkvPackets {
 
   /** Frame `i` of `track` in cluster `c` (read on until it is there), or null when the cluster has no more. */
   async frame(c, track, i) {
-    const list = c.list(track);
-    while (list.length <= i && !c.done) await c.more();
-    return list[i] || null;
+    for (let again = true; ; again = false) {
+      try {
+        const list = c.list(track);
+        while (list.length <= i && !c.done) await c.more();
+        return list[i] || null;
+      } catch (e) {
+        // A read refused because playback moved (the range reader's jumped()) was asked for by the pipelines being
+        // dropped; a new pipeline that took the same cluster meanwhile reads it afresh (the same frames, in order).
+        if (!again || e?.kind !== 'closed') throw e;
+        const held = this.clusters.get(c.pos);
+        c = held && held !== c && !held.error && held.from === c.from && held.wanted.has(track) ? held : this.replace(c.pos, c.from);
+      }
+    }
   }
 
   /** Where the cluster after `c` begins, or null at the end of the film. */

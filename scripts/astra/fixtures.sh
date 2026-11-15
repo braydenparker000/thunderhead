@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 2.5 MB in
+# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 3 MB in
 # all). Each is a moving test picture with a clock and a sine tone per sound track, so a check can
 # tell by pitch which track is heard. Needs ffmpeg. Usage: bash scripts/astra/fixtures.sh [film…]
 # (names such as anime.mkv make only those films; x264 builds differ, so remaking all churns them).
@@ -76,6 +76,15 @@ want truehd.mkv && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 770 6)" -map 0:
 # hevc.mkv: HEVC (which this headless Chromium cannot decode, so the software decoder plays it) and a 1 kHz AAC tone. 8 s.
 want hevc.mkv && ff -f lavfi -i "$(pic 8)" -f lavfi -i "$(tone 1000 8)" -map 0:v -map 1:a -c:v libx265 -preset slow -b:v 40k -x265-params log-level=error \
   -c:a aac -b:a 24k -ac 2 "$out/hevc.mkv"
+
+# clusters.mkv: H.264 with a key frame every 10 s and a cluster every 5 s (so half the clusters begin between key
+# frames), and AAC at 440 Hz: Astra's own Matroska reader (mkv-packets.js) reads a cluster as it arrives. 30 s.
+want clusters.mkv && ff -f lavfi -i "$(pic 30)" -f lavfi -i "$(tone 440 30)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main \
+  -pix_fmt yuv420p -b:v 50k -g 120 -bf 2 -c:a aac -b:a 24k -ac 2 -cluster_time_limit 5000 -cluster_size_limit 5000000 "$out/clusters.mkv"
+
+# frontcues.mkv: the same kind of film with its cue index before the clusters (space kept for it at the front). 12 s.
+want frontcues.mkv && ff -f lavfi -i "$(pic 12)" -f lavfi -i "$(tone 440 12)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main \
+  -pix_fmt yuv420p -b:v 50k -g 24 -bf 2 -c:a aac -b:a 24k -ac 2 -reserve_index_space 4096 "$out/frontcues.mkv"
 
 # hls/ and dash/: the same 6 s of picture and a 440 Hz tone as an HLS stream (three 2 s transport-stream segments
 # and their playlist) and as a DASH stream (2 s fragmented-MP4 segments, picture and sound apart, and the manifest).
