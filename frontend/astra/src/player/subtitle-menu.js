@@ -57,14 +57,15 @@ export function subtitleModal(m) {
     second ? null : h('button', {class: 'ap-row file', type: 'button', onclick: () => pickSubtitleFile(m)}, icon('plus', {size: 18}), h('b', {}, 'From this phone…')),
     hasSecond(e) && !second && options.length ? h('button', {class: 'ap-row file', type: 'button', onclick: () => { m.subTarget = 'second'; m.subLang = null; m.renderModal(); }},
       h('span', {class: 'ap-row-text'}, h('b', {}, 'Second subtitle'), h('small', {}, secondTrack ? secondTrack.label : 'Off'))) : null);
-  // Picture subtitles cannot be the second track (the engine reads pictures for one track at a time).
+  // Picture subtitles cannot be the second track (the engine reads pictures for one track at a time), nor an HLS or
+  // DASH stream's own track (its player loads one at a time: engine/player-second.js).
   const trackRail = h('div', {class: 'ap-rail tracks'}, ...options.filter(s => (baseLanguage(s.language) || 'und') === m.subLang && !(second && s.image)).map(s => h('button', {
-    class: 'ap-row' + (isOn(s) ? ' selected' : ''), type: 'button', disabled: !s.supported || (second && s.selected), 'aria-pressed': String(!!isOn(s)),
+    class: 'ap-row' + (isOn(s) ? ' selected' : ''), type: 'button', disabled: !s.supported || (second && (s.selected || s.kind === 'stream')), 'aria-pressed': String(!!isOn(s)),
     onclick: () => pick(s),
   }, h('span', {class: 'ap-row-text'}, h('b', {}, s.label), s.name ? h('small', {class: 'ap-file'}, s.name) : null,
     h('span', {class: 'ap-tags'}, h('em', {}, s.kind === 'embedded' ? (s.image ? 'Built-in picture' : 'Built-in') : s.kind === 'stream' ? 'Stream' : s.source || 'Add-on'),
       s.exact ? h('em', {class: 'good'}, 'Exact match') : null, s.forced ? h('em', {}, 'Forced') : null, s.loading ? h('em', {}, 'Loading…') : null),
-    !s.supported ? h('small', {}, s.reason || '') : second && s.selected ? h('small', {}, 'Already the first subtitle') : null), isOn(s) ? icon('check', {size: 20}) : null)));
+    !s.supported ? h('small', {}, s.reason || '') : second && s.selected ? h('small', {}, 'Already the first subtitle') : second && s.kind === 'stream' ? h('small', {}, 'The stream shows one of its own tracks at a time') : null), isOn(s) ? icon('check', {size: 20}) : null)));
   if (!options.length) trackRail.append(h('p', {class: 'ap-empty'}, m.subtitleSearch ? 'Looking for subtitles…'
     : e.mode === 'native' && !e.readable ? 'This host does not let Astra read the file, so subtitles inside it cannot be shown. Subtitles from your add-ons still appear here, and you can load a file from this phone.'
     : 'No subtitles for this source.'));

@@ -4,8 +4,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFonts, isFont } from '../frontend/astra/src/engine/mkv-attachments.js';
+import { readLayout } from '../frontend/astra/src/engine/mkv.js';
 import { assScript } from '../frontend/astra/src/engine/player-libass.js';
 import { atTop } from '../frontend/astra/src/engine/player-second.js';
+import { TapFeed } from '../frontend/astra/src/engine/sound-tap.js';
 
 // EBML elements by hand: an id's bytes, then an 8-byte size, then the body.
 const el = (id, ...body) => {
@@ -51,6 +53,24 @@ test('a damaged element is met with what could be read, never a read past it', a
   assert.deepEqual(await readFonts(reader(good).read, good.length, 5000), []);
 });
 
+test('where the attachments are is learned from the file: before the first cluster, or after it through the seek head', async () => {
+  const font = attachments(file('a.ttf', 'font/ttf', Buffer.alloc(300, 5)));
+  const cluster = el([0x1f, 0x43, 0xb6, 0x75], el([0xe7], [0]));
+  const ebml = el([0x1a, 0x45, 0xdf, 0xa3]);
+  const segment = (...body) => el([0x18, 0x53, 0x80, 0x67], ...body);
+  // Before the clusters: found by the walk.
+  const before = Buffer.concat([ebml, segment(font, cluster)]);
+  const at = (await readLayout(reader(before).read, before.length)).attachments;
+  assert.deepEqual((await readFonts(reader(before).read, before.length, at)).map((f) => f.name), ['a.ttf']);
+  // After them: found through the seek head (positions count from the segment's data).
+  const seek = (pos) => el([0x11, 0x4d, 0x9b, 0x74], el([0x4d, 0xbb], el([0x53, 0xab], [0x19, 0x41, 0xa4, 0x69]), el([0x53, 0xac], [0, 0, 0, pos])));
+  const headLength = seek(0).length;
+  const after = Buffer.concat([ebml, segment(seek(headLength + cluster.length), cluster, font)]);
+  const layout = await readLayout(reader(after).read, after.length);
+  assert.equal(layout.attachments, ebml.length + 12 + headLength + cluster.length);
+  assert.deepEqual((await readFonts(reader(after).read, after.length, layout.attachments)).map((f) => f.name), ['a.ttf']);
+});
+
 test('which attachments count as fonts', () => {
   for (const [name, type] of [['a.ttf', ''], ['b', 'font/otf'], ['c', 'application/x-truetype-font'], ['d.WOFF2', 'application/octet-stream'], ['e.ttc', '']]) assert.ok(isFont(name, type), name);
   for (const [name, type] of [['cover.jpg', 'image/jpeg'], ['notes.txt', 'text/plain'], ['font.ttf.zip', '']]) assert.ok(!isFont(name, type), name);
@@ -67,4 +87,23 @@ test('libass is given a subtitle file only when it is ASS/SSA', () => {
 test('the second track\'s cues move to the top; placed ones stay where they are', () => {
   const cue = (align, pos = null) => ({ start: 1, end: 2, align, pos, spans: [{ text: 'x' }] });
   assert.deepEqual(atTop([cue(2), cue(1), cue(undefined), cue(8), cue(5), cue(2, { x: 0.5, y: 0.5 })]).map((c) => c.align), [8, 7, 8, 8, 5, 2]);
+});
+
+test('the sound tap: rebuilt samples are handed over planar, on the film\'s clock, only while wanted; a listener that throws ends it for that film', () => {
+  const fed = [], log = [];
+  let wanted = true;
+  const feed = new TapFeed({ wants: () => wanted, feed: (channels, rate, t) => fed.push({ n: channels.length, len: channels[0].length, rate, t, first: channels[1][0] }) }, (l) => log.push(l)).forLoad(1);
+  // A stand-in for Mediabunny's AudioSample: 2 channels of 4 frames, at file time 12.5 s.
+  const sample = { numberOfFrames: 4, numberOfChannels: 2, sampleRate: 48000, timestamp: 12.5, duration: 4 / 48000, copyTo: (dest, { planeIndex }) => dest.fill(planeIndex + 0.5) };
+  feed.samples(sample, 2.5);
+  assert.deepEqual(fed, [{ n: 2, len: 4, rate: 48000, t: 10, first: 1.5 }]);
+  wanted = false;
+  feed.samples(sample, 2.5);
+  assert.equal(fed.length, 1, 'nothing while not wanted');
+  const broken = new TapFeed({ wants: () => true, feed: () => { throw Error('broke'); } }, (l) => log.push(l)).forLoad(1);
+  broken.samples(sample, 0); broken.samples(sample, 0);
+  assert.equal(broken.dead, true);
+  assert.match(log.at(-1), /tapping ended: broke/);
+  assert.equal(broken.forLoad(1).dead, true, 'the same film stays untapped');
+  assert.equal(broken.forLoad(2).dead, false, 'the next film is tapped afresh');
 });
