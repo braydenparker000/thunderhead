@@ -98,6 +98,20 @@ test('the Sound tab changes the real Sound, the boost chip shows, and saved choi
   assert.deepEqual(pic.settings, { sharpen: 0.65, deband: true });
   assert.equal(pic.shown, true, 'the filtered picture is drawn over the video');
   assert.equal(await page.evaluate(() => document.querySelector('.ap-picture-layer canvas.astra-picture') !== null), true, 'in the player\'s picture layer');
+  // Pinch-zoomed, the canvas keeps the video's untransformed box: the stage's transform scales both once.
+  const z = await page.evaluate(() => {
+    const zoom = p.touch.zoom, pic = p.extras.picture.picture;
+    Object.assign(zoom, { scale: 2, x: 0, y: 0 }); zoom.apply(); pic.place();
+    const out = { w: parseFloat(pic.canvas.style.width), vw: p.video.offsetWidth, shown: pic.canvas.getBoundingClientRect().width, video: p.video.getBoundingClientRect().width };
+    zoom.reset(); return out;
+  });
+  assert.equal(z.w, z.vw, 'sized to the video before the zoom');
+  assert.ok(Math.abs(z.shown - z.video) < 1, `and on screen as wide as the zoomed video (${z.shown} vs ${z.video})`);
+  // A phone that falls behind: the filter steps itself down, and says so once.
+  const stepped = await page.evaluate(() => { const pic = p.extras.picture.picture; pic.stepDown(); const first = p.noticeEl.textContent; p.noticeEl.textContent = ''; pic.stepDown(); return { first, again: p.noticeEl.textContent, level: pic.state().level }; });
+  assert.equal(stepped.first, 'Sharpening turned itself down to keep the film smooth.');
+  assert.equal(stepped.again, '', 'once per film');
+  assert.ok(stepped.level >= 2);
   await page.evaluate(() => p.menus.dismiss());
   // The next film: boost, night, dialogue and the picture come back; the timing starts at 0.
   await page.evaluate((u) => film(u, 'Film two'), host.url('multi.mkv'));
@@ -176,6 +190,7 @@ async function skipPlayer(t, { settings, next = null }) {
     window.skip.episode({ series: { type: 'series', id: 'kitsu:5150' }, video: 'kitsu:5150:3', season: 1, episode: 3 });
     p.engine.mode = 'remux';
     p.engine.dispatchEvent(new CustomEvent('ready'));
+    time = 1; v.dispatchEvent(new Event('playing')); v.dispatchEvent(new Event('timeupdate')); // the first frame: the loading screen goes
     for (let i = 0; i < 40 && !window.finder; i++) await wait(25);
   }, { settings, next });
   return { page, errors, requests };
@@ -232,7 +247,7 @@ test('Settings › Playback: the skip switches and the data saver persist, and t
   const playback = async () => {
     await page.waitForFunction(() => window.astra?.navButtons);
     await page.locator('.nav-item[data-tab="settings"]').click();
-    await page.locator('.settings .set-row', { hasText: 'Playback' }).click();
+    await page.locator('.settings .set-row', { hasText: 'Gestures, skip intro' }).click();
     await page.waitForSelector('.settings-page');
   };
   await playback();

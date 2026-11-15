@@ -67,23 +67,23 @@ export class PictureControl {
   /** What the section says under its chips: why it is off, or how it is doing. */
   status() {
     const s = this.picture?.state(), w = this.wanted;
-    if (!w.sharpen && !w.deband) return 'Off: the film as it is.';
+    if (!w.sharpen && !w.deband) return '';
     if (!this.p.ready) return 'Starts with the film.';
     if (this.hdr) return 'HDR films keep the plain picture.';
     if (s?.reason) return /host/.test(s.reason) ? 'This film comes from a host that does not let Astra draw its picture, so the plain picture shows.' : /fast enough/.test(s.reason) ? 'Turned itself off: this phone could not keep up with this film.' : s.reason;
     if (s?.on && s.level > 0) return 'Turned down a little to keep the film smooth.';
-    return s?.on ? 'On.' : '';
+    return '';
   }
 
   body() {
-    const w = this.wanted;
+    const w = this.wanted, status = this.status();
     const chip = (label, on, onclick, extra = {}) => h('button', {class: 'ap-chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(on), onclick, ...extra}, label);
     const group = (title, ...children) => h('div', {class: 'ap-pb-group'}, h('span', {class: 'ap-label'}, title), ...children);
     return h('div', {class: 'ap-picture'}, h('div', {class: 'ap-pb'},
       group('Sharpen', h('div', {class: 'ap-chips'}, ...SHARPEN.map(([v, label]) => chip(label, v === w.sharpen, () => this.change({sharpen: v}), {'aria-label': v ? `Sharpen ${label}` : 'Sharpen off'})))),
       group('Smooth banding', h('div', {class: 'ap-chips'}, chip(w.deband ? 'On' : 'Off', w.deband, () => this.change({deband: !w.deband}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w.deband), 'aria-label': 'Smooth banding'})),
         h('p', {class: 'ap-pb-note'}, 'Softens stripes in skies and shadows.'))),
-      h('p', {class: 'ap-pb-note ap-picture-status'}, this.status()));
+      status ? h('p', {class: 'ap-pb-note ap-picture-status'}, status) : null);
   }
 
   /** The player closed: the canvas goes, and comes back with the next film. */

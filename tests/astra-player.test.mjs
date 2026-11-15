@@ -230,3 +230,45 @@ test('the source line names the add-on once', () => {
   assert.equal(R.viaName('Example 1080p WEB'), 'Example 1080p WEB', 'nothing twice: as it was');
   assert.equal(R.viaName(''), '');
 });
+
+// ——— The wiring (player/sound-menu.js, app/skip.js, screens/streams.js) ———
+import { mergeSkipSegments } from '../frontend/astra/src/app/skip.js';
+import { skipEpisode } from '../frontend/astra/src/app/playing.js';
+import { sourceName } from '../frontend/astra/src/screens/streams.js';
+import { nudgeDelay, delayLabel, plainWhy } from '../frontend/astra/src/player/sound-menu.js';
+
+test('skip segments merge by kind: the lookup wins, a recap only from the lookup, empty ones dropped', () => {
+  const sound = [{ type: 'intro', start: 100, end: 190 }, { type: 'outro', start: 1300, end: 1390 }, { type: 'recap', start: 0, end: 40 }, { type: 'credits', start: 5, end: 5 }];
+  const lookup = [{ type: 'intro', start: 95, end: 185 }, { type: 'recap', start: 0, end: 50 }];
+  assert.deepEqual(mergeSkipSegments(sound, lookup), [{ type: 'recap', start: 0, end: 50 }, { type: 'intro', start: 95, end: 185 }, { type: 'outro', start: 1300, end: 1390 }]);
+  assert.deepEqual(mergeSkipSegments(sound.slice(2)), [], 'without a lookup, no recap');
+  assert.deepEqual(mergeSkipSegments(null, null), []);
+});
+
+test('skip times are looked for in episodes only', () => {
+  const meta = { type: 'series', id: 'kitsu:1' };
+  assert.deepEqual(skipEpisode(meta, { id: 'kitsu:1:2', season: 1, episode: 2 }), { series: { type: 'series', id: 'kitsu:1' }, video: 'kitsu:1:2', season: 1, episode: 2 });
+  assert.equal(skipEpisode({ type: 'movie', id: 'tt1' }, null), null);
+  assert.equal(skipEpisode({ type: 'movie', id: 'tt1' }, { id: 'tt1' }), null);
+});
+
+test('a source is named once when the stream already starts with its add-on\'s name', () => {
+  assert.equal(sourceName('Example', 'Example 1080p'), 'Example 1080p');
+  assert.equal(sourceName('Example', 'example\n4K', ' · '), 'example 4K');
+  assert.equal(sourceName('Example', 'Examples 4K', ' · '), 'Example · Examples 4K', 'a longer word is not the add-on\'s name');
+  assert.equal(sourceName('Example', '1080p', ' · '), 'Example · 1080p');
+  assert.equal(sourceName('Example', ''), 'Example');
+  assert.equal(R.viaName(sourceName('Example', 'Example · Example 4K')), 'Example 4K', 'the player\'s viaName still tidies a name repeated further in');
+});
+
+test('the sound delay steps by 0.05 s within its range and reads as earlier or later', () => {
+  assert.equal(nudgeDelay(0, -0.05), -0.05);
+  assert.equal(nudgeDelay(0, -0.05, 0), 0, 'no earlier sound without the engine');
+  assert.equal(nudgeDelay(0.95, 0.05), 1);
+  assert.equal(nudgeDelay(1, 0.05), 1);
+  assert.equal(nudgeDelay(-1, -0.05), -1);
+  assert.equal(nudgeDelay(0.1 + 0.2, 0.05), 0.35, 'kept on the grid');
+  assert.deepEqual([delayLabel(0), delayLabel(0.25), delayLabel(-0.5)], ['0.00 s', '+0.25 s', '−0.50 s']);
+  assert.match(plainWhy('The software decoder plays the sound through its own audio graph, not the video element.'), /cannot change its sound yet/);
+  assert.match(plainWhy('This film comes straight from its host, which does not let the page read it.'), /does not let Astra change its sound/);
+});

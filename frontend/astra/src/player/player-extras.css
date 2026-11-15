@@ -74,5 +74,5 @@
 
 /* Picture (picture-menu.js), at the top of Stream info */
 .ap-picture { max-width: 820px; margin: 0 0 20px; }
-.ap-picture .ap-pb { gap: 16px 40px; }
+.ap-picture .ap-pb { gap: 16px 40px; max-width: 560px; } /* stacked on the left, over the dark side of the menu's shade: the picture stays visible to judge */
 .ap-picture-status { margin-top: 10px; }

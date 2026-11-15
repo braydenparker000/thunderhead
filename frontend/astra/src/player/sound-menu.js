@@ -28,7 +28,7 @@ const has = (e, name) => typeof e?.[name] === 'function';
 /** The timing shown: "0.00 s", "+0.25 s" (later), "−0.50 s" (earlier). */
 export const delayLabel = d => (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d).toFixed(2) + ' s';
 /** One step of the timing stepper, kept on the 0.05 s grid and inside [min, 1]. */
-export const nudgeDelay = (d, by, min = -1) => Math.min(1, Math.max(min, Math.round((d + by) / STEP) * STEP)) || 0;
+export const nudgeDelay = (d, by, min = -1) => Math.min(1, Math.max(min, Math.round((d + by) * 20) / 20)) || 0;
 
 /** whyNot()'s reason in the owner's words. */
 export function plainWhy(why) {
@@ -66,7 +66,7 @@ export class SoundControl {
   opened(o) {
     const key = o.meta?.id || o.meta?.title || '';
     if (key !== this.title) { this.title = key; this.delay = 0; }
-    this.showChip();
+    this.chip.hidden = true; // until this film is ready and the boost is on its sound
   }
 
   /** Puts the wanted sound on the film playing; one that cannot take it simply plays as it is. */
@@ -136,8 +136,8 @@ export class SoundControl {
       group('Dialogue', h('div', {class: 'ap-chips'}, ...DIALOGUE.map(([v, label]) => chip(label, v === w.dialogue, () => this.change({dialogue: v}), {'aria-label': v ? `Dialogue ${label}` : 'Dialogue off'}))),
         h('p', {class: 'ap-pb-note'}, 'Lifts voices over music and effects.')),
       group('Sound delay', h('div', {class: 'ap-step wrap'}, h('div', {},
-        chip('−', 'Sound earlier', nudge(-STEP), {'aria-pressed': null, disabled: off || d <= min}), h('b', {class: 'ap-sound-delay'}, delayLabel(d)),
-        chip('+', 'Sound later', nudge(STEP), {'aria-pressed': null, disabled: off || d >= 1}),
+        chip('−', false, nudge(-STEP), {'aria-label': 'Sound earlier', 'aria-pressed': null, disabled: off || d <= min}), h('b', {class: 'ap-sound-delay'}, delayLabel(d)),
+        chip('+', false, nudge(STEP), {'aria-label': 'Sound later', 'aria-pressed': null, disabled: off || d >= 1}),
         h('button', {class: 'ap-chip ghost', type: 'button', disabled: off || !d, onclick: () => this.change({delay: 0})}, 'Reset'))),
         h('p', {class: 'ap-pb-note'}, this.advance ? 'Minus: the sound comes earlier. Plus: later. For this film only.' : 'Plus: the sound comes later. For this film only.'))));
   }
