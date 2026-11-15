@@ -3,8 +3,9 @@
 // a canvas in the player's picture layer, inside the zoomed stage, so a pinch
 // moves it with the video). All are prefs, put back on every film; a film
 // the filter cannot take (a host that does not let the page read it, HDR on a
-// device that cannot draw it at half-float precision) simply shows the plain
-// picture, and the section says why. HDR films are tone-mapped (tonemap.js).
+// device that cannot draw it at half-float precision, an HDR film that is not
+// PQ) simply shows the plain picture, and the section says why. PQ films are
+// tone-mapped (tonemap.js); HLG ones keep the browser's own picture.
 //
 // Why the stream-info menu: it is where the film's picture is described
 // (size, HDR, frames dropped), it already opens as a menu a thumb reaches
@@ -20,7 +21,7 @@ import {savePrefs} from './prefs.js';
 export const SHARPEN = [[0, 'Off'], [0.35, 'Low'], [0.65, 'Medium'], [1, 'High']];
 export const UPSCALE = [['standard', 'Standard'], ['anime', 'Animation (Anime4K)']];
 // Reasons that only mean "not for this film": shown in the section, never as a notice.
-const quiet = r => r === HDR.reason || /host|Nothing is loaded|address/.test(r);
+const quiet = r => r === HDR.reason || r === HDR.notPQ || /host|Nothing is loaded|address/.test(r);
 
 export class PictureControl {
   constructor(p) {
@@ -35,12 +36,14 @@ export class PictureControl {
   get wanted() { const s = this.p.prefs; return {sharpen: Math.min(1, Math.max(0, +s.sharpen || 0)), deband: !!s.deband, upscale: s.upscale === 'anime' ? 'anime' : 'standard'}; }
   static on(w) { return w.sharpen > 0 || w.deband || w.upscale === 'anime'; }
   get hdr() { return !!this.p.engine.info?.video?.[0]?.hdr; }
+  // 'pq', 'hlg' or 'bt709'…, from the container's colour fields (Mediabunny's hdr is true for 'pq' and 'hlg'); '' when not known.
+  get transfer() { return this.p.engine.info?.video?.[0]?.decoderConfig?.colorSpace?.transfer || ''; }
 
   apply() {
     const w = this.wanted;
     if (!this.picture && !PictureControl.on(w)) return;
     this.make();
-    this.picture.hdr = this.hdr;
+    this.picture.hdr = this.hdr; this.picture.transfer = this.transfer;
     this.picture.set(w);
   }
 
@@ -79,6 +82,7 @@ export class PictureControl {
     if (!PictureControl.on(w)) return '';
     if (!this.p.ready) return 'Starts with the film.';
     if (s?.reason === HDR.reason) return 'This phone cannot draw HDR films through the filter, so the plain picture shows.';
+    if (s?.reason === HDR.notPQ) return this.transfer === 'hlg' ? 'This film is HDR in HLG, which the filter cannot tone-map yet, so the plain picture shows.' : 'This HDR film does not say it is PQ, the only kind the filter can tone-map, so the plain picture shows.';
     if (s?.reason) return /host/.test(s.reason) ? 'This film comes from a host that does not let Astra draw its picture, so the plain picture shows.' : /fast enough/.test(s.reason) ? 'Turned itself off: this phone could not keep up with this film.' : s.reason;
     if (s?.on && s.fallback === 'slow') return s.level > 0 ? 'Standard upscaling, turned down a little, to keep the film smooth.' : 'Standard upscaling for now: Animation could not keep the film smooth.';
     if (s?.on && s.fallback === 'device') return 'This phone cannot run Animation upscaling, so Standard is used.';

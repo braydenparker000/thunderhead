@@ -33,7 +33,9 @@ const SCALES = [1, 0.75, 0.5];
  * tone-mapped (tonemap.js, BT.2390) before the other passes; on this clip the filter draws 29, 63,
  * 136, 188, 255. Where half floats cannot be drawn into, the plain video shows, with this reason.
  */
-export const HDR = Object.freeze({whiteNits: 203, toneMapped: true, reason: 'HDR films keep the plain picture on this device: it cannot draw them at the precision their highlights need.'});
+export const HDR = Object.freeze({whiteNits: 203, toneMapped: true, reason: 'HDR films keep the plain picture on this device: it cannot draw them at the precision their highlights need.',
+  // The tone-mapping takes the film as PQ; HLG (or HDR of no known kind) put through it would come out wrong.
+  notPQ: 'HDR films in HLG keep the plain picture: the filter tone-maps PQ films only.'});
 /** Upscales the filter offers: FSR 1.0 for any film, Anime4K's network for drawn animation. */
 export const UPSCALES = ['standard', 'anime'];
 
@@ -76,10 +78,11 @@ export class Picture {
   /**
    * @param {HTMLVideoElement} video
    * @param {HTMLElement} layer  an element over the video and under the subtitles; the canvas goes in first
-   * @param {{onReport?: (reason: string) => void, hdr?: boolean}} [options]  hdr: the film is HDR (PQ), uploaded and tone-mapped as such
+   * @param {{onReport?: (reason: string) => void, hdr?: boolean, transfer?: string}} [options]  hdr: the film is HDR, uploaded and
+   *   tone-mapped as PQ when `transfer` is 'pq' (its decoder config's colorSpace.transfer); any other HDR film keeps the plain picture
    */
-  constructor(video, layer, {onReport, hdr = false} = {}) {
-    Object.assign(this, {video, layer, hdr, onReport: onReport || (() => {})});
+  constructor(video, layer, {onReport, hdr = false, transfer = 'pq'} = {}) {
+    Object.assign(this, {video, layer, hdr, transfer, onReport: onReport || (() => {})});
     this.settings = {sharpen: 0, deband: false};
     this.upscale = 'standard'; this.restore = false; // Anime4K's Restore CNN before the upscale: off (its cost, see anime4k.js)
     this.fallback = ''; // why Standard is drawn although Anime4K was asked for: 'slow' (stepped down) or 'device' (no half floats)
@@ -114,6 +117,7 @@ export class Picture {
   start() {
     const why = this.refused || unreadable(this.video);
     if (why) { this.stop(); this.report(why); return false; }
+    if (this.hdr && this.transfer !== 'pq') { this.stop(); this.report(HDR.notPQ); return false; }
     if (this.on) { this.request(); return true; }
     try {
       this.canvas = document.createElement('canvas');

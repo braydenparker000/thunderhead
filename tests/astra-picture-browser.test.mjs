@@ -7,6 +7,9 @@
 //   ffmpeg -f rawvideo -pix_fmt yuv420p10le -s 320x180 -r 24 -i frame.yuv -pix_fmt yuv420p10le
 //     -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range tv
 //     -c:v libvpx-vp9 -profile:v 2 -lossless 1 hdr-patches.webm
+// hdr-hlg.webm (VP9 profile 2, HLG, BT.2020, 320x180, 1 s of flat grey) was made with:
+//   ffmpeg -f lavfi -i color=c=0x808080:s=320x180:r=24:d=1 -pix_fmt yuv420p10le -color_primaries bt2020
+//     -color_trc arib-std-b67 -colorspace bt2020nc -color_range tv -c:v libvpx-vp9 -profile:v 2 -lossless 1 hdr-hlg.webm
 // Local only: nothing here reaches the internet.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -140,5 +143,43 @@ test('picture: an HDR film is tone-mapped close to the browser\'s own picture, w
   r.greys.forEach((c, i) => assert.ok(Math.abs(c[0] - want[i]) <= 3, `patch ${i}: ${c[0]}, the curve says ${want[i]}`));
   r.greys.forEach((c, i) => assert.ok(Math.abs(c[0] - r.plainGreys[i][0]) <= 4, `patch ${i} is close to the browser's own picture (${c[0]} vs ${r.plainGreys[i][0]})`));
   assert.ok(r.greys[3][0] < 200 && r.greys[4][0] > 245, 'reference white has headroom and 1000 nits is still brighter: nothing clipped at 203');
+  assert.deepEqual(errors, []);
+});
+
+test('picture: an HLG film keeps the plain picture, and the Picture section says why; a PQ film is still filtered', opts, async (t) => {
+  const { page: p, errors } = await page(t);
+  const r = await p.evaluate(async (urls) => {
+    const { AstraPlayer } = await import('/astra/src/engine/player.js');
+    const { PictureControl } = await import('/astra/src/player/picture-menu.js');
+    const out = {};
+    for (const [name, url] of Object.entries(urls)) {
+      // The real engine and the real Picture section, on a stand-in for the player screen, with Sharpen on.
+      const { video, layer } = box();
+      const engine = new AstraPlayer(video, document.createElement('div')), notices = [];
+      const screen = { video, pictureLayer: layer, engine, prefs: { sharpen: 0.35 }, ready: false, notice: (n) => notices.push(n), menus: { modalName: '', renderModal() {} } };
+      const control = new PictureControl(screen);
+      const ready = new Promise((ok) => engine.addEventListener('ready', () => { screen.ready = true; ok(); }, { once: true }));
+      engine.load({ url, autoplay: false });
+      await Promise.race([ready, wait(15000)]);
+      if (!screen.ready) { out.skip = `the engine did not open ${name}`; return out; }
+      video.currentTime = 0.5; await new Promise((ok) => video.addEventListener('seeked', ok, { once: true }));
+      for (let i = 0; i < 60 && !document.querySelector('canvas.astra-picture') && !control.picture?.state().reason; i++) await wait(50);
+      await wait(200);
+      out[name] = { transfer: control.transfer, hdr: control.hdr, state: control.picture.state(), canvas: !!document.querySelector('canvas.astra-picture'),
+        status: control.body().querySelector('.ap-picture-status')?.textContent || '', notices };
+      control.close(); engine.destroy(); video.remove(); layer.remove();
+    }
+    return out;
+  }, { hlg: host.url('hdr-hlg.webm'), pq: host.url('hdr-patches.webm') });
+  if (r.skip) return t.skip(r.skip);
+  t.diagnostic(`HLG: transfer ${r.hlg.transfer}, "${r.hlg.status}"; PQ: transfer ${r.pq.transfer}, drawn ${r.pq.state.drawn}`);
+  assert.deepEqual([r.hlg.hdr, r.hlg.transfer], [true, 'hlg'], 'the engine knows the film is HDR, and HLG');
+  assert.equal(r.hlg.canvas, false, 'no filter canvas over an HLG film');
+  assert.equal(r.hlg.state.on, false);
+  assert.match(r.hlg.status, /HLG.*plain picture/, 'the Picture section says why');
+  assert.deepEqual(r.hlg.notices, [], 'in the section, not as a notice');
+  assert.deepEqual([r.pq.hdr, r.pq.transfer], [true, 'pq']);
+  assert.equal(r.pq.canvas, true, 'a PQ film is drawn through the filter as before');
+  assert.deepEqual([r.pq.state.on, r.pq.state.reason, r.pq.status], [true, '', '']);
   assert.deepEqual(errors, []);
 });

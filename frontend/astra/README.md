@@ -672,6 +672,10 @@ measured height, so nothing covers the title or the buttons.
     player's prefs, at most 200 titles: its next play starts there and
     moves only slowly after 10 s; a title never measured starts from the
     middle of those remembered, else 5 dB up.
+  - **Switching** (`enhance/sound-chain.js`): turning any of these on or
+    off builds the new path beside the old one, lets it settle silently for
+    0.2 s and crossfades in 50 ms, so the level never jumps or clicks;
+    headphone surround first waits for the browser's HRTF data.
   - **Headphone surround** (`enhance/headphone.js`): a 5.1 or 7.1 film is
     placed around the listener with the browser's own binaural rendering
     (Web Audio's HRTF panner, each speaker a metre away at its standard
@@ -692,12 +696,15 @@ measured height, so nothing covers the title or the buttons.
   not while the page is hidden or in picture-in-picture. Animation runs
   only where the phone can draw into half-float targets and the picture is
   shown more than 1.2 times larger both ways (Anime4K's own rule); the
-  section says when Standard is drawn instead and why. **HDR films** are
+  section says when Standard is drawn instead and why. **HDR films** in PQ
+  (HDR10, Dolby Vision's HDR10 layer) are
   uploaded as half floats and tone-mapped to the screen (`tonemap.js`:
   ITU-R BT.2390's curve on the PQ signal, 1,000 nits assumed for the
   source, mid-tones placed where Chrome's own picture puts them; into
   Display P3 on a P3 screen, else sRGB) before the other passes; a phone
-  that cannot draw into half floats keeps the plain picture for them. A
+  that cannot draw into half floats keeps the plain picture for them, and
+  so does an HDR film in HLG (or one that does not say it is PQ): the
+  browser's own picture maps those rightly, and the section says why. A
   film from a host that does not let the page read it keeps the plain
   picture too; the section says why. When frames start to be missed it
   steps itself down (Animation to Standard, then smooth banding off, then

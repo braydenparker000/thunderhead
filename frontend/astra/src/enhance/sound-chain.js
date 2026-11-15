@@ -233,7 +233,7 @@ export class SoundChain {
       if (this.ctx.state !== 'closed' && this.ctx.currentTime < old.end + 0.02) { old.timer = this.later(old); return; }
       this.drop(old);
       this.paths = this.paths.filter(o => o !== old);
-    }, Math.max(20, (old.end - this.ctx.currentTime) * 1000 + 40));
+    }, this.ctx.state === 'running' ? Math.max(20, (old.end - this.ctx.currentTime) * 1000 + 40) : 500);
   }
 
   drop(old) {
