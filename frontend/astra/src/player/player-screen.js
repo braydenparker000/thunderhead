@@ -14,8 +14,9 @@
 // This file is the screen itself: opening, loading, closing and what the
 // buttons do. Its parts: view.js (the elements), controls.js (what shows and
 // when), menus.js, surface.js (touch on the picture), timeline.js (the seek
-// bar), keys.js, markers.js (skip and next episode), loading.js (waiting,
-// errors, notices) and system.js (full screen, picture-in-picture, wake lock).
+// bar), keys.js, video-events.js, markers.js (skip and next episode),
+// loading.js (waiting, errors, notices) and system.js (full screen,
+// picture-in-picture, wake lock). Each part has close(); closing runs them all.
 
 import {AstraPlayer} from '../engine/player.js';
 import {baseLanguage} from '../engine/languages.js';

@@ -4,7 +4,8 @@
 // faults a review found: the resume point kept when the source changes before the first frame, the
 // app reachable behind picture-in-picture, a hold that a second finger cannot leave stuck, nothing
 // left running after close, controls that stay while used, no page writes per timeupdate while
-// hidden, a live stream's seek bar, Tab kept inside a menu, and Unlock reachable while locked.
+// hidden, a live stream's seek bar, Tab kept inside a menu, Unlock reachable while locked, and full
+// screen lost in the background not taken for back.
 // The pure rules (gestures, progress, filters) are in astra-player.test.mjs.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -112,6 +113,27 @@ test('in picture-in-picture the app behind takes taps; back in the player it is 
     await page.evaluate(() => p.system.restoreFromPip());
     assert.equal(await page.evaluate(() => document.querySelector('.behind').inert), true);
   }
+});
+
+test('leaving full screen while the page is hidden, or just back, is not back: the player stays open', opts, async (t) => {
+  const { page } = await player(t);
+  const open = await page.evaluate(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen(); // out of full screen (as Chrome takes it when the app goes to the background)
+    await new Promise((r) => setTimeout(r, 50));
+    const s = p.system, seen = [];
+    let state = 'hidden';
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    const mm = window.matchMedia.bind(window);
+    window.matchMedia = (q) => (q === '(pointer: coarse)' ? { matches: true } : mm(q)); // a phone's finger
+    Object.assign(s, { wasFullscreen: true, wantFullscreen: true, visibleAt: 0 });
+    s.fullscreenChanged(); seen.push(p.isOpen); // the change as the app goes to the background
+    state = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
+    s.fullscreenChanged(); seen.push(p.isOpen); // the change arriving just after coming back
+    s.visibleAt = performance.now() - 2000;
+    s.fullscreenChanged(); seen.push(p.isOpen); // a real exit, in view: back, which closes
+    return seen;
+  });
+  assert.deepEqual(open, [true, true, false]);
 });
 
 test('hold for 2× ends with the first finger’s lift, even after a second finger came and went', opts, async (t) => {
