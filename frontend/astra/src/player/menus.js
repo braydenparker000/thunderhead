@@ -112,8 +112,8 @@ export class Menus {
     const kept = p.modal.hidden ? [] : [...p.modal.querySelectorAll('.ap-modal-body, .ap-rail')].map(el => ['.' + [...el.classList].join('.'), el.scrollTop]);
     const key = el => el.getAttribute('aria-label') || el.textContent;
     const focused = p.modal.contains(document.activeElement) && document.activeElement.matches('button') ? key(document.activeElement) : null;
-    // Picking tracks hides the picture; styling leaves it showing, so the change can be seen.
-    const scrim = 'ap-modal-scrim' + (name !== 'subtitles' ? '' : this.subTab === 'style' ? ' preview' : ' solid');
+    // Picking tracks hides the picture; styling leaves it showing, so the change can be seen. The wide menus (Playback, the search) are solid too.
+    const scrim = 'ap-modal-scrim' + (name === 'playback' || name === 'find' ? ' solid' : name !== 'subtitles' ? '' : this.subTab === 'style' ? ' preview' : ' solid');
     p.modal.replaceChildren(h('div', {class: scrim, onclick: () => this.dismiss()}), h('div', {class: 'ap-modal-body ' + name}, close, body));
     for (const [selector, top] of kept) { const el = p.modal.querySelector(selector); if (el) el.scrollTop = top; }
     if (focused != null) [...p.modal.querySelectorAll('button')].find(b => key(b) === focused)?.focus({preventScroll: true});

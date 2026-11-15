@@ -39,7 +39,7 @@ export class Repeat {
       if (!range) { p.flash('The part must be at least a second long'); return; }
       this.range = range; this.a = null;
       p.flash(`Repeating ${clock(range.start)} – ${clock(range.end)}`);
-      if (t > range.end || t < range.start) this.back();
+      if (t >= range.end || t < range.start) this.back(); // at B already: straight back to A
     }
     p.extras.marks.render();
   }
@@ -48,5 +48,6 @@ export class Repeat {
     if (this.a == null && !this.range) return;
     this.a = null; this.range = null; this.looping = false;
     this.p.extras?.marks.render();
+    if (this.p.menus.modalName === 'playback') this.p.menus.renderModal(); // the button says "Set start (A)" again
   }
 }

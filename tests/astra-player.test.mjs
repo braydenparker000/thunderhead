@@ -1,6 +1,8 @@
 // The player's pure rules: what a finger on the picture is doing (player/gestures.js), when a progress
 // report may overwrite the saved place, and the next episode's sources through the owner's filters
-// (app/playing.js). The same player is driven in a real browser by astra-player-browser.test.mjs.
+// (app/playing.js), and the newer features' rules (player/rules.js: speed, sleep timer, A–B repeat,
+// zoom, chapters, subtitle search, stills, the source line). The same player is driven in a real browser
+// by astra-player-browser.test.mjs and astra-features-browser.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Gesture, classifyDrag, HOLD_MS } from '../frontend/astra/src/player/gestures.js';

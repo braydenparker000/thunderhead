@@ -1,8 +1,9 @@
 // Pinch to zoom: two fingers enlarge the picture from 1× to 4×, a one-finger
 // drag then moves it within its edges, and a pinch back to (nearly) 1× or the
 // aspect button puts it back. The zoom is a transform on the stage, the
-// element that holds the video and the layers over it (the picture filter's
-// canvas and the subtitles), so they all move together. The fingers are read
+// element that holds the video and the layers drawn over the picture (the
+// picture filter's canvas, the dimming), so they move together. Subtitles are
+// not in it: enlarged with the picture they would leave the screen. The fingers are read
 // by gestures.js; surface.js hands the results here.
 
 import {pinchZoom, clampPan} from './rules.js';

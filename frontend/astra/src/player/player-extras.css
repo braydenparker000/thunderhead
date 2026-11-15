@@ -42,7 +42,7 @@
 .ap-find-list { display: flex; flex-direction: column; gap: 2px; max-width: 680px; }
 .ap-line { display: flex; align-items: baseline; gap: 14px; min-height: 44px; padding: 10px 12px; border: 0; border-radius: var(--r-lg); background: transparent; color: #fff; text-align: left; font-size: 14px; line-height: 20px; }
 .ap-line:active, .ap-line:focus-visible { background: rgba(255,255,255,.1); }
-.ap-line time { flex: none; min-width: 56px; color: rgba(255,255,255,.55); font-variant-numeric: tabular-nums; }
+.ap-line time { flex: none; min-width: 44px; color: rgba(255,255,255,.55); font-variant-numeric: tabular-nums; }
 .ap-line span { min-width: 0; overflow-wrap: anywhere; }
 
 /* Stream info additions */

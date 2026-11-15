@@ -31,8 +31,9 @@ export function build(p) {
   r.subs2El = h('div', {class: 'ap-subs second'}); // a second subtitle track, above the first (the engine draws it, where it can)
   r.dim = h('div', {class: 'ap-dim', 'aria-hidden': 'true'}); // darkens the picture (the brightness swipe), not the subtitles
   r.pictureLayer = h('div', {class: 'ap-picture-layer', 'aria-hidden': 'true'}); // over the video, under the subtitles: the picture filter's canvas
-  // The video and everything laid over it, in one element: zooming moves them together (zoom.js).
-  r.stage = h('div', {class: 'ap-stage'}, video, r.pictureLayer, r.dim, r.subs2El, subs);
+  // The video and what is drawn over the picture, in one element: zooming moves them together (zoom.js).
+  // The subtitles stay out of it, so a zoomed picture keeps them readable and on screen.
+  r.stage = h('div', {class: 'ap-stage'}, video, r.pictureLayer, r.dim);
 
   // Feedback
   r.feedback = h('div', {class: 'ap-feedback', 'aria-live': 'polite'});
@@ -118,7 +119,7 @@ export function build(p) {
   r.surface = h('div', {class: 'ap-surface'});
   r.soundCover = h('div', {class: 'ap-sound-only', hidden: true}); // the picture covered (sound-only.js)
   r.root = h('div', {class: 'ap', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Player', hidden: true, tabindex: -1},
-    r.stage, r.surface, r.soundCover, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
+    r.stage, r.subs2El, subs, r.surface, r.soundCover, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
     r.controls, h('div', {class: 'ap-buffering'}, r.spinner), r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
   p.parent.append(r.root);
   return r;
