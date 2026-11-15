@@ -27,7 +27,7 @@ Read whole: `engine/wgsl.js`, `gpu.js`, `dcp.js`, `grade.js`, `mask.js`, `full.j
 | 1.3 | B | Proven | **Black is never quite black.** `wgsl.js:274` `moved()` holds a colour to no less than 2⁻¹² before the table's move is laid on, so a channel at 0 comes out at 2⁻¹² (0.8 of a level of 255). An untouched picture's level 0 exported at a mean of 0.78 (every other level within 0.08); a zero channel of a strong colour likewise ((255, 0, 0) → (255, 1, 1) on most pixels). For a RAF under Adobe's default curve the floor works out at 0.64 of a level. Invisible, but "an untouched export is the file's own pixels" is false at zero, and no histogram reaches 0 (`scope.js:21` counts ≤ 1 as clipped, which hides it). |
 | 1.4 | A | Proven | **A reduced export is softer and has more moiré than it should.** `reduce.js` brings a band to size by an area average. On a zone plate taken 7728 → 2048: moiré left past the small picture's limit 13.6 of 255 (Lanczos-3: 6.1); contrast kept at 0.8 of the limit 78 % (Lanczos-3: 100 %), at half the limit 91 % (102 %). REVIEW.md row 23 calls the area average "the same" as the best known; it is not. Every Small export, and any export under full size. Output sharpening partly hides the softness and does nothing for the moiré. |
 | 1.5 | B | Suspect | **The wheel's picture is one 47 MB image.** `assets/dial-strip.webp` is 1648 × 7200 (twelve frames); it took 244 ms to decode here. Chromium keeps it as one texture, and a simulated memory-pressure notice made it throw the texture away and make it again (trace: one `CreateImageData` and `UploadImage` after the notice). Large images are drawn after the rest of a tile, so the wheel may be missing for that long after heavy work or a return from the background. Not caught on screen here; needs the phone. Only 98 of each frame's 150 rows are ever shown on the boards (the Library's cull shows all 150), and the phone needs 1081 px of its 1648. |
-| 1.6 | C | By reading | **A 16-bit TIFF holds about 11 bits in the highlights.** The full-size frame is written as half floats (`full.js:106`), whose step between 0.5 and 1 is 1/2048. Finer than 8 bits by eight times; not 16. |
+| 1.6 | C | Proven | **A 16-bit TIFF holds 1024 levels a stop.** The full-size frame is written as half floats (`full.js:106`). In a TIFF made from the real file the top stop (32768 to 65535) held 938 distinct values of 32768 and the next 1024 of 16384: eleven bits in the highlights, finer than 8 bits by eight times, not 16. |
 | 1.7 | C | By reading | PNG export is 8 bits only (`files.js:117`). |
 | 1.8 | C | By reading | The export's 16-to-8-bit dither (`files.js:34`) is a flat random number for each channel on its own; the screen's (`wgsl.js:71`) is triangular and the same on all three, "no colour speckle". The file's has a little colour speckle at one level, and its noise changes slightly with the value. |
 | 1.9 | C | By reading | `film()` (`wgsl.js:139`, the curve for sensor data with no profile) weighs linear ProPhoto by Rec. 709's luminance numbers; `LUM` two lines above is ProPhoto's. Only photos developed with no profile. |
@@ -122,4 +122,68 @@ stays on the same sensor pixel to within one (`raf5.mjs` in the audit's scratch)
 solution on a disc to its third harmonic, and the shader adds up the same terms `heal.js` fits. The source's
 offset is a whole pattern in every pass. The mask and spot limits (eight masks, four painted, 32 spots) are held
 where they are added. The crop's perspective and its "least enlargement that covers".
+
+## Part 5: Auto, white balance, haze, looks' tables, the files an export writes
+
+Read whole: `engine/auto.js`, `autowhite.js`, `white.js`, `haze.js`, `cube.js`, `look.js`, `profiles.js`, `icc.js`,
+`exif.js`, `export-thread.js`, `export-worker.js`. Files made from a crop of the real RAF through `app/save.js`
+(JPEG at 60, 95 and 100, PNG, 16-bit TIFF, a reduced and sharpened JPEG; sRGB and Display P3; metadata All,
+Copyright only and None) and read with other tools: Pillow, littlecms and ImageMagick (libtiff).
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 5.1 | C | Proven | Every file opened in the other tools at the right size. Exif carried right (1/160 s, f/4, ISO 125, 18 mm, the lens, upright, the export's own size, no place); with None nothing but the profile a P3 file needs; with Copyright only the artist alone. |
+| 5.2 | C | Proven | The Display P3 profile is well formed (littlecms reads it as "Display P3", version 4.3) in a JPEG, a PNG and a TIFF, and a P3 file brought back to sRGB by littlecms matches the sRGB file to 1 level at most (mean 0.23). |
+| 5.3 | C | Proven | No step at a JPEG's joins: rows at the 256-row joins differ from the PNG by 1.14 levels, the other rows by 1.15. |
+| 5.4 | C | Proven | The TIFF is valid to libtiff (little-endian, tags in order, 16 bits, no compression) and matches the PNG to within the PNG's own dither. libtiff warns of three things carried over from the camera's Exif: tag 50341 (PrintIM), the interoperability pointer inside the Exif directory, and a copyright text that holds a zero byte. Harmless; a stricter reader might complain. |
+| 5.5 | C | By reading | A `.cube` file that states an input range other than 0 to 1 in Resolve's way (`LUT_3D_INPUT_RANGE`) is read as if it were 0 to 1 (`cube.js:13`: only `DOMAIN_MIN` and `DOMAIN_MAX` are checked). |
+| 5.6 | C | By reading | The exported file's Exif still names the camera's firmware as its Software and the camera's own DateTime; nothing says the file was developed here but the note in its comment. |
+
+Checked and sound: Auto tone's arithmetic against the shader's `relight`; Auto white balance (votes on the locus,
+the camera's white as a prior); the eyedropper; the air light; Adobe's look files and the DNG spline; the zip
+readers' bounds; the ICC profile's layout field by field; the Exif tree's reading in both byte orders and its
+writing; the export thread's hand-over, its two-band limit, cancel and failure.
+
+## Part 6: looks, presets, recipes, copy and paste, starts
+
+Read whole: `editor/app/looks.js`, `xmp.js`, `recipes.js`, `recipe-map.js` (its head), `pack.js`, `cube-out.js`,
+`starts.js`, `clip.js`.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 6.1 | C | By reading | A look saved as a `.cube` table is read back from an 8-bit frame (`cube-out.js`: `px / 255`), so its answers have 256 levels; said in its own notes. On video graded hard it can band. |
+| 6.2 | C | By reading | A Lightroom preset's parametric curve (its Shadows, Darks, Lights, Highlights regions) has no control here and is counted among what was left; its point curve is laid on. The strengths are Lightroom's numbers on this editor's dials, not matched (said in `xmp.js`). |
+| 6.3 | C | By reading | Pasting an edit on many carries Noise, which is set by each photo's ISO, and the lens corrections by hand, with everything else (`clip.js` `laid`): a series at mixed ISO takes the copied photo's Noise. |
+
+Checked and sound: a look kept once however often its pack is picked; a pack's size limits and its refusal of
+what it cannot read; wearing a look leaves the photo's exposure, white balance, crop, masks and spots; the
+match's exposure arithmetic; a start laid on a new photo's whole history.
+
+## Part 7: stacking and backup
+
+Read whole: `engine/stack.js`, `editor/app/stack.js`, `app/backup.js`, `app/kept-view.js`, `app/export-kept.js`.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 7.1 | B | By reading | **A photo is marked as in Drive when its upload is handed over, not when it has finished.** `backup.js` `run` writes `source: photos:<id>` as the upload is registered and counts a photo "handed to the browser to finish in the background" as backed up; the page then goes back to the editor. If that upload later fails with the page gone, nothing takes the mark off, the Library says "Everything here is in your Drive", and the photo is never offered again (`!p.source`). Whether Photos' own import always finishes or reports such an upload was not followed here. (The owner parked Drive on 2026-11-12.) |
+| 7.2 | C | By reading | In a stack of frames shot alike, a sensel over 0.9 of the range takes the first frame alone (`stack.js` `summer`, `app/stack.js` `CLIP`): bright areas get none of the stack's noise gain. They need it least. |
+
+Checked and sound: the sum of a bracket (each sensel's light over the time it was open, to its first clipped
+frame); a frame that moved or was shot otherwise left out; the stack's levels and the ISO its noise answers to;
+the kept picture shown only for the edit it was made from; an export's kept bands keyed by photo, edit, method,
+settings and build, and cleared.
+
+## Part 8 (begun): the Library
+
+Read whole: `boards/LibraryPlate.js`, `app/tiles.js`, `scope.js`, `fling.js`, `taps.js`, `moved.js`, `timings.js`,
+`haptic.js`, `told.js`. Run with twelve real RAFs.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 8.1 | **A** | Proven | **Every Library tile is the camera's whole preview.** An X-E5 RAF carries a 4416 × 2944 JPEG (13 MP, 4 to 5.5 MB); `store.js` keeps it as the photo's picture and the grid shows it in a tile 137 pixels wide (`index.html:378`, a plain `<img>`, every photo's at once, none left for later). With twelve RAFs, drawing the grid took 92 decodes and 7.4 s of decoding on four desktop cores (0.1 to 0.14 s a tile); a phone is slower. Every photo's file is also looked up before the Library first shows (`store.js` `init`), so opening the app takes longer with every photo kept. A tile of an edited photo is already a small picture (480 pixels, `saveTile`); an unedited one is not. Scrolling a roll of hundreds decodes hundreds of 13 MP pictures. |
+| 8.2 | C | By reading | The Library reads the whole roll again, and every photo's search words, at every change of the open photo (`LibraryPlate.js` `hear` → `roll()`), and redraws every tile. |
+| 8.3 | C | By reading | The histogram reads the whole fitted frame back from the GPU (17 MB) and counts it on the page each time the photo has changed while the View board is up (`scope.js`); the 100 % view's small map does the same at each rest (`zoom.js:261`). Neither runs while a finger moves. |
+
+Checked and sound: delete, the seven days, bring back, empty (each two taps); the three "many" actions armed by
+a second tap within five seconds; a cancelled export of many; Find's words.
 
