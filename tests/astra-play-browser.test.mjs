@@ -125,7 +125,9 @@ test('a host that is gone says so; one that cuts connections is read through its
   await p.page.waitForFunction(() => window.seen.errors.length > 0, null, { timeout: 15_000 });
   assert.match((await p.state()).errors[0], /link|gone|no longer|not found|404/i);
   host.reset();
-  host.control.cutAfter = 150_000; // every connection dies after 150 kB: the film is about 940 kB
+  // Every connection dies after 150 kB (the film is about 940 kB), at a real connection's pace: on a
+  // loopback at full speed the cut races the bytes and the browser throws most of them away.
+  host.control.cutAfter = 150_000; host.control.bps = 600_000;
   await p.load(host.url('multi.mkv'));
   await p.runs(1.5);
   await p.seek(50);
