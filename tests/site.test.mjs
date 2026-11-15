@@ -60,6 +60,13 @@ test('no outside hosts anywhere in the site', async () => {
       // wasm-bindgen-rayon's worker script (the threaded RAW engine, PHOTOS.md; the LightCraft test page's threads build,
       // engine/lightcraft-web/README.md; the engine test page's pkg-threads/, engine/raw/README.md): its licence notice and a bug link, comments, never fetched.
       if (/^(photos\/engine\/threads|lab\/lightcraft\/threads|lab\/engine\/pkg-threads)\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
+      // Astra's skip-times lookup (ASTRA.md, Skip intro): AniSkip and the id mapping it needs, asked only when the
+      // owner has turned "Look up anime skip times" on (off unless they do), with a show's public id and episode number.
+      if (relative(SITE, f) === 'astra/src/addons/skip-times.js' && ['https://api.aniskip.com/v2/skip-times', 'https://api.ani.zip/mappings'].includes(url)) continue;
+      // Astra's vendored players (astra/vendor/, pinned and hashed in vendor.json): names inside the libraries, never
+      // fetched: licence and sample links, XML and scheme identifiers, and dash.js's built-in clock source, which
+      // engine/adaptive.js replaces with the stream's own host.
+      if (/^astra\/vendor\/(dash\/dash\.all\.min\.js|hls\/hls\.min\.js|mediabunny-truehd\.js)$/.test(relative(SITE, f)) && /^https?:\/\/(www\.smpte-ra\.org\/schemas\/|dashif\.org\/|conformance\.dashif\.org\/|aomedia\.org\/emsg\/ID3|schemas\.xmlsoap\.org\/soap\/envelope\/|time\.akamai\.com\/|y$|mozilla\.org\/MPL\/2\.0\/|streams\.videolan\.org\/upload\/)/.test(url)) continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

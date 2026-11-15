@@ -1448,8 +1448,9 @@
    "hosts": [
     "127.0.0.1:*",
     "aomediacodec.github.io",
+    "api.ani.zip",
+    "api.aniskip.com",
     "api.torbox.app",
-    "cdn.jsdelivr.net",
     "ffmpeg.org",
     "github.com",
     "localhost:*",
@@ -1461,8 +1462,8 @@
     "www.webmproject.org"
    ],
    "csp": {
-    "astra/index.html": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'",
-    "astra/lab/index.html": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'none'"
+    "astra/index.html": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'",
+    "astra/lab/index.html": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'none'"
    }
   },
   "media": {
