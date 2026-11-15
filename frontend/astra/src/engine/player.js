@@ -265,7 +265,7 @@ export class AstraPlayer extends EventTarget {
     this.load_++;
     this.abort?.abort(); this.abort = null;
     this.stopScanners();
-    this.session?.destroy(); this.session = null;
+    this.session?.destroy(); this.session = null; this.tapFeed?.closeDecoder(); // sound still decoding for the tap is dropped
     this.hls?.destroy(); this.hls = null;
     this.dash?.reset(); this.dash = null;
     this.pulledCues = null;

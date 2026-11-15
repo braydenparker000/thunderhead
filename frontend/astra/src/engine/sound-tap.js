@@ -16,11 +16,13 @@
 // not when it is heard; each stretch once per read, and again if a seek reads
 // it again. Times are media times: file time less the session's offset, the
 // clock video.currentTime runs on. Nothing here may delay or break playback:
-// the decoder works off the page's thread, a full decoder queue drops packets
-// rather than wait, and any error in the listener or the decoder ends the
+// the decoder works off the page's thread, packets wait for it in a bounded
+// backlog (dropped past it) rather than holding up the reading, and any error in the listener or the decoder ends the
 // tapping for that film (with a line in the engine's log).
 
-const MAX_QUEUE = 32; // packets waiting in the decoder; past this, packets are not tapped
+// Packets handed to the decoder at a time; the rest wait here (reading comes in bursts of many seconds), up to
+// MAX_BACKLOG (about a minute of AAC), past which packets are not tapped.
+const MAX_QUEUE = 16, MAX_BACKLOG = 3000;
 
 export class TapFeed {
   /**
@@ -34,6 +36,7 @@ export class TapFeed {
     this.load = null; // the load it ended for; a later film taps afresh
     this.decoder = null;
     this.key = null; // the pipeline the decoder serves (track and generation)
+    this.backlog = []; // chunks waiting for the decoder
     this.stats = {ms: 0, chunks: 0, seconds: 0, dropped: 0};
   }
 
@@ -97,9 +100,18 @@ export class TapFeed {
     const start = performance.now();
     try {
       if (this.key !== key || !this.decoder || this.decoder.state === 'closed') this.openDecoder(track, offset, key);
-      if (this.decoder.decodeQueueSize > MAX_QUEUE) { this.stats.dropped++; return; }
-      this.decoder.decode(new EncodedAudioChunk({type: 'key', timestamp: Math.round(packet.timestamp * 1e6), duration: Math.round(packet.duration * 1e6), data: packet.data}));
+      if (this.backlog.length >= MAX_BACKLOG) { this.stats.dropped++; return; }
+      this.backlog.push(new EncodedAudioChunk({type: 'key', timestamp: Math.round(packet.timestamp * 1e6), duration: Math.round(packet.duration * 1e6), data: packet.data}));
+      this.drain();
     } catch (error) { this.end(error); } finally { this.stats.ms += performance.now() - start; }
+  }
+
+  /** Hands waiting chunks to the decoder while it has room (again each time it takes one). */
+  drain() {
+    const decoder = this.decoder;
+    try {
+      while (!this.dead && decoder && decoder.state === 'configured' && decoder.decodeQueueSize < MAX_QUEUE && this.backlog.length) decoder.decode(this.backlog.shift());
+    } catch (error) { this.end(error); }
   }
 
   openDecoder(track, offset, key) {
@@ -110,6 +122,7 @@ export class TapFeed {
       output: data => this.decoded(data, offset, decoder),
       error: error => { if (this.decoder === decoder) this.end(error); },
     });
+    decoder.addEventListener?.('dequeue', () => { if (this.decoder === decoder) this.drain(); });
     decoder.configure(track.decoderConfig);
   }
 
@@ -125,11 +138,12 @@ export class TapFeed {
       this.stats.ms += performance.now() - start;
       this.give(channels, data.sampleRate, data.timestamp / 1e6 - offset);
     } catch (error) { this.end(error); } finally { data.close(); }
+    this.drain(); // where the browser has no 'dequeue' event
   }
 
   closeDecoder() {
     const decoder = this.decoder;
-    this.decoder = null; this.key = null;
+    this.decoder = null; this.key = null; this.backlog = [];
     try { if (decoder && decoder.state !== 'closed') decoder.close(); } catch {}
   }
 

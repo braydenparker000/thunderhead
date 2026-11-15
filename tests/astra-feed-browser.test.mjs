@@ -199,3 +199,68 @@ test('a second subtitle track shows in its own layer, smaller and at the top, be
   assert.deepEqual(await p.page.evaluate(() => ({ id: window.p.secondSubtitle, held: !!window.p.second, nodes: window.layers.second.children.length })), { id: null, held: false, nodes: 0 });
   assert.deepEqual(p.errors, []);
 });
+
+/** Sets a recording sound tap on the engine: window.tapped holds what it was fed; window.wanted switches it. */
+const recordTap = (page) => page.evaluate(() => {
+  window.tapped = []; window.wanted = true;
+  window.p.setSoundTap({
+    wants: () => window.wanted,
+    feed: (channels, rate, t) => {
+      let finite = true, peak = 0;
+      for (const c of channels) for (const v of c) { if (!Number.isFinite(v)) finite = false; else peak = Math.max(peak, Math.abs(v)); }
+      window.tapped.push({ n: channels.length, len: channels[0].length, rate, t, finite, peak, wanted: window.wanted });
+    },
+  });
+});
+const playsOn = (page, by = 1.5) => page.evaluate(async (by) => {
+  const v = window.p.video, from = v.currentTime;
+  await v.play();
+  const until = performance.now() + 15_000;
+  while (v.currentTime < from + by && performance.now() < until) await new Promise((r) => setTimeout(r, 100));
+  return v.currentTime - from;
+}, by);
+
+for (const [film, delivery, channels] of [['multi.mkv', 'direct', 2], ['surround.mkv', 'rebuilt', 6]]) {
+  test(`the sound tap is fed decoded sound of a ${delivery} track (${film}) as it is read, and nothing while it is not wanted`, opts, async (t) => {
+    if (!h264) return t.skip('this browser has no H.264 decoder');
+    const p = await player(t);
+    await recordTap(p.page);
+    await p.load(host.url(film), { startTime: 6 });
+    assert.equal(await p.page.evaluate(() => window.p.mode), 'remux');
+    assert.equal(await p.page.evaluate(() => window.p.audioOptions().find((a) => a.selected).delivery), delivery);
+    assert.ok(await playsOn(p.page) >= 1.5, 'it plays');
+    await p.page.waitForFunction(() => window.tapped.length > 20, null, { timeout: 10_000 });
+    const fed = await p.page.evaluate(() => window.tapped);
+    assert.ok(fed.every((f) => f.finite && f.rate === 48000 && f.n === fed[0].n && f.len > 0), 'finite samples at 48 kHz');
+    assert.equal(fed[0].n, channels, `before the mix to stereo: ${channels} channels`);
+    assert.ok(fed.some((f) => f.peak > 0.05), 'the tone, not silence');
+    const times = fed.map((f) => f.t);
+    assert.ok(Math.abs(times[0] - 6) < 1.2, `starts near where the load started (${times[0]})`);
+    let ahead = 0; for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) ahead++;
+    assert.ok(ahead >= times.length - 2, 'times advance with the reading');
+    const read = await p.page.evaluate(() => window.p.session.readAt.audio);
+    assert.ok(Math.max(...times) <= read + 0.2 && Math.max(...times) > 8, `fed up to where the sound is read (${Math.max(...times)} of ${read})`);
+    // Not wanted: a seek elsewhere reads sound but feeds none.
+    await p.page.evaluate(() => { window.wanted = false; window.tapped.length = 0; window.p.video.currentTime = 14; });
+    assert.ok(await playsOn(p.page, 1) >= 1, 'it plays after the seek');
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(await p.page.evaluate(() => window.tapped.length), 0, 'nothing fed while not wanted');
+    // Wanted again: the new place is fed, on the film's clock.
+    await p.page.evaluate(() => { window.wanted = true; window.p.video.currentTime = 3; });
+    await p.page.waitForFunction(() => window.tapped.length > 5, null, { timeout: 10_000 });
+    const again = await p.page.evaluate(() => window.tapped[0].t);
+    assert.ok(Math.abs(again - 3) < 1.5, `after a seek back, fed from there (${again})`);
+    assert.deepEqual(p.errors, []);
+  });
+}
+
+test('a sound tap that throws ends the tapping for that film, never the film', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  await p.page.evaluate(() => { window.calls = 0; window.p.setSoundTap({ wants: () => true, feed: () => { window.calls++; throw Error('listener broke'); } }); });
+  await p.load(host.url('multi.mkv'));
+  assert.ok(await playsOn(p.page, 2) >= 2, 'it plays on');
+  assert.equal(await p.page.evaluate(() => window.calls), 1, 'fed once, then no more');
+  assert.ok(await p.page.evaluate(() => window.p.log.some((l) => l.kind === 'tap' && /ended/.test(l.detail))), 'a line in the log');
+  assert.deepEqual(p.errors, []);
+});
