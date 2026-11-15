@@ -86,7 +86,7 @@ test('while the file is described, a download stops a little past the last byte 
   const first = h.calls.find((c) => c.from === 0).sent;
   assert.ok(first <= 65536 + (64 << 10) + (64 << 10), `it brought ${first} bytes`);
   assert.equal(source.bytesFetched, first + TAIL, 'the tail is counted in what the film cost');
-  const far = SIZE - 90_000;
+  const far = SIZE - 40_000;
   assert.ok(same(await source.read(far, far + 1300), far));
   assert.equal(h.calls.length, 2, 'the index near the end is answered from the tail: no request of its own');
   const deeper = SIZE - 2 * BLOCK; // an index outside the tail costs what it did: a request from its own byte

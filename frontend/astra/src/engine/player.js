@@ -248,7 +248,7 @@ export class AstraPlayer extends EventTarget {
     if (size) {
       try {
         // Both chunks from the reader when it has them (the tail is asked for beside the start: source-tail.js).
-        const src = probed.source, part = async (start, end) => (await src?.tail, src?.has(start, end)) ? (await src.read(start, end)).slice() : null;
+        const src = probed.source, part = async (start, end) => (await src?.tail?.done, src?.has(start, end)) ? (await src.read(start, end)).slice() : null;
         hash = await remoteFileHash(src?.url || url, size, {headers, head: await part(0, HASH_CHUNK), tail: await part(size - HASH_CHUNK, size), signal});
       } catch {}
     }

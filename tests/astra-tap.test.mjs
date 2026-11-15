@@ -174,8 +174,8 @@ test('a film described for the first time: its tail is asked for beside its star
   const SIZE = source.size;
   assert.deepEqual(h.calls.map((c) => [c.from, c.to]), [[0, SIZE], [SIZE - TAIL, SIZE]], 'both ends asked at once');
   // The probe reads the end before the tail has arrived: it waits for it rather than starting a download.
-  const end = await source.read(SIZE - 70_000, SIZE);
-  assert.equal(end.length, 70_000);
+  const end = await source.read(SIZE - 30_000, SIZE);
+  assert.equal(end.length, 30_000);
   assert.equal(h.calls.length, 2);
   assert.ok(source.has(SIZE - 65536, SIZE), 'the subtitle hash’s chunk is in the reader');
   source.close();

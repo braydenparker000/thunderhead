@@ -6,8 +6,11 @@
 
 import {BLOCK, TIMING, SourceError, parseContentRange, ask} from './source-stream.js';
 
-/** Bytes [start, end) of the file in one request of their own. Rejects a SourceError ('closed', 'stall', 'gone', 'status', 'range', 'network'). */
-export async function sideRead(source, start, end, signal) {
+/**
+ * Bytes [start, end) of the file in one request of their own. Rejects a SourceError ('closed', 'stall', 'gone', 'status',
+ * 'range', 'network'). `into` (end - start long) receives them, and `onBytes(filled)` hears of each piece as it arrives.
+ */
+export async function sideRead(source, start, end, signal, {into = null, onBytes = null} = {}) {
   if (source.closed) throw new SourceError('closed', 'The file was closed.');
   end = Math.min(end, source.size ?? end);
   if (!(end > start)) return new Uint8Array(0);
@@ -30,7 +33,7 @@ export async function sideRead(source, start, end, signal) {
       const kind = response.status === 404 || response.status === 410 ? 'gone' : response.status === 200 ? 'range' : 'status';
       throw new SourceError(kind, `The host answered ${response.status} to a range request.`, response.status);
     }
-    const out = new Uint8Array(end - start), reader = response.body.getReader();
+    const out = into || new Uint8Array(end - start), reader = response.body.getReader();
     let filled = 0;
     try {
       while (filled < out.length) {
@@ -41,6 +44,7 @@ export async function sideRead(source, start, end, signal) {
         source.bytesFetched += value.length;
         const n = Math.min(value.length, out.length - filled); // a host that sends past the range: the rest is not kept
         out.set(value.subarray(0, n), filled); filled += n;
+        onBytes?.(filled);
       }
     } catch (error) {
       if (controller.signal.aborted) throw closed();
