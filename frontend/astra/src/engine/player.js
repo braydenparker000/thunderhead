@@ -78,6 +78,7 @@ export class AstraPlayer extends EventTarget {
    */
   fail(message, detail, {decode = false, network = false} = {}) {
     if (decode && this.passThroughFailed(message)) return; // sound passed through that did not play is rebuilt first (player-routes.js)
+    if (decode && this.canGoWhole()) { this.goWhole(message); return; } // a plain film the browser plays whole goes to it (player-start.js)
     if (!this.started && decode && this.canFallBack()) { this.fallBack(message); return; }
     // While playing, a decoder that gives up (a seek into an open GOP in Chrome's
     // own decoder, a hardware decoder taken away) is met first with a fresh
@@ -171,7 +172,7 @@ export class AstraPlayer extends EventTarget {
     this.reset(); // ends the load before this one: its awaits find a newer load and stop
     const id = this.load_;
     this.routeRetry(url); // "Try again" on a film whose remembered route failed
-    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, resuming: false, resumedAt: NaN, plainFragments: false});
+    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false});
     const languages = prefs.languages || preferredLanguages();
     const controller = this.abort = new AbortController(), signal = controller.signal;
     try {
@@ -196,6 +197,7 @@ export class AstraPlayer extends EventTarget {
         try { await this.startRemux(startTime, id); } catch (error) {
           if (id !== this.load_) return;
           if (!await this.passRetry(error, startTime, id)) {
+            if (this.canGoWhole(error)) { await this.goWhole(String(error?.message || error)); return this.plan; }
             if (!this.canFallBack()) throw error;
             await this.fallBack(String(error?.message || error));
             return this.plan;
@@ -237,7 +239,7 @@ export class AstraPlayer extends EventTarget {
   }
 
   /**
-   * Learns the file's size and OpenSubtitles hash (two small reads) so
+   * Learns the file's size and OpenSubtitles hash (from the reader, else two small reads) so
    * subtitle add-ons can match this exact release; emits 'filefacts'.
    */
   async fileFacts(load, url, headers, probed, signal) {
@@ -245,8 +247,9 @@ export class AstraPlayer extends EventTarget {
     const size = probed.readable && !probed.adaptive ? probed.info?.size || probed.source?.size || null : null;
     if (size) {
       try {
-        const head = probed.source?.has(0, HASH_CHUNK) ? await probed.source.read(0, HASH_CHUNK) : null;
-        hash = await remoteFileHash(probed.source?.url || url, size, {headers, head: head && head.slice(), signal});
+        // Both chunks from the reader when it has them (the tail is asked for beside the start: source-tail.js).
+        const src = probed.source, part = async (start, end) => (await src?.tail, src?.has(start, end)) ? (await src.read(start, end)).slice() : null;
+        hash = await remoteFileHash(src?.url || url, size, {headers, head: await part(0, HASH_CHUNK), tail: await part(size - HASH_CHUNK, size), signal});
       } catch {}
     }
     if (load === this.load_ && !signal.aborted) this.emit('filefacts', {load, hash, size});

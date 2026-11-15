@@ -43,7 +43,7 @@ export class StreamsScreen {
     this.filter = app.store.get('lastAddon', 'all');
     this.f = filtersFrom(app.store.get('streamFilters', null));
     if (headless) return;
-    app.loadPlayer?.().catch(() => {});
+    app.loadPlayer?.().catch(() => {}); import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}); // getting ready before a tap
     // "No compatible add-ons" may change when a late manifest arrives or add-ons are edited.
     this.offAddons = app.onAddons?.(() => { if (this.empty) this.load(); });
     this.el = h('div', {class: 'screen streams'});
@@ -214,12 +214,14 @@ export class StreamsScreen {
     order.forEach((el, i) => { if (this.list.children[i] !== el) this.list.insertBefore(el, this.list.children[i] || null); });
     while (this.list.children.length > order.length) this.list.lastElementChild.remove();
     const hidden = shown.reduce((n, g) => n + (g.streams ? g.streams.length - this.visible(g).length : 0), 0);
-    this.footer.textContent = asking ? 'Checking more add-ons…' : hidden ? `${hidden} hidden by your filters` : '';
+    this.footer.textContent = asking ? 'Checking more add-ons…' : hidden ? `${hidden} hidden by your filters` : ''; this.getReady();
   }
 
   /** An add-on's streams as the owner's filters and the Thunderhead's size limit leave them, each with its place in the add-on's list. */
   visible(g) { return shown(g.streams, this.f).filter(([s]) => !overLimit(s, this.app.maxMb)); }
 
+  /** What a tap on the streams on screen will need is asked for now (app/ready.js: the switch and the saver decide). */
+  getReady() { if (!this.destroyed && !this.empty) this.ahead?.listed([...this.groups.values()].filter(g => g.streams && (this.filter === 'all' || g.addon.url === this.filter)).flatMap(g => this.visible(g).map(([s]) => s))); }
   /** A change to the owner's filters: kept for the next title, and the list drawn again. */
   setFilters(f) { this.f = f; this.app.store.set('streamFilters', f); this.render(); }
 
@@ -272,7 +274,7 @@ export class StreamsScreen {
     const size = s.size ? sizeFrom(s) : ''; // a size already in the description is not repeated
     // What an hour of it costs in data, when the title's runtime is known.
     const hourly = perHour(bytesOf(s), minutesOf(this.video?.runtime || this.meta.runtime));
-    const card = h('button', {class: 'stream-card' + (playable ? '' : ' disabled'), type: 'button', 'aria-disabled': String(!playable),
+    const card = h('button', {class: 'stream-card' + (playable ? '' : ' disabled'), type: 'button', 'aria-disabled': String(!playable), onpointerdown: () => this.ahead?.pressed(s),
       onclick: () => {
         if (!playable && s.externalUrl && /^https?:/i.test(s.externalUrl)) { window.open(s.externalUrl, '_blank', 'noopener'); return; }
         if (!playable) { toast(s.infoHash ? NEEDS_DEBRID : 'This source has no playable link.'); return; }

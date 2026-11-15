@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-source.js';
 import { saverTuning } from '../frontend/astra/src/engine/player-data.js';
+import { TAIL } from '../frontend/astra/src/engine/source-tail.js';
 
 const SIZE = 64 * BLOCK;
 const byteAt = (offset) => (offset * 11 + (offset >> 18)) & 255;
@@ -81,10 +82,16 @@ test('while the file is described, a download stops a little past the last byte 
   await source.read(0, 65536);
   await sleep(150);
   assert.equal(source.streams.size, 0, 'the first download stopped');
-  assert.ok(source.bytesFetched <= 65536 + (64 << 10) + (64 << 10), `it brought ${source.bytesFetched} bytes`);
+  // Besides it, the film's last 256 KiB were asked for at once (source-tail.js).
+  const first = h.calls.find((c) => c.from === 0).sent;
+  assert.ok(first <= 65536 + (64 << 10) + (64 << 10), `it brought ${first} bytes`);
+  assert.equal(source.bytesFetched, first + TAIL, 'the tail is counted in what the film cost');
   const far = SIZE - 90_000;
   assert.ok(same(await source.read(far, far + 1300), far));
-  assert.equal(h.calls.at(-1).from, far, 'the index near the end is asked for from its own byte');
+  assert.equal(h.calls.length, 2, 'the index near the end is answered from the tail: no request of its own');
+  const deeper = SIZE - 2 * BLOCK; // an index outside the tail costs what it did: a request from its own byte
+  assert.ok(same(await source.read(deeper, deeper + 1300), deeper));
+  assert.equal(h.calls.at(-1).from, deeper);
   source.learn(400);
   source.doneProbing();
   // Playback from the start goes on from the byte the first download reached.

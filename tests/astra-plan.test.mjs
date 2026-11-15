@@ -17,13 +17,26 @@ const audio = (codec, codecString, more = {}) => ({ id: 2, type: 'audio', codec,
 const file = (container, v, a = [], more = {}) => ({ readable: true, info: { container, video: v ? [v] : [], audio: a, subtitles: [], ...more } });
 const plan = (probe, c = caps(), prefs = {}) => planPlayback(probe, c, prefs);
 
-test('a plain MP4 or WebM the browser plays whole goes to it as it is', () => {
-  assert.equal(plan(file('MP4', video('avc', 'avc1.64001e'), [audio('aac', 'mp4a.40.2')])).mode, 'native');
-  // VP8 has no place in the MP4 that Media Source takes, and Vorbis would be rebuilt: Chrome plays the WebM itself.
+test('a plain MP4 or WebM Astra can read is unpacked like every other film; Chrome plays it only when Astra cannot unpack it', () => {
+  // One picture, one sound, nothing to choose: still unpacked (the data saver, the data count, the sound features),
+  // marked as one the browser could play itself should unpacking fail before the first picture.
+  const mp4 = plan(file('MP4', video('avc', 'avc1.64001e'), [audio('aac', 'mp4a.40.2')]));
+  assert.deepEqual([mp4.mode, mp4.whole, mp4.audio.delivery, mp4.notes], ['remux', true, 'direct', []]);
+  const vp9 = plan(file('WebM', video('vp9', 'vp09.00.10.08'), [audio('opus', 'opus')]));
+  assert.deepEqual([vp9.mode, vp9.whole, vp9.audio.delivery], ['remux', true, 'direct']);
+  assert.equal(plan(file('MP4', video('avc', 'avc1.64001e'), [audio('mp3', 'mp3')])).mode, 'remux', 'MP3 in an MP4: its sound converted, so the sound features reach it');
+  // VP8 has no place in the MP4 that Media Source takes: Chrome plays the WebM itself, and the stream info says why.
   const webm = plan(file('WebM', video('vp8', 'vp8'), [audio('vorbis', 'vorbis')]));
   assert.equal(webm.mode, 'native');
-  // MP3 in an MP4: played whole rather than converted.
-  assert.equal(plan(file('MP4', video('avc', 'avc1.64001e'), [audio('mp3', 'mp3')])).mode, 'native');
+  assert.match(webm.notes.join(' '), /no way to unpack this file itself\. Chrome will play it as-is/);
+  // Sound Astra cannot convert here (no Opus encoder) in a file the browser plays whole: Chrome plays it, with its sound.
+  const mp3 = plan(file('MP4', video('avc', 'avc1.64001e'), [audio('mp3', 'mp3')]), caps({ opusEncode: false }));
+  assert.deepEqual([mp3.mode, mp3.audio?.track.codec], ['native', 'mp3']);
+  // A picture-only plain MP4 is unpacked too.
+  assert.equal(plan(file('MP4', video('avc', 'avc1.64001e'))).mode, 'remux');
+  // A host that forbids reading, and a file written like a live recording, still go to Chrome.
+  assert.equal(plan({ readable: false, error: { kind: 'unreadable', message: 'No.' } }).mode, 'native');
+  assert.equal(plan(file('WebM', video('vp9', 'vp09.00.10.08'), [audio('opus', 'opus')], { layout: { unknownClusterSizes: true } })).mode, 'native');
 });
 
 test('a file with something to choose or to convert is unpacked', () => {

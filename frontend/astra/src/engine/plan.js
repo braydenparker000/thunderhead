@@ -8,8 +8,10 @@
 //   caps.passFailed?(codec)  this device failed to play that sound as it is (route-memory.js)
 //   caps.failedRoute?(codecString)  this picture failed in the browser and played in software
 //
-// Modes: 'native' (the browser plays the address itself), 'remux' (Astra
-// unpacks the file and feeds the browser video plus the chosen audio),
+// Modes: 'native' (the browser plays the address itself: a host that forbids
+// pages to read the file, a file written like a live recording, a picture only
+// the browser can unpack), 'remux' (Astra unpacks every other file it can read,
+// plain ones too, and feeds the browser video plus the chosen audio),
 // 'software' (Astra decodes what the phone's decoders cannot), 'hls',
 // 'dash', or 'unsupported' with a reason a person can act on.
 
@@ -157,16 +159,22 @@ export function planPlayback(probe, caps, prefs = {}) {
 
   const options = () => info.audio.map(track => ({track, ...(software ? softwareDelivery(track) : audioDelivery(track, caps)), label: audioLabel(track)}));
   const choose = list => chooseAudio(list, {languages: prefs.languages || [], preferredId: prefs.audioId ?? null});
-  let audioOptions = options(), audio = whole ? audioOptions[0] ?? null : choose(audioOptions);
-  // Sound the browser cannot take but the software decoder can (Windows Media Audio): it plays the whole file.
-  if (info.audio.length && !audio && !software && video && caps.software && softwareVideo(video) && info.audio.some(softwareAudio)) {
+  let audioOptions = options(), audio = choose(audioOptions);
+  // Sound the browser cannot take but the software decoder can (Windows Media Audio): it plays the whole file
+  // (one Chrome plays whole as it is goes to Chrome instead, below).
+  if (info.audio.length && !audio && !software && !whole && video && caps.software && softwareVideo(video) && info.audio.some(softwareAudio)) {
     software = true;
     audioOptions = options();
     audio = choose(audioOptions);
   }
   const subtitle = chooseSubtitle(subtitles, {audioLanguage: audio?.track.language, languages: prefs.languages || [], wanted: prefs.subtitleLanguage || null});
-  // A plain single-track MP4/WebM goes to the browser as-is: nothing to choose, nothing to unpack.
-  if (whole) return {mode: 'native', video, audio, audioOptions, subtitle, subtitleOptions, notes};
+  // A plain single-track MP4/WebM is unpacked like every other film Astra can read, so it has the data saver, the
+  // read-ahead sized by its bitrate, the data count, the sound features and reconnecting. Only when Astra cannot
+  // unpack its picture (VP8 has no place in the MP4 Media Source takes) or its sound does Chrome play it as it is.
+  if (whole && (!muxable || (info.audio.length && !audio))) {
+    notes.push('Astra has no way to unpack this file itself. Chrome will play it as-is: no audio track choice and no built-in subtitles.');
+    return {mode: 'native', video, audio: audio || audioOptions[0] || null, audioOptions, subtitle, subtitleOptions, notes};
+  }
   if (info.audio.length && !audio) {
     const reason = `None of the audio tracks can play in a browser (${[...new Set(info.audio.map(t => t.label))].join(', ')}).`;
     if (!prefs.allowSilent) return {mode: 'unsupported', reason, notes, video, audioOptions, subtitleOptions, external: true, silent: !!video};
@@ -183,7 +191,8 @@ export function planPlayback(probe, caps, prefs = {}) {
   const unsupported = audioOptions.filter(o => o.delivery === 'unsupported');
   if (unsupported.length) notes.push(`Not playable here: ${unsupported.map(o => o.label).join('; ')}.`);
   if (audio?.delivery === 'rebuilt') notes.push(`${audio.track.label} audio is converted on this device as it plays.`);
-  return {mode: 'remux', video, audio, audioOptions, subtitle, subtitleOptions, notes};
+  // `whole`: the browser could play the file itself, if unpacking it fails before the first picture (player-start.js).
+  return {mode: 'remux', video, audio, audioOptions, subtitle, subtitleOptions, notes, ...(whole ? {whole: true} : {})};
 }
 
 export function subtitleLabel(s) {

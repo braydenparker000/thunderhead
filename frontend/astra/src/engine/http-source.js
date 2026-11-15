@@ -7,7 +7,7 @@
 // read(), which keeps a download going; the subtitle scanners peek(), which only looks at what playback
 // already fetched, so they cost no network and never pull the download along. How far downloads read
 // ahead and how much is kept follow the film's bitrate (source-tuning.js); what describing a film read is
-// remembered for the next time it opens (film-memory.js).
+// remembered for the next time it opens (film-memory.js), and its end is asked for beside its start (source-tail.js).
 //
 // open() also answers the question the planner needs first: can a web page
 // read this file at all (CORS) and does the host honour ranges?
@@ -15,7 +15,8 @@
 import {BLOCK, READ_AHEAD, REUSE_WINDOW, TIMING, SourceError, parseContentRange, ask, runStream, streamFailed} from './source-stream.js';
 import {missing, assemble, arrived, keepPart, need} from './source-blocks.js';
 import {sideRead, fillHole} from './side-read.js';
-import {filmStore, recall, remember, HEAD} from './film-memory.js';
+import {filmStore, remember, HEAD} from './film-memory.js';
+import {opened, settled} from './source-tail.js';
 import {tuning} from './source-tuning.js';
 
 export {BLOCK, TIMING, SourceError, parseContentRange};
@@ -159,8 +160,8 @@ export class HttpSource {
     if (!size || signal?.aborted || this.closed) throw refuse('size', 'The host does not say how large the file is.');
     this.size = size;
     this.startStream(0, response);
-    // A film opened before: once its first 64 KiB are here, what describing it read is answered from memory.
-    if (this.memory && size >= 2 * HEAD) this.recall = recall(this).finally(() => { this.recall = null; });
+    // A film opened before is answered from memory once its first 64 KiB are here; one not, has its tail asked for beside (source-tail.js).
+    opened(this);
     return {size, contentType, url: this.url};
   }
 
@@ -182,7 +183,7 @@ export class HttpSource {
     end = Math.min(end, this.size);
     if (!(end > start)) return new Uint8Array(0);
     if (this.probing) this.probeReads.push([start, end]);
-    if (this.recall && end > HEAD) await this.recall;
+    if ((this.recall || this.tail) && end > HEAD) await settled(this, start, end);
     if (this.closed) throw new SourceError('closed', 'The file was closed.');
     this.advance(start, end);
     for (let i = Math.floor(start / BLOCK); i * BLOCK < end; i++) { const hit = this.blocks.get(i); if (hit) { this.blocks.delete(i); this.blocks.set(i, hit); } }

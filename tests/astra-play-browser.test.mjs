@@ -97,7 +97,7 @@ test('a film unpacked on the device: plays, lists its tracks, changes sound, and
   assert.deepEqual(p.errors, []);
 });
 
-test('Dolby Digital is rebuilt as it plays; a plain MP4 and a WebM play as they are', opts, async (t) => {
+test('Dolby Digital is rebuilt as it plays; a plain MP4 and a WebM are unpacked like any other film, with sound and a data count', opts, async (t) => {
   const p = await player(t);
   if (h264) {
     await p.load(host.url('surround.mkv'));
@@ -108,12 +108,19 @@ test('Dolby Digital is rebuilt as it plays; a plain MP4 and a WebM play as they 
     await p.load(host.url('plain.mp4'));
     await p.runs(1.5);
     s = await p.state();
-    assert.equal(s.mode, 'native');
+    assert.equal(s.mode, 'remux');
+    assert.equal(s.audio[0]?.delivery, 'direct');
     assert.ok(s.t < 10, 'the second film started from its own beginning');
+    assert.ok(await p.page.evaluate(() => window.p.dataUsed()) > 0, 'what it cost is counted');
   }
+  // VP9 and Opus in a WebM, re-wrapped into the MP4 the pipeline writes: picture and sound.
   await p.load(host.url('open.webm'));
   await p.runs(1.5);
   const s = await p.state();
+  assert.equal(s.mode, 'remux');
+  assert.equal(s.audio[0]?.delivery, 'direct');
+  assert.ok(await p.page.evaluate(() => window.p.video.videoWidth > 0 && window.p.session?.queues.audio?.buffer.buffered.length > 0), 'its picture shows and its sound is buffered');
+  assert.ok(await heard(p.page) > 0, 'and heard');
   assert.deepEqual(s.errors, []);
   assert.deepEqual(p.errors, []);
 });
@@ -163,7 +170,7 @@ test('a playlist host that ignores byte ranges still plays as HLS', opts, async 
   assert.deepEqual(s.errors, []);
 });
 
-test('a film the browser plays itself is asked for with CORS where the host allows it, so its frames can be read', opts, async (t) => {
+test('a plain film whose unpacking fails before the first picture goes to the browser once, asked with CORS where the host allows it; a host that forbids reading is asked plainly', opts, async (t) => {
   if (!h264) return t.skip('this browser has no H.264 decoder');
   const p = await player(t);
   const frame = () => p.page.evaluate(() => {
@@ -171,10 +178,15 @@ test('a film the browser plays itself is asked for with CORS where the host allo
     g.drawImage(v, 0, 0, 32, 18);
     try { return { crossOrigin: v.crossOrigin, pixels: g.getImageData(0, 0, 32, 18).data.some((x) => x > 0) }; } catch (e) { return { crossOrigin: v.crossOrigin, error: e.name }; }
   });
+  // Unpacking that fails (invented) before the first picture: Chrome plays the file as it is, with the usual note.
+  await p.page.evaluate(async () => { const { RemuxSession } = await import('/astra/src/engine/remux.js'); window.realStart = RemuxSession.prototype.start; RemuxSession.prototype.start = async () => { throw Error('an invented failure'); }; });
   await p.load(host.url('plain.mp4'));
   await p.runs(1);
-  assert.equal((await p.state()).mode, 'native');
+  const whole = await p.page.evaluate(() => ({ mode: window.p.mode, notes: window.p.plan.notes, fallbacks: window.p.log.filter((l) => l.kind === 'fallback').length }));
+  assert.deepEqual([whole.mode, whole.fallbacks], ['native', 1]);
+  assert.match(whole.notes.join(' '), /Chrome plays it as it is \(an invented failure\)/);
   assert.deepEqual(await frame(), { crossOrigin: 'anonymous', pixels: true });
+  await p.page.evaluate(async () => { const { RemuxSession } = await import('/astra/src/engine/remux.js'); RemuxSession.prototype.start = window.realStart; });
   // A host that does not let a page read the file: still plays, asked plainly (CORS would be refused).
   host.control.noCors = true;
   await p.load(host.url('plain.mp4'));

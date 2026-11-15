@@ -46,6 +46,31 @@ export const startMethods = {
     if (plan.subtitle) this.selectSubtitle(plan.subtitle.id);
   },
 
+  /** A plain MP4/WebM the browser plays whole (plan.whole) whose unpacking failed before the first picture: once, it may go to Chrome as it is. */
+  canGoWhole(error) {
+    return !this.started && !this.wentWhole && this.mode === 'remux' && !!this.plan?.whole && this.readable && !error?.kind;
+  },
+
+  /** Hands such a film to the browser as it is, from where it was asked to start; the other fallbacks still follow. */
+  async goWhole(reason) {
+    const id = this.load_, at = this.video.currentTime || this.startTime || 0;
+    this.wentWhole = true;
+    this.record('fallback', 'native: ' + reason);
+    this.stopScanners();
+    this.session?.destroy(); this.session = null;
+    this.probed?.input?.dispose?.(); this.probed?.source?.close?.(); // Chrome reads the file itself from here (the software decoder reopens it)
+    this.mode = 'native';
+    this.plan = {...this.plan, mode: 'native', notes: [...(this.plan?.notes || []), `Astra could not unpack this file, so Chrome plays it as it is (${reason}).`]};
+    this.video.removeAttribute('src');
+    try { this.video.load(); } catch {}
+    await this.startNative(this.url, at, this.abort?.signal);
+    if (id !== this.load_) return;
+    this.emit('tracks');
+    this.video.play().catch(() => {});
+    this.offerChapters();
+    this.emit('ready', this.plan);
+  },
+
   /** Software decoding through libmedia (see software.js). */
   async startSoftware(startTime, id = this.load_) {
     const {plan, info, probed} = this;
