@@ -8,6 +8,7 @@ import {AstraPlayer} from '../engine/player.js';
 import {TUNING} from '../engine/remux.js';
 import {PlayerScreen} from '../player/player-screen.js';
 import {deviceReport, surroundWords} from '../engine/capabilities.js';
+import {threadsReport} from '../engine/software-threads.js';
 import {describeInfo} from '../engine/probe.js';
 import {channelName} from '../engine/labels.js';
 import {languageName} from '../engine/languages.js';
@@ -257,6 +258,7 @@ deviceReport().then(d => {
     ...Object.entries(d.mse).map(([k, v]) => fact(k, v ? 'Supported' : 'Not supported', v ? 'good' : 'bad')),
     fact('Opus encoder', d.opusEncoder ? 'Available (used to convert Dolby and DTS audio)' : 'Missing', d.opusEncoder ? 'good' : 'bad'),
     fact('Dolby and DTS sound', surroundWords(d)),
+    fact('Software decoder', threadsReport(), crossOriginIsolated ? 'good' : ''),
   );
 });
 

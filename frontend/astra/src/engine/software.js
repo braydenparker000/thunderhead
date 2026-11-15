@@ -16,6 +16,7 @@
 // playbackRate, play/pause) for as long as it runs; the player screen and the
 // subtitle renderer use the element exactly as they do for other modes.
 
+import {prepareThreads} from './software-threads.js';
 const BASE = new URL('../../../assets/libmedia/', import.meta.url);
 // libmedia codec ids -> its decoder builds.
 const WASM = {
@@ -55,8 +56,8 @@ export function loadLibmedia() {
     const timer = setTimeout(() => done(false), 30000);
     script.src = new URL('avplayer.js', BASE).href;
     script.async = true;
-    script.onload = () => done(true);
-    script.onerror = () => done(false);
+    script.onload = () => done(true); script.onerror = () => done(false);
+    prepareThreads(); // libmedia reads its thread switches as its script runs
     document.head.append(script);
   });
 }
@@ -172,7 +173,6 @@ export class SoftwareSession extends EventTarget {
 
   emit(type, detail) { this.dispatchEvent(new CustomEvent(type, {detail})); }
   fail(error) { if (!this.destroyed) this.emit('error', error instanceof Error ? error : Error(String(error?.message || error || 'The software decoder stopped.'))); }
-
   /** Runs engine calls one after another, as libmedia expects. */
   serial(fn) { this.queue = this.queue.then(() => this.destroyed ? null : fn()).catch(e => this.fail(e)); return this.queue; }
 

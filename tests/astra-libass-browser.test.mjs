@@ -64,10 +64,19 @@ async function page(t) {
    * pixels in each box ([x0, y0, x1, y1] as fractions), and the first box's alpha mask.
    */
   const look = (at, boxes = []) => page.evaluate(async ([at, boxes]) => {
-    const { video } = window.film, canvas = window.libass.canvas;
-    video.pause();
-    if (Math.abs(video.currentTime - at) > 0.01) { video.currentTime = at; await new Promise((r) => video.addEventListener('seeked', r, { once: true })); }
-    await new Promise((r) => setTimeout(r, 300)); // the worker draws asynchronously
+    const { video } = window.film, canvas = window.libass.canvas, jassub = window.libass.jassub, render = jassub.manualRender, asked = [];
+    // Every frame asked of libass from here is waited for: the worker draws asynchronously, and on a busy machine a
+    // first frame (a new worker, its fonts) takes far longer than the fixed 300 ms this once waited.
+    jassub.manualRender = function (...a) { const r = render.apply(this, a); asked.push(r); return r; };
+    try {
+      video.pause();
+      if (Math.abs(video.currentTime - at) > 0.01) { video.currentTime = at; await new Promise((r) => video.addEventListener('seeked', r, { once: true })); }
+      await new Promise((r) => setTimeout(r)); // the player's own pause and seeked handlers have run
+      window.libass.redraw(); // the frame for here, asked again: one already under way (a start's first) may predate the seek
+      // Drawn: no frame asked is outstanding (one asked while libass was busy is drawn after, inside the busy one's promise).
+      for (let n = -1; n !== asked.length || jassub.busy;) { n = asked.length; await Promise.allSettled(asked); if (jassub.busy) await new Promise((r) => setTimeout(r, 20)); }
+      for (let i = 0; i < 2; i++) await new Promise((r) => requestAnimationFrame(r)); // and shown on the page
+    } finally { jassub.manualRender = render; }
     const W = canvas.clientWidth, H = canvas.clientHeight, out = new OffscreenCanvas(W, H), g = out.getContext('2d');
     g.drawImage(canvas, 0, 0, W, H);
     const d = g.getImageData(0, 0, W, H).data, lit = (x, y) => d[(y * W + x) * 4 + 3] > 0;
@@ -104,20 +113,22 @@ test('libass draws the signs where the script puts them, and nothing when no lin
   assert.equal((await p.look(3)).n, 0, 'and not at its own time');
   await p.page.evaluate(() => window.libass.setDelay(0));
   // Playing: frames are asked of libass while a line shows, at most one (to clear) between lines, none hidden.
-  const asked = (from, ms) => p.page.evaluate(async ([from, ms]) => {
+  // Measured over the film's own clock (from `from` to `to` s, ended on the frame that reaches it), not the wall's:
+  // on a busy machine half a second of wall time held few frames, or ran a play from 9.15 s on into the next line.
+  const asked = (from, to) => p.page.evaluate(async ([from, to]) => {
     const { video } = window.film, jassub = window.libass.jassub, render = jassub.manualRender;
     let n = 0;
     jassub.manualRender = function (...a) { n++; return render.apply(this, a); };
     video.currentTime = from; await video.play();
-    await new Promise((r) => setTimeout(r, ms));
+    await new Promise((r) => { const on = (now, meta) => (meta.mediaTime >= to ? r() : video.requestVideoFrameCallback(on)); video.requestVideoFrameCallback(on); });
     video.pause(); jassub.manualRender = render;
     return n;
-  }, [from, ms]);
-  assert.ok(await asked(2.5, 500) > 3, 'frames follow the picture while a line shows');
-  assert.ok(await asked(9.15, 500) <= 2, 'between lines libass is left alone');
+  }, [from, to]);
+  assert.ok(await asked(2.5, 3) > 3, 'frames follow the picture while a line shows');
+  assert.ok(await asked(9.15, 9.65) <= 2, 'between lines libass is left alone');
   await p.page.evaluate(() => window.libass.setVisible(false));
   assert.equal(await p.page.evaluate(() => getComputedStyle(window.libass.canvas).display), 'none');
-  assert.equal(await asked(2.5, 400), 0, 'hidden, no frame is asked for');
+  assert.equal(await asked(2.5, 2.9), 0, 'hidden, no frame is asked for');
   assert.deepEqual(p.errors, []);
 });
 
