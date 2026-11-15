@@ -19,15 +19,17 @@ const ALLOW = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Header
  *  control.status   a number: every request answers with it (404, 410, 503…)
  *  control.cutAfter bytes: each answer's connection is destroyed after that many bytes
  *  control.bps      bytes a second per connection (0: as fast as it goes)
+ *  control.delay    milliseconds each request waits before it is answered (a far host's round trip)
  *  control.noRange  true: Range is ignored and the whole file sent with 200
  *  control.noCors   true: no CORS headers, so a page on another origin may play the film but not read it
  *                   (a single film: add ?nocors to its address)
  *  stats            {requests, open, bytes, ranges: [[start, end]…]}
  */
 export async function astraHost({ root = ROOT } = {}) {
-  const control = { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false };
+  const control = { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false, delay: 0 };
   const stats = { requests: 0, open: 0, bytes: 0, ranges: [] };
-  const server = http.createServer((req, res) => {
+  const server = http.createServer((req, res) => (control.delay ? setTimeout(() => answer(req, res), control.delay) : answer(req, res)));
+  const answer = (req, res) => {
     const CORS = control.noCors || /[?&]nocors\b/.test(req.url) ? {} : ALLOW; // or for one film alone: its address with ?nocors
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
     stats.requests++;
@@ -73,13 +75,13 @@ export async function astraHost({ root = ROOT } = {}) {
     body.on('end', () => res.end());
     body.on('error', () => res.destroy());
     res.on('close', () => body.destroy());
-  });
+  };
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const origin = `http://127.0.0.1:${server.address().port}`;
   return {
     origin, control, stats,
     url: (name) => `${origin}/${name}`,
-    reset() { Object.assign(control, { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false }); Object.assign(stats, { requests: 0, bytes: 0, ranges: [] }); },
+    reset() { Object.assign(control, { hang: false, status: 0, cutAfter: 0, bps: 0, noRange: false, noCors: false, delay: 0 }); Object.assign(stats, { requests: 0, bytes: 0, ranges: [] }); },
     close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }),
   };
 }
