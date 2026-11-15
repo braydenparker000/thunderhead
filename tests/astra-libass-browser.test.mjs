@@ -43,13 +43,14 @@ async function page(t) {
     box.append(video, layer);
     document.body.append(box);
     window.film = { video, layer };
-    // The film with the script inside it when this browser plays Matroska as it is, else the plain MP4.
+    // The film with the script inside it when this browser plays Matroska as it is, else the plain MP4,
+    // else the WebM (a browser with no H.264 decoder, as CI's is): libass only needs a film's clock.
     for (const url of urls) {
       video.src = url;
       try { await video.play(); return url; } catch {}
     }
     return null;
-  }, [host.url('anime.mkv'), host.url('plain.mp4')]);
+  }, [host.url('anime.mkv'), host.url('plain.mp4'), host.url('open.webm')]);
   assert.ok(film, 'a fixture film plays');
   const start = (fonts = []) => page.evaluate(async ([ass, fonts]) => {
     const { LibassLayer } = await import('/astra/src/subtitles/libass.js');

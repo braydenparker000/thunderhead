@@ -123,6 +123,8 @@ test('leaving full screen while the page is hidden, or just back, is not back: t
     const s = p.system, seen = [];
     let state = 'hidden';
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    // Out of full screen for the whole check, whatever this browser grants or takes back in the meantime.
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
     const mm = window.matchMedia.bind(window);
     window.matchMedia = (q) => (q === '(pointer: coarse)' ? { matches: true } : mm(q)); // a phone's finger
     Object.assign(s, { wasFullscreen: true, wantFullscreen: true, visibleAt: 0 });

@@ -270,7 +270,7 @@ test('paused, frame step buttons sit beside play and move one frame; a still dow
   await page.touchscreen.tap(next.x + next.w / 2, next.y + next.h / 2);
   assert.ok(Math.abs(await page.evaluate(() => p.video.currentTime) - (60 + 1 / 24)) < 1e-9);
   // A real film: from another host played directly, unreadable; with CORS, saved.
-  const url = host.url('plain.mp4');
+  const url = host.url('open.webm'); // VP9: every browser the tests run in decodes it
   const still = (crossOrigin) => page.evaluate(async ({ url, crossOrigin }) => {
     for (const k of ['paused', 'duration', 'currentTime']) delete p.video[k];
     if (crossOrigin) p.video.crossOrigin = 'anonymous'; else p.video.removeAttribute('crossorigin');
