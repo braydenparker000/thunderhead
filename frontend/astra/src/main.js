@@ -46,10 +46,12 @@ if ('serviceWorker' in navigator && workerAllowed) {
   // Save what this visit loaded, so the next one opens from the saved copy.
   navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(registration => {
     const base = new URL('./', location.href).href;
-    const urls = [location.href.split('#')[0], ...performance.getEntriesByType('resource').map(e => e.name).filter(u => u.startsWith(base))];
+    // Addresses only, never their query or fragment (lab/?src= can hold a stream address).
+    const urls = [location.href, ...performance.getEntriesByType('resource').map(e => e.name)].map(u => u.split(/[?#]/)[0]).filter(u => u.startsWith(base));
     registration.active?.postMessage({type: 'astra-precache', urls});
   }).catch(() => {});
+  // A newer release is saved: the offer stays until it is taken or put off (this page keeps its own release meanwhile).
   navigator.serviceWorker.addEventListener('message', event => {
-    if (event.data?.type === 'astra-updated') toast('Astra has been updated', {action: {label: 'Reload', run: () => location.reload()}});
+    if (event.data?.type === 'astra-updated') toast('Astra has been updated', {action: {label: 'Reload', run: () => location.reload()}, stay: true});
   });
 }
