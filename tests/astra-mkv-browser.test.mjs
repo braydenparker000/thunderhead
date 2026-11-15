@@ -77,11 +77,11 @@ test('a film Astra’s reader will not read past goes back to Mediabunny’s rea
   const bytes = new Uint8Array(readFileSync(new URL('./fixtures/astra/frontcues.mkv', import.meta.url)));
   const layout = await readLayout(async (s, e) => bytes.subarray(s, e), bytes.length);
   const cluster = layout.trackCues.get(1)[3].position, top = header(bytes, cluster);
-  let at = cluster + top.dataStart, done = false, base = 0;
+  let at = top.dataStart, done = false, base = 0;
   while (!done) {
-    const h = header(bytes, at), length = h.dataStart + h.size;
-    if (h.id === 0xe7) base = uint(bytes, at + h.dataStart, at + length);
-    if (h.id === 0xa3 && bytes[at + h.dataStart] === 0x82 && length > 16 && length < 200) {
+    const h = header(bytes, at), length = h.dataStart - at + h.size; // header() gives dataStart in the file
+    if (h.id === 0xe7) base = uint(bytes, h.dataStart, at + length);
+    if (h.id === 0xa3 && bytes[h.dataStart] === 0x82 && length > 16 && length < 200) {
       bytes.set([0xe7, 0x82, base >> 8, base & 255, 0xec, 0x01, 0, 0, 0, 0, 0, 0, length - 13], at);
       bytes.fill(0, at + 13, at + length);
       done = true;
