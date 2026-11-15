@@ -20,11 +20,13 @@ export class MkvFallback extends Error {
 /**
  * The cluster at `pos`, read in place. Yields {head: true, dataStart, end, base} once, then each wanted block as
  * {track, ticks (cluster time + its own), key, lacing, duration (BlockDuration or null), payload, at (its file
- * position)}, and finally {end: true, at (the cluster's end), cut (true when the file ends in it, or nothing more could be read)}. `from` (relative to the cluster's data) starts the walk at a block instead
- * of the first child (a cue's relative position); the cluster's timestamp is read first all the same.
+ * position)}, and finally {end: true, at (the cluster's end), cut (true when the file ends inside it, or nothing more
+ * of it could be read)}. `from` (relative to the cluster's data) starts the walk at a block instead of the first child
+ * (a cue's relative position); the cluster's timestamp is read first all the same, and the block there must be the
+ * one `check` ({track, ticks}: the cue's) names, else the walk stops (MkvFallback) and the caller reads from the start.
  * `size` is the file's (or the segment's) end: a cluster cut off by it ends cleanly there.
  */
-export async function* clusterBlocks(read, pos, size, wanted, from = 0) {
+export async function* clusterBlocks(read, pos, size, wanted, from = 0, check = null) {
   let buf = new Uint8Array(0), bufStart = pos;
   // Makes sure bytes [at, at + n) are held (fewer at the end of the file); returns the offset of `at` in `buf`.
   const need = async (at, n) => {
@@ -66,7 +68,19 @@ export async function* clusterBlocks(read, pos, size, wanted, from = 0) {
   const cut = end < dataStart + top.size; // the file ends inside this cluster: nothing follows it
   yield {head: true, dataStart, end, base: base ?? 0};
   if (base == null) { yield {end: true, at: end, cut}; return; }
-  if (from > 0 && dataStart + from > at) at = dataStart + from;
+  // The cued block, where the cue says it sits: a block of its track at its time, or the cue is not trusted.
+  const landed = async () => {
+    const e = await element();
+    if (!e || (e.id !== ID.SimpleBlock && e.id !== ID.BlockGroup)) return false;
+    let b = o = await need(e.start, Math.min(e.stop - e.start, 32));
+    if (e.id === ID.BlockGroup) { const g = header(buf, o); if (!g || g.id !== ID.Block) return false; b = g.dataStart; }
+    const t = vint(buf, b);
+    return !!t && t.value === check.track && base + ((buf[b + t.length] << 8 | buf[b + t.length + 1]) << 16 >> 16) === check.ticks;
+  };
+  if (from > 0 && dataStart + from > at) {
+    at = dataStart + from;
+    if (check && !await landed()) throw new MkvFallback('a cue that points at no block');
+  }
   for (;;) {
     const e = await element();
     if (!e) break;

@@ -116,18 +116,19 @@ const TRACKS = el(0x1654ae6b,
   el(0xae, el(0xd7, u(4)), el(0x83, u(2)), el(0x86, 'A_AC3'), el(0x6d80, el(0x6240, el(0x5034, el(0x4254, u(0)))))));
 
 /** A Matroska file of the given clusters (each [timestamp, ...children]), its cue index before them. */
-function build(clusters, { raw = null } = {}) {
+function build(clusters, { raw = null, relative = [] } = {}) {
   const head = el(0x1a45dfa3, el(0x4282, 'matroska'));
   const info = el(0x1549a966, el(0x2ad7b1, u(1e6)));
   const bodies = raw || clusters.map(([ts, ...kids]) => el(0x1f43b675, el(0xe7, u(ts)), ...kids));
-  const cues = (positions) => el(0x1c53bb6b, ...positions.map((p, i) => el(0xbb, el(0xb3, u(clusters[i][0])), el(0xb7, el(0xf7, u(1)), el(0xf1, u(p))))));
+  const cues = (positions) => el(0x1c53bb6b, ...positions.map((p, i) => el(0xbb, el(0xb3, u(clusters[i][0])), el(0xb7, el(0xf7, u(1)), el(0xf1, u(p)), ...(relative[i] ? [el(0xf0, u(relative[i]))] : [])))));
   const before = info.length + TRACKS.length + cues(bodies.map(() => 0)).length;
   const positions = []; let at = before;
   for (const b of bodies) { positions.push(at); at += b.length; }
   return cat(head, idBytes(0x18538067), UNKNOWN, info, TRACKS, cues(positions), ...bodies);
 }
 
-const FILM = () => build([
+const FILM = () => build(FILM.clusters);
+FILM.clusters = [
   [0,
     el(0xec, fill(5, 0)), el(0xbf, fill(4, 7)), // Void and CRC-32: stepped over
     SB(2, -20, 0x80, fill(6, 1)), // sound before the cluster's time
@@ -144,7 +145,7 @@ const FILM = () => build([
     BG(block(1, 40, 0, fill(12, 5)), { ref: true, duration: 40 }),
     BG(block(1, 80, 0, fill(12, 4))), // a block group with no reference: a key frame
   ],
-]);
+];
 
 const collect = async (sink) => { const out = []; for (let p = await sink.getFirstPacket(); p; p = await sink.getNextPacket(p)) out.push(p); return out; };
 const rows = (ps) => ps.map((p) => [+p.timestamp.toFixed(3), p.type, +p.duration.toFixed(3), p.byteLength, p.data[0]]);
@@ -170,6 +171,11 @@ test('built by hand: block groups, B-frame order, lacing of all three kinds, hea
   assert.equal((await video.getKeyPacket(0.07)).timestamp, 0);
   assert.equal((await sound.getPacket(0.05)).timestamp, 0.04);
   assert.equal(await sound.getPacket(-1), null);
+});
+
+test('a cue whose relative position lands inside an element: the cluster is read from its start', async () => {
+  const good = await open(FILM()), bad = await open(build(FILM.clusters, { relative: [0, 20] })); // 20: inside the first block, past the cluster's time
+  for (const reader of [good, bad]) assert.equal((await reader.sink({ id: 1, type: 'video', codec: 'avc' }).getKeyPacket(1.06)).timestamp, 1);
 });
 
 test('a file cut off inside a cluster ends cleanly where the bytes end', async () => {
