@@ -81,8 +81,8 @@ export class SoundControl {
     if (e.mode === 'software') {
       if (this.chain) this.chain.apply(chain, 2);
       else if (!this.routed && !isOff(settle(chain)) && has(e, 'routeSoftwareSound')) {
-        this.routed = true; // once per load: the engine keeps makeChain for every sound path it builds
-        e.routeSoftwareSound(ctx => { this.chain = new SoundChain(ctx); this.chain.apply(this.chainSettings(), 2); this.showChip(); return this.chain; });
+        // Once per load (the engine keeps makeChain for every sound path it builds), or again later if the film had no sound path yet.
+        this.routed = e.routeSoftwareSound(ctx => { this.chain = new SoundChain(ctx); this.chain.apply(this.chainSettings(), 2); this.showChip(); return this.chain; }) !== false;
       }
     } else if (!this.why() && (this.sound || !isOff(settle(chain)))) {
       this.sound ??= new Sound(p.video, {onReport: r => this.reported(r)});

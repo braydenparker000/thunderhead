@@ -20,9 +20,9 @@
 // backlog (dropped past it) rather than holding up the reading, and any error in the listener or the decoder ends the
 // tapping for that film (with a line in the engine's log).
 
-// Packets handed to the decoder at a time; the rest wait here (reading comes in bursts of many seconds), up to
-// MAX_BACKLOG (about a minute of AAC), past which packets are not tapped.
-const MAX_QUEUE = 16, MAX_BACKLOG = 3000;
+// Packets handed to the decoder at a time; the rest wait here (reading comes in bursts of up to the read-ahead,
+// 40 s), up to MAX_BACKLOG seconds of sound, past which packets are not tapped.
+const MAX_QUEUE = 16, MAX_BACKLOG = 60;
 
 export class TapFeed {
   /**
@@ -37,6 +37,7 @@ export class TapFeed {
     this.decoder = null;
     this.key = null; // the pipeline the decoder serves (track and generation)
     this.backlog = []; // chunks waiting for the decoder
+    this.waiting = 0; // seconds of sound in the backlog
     this.stats = {ms: 0, chunks: 0, seconds: 0, dropped: 0};
   }
 
@@ -100,7 +101,8 @@ export class TapFeed {
     const start = performance.now();
     try {
       if (this.key !== key || !this.decoder || this.decoder.state === 'closed') this.openDecoder(track, offset, key);
-      if (this.backlog.length >= MAX_BACKLOG) { this.stats.dropped++; return; }
+      if (this.waiting >= MAX_BACKLOG) { this.stats.dropped++; return; }
+      this.waiting += packet.duration || 0;
       this.backlog.push(new EncodedAudioChunk({type: 'key', timestamp: Math.round(packet.timestamp * 1e6), duration: Math.round(packet.duration * 1e6), data: packet.data}));
       this.drain();
     } catch (error) { this.end(error); } finally { this.stats.ms += performance.now() - start; }
@@ -110,7 +112,11 @@ export class TapFeed {
   drain() {
     const decoder = this.decoder;
     try {
-      while (!this.dead && decoder && decoder.state === 'configured' && decoder.decodeQueueSize < MAX_QUEUE && this.backlog.length) decoder.decode(this.backlog.shift());
+      while (!this.dead && decoder && decoder.state === 'configured' && decoder.decodeQueueSize < MAX_QUEUE && this.backlog.length) {
+        const chunk = this.backlog.shift();
+        this.waiting = Math.max(0, this.waiting - chunk.duration / 1e6);
+        decoder.decode(chunk);
+      }
     } catch (error) { this.end(error); }
   }
 
@@ -143,7 +149,7 @@ export class TapFeed {
 
   closeDecoder() {
     const decoder = this.decoder;
-    this.decoder = null; this.key = null; this.backlog = [];
+    this.decoder = null; this.key = null; this.backlog = []; this.waiting = 0;
     try { if (decoder && decoder.state !== 'closed') decoder.close(); } catch {}
   }
 

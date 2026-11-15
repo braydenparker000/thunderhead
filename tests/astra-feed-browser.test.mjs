@@ -5,13 +5,17 @@
 // The films are made by scripts/astra/fixtures.sh. Local only: nothing here reaches the internet.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (synthetic films)', timeout: 60_000 };
-let site, host, browser, base, h264 = false;
+let site, host, browser, base, h264 = false, episodes = null, episodeDir = null;
 
 before(async () => {
   if (live) return;
@@ -23,7 +27,7 @@ before(async () => {
   h264 = await page.evaluate(() => MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d400d"'));
   await page.close();
 });
-after(async () => { await browser?.close(); site?.close(); await host?.close(); });
+after(async () => { await browser?.close(); site?.close(); await host?.close(); await episodes?.close(); if (episodeDir) rmSync(episodeDir, { recursive: true, force: true }); });
 
 /** The Astra page with one engine player over a muted video filling the window, a subtitle layer and a second one: `window.p`. */
 async function player(t) {
@@ -262,5 +266,161 @@ test('a sound tap that throws ends the tapping for that film, never the film', o
   assert.ok(await playsOn(p.page, 2) >= 2, 'it plays on');
   assert.equal(await p.page.evaluate(() => window.calls), 1, 'fed once, then no more');
   assert.ok(await p.page.evaluate(() => window.p.log.some((l) => l.kind === 'tap' && /ended/.test(l.detail))), 'a line in the log');
+  assert.deepEqual(p.errors, []);
+});
+
+// Two "episodes" of 3 minutes with the same 40 s of synthesized music after different openings (at 20 s in the
+// first, 45 s in the second), the rest pink noise of different seeds. Made here (4 s each with ffmpeg) rather than
+// committed: about 0.9 MB each.
+const MUSIC = '0.4*sin(2*PI*t*(220*pow(2,mod(floor(t*4)*7,12)/12)))+0.3*sin(2*PI*t*(330*pow(2,mod(floor(t*3)*5,12)/12)))+0.2*sin(2*PI*t*(110*pow(2,mod(floor(t*2)*3,7)/12)))';
+const OPENINGS = { a: ['0.5*sin(2*PI*t*(400+300*mod(floor(t*5)*3,8)/8))', 20, 1], b: ['0.5*sin(2*PI*t*(250+500*mod(floor(t*6)*5,9)/9))*sin(2*PI*t*0.7)', 45, 2] };
+function makeEpisodes() {
+  try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); } catch { return false; }
+  episodeDir = mkdtempSync(join(tmpdir(), 'astra-episodes-'));
+  for (const [name, [opening, at, seed]] of Object.entries(OPENINGS)) {
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=exprs='${opening}':s=48000:d=${at}`, '-f', 'lavfi', '-i', `aevalsrc=exprs='${MUSIC}':s=48000:d=40`,
+      '-f', 'lavfi', '-i', `anoisesrc=color=pink:seed=${seed}:amplitude=0.3:r=48000:d=${140 - at}`, '-f', 'lavfi', '-i', 'testsrc2=size=64x36:rate=4:duration=180',
+      '-filter_complex', '[0][1][2]concat=n=3:v=0:a=1[a]', '-map', '3:v', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-b:v', '8k', '-g', '40',
+      '-c:a', 'aac', '-b:a', '32k', '-ac', '1', join(episodeDir, `${name}.mkv`)]);
+  }
+  return true;
+}
+
+test('Skip intro end to end: the engine\'s tap feeds the real IntroFinder through skip.js; the second episode\'s intro is found within 2 s', { ...opts, timeout: 120_000 }, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  if (!makeEpisodes()) return t.skip('ffmpeg is not installed, so the two episodes cannot be made');
+  episodes = await astraHost({ root: episodeDir + '/' });
+  const p = await player(t);
+  await p.page.evaluate(async () => {
+    const { SkipTimes } = await import('/astra/src/app/skip.js');
+    // skip.js's player: the engine and its video, open, showing what it is given.
+    const screen = { engine: window.p, video: window.p.video, isOpen: true, setSegments: (list) => { window.segments = list; } };
+    window.skip = new SkipTimes(screen, { settings: () => ({}) });
+    window.store = (await window.skip.parts()).store;
+  });
+  const series = { type: 'series', id: 'feed-test' };
+  /** One episode: told to skip.js, loaded and played at 16 times the speed until `until` s of its sound were heard by the finder. */
+  const watch = async (video, until) => {
+    await p.page.evaluate(([series, video]) => { window.seen.ready = 0; window.skip.episode({ series, video }); }, [series, video]);
+    await p.load(episodes.url(`${video}.mkv`));
+    await p.page.evaluate(() => { window.p.video.playbackRate = 16; return window.p.video.play(); });
+    await p.page.waitForFunction((until) => (window.skip.ep?.finder?.fed || 0) >= until, until, { timeout: 60_000 }).catch(async (e) => {
+      t.diagnostic(JSON.stringify(await p.page.evaluate(() => ({ fed: window.skip.ep?.finder?.fed, hasFinder: !!window.skip.ep?.finder, ep: !!window.skip.ep, tap: window.p.tapFeed?.stats, dead: window.p.tapFeed?.dead, sessTap: !!window.p.session?.tap, read: window.p.session?.readAt, mode: window.p.mode, dur: window.p.video.duration, log: window.p.log.filter((l) => l.kind === 'tap') }))));
+      throw e;
+    });
+  };
+  await watch('a', 88);
+  await p.page.evaluate(() => window.skip.stop()); // the first episode is left: its fingerprint is kept
+  await p.page.waitForFunction((series) => window.store.candidates(series, 'b').then((c) => c.length > 0), series, { timeout: 10_000, polling: 200 });
+  await watch('b', 30);
+  await p.page.waitForFunction(() => window.segments?.some((s) => s.type === 'intro'), null, { timeout: 60_000 });
+  const intro = await p.page.evaluate(() => window.segments.find((s) => s.type === 'intro'));
+  t.diagnostic(`intro found at ${intro.start.toFixed(2)}–${intro.end.toFixed(2)} s (truth 45–85 s)`);
+  assert.ok(Math.abs(intro.start - 45) <= 2 && Math.abs(intro.end - 85) <= 2, `the intro is within 2 s of the truth (${intro.start}–${intro.end})`);
+  assert.deepEqual(p.errors, []);
+});
+
+/** The loudness (RMS) of what the video element plays, over `ms`, through an AnalyserNode. */
+const loudness = (page, ms = 600) => page.evaluate(async (ms) => {
+  const v = window.p.video;
+  if (!window.ear) {
+    const ctx = new AudioContext(), a = ctx.createAnalyser();
+    a.fftSize = 2048; ctx.createMediaElementSource(v).connect(a); a.connect(ctx.destination);
+    window.ear = { ctx, a }; await ctx.resume();
+  }
+  v.muted = false; v.volume = 1;
+  const { a } = window.ear, buf = new Float32Array(a.fftSize);
+  let sum = 0, n = 0;
+  for (const until = performance.now() + ms; performance.now() < until;) {
+    await new Promise((r) => setTimeout(r, 50));
+    a.getFloatTimeDomainData(buf);
+    for (const x of buf) { sum += x * x; n++; }
+  }
+  return Math.sqrt(sum / n);
+}, ms);
+
+test('dialogue lift on rebuilt 5.1 sound: the engine\'s mix raises the centre, heard within about a second', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  await p.load(host.url('surround.mkv'));
+  assert.ok(await playsOn(p.page, 1) >= 1);
+  const before = await loudness(p.page);
+  await p.page.evaluate(() => window.p.setDialogue(2));
+  await new Promise((r) => setTimeout(r, 1200));
+  const after = await loudness(p.page);
+  // surround.mkv's tone is in the centre channel alone (ffmpeg put the mono tone there): step 2 raises it by 8 dB.
+  const db = 20 * Math.log10(after / before);
+  t.diagnostic(`${db.toFixed(1)} dB louder with the centre raised`);
+  assert.ok(db > 7 && db < 9, `the centre is raised by about 8 dB (${db.toFixed(1)} dB)`);
+  await p.page.evaluate(() => window.p.setDialogue(0));
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.ok(Math.abs(20 * Math.log10((await loudness(p.page)) / before)) < 1, 'and back');
+  assert.ok(await playsOn(p.page, 1) >= 1, 'it plays on');
+  assert.deepEqual(p.errors, []);
+});
+
+test('sound earlier than the picture: the audio buffer is placed that much earlier against the video', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const p = await player(t);
+  await p.load(host.url('multi.mkv'));
+  assert.ok(await playsOn(p.page, 1) >= 1);
+  /** After a seek back to `to` (fresh pipelines read from there): audio's buffered start less video's, around `to`. */
+  const lead = async (to) => {
+    await p.page.evaluate((to) => { window.p.video.currentTime = to; }, to);
+    assert.ok(await playsOn(p.page, 0.8) >= 0.8, 'it plays after the seek');
+    return p.page.evaluate((to) => {
+      const q = window.p.session.queues, start = (b) => { for (let i = 0; i < b.buffered.length; i++) if (b.buffered.end(i) > to + 0.5) return b.buffered.start(i); return NaN; };
+      return start(q.audio.buffer) - start(q.video.buffer);
+    }, to);
+  };
+  await p.page.evaluate(() => { window.p.video.currentTime = 50; });
+  assert.ok(await playsOn(p.page, 0.5) >= 0.5);
+  const plain = await lead(15); // a seek back: the pipelines start again there
+  await p.page.evaluate(() => window.p.setAudioAdvance(0.5));
+  await new Promise((r) => setTimeout(r, 500));
+  assert.ok(await playsOn(p.page, 0.5) >= 0.5, 'it plays on after the change');
+  const early = await lead(7);
+  await p.page.evaluate(() => window.p.setAudioAdvance(0));
+  await new Promise((r) => setTimeout(r, 500));
+  const plainAgain = await lead(3);
+  t.diagnostic(`audio starts ${plain.toFixed(3)} s, ${early.toFixed(3)} s with 0.5 s advance, ${plainAgain.toFixed(3)} s back at 0, from the video`);
+  // Key frames every 2 s: the video starts at the one before the seek, the sound at the seek (less 0.5 s ahead).
+  assert.ok(Math.abs(plain - early - 0.5) < 0.1, 'about 0.5 s earlier');
+  assert.ok(Math.abs(plainAgain - plain) < 0.1, 'and back where it was at 0');
+  assert.deepEqual(p.errors, []);
+});
+
+test('software decoder: the sound chain goes into libmedia\'s own sound path; boost 2 is 6 dB louder after it; closed, the film is still heard', opts, async (t) => {
+  const p = await player(t);
+  await p.load(host.url('hevc.mkv'));
+  if (await p.page.evaluate(() => window.p.mode) !== 'software') return t.skip('this browser decodes HEVC itself, so the software decoder is not used');
+  const r = await p.page.evaluate(async () => {
+    const { SoundChain } = await import('/astra/src/enhance/sound-chain.js');
+    const p = window.p, v = p.video;
+    v.muted = false; await v.play();
+    const until = performance.now() + 10_000;
+    while (!p.session.engine?.gainNode && performance.now() < until) await new Promise((r) => setTimeout(r, 100));
+    let chain = null;
+    const ok = p.routeSoftwareSound((ctx) => (chain = new SoundChain(ctx)));
+    const ctx = p.session.AVPlayer.audioContext;
+    const meter = (node) => { const a = ctx.createAnalyser(); a.fftSize = 2048; node.connect(a); return a; };
+    const after = meter(chain.out), heard = meter(p.session.engine.gainNode); // after the chain; what goes into the stream
+    const db = async (a, ms = 800) => {
+      const b = new Float32Array(a.fftSize); let s = 0, n = 0;
+      for (const end = performance.now() + ms; performance.now() < end;) { await new Promise((r) => setTimeout(r, 50)); a.getFloatTimeDomainData(b); for (const x of b) { s += x * x; n++; } }
+      return 20 * Math.log10(Math.sqrt(s / n) || 1e-9);
+    };
+    const plain = await db(after);
+    chain.apply({ boost: 2 }, 2); await new Promise((r) => setTimeout(r, 300));
+    const boosted = await db(after);
+    chain.close(); await new Promise((r) => setTimeout(r, 300));
+    return { ok, plain, boosted, closed: await db(heard), track: v.srcObject.getAudioTracks().length, t: v.currentTime };
+  });
+  t.diagnostic(`${r.plain.toFixed(1)} dB, ${r.boosted.toFixed(1)} dB with boost 2, ${r.closed.toFixed(1)} dB once closed`);
+  assert.equal(r.ok, true);
+  assert.ok(Math.abs(r.boosted - r.plain - 6) < 1, 'boost 2 is about 6 dB');
+  assert.ok(r.closed > -40 && Math.abs(r.closed - r.plain) < 1.5, 'closed, the sound goes on as before');
+  assert.equal(r.track, 1, 'the stream keeps one sound track');
+  assert.ok(await p.page.evaluate(() => window.p.log.some((l) => l.kind === 'sound' && /is in/.test(l.detail))));
   assert.deepEqual(p.errors, []);
 });

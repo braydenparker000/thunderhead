@@ -17,6 +17,7 @@
 
 import {TapFeed} from './sound-tap.js';
 import {centreGain} from '../enhance/sound-chain.js';
+import {routeSoftwareSound} from './software-sound.js';
 
 export const soundMethods = {
   setSoundTap(tap) {
@@ -34,6 +35,12 @@ export const soundMethods = {
   setAudioAdvance(seconds) {
     this.audioAdvance = Math.max(0, Math.min(1, Number(seconds) || 0));
     if (this.mode === 'remux') this.session?.setAdvance?.(this.audioAdvance);
+  },
+
+  /** The sound chain `makeChain(audioContext)` in the software decoder's sound path; false when it cannot go in now. */
+  routeSoftwareSound(makeChain) {
+    if (this.mode !== 'software' || !this.session || typeof makeChain !== 'function') return false;
+    return routeSoftwareSound(this.session, makeChain, line => this.record('sound', line));
   },
 
   /** Puts the sound settings on a remux session before it starts reading. */

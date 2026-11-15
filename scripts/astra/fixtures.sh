@@ -73,6 +73,10 @@ want truehd.mkv && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 770 6)" -map 0:
   -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2 -c:a truehd -strict -2 -ac 2 \
   -metadata:s:a:0 language=eng "$out/truehd.mkv"
 
+# hevc.mkv: HEVC (which this headless Chromium cannot decode, so the software decoder plays it) and a 1 kHz AAC tone. 8 s.
+want hevc.mkv && ff -f lavfi -i "$(pic 8)" -f lavfi -i "$(tone 1000 8)" -map 0:v -map 1:a -c:v libx265 -preset slow -b:v 40k -x265-params log-level=error \
+  -c:a aac -b:a 24k -ac 2 "$out/hevc.mkv"
+
 # hls/ and dash/: the same 6 s of picture and a 440 Hz tone as an HLS stream (three 2 s transport-stream segments
 # and their playlist) and as a DASH stream (2 s fragmented-MP4 segments, picture and sound apart, and the manifest).
 adaptive=(-f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 440 6)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p
