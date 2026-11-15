@@ -16,7 +16,8 @@ import {channelName} from './labels.js';
 import {UNREADABLE, softwareAudio, softwareVideo} from './software.js';
 
 const DIRECT_AUDIO = new Set(['aac', 'opus', 'flac', 'mp3']);
-const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'vorbis']);
+const REBUILT_AUDIO = new Set(['ac3', 'eac3', 'dts', 'truehd', 'vorbis']);
+const PCM = /^(pcm|ulaw$|alaw$)/; // uncompressed sound, G.711 (telephone and some camera recordings) among it
 const NATIVE_CONTAINERS = /^(mp4|quicktime|webm)$/i;
 
 /** Guesses an adaptive stream from its address or MIME type. */
@@ -39,7 +40,7 @@ function softwareDelivery(track) {
 export function audioDelivery(track, caps) {
   const codec = track.codec || '';
   if (DIRECT_AUDIO.has(codec) && caps.mse(audioMime(track))) return {delivery: 'direct'};
-  if ((REBUILT_AUDIO.has(codec) || codec.startsWith('pcm') || DIRECT_AUDIO.has(codec)) && track.channels) {
+  if ((REBUILT_AUDIO.has(codec) || PCM.test(codec) || DIRECT_AUDIO.has(codec)) && track.channels) {
     return caps.opusEncode ? {delivery: 'rebuilt'} : {delivery: 'unsupported', reason: 'This browser cannot convert audio.'};
   }
   return {delivery: 'unsupported', reason: `${track.label || 'This audio format'} cannot be decoded in a browser.`};
@@ -163,6 +164,8 @@ export function planPlayback(probe, caps, prefs = {}) {
     if (!prefs.allowSilent) return {mode: 'unsupported', reason, notes, video, audioOptions, subtitleOptions, external: true, silent: !!video};
     notes.push(`${reason} Playing without sound.`);
   }
+  // Nothing to show and nothing to hear (only subtitles, or sound none of which plays): there is no film to play.
+  if (!video && !audio) return {mode: 'unsupported', reason: info.audio.length ? 'This file has no picture, and its sound cannot play in a browser.' : 'This file has no picture or sound to play.', notes, audioOptions, subtitleOptions, external: true};
   if (software) {
     notes.push(muxable ? `${audio?.track.label || 'The sound'} in this file plays only through Astra's software decoder. That uses more battery.`
       : `This phone has no ${name} decoder for browsers, so Astra decodes it in software. That uses more battery and may stutter at high resolutions.`);

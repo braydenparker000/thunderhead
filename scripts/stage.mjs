@@ -10,6 +10,7 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FONTS, needed, present } from './fonts.mjs';
 import { createHash } from 'node:crypto';
+import { astraFiles } from './astra/files.mjs';
 import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
@@ -56,8 +57,6 @@ if (drive) {
 }
 console.log(`Drive config: ${drive ? 'written' : 'not set'}`);
 
-await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString() }) + '\n');
-
 async function files(dir) {
   const all = [];
   for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -73,6 +72,13 @@ for (const f of list.filter(f => f.path.endsWith('.html'))) {
   const next = withApi(html, api, f.path);
   if (next !== html) { await writeFile(p, next); f.size = Buffer.byteLength(next); }
 }
+// Astra's release (scripts/astra/files.mjs), from the bytes as staged: its name goes in release.json, fetched
+// on every visit, and its list of files with their hashes in astra/files.json, fetched only when the name changes.
+const astra = await astraFiles(join(out, 'astra'));
+const astraList = JSON.stringify(astra);
+await writeFile(join(out, 'astra/files.json'), astraList);
+list.push({ path: 'astra/files.json', size: Buffer.byteLength(astraList) });
+await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString(), components: { astra: { tree: astra.tree } } }) + '\n');
 // The service worker's list, written last so it holds the final sizes (after the CSP edit).
 const manifest = precacheJson(build, list);
 await writeFile(join(out, 'precache.json'), manifest);

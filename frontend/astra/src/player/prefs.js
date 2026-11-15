@@ -1,4 +1,5 @@
-// The viewer's player preferences, kept in this browser only.
+// The viewer's player preferences, kept in this browser under the store's
+// 'player' key, one of its device keys, so a backup restore keeps them.
 
 const KEY = 'astra.v2.player';
 export const DEFAULTS = Object.freeze({
@@ -16,6 +17,15 @@ export const DEFAULTS = Object.freeze({
   pauseOverlay: true,
   orientation: 'auto', // auto (follow the phone) | landscape | portrait
   autoPip: true, // picture-in-picture when leaving the app while playing, where the browser allows it
+  speed: 1, // playback speed, one of SPEEDS, kept for every film until changed
+  volume: 1, // the volume swipe's level (0..1), applied on open
+  brightness: 1, // the brightness swipe's level (0..1.5), applied on open
+  boost: 1, // the Sound section's volume boost (1..3), put on every film it can be (sound-menu.js)
+  night: false, // night mode: quiet sound up, loud sound down
+  dialogue: 0, // clearer speech, 0..2 steps
+  sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
+  deband: false, // smooth banding
+  dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 
@@ -42,6 +52,6 @@ export function subtitleStyle(p) {
 export const SUBTITLE_COLORS = ['#ffffff', '#ffd54f', '#4dd0e1', '#ef5350', '#66bb6a', '#ba68c8', '#ffa726', '#c6ff00', '#42a5f5', '#000000'];
 export const SUBTITLE_COLOR_NAMES = {'#ffffff': 'White', '#ffd54f': 'Yellow', '#4dd0e1': 'Cyan', '#ef5350': 'Red', '#66bb6a': 'Green', '#ba68c8': 'Purple', '#ffa726': 'Orange', '#c6ff00': 'Lime', '#42a5f5': 'Blue', '#000000': 'Black'};
 export const SUBTITLE_BACKGROUNDS = [0, 0.35, 0.55, 0.8];
-export const SPEEDS = [1, 1.25, 1.5, 2];
+export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 export const ASPECTS = ['fit', 'fill', 'zoom'];
 export const ASPECT_LABELS = {fit: 'Fit', fill: 'Fill', zoom: 'Zoom'};

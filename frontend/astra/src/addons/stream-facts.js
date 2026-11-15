@@ -7,7 +7,7 @@
 // so megabytes an hour is size over runtime. HEVC and AV1 files are about half the size of H.264
 // ones at the same quality, which is why they have chips of their own.
 
-/** @typedef {{bytes: number | null, res: '4k' | '1080' | '720' | 'sd' | null, codec: 'hevc' | 'av1' | 'h264' | null}} Facts */
+/** @typedef {{bytes: number | null, res: '4k' | '1080' | '720' | 'sd' | null, codec: 'hevc' | 'av1' | 'vp9' | 'h264' | null}} Facts */
 /** @typedef {{small: boolean, maxMb: number, res: string[], codec: string[]}} Filters */
 
 /** The chips, in the order shown: a size limit (one at a time), picture sizes and codecs (any of). */
@@ -18,23 +18,58 @@ export const CODEC_CHIPS = [['hevc', 'HEVC'], ['av1', 'AV1']];
 export const NO_FILTERS = Object.freeze({small: false, maxMb: 0, res: [], codec: []});
 
 const text = s => [s.name, s.title, s.filename].filter(Boolean).join(' ');
+// A word on its own: `\b` does not split "1080p_x265", so the edges are any non-letter, non-digit.
+const word = (t, re, end = '(?![a-z0-9])') => new RegExp(`(?<![a-z0-9])(?:${re})${end}`, 'i').test(t);
+// A size as written: "1.4 GB", "1,400 MB", "1.400,5 MB", "1 400 MB", "700MiB", "2.1 TB".
+const SIZE = /(?<![a-z0-9.,])(\d{1,3}(?:[ ,.\u00a0\u202f]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*([kmgt])(i?)b(?![a-z0-9])/i;
+const UNIT = {k: 1e3, m: 1e6, g: 1e9, t: 1e12}, BINARY = {k: 2 ** 10, m: 2 ** 20, g: 2 ** 30, t: 2 ** 40};
+
+/** A number as people write it. The last of mixed separators is the decimal point; one separator
+ * before exactly three digits groups thousands in KB and MB ("1,400 MB") but is a decimal point in
+ * GB and TB ("1.400 GB" is 1.4 GB: nobody's file is 1,400 GB). */
+function numberOf(raw, unit) {
+  const s = raw.replace(/[\s\u00a0\u202f]/g, ''), seps = s.match(/[.,]/g) || [], last = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (!seps.length) return Number(s);
+  const decimal = new Set(seps).size > 1 || (seps.length === 1 && (s.length - last - 1 !== 3 || /[gt]/i.test(unit)));
+  return Number(decimal ? `${s.slice(0, last).replace(/[.,]/g, '')}.${s.slice(last + 1)}` : s.replace(/[.,]/g, ''));
+}
 
 /** The file's size in bytes: the add-on's own number, else the first size in its text. @returns {number | null} */
 export function bytesOf(stream) {
   if (stream.size > 0) return stream.size;
-  const m = /(\d+(?:[.,]\d+)?)\s*(GB|MB|GiB|MiB)\b/i.exec(text(stream));
+  const m = SIZE.exec(text(stream));
   if (!m) return null;
-  const n = Number(m[1].replace(',', '.')), unit = m[2].toLowerCase();
-  return Math.round(n * (unit === 'gb' ? 1e9 : unit === 'gib' ? 2 ** 30 : unit === 'mib' ? 2 ** 20 : 1e6));
+  const unit = m[2].toLowerCase(), n = numberOf(m[1], unit) * (m[3] ? BINARY : UNIT)[unit];
+  return n > 0 ? Math.round(n) : null;
+}
+
+/** The words a picture size is read from: sizes taken out ("720 MB" is not 720p), and "1920x1080"
+ * read by its width (a 1920x800 film is still 1080p). */
+function pictureText(t) {
+  return t.replace(new RegExp(SIZE.source, 'gi'), ' ').replace(/(?<!\d)(\d{3,4})\s*[x×]\s*(\d{3,4})(?!\d)/g,
+    (_, w, ht) => ` ${({3840: 2160, 4096: 2160, 1920: 1080, 1280: 720})[w] || ht}p `);
 }
 
 /** @returns {Facts} */
 export function factsOf(stream) {
-  const t = text(stream);
-  const res = /\b(2160p?|4k|uhd)\b/i.test(t) ? '4k' : /\b(1080[pi]?|fhd)\b/i.test(t) ? '1080' : /\b720p?\b/i.test(t) ? '720'
-    : /\b(576p?|480p?|360p?|sd|dvdrip|xvid|divx)\b/i.test(t) ? 'sd' : null;
-  const codec = /\b(x265|h\.?265|hevc)\b/i.test(t) ? 'hevc' : /\bav1\b/i.test(t) ? 'av1' : /\b(x264|h\.?264|avc)\b/i.test(t) ? 'h264' : null;
+  const t = text(stream), p = pictureText(t), w = re => word(p, re), c = re => word(t, re, '(?![a-z])');
+  // An explicit 2160, 1080 or 720 wins over the words UHD and 4K ("UHD BluRay 1080p" is 1080p).
+  const res = w('2160p?') ? '4k' : w('1080[pi]?') ? '1080' : w('720p?') ? '720' : w('4k|uhd') ? '4k' : w('fhd') ? '1080'
+    : w('576p?|480p?|360p?|sd|dvdrip|xvid|divx') ? 'sd' : null;
+  // Codec names may run into a bit depth ("HEVC10bit"), so only a letter ends them.
+  const codec = c('x265|h[ ._-]?265|hevc') ? 'hevc' : c('av1') ? 'av1' : c('vp0?9') ? 'vp9' : c('x264|h[ ._-]?264|avc1?') ? 'h264' : null;
   return {bytes: bytesOf(stream), res, codec};
+}
+
+/** What the label says about how the file plays here: its picture as factsOf reads it, whether it
+ * is 10-bit or HDR (which needs a Main10 decoder), its container, and whether its sound is one Astra
+ * converts on the phone (Dolby Digital and DTS; AAC, Opus, MP3 and FLAC play as they are). */
+export function playFactsOf(stream) {
+  const t = text(stream), w = (re, end) => word(t, re, end);
+  const sound = w('dts|e-?ac-?3|ac-?3|ddp?', '(?![a-z])') && !w('aac|opus|mp3|flac', '(?![a-z])');
+  return {...factsOf(stream), tenBit: /(?<!\d)10[ ._-]?bits?(?![a-z])|(?<![a-z0-9])(hi10p?|main ?10)(?![a-z0-9])/i.test(t),
+    hdr: w('hdr|dolby[ ._-]?vision|dv|dovi|hlg', '(?![a-z])'),
+    container: w('mkv') ? 'mkv' : w('mp4|m4v') ? 'mp4' : w('webm') ? 'webm' : null, sound};
 }
 
 /** The filters as stored, made safe: unknown values dropped. @param {any} v @returns {Filters} */
@@ -76,5 +111,6 @@ export function minutesOf(runtime) {
 export function perHour(bytes, minutes) {
   if (!bytes || !minutes) return '';
   const mb = (bytes * 60) / minutes / 1e6; // megabytes an hour, multiplied first so 375 stays 375
-  return mb >= 950 ? `${(mb / 1000).toFixed(1)} GB an hour` : `${Math.round(mb / 10) * 10} MB an hour`;
+  if (mb < 1) return ''; // a tiny file (a sample) says nothing useful
+  return mb >= 950 ? `${(mb / 1000).toFixed(1)} GB an hour` : `${mb < 10 ? Math.round(mb) : Math.round(mb / 10) * 10} MB an hour`;
 }

@@ -72,7 +72,7 @@ img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 .chip.dropdown { gap: 4px; padding: 0 10px 0 12px; border-radius: var(--r-lg); background: var(--surface); font-weight: 600; }
 .chip.dropdown .icon { width: 18px; height: 18px; fill: var(--muted); transform: rotate(90deg); }
 /* Messages rise from the bottom, above the floating nav (or the screen's bottom edge). */
-.toast { position: fixed; z-index: 3000; left: 50%; bottom: calc(var(--nav-space) + 8px); transform: translate(-50%, 140%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--r-xl); background: var(--card); color: var(--text); font-size: 14px; line-height: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.5); opacity: 0; transition: transform 300ms var(--ease), opacity 300ms var(--ease); pointer-events: none; }
+.toast { position: fixed; z-index: 3000; left: 50%; width: max-content; bottom: calc(var(--nav-space) + 8px); transform: translate(-50%, 140%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--r-xl); background: var(--card); color: var(--text); font-size: 14px; line-height: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.5); opacity: 0; transition: transform 300ms var(--ease), opacity 300ms var(--ease); pointer-events: none; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 .toast button { border: 0; background: none; color: var(--accent); font-weight: 700; }
 
@@ -375,6 +375,11 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 .stream-badges { display: flex; gap: 6px; }
 .stream-badges:empty { display: none; }
 .stream-badges em { font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); background: var(--card); color: var(--text-2); }
+/* How a stream will most likely play here (addons/device-facts.js): one quiet line whose room is
+   held before the browser answers, and never wraps, so nothing moves when the words arrive. */
+.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--warning); }
+.stream-badges:has(.sound) { flex-wrap: wrap; }
 .stream-footer { margin: 12px var(--gutter); color: var(--muted); font-size: 13px; text-align: center; }
 .stream-footer:empty { display: none; }
 

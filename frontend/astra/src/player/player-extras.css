@@ -1,0 +1,78 @@
+/* The player's added pieces (extras.js loads this after player.css). Same tokens and look. */
+
+/* Frame step: two buttons beside play while paused; the ±10 buttons close in to make room. */
+.ap.paused .ap-frame { display: grid; }
+.ap-frame { width: 44px; height: 44px; }
+.ap-frame .icon { width: 30px; height: 30px; }
+.ap.paused .ap-center { gap: 28px; }
+.ap.portrait.paused .ap-center { gap: 12px; }
+
+/* The sleep timer's time left: quiet, under the top buttons, only with the controls. */
+.ap-top-mid { position: absolute; top: calc(max(8px, var(--safe-top)) + 46px); right: max(24px, env(safe-area-inset-right, 0px)); }
+.ap-sleep-left { margin: 0; font-size: 12px; line-height: 16px; color: rgba(255,255,255,.5); font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* Seek bar marks: segments tinted, chapter boundaries as thin gaps, the repeat's A and B as pins. */
+.ap-marks { position: absolute; inset: 0; pointer-events: none; }
+.ap-segment { position: absolute; top: 0; bottom: 0; background: rgba(255,214,102,.5); }
+.ap-tick { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: rgba(0,0,0,.8); }
+.ap-pin { position: absolute; top: calc(50% - 12px); width: 2px; height: 24px; margin-left: -1px; border-radius: 1px; background: var(--ap-accent); pointer-events: none; }
+.ap-pin::after { content: 'A'; position: absolute; bottom: 100%; left: -4px; font: 700 10px/12px var(--font); font-style: normal; color: var(--ap-accent); }
+.ap-pin.b::after { content: 'B'; }
+.ap-bubble small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 500; line-height: 16px; color: rgba(255,255,255,.78); text-align: center; }
+
+/* The Playback menu */
+.ap-pb { display: flex; flex-wrap: wrap; gap: 20px 40px; max-width: 820px; }
+.ap-pb-group { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ap-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-chips .ap-chip { min-width: 56px; padding: 0 14px; }
+.ap-pb-note { margin: 0; min-height: 16px; color: rgba(255,255,255,.6); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+
+/* Subtitles menu additions */
+.ap-find { display: inline-flex; align-items: center; gap: 6px; }
+.ap-find .icon { fill: currentColor; }
+.ap-second-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: -6px 0 12px; color: rgba(255,255,255,.72); font-size: 13px; }
+.ap-step.wrap { flex-wrap: wrap; }
+.ap-step.wrap > div { flex-wrap: wrap; }
+.ap-chip:disabled { opacity: .4; }
+
+/* Find a line */
+.ap-find-input { box-sizing: border-box; width: min(560px, 100%); min-height: 48px; padding: 0 18px; border: 1px solid rgba(255,255,255,.22); border-radius: var(--r-full); background: rgba(255,255,255,.08); color: #fff; font: 16px var(--font); user-select: text; -webkit-user-select: text; }
+.ap-find-input:focus { outline: 2px solid var(--ap-accent); outline-offset: 1px; }
+.ap-find-count { margin: 10px 4px; color: rgba(255,255,255,.6); font-size: 13px; }
+.ap-find-list { display: flex; flex-direction: column; gap: 2px; max-width: 680px; }
+.ap-line { display: flex; align-items: baseline; gap: 14px; min-height: 44px; padding: 10px 12px; border: 0; border-radius: var(--r-lg); background: transparent; color: #fff; text-align: left; font-size: 14px; line-height: 20px; }
+.ap-line:active, .ap-line:focus-visible { background: rgba(255,255,255,.1); }
+.ap-line time { flex: none; min-width: 44px; color: rgba(255,255,255,.55); font-variant-numeric: tabular-nums; }
+.ap-line span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Stream info additions */
+.ap-chapters { display: flex; flex-direction: column; gap: 2px; max-width: 640px; margin: 18px 0 12px; }
+.ap-chapters .ap-label { margin: 0 0 6px; }
+.ap-chapters small { flex: none; font-variant-numeric: tabular-nums; }
+.ap-modal-body.info > .ap-chip { margin: 12px 8px 0 0; }
+
+/* A notice with a button ("Start over") */
+.ap-notice-action { margin-left: 12px; vertical-align: middle; }
+
+/* Sound only: black, lit by a few dim words. */
+.ap-sound-only { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: #000; }
+.ap.sound-only .ap-controls, .ap.sound-only .ap-skip, .ap.sound-only .ap-next, .ap.sound-only .ap-pause, .ap.sound-only .ap-feedback { display: none; }
+.ap-so-box { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100% - 48px); text-align: center; }
+.ap-so-title { margin: 0; color: rgba(255,255,255,.62); font-size: 16px; font-weight: 600; line-height: 22px; }
+.ap-so-time { margin: 0; color: rgba(255,255,255,.42); font-size: 14px; font-variant-numeric: tabular-nums; }
+.ap-so-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.ap-so-play { color: rgba(255,255,255,.62); }
+.ap-sound-only .ap-chip { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); }
+
+/* Sound (sound-menu.js): the boost chip where "Sound off" sits, shown with the controls; the tab's one-line reason. */
+.ap-boost { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: var(--ap-accent); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease); }
+.ap.controls .ap-boost { opacity: 1; pointer-events: auto; }
+.ap-muted:not([hidden]) ~ .ap-boost { top: calc(max(12px, var(--safe-top)) + 52px); }
+.ap.locked .ap-boost, .ap.overlay .ap-boost, .ap.mini .ap-boost, .ap.sound-only .ap-boost { display: none; }
+.ap-sound-why { max-width: 640px; margin: 0 0 16px; padding: 10px 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); font-size: 14px; line-height: 20px; }
+.ap-sound .ap-pb { gap: 16px 40px; }
+
+/* Picture (picture-menu.js), at the top of Stream info */
+.ap-picture { max-width: 820px; margin: 0 0 20px; }
+.ap-picture .ap-pb { gap: 16px 40px; max-width: 560px; } /* stacked on the left, over the dark side of the menu's shade: the picture stays visible to judge */
+.ap-picture-status { margin-top: 10px; }

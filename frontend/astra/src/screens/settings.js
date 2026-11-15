@@ -19,7 +19,7 @@ const switchRow = (title, detail, on, change, iconName = '') => {
   return h('label', {class: 'set-row'}, iconName ? h('span', {class: 'set-icon'}, icon(iconName, {size: 20})) : null,
     h('span', {class: 'set-text'}, h('b', {}, title), detail ? h('small', {}, detail) : null), h('span', {class: 'switch'}, input, h('i')));
 };
-const choiceRow = (title, options, value, change) => h('div', {class: 'set-row column'}, h('span', {class: 'set-text'}, h('b', {}, title)),
+const choiceRow = (title, options, value, change, detail = '') => h('div', {class: 'set-row column'}, h('span', {class: 'set-text'}, h('b', {}, title), detail ? h('small', {}, detail) : null),
   h('div', {class: 'filter-chips'}, ...options.map(([v, label]) => h('button', {class: 'chip', type: 'button', 'aria-pressed': String(v === value), onclick: () => change(v)}, label))));
 const group = (label, ...rows) => h('section', {class: 'set-group'}, h('h2', {class: 'section-label'}, label), h('div', {class: 'set-card'}, ...rows.filter(Boolean)));
 
@@ -56,7 +56,7 @@ export class SettingsScreen {
         navRow('palette', 'Appearance', 'Poster size and corners', () => this.open('Appearance', p => this.appearance(p))),
         navRow('home', 'Home', 'Hero, rows and their order', () => this.open('Home', p => this.homeLayout(p))),
         navRow('extension', 'Add-ons', `${addons.filter(a => a.enabled !== false).length} active of ${addons.length}`, () => this.open('Add-ons', p => this.addons(p))),
-        navRow('play', 'Playback', 'Gestures, speed, subtitles', () => this.open('Playback', p => this.playback(p)))),
+        navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p)))),
       group('Content',
         switchRow('Recent searches', 'Keep the last 10 searches on this device', app.settings.recentSearches !== false, v => app.saveSettings({recentSearches: v}), 'search')),
       group('Data',
@@ -188,7 +188,12 @@ export class SettingsScreen {
         switchRow('Pause overlay', 'Show the title and story after 5 s paused', p.pauseOverlay, v => save({pauseOverlay: v})),
         choiceRow('Picture size', [['fit', 'Fit'], ['fill', 'Fill'], ['zoom', 'Zoom']], p.aspect, v => save({aspect: v})),
         choiceRow('Rotation', ORIENTATIONS, p.orientation, v => save({orientation: v})),
-        switchRow('Picture-in-picture', 'Keep watching in a small window when you leave Astra, where Chrome allows it. The player’s top bar has a button for it too.', p.autoPip, v => save({autoPip: v}))),
+        switchRow('Picture-in-picture', 'Keep watching in a small window when you leave Astra, where Chrome allows it. The player’s top bar has a button for it too.', p.autoPip, v => save({autoPip: v})),
+        choiceRow('Save mobile data', [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']], p.dataSaver, v => save({dataSaver: v}), 'On mobile data Astra reads less far ahead of the film.')),
+      // Both are Astra settings, so they travel in a backup; the lookup is only ever turned on here, by the owner.
+      group('Skip intro',
+        switchRow('Find intros by sound', 'Works out a series’ opening and ending on this phone by comparing episodes. Nothing is sent anywhere.', this.app.settings.findIntros !== false, v => { this.app.saveSettings({findIntros: v}); page.render(); }),
+        switchRow('Look up anime skip times', 'Asks AniSkip for an episode’s opening and ending. Sends the show’s public id, the episode number and the file’s length to api.aniskip.com and api.ani.zip; nothing else.', this.app.settings.skipLookup === true, v => { this.app.saveSettings({skipLookup: v}); page.render(); })),
       group('Subtitles',
         switchRow('OpenSubtitles', 'Also look for subtitles on OpenSubtitles, Stremio’s subtitle add-on, as well as your installed add-ons', this.app.settings.openSubtitles !== false, v => { this.app.saveSettings({openSubtitles: v}); page.render(); })),
       group('Languages',

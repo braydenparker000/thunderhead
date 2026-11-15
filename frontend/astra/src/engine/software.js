@@ -6,8 +6,7 @@
 // FLV, MPEG-PS).
 //
 // libmedia's AVPlayer (LGPL-3.0, shipped under frontend/assets/libmedia/ with
-// its licenses, see docs/PLAYBACK-0.32.md)
-// decodes with WebCodecs where the browser has the decoder and WebAssembly
+// its licenses, see docs/PLAYBACK-0.32.md) decodes with WebCodecs where the browser has the decoder and WebAssembly
 // otherwise, and paints into a MediaStream on Astra's own <video>. It reads
 // through Astra's range reader, so the block cache and the embedded subtitle
 // scanner keep working. It is loaded only when a file needs it.
@@ -36,9 +35,8 @@ export const SOFTWARE_VIDEO = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1']);
  * name that sound MP3; a Matroska file's is renamed as it is read (fixMkvLayers). Heard with
  * scripts/astra/heard.cjs: the test tone at its pitch and level in MPG, TS and MKV. */
 export const SOFTWARE_AUDIO = new Set(['aac', 'ac3', 'eac3', 'dts', 'mp3', 'opus', 'flac', 'vorbis']);
-// Sound Mediabunny has no name for, by the name the Matroska file gives it.
+// Codecs Mediabunny has no name for (sound, then picture), by the name the Matroska or MP4 file gives them.
 const OTHER_AUDIO = /^A_MPEG\/L[12]$/i;
-// Codecs Mediabunny has no name for, by the name the Matroska or MP4 file gives them.
 const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_THEORA|V_MJPEG|V_MS\/VFW\/FOURCC|V_MPEGI\/ISO\/VVC|mp4v|vvc1|vvi1)$/i;
 export const softwareVideo = track => SOFTWARE_VIDEO.has(track.codec) || (!track.codec && OTHER_VIDEO.test(String(track.internalCodec ?? '')));
 export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm') || (!track.codec && OTHER_AUDIO.test(String(track.internalCodec ?? '')));
@@ -114,6 +112,20 @@ export function fixMkvLayers(bytes) {
   return bytes;
 }
 
+// libmedia's threads and AudioContext are shared by every player and outlive each: once the last is destroyed they are stopped (the context closed); a new start waits for that.
+let stopping = Promise.resolve();
+function stopLibmedia(AVPlayer, engine) {
+  stopping = stopping.then(async () => {
+    await engine.destroy().catch(() => {});
+    if (AVPlayer.Instances?.length || typeof AVPlayer.stopPipelines !== 'function') return;
+    const context = AVPlayer.audioContext;
+    await AVPlayer.stopPipelines().catch(() => {});
+    // Closed before the next start: libmedia's listener for the context's change reads it from every player.
+    await context?.close?.().catch(() => {}); await new Promise(resolve => setTimeout(resolve, 0));
+  });
+  return stopping;
+}
+const closed = () => Object.assign(new Error('The software decoder was closed.'), {kind: 'closed'});
 /** A libmedia reader over Astra's HttpSource. */
 function sourceLoader(AVPlayer, source, ext = '') {
   return new class extends AVPlayer.IOLoader.CustomIOLoader {
@@ -154,6 +166,8 @@ export class SoftwareSession extends EventTarget {
     this.queue = Promise.resolve();
     this.destroyed = false;
     this.stats = {restarts: 0};
+    // Ends every wait of start() at destroy().
+    (this.gone = new Promise((_, reject) => { this.leave = () => reject(closed()); })).catch(() => {});
   }
 
   emit(type, detail) { this.dispatchEvent(new CustomEvent(type, {detail})); }
@@ -164,8 +178,9 @@ export class SoftwareSession extends EventTarget {
 
   async start(startTime = 0, {autoplay = true} = {}) {
     this.emit('status', 'Loading the software decoder…');
-    const AVPlayer = await loadLibmedia();
-    if (this.destroyed) return;
+    const AVPlayer = this.AVPlayer = await loadLibmedia();
+    await stopping; // an earlier session's threads finish stopping first
+    if (this.destroyed) throw closed(); // replaced meanwhile: the caller must not go on with this film
     AVPlayer.setLogLevel(globalThis.ASTRA_DECODER_LOG ?? 5); // 5 is silent; the lab sets a lower number to hear the decoder
     this.stream = new MediaStream();
     const engine = this.engine = new AVPlayer({
@@ -176,8 +191,8 @@ export class SoftwareSession extends EventTarget {
     failed.catch(e => this.fail(e));
     this.emit('status', 'Reading the file…');
     const ext = sniffContainer(await this.source.read(0, Math.min(this.source.size, 400)));
-    await Promise.race([engine.load(sourceLoader(AVPlayer, this.source, ext), {ext}), failed]);
-    if (this.destroyed) return;
+    await Promise.race([engine.load(sourceLoader(AVPlayer, this.source, ext), {ext}), failed, this.gone]);
+    if (this.destroyed) throw closed();
     const streams = engine.getStreams(), kind = s => String(s.mediaType).toLowerCase();
     // In an FLV file libmedia calls Sorenson Spark H.263, which its H.263 decoder does not decode.
     const decodable = s => !!wasmUrl('decoder', Number(s.codecparProxy?.codecId)) && !(ext === 'flv' && Number(s.codecparProxy?.codecId) === 4);
@@ -198,25 +213,30 @@ export class SoftwareSession extends EventTarget {
     // One deadline for the whole start: some files never produce a picture.
     let timer = 0;
     const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 20000); });
-    const step = promise => Promise.race([promise, failed, deadline]);
+    const step = promise => Promise.race([promise, failed, deadline, this.gone]);
     const firstFrame = new Promise(resolve => engine.on('firstVideoRendered', resolve));
     // Sound that runs on for seconds with no picture means the picture will not come.
     const soundOnly = new Promise((_, reject) => engine.on('firstAudioRendered', () => setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 6000)));
     soundOnly.catch(() => {});
-    const muted = this.video.muted;
+    this.mutedBefore = this.video.muted;
     try {
       await step(engine.play({audio: true, video: true, subtitle: false}));
       if (startTime > 0) await step(engine.seek(BigInt(Math.round(startTime * 1000))));
-      if (this.destroyed) return;
+      if (this.destroyed) throw closed();
       // The element shows nothing until it plays the stream, so play to the first frame even when asked not to start.
       if (!autoplay) this.video.muted = true;
       await step(engine.resume().catch(() => {}));
       this.nativePlay().catch(() => {});
       await Promise.race([step(firstFrame), soundOnly]);
-    } finally { clearTimeout(timer); }
-    if (this.destroyed) return;
-    if (!autoplay) { await engine.pause(); this.nativePause(); this.video.muted = muted; }
+      if (this.destroyed) throw closed();
+      if (!autoplay) { await engine.pause(); this.nativePause(); }
+    } finally {
+      clearTimeout(timer);
+      this.unmute(); // however the start ended: muted only while it played to the first frame
+    }
   }
+
+  unmute() { if (this.mutedBefore != null) { this.video.muted = this.mutedBefore; this.mutedBefore = null; } }
 
   dispatch(type) { if (!this.destroyed) this.video.dispatchEvent(new Event(type)); }
 
@@ -266,13 +286,14 @@ export class SoftwareSession extends EventTarget {
 
   destroy() {
     if (this.destroyed) return;
-    this.destroyed = true;
+    this.destroyed = true; this.leave();
     for (const key of this.overrides) delete this.video[key];
     this.overrides = [];
     try { HTMLMediaElement.prototype.pause.call(this.video); } catch {}
+    this.unmute();
     if (this.video.srcObject === this.stream) this.video.srcObject = null;
     this.stream?.getTracks().forEach(t => t.stop());
-    this.engine?.destroy().catch(() => {});
+    if (this.engine) stopLibmedia(this.AVPlayer, this.engine);
     this.engine = null;
   }
 }

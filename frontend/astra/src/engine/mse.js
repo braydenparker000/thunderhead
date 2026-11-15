@@ -90,6 +90,16 @@ export class AppendQueue {
     return this.generation;
   }
 
+  /** Removes every buffered range that starts after `time` (media left from an earlier place, ahead of a new one). */
+  async dropAfter(time) {
+    const ranges = rangesOf(this.buffer);
+    for (let i = 0; i < ranges.length; i++) {
+      if (ranges.start(i) <= time) continue;
+      try { await this.run(() => this.buffer.remove(ranges.start(i), Infinity)); } catch {}
+      return;
+    }
+  }
+
   /** Starts a new generation without clearing buffered media (used on seek). */
   async restart() {
     this.generation++;
@@ -119,4 +129,11 @@ export function bufferedAhead(buffer, time) {
   const r = rangesOf(buffer);
   for (let i = 0; i < r.length; i++) if (r.start(i) <= time + 0.1 && r.end(i) > time) return r.end(i) - time;
   return 0;
+}
+
+/** The end of the buffered range that holds `time` (`time` itself when none does). */
+export function bufferedEnd(buffer, time) {
+  const r = rangesOf(buffer);
+  for (let i = 0; i < r.length; i++) if (r.start(i) <= time + 0.1 && r.end(i) > time) return r.end(i);
+  return time;
 }

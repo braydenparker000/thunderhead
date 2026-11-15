@@ -10,6 +10,8 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-video[data-aspect="fill"] { object-fit: fill; }
 .ap-video[data-aspect="zoom"] { object-fit: cover; }
 .ap-subs { position: absolute; inset: 0; pointer-events: none; }
+/* The brightness swipe below 100 %: a black layer over the picture (a filter on the video only above 100 %). */
+.ap-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
 .ap .astra-subs-zone.bottom { transition: transform var(--t-normal) var(--ease); }
 /* With the controls showing, bottom subtitles rise just clear of them (the
    lift is measured in layout()). In portrait with room under the picture they
@@ -24,6 +26,9 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 /* Picture-in-picture from the player: the video lives on in the floating window. */
 .ap.mini { visibility: hidden; pointer-events: none; }
 .ap-surface { position: absolute; inset: 0; }
+/* The video and its layers in one box, so a zoom moves them together (zoom.js); more in player-extras.css. */
+.ap-stage { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.ap-frame { display: none; }
 
 /* Controls */
 .ap-controls { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 200ms var(--ease); }
@@ -67,8 +72,13 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-timeline { position: relative; height: 48px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
 .ap-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; transition: height 180ms var(--ease); }
 .ap-timeline.active .ap-track { height: 10px; transition-duration: 140ms; }
-.ap-thumb { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); pointer-events: none; transition: transform 140ms var(--ease); }
-.ap-timeline.active .ap-thumb { transform: scale(1.3); }
+/* The thumb rides a full-width rail moved with a transform (no layout per frame); the dot is its left end. */
+.ap-thumb { position: absolute; left: 0; right: 0; top: 50%; height: 0; pointer-events: none; }
+.ap-thumb::before { content: ''; position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); transition: transform 140ms var(--ease); }
+.ap-timeline.active .ap-thumb::before { transform: scale(1.3); }
+/* A live stream: the bar is full and cannot be dragged; the time says Live. */
+.ap-timeline.live { cursor: default; }
+.ap-timeline.live .ap-thumb { display: none; }
 .ap-bubble { position: absolute; bottom: 40px; transform: translateX(-50%); padding: 6px 10px; border-radius: var(--r-md); background: rgba(20,20,20,.92); color: #fff; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
 /* Swiping to seek: the preview takes the middle, so the buttons there step aside. */
 .ap.seeking .ap-center { opacity: 0; transition: opacity 120ms; }
@@ -94,7 +104,7 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-seek-preview { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
 .ap-seek-preview b { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ap-seek-preview .fwd { color: #6ee7a8; font-weight: 700; } .ap-seek-preview .back { color: #ff9a76; font-weight: 700; }
-.ap-level { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; font-size: 13px; font-weight: 600; }
+.ap-level { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: var(--r-full); background: rgba(0,0,0,.45); pointer-events: none; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.7); } /* shaded: it sits on the picture, which may be white */
 .ap-level.left { left: max(32px, env(safe-area-inset-left, 0px)); } .ap-level.right { right: max(32px, env(safe-area-inset-right, 0px)); }
 .ap-level .icon { fill: #fff; }
 .ap-level-track { position: relative; width: 6px; height: min(25vh, 104px); border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; }
@@ -151,14 +161,19 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 
 /* Lock */
 .ap.locked .ap-controls, .ap.locked .ap-skip, .ap.locked .ap-next { display: none; }
+/* Locked, Unlock stays in the page (Tab reaches it) but shows, and takes touches, only with the hint. */
 .ap-lock { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
-.ap-unlock { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: #fff; font-size: 14px; }
+.ap-unlock, .ap-lock-track { opacity: 0; transition: opacity 160ms; }
+.ap-lock.show .ap-unlock, .ap-lock.show .ap-lock-track, .ap-unlock:focus-visible { opacity: 1; }
+.ap-lock.show .ap-unlock, .ap-unlock:focus-visible { pointer-events: auto; }
+.ap-unlock span { padding: 3px 10px; border-radius: var(--r-full); background: rgba(0,0,0,.52); text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.ap-unlock { pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: #fff; font-size: 14px; }
 .ap-unlock .icon { box-sizing: content-box; padding: 22px; border-radius: 50%; background: rgba(0,0,0,.52); border: 1px solid rgba(255,255,255,.3); fill: #fff; }
 .ap-lock-track { position: absolute; left: 20px; right: 20px; bottom: calc(24px + var(--safe-bottom)); height: 4px; border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; }
 .ap-lock-track div { height: 100%; background: var(--ap-accent); transform-origin: left; transform: scaleX(0); }
 
 /* Sound off: a chip in the corner, with or without the controls; a tap turns the sound back on. */
-.ap-muted { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: #fff; font-size: 13px; font-weight: 600; }
+.ap-muted { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: #fff; font-size: 13px; font-weight: 600; }
 .ap-muted .icon { fill: currentColor; }
 .ap.locked .ap-muted, .ap.overlay .ap-muted, .ap.mini .ap-muted { display: none; }
 
@@ -182,7 +197,7 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-modal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 4px 56px 16px 0; }
 .ap-modal-head h3 { margin: 0; }
 .ap-tabs { display: flex; gap: 4px; padding: 3px; border-radius: var(--r-full); background: rgba(255,255,255,.08); }
-.ap-tab { min-height: 40px; min-width: 76px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: none; color: rgba(255,255,255,.72); font-size: 14px; font-weight: 600; }
+.ap-tab { min-height: 44px; min-width: 76px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: none; color: rgba(255,255,255,.72); font-size: 14px; font-weight: 600; }
 .ap-tab.on { background: rgba(255,255,255,.18); color: #fff; }
 .ap-modal-close { position: absolute; top: max(8px, var(--safe-top)); right: max(12px, env(safe-area-inset-right, 0px)); }
 .ap-rails { display: flex; gap: 16px; align-items: flex-start; }
@@ -212,7 +227,7 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-toggles { display: flex; gap: 8px; }
 .ap-label { color: rgba(255,255,255,.65); font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
 .ap-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-.ap-swatch { width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
+.ap-swatch { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
 .ap-swatch.bg { border-radius: 8px; }
 .ap-swatch.on { border-color: var(--ap-accent); box-shadow: 0 0 0 2px rgba(0,0,0,.6) inset; }
 .ap-info { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; max-width: 640px; font-size: 14px; }
@@ -224,6 +239,7 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-panel-body h3 { margin: 6px 0 14px; font-size: 20px; }
 @keyframes ap-panel-in { from { transform: translateX(100%); } }
 .ap-panel-list { display: flex; flex-direction: column; gap: 10px; }
+.ap-panel-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 0; color: rgba(255,255,255,.7); font-size: 13px; }
 .ap-source { display: block; width: 100%; padding: 14px; border: 1px solid transparent; border-radius: var(--r-lg); background: rgba(255,255,255,.05); color: #fff; text-align: left; }
 .ap-source.current { border-color: var(--ap-accent); }
 .ap-source b { display: block; font-size: 14px; line-height: 20px; }

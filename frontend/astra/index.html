@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d0d0d">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="dark">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
   <title>Astra</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" sizes="192x192">
@@ -40,6 +40,11 @@
   <link rel="modulepreload" href="src/player/external.js">
   <link rel="modulepreload" href="src/screens/catalog.js">
   <link rel="modulepreload" href="src/app/recovery.js">
+  <link rel="modulepreload" href="src/app/playing.js">
+  <link rel="modulepreload" href="src/app/skip.js">
+  <link rel="modulepreload" href="src/addons/stream-facts.js">
+  <link rel="modulepreload" href="src/addons/device-facts.js">
+  <link rel="modulepreload" href="src/subtitles/charset.js">
 </head>
 <body>
   <main id="app" class="astra"></main>

@@ -68,3 +68,25 @@ test('after a jump: waiting reads end as closed, their downloads stop, and readi
   assert.deepEqual(calls.slice(0, before).map((c) => c.sent), sent);
   source.close();
 });
+
+test('a scanner that looks at every block as it lands does not pull the download along: it pauses at the read-ahead limit', async () => {
+  const { calls, fetchFn } = host();
+  const source = new HttpSource('https://files.example/film.mkv', { fetchFn });
+  await source.open();
+  await source.read(0, 16); // playback has read the first block, and is paused there
+  // The subtitle scanner's way: every block that lands is looked at, as a whole and across its edge.
+  let looked = 0;
+  source.onBlock((i) => { if (source.peek(i * BLOCK, (i + 1) * BLOCK) && (i === 0 || source.peek(i * BLOCK - 3, i * BLOCK + 3))) looked++; });
+  await new Promise((r) => setTimeout(r, 600));
+  const cached = source.cachedBlocks();
+  assert.ok(looked >= 20, `the scanner saw the blocks (${looked})`);
+  assert.ok(Math.max(...cached) <= 26, `the download stopped near 24 MiB past what was read, not at the end (block ${Math.max(...cached)})`);
+  assert.equal(calls.length, 1, 'and nothing was fetched twice');
+  // Peeking leaves the cache's order alone: the block read longest ago is still the first to go.
+  source.peek(0, 4);
+  assert.equal(source.cachedBlocks()[0], 0);
+  assert.equal(source.peek(39 * BLOCK, 39 * BLOCK + 4), null, 'a block not here is not fetched for a peek');
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(!source.cachedBlocks().includes(39));
+  source.close();
+});

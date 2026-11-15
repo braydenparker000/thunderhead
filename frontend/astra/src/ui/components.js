@@ -239,15 +239,20 @@ export function confirm(title, {message = '', action = 'OK', destructive = false
   return close;
 }
 
-let toastTimer = 0;
-/** A short message at the top centre. */
-export function toast(text, {action = null} = {}) {
+let toastTimer = 0, pinned = null;
+/** A short message at the top centre. With `stay`, it stays (shown again after any other toast)
+ * until its action is taken or Later is tapped. */
+export function toast(text, {action = null, stay = false} = {}) {
   let el = document.querySelector('.toast');
   if (!el) { el = h('div', {class: 'toast', role: 'status', 'aria-live': 'polite'}); document.body.append(el); }
-  el.replaceChildren(...[h('span', {}, text), action ? h('button', {type: 'button', onclick: () => { el.classList.remove('show'); action.run(); }}, action.label) : null].filter(Boolean));
+  if (stay) pinned = {text, action};
+  const hide = () => { pinned = null; el.classList.remove('show'); };
+  const later = stay ? h('button', {type: 'button', onclick: hide}, 'Later') : null;
+  if (later) later.style.color = 'var(--muted)';
+  el.replaceChildren(...[h('span', {}, text), action ? h('button', {type: 'button', onclick: () => { hide(); action.run(); }}, action.label) : null, later].filter(Boolean));
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), action ? 4000 : 2500);
+  if (!stay) toastTimer = setTimeout(() => { if (pinned) toast(pinned.text, {action: pinned.action, stay: true}); else el.classList.remove('show'); }, action ? 4000 : 2500);
 }
 
 export function skeletonRow(count = 6, {title = true, landscape = false} = {}) {

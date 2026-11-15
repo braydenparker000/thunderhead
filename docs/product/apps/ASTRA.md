@@ -23,6 +23,8 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
 4. **libmedia stays** (owner ruling 2026-10-28: the owner has permission, and it is Astra's software decoder for HEVC/AV1/VP9 without hardware support, 10-bit H.264 and AVI/FLV/MPEG-PS). mediabunny (MPL-2.0) stays too. libmedia is a named exception to the no-GPL rule; keep its licence files beside it.
 5. **No third-party script origins** (later step, §2 #7). The as-is port keeps loading hls.js and
    dash.js as today; vendoring them waits for the owner's yes.
+   **As built (2026-11-15):** done. hls.js and dash.js are vendored in `frontend/astra/vendor/` and
+   loaded with their pinned integrity hashes; no Astra page names a script origin other than its own.
 6. **The old backup format (`backup/1`) is the migration format.** The owner's Astra data arrives on
    the new site through it, checked and all-or-nothing, as Astra's own restore already does.
 7. **Nothing plays without a tap**, including anything the mind arranged.
@@ -91,9 +93,9 @@ the owner agrees.
 | 3 | **Tokens** | `src/styles/tokens.css` maps onto the Thunderhead tokens ([DESIGN-SYSTEM](../../design/DESIGN-SYSTEM.md)). Night: pure black `#000` background, surfaces from the night tokens. Day: the day tokens for browse screens. Accent: `#8b5cf6` for fills (selected tab, primary button, progress); text accent per the design system. **The player screen stays black in both themes.** | Visual snapshot in day and night at 390×844. |
 | 4 | **Fonts** | Remove Astra's six static Inter files (`fonts/inter-400…900.woff2`). Use the shared self-hosted `/ui/fonts/Inter.woff2` (variable). Fraunces is not used in Astra (it is only the Thunderhead's voice). | Static test: no `woff2` under `apps/astra/`; total font bytes unchanged site-wide. |
 | 5 | **Icons** | Astra's drawn icons are replaced by the shared Phosphor sprite where an equivalent exists; player glyphs that have no Phosphor match stay as Astra's own SVG. | Static test: no inline icon map duplicates a sprite symbol. |
-| 6 | **Service worker** | Delete Astra's `sw.js` and its release logic. The root service worker (scope `/`) precaches Astra's files with the rest of the release. The root worker's activate step deletes only `th-<older>` caches, so Astra's `astra-data-v1` cache survives updates. The "Astra has been updated · Reload" toast is replaced by the shell's update rule (apply only when nothing is playing). | Browser test: offline start of `/astra/`; an update never reloads mid-play. |
-| 7 | **Third-party scripts** | hls.js 1.6.13 (Apache-2.0) and dash.js 5.2.0 (BSD-3-Clause) are vendored at `/vendor/hls.js-1.6.13/` and `/vendor/dashjs-5.2.0/` with licences and sha256, loaded on demand as today. `cdn.jsdelivr.net` is removed from the CSP. | Static test: no `https://cdn.` in `apps/astra/`. |
-| 8 | **CSP** | Astra keeps its own `<meta>` CSP (it is a separate document), **unchanged** at the port: today's sources, including `https://cdn.jsdelivr.net` for hls.js and dash.js (rule 5), `'wasm-unsafe-eval'` and `blob:` for libmedia, `https:` for add-ons and streams, and the `http://localhost:*` / `http://127.0.0.1:*` entries. Trimming any of them is a later step the owner agrees to. | Static test: the CSP equals the one recorded for `/astra/` in `ported.json` ([SECURITY](../../engineering/SECURITY.md) §4.4). |
+| 6 | **Service worker** | Delete Astra's `sw.js` and its release logic. The root service worker (scope `/`) precaches Astra's files with the rest of the release. The root worker's activate step deletes only `th-<older>` caches, so Astra's `astra-data-v1` cache survives updates. The "Astra has been updated · Reload" toast is replaced by the shell's update rule (apply only when nothing is playing). **As built (2026-11-15):** Astra keeps its own worker (`frontend/astra/sw.js`). A release is named by `components.astra.tree` in `/release.json`, a hash of every file under `frontend/astra` as staged (a commit elsewhere is not a release), and listed with a hash of each file in `/astra/files.json` (`scripts/astra/files.mjs`, written by `scripts/stage.mjs`). A new release is saved whole, unchanged files copied and the rest checked against their hash, before pages are told; a page keeps its release until it closes; `vendor/` is saved when a film first needs it; the Reload offer stays until Reload or Later. Nothing reloads by itself, so never mid-play. | Browser test: offline start of `/astra/`; an update never reloads mid-play. As built: `tests/astra-sw.test.mjs`, `tests/astra-sw-browser.test.mjs`. |
+| 7 | **Third-party scripts** | hls.js 1.6.13 (Apache-2.0) and dash.js 5.2.0 (BSD-3-Clause) are vendored at `/vendor/hls.js-1.6.13/` and `/vendor/dashjs-5.2.0/` with licences and sha256, loaded on demand as today. `cdn.jsdelivr.net` is removed from the CSP. **As built (2026-11-15):** vendored at `frontend/astra/vendor/hls/` and `vendor/dash/` (served under `/astra/vendor/`) with their licences, pinned in `vendor/vendor.json` with a sha256 of every file and the integrity hash `engine/adaptive.js` gives the browser; loaded only when an HLS or DASH stream plays. `cdn.jsdelivr.net` is gone from both Astra pages' CSP. | Static test: no `https://cdn.` in `apps/astra/`. As built: `frontend/ported.json` records the CSP without it, and `node scripts/astra/vendor.mjs --check` checks the files. |
+| 8 | **CSP** | Astra keeps its own `<meta>` CSP (it is a separate document), **unchanged** at the port: today's sources, including `https://cdn.jsdelivr.net` for hls.js and dash.js (rule 5), `'wasm-unsafe-eval'` and `blob:` for libmedia, `https:` for add-ons and streams, and the `http://localhost:*` / `http://127.0.0.1:*` entries. Trimming any of them is a later step the owner agrees to. **As built (2026-11-15):** `script-src 'self' 'wasm-unsafe-eval' blob:` (no CDN; `'wasm-unsafe-eval'` and `blob:` now also serve libass's WebAssembly and the Sound tab's small worklet, made from a `blob:`); the rest unchanged: `https:` and the two local entries for images, media and connections, `worker-src 'self' blob:`, `default-src 'none'`. | Static test: the CSP equals the one recorded for `/astra/` in `ported.json` ([SECURITY](../../engineering/SECURITY.md) §4.4). |
 | 9 | **Error reports** | `/assets/error-report.js` is replaced by the shell's error reporter (`POST /v1/ops/errors`), with the secret scrubber of §5. | Unit test of the scrubber. |
 | 10 | **`th` bridge** | Astra imports `/th/th.js` for `sense()`, verbs and sign-in state (same origin, same IndexedDB token). No other shell code. | Static test: Astra imports only `/th/th.js` from outside its folder. |
 | 11 | **Senses** | `astra.watch` and friends (§3). | Sense schema tests. |
@@ -180,6 +182,17 @@ How it is enforced:
    unknown size is hidden: it may be any size. A stream whose size and the title's runtime are known
    shows what an hour of it costs ("710 MB an hour"). This orders and hides at the owner's word only;
    Astra still never picks or plays a stream.
+   **As built (2026-11-15), the next episode (`app/playing.js`):** Next, or an episode picked in the
+   player, stops what plays and collects that episode's streams. Only when the stream playing names a
+   release group (`bingeGroup`) and the new episode has a stream of the same group does that one play
+   on (the group the owner already picked, as Stremio does); otherwise the player opens the episode's
+   sources, through the owner's filters (those hidden are counted and can be shown), and loads nothing
+   until a tap. The earlier fallback that played the first source when no group matched is gone.
+   **"Plays on this phone" (2026-11-15, `addons/device-facts.js`):** each playable stream card says, on
+   one quiet line, "Plays directly" or "Needs the software decoder (uses more battery)", from its
+   label and the browser's own answer (`navigator.mediaCapabilities.decodingInfo`: smooth and
+   power-efficient), and "Sound converted on the phone" for Dolby Digital or DTS. It informs only:
+   nothing is hidden, ranked or picked by it.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
 4. **The mind never sees streams**: the Worker holds no stream data; senses carry none (§3).
@@ -210,6 +223,12 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    with `***`, and any 32+ character hex or base64url run with `***`. Check: unit tests with fixture
    add-on URLs (invented hosts).
 4. Fixture add-ons in tests use invented hosts (`addon.example`) and invented tokens.
+5. **As built (2026-11-15):** "Check playback in the lab" sends the stream address in the fragment
+   (`lab/#src=…`), which never reaches a server or a cache key, and the lab removes it from the address
+   bar and history as soon as it has read it (`?src=` still works and is removed the same way). Astra's
+   saved copy never keys a cache by a query: pages are saved by address alone, the page reports its
+   files without query or fragment, and the worker's activate step deletes any entry an earlier
+   version saved with one. The skip-times lookup (below) sends no add-on, stream or title name.
 
 ### 5.3 Server copy (Worker-encrypted)
 
@@ -229,10 +248,12 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 
 | Component | Licence | Verdict |
 |---|---|---|
-| mediabunny 1.55.7 (`mediabunny.js`) | MPL-2.0 | Keep (file-level copyleft; we ship it unmodified with its licence). Consider updating to the current release when touching the engine. |
-| `@mediabunny/ac3`, `@mediabunny/dts` 1.55.7 | MPL-2.0 wrappers around FFmpeg decoders compiled to WebAssembly, which FFmpeg licenses as LGPL-2.1+ | Keep. The package README's FFmpeg configure line shows no `--enable-gpl` **[verify against the package's build script when updating]**. |
-| hls.js 1.6.13 | Apache-2.0 | Vendor (§2 #7). |
-| dash.js 5.2.0 | BSD-3-Clause | Vendor (§2 #7). |
+| mediabunny 1.55.7 (`mediabunny.js`) | MPL-2.0 | Keep (file-level copyleft; we ship it unmodified with its licence). Consider updating to the current release when touching the engine. **As built (2026-11-15):** 1.66.0. |
+| `@mediabunny/ac3`, `@mediabunny/dts` 1.55.7 | MPL-2.0 wrappers around FFmpeg decoders compiled to WebAssembly, which FFmpeg licenses as LGPL-2.1+ | Keep. The package README's FFmpeg configure line shows no `--enable-gpl` **[verify against the package's build script when updating]**. **As built (2026-11-15):** 1.66.0, with `@mediabunny/truehd` 1.66.0 (Dolby TrueHD, the same kind of FFmpeg build) beside them. |
+| hls.js 1.6.13 | Apache-2.0 | Vendor (§2 #7). **Vendored 2026-11-15** (`vendor/hls/`, its licence beside it). |
+| dash.js 5.2.0 | BSD-3-Clause | Vendor (§2 #7). **Vendored 2026-11-15** (`vendor/dash/`); its build also holds `buffer`, `ieee754`, codem-isoboxer and a `String.fromCodePoint` polyfill (MIT, BSD-3-Clause), whose notices ship beside it. |
+| JASSUB 2.5.37 (`vendor/jassub/`, added 2026-11-15) | MIT for JASSUB itself; inside its WebAssembly: libass (ISC), FreeType (FTL, chosen over GPL-2.0), HarfBuzz (MIT-Modern-Variant), GNU FriBidi (LGPL-2.1+), Brotli and mimalloc (MIT), Emscripten's runtime; bundled with abslink (Apache-2.0), rvfc-polyfill (GPL-3.0, inactive in Chrome) and throughput (MIT); Liberation Sans (OFL 1.1) as the fallback font | Keep. Every part, its licence and its source are listed in `vendor/LICENSES.md`; the LGPL part is linked into separate `.wasm` files anyone can rebuild and replace. rvfc-polyfill is a GPL file shipped under the owner's any-licence ruling (AGENTS.md, 2026-11-09), its source public. |
+| AMD FidelityFX Super Resolution 1.0 (EASU, RCAS), ported in `src/enhance/fsr.js` (added 2026-11-15) | MIT (Advanced Micro Devices) | Keep, with its notice in the file and in `src/enhance/LICENSES.md`. The de-band pass beside it is Astra's own. |
 | libmedia 1.3.1 (AVPlayer JS) | LGPL-3.0 | Its JavaScript alone would be allowed, but it is useless without its decoders. |
 | libmedia FFmpeg decoders (`decode/*.wasm`, `resample`, `stretchpitch`) | **GPL-3.0 in effect.** At the pinned commit (`152f629…`), `build/build-ffmpeg-decoder.sh` and `build/build-ffmpeg-util.sh` configure FFmpeg with `--enable-gpl --enable-version3`. FFmpeg built with `--enable-gpl` is distributed under the GPL. (The old repo ships no x264/x265 encoders, which upstream names as its GPL parts, but the decoder build flag alone settles it.) | **Kept by owner ruling 2026-10-28** (owner has permission; named exception to the no-GPL rule). Ship its licence files beside it. |
 | Nuvio, Stremio web | GPL | Design references only; nothing copied (as today). |
@@ -287,6 +308,13 @@ same counts, add-on URLs never present in any captured log or event.
 New tests: the stream rule (§4.4), the scrubber (§5.2), the backup endpoint roles (§5.3), the CSP and
 font checks (§2), and the `?open=` deep link.
 
+**As built (2026-11-15):** Astra's tests are `tests/astra-*.test.mjs` in the root `node --test` run,
+the browser ones (`*-browser.test.mjs`) through Playwright against films from a local file host
+(`tests/fixtures/astra-host.mjs`) that can misbehave on purpose. The films are made by
+`scripts/astra/fixtures.sh` and committed (`tests/fixtures/astra/`, about 2.7 MB); `node
+scripts/astra/vendor.mjs --check` checks the vendored files. Each file is listed in
+`frontend/astra/README.md`, Tests.
+
 ---
 
 
@@ -295,6 +323,43 @@ font checks (§2), and the `?open=` deep link.
 One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `astra/tonight`, kind `shortlist`, placed by `astra.shortlist`: "three for tonight", two or three titles and up to three filters for the owner to pick from; it never picks or plays. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
 
 **As built (2026-11-04, `frontend/astra/src/ui/components.js` `mountTonight`):** a card on Home under the hero ("Three for tonight"): each title a button that opens it, the filters under it, Why and Dismiss. It never picks or plays.
+
+## The player, as built (2026-11-15)
+
+The player was hardened and gained these on 2026-11-15. Paths are under
+`frontend/astra/src/`; how each behaves is in `frontend/astra/README.md`. Nothing in it plays,
+skips or picks a stream by itself.
+
+| Capability | Where |
+|---|---|
+| The screen split into parts that each shut down on close | `player/player-screen.js`, `view.js`, `controls.js`, `menus.js`, `surface.js`, `timeline.js`, `markers.js`, `loading.js`, `system.js` |
+| Playback menu: speed 0.5x to 2x (pitch kept), sleep timer (15 to 60 min, end of episode), repeat a part (A–B), Sound only | `player/playback.js`, `sleep.js`, `repeat.js`, `sound-only.js` |
+| Volume, brightness and speed remembered; "Start over" after a resume | `player/prefs.js`, `extras.js`, `resume.js` |
+| Seek bar: skippable parts, chapter marks, chapter names while dragging; live streams marked Live | `player/marks.js`, `timeline.js` |
+| Frame step while paused; Save this frame (PNG named by title and time) | `player/frames.js` |
+| Pinch to zoom, 1x to 4x, and moving the zoomed picture | `player/zoom.js`, `gestures.js` |
+| Subtitle delay in 0.1 s and 1 s steps; Find a line; a second subtitle track | `player/subtitle-menu.js`, `find.js`, `engine/player-second.js` |
+| ASS/SSA drawn by libass with the film's attached fonts | `subtitles/libass.js`, `engine/player-libass.js`, `engine/mkv-attachments.js` |
+| Data used so far; the data saver (Settings › Playback) | `player/info-extras.js`, `engine/player-data.js` |
+| Sound tab: volume boost, night mode, dialogue, sound delay | `player/sound-menu.js`, `enhance/sound.js`, `enhance/sound-chain.js`, `engine/player-sound.js` |
+| Picture: sharpen (AMD FSR 1.0) and smooth banding, off for HDR, stepping itself down | `player/picture-menu.js`, `enhance/picture.js`, `filter.js`, `fsr.js` |
+| Skip intro: found by sound on the phone, or looked up for anime | `app/skip.js`, `engine/intro-finder.js`, `fingerprint.js`, `fingerprint-match.js`, `sound-tap.js`, `app/intro-store.js`, `addons/skip-times.js` |
+| Dolby TrueHD sound; chapters; MPEG-TS start times; a stall watchdog | `engine/audio-decoders.js`, `chapters.js`, `stall-watch.js` |
+| How a stream will play on this phone, on its card | `addons/device-facts.js`, `screens/streams.js` |
+| The next episode opening its sources and waiting (§4.4) | `app/playing.js` |
+
+**Skip intro's two sources and their privacy.** *Found by sound* (Settings › Playback › Find intros
+by sound, on by default) works entirely on the phone: while an episode plays, Astra fingerprints the
+sound of its first six and last four minutes and matches it against episodes of the same series it
+heard before; the fingerprints and segments stay in the browser's IndexedDB (`astra-intro`) and
+nothing is sent anywhere. It only hears films Astra re-wraps itself (`remux`), not ones Chrome plays
+directly, HLS or DASH streams, or the software decoder. *Looked up* (Settings › Playback › Look up
+anime skip times) is **off unless the owner turns it on**. Then, for a series with a MyAnimeList,
+Kitsu or (first season only) IMDb id, it sends that public id to `api.ani.zip` to learn the
+MyAnimeList id, and the MyAnimeList id, the episode number and the file's length in whole seconds to
+`api.aniskip.com`; no cookies, no referrer, no add-on, stream or title name. Either way the Skip
+button only offers: nothing skips without a tap.
+
 ## Open questions / tests
 
 | # | Question | How to settle |
