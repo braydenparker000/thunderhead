@@ -16,6 +16,7 @@ const ID = {
   Chapters: 0x1043a770, Cues: 0x1c53bb6b, CuePoint: 0xbb, CueTime: 0xb3, CueTrackPositions: 0xb7, CueClusterPosition: 0xf1,
   Cluster: 0x1f43b675, Timestamp: 0xe7, SimpleBlock: 0xa3, BlockGroup: 0xa0, Block: 0xa1, BlockDuration: 0x9b,
   BlockAdditionMapping: 0x41e4, BlockAddIDType: 0x41e7, BlockAddIDExtraData: 0x41ed,
+  Attachments: 0x1941a469, AttachedFile: 0x61a7, FileName: 0x466e, FileMediaType: 0x4660, FileData: 0x465c,
 };
 const DOLBY_VISION = new Set([0x64766343, 0x64767643, 0x64767743]); // 'dvcC', 'dvvC', 'dvwC'
 
@@ -63,7 +64,7 @@ function float(bytes, start, end) {
   return end - start === 4 ? view.getFloat32(0) : end - start === 8 ? view.getFloat64(0) : 0;
 }
 const decoder = new TextDecoder();
-function string(bytes, start, end) { return decoder.decode(bytes.subarray(start, end)).replace(/\0+$/, ''); }
+export function string(bytes, start, end) { return decoder.decode(bytes.subarray(start, end)).replace(/\0+$/, ''); }
 
 /** Iterates the children of [start, end) of a fully loaded element; a child that claims to run past its parent ends the walk. */
 export function* children(bytes, start, end) {
@@ -176,6 +177,7 @@ export async function readLayout(read, size) {
     if (h.id === ID.Cluster) { layout.firstCluster = pos; layout.unknownClusterSizes = h.size == null; break; }
     if (h.size == null) break;
     if ([ID.SeekHead, ID.Info, ID.Tracks, ID.Cues, ID.Chapters].includes(h.id) && h.size < (16 << 20)) { await parseTop(h, pos); seen.add(h.id); }
+    if (h.id === ID.Attachments) layout.attachments = pos; // only where: the fonts are read when a styled track is chosen (mkv-attachments.js)
     pos = h.dataStart + h.size;
   }
   // Elements placed after the clusters (usually the cue index) via the seek head.
@@ -186,6 +188,7 @@ export async function readLayout(read, size) {
     const h = header(bytes, 0);
     if (h && h.id === id && h.size != null && h.size < (16 << 20)) { await parseTop({...h, dataStart: at + h.dataStart}, at); seen.add(id); }
   }
+  if (layout.attachments == null && seeks.get(ID.Attachments) < size) layout.attachments = seeks.get(ID.Attachments); // checked when read
   if (layout.durationTicks != null) layout.duration = layout.durationTicks * layout.timestampScale / 1e9;
   delete layout.durationTicks;
   return layout;

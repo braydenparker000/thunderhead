@@ -108,6 +108,7 @@ export class MkvSubtitleScanner extends BlockScanner {
 
   get active() { return this.tracks.size > 0; }
   get clustersRead() { return this.clustersScanned; }
+  // onBlocks(trackId, [{text, start, duration}]): set by the player for the raw blocks of styled (ASS/SSA) tracks.
 
   async process(batch) {
     for (const i of batch) { this.discover(i); await this.breathe(); if (this.stopped) return; }
@@ -181,7 +182,7 @@ export class MkvSubtitleScanner extends BlockScanner {
   }
 
   async emit(blocks) {
-    const found = new Map();
+    const found = new Map(), raw = new Map();
     let changed = false;
     for (const block of blocks) {
       const track = this.tracks.get(block.track);
@@ -199,11 +200,14 @@ export class MkvSubtitleScanner extends BlockScanner {
         const body = text.decode(payload);
         const end = block.start + (block.duration ?? DEFAULT_DURATION);
         cue = track.format === 'ass' ? assBlockCue(body, block.start, end, this.headers.get(block.track)) : srtBlockCue(body, block.start, end);
+        // A styled track's blocks as they are, for libass (the player keeps them: libass may start after they were read).
+        if (track.format === 'ass') (raw.get(track.id) || raw.set(track.id, []).get(track.id)).push({text: body, start: block.start, duration: block.duration ?? DEFAULT_DURATION});
       }
       if (!cue) continue;
       if (!found.has(track.id)) found.set(track.id, []);
       found.get(track.id).push(cue);
     }
+    for (const [id, list] of raw) this.onBlocks?.(id, list);
     for (const [id, cues] of found) this.onCues(id, cues);
     if (changed) this.onChange();
   }

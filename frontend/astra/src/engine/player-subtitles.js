@@ -11,6 +11,8 @@ import {MkvSubtitleScanner, Mp4SubtitleScanner} from './embedded-subtitles.js';
 import {downloadSubtitle, decodeSubtitleBytes} from '../addons/subtitles.js';
 import {parseSubtitleFile} from '../subtitles/parse.js';
 import {languageName} from './languages.js';
+import {assScript, libassMethods} from './player-libass.js';
+import {secondMethods} from './player-second.js';
 
 const NOT_READ = {
   size: 'This file is too large to be subtitles.', type: 'This is not a subtitle file.', binary: 'This is not a subtitle file.',
@@ -18,6 +20,9 @@ const NOT_READ = {
 };
 
 export const subtitleMethods = {
+  ...libassMethods, // styled tracks drawn by libass (player-libass.js)
+  ...secondMethods, // the second track (player-second.js)
+
   /** Lists the file's own subtitle tracks and starts reading its text tracks from the shared cache. */
   startScanner() {
     const {plan, info, probed} = this;
@@ -30,6 +35,7 @@ export const subtitleMethods = {
     const texts = (info.subtitles || []).filter(s => !s.image);
     this.scanner = info.layout ? new MkvSubtitleScanner(probed.source, info.layout, texts, onCues, () => this.subtitles.refresh())
       : info.subtitles?.some(s => s.samples) ? new Mp4SubtitleScanner(probed.source, info.subtitles, onCues) : null;
+    if (this.scanner) this.scanner.onBlocks = (trackId, blocks) => this.receiveBlocks(trackId, blocks); // styled tracks, for libass
     this.scanner?.start();
     const chosen = this.textTracks.find(t => t.id === this.selectedSubtitle);
     if (chosen?.image) this.readPictures(chosen.id);
@@ -59,6 +65,7 @@ export const subtitleMethods = {
     if (!this.cues.has(trackId)) this.cues.set(trackId, []);
     this.cues.get(trackId).push(...cues);
     if (trackId === this.selectedSubtitle) this.subtitles.addCues(cues);
+    this.secondCues(trackId, cues);
   },
 
   /** Subtitle choices: built-in first, then exact matches, then the rest in arrival order. */
@@ -73,6 +80,7 @@ export const subtitleMethods = {
     const track = id == null ? null : this.textTracks.find(t => t.id === id);
     if (id != null && (!track || !track.supported)) return;
     this.selectedSubtitle = track ? track.id : null;
+    if (track && track.id === this.secondSubtitle) this.dropSecond(); // one track is not shown twice
     if (this.hls) this.hls.subtitleTrack = track?.kind === 'stream' ? track.index : -1;
     if (this.dash) {
       this.dash.enableText?.(track?.kind === 'stream');
@@ -81,6 +89,7 @@ export const subtitleMethods = {
     if (track?.kind === 'stream') queueMicrotask(() => this.pullTextTrackCues());
     this.readPictures(track?.kind === 'embedded' && track.image ? track.id : null);
     this.subtitles.setCues(track ? this.cues.get(track.id) || [] : []);
+    this.styleSubtitle(track); // ASS/SSA: libass too (player-libass.js)
     if (track?.kind === 'external' && !track.loaded) this.loadTrack(track);
     this.record('subtitle', track?.label ?? 'off');
     this.emit('tracks');
@@ -93,15 +102,19 @@ export const subtitleMethods = {
     track.loading = (async () => {
       try {
         const bytes = await downloadSubtitle(track.url, {signal, timeout: 20000});
-        const cues = parseSubtitleFile(decodeSubtitleBytes(bytes, track.language), track.format || track.url);
+        const text = decodeSubtitleBytes(bytes, track.language), cues = parseSubtitleFile(text, track.format || track.url);
         if (!cues.length) throw Object.assign(Error('empty'), {kind: 'empty'});
         track.loaded = true;
-        if (this.textTracks.includes(track)) this.receiveCues(track.id, cues);
+        track.assText = assScript(text, track.format || track.url);
+        if (!this.textTracks.includes(track)) return;
+        this.receiveCues(track.id, cues);
+        if (this.selectedSubtitle === track.id && track.assText) this.styleSubtitle(track);
       } catch (e) {
         if (signal?.aborted || !this.textTracks.includes(track)) return; // another film, or closed: nothing to say
         track.supported = false;
         track.reason = NOT_READ[e?.kind] || (e?.kind === 'http' ? String(e.message) : e?.name === 'TimeoutError' ? 'The subtitle server did not answer.' : 'Could not be downloaded.');
         if (this.selectedSubtitle === track.id) { this.selectedSubtitle = null; this.subtitles.setCues([]); }
+        if (this.secondSubtitle === track.id) this.dropSecond();
         this.record('subtitle-error', e?.kind || e?.name || 'failed');
       } finally {
         track.loading = null;
@@ -119,7 +132,7 @@ export const subtitleMethods = {
     if (url && this.textTracks.some(t => t.url === url)) return null;
     this.externalCount = (this.externalCount || 0) + 1;
     const id = 'ext:' + this.externalCount;
-    const track = {id, label: label || languageName(language) || 'Subtitles', language, kind: 'external', supported: true, url, format, source, exact, name, loaded: text != null};
+    const track = {id, label: label || languageName(language) || 'Subtitles', language, kind: 'external', supported: true, url, format, source, exact, name, loaded: text != null, assText: text != null ? assScript(text, format || url || '') : null};
     this.textTracks.push(track);
     if (text != null) this.receiveCues(id, parseSubtitleFile(text, format || url || ''));
     if (!silent) this.emit('tracks');

@@ -29,7 +29,7 @@ after(async () => { await browser?.close(); site?.close(); await host?.close(); 
 
 /**
  * One open player on the lab page: `window.p`, `window.fake` to move its clock. `prefs` are saved
- * before it is built; `second` gives the engine the second-subtitle methods it will have.
+ * before it is built; `second` true puts recording stand-ins for the engine's second-subtitle methods, 'none' takes them away.
  */
 async function player(t, { open = {}, prefs = null, second = false, clock = false } = {}) {
   const context = await browser.newContext({ viewport: LANDSCAPE, hasTouch: true, isMobile: true, acceptDownloads: true });
@@ -46,11 +46,11 @@ async function player(t, { open = {}, prefs = null, second = false, clock = fals
       window.wake.held++; const s = new EventTarget(); s.release = async () => { window.wake.held--; }; return s;
     } } });
     const { AstraPlayer } = await import('/astra/src/engine/player.js');
-    if (second) {
+    if (second === true) {
       window.secondCalls = [];
       AstraPlayer.prototype.setSecondLayer = function (el) { window.secondLayer = el; };
       AstraPlayer.prototype.selectSecondSubtitle = function (id) { window.secondCalls.push(id); this.secondSubtitle = id; };
-    }
+    } else if (second === 'none') { delete AstraPlayer.prototype.setSecondLayer; delete AstraPlayer.prototype.selectSecondSubtitle; }
     const { PlayerScreen } = await import('/astra/src/player/player-screen.js');
     const p = (window.p = new PlayerScreen());
     window.loads = [];
@@ -239,7 +239,7 @@ test('the second subtitle: a row in Tracks when the engine can show one, its own
   assert.deepEqual(await page.evaluate(() => window.secondCalls), ['ext:2']);
   await press(page, 'Back to the first');
   assert.equal(await page.evaluate(() => [...p.modal.querySelectorAll('.ap-row')].find((b) => b.textContent.startsWith('Second subtitle')).querySelector('small').textContent), 'Français', 'the row names the second track');
-  const plain = await player(t);
+  const plain = await player(t, { second: 'none' }); // an engine without a second track
   await plain.page.evaluate(() => p.engine.addSubtitleTrack({ text: '1\n00:00:01,000 --> 00:00:02,000\nHi\n', label: 'English', language: 'en', format: 'x.srt' }));
   await press(plain.page, 'Subtitles');
   assert.equal(await plain.page.evaluate(() => [...p.modal.querySelectorAll('button')].some((b) => b.textContent.includes('Second subtitle'))), false);

@@ -272,7 +272,7 @@ export class AstraPlayer extends EventTarget {
     this.source?.close?.(); this.source = null; // the reader of a file still being described
     this.mode = null; this.plan = null; this.info = null; this.chapters = []; this.bytesBefore = 0; this.adaptiveBytes = null;
     this.audio = []; this.textTracks = []; this.cues = new Map(); this.selectedAudio = null; this.selectedSubtitle = null;
-    this.subtitles.clear();
+    this.clearSubtitles(); // and the second track, libass's fonts and blocks (player-second.js)
     this.video.removeAttribute('crossorigin'); // set again only for a native film whose host lets the page read it
     this.video.removeAttribute('src');
     try { this.video.load(); } catch {}
@@ -285,12 +285,12 @@ export class AstraPlayer extends EventTarget {
     for (const type of ['playing', 'pause']) this.video.removeEventListener(type, this.onRun);
     this.video.removeEventListener('loadeddata', this.onFirstFrame);
     this.video.removeEventListener('timeupdate', this.onTimeUpdate);
-    this.subtitles.destroy();
+    this.destroySubtitles();
   }
 }
 
 export {baseLanguage};
 
-// Starting each pipeline (player-start.js), the subtitle tracks (player-subtitles.js), adaptive streams
-// (adaptive.js) and the data count and saver (player-data.js) live in modules of their own.
+// Starting each pipeline (player-start.js), subtitles (player-subtitles.js, with libass and the second track), adaptive
+// streams (adaptive.js), the data count and saver (player-data.js) and the sound features (player-sound.js) live apart.
 Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods);
