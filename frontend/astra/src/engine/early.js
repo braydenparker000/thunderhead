@@ -25,7 +25,9 @@ export class EarlyCuts {
   /** The packet to hand the writer: itself, or a copy marked as a key frame where a fragment is cut. */
   mark(packet) {
     let out = packet;
-    if (packet.type === 'key') { this.forced.push(false); this.cut = packet.timestamp; }
+    // The writer begins a fragment at a key frame only when it is shown after every frame before it: a key frame
+    // that repeats an earlier time (or comes before it) begins none, so it must not be counted as one.
+    if (packet.type === 'key') { if (!this.started || packet.timestamp > this.high) { this.forced.push(false); this.cut = packet.timestamp; } }
     else if (this.started && packet.timestamp > this.high && packet.timestamp - this.cut >= EVERY) {
       out = packet.clone({type: 'key'});
       this.forced.push(true);

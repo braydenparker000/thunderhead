@@ -1,0 +1,25 @@
+{
+  "packages": {
+    "mediabunny": "1.55.7",
+    "@mediabunny/ac3": "1.55.7",
+    "@mediabunny/dts": "1.55.7",
+    "jassub": "2.5.37",
+    "abslink": "1.3.1",
+    "rvfc-polyfill": "1.0.8",
+    "throughput": "1.0.2"
+  },
+  "esbuild": "0.28.2",
+  "files": {
+    "mediabunny.js": "0f4b0b9485dfafa0c1c534df896eaa12d1bb523a42d18d9e3bc83004a684d34c",
+    "mediabunny-ac3.js": "de65319672cb1d1d9b21a4473e455927e31ca9d16402ae315efb0ba6feef94a8",
+    "mediabunny-dts.js": "86cfacb41075ae1fa39cf9e1a56e228140d95e1d0e6193c32332ccbeccd56eb5",
+    "jassub/jassub.js": "1a8f20713862471059ba6260f3ea2b7fbaa4b5d2e40b763b0e81cfb97491a883",
+    "jassub/worker/worker.js": "4947ec318c11d30819816a0942a12af9bc3514e3f693e200fefa366fa6f7870a",
+    "jassub/wasm/jassub-worker.js": "aeec4fd9fffabe80163791e492fdac9f7be1c19a15281ceb30f024c53b9d8faa",
+    "jassub/wasm/jassub-worker.wasm": "c64e62f85c603b1603799cfc0cbaf39144fde5b5a871a5d4e534eb4b64ea7c57",
+    "jassub/wasm/jassub-worker-modern.js": "00d29aeb2ebc84347d5e5eed3adfcab16ad05de724acbd8ada758611f94dcaa8",
+    "jassub/wasm/jassub-worker-modern.wasm": "2a593d7dd7d0104d6fb9ebb363a0718028a72b30fd63dcad299cd5f079690f90",
+    "jassub/default.woff2": "886929903707c5bb28b07cd2eed69921b3d5ef5c49c73a0dd1e187ebf6546a4c",
+    "jassub/LICENSE": "f300758600ecf59b736407f80f6dc8338a9879a062c6bcb16cc739d14814ec75"
+  }
+}

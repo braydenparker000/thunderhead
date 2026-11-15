@@ -4,6 +4,7 @@
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
+import {put} from './view.js';
 
 const SKIP_LABELS = {intro: 'Skip Intro', recap: 'Skip Recap', outro: 'Skip Outro', credits: 'Skip to post-credits'};
 // Called on every timeupdate: the page is only written when something changes.
@@ -41,7 +42,7 @@ export class Markers {
     if (!p.ctl.visible && age > 10000) this.skipHiddenByTimer = true;
     show(p.skipBtn, !(this.skipHiddenByTimer && !p.ctl.visible));
     const fill = `scaleX(${p.ctl.visible ? 0 : Math.min(1, age / 10000).toFixed(2)})`;
-    if (p.skipFill.style.transform !== fill) p.skipFill.style.transform = fill;
+    put(p.skipFill, 'transform', fill);
   }
 
   skipSegment() {

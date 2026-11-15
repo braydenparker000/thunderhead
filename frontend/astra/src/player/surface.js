@@ -6,6 +6,7 @@
 import {clock, haptic} from '../ui/dom.js';
 import * as G from './gestures.js';
 import {FEEDBACK_MS} from './controls.js';
+import {put} from './view.js';
 
 const coarse = () => matchMedia('(pointer: coarse)').matches;
 
@@ -177,9 +178,8 @@ export class Surface {
     const p = this.p, at = Math.abs(value - 1) < 0.02 ? 1 : value;
     this.brightness = value;
     const dim = at < 1 ? (1 - at).toFixed(2) : '';
-    if (p.dim.style.opacity !== dim) p.dim.style.opacity = dim;
-    const filter = at > 1 ? `brightness(${at.toFixed(2)})` : '';
-    if (p.video.style.filter !== filter) p.video.style.filter = filter;
+    put(p.dim, 'opacity', dim);
+    put(p.video, 'filter', at > 1 ? `brightness(${at.toFixed(2)})` : '');
   }
 
   /** Ends whatever a finger is doing (a menu opened, the lock, closing): a hold gives the speed back, a seek drag is dropped. */

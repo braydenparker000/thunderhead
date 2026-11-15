@@ -6,6 +6,20 @@
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
 
+const drawn = new WeakMap();
+/**
+ * Sets a style property (or an aria- attribute) only when its value changes:
+ * what runs on every timeupdate then writes nothing to the page. The value
+ * is compared with the last one set here, not read back (the browser rewrites
+ * "2.50%" as "2.5%").
+ */
+export function put(el, key, value) {
+  const last = drawn.get(el) || {};
+  if (last[key] === value) return;
+  last[key] = value; drawn.set(el, last);
+  if (key.startsWith('aria-')) el.setAttribute(key, value); else el.style[key] = value;
+}
+
 export const iconButton = (name, label, onclick, extra = {}) => h('button', {class: 'ap-icon-btn', type: 'button', 'aria-label': label, title: label, onclick, ...extra}, icon(name, {text: extra.iconText}));
 
 /** Builds the player under p.parent (hidden) and returns its elements by name. */

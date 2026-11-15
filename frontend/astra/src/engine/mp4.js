@@ -7,6 +7,7 @@
 const CONTAINERS = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'udta']);
 const TEXT_FORMATS = {tx3g: 'tx3g', text: 'tx3g', wvtt: 'wvtt'};
 const decoder = new TextDecoder();
+const MAX_SAMPLES = 200000; // far more than any film's subtitles
 
 const u32 = (b, p) => (b[p] << 24 | b[p + 1] << 16 | b[p + 2] << 8 | b[p + 3]) >>> 0;
 const u64 = (b, p) => u32(b, p) * 2 ** 32 + u32(b, p + 4);
@@ -38,23 +39,28 @@ export function sampleTable(bytes, stbl, timescale, mediaStart = 0) {
   const get = t => child(bytes, stbl, t);
   const stts = get('stts'), stsc = get('stsc'), stsz = get('stsz'), stco = get('stco') || get('co64');
   if (!stts || !stsc || !stsz || !stco) return [];
+  // Counts come from the file: each is held to what its box has room for (and to a film's worth of subtitles),
+  // so a small table that claims millions of entries costs nothing.
+  const room = (box, at, each) => Math.max(0, Math.floor((box.end - box.start - at) / each));
   const sizes = [];
-  const uniform = u32(bytes, stsz.start + 4), count = u32(bytes, stsz.start + 8);
+  const uniform = u32(bytes, stsz.start + 4);
+  const count = Math.min(u32(bytes, stsz.start + 8), MAX_SAMPLES, uniform ? Infinity : room(stsz, 12, 4));
   for (let i = 0; i < count; i++) sizes.push(uniform || u32(bytes, stsz.start + 12 + i * 4));
   const chunks = [], wide = stco.type === 'co64';
-  const chunkCount = u32(bytes, stco.start + 4);
+  const chunkCount = Math.min(u32(bytes, stco.start + 4), room(stco, 8, wide ? 8 : 4));
   for (let i = 0; i < chunkCount; i++) chunks.push(wide ? u64(bytes, stco.start + 8 + i * 8) : u32(bytes, stco.start + 8 + i * 4));
   const runs = [];
-  for (let i = 0, n = u32(bytes, stsc.start + 4); i < n; i++) { const p = stsc.start + 8 + i * 12; runs.push({first: u32(bytes, p) - 1, perChunk: u32(bytes, p + 4)}); }
+  for (let i = 0, n = Math.min(u32(bytes, stsc.start + 4), room(stsc, 8, 12)); i < n; i++) { const p = stsc.start + 8 + i * 12; runs.push({first: u32(bytes, p) - 1, perChunk: u32(bytes, p + 4)}); }
   const samples = [];
-  let s = 0;
+  let s = 0, r = -1;
   for (let c = 0; c < chunks.length && s < sizes.length; c++) {
-    const run = runs.findLast(r => r.first <= c);
+    while (r + 1 < runs.length && runs[r + 1].first <= c) r++; // runs are in chunk order: one pass, not a search per chunk
+    const run = runs[r];
     let offset = chunks[c];
     for (let k = 0; k < (run?.perChunk || 0) && s < sizes.length; k++, s++) { samples.push({offset, size: sizes[s]}); offset += sizes[s]; }
   }
   let t = 0, i = 0;
-  for (let e = 0, n = u32(bytes, stts.start + 4); e < n; e++) {
+  for (let e = 0, n = Math.min(u32(bytes, stts.start + 4), room(stts, 8, 8)); e < n && i < samples.length; e++) {
     const p = stts.start + 8 + e * 8, repeat = u32(bytes, p), delta = u32(bytes, p + 4);
     for (let k = 0; k < repeat && i < samples.length; k++, i++) { samples[i].start = (t - mediaStart) / timescale; t += delta; samples[i].end = (t - mediaStart) / timescale; }
   }

@@ -2,13 +2,16 @@
 //
 // Subtitle samples are scattered through the file between audio and video,
 // so they are read from bytes the video pipeline has already downloaded: the
-// scanners only parse what is in the shared block cache and never ask the
-// network themselves. Each block is looked at as it arrives, so seeking (with
-// or without a cue index) needs nothing special: the new position's data
-// arrives and its subtitles come with it.
+// scanners only peek() at what is in the shared block cache, so they never ask
+// the network for anything, never let a paused download read further, and
+// leave the cache's order alone. Each block is looked at as it arrives, so
+// seeking (with or without a cue index) needs nothing special: the new
+// position's data arrives and its subtitles come with it. The scan gives the
+// page a turn every 8 ms, as unpacking does.
 
 import {BLOCK} from './http-source.js';
-import {header, parseCluster, decodeBlock, MKV_ID} from './mkv.js';
+import {header, MKV_ID} from './mkv.js';
+import {walkCluster, decodeBlock} from './mkv-cluster.js';
 import {sampleText} from './mp4.js';
 import {srtBlockCue, assBlockCue, parseAssHeader} from '../subtitles/parse.js';
 import {PgsDecoder, PgsTimeline} from '../subtitles/pgs.js';
@@ -16,7 +19,9 @@ import {VobSubDecoder} from '../subtitles/vobsub.js';
 
 const DEFAULT_DURATION = 5;
 const MAX_UNKNOWN_CLUSTER = 48 << 20;
+const SLICE_MS = 8;
 const text = new TextDecoder();
+const pageTurn = () => globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
 
 /** Shared plumbing: listens for cached blocks and processes them in batches. */
 class BlockScanner {
@@ -30,6 +35,7 @@ class BlockScanner {
     this.stopped = false;
     this.unlisten = () => {};
     this.blockSize = source.blockSize || BLOCK;
+    this.sliceStart = 0;
   }
 
   start() {
@@ -46,10 +52,18 @@ class BlockScanner {
     if (!this.timer && !this.running && !this.stopped) this.timer = setTimeout(() => { this.timer = 0; this.run(); }, 30);
   }
 
+  /** Lets a tap or a frame through once the scan has held the page for 8 ms. */
+  async breathe() {
+    if (performance.now() - this.sliceStart < SLICE_MS) return;
+    await pageTurn();
+    this.sliceStart = performance.now();
+  }
+
   /** Processes pending blocks until none are left; blocks that land meanwhile join the next pass. */
   async run() {
     if (this.running) return;
     this.running = true;
+    this.sliceStart = performance.now();
     try {
       while (this.pending.size && !this.stopped) {
         const batch = [...this.pending].sort((a, b) => a - b);
@@ -66,7 +80,7 @@ export class MkvSubtitleScanner extends BlockScanner {
   /**
    * @param {import('./http-source.js').HttpSource} source
    * @param {object} layout  from readLayout()
-   * @param {Array} tracks   subtitleTracks(layout) entries
+   * @param {Array} tracks   subtitleTracks(layout) entries (the player passes text tracks, and a picture track only once it is chosen)
    * @param {(trackId: string, cues: Array) => void} onCues
    * @param {() => void} [onChange]  cue end times changed (picture subtitles)
    */
@@ -84,7 +98,7 @@ export class MkvSubtitleScanner extends BlockScanner {
       if (t.format === 'vobsub') this.pictures.set(t.number, {decoder: new VobSubDecoder(t.header, t.id)});
     }
     this.known = new Set(); // every cluster position seen
-    this.waiting = new Set(); // positions not read or rejected yet
+    this.waiting = []; // positions not read or rejected yet, kept sorted
     this.searched = new Set();
     this.parsed = []; // sorted [start, end) of clusters already read, to drop matches inside them
     for (const c of layout.cues || []) this.add(c.position);
@@ -96,27 +110,37 @@ export class MkvSubtitleScanner extends BlockScanner {
   get clustersRead() { return this.clustersScanned; }
 
   async process(batch) {
-    for (const i of batch) await this.discover(i);
+    for (const i of batch) { this.discover(i); await this.breathe(); if (this.stopped) return; }
     await this.readReady();
   }
 
-  /** Finds cluster headers inside a newly cached block. */
-  async discover(index) {
+  /** Finds cluster headers inside a newly cached block, looking at the cache in place. */
+  discover(index) {
     const {source} = this;
     const from = index * this.blockSize, to = Math.min(source.size, from + this.blockSize);
-    if (this.searched.has(index) || !source.has(from, to)) return;
+    if (this.searched.has(index)) return;
+    const bytes = source.peek(from, to);
+    if (!bytes) return;
     this.searched.add(index);
-    const start = from >= 3 && source.has(from - 3, from) ? from - 3 : from;
-    const bytes = await source.read(start, to);
     const first = this.layout.firstCluster ?? 0;
+    const found = pos => { if (pos >= first && !this.inside(pos)) this.add(pos); };
     for (let p = bytes.indexOf(0x1f); p >= 0 && p + 4 <= bytes.length; p = bytes.indexOf(0x1f, p + 1)) {
-      if (bytes[p + 1] !== 0x43 || bytes[p + 2] !== 0xb6 || bytes[p + 3] !== 0x75) continue;
-      const pos = start + p;
-      if (pos >= first && !this.inside(pos)) this.add(pos);
+      if (bytes[p + 1] === 0x43 && bytes[p + 2] === 0xb6 && bytes[p + 3] === 0x75) found(from + p);
+    }
+    // A header that straddles the edge with the block before: a few bytes either side, copied.
+    const edge = from >= 3 ? source.peek(from - 3, Math.min(to, from + 3)) : null;
+    if (edge) for (let p = 0; p < 3 && p + 4 <= edge.length; p++) {
+      if (edge[p] === 0x1f && edge[p + 1] === 0x43 && edge[p + 2] === 0xb6 && edge[p + 3] === 0x75) found(from - 3 + p);
     }
   }
 
-  add(pos) { if (!this.known.has(pos)) { this.known.add(pos); this.waiting.add(pos); } }
+  add(pos) {
+    if (this.known.has(pos)) return;
+    this.known.add(pos);
+    let lo = 0, hi = this.waiting.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.waiting[mid] < pos) lo = mid + 1; else hi = mid; }
+    this.waiting.splice(lo, 0, pos);
+  }
 
   /** True when pos falls strictly inside a cluster already read. */
   inside(pos) {
@@ -135,36 +159,25 @@ export class MkvSubtitleScanner extends BlockScanner {
   /** Reads every known cluster whose bytes are all cached. */
   async readReady() {
     const {source} = this;
-    const scale = this.layout.timestampScale;
-    const drop = pos => this.waiting.delete(pos);
-    for (const pos of [...this.waiting].sort((a, b) => a - b)) {
-      if (this.stopped) return;
-      if (this.inside(pos)) { drop(pos); continue; }
-      if (pos + 12 > source.size) { drop(pos); continue; }
-      if (!source.has(pos, pos + 12)) continue;
-      const h = header(await source.read(pos, pos + 12), 0);
-      if (!h || h.id !== MKV_ID.Cluster) { drop(pos); continue; }
-      const length = h.size == null ? null : h.dataStart + h.size;
-      let parsed;
-      if (length != null) {
-        if (pos + length > source.size) { drop(pos); continue; }
-        if (!source.has(pos, pos + length)) continue;
-        parsed = parseCluster(await source.read(pos, pos + length), this.wanted, scale);
-        if (!parsed.valid) { drop(pos); continue; }
-      } else {
-        // Unknown size (written live): read on until the next top-level element.
-        const until = Math.min(source.cachedUntil(pos), pos + MAX_UNKNOWN_CLUSTER);
-        const bytes = await source.read(pos, until);
-        parsed = parseCluster(bytes, this.wanted, scale);
-        if (!parsed.complete && until >= source.size) parsed = parseCluster(withEnd(bytes), this.wanted, scale);
-        if (!parsed.complete) { if (until - pos >= MAX_UNKNOWN_CLUSTER) drop(pos); continue; }
-        if (!parsed.valid) { drop(pos); continue; }
-      }
-      drop(pos);
-      this.markParsed(pos, pos + parsed.length);
+    const scale = this.layout.timestampScale, peek = (s, e) => source.peek(s, e);
+    const keep = [];
+    for (const pos of this.waiting) {
+      if (this.stopped) { keep.push(pos); continue; }
+      if (this.inside(pos) || pos + 12 > source.size) continue;
+      if (!source.has(pos, pos + 12)) { keep.push(pos); continue; }
+      const h = header(source.peek(pos, pos + 12), 0);
+      if (!h || h.id !== MKV_ID.Cluster) continue;
+      // A cluster of known size is read once all of it is here; one of unknown size as far as the cache goes.
+      if (h.size != null && !source.has(pos, pos + h.dataStart + h.size)) { keep.push(pos); continue; }
+      const found = walkCluster(peek, pos, source.size, this.wanted, scale, MAX_UNKNOWN_CLUSTER);
+      if (found.state === 'wait') { keep.push(pos); continue; }
+      if (found.state === 'drop') continue;
+      this.markParsed(pos, pos + found.length);
       this.clustersScanned++;
-      await this.emit(parsed.blocks);
+      await this.emit(found.blocks);
+      await this.breathe();
     }
+    this.waiting = keep; // nothing adds positions meanwhile: discover() runs only between passes
   }
 
   async emit(blocks) {
@@ -172,7 +185,8 @@ export class MkvSubtitleScanner extends BlockScanner {
     let changed = false;
     for (const block of blocks) {
       const track = this.tracks.get(block.track);
-      const payload = await decodeBlock(this.raw.get(block.track), block.data);
+      let payload;
+      try { payload = await decodeBlock(this.raw.get(block.track), block.data); } catch { continue; } // a damaged or oversized block is skipped
       let cue = null;
       const picture = this.pictures.get(block.track);
       if (picture?.timeline) {
@@ -193,13 +207,6 @@ export class MkvSubtitleScanner extends BlockScanner {
     for (const [id, cues] of found) this.onCues(id, cues);
     if (changed) this.onChange();
   }
-}
-
-function withEnd(bytes) {
-  const out = new Uint8Array(bytes.length + 12);
-  out.set(bytes);
-  out.set([0x1f, 0x43, 0xb6, 0x75, 0x81, 0x00], bytes.length);
-  return out;
 }
 
 export class Mp4SubtitleScanner extends BlockScanner {
@@ -229,15 +236,18 @@ export class Mp4SubtitleScanner extends BlockScanner {
     for (const i of batch) {
       for (const entry of this.byBlock.get(i) || []) {
         const {track, sample} = entry;
-        if (sample.done || !this.source.has(sample.offset, sample.offset + sample.size)) continue;
+        if (sample.done) continue;
+        const bytes = this.source.peek(sample.offset, sample.offset + sample.size);
+        if (!bytes) continue;
         sample.done = true;
-        const body = sampleText(track.format, await this.source.read(sample.offset, sample.offset + sample.size));
+        const body = sampleText(track.format, bytes);
         const cue = body.trim() ? srtBlockCue(body, sample.start, sample.end) : null;
         if (!cue) continue;
         if (!found.has(track.id)) found.set(track.id, []);
         found.get(track.id).push(cue);
       }
       this.clustersScanned++;
+      await this.breathe();
     }
     for (const [id, cues] of found) this.onCues(id, cues);
   }

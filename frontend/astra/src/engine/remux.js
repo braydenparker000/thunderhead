@@ -9,30 +9,24 @@
 
 import * as MB from '../../vendor/mediabunny.js';
 import {mediaSourceClass} from './capabilities.js';
-import {AppendQueue, bufferedAt, bufferedAhead} from './mse.js';
+import {AppendQueue, bufferedAt, bufferedAhead, bufferedEnd} from './mse.js';
 import {audioMime, videoMime} from './plan.js';
-import {mixable, toStereo} from './downmix.js';
+import {mixable} from './downmix.js';
+import {fragmentWriter, stereoSample} from './fragments.js';
 import {EarlyCuts} from './early.js';
+import {loadDecoders} from './audio-decoders.js';
+import {StallWatch} from './stall-watch.js';
 
-/** Read-ahead limits; tests shorten them to exercise restarts on small files. */
-export const TUNING = {ahead: {video: 40, audio: 60}, maxQueued: 24 << 20};
+/** Read-ahead limits; tests shorten them to exercise restarts on small files. Picture and sound read to the same
+ * place, so one download serves both: kept apart, on a high-bitrate film, the gap outgrew the reader's cache. */
+export const TUNING = {ahead: 40, maxQueued: 24 << 20};
 const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
 const SLICE_MS = 8;
 const pageTurn = () => globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
 
-let decodersReady = null;
-/** Loads the AC-3/E-AC-3 and DTS decoders once, only when a file needs them. */
-export function loadDecoders(codec) {
-  const wanted = codec === 'dts' ? 'dts' : codec === 'ac3' || codec === 'eac3' ? 'ac3' : null;
-  if (!wanted) return Promise.resolve();
-  decodersReady ??= {};
-  decodersReady[wanted] ??= wanted === 'dts'
-    ? import('../../vendor/mediabunny-dts.js').then(m => m.registerDtsDecoder())
-    : import('../../vendor/mediabunny-ac3.js').then(m => m.registerAc3Decoder());
-  return decodersReady[wanted];
-}
+export {loadDecoders};
 
 export class RemuxSession extends EventTarget {
   /**
@@ -55,7 +49,8 @@ export class RemuxSession extends EventTarget {
     this.from = 0;
     this.readAt = {video: 0, audio: 0};
     this.sliceStart = 0;
-    this.aheadRead = {video: {at: 0}, audio: {at: 0}};
+    this.chain = Promise.resolve(); // restarts and audio changes, one at a time
+    this.tickets = {};
     this.offset = 0; // the file's first timestamp; media time = file time - offset
     this.onSeeking = () => this.seeking();
     this.wakers = new Set();
@@ -72,13 +67,17 @@ export class RemuxSession extends EventTarget {
     this.ms = new MediaSourceClass();
     this.url = URL.createObjectURL(this.ms);
     if ('disableRemotePlayback' in this.video) this.video.disableRemotePlayback = true; // required by ManagedMediaSource
+    // Until the media source opens; destroy() ends the wait (and lets go of the address) if that comes first.
+    this.opening = new AbortController();
+    const signal = this.opening.signal;
     await new Promise((resolve, reject) => {
-      const failed = () => reject(this.video.error);
-      this.ms.addEventListener('sourceopen', () => { this.video.removeEventListener('error', failed); resolve(); }, {once: true});
-      this.video.addEventListener('error', failed, {once: true});
+      const closed = () => reject(Object.assign(new Error('Playback was closed.'), {kind: 'closed'}));
+      if (this.destroyed) return closed();
+      this.ms.addEventListener('sourceopen', resolve, {once: true, signal});
+      this.video.addEventListener('error', () => reject(this.video.error), {once: true, signal});
+      signal.addEventListener('abort', closed, {once: true});
       this.video.src = this.url;
-    });
-    URL.revokeObjectURL(this.url);
+    }).finally(() => { this.opening.abort(); URL.revokeObjectURL(this.url); });
     // Transport streams (and some recordings) start well after zero; play
     // them from 0:00 by shifting the media rather than leaving a gap.
     const firsts = await Promise.all([this.videoTrack?.ref, this.audio?.track.ref].filter(Boolean).map(t => t.getFirstTimestamp?.().catch(() => 0) ?? 0));
@@ -92,48 +91,75 @@ export class RemuxSession extends EventTarget {
     this.video.addEventListener('seeking', this.onSeeking);
     for (const type of ['timeupdate', 'seeking', 'playing']) this.video.addEventListener(type, this.onProgress);
     if (startTime > 0) this.video.currentTime = startTime;
+    this.watch = new StallWatch(this);
     this.run(startTime);
   }
 
-  /** Starts fresh pipelines for every track at `time`. */
-  run(time) {
-    this.from = time;
+  /** Starts fresh pipelines for every track, reading from `time`; `from` is where the playhead is (no later than `time`). */
+  run(time, from = time) {
+    this.from = Math.min(from, time);
     this.readAt = {video: time, audio: time};
     if (this.queues.video) this.pumpVideo(this.queues.video.generation, time + this.offset).catch(e => this.fail(e));
     if (this.queues.audio) this.pumpAudio(this.queues.audio.generation, time + this.offset).catch(e => this.fail(e));
   }
 
   seeking() {
-    const t = this.video.currentTime, d = this.ms?.duration || Infinity;
-    const ready = Object.values(this.queues).every(q => bufferedAt(q.buffer, t, 0.5, d));
-    // Nothing to do when buffered, or when the running pipelines will reach it shortly.
-    const coming = Object.keys(this.queues).every(k => t >= this.from - 0.5 && t <= this.readAt[k] + 5);
-    if (ready || coming) return;
+    // Nothing to do when the running pipelines are reading here, or will reach it shortly. Media still buffered from
+    // before a far seek back is not enough: the pipelines are elsewhere, and would not follow on from it.
+    const t = this.video.currentTime;
+    if (Object.keys(this.queues).every(k => t >= this.from - 0.5 && t <= this.readAt[k] + 5)) return;
     clearTimeout(this.seekTimer);
-    this.seekTimer = setTimeout(() => this.restartAt(this.video.currentTime), 150); // scrubbing settles first
+    this.seekTimer = setTimeout(() => this.jumpTo(this.video.currentTime), 150); // scrubbing settles first
   }
 
-  async restartAt(time) {
-    if (this.destroyed) return;
-    this.stats.restarts++;
-    this.source?.jumped?.();
-    await Promise.all(Object.values(this.queues).map(q => q.restart()));
-    for (const k of Object.keys(this.queues)) this.ended[k] = false;
-    this.run(time);
+  /** Restarts the pipelines for a playhead at `t`: at `t`, or where the media already buffered around `t` ends. */
+  jumpTo(t) {
+    const d = this.ms?.duration || Infinity, queues = Object.values(this.queues);
+    const held = queues.length && queues.every(q => bufferedAt(q.buffer, t, 0.5, d));
+    this.restartAt(t, held ? Math.min(...queues.map(q => bufferedEnd(q.buffer, t))) : t);
+  }
+
+  /**
+   * Starts fresh pipelines reading from `at` (default `time`) for a playhead at `time`. Restarts and audio changes run
+   * one after another; of several restarts waiting, only the latest runs.
+   */
+  restartAt(time, at = time) {
+    return this.serial('restart', async () => {
+      this.stats.restarts++;
+      this.source?.jumped?.();
+      await Promise.all(Object.values(this.queues).map(q => q.restart()));
+      if (this.destroyed) return;
+      // Media buffered beyond where reading starts belongs to an earlier place: it would only take the buffer's room.
+      await Promise.all(Object.values(this.queues).map(q => q.dropAfter(at + 1)));
+      if (this.destroyed) return;
+      for (const k of Object.keys(this.queues)) this.ended[k] = false;
+      this.run(at, time);
+    });
+  }
+
+  /** Runs `fn` after every restart or audio change before it, unless a newer one of the same `kind` was asked for meanwhile. */
+  serial(kind, fn, ticket = this.tickets[kind] = (this.tickets[kind] || 0) + 1) {
+    const run = this.chain.then(() => this.destroyed || ticket !== this.tickets[kind] ? null : fn());
+    this.chain = run.catch(e => this.fail(e));
+    return run;
   }
 
   /** Switches to another audio track: only the audio buffer is refilled. */
   async setAudio(choice) {
     if (this.destroyed || !this.queues.audio) return;
+    const ticket = this.tickets.audio = (this.tickets.audio || 0) + 1; // a track chosen later wins, even while this one's decoder downloads
     if (choice.delivery === 'rebuilt') { this.emit('status', 'Loading the audio decoder…'); await loadDecoders(choice.track.codec); }
-    const mime = choice.delivery === 'rebuilt' ? OPUS : audioMime(choice.track);
-    const was = this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track);
-    this.audio = choice;
-    this.ended.audio = false;
-    const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});
-    if (this.offset) this.queues.audio.buffer.timestampOffset = -this.offset;
-    this.flushAudio = generation; // see room()
-    this.pumpAudio(generation, Math.max(0, this.video.currentTime - 0.3) + this.offset).catch(e => this.fail(e));
+    return this.serial('audio', async () => {
+      const mime = choice.delivery === 'rebuilt' ? OPUS : audioMime(choice.track);
+      const was = this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track);
+      this.audio = choice;
+      this.ended.audio = false;
+      const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});
+      if (this.destroyed) return;
+      if (this.offset) this.queues.audio.buffer.timestampOffset = -this.offset;
+      this.flushAudio = generation; // see room()
+      this.pumpAudio(generation, Math.max(0, this.video.currentTime - 0.3) + this.offset).catch(e => this.fail(e));
+    }, ticket);
   }
 
   /** Waits while the pipeline is far enough ahead of the playhead. */
@@ -151,39 +177,19 @@ export class RemuxSession extends EventTarget {
       await pageTurn();
       this.sliceStart = performance.now();
     }
-    // Limit what is buffered ahead, not what is read: fragments end at key
-    // frames, so the reader runs up to one GOP ahead of the buffer.
-    while (current() && (this.ahead(kind, generation) > TUNING.ahead[kind] || queue.pending() > TUNING.maxQueued)) {
+    // Limit how far reading runs ahead of the playhead (not what happens to be buffered there, which may be left
+    // from before a seek back), and how much waits to be appended.
+    while (current() && (this.readAt[kind] - this.video.currentTime > TUNING.ahead || queue.pending() > TUNING.maxQueued)) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);
         this.wakers.add(done);
       });
-      this.aheadRead[kind].at = 0;
     }
     return current();
   }
 
-  /** Seconds buffered ahead of the playhead, read at most every 50 ms rather than for every packet. */
-  ahead(kind, generation) {
-    const read = this.aheadRead[kind], now = performance.now();
-    if (now - read.at > 50 || read.generation !== generation) Object.assign(read, {at: now, generation, value: bufferedAhead(this.queues[kind].buffer, this.video.currentTime)});
-    return read.value;
-  }
-
-  output(kind, generation, early = null) {
-    const queue = this.queues[kind];
-    let head = [], moof = null;
-    const send = bytes => { this.stats.appended += bytes.byteLength; queue.append(bytes, generation); };
-    const format = new MB.Mp4OutputFormat({
-      fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 1 : 0, // video: every key frame, real or early (early.js), begins a fragment
-      onFtyp: data => { head.push(data.slice()); },
-      onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
-      onMoof: data => { moof = data.slice(); early?.settle(moof); },
-      onMdat: data => { send(concat([moof, data])); moof = null; },
-    });
-    return new MB.Output({format, target: new MB.NullTarget()});
-  }
+  output(kind, generation, early = null) { return fragmentWriter(this.queues[kind], this.stats, kind, generation, early); }
 
   async pumpVideo(generation, from) {
     const track = this.videoTrack.ref;
@@ -271,24 +277,12 @@ export class RemuxSession extends EventTarget {
 
   destroy() {
     this.destroyed = true;
+    this.opening?.abort(); // a media source still opening: its wait ends, its address is let go
+    this.watch?.stop();
     clearTimeout(this.seekTimer);
     this.video.removeEventListener('seeking', this.onSeeking);
     for (const type of ['timeupdate', 'seeking', 'playing']) this.video.removeEventListener(type, this.onProgress);
     for (const q of Object.values(this.queues)) q.generation++;
     this.onProgress();
   }
-}
-
-/** One decoded sample as stereo at the same rate. */
-function stereoSample(sample) {
-  const all = new Float32Array(sample.allocationSize({planeIndex: 0, format: 'f32'}) / 4);
-  sample.copyTo(all, {planeIndex: 0, format: 'f32'});
-  return new MB.AudioSample({data: toStereo(all, sample.numberOfChannels), format: 'f32', numberOfChannels: 2, sampleRate: sample.sampleRate, timestamp: sample.timestamp});
-}
-
-function concat(parts) {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
-  let offset = 0;
-  for (const p of parts) { out.set(p, offset); offset += p.byteLength; }
-  return out;
 }

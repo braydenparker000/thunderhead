@@ -14,29 +14,48 @@ import {sniffContainer} from './software.js';
  * or {readable: false, error} when a page cannot read it (the planner then
  * hands the address to the browser as-is).
  */
-export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}} = {}) {
-  const source = new HttpSource(url, {headers});
+export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}, fetchFn} = {}) {
+  const source = new HttpSource(url, {headers, ...(fetchFn ? {fetchFn} : {})});
   onSource(source); // so the loading screen can say how much has arrived
   source.probing = true; // read only what describing the file needs; playback may start elsewhere
+  // A playlist is known by its address before anything is read, and by its type once the host answers, even
+  // when the host does not honour byte ranges (a playlist needs none) or does not say how large it is.
+  const named = adaptiveKind(url);
   onStatus('Opening the file…');
   let opened;
   try {
-    opened = await source.open(signal);
+    opened = await source.open(signal); // closes the source if the load is ended, now or later
   } catch (error) {
     source.close();
     if (signal?.aborted) throw error;
+    const kind = ['range', 'size'].includes(error?.kind) && (named || adaptiveKind(url, error.contentType || ''));
+    if (kind) return {readable: true, adaptive: kind, info: {container: kind.toUpperCase(), size: null}};
     return {readable: false, error: error instanceof SourceError ? error : new SourceError('unreadable', String(error?.message || error))};
   }
   const kind = adaptiveKind(url, opened.contentType);
   if (kind) { source.close(); return {readable: true, adaptive: kind, info: {container: kind.toUpperCase(), size: opened.size}}; }
+  let input = null;
+  const drop = () => { input?.dispose(); input = null; };
+  signal?.addEventListener('abort', drop, {once: true});
+  try {
+    return await describe(url, source, opened, signal, onStatus, i => { input = i; });
+  } catch (error) {
+    // Whatever went wrong while describing (or the load was ended): nothing is left reading.
+    drop(); source.close();
+    throw error;
+  } finally { signal?.removeEventListener('abort', drop); }
+}
 
+async function describe(url, source, opened, signal, onStatus, keep) {
   onStatus('Reading what is inside…');
   const input = new MB.Input({
     source: new MB.CustomSource({getSize: () => source.size, read: (start, end) => source.read(start, end), maxCacheSize: 8 << 20}),
     formats: MB.ALL_FORMATS,
   });
+  keep(input);
   let format;
   try { format = await input.getFormat(); } catch (error) {
+    if (signal?.aborted) throw error;
     input.dispose();
     // The source stays open: the software decoder reads formats Mediabunny does not (the caller closes it otherwise).
     source.doneProbing();
@@ -45,7 +64,7 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
   }
   const container = String(format.name || '').toLowerCase();
   const tracks = await input.getTracks();
-  const describe = async t => {
+  const describeTrack = async t => {
     const disposition = t.disposition || {};
     const base = {
       ref: t, id: t.id, number: t.number, codec: t.codec, internalCodec: t.internalCodecId,
@@ -59,7 +78,7 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
     }
     return {...base, type: 'audio', channels: t.numberOfChannels, sampleRate: t.sampleRate, decoderConfig: await t.getDecoderConfig().catch(() => null)};
   };
-  const described = await Promise.all(tracks.map(describe));
+  const described = await Promise.all(tracks.map(describeTrack));
   const video = described.filter(t => t.type === 'video');
   const audio = described.filter(t => t.type === 'audio');
   for (const t of video) t.label = videoCodecName(t);

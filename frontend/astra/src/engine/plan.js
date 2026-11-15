@@ -163,6 +163,8 @@ export function planPlayback(probe, caps, prefs = {}) {
     if (!prefs.allowSilent) return {mode: 'unsupported', reason, notes, video, audioOptions, subtitleOptions, external: true, silent: !!video};
     notes.push(`${reason} Playing without sound.`);
   }
+  // Nothing to show and nothing to hear (only subtitles, or sound none of which plays): there is no film to play.
+  if (!video && !audio) return {mode: 'unsupported', reason: info.audio.length ? 'This file has no picture, and its sound cannot play in a browser.' : 'This file has no picture or sound to play.', notes, audioOptions, subtitleOptions, external: true};
   if (software) {
     notes.push(muxable ? `${audio?.track.label || 'The sound'} in this file plays only through Astra's software decoder. That uses more battery.`
       : `This phone has no ${name} decoder for browsers, so Astra decodes it in software. That uses more battery and may stutter at high resolutions.`);

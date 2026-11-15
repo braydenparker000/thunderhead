@@ -22,7 +22,6 @@ export function dolbyVision(record) {
   if (!record || record.length < 5) return null;
   return {profile: record[2] >> 1, level: (record[2] & 1) << 5 | record[3] >> 3, compatibility: record[4] >> 4};
 }
-const TOP_LEVEL = new Set([ID.SeekHead, ID.Info, ID.Tracks, ID.Cues, ID.Cluster, 0x1254c367, 0x1941a469, 0x1043a770]);
 export const TRACK_TYPE = {video: 1, audio: 2, subtitle: 0x11};
 
 /** Subtitle codecs Astra can show, by Matroska CodecID. */
@@ -55,7 +54,8 @@ export function header(bytes, pos) {
   return {id: id.value, size: size.unknown ? null : size.value, dataStart: pos + id.length + size.length};
 }
 
-function uint(bytes, start, end) { let v = 0; for (let i = start; i < end; i++) v = v * 256 + bytes[i]; return v; }
+// An unsigned integer is at most 8 bytes; a longer claim (a damaged or hostile file) reads as 0 rather than looping.
+export function uint(bytes, start, end) { if (end - start > 8 || end > bytes.length) return 0; let v = 0; for (let i = start; i < end; i++) v = v * 256 + bytes[i]; return v; }
 function float(bytes, start, end) {
   const view = new DataView(bytes.buffer, bytes.byteOffset + start, end - start);
   return end - start === 4 ? view.getFloat32(0) : end - start === 8 ? view.getFloat64(0) : 0;
@@ -63,12 +63,13 @@ function float(bytes, start, end) {
 const decoder = new TextDecoder();
 function string(bytes, start, end) { return decoder.decode(bytes.subarray(start, end)).replace(/\0+$/, ''); }
 
-/** Iterates the children of [start, end) of a fully loaded element. */
-function* children(bytes, start, end) {
+/** Iterates the children of [start, end) of a fully loaded element; a child that claims to run past its parent ends the walk. */
+export function* children(bytes, start, end) {
   let pos = start;
+  end = Math.min(end, bytes.length);
   while (pos < end) {
     const h = header(bytes, pos);
-    if (!h || h.size == null) return;
+    if (!h || h.size == null || h.dataStart + h.size > end) return;
     yield {...h, dataEnd: h.dataStart + h.size};
     pos = h.dataStart + h.size;
   }
@@ -163,7 +164,8 @@ export async function readLayout(read, size) {
   };
   let pos = segmentStart;
   const seen = new Set();
-  while (pos < segmentEnd) {
+  // A damaged file can hold endless tiny elements before its first cluster: the walk stops after a fair number.
+  for (let guard = 0; pos < segmentEnd && guard < 4096; guard++) {
     const h = await headerAt(pos);
     if (!h) break;
     if (h.id === ID.Cluster) { layout.firstCluster = pos; layout.unknownClusterSizes = h.size == null; break; }
@@ -211,103 +213,6 @@ export function subtitleTracks(layout) {
     hearingImpaired: t.hearingImpaired, encrypted: !!t.compression?.encrypted,
     header: t.codecPrivate ? decoder.decode(t.codecPrivate) : '',
   }));
-}
-
-async function inflate(bytes) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-// Elements a cluster may hold. Anything else inside a cluster of known size
-// means the "cluster" was a chance byte match inside other data.
-const CLUSTER_CHILDREN = new Set([ID.Timestamp, ID.SimpleBlock, ID.BlockGroup, 0x5854, 0xa7, 0xab, 0xaf, 0xbf, 0xec]);
-
-/**
- * Parses one cluster from bytes that start at its header.
- * Returns {blocks: [{track, start, duration (null if unknown), data}], length,
- * complete, valid}. `complete` is false when the bytes end before the cluster
- * does (more data needed); `valid` is false when the bytes are not a cluster.
- * A cluster of unknown size ends where the next top-level element starts.
- */
-export function parseCluster(bytes, wanted, scale) {
-  const out = {blocks: [], length: 0, complete: false, valid: false, time: null};
-  const top = header(bytes, 0);
-  if (!top || top.id !== ID.Cluster || (top.size != null && top.size > (256 << 20))) return out;
-  const known = top.size != null, end = known ? top.dataStart + top.size : Infinity;
-  if (known && end > bytes.length) { out.valid = true; return out; } // not all here yet
-  let base = null, pos = top.dataStart;
-  const block = (start, stop, duration) => {
-    const track = vint(bytes, start);
-    if (!track || !wanted.has(track.value) || base == null) return;
-    const at = start + track.length;
-    const relative = (bytes[at] << 8 | bytes[at + 1]) << 16 >> 16;
-    if (bytes[at + 2] & 0x06) return; // laced subtitle blocks do not occur in practice
-    out.blocks.push({track: track.value, start: (base + relative) * scale / 1e9, duration: duration == null ? null : duration * scale / 1e9, data: bytes.slice(at + 3, stop)});
-  };
-  while (pos < Math.min(end, bytes.length)) {
-    if (!known && pos + 12 > bytes.length) return out; // need more bytes to know whether the cluster goes on
-    const h = header(bytes, pos);
-    if (!h) return out;
-    if (!known && (TOP_LEVEL.has(h.id) || h.id === ID.EBML)) { out.length = pos; out.complete = true; break; }
-    if (!CLUSTER_CHILDREN.has(h.id) || h.size == null) return out; // not a cluster after all
-    const dataEnd = h.dataStart + h.size;
-    if (dataEnd > end) return out;
-    if (dataEnd > bytes.length) return out; // unknown-size cluster: more bytes needed
-    if (h.id === ID.Timestamp) base = uint(bytes, h.dataStart, dataEnd);
-    else if (h.id === ID.SimpleBlock) block(h.dataStart, dataEnd, null);
-    else if (h.id === ID.BlockGroup) {
-      let blockAt = null, duration = null;
-      for (const c of children(bytes, h.dataStart, dataEnd)) {
-        if (c.id === ID.Block) blockAt = c;
-        else if (c.id === ID.BlockDuration) duration = uint(bytes, c.dataStart, c.dataEnd);
-      }
-      if (blockAt) block(blockAt.dataStart, blockAt.dataEnd, duration);
-    }
-    pos = dataEnd;
-  }
-  if (known) { out.length = end; out.complete = pos === end; }
-  out.valid = out.complete && base != null;
-  if (base != null) out.time = base * scale / 1e9;
-  if (!out.valid) out.blocks = [];
-  return out;
-}
-
-/**
- * Extracts subtitle blocks from one cluster's bytes.
- * Returns [{track, start, duration (null if unknown), data: Uint8Array}].
- */
-export function clusterSubtitleBlocks(bytes, wanted, scale) {
-  const parsed = parseCluster(bytes, wanted, scale);
-  if (parsed.valid) return parsed.blocks;
-  // A cluster of unknown size that runs to the end of the bytes given.
-  const top = header(bytes, 0);
-  if (top?.id === ID.Cluster && top.size == null) return parseCluster(concatEnd(bytes), wanted, scale).blocks;
-  return [];
-}
-
-// Appends a Void element header so an unknown-size cluster read to the end of
-// the file (or of the given bytes) parses as complete.
-function concatEnd(bytes) {
-  const out = new Uint8Array(bytes.length + 12);
-  out.set(bytes);
-  out.set([0x1f, 0x43, 0xb6, 0x75, 0x81, 0x00], bytes.length); // an empty cluster marks the end
-  return out;
-}
-
-/** Undoes a track's content compression (zlib or header stripping). */
-export async function decodeBlock(track, data) {
-  const c = track.compression;
-  if (!c || c.encrypted) return data;
-  if (c.algo === 0) return inflate(data);
-  if (c.algo === 3 && c.settings) { const out = new Uint8Array(c.settings.length + data.length); out.set(c.settings); out.set(data, c.settings.length); return out; }
-  return data;
-}
-
-/** Reads a cluster's header to learn its total length: {length, unknown}. */
-export function clusterLength(bytes) {
-  const h = header(bytes, 0);
-  if (!h || h.id !== ID.Cluster) return null;
-  return h.size == null ? {length: null, dataStart: h.dataStart} : {length: h.dataStart + h.size, dataStart: h.dataStart};
 }
 
 export {ID as MKV_ID};

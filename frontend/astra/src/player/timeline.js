@@ -4,10 +4,7 @@
 // live one) shows a full bar marked Live and cannot be dragged.
 
 import {clock} from '../ui/dom.js';
-
-/** Sets a style or attribute only when it changes (the bar is drawn on every timeupdate it shows for). */
-const style = (el, key, v) => { if (el.style[key] !== v) el.style[key] = v; };
-const attr = (el, key, v) => { v = String(v); if (el.getAttribute(key) !== v) el.setAttribute(key, v); };
+import {put} from './view.js';
 
 export class Timeline {
   constructor(p) {
@@ -62,22 +59,22 @@ export class Timeline {
     const p = this.p, live = d === Infinity;
     p.timeline.classList.toggle('live', live);
     if (live) {
-      style(p.played, 'transform', 'scaleX(1)'); style(p.buffered, 'transform', 'scaleX(1)'); style(p.thumb, 'transform', 'translateX(100%)'); style(p.lockFill, 'transform', 'scaleX(1)');
-      attr(p.timeline, 'aria-valuetext', 'Live');
+      put(p.played, 'transform', 'scaleX(1)'); put(p.buffered, 'transform', 'scaleX(1)'); put(p.thumb, 'transform', 'translateX(100%)'); put(p.lockFill, 'transform', 'scaleX(1)');
+      put(p.timeline, 'aria-valuetext', 'Live');
       return;
     }
     if (!(d > 0)) return;
     const f = Math.min(1, t / d);
-    style(p.played, 'transform', `scaleX(${f.toFixed(4)})`);
-    style(p.thumb, 'transform', `translateX(${(f * 100).toFixed(2)}%)`); // a transform: moving it costs no layout
-    style(p.lockFill, 'transform', `scaleX(${f.toFixed(4)})`);
+    put(p.played, 'transform', `scaleX(${f.toFixed(4)})`);
+    put(p.thumb, 'transform', `translateX(${(f * 100).toFixed(2)}%)`); // a transform: moving it costs no layout
+    put(p.lockFill, 'transform', `scaleX(${f.toFixed(4)})`);
     const b = p.video.buffered;
     let end = 0;
     for (let i = 0; i < b.length; i++) if (b.start(i) <= p.video.currentTime + 0.5) end = Math.max(end, b.end(i));
-    style(p.buffered, 'transform', `scaleX(${Math.min(1, end / d).toFixed(4)})`);
-    attr(p.timeline, 'aria-valuemax', Math.round(d));
-    attr(p.timeline, 'aria-valuenow', Math.round(t));
-    attr(p.timeline, 'aria-valuetext', `${clock(t)} of ${clock(d)}`);
+    put(p.buffered, 'transform', `scaleX(${Math.min(1, end / d).toFixed(4)})`);
+    put(p.timeline, 'aria-valuemax', String(Math.round(d)));
+    put(p.timeline, 'aria-valuenow', String(Math.round(t)));
+    put(p.timeline, 'aria-valuetext', `${clock(t)} of ${clock(d)}`);
   }
 
   close() { if (this.pointer != null || this.p.scrub.active) this.stop(); }
