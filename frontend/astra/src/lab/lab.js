@@ -1,6 +1,8 @@
 // The playback lab: pick a stream, see what the file holds and how the new
 // engine plays it, switch audio and subtitles, and copy a report.
-// Address parameters: ?src=<url>&t=<seconds>&autoplay=1
+// Address parameters: #src=<url> (or ?src=), t=<seconds>, autoplay=0, lang=<codes>.
+// The stream address is taken out of the address bar as soon as it is read:
+// it may carry a token, which must not stay in the bar or in history.
 
 import {AstraPlayer} from '../engine/player.js';
 import {TUNING} from '../engine/remux.js';
@@ -232,7 +234,7 @@ function openPlayer(ctx, collected, sourceId) {
   s.open(options);
 }
 
-/** Next or chosen episode: the same release group if it has one, otherwise the sources list. */
+/** Next or chosen episode: the same release group if it has one; otherwise the sources panel opens and nothing loads until a tap. */
 async function switchEpisode(video) {
   const s = screen, ctx = {...s.lab.ctx, video, id: video.id, title: `${s.lab.ctx.item.name} S${video.season} E${video.episode}`};
   const group = s.stream?.bingeGroup;
@@ -244,8 +246,7 @@ async function switchEpisode(video) {
   const same = group && sources.find(x => x.stream.bingeGroup === group);
   const options = playerOptions(ctx, collected, (same || sources[0]).id);
   s.lab = options.lab;
-  s.open(options);
-  if (!same) s.openPanel('sources');
+  s.open(same ? options : {...options, stream: null, sourceId: null}); // no stream: the player opens its sources panel
 }
 
 $('link-form').addEventListener('submit', e => { e.preventDefault(); const url = $('link').value.trim(); if (url) play({url}); });
@@ -257,8 +258,19 @@ deviceReport().then(d => {
   );
 });
 
-const params = new URLSearchParams(location.search);
-if (params.get('src')) play({url: params.get('src'), startTime: +params.get('t') || 0, autoplay: params.get('autoplay') !== '0', languages: params.get('lang') ? params.get('lang').split(',') : null});
+/** The stream to analyse, from the fragment (#src=, kept off servers) or the query; read once, then dropped from the address. */
+function takeSource(loc = location, hist = history) {
+  const query = new URLSearchParams(loc.search), fragment = new URLSearchParams(loc.hash.slice(1));
+  const from = fragment.has('src') ? fragment : query.has('src') ? query : null;
+  if (!from) return null;
+  const out = {url: from.get('src'), startTime: +from.get('t') || 0, autoplay: from.get('autoplay') !== '0', languages: from.get('lang') ? from.get('lang').split(',') : null};
+  for (const params of [query, fragment]) params.delete('src');
+  const rest = query.toString(), hash = fragment.toString();
+  try { hist.replaceState(hist.state, '', loc.pathname + (rest ? '?' + rest : '') + (hash ? '#' + hash : '')); } catch {}
+  return out.url ? out : null;
+}
+const asked = takeSource();
+if (asked) play(asked);
 
 /** For tests and pasted links: the full player on one stream. */
 window.astraLab.openPlayer = (stream, meta = {title: 'Test video'}, extra = {}) => {

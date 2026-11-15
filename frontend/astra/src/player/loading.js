@@ -58,10 +58,10 @@ export class Loading {
     p.loadingSlow.hidden = false;
   }
 
-  /** A short message across the top for a few seconds. */
-  notice(text) {
+  /** A short message across the top for a few seconds, perhaps with one button ({label, run}); a tap anywhere on it puts it away. */
+  notice(text, action = null) {
     const p = this.p;
-    p.noticeEl.textContent = text;
+    p.noticeEl.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
     p.noticeEl.hidden = false;
     clearTimeout(this.noticeTimer);
     this.noticeTimer = setTimeout(() => { p.noticeEl.hidden = true; }, 7000);

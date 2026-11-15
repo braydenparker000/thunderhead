@@ -35,6 +35,7 @@ export class Zoom {
     const moved = clampPan({x: z.x + mid.x - focus.x, y: z.y + mid.y - focus.y}, z.scale, w, h);
     Object.assign(this, {scale: z.scale}, moved);
     this.apply();
+    this.p.flash(`${z.scale.toFixed(1)}×`);
   }
 
   /** A pinch that ends near 1× goes back to the whole picture. */

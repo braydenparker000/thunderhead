@@ -1,15 +1,19 @@
-// The player's menus: audio, subtitles (tracks and style) and stream info as
-// full-screen modals; sources and episodes as side panels. One is open at a
-// time; each is a history entry, so back closes it before the player.
+// The player's menus: audio, subtitles (subtitle-menu.js), stream info,
+// Playback (playback.js) and the subtitle search (find.js) as full-screen
+// modals; sources and episodes as side panels. One is open at a time; each is
+// a history entry, so back closes it before the player.
 
-import {decodeSubtitleBytes} from '../engine/player.js';
-import {languageName, baseLanguage} from '../engine/languages.js';
+import {baseLanguage} from '../engine/languages.js';
 import {pushLayer} from '../app/back-stack.js';
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
-import {savePrefs, subtitleStyle, DEFAULTS, SUBTITLE_COLORS, SUBTITLE_COLOR_NAMES, SUBTITLE_BACKGROUNDS} from './prefs.js';
+import {savePrefs} from './prefs.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
 import {iconButton} from './view.js';
+import {subtitleModal, pickLanguage, pickSubtitleFile} from './subtitle-menu.js';
+import {viaName} from './rules.js';
+
+const MODAL_LABELS = {audio: 'Audio', subtitles: 'Subtitles', info: 'Stream info', playback: 'Playback', find: 'Find a line'};
 
 export class Menus {
   constructor(p) {
@@ -18,6 +22,7 @@ export class Menus {
     this.panelName = null;
     this.returnFocus = null;
     this.subtitleSearch = false;
+    this.bodies = {}; // more modals by name: () => their content (extras.js)
     this.reset();
   }
 
@@ -30,7 +35,12 @@ export class Menus {
     this.showHidden = false;
     this.subLang = null;
     this.subTab = 'tracks';
+    this.subTarget = 'first'; // or 'second': the subtitles menu is choosing the second track
   }
+
+  subtitleModal() { return subtitleModal(this); }
+  pickLanguage(code) { pickLanguage(this, code); }
+  pickSubtitleFile() { pickSubtitleFile(this); }
 
   openModal(name) {
     const p = this.p;
@@ -40,7 +50,7 @@ export class Menus {
     this.modalClose = pushLayer('player-modal', () => { this.modalClose = null; this.dismiss(); });
     this.renderModal();
     p.modal.hidden = false;
-    p.modal.setAttribute('aria-label', {audio: 'Audio', subtitles: 'Subtitles', info: 'Stream info'}[name] || name);
+    p.modal.setAttribute('aria-label', MODAL_LABELS[name] || name);
     p.root.classList.add('overlay');
     p.showControls(false);
     this.focusOverlay(p.modal);
@@ -82,7 +92,7 @@ export class Menus {
 
   refresh() {
     const p = this.p;
-    if (this.modalName) this.renderModal();
+    if (this.modalName && this.modalName !== 'find') this.renderModal(); // the search keeps its field as typed
     const subs = p.engine.subtitleOptions();
     p.actionButtons.subtitles.classList.toggle('on', subs.some(s => s.selected));
   }
@@ -96,6 +106,7 @@ export class Menus {
     let body;
     if (name === 'audio') body = this.audioModal();
     else if (name === 'subtitles') body = this.subtitleModal();
+    else if (this.bodies[name]) body = this.bodies[name]();
     else body = this.infoModal();
     // Redrawn after every tap: the lists stay where they were scrolled, and keyboard focus stays on its button.
     const kept = p.modal.hidden ? [] : [...p.modal.querySelectorAll('.ap-modal-body, .ap-rail')].map(el => ['.' + [...el.classList].join('.'), el.scrollTop]);
@@ -108,14 +119,6 @@ export class Menus {
     if (focused != null) [...p.modal.querySelectorAll('button')].find(b => key(b) === focused)?.focus({preventScroll: true});
   }
 
-  pickLanguage(code) {
-    const p = this.p;
-    this.subLang = code;
-    this.renderModal();
-    // Stacked in portrait, the tracks are under the languages: bring them up.
-    if (p.root.classList.contains('portrait')) p.modal.querySelector('.ap-rail.tracks')?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
-  }
-
   audioModal() {
     const p = this.p;
     const options = p.engine.audioOptions();
@@ -125,63 +128,6 @@ export class Menus {
     }, h('span', {class: 'ap-row-text'}, h('b', {}, a.label), a.supported ? (a.delivery === 'rebuilt' ? h('small', {}, 'Converted on this device') : null) : h('small', {}, a.reason || 'Not playable here')), a.selected ? icon('check', {size: 20}) : null))
       : [h('p', {class: 'ap-empty'}, p.engine.mode === 'native' ? 'This source plays directly in Chrome, which does not let pages choose its audio track.' : 'No other audio tracks.')];
     return [h('h3', {}, 'Audio'), h('div', {class: 'ap-rail wide'}, ...rows)];
-  }
-
-  subtitleModal() {
-    const p = this.p;
-    const options = p.engine.subtitleOptions();
-    // Languages in a useful order: the remembered one, the phone's own, then A to Z (Unknown last).
-    const wanted = [baseLanguage(p.prefs.subtitleLanguage), ...navigator.languages.map(baseLanguage)].filter(Boolean);
-    const rank = code => code === 'und' ? 1e4 : wanted.includes(code) ? wanted.indexOf(code) : 100;
-    const langs = [...new Set(options.map(s => baseLanguage(s.language) || 'und'))]
-      .sort((a, b) => rank(a) - rank(b) || (languageName(a) || a).localeCompare(languageName(b) || b));
-    const selected = options.find(s => s.selected);
-    this.subLang ??= selected ? baseLanguage(selected.language) || 'und' : langs[0] || null;
-    if (this.subLang && !langs.includes(this.subLang)) this.subLang = langs[0] || null;
-    const langName = code => code === 'und' ? 'Unknown' : languageName(code) || code;
-    const languageRail = h('div', {class: 'ap-rail languages'},
-      h('button', {class: 'ap-row' + (!selected ? ' selected' : ''), type: 'button', 'aria-pressed': String(!selected), onclick: () => { p.engine.selectSubtitle(null); p.prefs.subtitleLanguage = ''; savePrefs(p.prefs); }}, h('b', {}, 'Off'), !selected ? icon('check', {size: 20}) : null),
-      ...langs.map(code => h('button', {class: 'ap-row' + (code === this.subLang ? ' current' : ''), type: 'button', 'aria-pressed': String(code === this.subLang), onclick: () => this.pickLanguage(code)}, h('b', {}, langName(code)), h('small', {}, String(options.filter(s => (baseLanguage(s.language) || 'und') === code).length)))),
-      h('button', {class: 'ap-row file', type: 'button', onclick: () => this.pickSubtitleFile()}, icon('plus', {size: 18}), h('b', {}, 'From this phone…')));
-    const trackRail = h('div', {class: 'ap-rail tracks'}, ...options.filter(s => (baseLanguage(s.language) || 'und') === this.subLang).map(s => h('button', {
-      class: 'ap-row' + (s.selected ? ' selected' : ''), type: 'button', disabled: !s.supported, 'aria-pressed': String(!!s.selected),
-      onclick: () => { p.engine.selectSubtitle(s.id); p.prefs.subtitleLanguage = baseLanguage(s.language); savePrefs(p.prefs); },
-    }, h('span', {class: 'ap-row-text'}, h('b', {}, s.label), s.name ? h('small', {class: 'ap-file'}, s.name) : null,
-      h('span', {class: 'ap-tags'}, h('em', {}, s.kind === 'embedded' ? (s.image ? 'Built-in picture' : 'Built-in') : s.kind === 'stream' ? 'Stream' : s.source || 'Add-on'),
-        s.exact ? h('em', {class: 'good'}, 'Exact match') : null, s.forced ? h('em', {}, 'Forced') : null, s.loading ? h('em', {}, 'Loading…') : null),
-      !s.supported ? h('small', {}, s.reason || '') : null), s.selected ? icon('check', {size: 20}) : null)));
-    if (!options.length) trackRail.append(h('p', {class: 'ap-empty'}, this.subtitleSearch ? 'Looking for subtitles…'
-      : p.engine.mode === 'native' && !p.engine.readable ? 'This host does not let Astra read the file, so subtitles inside it cannot be shown. Subtitles from your add-ons still appear here, and you can load a file from this phone.'
-      : 'No subtitles for this source.'));
-    else if (this.subtitleSearch) trackRail.append(h('p', {class: 'ap-empty small'}, 'Still asking subtitle add-ons…'));
-    const tab = this.subTab === 'style' ? 'style' : 'tracks';
-    const tabs = h('div', {class: 'ap-tabs', role: 'tablist'}, ...[['tracks', 'Tracks'], ['style', 'Style']].map(([id, label]) =>
-      h('button', {class: 'ap-tab' + (id === tab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(id === tab), onclick: () => { this.subTab = id; this.renderModal(); p.modal.querySelector('.ap-modal-body').scrollTop = 0; }}, label)));
-    return [h('div', {class: 'ap-modal-head'}, h('h3', {}, 'Subtitles'), tabs),
-      tab === 'style' ? h('div', {class: 'ap-rails'}, this.styleRail()) : h('div', {class: 'ap-rails'}, languageRail, trackRail)];
-  }
-
-  styleRail() {
-    const p = this.p.prefs, r = this.p.engine.subtitles;
-    const save = () => { savePrefs(p); r.setStyle(subtitleStyle(p)); this.renderModal(); this.p.layout(); }; // size and position move the bottom line
-    const stepper = (label, value, minus, plus, reset) => h('div', {class: 'ap-step'}, h('span', {}, label),
-      h('div', {}, h('button', {class: 'ap-chip', type: 'button', 'aria-label': label + ' down', onclick: minus}, '−'), h('b', {}, value), h('button', {class: 'ap-chip', type: 'button', 'aria-label': label + ' up', onclick: plus}, '+'),
-        reset ? h('button', {class: 'ap-chip ghost', type: 'button', onclick: reset}, 'Reset') : null));
-    const delay = r.delay;
-    // Two groups: side by side in landscape, so nothing hides below the fold.
-    return h('div', {class: 'ap-rail style'}, h('div', {class: 'ap-style-group'},
-      stepper('Delay', `${delay > 0 ? '+' : ''}${delay.toFixed(1)} s`, () => { r.setDelay(Math.max(-60, delay - 0.1)); this.renderModal(); }, () => { r.setDelay(Math.min(60, delay + 0.1)); this.renderModal(); }, delay ? () => { r.setDelay(0); this.renderModal(); } : null),
-      stepper('Size', String(p.subtitleSize), () => { p.subtitleSize = Math.max(12, p.subtitleSize - 2); save(); }, () => { p.subtitleSize = Math.min(40, p.subtitleSize + 2); save(); }),
-      stepper('Position', String(p.subtitleOffset), () => { p.subtitleOffset = Math.max(0, p.subtitleOffset - 5); save(); }, () => { p.subtitleOffset = Math.min(200, p.subtitleOffset + 5); save(); }),
-      h('div', {class: 'ap-toggles'},
-        h('button', {class: 'ap-chip' + (p.subtitleBold ? ' on' : ''), type: 'button', 'aria-pressed': String(p.subtitleBold), onclick: () => { p.subtitleBold = !p.subtitleBold; save(); }}, 'Bold'),
-        h('button', {class: 'ap-chip' + (p.subtitleOutline ? ' on' : ''), type: 'button', 'aria-pressed': String(p.subtitleOutline), onclick: () => { p.subtitleOutline = !p.subtitleOutline; save(); }}, 'Outline'))),
-      h('div', {class: 'ap-style-group'},
-      h('span', {class: 'ap-label'}, 'Text colour'),
-      h('div', {class: 'ap-swatches'}, ...SUBTITLE_COLORS.map(c => h('button', {class: 'ap-swatch' + (c === p.subtitleColor ? ' on' : ''), type: 'button', 'aria-label': SUBTITLE_COLOR_NAMES[c] || c, 'aria-pressed': String(c === p.subtitleColor), style: {background: c}, onclick: () => { p.subtitleColor = c; save(); }}))),
-      h('span', {class: 'ap-label'}, 'Background'),
-      h('div', {class: 'ap-swatches'}, ...SUBTITLE_BACKGROUNDS.map(a => h('button', {class: 'ap-swatch bg' + (a === p.subtitleBackground ? ' on' : ''), type: 'button', 'aria-label': a ? `Background ${Math.round(a * 100)}%` : 'No background', 'aria-pressed': String(a === p.subtitleBackground), style: {background: a ? `rgba(0,0,0,${a})` : 'transparent'}, onclick: () => { p.subtitleBackground = a; save(); }}))),
-      h('button', {class: 'ap-chip ghost', type: 'button', onclick: () => { for (const k of ['subtitleSize', 'subtitleColor', 'subtitleBackground', 'subtitleOutline', 'subtitleBold', 'subtitleOffset']) p[k] = DEFAULTS[k]; r.setDelay(0); save(); }}, 'Reset defaults')));
   }
 
   infoModal() {
@@ -196,7 +142,9 @@ export class Menus {
     if (p.video.videoWidth) rows.push(['Picture', `${p.video.videoWidth}×${p.video.videoHeight}`]);
     for (const n of plan?.notes || []) rows.push(['Note', n]);
     const external = canOpenExternally() && externalPlayerUrl(p.stream?.url);
-    return [h('h3', {}, 'Stream info'), h('dl', {class: 'ap-info'}, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
+    const extra = p.extras.info; // data used, chapters, save a frame
+    rows.push(...extra.rows());
+    return [h('h3', {}, 'Stream info'), h('dl', {class: 'ap-info'}, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), ...extra.after(),
       external ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null];
   }
 
@@ -208,7 +156,7 @@ export class Menus {
       const hidden = p.hiddenSources || [], list = this.showHidden ? [...p.sources, ...hidden] : p.sources;
       body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...list.map(s => h('button', {
         class: 'ap-source' + (s.id === p.sourceId ? ' current' : ''), type: 'button', onclick: () => this.pickSource(s),
-      }, h('b', {}, s.label), s.detail ? h('span', {}, s.detail) : null))),
+      }, h('b', {}, viaName(s.label)), s.detail ? h('span', {}, s.detail) : null))),
       hidden.length && !this.showHidden ? h('p', {class: 'ap-panel-note'}, `${hidden.length} hidden by your filters `,
         h('button', {class: 'ap-chip ghost', type: 'button', onclick: () => { this.showHidden = true; this.renderPanel(); }}, 'Show them')) : null];
     } else {
@@ -257,25 +205,4 @@ export class Menus {
 
   /** The player closed. */
   close() { this.dismiss(true); }
-
-  /** Loads an .srt, .vtt or .ass file the viewer picks and shows it. */
-  pickSubtitleFile() {
-    const p = this.p;
-    const input = h('input', {type: 'file', accept: '.srt,.vtt,.ass,.ssa,.sub,.txt,text/*', hidden: true});
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      input.remove();
-      if (!file || file.size > 8 << 20) return;
-      // The language picked in this menu tells an old (non-UTF-8) file's code page; else the one usually wanted.
-      const text = decodeSubtitleBytes(new Uint8Array(await file.arrayBuffer()), this.subLang && this.subLang !== 'und' ? this.subLang : p.prefs.subtitleLanguage || '');
-      const id = p.engine.addSubtitleTrack({text, label: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Subtitles', format: file.name, source: 'This phone'});
-      const cues = p.engine.cues.get(id) || [];
-      if (!cues.length) { p.flash('No subtitles found in that file'); return; }
-      this.subLang = 'und';
-      p.engine.selectSubtitle(id);
-      this.renderModal();
-    }, {once: true});
-    p.root.append(input);
-    input.click();
-  }
 }

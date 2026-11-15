@@ -17,9 +17,9 @@ import {EarlyCuts} from './early.js';
 import {loadDecoders} from './audio-decoders.js';
 import {StallWatch} from './stall-watch.js';
 
-/** Read-ahead limits; tests shorten them to exercise restarts on small files. Picture and sound read to the same
- * place, so one download serves both: kept apart, on a high-bitrate film, the gap outgrew the reader's cache. */
-export const TUNING = {ahead: 40, maxQueued: 24 << 20};
+// Read-ahead limits (seconds; tests shorten them). Picture and sound read to the same place, `apart` at most, so one
+// download serves both: kept apart, on a high-bitrate film, the gap outgrew the reader's cache.
+export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20};
 const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
@@ -121,10 +121,7 @@ export class RemuxSession extends EventTarget {
     this.restartAt(t, held ? Math.min(...queues.map(q => bufferedEnd(q.buffer, t))) : t);
   }
 
-  /**
-   * Starts fresh pipelines reading from `at` (default `time`) for a playhead at `time`. Restarts and audio changes run
-   * one after another; of several restarts waiting, only the latest runs.
-   */
+  /** Fresh pipelines reading from `at` for a playhead at `time`; restarts and audio changes run in turn, the latest of each kind. */
   restartAt(time, at = time) {
     return this.serial('restart', async () => {
       this.stats.restarts++;
@@ -169,6 +166,7 @@ export class RemuxSession extends EventTarget {
     const queue = this.queues[kind];
     const current = () => !this.destroyed && queue.generation === generation;
     this.readAt[kind] = timestamp - this.offset;
+    if (this.wakers.size) this.onProgress(); // the other pipeline may be waiting for this one to catch up
     // Chrome keeps playing audio it decoded from the old track until a seek
     // flushes it; seek in place once the new track covers the playhead.
     if (kind === 'audio' && this.flushAudio === generation && bufferedAt(queue.buffer, this.video.currentTime, 0.3, this.ms.duration)) {
@@ -181,7 +179,11 @@ export class RemuxSession extends EventTarget {
     }
     // Limit how far reading runs ahead of the playhead (not what happens to be buffered there, which may be left
     // from before a seek back), and how much waits to be appended.
-    while (current() && (this.readAt[kind] - this.video.currentTime > TUNING.ahead || queue.pending() > TUNING.maxQueued)) {
+    // Neither reads more than `apart` past the other while it still reads: quick-to-read sound would pull the download
+    // far past the picture, and the picture's blocks out of the reader's cache.
+    const other = kind === 'video' ? 'audio' : 'video';
+    const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
+    while (current() && (this.readAt[kind] - this.video.currentTime > TUNING.ahead || apart() || queue.pending() > TUNING.maxQueued)) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);
@@ -197,14 +199,15 @@ export class RemuxSession extends EventTarget {
     const track = this.videoTrack.ref;
     const sink = new MB.EncodedPacketSink(track);
     const start = await sink.getKeyPacket(from, {verifyKeyPackets: true}) ?? await sink.getFirstPacket();
-    if (!start || this.queues.video.generation !== generation) return;
+    if (this.queues.video.generation !== generation) return;
+    if (!start) { this.ended.video = true; return this.finish(); }
     const early = this.early ? new EarlyCuts() : null; // fragments every half second, not only at key frames
     const output = this.output('video', generation, early);
     const source = new MB.EncodedVideoPacketSource(track.codec);
     output.addVideoTrack(source);
     await output.start();
     let first = true;
-    for await (const packet of sink.packets(start)) {
+    for await (const packet of inOrder(sink, start)) {
       if (!await this.room('video', packet.timestamp, generation)) { await output.cancel(); return; }
       await source.add(early ? early.mark(packet) : packet, first ? {decoderConfig: this.videoTrack.decoderConfig} : undefined);
       first = false;
@@ -238,12 +241,12 @@ export class RemuxSession extends EventTarget {
     } else {
       const sink = new MB.EncodedPacketSink(track);
       const start = await sink.getPacket(from) ?? await sink.getFirstPacket();
-      if (!start) return;
+      if (!start) { this.ended.audio = true; return this.finish(); }
       const source = new MB.EncodedAudioPacketSource(track.codec);
       output.addAudioTrack(source);
       await output.start();
       let first = true;
-      for await (const packet of sink.packets(start)) {
+      for await (const packet of inOrder(sink, start)) {
         if (this.audio !== choice || !await this.room('audio', packet.timestamp, generation)) { await output.cancel(); return; }
         if (packet.timestamp < 0) continue;
         await source.add(packet, first ? {decoderConfig: choice.track.decoderConfig} : undefined);
@@ -287,4 +290,10 @@ export class RemuxSession extends EventTarget {
     for (const q of Object.values(this.queues)) q.generation++;
     this.onProgress();
   }
+}
+
+// A track's packets from `start`, each read when asked for. Mediabunny's packets() reads ahead as many as were taken
+// in the last second: after a burst that filled 40 seconds, as much again (150 MB on a 30 Mbit/s film).
+async function* inOrder(sink, start) {
+  for (let packet = start; packet; packet = await sink.getNextPacket(packet)) yield packet;
 }

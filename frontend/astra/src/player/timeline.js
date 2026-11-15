@@ -1,10 +1,12 @@
 // The seek bar: the played and buffered lengths, the thumb, the time bubble
-// while dragging, and what a screen reader hears. Dragging shares p.scrub
+// (and the chapter's name) while dragging, and what a screen reader hears. Dragging shares p.scrub
 // ({active, time}) with the swipe on the picture. A stream with no length (a
 // live one) shows a full bar marked Live and cannot be dragged.
 
-import {clock} from '../ui/dom.js';
+import {clock, h} from '../ui/dom.js';
 import {put} from './view.js';
+import {chapterAt} from './rules.js';
+import {chaptersOf} from './marks.js';
 
 export class Timeline {
   constructor(p) {
@@ -19,9 +21,12 @@ export class Timeline {
     const at = e => { const r = tl.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / (r.width || 1))) * length(); };
     const bubble = () => {
       const f = p.scrub.time / (length() || 1);
-      p.bubble.textContent = clock(p.scrub.time);
-      p.bubble.style.left = `clamp(28px, ${(f * 100).toFixed(2)}%, calc(100% - 28px))`;
+      // The chapter's name under the time, when the film has chapters.
+      const chapter = chapterAt(chaptersOf(p.engine), p.scrub.time);
+      p.bubble.replaceChildren(clock(p.scrub.time), chapter?.title ? h('small', {}, chapter.title) : '');
       p.bubble.hidden = false;
+      const half = Math.ceil(p.bubble.offsetWidth / 2) + 4; // a chapter's name widens it: kept inside the bar
+      p.bubble.style.left = `clamp(${half}px, ${(f * 100).toFixed(2)}%, calc(100% - ${half}px))`;
     };
     tl.addEventListener('pointerdown', e => {
       if (p.ctl.locked || !length() || this.pointer != null) return;

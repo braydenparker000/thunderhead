@@ -116,9 +116,9 @@ export function build(p) {
   r.panel = h('div', {class: 'ap-panel', hidden: true, role: 'dialog', 'aria-modal': 'true'});
 
   r.surface = h('div', {class: 'ap-surface'});
-  r.soundOnly = h('div', {class: 'ap-sound-only', hidden: true}); // the picture covered (sound-only.js)
+  r.soundCover = h('div', {class: 'ap-sound-only', hidden: true}); // the picture covered (sound-only.js)
   r.root = h('div', {class: 'ap', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Player', hidden: true, tabindex: -1},
-    r.stage, r.surface, r.soundOnly, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
+    r.stage, r.surface, r.soundCover, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
     r.controls, h('div', {class: 'ap-buffering'}, r.spinner), r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
   p.parent.append(r.root);
   return r;

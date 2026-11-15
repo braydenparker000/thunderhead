@@ -26,6 +26,9 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 /* Picture-in-picture from the player: the video lives on in the floating window. */
 .ap.mini { visibility: hidden; pointer-events: none; }
 .ap-surface { position: absolute; inset: 0; }
+/* The video and its layers in one box, so a zoom moves them together (zoom.js); more in player-extras.css. */
+.ap-stage { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.ap-frame { display: none; }
 
 /* Controls */
 .ap-controls { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 200ms var(--ease); }

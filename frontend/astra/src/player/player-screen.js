@@ -17,11 +17,12 @@
 // bar), keys.js, video-events.js, markers.js (skip and next episode),
 // loading.js (waiting, errors, notices) and system.js (full screen,
 // picture-in-picture, wake lock). Each part has close(); closing runs them all.
+// extras.js gathers the rest (the Playback menu, seek-bar marks, frames, search).
 
 import {AstraPlayer} from '../engine/player.js';
 import {baseLanguage} from '../engine/languages.js';
 import {clock} from '../ui/dom.js';
-import {loadPrefs, savePrefs, subtitleStyle, SPEEDS, ASPECTS, ASPECT_LABELS} from './prefs.js';
+import {loadPrefs, savePrefs, subtitleStyle, ASPECTS, ASPECT_LABELS} from './prefs.js';
 import {externalPlayerUrl} from './external.js';
 import {build, renderMeta, layout} from './view.js';
 import {Controls} from './controls.js';
@@ -33,6 +34,8 @@ import {Loading} from './loading.js';
 import {System} from './system.js';
 import {key} from './keys.js';
 import {bindVideo} from './video-events.js';
+import {Extras} from './extras.js';
+import {viaName} from './rules.js';
 
 export class PlayerScreen extends EventTarget {
   /** How long a load runs before the loading screen offers other sources. */
@@ -66,6 +69,7 @@ export class PlayerScreen extends EventTarget {
     bindVideo(this);
     this.touch = new Surface(this);
     this.seekbar = new Timeline(this);
+    this.extras = new Extras(this);
     this.parts = [this.menus, this.touch, this.seekbar, this.markers, this.loader, this.system, this.ctl]; // closed in this order
     this.onKey = e => key(this, e);
     this.onVisibility = () => {
@@ -102,6 +106,7 @@ export class PlayerScreen extends EventTarget {
     this.markers.reset(o.segments);
     this.menus.reset();
     this.touch.reset();
+    this.extras.opened(o);
     this.mutedChip.hidden = !(this.video.muted || this.video.volume === 0);
     this.firstFrame = false;
     this.remaining = false;
@@ -170,7 +175,7 @@ export class PlayerScreen extends EventTarget {
     this.playedTo = 0;
     this.loader.show(true);
     this.errorCard.hidden = true;
-    this.viaEl.textContent = stream.name ? 'Via ' + stream.name.replace(/\s+/g, ' ') : '';
+    this.viaEl.textContent = stream.name ? 'Via ' + viaName(stream.name) : ''; // the add-on's name once
     const prefs = {languages: [...new Set([this.prefs.audioLanguage, ...((navigator.languages || []).map(baseLanguage))].filter(Boolean))], subtitleLanguage: this.prefs.subtitleLanguage || null, allowSilent};
     this.engine.load({url: stream.url, headers: stream.headers || {}, startTime, autoplay: true, prefs, subtitles: stream.subtitles || []});
     this.system.mediaSession();
@@ -189,13 +194,14 @@ export class PlayerScreen extends EventTarget {
   /** Hands the stream to another app on the phone (VLC, MX Player…). */
   openExternally() {
     const url = externalPlayerUrl(this.stream?.url, {title: [this.meta.title, this.meta.episodeLine].filter(Boolean).join(' · '), position: this.resumePoint()});
-    if (!url) return;
-    this.video.pause();
-    location.href = url;
+    if (url) { this.video.pause(); location.href = url; }
   }
 
   /** Subtitles found by add-ons for what is playing; `load` ties them to one file. */
   addSubtitles(list, load) { this.engine.addSubtitleTracks(list, load); }
+
+  /** Skip times found after the film started: the Skip button and the seek bar's marks follow at once. */
+  setSegments(list) { this.markers.setSegments(list || []); this.extras.marks.render(); this.updateTime(); }
 
   /** Whether subtitle add-ons are still being asked (shown in the subtitles menu). */
   setSubtitleSearch(on) { this.menus.setSubtitleSearch(on); }
@@ -212,6 +218,7 @@ export class PlayerScreen extends EventTarget {
     removeEventListener('keydown', this.onKey);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.popLayer?.(); this.popLayer = null; // also pops an open modal's or panel's entry
+    this.extras.close();
     for (const part of this.parts) part.close();
     this.emit('progress', {time, duration, final: true});
     this.emit('close', {time, duration, reason});
@@ -260,17 +267,10 @@ export class PlayerScreen extends EventTarget {
     this.updateTime();
   }
 
-  cycleSpeed() {
-    const i = SPEEDS.indexOf(this.video.playbackRate);
-    this.video.playbackRate = SPEEDS[(i + 1) % SPEEDS.length];
-    this.speedBtn.textContent = `Speed ${this.video.playbackRate}x`;
-    this.flash(`${this.video.playbackRate}x`);
-    this.showControls();
-  }
-
   cycleAspect() {
     this.prefs.aspect = ASPECTS[(ASPECTS.indexOf(this.prefs.aspect) + 1) % ASPECTS.length];
     savePrefs(this.prefs);
+    this.touch.zoom.reset(); // the aspect button also undoes a pinch
     this.applyAspect();
     this.flash(ASPECT_LABELS[this.prefs.aspect]);
     this.showControls();
@@ -281,6 +281,7 @@ export class PlayerScreen extends EventTarget {
   unmute() {
     if (this.video.volume === 0) this.video.volume = 1;
     this.video.muted = false;
+    this.prefs.volume = this.video.volume; savePrefs(this.prefs);
     this.mutedChip.hidden = true;
     this.flash('Sound on');
   }

@@ -112,8 +112,7 @@ export function fixMkvLayers(bytes) {
   return bytes;
 }
 
-// libmedia's worker threads and its AudioContext are shared by every player and outlive each one: once the last
-// is destroyed they are stopped (and the context closed), and a new start waits for that to finish.
+// libmedia's threads and AudioContext are shared by every player and outlive each: once the last is destroyed they are stopped (the context closed); a new start waits for that.
 let stopping = Promise.resolve();
 function stopLibmedia(AVPlayer, engine) {
   stopping = stopping.then(async () => {
@@ -121,9 +120,8 @@ function stopLibmedia(AVPlayer, engine) {
     if (AVPlayer.Instances?.length || typeof AVPlayer.stopPipelines !== 'function') return;
     const context = AVPlayer.audioContext;
     await AVPlayer.stopPipelines().catch(() => {});
-    // Closed before the next start: libmedia's own listener for the context's change reads it from every player.
-    await context?.close?.().catch(() => {});
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Closed before the next start: libmedia's listener for the context's change reads it from every player.
+    await context?.close?.().catch(() => {}); await new Promise(resolve => setTimeout(resolve, 0));
   });
   return stopping;
 }

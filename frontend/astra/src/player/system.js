@@ -178,6 +178,7 @@ export class System {
    * lands, and two requests in a row hold one lock, not two.
    */
   async wake(on) {
+    if (this.p.extras?.soundOnly.on) on = false; // Sound only: the phone may sleep
     this.wakeWanted = on;
     if (!on) { const lock = this.wakeLock; this.wakeLock = null; lock?.release().catch(() => {}); return; }
     if (this.wakeLock || this.wakeAsking || !navigator.wakeLock || document.visibilityState !== 'visible') return;
@@ -206,9 +207,11 @@ export class System {
       set('seekto', d => { if (d?.seekTime != null) p.video.currentTime = d.seekTime; });
       set('nexttrack', p.options.next ? () => p.markers.playNext() : null);
       // Where the browser offers it, leaving the app while playing opens picture-in-picture.
-      set('enterpictureinpicture', p.prefs.autoPip ? () => p.video.requestPictureInPicture().catch(() => {}) : null);
+      // Not in Sound only: the black screen is what was asked for. The lock screen's play still resumes the sound.
+      const pip = p.prefs.autoPip && !p.extras?.soundOnly.on;
+      set('enterpictureinpicture', pip ? () => p.video.requestPictureInPicture().catch(() => {}) : null);
     } catch {}
-    try { p.video.autoPictureInPicture = !!p.prefs.autoPip; } catch {}
+    try { p.video.autoPictureInPicture = !!p.prefs.autoPip && !p.extras?.soundOnly.on; } catch {}
   }
 
   /** The lock screen's position line: on play, rate change, seek and new length (it runs on by itself in between). */

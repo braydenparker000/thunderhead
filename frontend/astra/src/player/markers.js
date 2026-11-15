@@ -25,6 +25,9 @@ export class Markers {
     this.skipped = new Set();
   }
 
+  /** Skip times that arrived after the film started: a segment the playhead is already in is offered at once. */
+  setSegments(segments) { this.segments = segments.filter(s => s.end > s.start); this.skipSegmentShown = null; }
+
   activeSegment(t) { return this.segments.find(s => t >= s.start && t < s.end - 0.5 && !this.skipped.has(s)); }
 
   updateSkip(t) {
@@ -71,7 +74,8 @@ export class Markers {
 
   updateNext(t, d) {
     const p = this.p;
-    if (!p.options?.next || this.nextDismissed || !(d > 120) || !Number.isFinite(d)) { show(p.nextCard, false); return; }
+    // A sleep timer set for the end of the episode: nothing else is offered.
+    if (!p.options?.next || this.nextDismissed || p.extras?.sleep.episodeEnd || !(d > 120) || !Number.isFinite(d)) { show(p.nextCard, false); return; }
     const outro = this.segments.find(s => (s.type === 'outro' || s.type === 'credits') && d - s.end < 30);
     const at = outro ? outro.start : d * 0.99;
     const credits = this.segments.some(s => s.type === 'postcredits' && t >= s.start);
