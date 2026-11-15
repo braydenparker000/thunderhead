@@ -28,6 +28,7 @@ export const DEFAULTS = Object.freeze({
   headphones: false, // headphone surround: 5.1 placed around the head (enhance/headphone.js)
   sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
   deband: false, // smooth banding
+  upscale: 'standard', // the Picture section's upscale: standard (FSR 1.0) | anime (Anime4K, for drawn animation)
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];

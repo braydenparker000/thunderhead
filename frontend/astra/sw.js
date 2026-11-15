@@ -16,11 +16,19 @@
 // /config.js, /th/) are never handled here: they always come from the network.
 // Add-on answers, artwork and video are never handled here either (the page
 // keeps add-on answers in 'astra-data-v1' itself).
+//
+// Cross-origin isolation (the site cannot send headers; this worker can): the pages it
+// serves get COOP same-origin and COEP credentialless, and the workers they start COEP,
+// so the page has SharedArrayBuffer for the software decoder's and libass's threads.
+// credentialless, not require-corp: artwork, add-on answers and films from other hosts
+// load as before, only without cookies, which Astra never sends them. The first visit
+// comes before this worker controls anything and is not isolated; nothing reloads for it.
 
 const PREFIX = 'astra-app-';
 const STATE = 'astra-sw-state';
 const OLD = ['astra-v1']; // the network-first cache of earlier versions
 const GRACE = 60_000; // a page being opened is not yet listed among the clients
+const ISOLATE = true;
 
 const known = new Map(); // client id -> release, mirrors state.clients
 const lists = new Map(); // release -> its files.json list (or null: none)
@@ -139,13 +147,23 @@ function servedRelease() {
   })().finally(() => { choosing = null; });
 }
 
+/** The response with the headers that isolate a page (COOP and COEP) or a worker's script (COEP); anything else as it is. */
+function isolated(response, destination) {
+  const page = destination === 'document', worker = destination === 'worker' || destination === 'sharedworker';
+  if (!ISOLATE || !(page || worker) || response.type === 'opaque' || response.type === 'opaqueredirect' || response.status < 200 || response.status > 299) return response;
+  const headers = new Headers(response.headers);
+  headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  if (page) headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
+}
+
 const inScope = url => url.origin === self.location.origin && url.pathname.startsWith(new URL(base()).pathname);
 
 self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || request.headers.has('range') || !inScope(url)) return;
-  event.respondWith(request.mode === 'navigate' ? navigate(event) : subresource(event));
+  event.respondWith((request.mode === 'navigate' ? navigate(event) : subresource(event)).then(r => isolated(r, request.mode === 'navigate' ? 'document' : request.destination)));
 });
 
 async function navigate(event) {
@@ -162,8 +180,9 @@ async function navigate(event) {
   const release = await servedRelease();
   const response = await fetch(event.request);
   if (release && response.ok && response.type === 'basic') {
+    const copy = response.clone(); // now: the page's copy is given new headers before the save would clone it
     event.waitUntil(Promise.all([record(event.resultingClientId, release),
-      listOf(release).then(async files => save(await caches.open(PREFIX + release), path, response.clone(), files)).catch(() => {})]));
+      listOf(release).then(async files => save(await caches.open(PREFIX + release), path, copy, files)).catch(() => {})]));
   }
   return response;
 }
@@ -179,7 +198,7 @@ async function subresource(event) {
   if (saved) return saved;
   const response = await fetch(request);
   // Not saved when it is no longer this release's file (the site has moved on).
-  if (response.ok && response.type === 'basic') event.waitUntil(listOf(release).then(files => save(cache, path, response.clone(), files)).catch(() => {}));
+  if (response.ok && response.type === 'basic') { const copy = response.clone(); event.waitUntil(listOf(release).then(files => save(cache, path, copy, files)).catch(() => {})); }
   return response;
 }
 

@@ -1,6 +1,6 @@
 // A sharper picture for small, low-bitrate films on a bigger screen: the film
-// is drawn through the filter (filter.js: de-band, FSR 1.0 upscale and
-// sharpen) onto a canvas laid exactly over the <video>, which keeps playing,
+// is drawn through the filter (filter.js: de-band, an upscale, either FSR 1.0 or
+// Anime4K for drawn animation, and a sharpen) onto a canvas laid exactly over the <video>, which keeps playing,
 // and keeps its sound, underneath. No UI: the player's menus call set().
 //
 // It never makes the film worse than the plain video:
@@ -11,8 +11,8 @@
 // - a film the page may not read (SecurityError on upload), a lost WebGL context
 //   (one more try when it comes back) or a device too slow for it turn it off,
 //   and onReport says why;
-// - when frames start to be missed it steps down: de-band off, then a smaller
-//   output, then off.
+// - when frames start to be missed it steps down: Anime4K to Standard, then
+//   de-band off, then a smaller output, then off.
 
 import {Filter} from './filter.js';
 import {unreadable} from './origin.js';
@@ -23,17 +23,19 @@ export const MAX_OUT = [1920, 1080];
 const SCALES = [1, 0.75, 0.5];
 
 /**
- * HDR films: what Chrome does when an HDR frame is uploaded into an SDR WebGL
- * canvas, measured in this repository's Chromium with a VP9 profile 2, PQ,
- * BT.2020 clip of grey patches (5, 20, 100, 203 and 1000 nits). An RGBA8
- * upload is converted to sRGB with 203 nits as white and clipped above it:
- * 43, 88, 184, 255, 255. Chrome's own picture (and a 2D canvas) tone-maps
- * instead: 29, 63, 135, 187, 254. So the filter would blow out every
- * highlight; it stays off for HDR and the plain video shows. (A half-float
- * upload keeps the highlights, 1000 nits arriving as 1.98, so a tone-mapping
- * pass is possible later; none is shipped, as it could not be checked by eye.)
+ * HDR films, measured in this repository's Chromium with a VP9 profile 2, PQ, BT.2020 clip of grey
+ * patches (5, 20, 100, 203 and 1000 nits). An RGBA8 upload is converted to sRGB with 203 nits as
+ * white and clipped above it: 43, 88, 184, 255, 255. A half-float upload (RGBA16F) keeps them:
+ * 0.169, 0.346, 0.723, 0.998, 1.977, which is still display-encoded, not linear: the sRGB curve
+ * extended past 1.0, 1.0 at 203 nits, already in the canvas's primaries (unpackColorSpace; colours
+ * outside them come as negative values). Chrome's own picture (a plain <video>, read through a 2D
+ * canvas) tone-maps: 29, 63, 135, 187, 254. So an HDR film is uploaded as half floats and
+ * tone-mapped (tonemap.js, BT.2390) before the other passes; on this clip the filter draws 29, 63,
+ * 136, 188, 255. Where half floats cannot be drawn into, the plain video shows, with this reason.
  */
-export const HDR = Object.freeze({clipsHighlights: true, whiteNits: 203, toneMapped: false, reason: 'HDR films keep the plain picture: drawn through the filter their highlights would be clipped.'});
+export const HDR = Object.freeze({whiteNits: 203, toneMapped: true, reason: 'HDR films keep the plain picture on this device: it cannot draw them at the precision their highlights need.'});
+/** Upscales the filter offers: FSR 1.0 for any film, Anime4K's network for drawn animation. */
+export const UPSCALES = ['standard', 'anime'];
 
 /**
  * The size, in CSS pixels, at which the element shows its picture: its box
@@ -74,11 +76,13 @@ export class Picture {
   /**
    * @param {HTMLVideoElement} video
    * @param {HTMLElement} layer  an element over the video and under the subtitles; the canvas goes in first
-   * @param {{onReport?: (reason: string) => void, hdr?: boolean}} [options]
+   * @param {{onReport?: (reason: string) => void, hdr?: boolean}} [options]  hdr: the film is HDR (PQ), uploaded and tone-mapped as such
    */
   constructor(video, layer, {onReport, hdr = false} = {}) {
     Object.assign(this, {video, layer, hdr, onReport: onReport || (() => {})});
     this.settings = {sharpen: 0, deband: false};
+    this.upscale = 'standard'; this.restore = false; // Anime4K's Restore CNN before the upscale: off (its cost, see anime4k.js)
+    this.fallback = ''; // why Standard is drawn although Anime4K was asked for: 'slow' (stepped down) or 'device' (no half floats)
     this.on = false; this.filter = null; this.canvas = null; this.frameId = 0;
     this.level = 0; // 0 everything, 1 no de-band, 2 and 3 smaller outputs
     this.reason = ''; this.restored = false; this.refused = '';
@@ -87,27 +91,28 @@ export class Picture {
     this.onShape = () => this.place();
     this.onWake = () => this.request();
     // A new film is a fresh start: it may be readable (or fast enough) where the last was not.
-    this.onLoad = () => { this.refused = ''; this.level = 0; this.reason = ''; if (this.wanted()) this.start(); };
+    this.onLoad = () => { this.refused = ''; this.level = 0; this.reason = ''; this.fallback = ''; if (this.wanted()) this.start(); };
     video.addEventListener('loadstart', this.onLoad);
   }
 
   report(reason) { this.reason = reason; this.onReport(reason); }
-  wanted() { return this.settings.sharpen > 0 || this.settings.deband; }
+  wanted() { return this.settings.sharpen > 0 || this.settings.deband || this.upscale === 'anime'; }
 
-  /** {sharpen: 0-1, deband: bool}; sharpen 0 with de-band off turns the filter off. */
+  /** {sharpen: 0-1, deband: bool, upscale: 'standard' | 'anime'}; sharpen 0, de-band off and Standard turn the filter off. */
   set(next = {}) {
     const s = {...this.settings, ...next};
     this.settings = {sharpen: Math.min(1, Math.max(0, +s.sharpen || 0)), deband: !!s.deband};
+    if ('upscale' in next) { const u = UPSCALES.includes(next.upscale) ? next.upscale : 'standard'; if (u !== this.upscale) this.fallback = ''; this.upscale = u; }
     if (!this.wanted()) { this.stop(); this.reason = ''; return true; }
     return this.start();
   }
 
   state() {
-    return {on: this.on, shown: !!this.canvas?.isConnected, settings: {...this.settings}, level: this.level, size: this.filter && {...this.filter.size, out: [this.canvas?.width, this.canvas?.height]}, ms: +this.stats.ms.toFixed(2), reason: this.reason};
+    return {on: this.on, shown: !!this.canvas?.isConnected, settings: {...this.settings}, upscale: this.upscale, drawn: this.filter?.used || '', fallback: this.fallback, level: this.level, size: this.filter && {...this.filter.size, out: [this.canvas?.width, this.canvas?.height]}, ms: +this.stats.ms.toFixed(2), reason: this.reason};
   }
 
   start() {
-    const why = this.hdr ? HDR.reason : this.refused || unreadable(this.video);
+    const why = this.refused || unreadable(this.video);
     if (why) { this.stop(); this.report(why); return false; }
     if (this.on) { this.request(); return true; }
     try {
@@ -120,6 +125,7 @@ export class Picture {
       canvas.addEventListener('webglcontextrestored', () => { if (canvas === this.canvas) this.restore(); });
       this.filter = new Filter(this.canvas);
     } catch (e) { this.stop(); this.report(`The sharper picture could not start: ${e.message}`); return false; }
+    if (this.hdr && !this.filter.half) { this.stop(); this.report(HDR.reason); return false; }
     this.on = true;
     this.watch = new ResizeObserver(this.onShape);
     this.watch.observe(this.video); this.watch.observe(this.layer);
@@ -180,14 +186,18 @@ export class Picture {
 
   draw() {
     if (!this.on || !this.filter || this.filter.gl.isContextLost()) return;
+    if (this.hdr && !this.filter.half) return this.refuse(HDR.reason);
     const t0 = performance.now();
-    try { this.filter.upload(this.video); }
+    try { this.filter.upload(this.video, this.hdr); }
     catch (e) {
       if (e?.name === 'SecurityError') return this.refuse('This film comes from a host that does not let the page read its picture, so the plain picture stays.');
+      if (this.hdr) return this.refuse(HDR.reason);
       return this.refuse(`The sharper picture stopped: ${e?.message || e}`);
     }
     if (this.canvas && this.filter.size.in[0] && (this.canvas.width < 2 || this.filter.size.in.join() !== this.film)) { this.film = this.filter.size.in.join(); this.place(); }
-    this.filter.draw({sharpen: this.settings.sharpen, deband: this.settings.deband && this.level === 0});
+    const anime = this.upscale === 'anime' && !this.fallback;
+    if (anime && !this.filter.half) this.fallback = 'device';
+    this.filter.draw({sharpen: this.settings.sharpen, deband: this.settings.deband && this.level === 0, upscale: anime ? 'anime' : 'standard', restore: this.restore});
     this.stats.ms = this.stats.ms * 0.9 + (performance.now() - t0) * 0.1;
     if (this.canvas && !this.canvas.isConnected) this.layer.prepend(this.canvas);
   }
@@ -213,6 +223,8 @@ export class Picture {
   }
 
   stepDown() {
+    // Anime4K first: Standard costs a fraction of it, so that alone may be enough.
+    if (this.upscale === 'anime' && !this.fallback && this.filter?.used === 'anime') { this.fallback = 'slow'; return this.resetStats(); }
     const before = this.canvas?.width || 0, slow = 'This device cannot draw the sharper picture fast enough, so the plain picture stays.';
     this.level = this.level === 0 && this.settings.deband ? 1 : Math.max(2, this.level + 1);
     if (this.level > SCALES.length) return this.refuse(slow);

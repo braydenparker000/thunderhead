@@ -12,7 +12,7 @@
 // open() also answers the question the planner needs first: can a web page
 // read this file at all (CORS) and does the host honour ranges?
 
-import {BLOCK, READ_AHEAD, REUSE_WINDOW, TIMING, SourceError, parseContentRange, ask, runStream, streamFailed} from './source-stream.js';
+import {BLOCK, READ_AHEAD, REUSE_WINDOW, GAP, TIMING, SourceError, parseContentRange, ask, runStream, streamFailed, soon} from './source-stream.js';
 import {missing, assemble, arrived, keepPart, need} from './source-blocks.js';
 import {sideRead, fillHole} from './side-read.js';
 import {filmStore, remember, HEAD} from './film-memory.js';
@@ -21,7 +21,6 @@ import {tuning} from './source-tuning.js';
 
 export {BLOCK, TIMING, SourceError, parseContentRange};
 const MAX_STREAMS = 2;
-const GAP = 256 << 10; // a read this close past a download, or past a block's start, is reached by reading on, not by asking again
 
 export class HttpSource {
   /** @param {string} url @param {{headers?: Record<string,string>, maxBytes?: number, fetchFn?: typeof fetch, memory?: object|null, connection?: EventTarget|null}} [options] */
@@ -206,9 +205,9 @@ export class HttpSource {
 
   /** Lets a paused download that serves [start, end) read further ahead, and keeps it going past the header. */
   advance(start, end) {
-    const window = this.probing ? GAP : REUSE_WINDOW, reach = this.reach();
+    const reach = this.reach();
     for (const s of this.streams) {
-      if (start > s.at + window || s.at - end > reach + BLOCK) continue;
+      if (start > s.at + soon(this, s) || s.at - end > reach + BLOCK) continue;
       s.until = Math.max(s.until, end);
       const freed = !this.probing && s.held;
       if (freed) s.held = false;
@@ -216,8 +215,8 @@ export class HttpSource {
     }
   }
 
-  /** True when the download will bring byte `at` soon by reading on. */
-  servedBy(stream, at) { return at >= stream.at && at - stream.at < (this.probing ? GAP : REUSE_WINDOW); }
+  /** True when the download will bring byte `at` soon by reading on: within about a second at its speed (source-stream.js soon). */
+  servedBy(stream, at) { return at >= stream.at && at - stream.at < soon(this, stream); }
   /** True when a read is waiting for bytes this download will bring. */
   servingWaiter(stream) { for (const w of this.waiters) if (this.servedBy(stream, need(this, w))) return true; return false; }
 
@@ -239,13 +238,13 @@ export class HttpSource {
   }
 
   startStream(position, response = null, want = position) {
-    // Playing from elsewhere (resuming halfway, a seek): a stream nobody reads from, far from here,
-    // is closed rather than paused, since a paused connection still fills its window (megabytes)
-    // with data that is not needed, taking the phone's bandwidth from the stream that is.
+    // Playing from elsewhere (resuming halfway, a seek): a stream nobody reads from, far from here or behind
+    // a place a read now needs (the bytes a resume skips), is closed rather than left to read on or pause, since
+    // a paused connection still fills its window (megabytes), taking the phone's bandwidth from the stream that is.
     if (!this.probing) for (const s of [...this.streams]) {
-      if (Math.abs(s.at - position) > this.reach() + REUSE_WINDOW && !this.servingWaiter(s)) s.abort();
+      if ((Math.abs(s.at - position) > this.reach() + REUSE_WINDOW || (s.at < position && this.waiters.size)) && !this.servingWaiter(s)) s.abort();
     }
-    const stream = {at: position, want, until: response ? HEAD : position, held: this.probing, delivered: 0, received: 0, lastAt: Date.now(), controller: new AbortController(), wake: null};
+    const stream = {at: position, want, until: response ? HEAD : position, held: this.probing, delivered: 0, received: 0, lastAt: Date.now(), since: Date.now(), ran: 0, controller: new AbortController(), wake: null};
     for (const w of this.waiters) if (this.servedBy(stream, need(this, w))) { stream.want = Math.max(stream.want, w.end); stream.until = Math.max(stream.until, w.end); }
     stream.abort = () => { stream.controller.abort(); this.streams.delete(stream); stream.wake?.(); };
     this.streams.add(stream);

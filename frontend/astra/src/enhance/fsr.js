@@ -23,8 +23,8 @@
 // THE SOFTWARE.
 //
 // Texture taps per output pixel: deband 5 per input pixel (1 exact, 4
-// bilinear), EASU 12, RCAS 5. Image rows run top-down in every texture; EASU
-// turns them over once, for the canvas (whose rows run bottom-up).
+// bilinear), EASU 12, RCAS 5, BLIT 1 (bilinear). Image rows run top-down in every
+// texture; EASU or BLIT turns them over once, for the canvas (whose rows run bottom-up).
 
 const HEAD = '#version 300 es\nprecision highp float;\nprecision highp int;\n';
 
@@ -146,3 +146,12 @@ void main() {
   float lobe = max(-0.1875, min(max(lobes.r, max(lobes.g, lobes.b)), 0.0)) * sharp * nz;
   color = vec4((lobe * (b + d + h + f) + e) / (4.0 * lobe + 1.0), 1.0);
 }`;
+
+/**
+ * A plain bilinear resample to the target's size, turning rows over as EASU does: for a picture
+ * that is already larger than the output (Anime4K's doubled film shown at less than twice).
+ */
+export const BLIT = `${HEAD}
+uniform sampler2D src; uniform vec2 outSize;
+out vec4 color;
+void main() { color = vec4(texture(src, vec2(gl_FragCoord.x, outSize.y - gl_FragCoord.y) / outSize).rgb, 1.0); }`;

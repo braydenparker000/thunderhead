@@ -107,5 +107,40 @@ test('plays on this phone: the label gives the question, the browser answer give
   assert.equal(wordsFor(hi10, null), '');
   assert.equal(wordsFor(null, { supported: true, smooth: true, powerEfficient: true }), '');
   assert.equal(SOFTWARE, 'Needs the software decoder (uses more battery)');
-  assert.deepEqual([soundNote(s('a', 'x265 DTS')), soundNote(s('a', 'x265 AAC'))], [SOUND, '']);
+  const none = { mse: () => false, passFailed: () => false };
+  assert.deepEqual([soundNote(s('a', 'x265 DTS'), none), soundNote(s('a', 'x265 AAC'), none)], [SOUND, '']);
+});
+
+test('the sound note is said only when the phone will not play that sound itself (engine/plan.js audioDelivery)', () => {
+  const asked = [];
+  const caps = (yes, failed = []) => ({ mse: (m) => (asked.push(m), yes.some((c) => m === `audio/mp4; codecs="${c}"`)), passFailed: (c) => failed.includes(c) });
+  // The browser plays E-AC-3 as it is: nothing to say.
+  assert.equal(soundNote(s('a', 'Film.1080p.WEB-DL.DDP5.1.x264'), caps(['ec-3'])), '');
+  assert.deepEqual(asked, ['audio/mp4; codecs="ec-3"']);
+  assert.equal(soundNote(s('a', 'Film 1080p DD5.1 x264'), caps(['ac-3'])), '');
+  assert.equal(soundNote(s('a', 'Film 1080p DTS x265'), caps(['dtsc'])), '');
+  // It says no, or a pass-through of that codec failed here before: the sound is converted.
+  assert.equal(soundNote(s('a', 'Film 1080p DD5.1 x264'), caps(['ec-3'])), SOUND);
+  assert.equal(soundNote(s('a', 'Film 1080p DDP5.1 x264'), caps(['ec-3'], ['eac3'])), SOUND);
+  // Two sounds named: silent only when both play.
+  assert.equal(soundNote(s('a', 'Film 1080p DTS DD5.1'), caps(['ac-3'])), SOUND);
+  assert.equal(soundNote(s('a', 'Film 1080p DTS DD5.1'), caps(['ac-3', 'dtsc'])), '');
+  // Without a MediaSource (Node) nothing passes, so the note stays.
+  assert.equal(soundNote(s('a', 'Film DTS')), SOUND);
+});
+
+test('the sound note reads the failed pass-throughs the engine remembers (engine/route-memory.js)', async () => {
+  const { rememberPass } = await import('../frontend/astra/src/engine/route-memory.js');
+  const data = new Map(), store = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => data.set(k, String(v)) };
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { value: store, configurable: true, writable: true });
+  try {
+    const mse = () => true;
+    assert.equal(soundNote(s('a', 'Film DDP5.1'), { mse }), '');
+    rememberPass('eac3', true, store);
+    assert.equal(soundNote(s('a', 'Film DDP5.1'), { mse }), SOUND);
+    assert.equal(soundNote(s('a', 'Film DD5.1'), { mse }), '', 'only the codec that failed');
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'localStorage', had); else delete globalThis.localStorage;
+  }
 });

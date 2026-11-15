@@ -2,11 +2,12 @@
 // answered as their bytes arrive, downloads that stop where describing the file stopped asking, a reach and a
 // cache sized by the film's bitrate, side reads that leave playback's downloads alone, and downloads asked
 // again at once when the network changes. Against an invented host, no network.
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-source.js';
 import { saverTuning } from '../frontend/astra/src/engine/player-data.js';
 import { TAIL } from '../frontend/astra/src/engine/source-tail.js';
+import { GAP, REUSE_WINDOW, SOON, soon } from '../frontend/astra/src/engine/source-stream.js';
 
 const SIZE = 64 * BLOCK;
 const byteAt = (offset) => (offset * 11 + (offset >> 18)) & 255;
@@ -195,4 +196,47 @@ test('when the network changes, a download that has brought nothing for a while 
   assert.equal(source.failures, 0, 'no failure counted');
   source.close();
   Object.assign(TIMING, saved);
+});
+
+test('a read ahead of a download waits for it only when it will get there within about a second, at its own speed', () => {
+  const at = 1e12, playing = { probing: false };
+  const run = (received, ms, more = {}) => soon(playing, { received, since: at - ms, ran: 0, paused: false, ...more }, at);
+  assert.equal(SOON, 1000);
+  assert.equal(run(500_000, 1000), 500_000, 'half a megabyte a second: half a megabyte ahead is waited for');
+  assert.equal(run(375_000, 3000), GAP, 'a slow link: only what is just past it (the demuxer walking forward)');
+  assert.equal(run(64 * BLOCK, 1000), REUSE_WINDOW, 'a fast one: never further than the old window');
+  assert.equal(run(1_000_000, 500, { ran: 1500, paused: true }), Math.floor(1_000_000 / 1.5), 'a pause is not counted as running time');
+  assert.equal(run(1_000_000, 500, { ran: 1500 }), 500_000, 'the time since it read on again is');
+  assert.equal(run(0, 200), REUSE_WINDOW, 'a download just begun, with no measure yet, is waited for (and weighed again as blocks land)');
+  assert.equal(run(30_000, 2000), GAP, 'one that has run a while and brought next to nothing: not worth waiting for');
+  assert.equal(soon({ probing: true }, { received: 64 * BLOCK, since: at - 1000, ran: 0 }, at), GAP, 'while the file is described, reads stay close');
+});
+
+test('a read far ahead of a slow download asks for its own bytes; one just past it waits (on a fake clock)', async () => {
+  mock.timers.enable({ apis: ['Date'], now: 1e12 }); // the host's pacing runs on real timers; the downloads' speed is read off this clock
+  try {
+    const { source, calls } = await open({ pace: 20 });
+    await source.read(0, 16);
+    const stream = [...source.streams][0];
+    while (stream.received < 256 << 10) await sleep(10);
+    // No time has passed on the clock: the download looks as fast as can be, and a read 3 MiB ahead waits for it.
+    const near = stream.at + 3 * BLOCK;
+    const a = source.read(near, near + 10);
+    await Promise.resolve();
+    assert.equal(calls.length, 1, 'waited for the running download');
+    assert.ok(same(await a, near));
+    // A minute on: what it brought over a minute is a slow link's worth.
+    mock.timers.tick(60_000);
+    assert.equal(soon(source, stream), GAP);
+    const past = stream.at + 100_000, far = Math.ceil((stream.at + 4 * BLOCK) / BLOCK) * BLOCK + 1000;
+    const b = source.read(past, past + 10);
+    await Promise.resolve();
+    assert.equal(calls.length, 1, 'a read just past the download waits for it: no request per read');
+    const c = source.read(far, far + 10);
+    await Promise.resolve();
+    assert.equal(calls.length, 2, 'a read four megabytes on asks for its own bytes');
+    assert.equal(calls[1].from, far - 1000, 'from the start of its block (a little before the byte, as before)');
+    assert.ok(same(await b, past) && same(await c, far));
+    source.close();
+  } finally { mock.timers.reset(); }
 });

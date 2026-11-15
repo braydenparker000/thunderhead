@@ -74,10 +74,11 @@ function worker(caches, web) {
     get: async (id, path) => text(await run('fetch', { request: req(SCOPE + path, 'no-cors'), clientId: id, resultingClientId: '' })),
     close: (id) => { self.clients.list = self.clients.list.filter((c) => c.id !== id); },
     activate: () => run('activate', {}),
+    respond: (request, ids) => run('fetch', { request, clientId: '', resultingClientId: '', ...ids }),
     precache: (id, paths) => run('message', { data: { type: 'astra-precache', urls: paths.map((p) => SCOPE + p) }, source: client(id) }),
   };
 }
-const req = (url, mode) => ({ url, mode, method: 'GET', headers: new Headers() });
+const req = (url, mode, destination = mode === 'navigate' ? 'document' : '') => ({ url, mode, destination, method: 'GET', headers: new Headers() });
 const text = async (res) => res && res.text();
 const APP = { 'index.html': 'page A', 'src/main.js': 'main A', 'src/player/player.js': 'export const a = 1;', 'vendor/big.wasm': 'wasm 1', 'README.md': 'docs' };
 
@@ -172,4 +173,23 @@ test('a site without lists (release.json with a commit only) works as before', a
   await w.open('p1');
   assert.equal(await w.open('p2'), 'page A');
   assert.equal(await w.get('p2', 'src/main.js'), 'main 2');
+});
+
+test('the pages it serves are cross-origin isolated, the workers they start get COEP, nothing else does', async () => {
+  const caches = fakeCaches(), web = { site: site('A', { ...APP, 'lab/index.html': 'lab', 'src/w.js': 'worker' }) };
+  const w = worker(caches, web);
+  const policy = (res) => [res.headers.get('cross-origin-opener-policy'), res.headers.get('cross-origin-embedder-policy')];
+  const isolatedPage = ['same-origin', 'credentialless'];
+  // The first page from the network (it is saved as it loads), then from the saved copy, and the lab.
+  const first = await w.respond(req(SCOPE, 'navigate'), { resultingClientId: 'p1' });
+  assert.deepEqual(policy(first), isolatedPage);
+  assert.equal(await first.text(), 'page A', 'the page itself, whole');
+  assert.equal(await (await caches.open('astra-app-A')).match(SCOPE).then((r) => r.text()), 'page A', 'and saved whole');
+  assert.deepEqual(policy(await w.respond(req(SCOPE, 'navigate'), { resultingClientId: 'p2' })), isolatedPage, 'from the saved copy');
+  assert.deepEqual(policy(await w.respond(req(`${SCOPE}lab/?src=x`, 'navigate'), { resultingClientId: 'p3' })), isolatedPage, 'the lab');
+  assert.deepEqual(policy(await (await caches.open('astra-app-A')).match(SCOPE)), [null, null], 'saved without them: added as served');
+  // A worker the page starts gets COEP alone; its other files nothing; a page that is not there nothing.
+  assert.deepEqual(policy(await w.respond(req(`${SCOPE}src/w.js`, 'same-origin', 'worker'), { clientId: 'p2', resultingClientId: 'w1' })), [null, 'credentialless']);
+  assert.deepEqual(policy(await w.respond(req(`${SCOPE}src/main.js`, 'cors', 'script'), { clientId: 'p2' })), [null, null]);
+  assert.deepEqual(policy(await w.respond(req(`${SCOPE}nowhere/`, 'navigate'), { resultingClientId: 'p4' })), [null, null]);
 });

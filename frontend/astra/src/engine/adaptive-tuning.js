@@ -1,11 +1,11 @@
 // A phone's settings for hls.js and dash.js (adaptive.js), in place of their
 // desktop defaults: the picture no larger than the player shows it (its size
-// times the device pixel ratio), 40 s read ahead (20 s with the data saver,
+// times the device pixel ratio, counted at most 2), 40 s read ahead (20 s with the data saver,
 // the same as Astra's own re-wrapping, player-data.js), 30 s kept behind,
 // and with the saver on a ceiling of 720p's worth of picture. Names and
 // defaults are those of the vendored hls.js 1.6.13 and dash.js 5.2.0:
 //
-//   hls.js  capLevelToPlayerSize false, capLevelOnFPSDrop false, maxBufferLength 30,
+//   hls.js  capLevelToPlayerSize false, maxDevicePixelRatio Infinity, capLevelOnFPSDrop false, maxBufferLength 30,
 //           maxMaxBufferLength 600 (it reads past maxBufferLength on low-bitrate streams,
 //           up to maxBufferSize 60 MB), backBufferLength Infinity
 //   dash.js streaming.abr.limitBitrateByPortal false, usePixelRatioInLimitBitrateByPortal false,
@@ -15,6 +15,10 @@
 import {SAVER} from './player-data.js';
 
 export const AHEAD = 40, BEHIND = 30, CEILING_HEIGHT = 720;
+// hls.js takes the smallest level at least as big as the player, so a phone held sideways (about 800 CSS
+// pixels at a ratio near 3, so 2340 physical pixels) would be given 4K; at 2 it gets 1080p. dash.js keeps
+// only pictures no wider than the player, so its full ratio never lets 4K through on a phone and stays.
+export const MAX_PIXEL_RATIO = 2;
 const CEILING_KBPS = 3000; // 720p's worth where a stream does not say its picture sizes
 
 const ahead = on => (on ? SAVER.ahead : AHEAD);
@@ -35,10 +39,11 @@ export function saverCeiling(levels = []) {
 }
 
 /**
- * Keeps hls.js under the saver's ceiling. Its own size cap (capLevelToPlayerSize) sets autoLevelCapping every
+ * Counts the screen's pixel ratio at most 2 and keeps hls.js under the saver's ceiling. Its own size cap (capLevelToPlayerSize) sets autoLevelCapping every
  * second from getMaxLevel, so the ceiling goes in there; while the player has no size it is set directly.
  */
 export function capHls(hls, saver) {
+  if (hls.config) hls.config.maxDevicePixelRatio = MAX_PIXEL_RATIO; // read afresh at each size check
   const cap = hls.capLevelController;
   if (typeof cap?.getMaxLevel === 'function') {
     const own = cap.getMaxLevel.bind(cap);

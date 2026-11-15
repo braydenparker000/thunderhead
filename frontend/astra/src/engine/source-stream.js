@@ -12,7 +12,9 @@ export {BLOCK};
 export const READ_AHEAD = 24 * BLOCK; // a stream pauses at most this far past the furthest byte read from it (the source's readAhead; less with the data saver)
 export const PROBE_AHEAD = 2 * BLOCK; // ...and this far while the file is being described, or before the film's bitrate is known
 export const PROBE_MARGIN = 64 << 10; // while describing, a download stops this far past the last byte asked of it
-export const REUSE_WINDOW = 12 * BLOCK; // a request this close ahead of a stream waits for it
+export const REUSE_WINDOW = 12 * BLOCK; // the most a read ahead of a download waits for it, however fast it runs
+export const GAP = 256 << 10; // a read this close past a download, or past a block's start, is reached by reading on, not by asking again
+export const SOON = 1000; // a read further ahead waits for a download only when it will get there within this (ms)
 const RETRIES = 3; // for answers that will not change by asking again (a refused range)
 const PIECE = 64 << 10; // a download that brought at least this much before breaking off made progress
 /** Waits in milliseconds; tests shorten them. */
@@ -24,6 +26,29 @@ export const TIMING = {
   hole: 4000, // after a seek, the place playback reads from has the connection to itself this long (side-read.js)
   quiet: 3000, // when the network changes, a download that has brought nothing for this long is asked again
 };
+
+/**
+ * How far ahead of a download a read waits for it rather than asking for its bytes itself: what the download
+ * brings in SOON at the speed it has shown (bytes received over the time it has run, its pauses left out), at
+ * least GAP (a read at or just past it always waits: the demuxer walking forward) and at most REUSE_WINDOW.
+ * Waiting by bytes made a resume ten seconds in wait for megabytes the viewer skips on a slow link. While the
+ * file is described reads stay close (GAP). A download younger than SOON that has not brought a piece yet has
+ * no measure and is waited for, since a second request then would race it for the same link; the reads waiting
+ * are weighed again as each block lands (store), by then on its measure. Older and still without one: GAP.
+ */
+export function soon(source, stream, now = Date.now()) {
+  if (source.probing) return GAP;
+  const ran = (stream.ran || 0) + (stream.paused || !stream.since ? 0 : now - stream.since);
+  if (!(stream.received >= PIECE)) return ran < SOON ? REUSE_WINDOW : GAP;
+  return Math.floor(Math.max(GAP, Math.min(REUSE_WINDOW, (stream.received / Math.max(ran, 1)) * SOON)));
+}
+/** A download pauses (true) or reads on (false): its running time, for its speed, leaves the pauses out. */
+function pause(stream, on) {
+  const now = Date.now();
+  if (on && !stream.paused) stream.ran = (stream.ran || 0) + now - (stream.since || now);
+  else if (!on && stream.paused) stream.since = now;
+  stream.paused = on;
+}
 
 export class SourceError extends Error {
   constructor(kind, message, detail) { super(message); this.kind = kind; this.detail = detail; }
@@ -105,17 +130,17 @@ export async function runStream(source, stream, response) {
       if (rec.filled === rec.from && source.blocks.has(index)) { stream.abort(); return; }
       if (stream.at >= stream.end) {
         // All that was asked for came: the next part is asked for once the reader wants half a reach more.
-        stream.paused = true;
+        pause(stream, true);
         while (limit() - stream.at < Math.min(source.reach() / 2, source.size - stream.at) && !(stream.held && limit() > stream.at) && !signal.aborted) await new Promise(r => { stream.wake = r; });
-        stream.paused = false;
+        pause(stream, false);
         if (signal.aborted) return;
         await open(await request(source, stream, stream.at, limit()));
       } else if (stream.at - stream.want > source.reach()) {
         // Far ahead of every reader on an open-ended answer: asked again in parts where the host allows it, else paused.
         if (source.bounded !== false) { reader.cancel().catch(() => {}); stream.end = stream.at; continue; }
-        stream.paused = true;
+        pause(stream, true);
         while (stream.at - stream.want > source.reach() && !signal.aborted) await new Promise(r => { stream.wake = r; });
-        stream.paused = false;
+        pause(stream, false);
         if (signal.aborted) return;
       }
       // A connection that goes quiet (no error, no bytes) would hang reads forever.

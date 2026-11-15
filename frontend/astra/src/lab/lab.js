@@ -235,6 +235,7 @@ function openPlayer(ctx, collected, sourceId) {
 }
 
 /** Next or chosen episode: the same release group if it has one; otherwise the sources panel opens and nothing loads until a tap. */
+// A developer page: this asks afresh and ignores the next episode the app keeps prepared (app/next-ready.js), on purpose.
 async function switchEpisode(video) {
   const s = screen, ctx = {...s.lab.ctx, video, id: video.id, title: `${s.lab.ctx.item.name} S${video.season} E${video.episode}`};
   const group = s.stream?.bingeGroup;
