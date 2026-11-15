@@ -13,6 +13,45 @@ What every run here was: the editor in headless Chromium on a software GPU (Swif
 390 × 844, with JPEGs and made-up mosaics. The repository holds no RAF and no camera profile, so **nothing here
 was checked on a real RAF, with an Adobe profile, or on the phone**. Where that matters it is said.
 
+## The findings in order of weight
+
+Written last. Each is set out in full under its number below.
+
+**A: a wrong picture, or felt on every use**
+
+| # | In a line |
+|---|---|
+| 3.1 | The network, which makes every export and the rested 100 % view, leaves colour fringes towards the frame's edges that the usual demosaic does not: two to seven times its colour speckle there. In the owner's exported files now. |
+| P.1 | The dial stutters when the photo is zoomed in (the phones' own logs: one frame in nine, or in four, late). Each frame draws the fitted photo as well, hidden under the full-size view: 62 % of the work. |
+| 1.1 | The dial's wheel moves by itself a moment after the finger lifts, on every control with a coarse step. |
+| 1.4 | A reduced export is softer and has twice the moiré of a proper filter's. Every Small export. |
+| 8.1 | Every Library tile is the camera's whole 13 MP preview, decoded to show 137 pixels wide. |
+
+**B: a real fault, smaller or rarer**
+
+| # | In a line |
+|---|---|
+| 4.1 | Auto level undoes itself on a second press. |
+| 8.4 | Before and after show two different pictures once a photo is cropped. |
+| 8.5 | The fitted photo carries false colour on fine lines (3.5 times the sensor's own), plain on crops. |
+| 1.3 | Black is never quite black: level 0 comes out at 0.6 to 0.8 of a level. |
+| P.2 | Zoom and pan stall for 0.2 to 0.3 s now and then on both phones, once for 1.2 s. Cause not found. |
+| P.3 | A best-quality export takes two minutes on the 4 GB phone. |
+| 8.10 | Naming a look opens the browser's own dialog. |
+| 8.11 | The setting for less motion is not honoured by the boards. |
+| 2.1 | A decoder that failed once is kept, and may keep failing until a reload. |
+| 7.1 | A photo is marked as backed up when its upload is handed over, not when it is done. |
+| 1.2 | The arrow keys cannot move Radius. |
+| 1.5 | (Suspect) The dial's 47 MB picture is thrown away under memory pressure and takes a quarter of a second to remake. |
+
+**C**: thirty-odd smaller notes, in the parts below.
+
+**Sound**, by reading and by test: the colour maths and its order; the demosaic and its second look; sharpening;
+the noise transform; the lens tables; masks, spots and crop staying on their subject through any geometry; the
+heal's fit; stacking; every export file (JPEG, PNG, TIFF, Display P3) read by other tools; no seam between an
+export's pieces or the network's windows; saving on leaving the page; an export's resume and cancel; delete and
+bring back. The editor's own tests: 112, of which 109 pass, none fail, 3 are skipped.
+
 ## Part 1: the frame, colour, full size, sharpening, noise, geometry, export, and the app's core
 
 Read whole: `engine/wgsl.js`, `gpu.js`, `dcp.js`, `grade.js`, `mask.js`, `full.js`, `finish.js`, `deconv.js`,
@@ -197,11 +236,50 @@ Read whole: `boards/ViewTools.js`, `ExportPlate.js`, `Drum.js`, `Row.js`, `Strip
 | 8.4 | B | Proven | **Before and after do not show the same picture once a photo is cropped.** The "before" is the photo as imported, drawn whole (`ViewTools.js` `tile('before:', first.st, 0)`: the first step has no crop), and laid into the cropped picture's box. With a crop to the right half and a 6° straighten: left of the line the whole uncropped scene, squeezed to the crop's shape; right of it the crop. Press and hold shows the same squeezed whole. A crop is the commonest edit there is. |
 | 8.5 | B | Proven | **The fitted photo carries false colour on fine lines.** The editing copy is each 3 × 3 block of the sensor averaged by colour with no demosaic, so a thin line lands on the block's reds, greens and blues unevenly. On the solar panels of the real file its fine colour speckle is 6.7 / 9.1 (red and blue against green, rms levels), where the sensor's own pixels brought to the same size give 1.9 / 3.8. It shows where the editing copy is near one of its pixels to a screen pixel: a crop, or any zoom short of the 40 % at which the sensor's pixels take over (`zoom.js:263`), and on every board that shows only the editing copy (Crop, Export's preview). Saturation makes it plainer. |
 | 8.6 | C | Proven | On the View board the line under a photo's name wraps to a second row at 412 wide ("… · ISO" / "125"): its header has three keys where Edit's has two. |
-| 8.7 | C | By reading | A point of the curve cannot be taken off again (`CurveOverlay.js`: a touch adds or moves; only Reset straightens the whole channel), and the curve's two ends move up and down only: the black point cannot be pulled along the floor. |
+| 8.7 | C | By reading | The curve's two ends move up and down only (`CurveOverlay.js` `move`): the black point cannot be pulled along the floor, nor the white point along the ceiling, as a curve's ends can in Lightroom. (A point between them can be taken off with the Edit board's own key.) |
 | 8.8 | C | Proven | With no camera profile on the phone a RAF is developed by the camera's matrix and a plain curve, yet the boards still name its film simulation ("DSCF0021 · PROVIA · edited"). If the private profile set is ever lost from the phone's storage, nothing says so. |
 | 8.9 | C | By reading | The Export board's long-edge dial steps 64 pixels in 3.2° of the wheel and its choices by a third of the window: both are open to 1.1 (the wheel moving after the finger lifts). |
 
 Checked and sound: the drum's settle and flick; a row's fade where it runs on; a strip bringing its chosen tile
 to the middle; the grading wheel's hues against the engine's (`towards`); an export's two taps, its estimate,
 cancel and the share sheet; the histogram's counts.
+
+### Part 8, the last of it: Looks, the Edit board, start-up, the service worker's part
+
+Read whole: `boards/LooksPlate.js`, `EditPlate.js`, `boot.js`, `engine/isolate.js`, `fresh.js`, the `keepEditor`
+part of `frontend/sw.js`, `apps/photos/to-editor.js`. Every face of the Edit board, the white balance menu and
+the dock looked at, at 390 × 844.
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| 8.10 | B | Proven (by its line) | **Naming a look opens the browser's own box.** Looks › Mine › SAVE CURRENT asks with `prompt()` (`LooksPlate.js:94`): Chrome's grey dialog with the site's address on it, the one place in the editor where the browser shows through. It bears on "it still feels a little like a web page". |
+| 8.11 | B | Proven (by search) | **Less motion is not honoured.** EDITOR.md says that with reduced motion "rows and tiles appear in place, the plate fades"; `editor.css` has no `prefers-reduced-motion` rule at all. Only the photo's glide and the ticks stop (`zoom.js:191`, `haptic.js:17`); the rows still fly, the plate still rises, the drum and the photo's layer still ease. |
+| 8.12 | C | Proven | On the curve's face the readout ("In 255 · Out 255") lies under the curve's own top-right point, which covers its last figures when that point is the chosen one. |
+| 8.13 | C | By reading | No control shows where the keyboard's focus is (the dial sets `outline: none`; `editor.css` has no focus rule). Of no account on a phone; it matters on the tablet and laptop layout the road map plans. |
+| 8.14 | C | By reading | A file kept for use with no signal is checked by its size, not by the hash its list carries (`sw.js` `keepEditor`). |
+| 8.15 | C | Proven | The white balance menu stays open under the tool dock when the dock is raised over it. |
+
+Checked and sound: the frame's fit to the screen and what it gives up in height; the back gesture and the
+boards' own back keys; a new release taken only at rest; the editor kept whole for no signal, an older one still
+opening; the hand-over from Photos copying an original once; nothing pokes out of the frame or is cut off on any
+face of the Edit board at 390 wide (measured), nor on Library, Crop, Masks, Looks, Heal, View and Export (looked at).
+
+## One more thing seen on a real file
+
+| # | Sev | Kind | Finding |
+|---|---|---|---|
+| R.1 | C | Proven (one file, by eye) | At ISO 800 the usual demosaic with the noise reduction a photo starts with (Noise 20, Color noise 25) leaves green and purple blotches in deep shadow at 100 %; the network leaves none and keeps the brickwork's grain, a little smoother. The usual way is what shows between 40 and 100 %, at 100 % while a control moves, and in every export with the network off. |
+
+## What was not read, or only skimmed
+
+- Skimmed, not read line by line: `engine/net-auto.js`, `net-tune.js`, `net-ways.js`, `net-both.js`, `net-pace.js`
+  past its head (how the network's passes are timed, cut up and chosen for a phone; a way is kept only if it gives
+  the exported pass's result to the last bit), and `app/recipe-map.js` past its head.
+- Not read: the engine test page's own files (`bench.js`, `bench-ui.js`, `net-bench.js`, `net-ui.js`, `cpu*.js`,
+  `compare.js`, `checked.js`, `known.js` past its scorer), the compare page (`editor/compare/`), `app/eta.js`,
+  `app/export-note.js`, the rest of `HealPlate.js`, the old editor (`frontend/apps/photos/edit/`), and rawler
+  itself (the decoder's library).
+- Not checked at all: anything on the phone itself (every run here was a software GPU on a server); colour through
+  the owner's Adobe profiles (none are in the repository); a real export of a whole 40 MP photo by the network (too
+  slow here: crops only); high ISO beyond 800; the Drive backup end to end; two tabs at once; a phone short of space.
 
