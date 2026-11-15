@@ -12,7 +12,7 @@
 // open() also answers the question the planner needs first: can a web page
 // read this file at all (CORS) and does the host honour ranges?
 
-import {BLOCK, READ_AHEAD, PROBE_AHEAD, REUSE_WINDOW, TIMING, SourceError, parseContentRange, ask, runStream, streamFailed} from './source-stream.js';
+import {BLOCK, READ_AHEAD, REUSE_WINDOW, TIMING, SourceError, parseContentRange, ask, runStream, streamFailed} from './source-stream.js';
 import {missing, assemble, arrived, keepPart, need} from './source-blocks.js';
 import {sideRead, fillHole} from './side-read.js';
 import {filmStore, recall, remember, HEAD} from './film-memory.js';

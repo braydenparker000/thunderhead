@@ -32,7 +32,7 @@ export const tuning = {
   reach() {
     if (this.probing) return PROBE_AHEAD;
     if (!this.byteRate) return this.readAhead;
-    return Math.min(this.readAhead, Math.max(MIN_REACH, this.byteRate * this.seconds));
+    return Math.floor(Math.min(this.readAhead, Math.max(MIN_REACH, this.byteRate * this.seconds)));
   },
 
   /** The cache holds what a back-seek and the read-ahead need at the film's bitrate, 16 to 96 MiB. */

@@ -110,6 +110,8 @@ test('the reach follows the film’s bitrate: 10 s of it (5 with the saver), nev
   const full = saverTuning(false);
   source.setReadAhead(full.readAhead, full);
   assert.equal(source.reach(), 24 * BLOCK, '40 MiB, held to 24');
+  source.learn(201.3); // a bitrate that does not divide (about 3.2 MiB in 10 s): a range request names whole bytes
+  assert.ok(Number.isInteger(source.reach()), `a whole number of bytes (${source.reach()})`);
   source.close();
 });
 

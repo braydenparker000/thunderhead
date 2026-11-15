@@ -89,7 +89,7 @@ export class RemuxSession extends EventTarget {
     // them from 0:00 by shifting the media rather than leaving a gap.
     const read = [[this.videoTrack, true], [this.audio?.track, this.audio?.delivery !== 'rebuilt']].filter(([t]) => t?.ref); // rebuilt sound: Mediabunny's
     const sinks = read.map(([t, own]) => (own && this.sink(t)) || t.ref); // every sink first, so the clusters they read are shared
-    const firsts = await Promise.all(sinks.map((s, i) => s.getFirstTimestamp?.().catch(() => read[i][0].ref.getFirstTimestamp?.() ?? 0).catch(() => 0) ?? 0));
+    const firsts = this.packets?.startsAtZero() ? [0] : await Promise.all(sinks.map((s, i) => s.getFirstTimestamp?.().catch(() => read[i][0].ref.getFirstTimestamp?.() ?? 0).catch(() => 0) ?? 0));
     const first = firsts.length ? Math.min(...firsts) : 0;
     this.offset = first > 0.05 ? first : 0;
     if (this.info.duration > 0) this.ms.duration = Math.max(0.1, this.info.duration - this.offset);

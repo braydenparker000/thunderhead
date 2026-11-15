@@ -70,6 +70,15 @@ class MkvPackets {
     return sink;
   }
 
+  /**
+   * True when the film plainly starts at 0:00: its picture's first cue is within 0.05 s of zero, so nothing starts later
+   * (no shift is needed) and the first cluster need not be read to find out: a resume's download stays where it is.
+   */
+  startsAtZero() {
+    const video = this.layout.tracks.find(t => t.type === 1), first = video && this.layout.trackCues.get(video.number)?.[0];
+    return !!first && first.ticks / this.factor <= 0.05;
+  }
+
   /** The parsed cluster at `pos` holding `track`, read from `from` (a cue's relative position) or earlier. */
   cluster(pos, from, track) {
     const held = this.clusters.get(pos);

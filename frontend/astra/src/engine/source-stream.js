@@ -87,7 +87,7 @@ export async function runStream(source, stream, response) {
   const signal = stream.controller.signal;
   let index = Math.floor(stream.at / BLOCK), rec = null, reader = null;
   // Where a download may read to now: a little past the last byte asked while the file is described, else the reach.
-  const limit = () => Math.min(source.size, stream.held ? stream.until + PROBE_MARGIN : stream.want + source.reach());
+  const limit = () => Math.floor(Math.min(source.size, stream.held ? stream.until + PROBE_MARGIN : stream.want + source.reach()));
   const open = async answer => {
     stream.end = answer.end; stream.lastAt = Date.now(); reader = answer.response.body.getReader();
     const r = reader; signal.addEventListener('abort', () => r.cancel().catch(() => {}), {once: true});
