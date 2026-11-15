@@ -3,11 +3,11 @@
 // Every pushed screen is one history entry, so Android back walks them back.
 
 import {createStorage, importClassic, Addons, Library, Watched, Progress, SAVE_FAILED} from './store.js';
-import {fetchMeta, episodeCode, aired, MANIFEST_TIMEOUT} from './content.js';
+import {fetchMeta, MANIFEST_TIMEOUT} from './content.js';
 import {swr, pruneCache} from './cache.js';
 import {fetchManifest, normaliseManifest} from '../addons/client.js';
 import {pushLayer, startBackStack} from './back-stack.js';
-import {resolveDebrid} from '../addons/debrid.js';
+import {play, bindPlayer} from './playing.js';
 import {fetchSubtitles, subtitleAddons} from '../addons/subtitles.js';
 import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
@@ -20,8 +20,6 @@ const TABS = [
   {id: 'settings', label: 'Settings', icon: 'settings'},
 ];
 const LABEL_SCROLL = 60; // px of scroll that hides or shows the bar's labels
-// "Out 3 Nov" for an episode with a date to come; "Not out yet" without one.
-const outOn = v => { const t = v?.released ? new Date(v.released) : null; return t && !Number.isNaN(t.getTime()) ? 'Out ' + t.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : 'Not out yet'; };
 const SETTINGS = {showCatalogType: true, posterWidth: 126, posterRadius: 12, hero: true};
 
 export class App {
@@ -44,6 +42,7 @@ export class App {
     this.build();
     this.reloadAddons();
     this.player = null; // loaded on first use (it brings the playback engine): see loadPlayer()
+    this.playTicket = 0; // which play is current (playing.js)
     // Leaving saves unsaved progress; with none it writes nothing (a reload after a restore must not undo it).
     addEventListener('pagehide', () => this.progress.flush(true));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.progress.flush(true); });
@@ -63,7 +62,7 @@ export class App {
   loadPlayer() {
     return this.playerLoading ??= import('../player/player-screen.js').then(({PlayerScreen}) => {
       this.player = new PlayerScreen({parent: this.root});
-      this.bindPlayer();
+      bindPlayer(this);
       return this.player;
     }).catch(error => { this.playerLoading = null; throw error; });
   }
@@ -240,61 +239,8 @@ export class App {
     return {...item, ...Object.fromEntries(known), videos: meta.videos};
   }
 
-  /**
-   * Plays a stream from the streams screen. Must run from a tap: the player
-   * goes full screen before anything awaits.
-   */
-  play(options) {
-    if (this.player) return this.playNow(options);
-    // First play of the visit: the engine is still loading (the tap's user
-    // activation lasts long enough for full screen once it has). The player's
-    // black loading screen shows at once, so the tap is answered.
-    const veil = h('div', {class: 'player-veil', role: 'status', 'aria-label': 'Opening the player'}, h('div', {class: 'spinner'}));
-    this.root.append(veil);
-    this.loadPlayer().then(() => this.playNow(options), () => toast('The player could not load. Check the connection.'))
-      .finally(() => setTimeout(() => veil.remove(), 150));
-  }
-
-  playNow({meta, video = null, source, sources, startTime = 0}) {
-    this.setCovered(true);
-    this.playing = {meta, video, stream: source.stream};
-    const videos = meta.videos || [];
-    const index = video ? videos.findIndex(v => v.id === video.id) : -1;
-    const next = index >= 0 ? videos.slice(index + 1).find(v => v.season !== 0) || null : null;
-    this.playing.next = next;
-    const options = {
-      stream: {...source.stream, url: source.stream.url}, sourceId: source.id, sources, startTime,
-      meta: {
-        title: meta.name, episodeLine: video ? [episodeCode(video), video.title].filter(Boolean).join(' • ') : '',
-        release: [String(meta.releaseInfo || '').slice(0, 4), (meta.genres || [])[0]].filter(Boolean).join(' · '),
-        description: video?.overview || meta.description || '', logo: meta.logo || '', background: video?.thumbnail || meta.background || '', poster: meta.poster || '',
-      },
-      // The player's episode panel lists seasons; videos without one (a channel's uploads) have no panel.
-      episodes: video && video.season != null ? {seasons: [...new Set(videos.map(v => v.season))].filter(s => s != null), season: video.season, current: video.id,
-        items: videos.filter(v => v.season != null).map(v => ({id: v.id, season: v.season, episode: v.episode, title: v.title, thumbnail: v.thumbnail, video: v}))} : null,
-      next: next ? {label: episodeCode(next), title: next.title, thumbnail: next.thumbnail, hasAired: aired(next), status: aired(next) ? '' : outOn(next)} : null,
-    };
-    const resolving = resolveDebrid(source.stream.url).catch(() => source.stream.url);
-    this.player.open({...options, stream: {...options.stream, url: null}, deferred: true});
-    resolving.then(url => { if (this.player.isOpen && this.playing?.meta === meta) this.player.load({...options.stream, url}, startTime); });
-  }
-
-  bindPlayer() {
-    const save = (time, duration) => {
-      const p = this.playing;
-      if (!p) return;
-      const v = p.video;
-      const entry = this.progress.save({type: p.meta.type, id: p.meta.id, videoId: v ? v.id : p.meta.id, season: v?.season ?? null, episode: v?.episode ?? null, time, duration, meta: p.meta,
-        next: p.next ? {videoId: p.next.id, season: p.next.season, episode: p.next.episode, title: p.next.title, thumbnail: p.next.thumbnail} : null});
-      if (entry?.completed && !this.watched.has(p.meta.type, p.meta.id, v ? v.id : null)) this.watched.set(p.meta.type, p.meta.id, v ? v.id : null, true);
-    };
-    this.player.addEventListener('progress', e => { save(e.detail.time, e.detail.duration); if (e.detail.final) this.progress.flush(true); });
-    this.player.addEventListener('close', () => { this.progress.flush(true); this.playing = null; this.subtitleSearch?.abort(); this.subtitleSearch = null; this.setCovered(this.stack.length > 0); });
-    this.player.addEventListener('episode', e => this.switchEpisode(e.detail.episode.video));
-    this.player.addEventListener('next', () => { if (this.playing?.next) this.switchEpisode(this.playing.next); });
-    this.player.addEventListener('source', e => { if (this.playing) { this.playing.sourceId = e.detail.source.id; this.playing.stream = e.detail.source.stream; } });
-    this.player.addEventListener('fileinfo', e => this.findSubtitles(e.detail));
-  }
+  /** Plays a stream from the streams screen, from a tap (playing.js). */
+  play(options) { return play(this, options); }
 
   /**
    * Asks subtitle add-ons (and OpenSubtitles unless turned off) for the
@@ -314,19 +260,5 @@ export class App {
     } catch {} finally {
       if (this.subtitleSearch === search) { this.subtitleSearch = null; this.player.setSubtitleSearch(false); }
     }
-  }
-
-  /** Another episode from inside the player: same release group when there is one, else its sources list. */
-  async switchEpisode(video) {
-    const {meta} = this.playing || {};
-    if (!meta) return;
-    const group = this.player.stream?.bingeGroup;
-    this.player.showLoading(true);
-    const streams = new this.screenTypes.streams(this, meta, video, {headless: true});
-    const sources = await streams.collect();
-    if (!sources.length) return this.player.showError('None of your add-ons returned a playable stream for this episode.');
-    const same = group && sources.find(s => s.stream.bingeGroup === group);
-    this.play({meta, video, source: same || sources[0], sources});
-    if (!same) this.player.openPanel('sources');
   }
 }

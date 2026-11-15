@@ -14,6 +14,7 @@ export function build(p) {
   const video = r.video = h('video', {class: 'ap-video', playsinline: true, preload: 'auto'});
   video.setAttribute('playsinline', '');
   const subs = r.subsEl = h('div', {class: 'ap-subs'});
+  r.dim = h('div', {class: 'ap-dim', 'aria-hidden': 'true'}); // darkens the picture (the brightness swipe), not the subtitles
 
   // Feedback
   r.feedback = h('div', {class: 'ap-feedback', 'aria-live': 'polite'});
@@ -83,7 +84,7 @@ export function build(p) {
   r.skipBtn = h('button', {class: 'ap-skip', type: 'button', hidden: true, onclick: () => p.markers.skipSegment()}, icon('skip', {size: 18}), h('span'), r.skipFill);
   r.nextCard = h('div', {class: 'ap-next', hidden: true});
   r.lockOverlay = h('div', {class: 'ap-lock', hidden: true},
-    h('button', {class: 'ap-unlock', type: 'button', onclick: e => { e.stopPropagation(); p.ctl.setLocked(false); }}, icon('unlock', {size: 34}), h('span', {}, 'Tap to unlock')),
+    h('button', {class: 'ap-unlock', type: 'button', onclick: e => { e.stopPropagation(); p.ctl.unlockPressed(e); }}, icon('unlock', {size: 34}), h('span', {}, 'Tap to unlock')),
     h('div', {class: 'ap-lock-track'}, r.lockFill = h('div')));
   r.errorCard = h('div', {class: 'ap-error', hidden: true, role: 'alert'});
   r.noticeEl = h('div', {class: 'ap-notice', hidden: true, role: 'status', onclick: () => { r.noticeEl.hidden = true; }});
@@ -94,7 +95,7 @@ export function build(p) {
 
   r.surface = h('div', {class: 'ap-surface'});
   r.root = h('div', {class: 'ap', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Player', hidden: true, tabindex: -1},
-    video, subs, r.surface, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
+    video, r.dim, subs, r.surface, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
     r.controls, h('div', {class: 'ap-buffering'}, r.spinner), r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
   p.parent.append(r.root);
   return r;

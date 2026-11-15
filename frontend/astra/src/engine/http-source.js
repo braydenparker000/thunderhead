@@ -33,7 +33,8 @@ export class HttpSource {
     this.closed = false;
     this.failures = 0;
     this.failingSince = 0;
-    this.partial = null; // the start of a block a download broke off in: {index, bytes, filled}
+    this.progressAt = 0; // when a download last brought a fair part of the file
+    this.partials = new Map(); // index -> {bytes, filled}: the first part of a block a download broke off in
     this.stateListeners = new Set();
     this.bytesFetched = 0;
     this.probing = false;
@@ -53,7 +54,7 @@ export class HttpSource {
 
   /** Data arrived, or nothing waits for any: the failures counted so far are over. */
   calm() {
-    this.failures = 0; this.failingSince = 0;
+    this.failures = 0; this.failingSince = 0; this.progressAt = Date.now();
     if (this.state === 'reconnecting' || this.state === 'lost') this.setState('connected');
   }
 
@@ -97,6 +98,7 @@ export class HttpSource {
    * later, the file is closed: every download ends and nothing is retried.
    */
   async open(signal) {
+    if (signal?.aborted) { this.close(); throw signal.reason ?? new SourceError('closed', 'The file was closed.'); }
     signal?.addEventListener('abort', () => this.close(), {once: true});
     let response;
     try {
@@ -191,7 +193,8 @@ export class HttpSource {
   }
 
   servedBy(stream, index) { const at = index * BLOCK; return at >= stream.position && at - stream.position < REUSE_WINDOW; }
-  busy(stream) { for (const i of this.waiters.keys()) if (this.servedBy(stream, i)) return true; return false; }
+  /** True when a read is waiting for a block this download will bring. */
+  servingWaiter(stream) { for (const i of this.waiters.keys()) if (this.servedBy(stream, i)) return true; return false; }
 
   /** Starts a download for an awaited block unless one is on its way there. */
   schedule(index) {
@@ -200,7 +203,7 @@ export class HttpSource {
       // Every connection is taken: one nobody waits on gives way, else one that has brought something since it
       // began. A third place asked for while two are still awaited takes its turn when a block lands (store()),
       // so the downloads never end each other without any of them getting anywhere.
-      const all = [...this.streams], victim = all.find(s => !this.busy(s)) || all.find(s => s.delivered);
+      const all = [...this.streams], victim = all.find(s => !this.servingWaiter(s)) || all.find(s => s.delivered);
       if (!victim) return;
       victim.abort();
     }
@@ -212,7 +215,7 @@ export class HttpSource {
     // is closed rather than paused, since a paused connection still fills its window (megabytes)
     // with data that is not needed, taking the phone's bandwidth from the stream that is.
     if (!this.probing) for (const s of [...this.streams]) {
-      if (Math.abs(s.position - position) > READ_AHEAD + REUSE_WINDOW && !this.busy(s)) s.abort();
+      if (Math.abs(s.position - position) > READ_AHEAD + REUSE_WINDOW && !this.servingWaiter(s)) s.abort();
     }
     const stream = {position, want, delivered: 0, received: 0, controller: new AbortController(), wake: null};
     stream.abort = () => { stream.controller.abort(); this.streams.delete(stream); stream.wake?.(); };
@@ -231,6 +234,7 @@ export class HttpSource {
     this.blocks.delete(index);
     this.blocks.set(index, bytes);
     while (this.blocks.size > this.maxBlocks) this.blocks.delete(this.blocks.keys().next().value);
+    this.partials.delete(index);
     if (this.failures || this.failingSince || this.state === 'lost') this.calm(); // the host is sending again
     const list = this.waiters.get(index);
     if (list) { this.waiters.delete(index); for (const w of list) w.resolve(bytes); }
@@ -247,7 +251,7 @@ export class HttpSource {
     for (const list of this.waiters.values()) for (const w of list) w.reject(new SourceError('closed', 'The file was closed.'));
     this.waiters.clear();
     this.blocks.clear();
-    this.partial = null;
+    this.partials.clear();
   }
 }
 

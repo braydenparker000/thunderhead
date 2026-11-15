@@ -27,6 +27,7 @@ export class Menus {
   /** Choices that belong to one title start fresh with the next. */
   reset() {
     this.panelSeason = null;
+    this.showHidden = false;
     this.subLang = null;
     this.subTab = 'tracks';
   }
@@ -34,6 +35,7 @@ export class Menus {
   openModal(name) {
     const p = this.p;
     this.dismiss();
+    p.touch.abort(); // a hold or a drag ends with the menu's arrival
     this.modalName = name;
     this.modalClose = pushLayer('player-modal', () => { this.modalClose = null; this.dismiss(); });
     this.renderModal();
@@ -47,6 +49,7 @@ export class Menus {
   openPanel(name) {
     const p = this.p;
     this.dismiss();
+    p.touch.abort();
     this.panelName = name;
     this.panelClose = pushLayer('player-panel', () => { this.panelClose = null; this.dismiss(); });
     this.renderPanel();
@@ -160,7 +163,7 @@ export class Menus {
 
   styleRail() {
     const p = this.p.prefs, r = this.p.engine.subtitles;
-    const save = () => { savePrefs(p); r.setStyle(subtitleStyle(p)); this.renderModal(); };
+    const save = () => { savePrefs(p); r.setStyle(subtitleStyle(p)); this.renderModal(); this.p.layout(); }; // size and position move the bottom line
     const stepper = (label, value, minus, plus, reset) => h('div', {class: 'ap-step'}, h('span', {}, label),
       h('div', {}, h('button', {class: 'ap-chip', type: 'button', 'aria-label': label + ' down', onclick: minus}, '−'), h('b', {}, value), h('button', {class: 'ap-chip', type: 'button', 'aria-label': label + ' up', onclick: plus}, '+'),
         reset ? h('button', {class: 'ap-chip ghost', type: 'button', onclick: reset}, 'Reset') : null));
@@ -201,10 +204,13 @@ export class Menus {
     const p = this.p, name = this.panelName;
     let body;
     if (name === 'sources') {
-      body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...p.sources.map(s => h('button', {
-        class: 'ap-source' + (s.id === p.sourceId ? ' current' : ''), type: 'button',
-        onclick: () => { if (s.id === p.sourceId) return this.dismiss(); p.sourceId = s.id; this.dismiss(); p.emit('source', {source: s}); p.load(s.stream, p.video.currentTime || 0); },
-      }, h('b', {}, s.label), s.detail ? h('span', {}, s.detail) : null)))];
+      // Those the viewer's stream filters hide (the next episode's list) are counted, and can be shown.
+      const hidden = p.hiddenSources || [], list = this.showHidden ? [...p.sources, ...hidden] : p.sources;
+      body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...list.map(s => h('button', {
+        class: 'ap-source' + (s.id === p.sourceId ? ' current' : ''), type: 'button', onclick: () => this.pickSource(s),
+      }, h('b', {}, s.label), s.detail ? h('span', {}, s.detail) : null))),
+      hidden.length && !this.showHidden ? h('p', {class: 'ap-panel-note'}, `${hidden.length} hidden by your filters `,
+        h('button', {class: 'ap-chip ghost', type: 'button', onclick: () => { this.showHidden = true; this.renderPanel(); }}, 'Show them')) : null];
     } else {
       const ep = p.options.episodes;
       const season = this.panelSeason ?? ep.season;
@@ -220,6 +226,35 @@ export class Menus {
       h('div', {class: 'ap-panel-body'}, iconButton('close', 'Close', () => this.dismiss(), {class: 'ap-icon-btn ap-modal-close'}), body));
   }
 
+  /**
+   * Another source, from where the film is (or was asked to start, before its
+   * first frame). The app resolves debrid links first, so it is told and
+   * loads it itself (it calls preventDefault); without such a listener (the
+   * lab), the player loads the address as it is.
+   */
+  pickSource(s) {
+    const p = this.p;
+    if (s.id === p.sourceId && p.stream) return this.dismiss();
+    const startTime = p.resumePoint();
+    p.sourceId = s.id;
+    this.dismiss();
+    if (p.emit('source', {source: s, startTime}, {cancelable: true})) p.load(s.stream, startTime);
+  }
+
+  /**
+   * Shows subtitles in the remembered language when nothing is shown yet:
+   * the file's own track first, then an exact match for this release, then
+   * the first add-on file. Choosing Off in the menu forgets the language.
+   */
+  autoSubtitle() {
+    const p = this.p;
+    const want = p.prefs.subtitleLanguage;
+    if (!want || !p.ready || p.engine.selectedSubtitle) return;
+    const options = p.engine.subtitleOptions().filter(s => s.supported && baseLanguage(s.language) === want);
+    const match = options.find(s => !s.forced) || options[0];
+    if (match) p.engine.selectSubtitle(match.id);
+  }
+
   /** The player closed. */
   close() { this.dismiss(true); }
 
@@ -231,7 +266,8 @@ export class Menus {
       const file = input.files?.[0];
       input.remove();
       if (!file || file.size > 8 << 20) return;
-      const text = decodeSubtitleBytes(new Uint8Array(await file.arrayBuffer()));
+      // The language picked in this menu tells an old (non-UTF-8) file's code page; else the one usually wanted.
+      const text = decodeSubtitleBytes(new Uint8Array(await file.arrayBuffer()), this.subLang && this.subLang !== 'und' ? this.subLang : p.prefs.subtitleLanguage || '');
       const id = p.engine.addSubtitleTrack({text, label: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Subtitles', format: file.name, source: 'This phone'});
       const cues = p.engine.cues.get(id) || [];
       if (!cues.length) { p.flash('No subtitles found in that file'); return; }

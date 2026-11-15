@@ -6,6 +6,8 @@ import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
 
 const SKIP_LABELS = {intro: 'Skip Intro', recap: 'Skip Recap', outro: 'Skip Outro', credits: 'Skip to post-credits'};
+// Called on every timeupdate: the page is only written when something changes.
+const show = (el, on) => { if (el.hidden === on) el.hidden = !on; };
 
 export class Markers {
   constructor(p) {
@@ -27,7 +29,7 @@ export class Markers {
   updateSkip(t) {
     const p = this.p;
     const seg = this.activeSegment(t);
-    if (!seg || p.ctl.locked) { p.skipBtn.hidden = true; this.skipSegmentShown = null; return; }
+    if (!seg || p.ctl.locked) { show(p.skipBtn, false); this.skipSegmentShown = null; return; }
     if (this.skipSegmentShown !== seg) {
       this.skipSegmentShown = seg;
       this.skipShownAt = performance.now();
@@ -37,8 +39,9 @@ export class Markers {
     // Without the controls, the button stays for 10 s, then waits for the controls.
     const age = performance.now() - this.skipShownAt;
     if (!p.ctl.visible && age > 10000) this.skipHiddenByTimer = true;
-    p.skipBtn.hidden = this.skipHiddenByTimer && !p.ctl.visible;
-    p.skipFill.style.transform = `scaleX(${p.ctl.visible ? 0 : Math.min(1, age / 10000)})`;
+    show(p.skipBtn, !(this.skipHiddenByTimer && !p.ctl.visible));
+    const fill = `scaleX(${p.ctl.visible ? 0 : Math.min(1, age / 10000).toFixed(2)})`;
+    if (p.skipFill.style.transform !== fill) p.skipFill.style.transform = fill;
   }
 
   skipSegment() {
@@ -67,11 +70,11 @@ export class Markers {
 
   updateNext(t, d) {
     const p = this.p;
-    if (!p.options.next || this.nextDismissed || !(d > 120)) { p.nextCard.hidden = true; return; }
+    if (!p.options?.next || this.nextDismissed || !(d > 120) || !Number.isFinite(d)) { show(p.nextCard, false); return; }
     const outro = this.segments.find(s => (s.type === 'outro' || s.type === 'credits') && d - s.end < 30);
     const at = outro ? outro.start : d * 0.99;
     const credits = this.segments.some(s => s.type === 'postcredits' && t >= s.start);
-    p.nextCard.hidden = t < at || credits;
+    show(p.nextCard, !(t < at || credits));
   }
 
   playNext() {
@@ -80,5 +83,5 @@ export class Markers {
     p.emit('next', {time: p.video.currentTime});
   }
 
-  close() {}
+  close() { show(this.p.skipBtn, false); show(this.p.nextCard, false); this.skipSegmentShown = null; }
 }

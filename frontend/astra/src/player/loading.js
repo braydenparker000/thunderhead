@@ -22,6 +22,19 @@ export class Loading {
     this.timer ||= setInterval(() => this.tick(), 500);
   }
 
+  /**
+   * Nothing to load until the viewer picks a source (the next episode had
+   * none from the same release): the loading screen says so, without a clock.
+   */
+  waitForPick() {
+    const p = this.p;
+    this.show(false);
+    p.loading.hidden = false;
+    p.loadingStatus.textContent = 'Choose a source for this episode.';
+    p.loadingSlow.replaceChildren(h('div', {class: 'ap-loading-actions'}, h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openPanel('sources')}, 'Sources')));
+    p.loadingSlow.hidden = false;
+  }
+
   /** Another source: the slow-load clock counts afresh. */
   restart() {
     if (!this.p.loadingSlow.hidden) { this.since = null; this.p.loadingSlow.hidden = true; }
@@ -81,14 +94,21 @@ export class Loading {
       external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : null,
       h('div', {class: 'ap-error-actions'},
         external ? h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
-        plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.video.currentTime || 0, {allowSilent: true})}, 'Play without sound') : null,
+        plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,
         others ? h('button', {class: 'ap-chip' + (primary === 'sources' ? ' primary' : ''), type: 'button', onclick: () => { p.errorCard.hidden = true; p.openPanel('sources'); }}, 'Choose another source') : null,
-        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => p.load(p.stream, p.video.currentTime || p.loadedFrom || 0)}, 'Try again') : null,
+        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => p.load(p.stream, p.resumePoint())}, 'Try again') : null,
         report,
         h('button', {class: 'ap-chip', type: 'button', onclick: () => p.close('user')}, 'Close')));
     p.errorCard.hidden = false;
     p.showControls(false);
   }
 
-  close() {}
+  /** Opening or closing: no clock, no notice, no error left from before. */
+  close() {
+    const p = this.p;
+    this.show(false);
+    clearTimeout(this.noticeTimer);
+    p.noticeEl.hidden = true;
+    p.errorCard.hidden = true;
+  }
 }

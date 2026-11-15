@@ -1,6 +1,8 @@
 // What shows over the picture and when: the controls and their hide timer,
 // the "You're watching" overlay after a pause, the short message in the
-// middle, the play button, the buffering spinner and the lock.
+// middle, the play button, the buffering spinner and the lock. Whatever is
+// covered (by a menu, the loading screen or the error card) is inert, so
+// Tab and a screen reader stay on what can be seen.
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
@@ -15,9 +17,25 @@ export class Controls {
     this.visible = false;
     this.locked = false;
     this.buffering = false;
+    this.hintAt = 0;
     // Moving through the controls with Tab shows them.
     p.controls.addEventListener('focusin', () => { if (!this.visible && !this.locked) this.show(); });
+    // Any touch or key on the controls (±10, the time, More, scrolling the row) restarts the hide timer.
+    const busy = () => { if (this.visible) this.scheduleHide(); };
+    p.controls.addEventListener('pointerdown', busy, {capture: true});
+    p.controls.addEventListener('keydown', busy, {capture: true});
+    p.actions.addEventListener('scroll', busy, {passive: true});
+    new MutationObserver(() => this.cover()).observe(p.root, {subtree: true, attributeFilter: ['hidden']});
   }
+
+  /** What the loading screen, the error card or a menu covers is out of reach. */
+  cover() {
+    const p = this.p, covered = !p.loading.hidden || !p.errorCard.hidden || !p.modal.hidden || !p.panel.hidden;
+    for (const el of [p.controls, p.skipBtn, p.nextCard, p.mutedChip]) if (el.inert !== covered) el.inert = covered;
+  }
+
+  /** Whether anything that shows the play position is on screen (the controls, or the lock's line). */
+  get showing() { return this.visible || (this.locked && this.p.lockOverlay.classList.contains('show')); }
 
   updatePlayState() {
     const p = this.p, paused = p.video.paused;
@@ -51,7 +69,7 @@ export class Controls {
     p.pauseOverlay.hidden = true;
     p.markers.skipHiddenByTimer = false;
     if (autoHide) this.scheduleHide(); else clearTimeout(this.hideTimer); // an earlier timer must not hide what should stay
-    p.markers.updateSkip(p.video.currentTime);
+    p.updateTime(); // the bar is not kept up to date while hidden
   }
 
   hide() {
@@ -92,24 +110,46 @@ export class Controls {
     this.feedbackTimer = setTimeout(() => { p.feedback.className = 'ap-feedback'; }, FEEDBACK_MS);
   }
 
+  /**
+   * Locked, Unlock stays in the page (unseen until a touch, or focused from
+   * the keyboard), so there is always one thing that can be reached.
+   */
   setLocked(on) {
-    const p = this.p;
+    const p = this.p, focused = p.root.contains(document.activeElement);
     this.locked = on;
     p.root.classList.toggle('locked', on);
-    p.lockOverlay.hidden = true;
-    if (on) { p.menus.dismiss(); this.hide(); this.flash('Controls locked'); }
-    else this.show();
+    clearTimeout(this.lockTimer);
+    p.lockOverlay.classList.remove('show');
+    p.lockOverlay.hidden = !on;
+    if (on) {
+      p.touch.abort(); p.menus.dismiss(); this.hide(); this.flash('Controls locked');
+      if (focused) p.root.focus({preventScroll: true}); // the Lock button is gone: focus stays in the player
+    } else this.show();
   }
 
   showLockHint() {
     const p = this.p;
-    p.lockOverlay.hidden = false;
+    if (!p.lockOverlay.classList.contains('show')) this.hintAt = performance.now();
+    p.lockOverlay.classList.add('show');
+    p.updateTime();
     clearTimeout(this.lockTimer);
-    this.lockTimer = setTimeout(() => { p.lockOverlay.hidden = true; }, 2000);
+    this.lockTimer = setTimeout(() => p.lockOverlay.classList.remove('show'), 2000);
   }
 
-  /** The player closed. */
+  /** The tap that brings up the hint lands on Unlock as it appears: that one does not count, a second does (keys always do). */
+  unlockPressed(e) {
+    if (e.detail && performance.now() - this.hintAt < 350) return;
+    this.setLocked(false);
+  }
+
+  /** The player closed: no timer left running, nothing left showing. */
   close() {
-    clearTimeout(this.hideTimer); clearTimeout(this.pauseTimer); clearTimeout(this.feedbackTimer);
+    const p = this.p;
+    for (const t of [this.hideTimer, this.pauseTimer, this.feedbackTimer, this.bufferTimer, this.lockTimer]) clearTimeout(t);
+    this.buffering = false;
+    p.spinner.hidden = true; p.playBtn.hidden = false;
+    p.pauseOverlay.hidden = true;
+    p.feedback.className = 'ap-feedback';
+    p.lockOverlay.classList.remove('show');
   }
 }

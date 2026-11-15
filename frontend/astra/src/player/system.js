@@ -5,6 +5,7 @@
 import {pushLayer} from '../app/back-stack.js';
 
 export const coarse = () => matchMedia('(pointer: coarse)').matches;
+const ACTIONS = ['play', 'pause', 'seekbackward', 'seekforward', 'seekto', 'nexttrack', 'enterpictureinpicture'];
 
 export class System {
   constructor(p) {
@@ -14,7 +15,9 @@ export class System {
     this.orientation = null;
     this.minimized = false;
     this.wakeLock = null;
+    this.wakeWanted = false;
     this.inerted = null;
+    this.visibleAt = 0; // when the page last came back into view
     // Android leaves full screen on the way into and out of the floating window; those changes are not back.
     this.pipUntil = 0;
     const pipMove = () => { this.pipUntil = performance.now() + 1500; };
@@ -25,18 +28,27 @@ export class System {
     });
     p.video.addEventListener('leavepictureinpicture', () => { pipMove(); this.leftPip(); });
     this.onFullscreen = () => this.fullscreenChanged();
+    this.onVisibility = () => { if (document.visibilityState === 'visible') this.visibleAt = performance.now(); };
+  }
+
+  /** The app behind the player out of reach (on) or back in reach. The list is taken afresh each time. */
+  setInert(on) {
+    const p = this.p;
+    for (const el of this.inerted || []) el.inert = false;
+    this.inerted = on ? [...p.parent.children].filter(el => el !== p.root && !el.inert) : null;
+    for (const el of this.inerted || []) el.inert = true;
   }
 
   /** The player opened: the app behind it is out of reach, back closes the player, and it goes full screen. */
   open() {
     const p = this.p;
     // Keyboard focus stays in the player: the app behind it is inert while it is open.
-    this.inerted = [...p.parent.children].filter(el => el !== p.root && !el.inert);
-    for (const el of this.inerted) el.inert = true;
+    this.setInert(true);
     document.documentElement.classList.add('ap-open');
     p.popLayer = pushLayer('player', () => { p.popLayer = null; p.close('back'); });
     this.enterFullscreen();
     document.addEventListener('fullscreenchange', this.onFullscreen);
+    document.addEventListener('visibilitychange', this.onVisibility);
   }
 
   /** Locks the screen to the viewer's choice; 'auto' follows the phone. Needs full screen. */
@@ -79,7 +91,9 @@ export class System {
     const p = this.p;
     if (this.minimized || !p.isOpen) return;
     this.minimized = true;
+    p.touch.abort();
     p.menus.dismiss(true);
+    this.setInert(false); // the app is usable while the film plays in the floating window
     this.wantFullscreen = false;
     if (document.fullscreenElement === p.root) document.exitFullscreen().catch(() => {});
     p.root.classList.add('mini');
@@ -112,6 +126,7 @@ export class System {
     if (exit && document.pictureInPictureElement === p.video) document.exitPictureInPicture().catch(() => {});
     p.root.classList.remove('mini');
     document.documentElement.classList.add('ap-open');
+    this.setInert(true);
     if (!p.popLayer) p.popLayer = pushLayer('player', () => { p.popLayer = null; p.close('back'); });
     addEventListener('keydown', p.onKey);
     this.wantFullscreen = true; // the next tap goes full screen again
@@ -125,6 +140,8 @@ export class System {
     const failed = () => { if (announce) p.flash('This screen cannot be turned from here'); };
     if (!el.requestFullscreen || document.fullscreenElement) return failed();
     el.requestFullscreen({navigationUI: 'hide'}).then(() => {
+      // Closed or shrunk to the floating window while the change was under way: undo it.
+      if (!p.isOpen || this.minimized) { if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {}); return; }
       this.wasFullscreen = true;
       this.lockOrientation(orientation, {announce});
     }).catch(failed);
@@ -146,19 +163,32 @@ export class System {
     // nothing. The next tap goes full screen again. Only then does it close
     // the player, as Nuvio's does.
     if (document.fullscreenElement || !this.wasFullscreen || !p.isOpen || !this.wantFullscreen || this.minimized || document.pictureInPictureElement || !coarse()) return;
+    // Android leaves full screen when Chrome goes to the background (Home, another app, the screen
+    // off, a file picker): that is not back. The next tap goes full screen again (wantFullscreen).
+    if (document.visibilityState !== 'visible' || performance.now() - this.visibleAt < 1000) return;
     if (performance.now() < this.pipUntil || p.root.classList.contains('in-pip')) return; // moving to or from the floating window
     if (p.menus.open) { p.menus.dismiss(); return; }
     if (p.ctl.locked) { p.ctl.showLockHint(); return; }
     p.close('back');
   }
 
+  /**
+   * Keeps the screen on while playing. What is wanted is remembered, so a
+   * release asked for while a request is still under way lets go once it
+   * lands, and two requests in a row hold one lock, not two.
+   */
   async wake(on) {
-    try {
-      if (on && !this.wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
-        this.wakeLock = await navigator.wakeLock.request('screen');
-        this.wakeLock.addEventListener('release', () => { this.wakeLock = null; });
-      } else if (!on && this.wakeLock) { await this.wakeLock.release(); this.wakeLock = null; }
-    } catch { this.wakeLock = null; }
+    this.wakeWanted = on;
+    if (!on) { const lock = this.wakeLock; this.wakeLock = null; lock?.release().catch(() => {}); return; }
+    if (this.wakeLock || this.wakeAsking || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+    this.wakeAsking = true;
+    let lock = null;
+    try { lock = await navigator.wakeLock.request('screen'); } catch {}
+    this.wakeAsking = false;
+    if (!lock) return;
+    if (!this.wakeWanted || this.wakeLock) { lock.release().catch(() => {}); return; }
+    this.wakeLock = lock;
+    lock.addEventListener('release', () => { if (this.wakeLock === lock) this.wakeLock = null; });
   }
 
   mediaSession() {
@@ -168,6 +198,7 @@ export class System {
     try {
       ms.metadata = new MediaMetadata({title: m.episodeLine ? `${m.title} · ${m.episodeLine}` : m.title || 'Astra', artist: 'Astra', artwork: [m.poster, m.background].filter(Boolean).map(src => ({src}))});
       const set = (action, fn) => { try { ms.setActionHandler(action, fn); } catch {} };
+      this.clearSession = () => { for (const a of ACTIONS) set(a, null); };
       set('play', () => p.video.play());
       set('pause', () => p.video.pause());
       set('seekbackward', d => p.seekBy(-(d?.seekOffset || 10)));
@@ -180,6 +211,7 @@ export class System {
     try { p.video.autoPictureInPicture = !!p.prefs.autoPip; } catch {}
   }
 
+  /** The lock screen's position line: on play, rate change, seek and new length (it runs on by itself in between). */
   positionState() {
     const p = this.p, d = p.video.duration;
     if (!navigator.mediaSession?.setPositionState || !Number.isFinite(d) || !(d > 0)) return;
@@ -189,12 +221,15 @@ export class System {
   /** The player closed: the app is in reach again, and the phone is as it was. */
   close() {
     const p = this.p;
-    for (const el of this.inerted || []) el.inert = false;
-    this.inerted = null;
+    this.setInert(false);
     document.removeEventListener('fullscreenchange', this.onFullscreen);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.exitFullscreen();
     this.wake(false);
     try { navigator.mediaSession.metadata = null; } catch {}
+    this.clearSession?.(); this.clearSession = null;
+    try { p.video.autoPictureInPicture = false; } catch {}
+    this.pipUntil = 0;
     if (document.pictureInPictureElement === p.video) document.exitPictureInPicture().catch(() => {});
     this.minimized = false;
     this.orientation = null; // a rotate-button choice lasts until the player closes

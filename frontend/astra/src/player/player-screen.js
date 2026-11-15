@@ -7,7 +7,9 @@
 // usable. Back closes, in order: a modal or panel, then the player.
 //
 // Events: 'progress' {time, duration} (every 10 s, on pause and on close),
-// 'close' {time, duration, reason}, 'source' {source}, 'episode' {episode}.
+// 'close' {time, duration, reason}, 'source' {source, startTime} (cancelable:
+// a listener that calls preventDefault loads it itself), 'episode' {episode},
+// 'next', 'fileinfo'.
 //
 // This file is the screen itself: opening, loading, closing and what the
 // buttons do. Its parts: view.js (the elements), controls.js (what shows and
@@ -29,6 +31,7 @@ import {Markers} from './markers.js';
 import {Loading} from './loading.js';
 import {System} from './system.js';
 import {key} from './keys.js';
+import {bindVideo} from './video-events.js';
 
 export class PlayerScreen extends EventTarget {
   /** How long a load runs before the loading screen offers other sources. */
@@ -46,7 +49,7 @@ export class PlayerScreen extends EventTarget {
     this.engine.addEventListener('status', e => { this.loadingStatus.textContent = e.detail; });
     this.engine.addEventListener('error', e => this.showError(e.detail.message, e.detail.plan, e.detail));
     this.engine.addEventListener('network', e => this.loader.networkState(e.detail));
-    this.engine.addEventListener('tracks', () => { this.menus.refresh(); if (this.ready) this.autoSubtitle(); });
+    this.engine.addEventListener('tracks', () => { this.menus.refresh(); if (this.ready) this.menus.autoSubtitle(); });
     this.engine.addEventListener('ready', () => this.onReady());
     this.engine.addEventListener('filefacts', e => this.emit('fileinfo', e.detail));
     this.ctl = new Controls(this);
@@ -59,7 +62,7 @@ export class PlayerScreen extends EventTarget {
     video.addEventListener('loadedmetadata', () => this.layout());
     video.addEventListener('resize', () => this.layout());
     this.system = new System(this);
-    this.bindVideo();
+    bindVideo(this);
     this.touch = new Surface(this);
     this.seekbar = new Timeline(this);
     this.parts = [this.menus, this.touch, this.seekbar, this.markers, this.loader, this.system, this.ctl]; // closed in this order
@@ -70,7 +73,8 @@ export class PlayerScreen extends EventTarget {
     };
   }
 
-  emit(type, detail) { this.dispatchEvent(new CustomEvent(type, {detail})); }
+  /** Returns false when a listener called preventDefault on a cancelable event. */
+  emit(type, detail, {cancelable = false} = {}) { return this.dispatchEvent(new CustomEvent(type, {detail, cancelable})); }
 
   /**
    * @param {object} o
@@ -81,13 +85,19 @@ export class PlayerScreen extends EventTarget {
    * @param {{seasons: number[], season: number, items: Array, current: string}} [o.episodes]
    * @param {{label: string, title: string, thumbnail?: string, hasAired?: boolean}} [o.next]
    * @param {Array<{type: string, start: number, end: number}>} [o.segments]
+   * @param {Array} [o.hiddenSources] sources the viewer's filters hide: counted in the sources panel
+   * With no o.stream, nothing loads: the sources panel opens for the viewer to pick one ('source').
    */
   open(o) {
+    const before = this.meta;
     this.options = o;
     this.meta = o.meta || {title: ''};
     this.sources = o.sources || [];
-    this.sourceId = o.sourceId ?? this.sources[0]?.id ?? null;
-    // Choices that belong to one title start fresh with the next.
+    this.hiddenSources = o.hiddenSources || [];
+    this.sourceId = o.sourceId ?? (o.stream ? this.sources[0]?.id : null) ?? null;
+    // Choices that belong to one title start fresh with the next; the subtitle delay is kept for the same series.
+    if (!before || (before.id || before.title) !== (this.meta.id || this.meta.title)) this.engine.subtitles.setDelay(0);
+    for (const part of this.parts) if (part !== this.system) part.close(); // anything left from before: a hold, a timer, a notice
     this.markers.reset(o.segments);
     this.menus.reset();
     this.touch.reset();
@@ -95,6 +105,8 @@ export class PlayerScreen extends EventTarget {
     this.firstFrame = false;
     this.remaining = false;
     this.lastProgress = 0;
+    this.loadedFrom = o.startTime || 0;
+    this.playedTo = 0;
     if (this.system.minimized) this.system.restoreFromPip({exit: true});
     if (!this.isOpen) {
       this.isOpen = true;
@@ -107,18 +119,45 @@ export class PlayerScreen extends EventTarget {
     renderMeta(this);
     this.markers.renderNext();
     this.loader.show(true);
-    this.errorCard.hidden = true;
     this.ctl.setLocked(false);
-    this.menus.dismiss();
     this.applyAspect();
     this.engine.subtitles.setStyle(subtitleStyle(this.prefs));
-    if (o.deferred) { // the caller resolves the address, then calls load()
-      this.stream = o.stream;
+    if (!o.stream) { // the viewer picks the source
+      this.stream = null;
+      this.viaEl.textContent = '';
       this.engine.reset();
-      this.loader.show(true);
-      this.loadingStatus.textContent = 'Resolving the stream…';
-    } else this.load(o.stream, o.startTime || 0);
+      this.loader.waitForPick();
+      this.showControls();
+      this.openPanel('sources');
+      return;
+    }
+    if (o.deferred) this.defer(o.stream, o.startTime || 0); // the caller resolves the address, then calls load()
+    else this.load(o.stream, o.startTime || 0);
     this.showControls();
+  }
+
+  /** The caller is resolving this stream's address (a debrid link) and will call load(): stop what plays and say so. */
+  defer(stream, startTime = 0) {
+    this.stream = stream;
+    this.loadedFrom = startTime;
+    this.ready = false;
+    this.firstFrame = false;
+    this.playedTo = 0;
+    this.engine.reset();
+    this.errorCard.hidden = true;
+    this.loader.restart();
+    this.loader.show(true);
+    this.loadingStatus.textContent = 'Resolving the stream…';
+  }
+
+  /**
+   * Where another load of this title should start: where the film is, once
+   * it has shown a frame; before that, where this load was asked to start
+   * (the video's own clock is still at 0 then).
+   */
+  resumePoint() {
+    const at = this.firstFrame ? this.video.currentTime || this.playedTo : 0;
+    return at || this.loadedFrom || 0;
   }
 
   load(stream, startTime, {allowSilent = false} = {}) {
@@ -127,6 +166,7 @@ export class PlayerScreen extends EventTarget {
     this.loadedFrom = startTime || 0; // where "Try again" resumes when nothing played yet
     this.ready = false;
     this.firstFrame = false;
+    this.playedTo = 0;
     this.loader.show(true);
     this.errorCard.hidden = true;
     this.viaEl.textContent = stream.name ? 'Via ' + stream.name.replace(/\s+/g, ' ') : '';
@@ -138,7 +178,7 @@ export class PlayerScreen extends EventTarget {
   onReady() {
     this.ready = this.engine.mode !== 'unsupported';
     this.menus.refresh();
-    this.autoSubtitle();
+    this.menus.autoSubtitle();
     // Say so when playback needs the viewer to know something: software decoding, Dolby Vision colours, no sound,
     // or a file Astra cannot read (so no audio choice and no subtitles from inside it).
     const notes = (this.engine.plan?.notes || []).filter(n => /software|Dolby Vision profile \d+ has|without sound|Chrome will play it as-is/.test(n));
@@ -147,7 +187,7 @@ export class PlayerScreen extends EventTarget {
 
   /** Hands the stream to another app on the phone (VLC, MX Player…). */
   openExternally() {
-    const url = externalPlayerUrl(this.stream?.url, {title: [this.meta.title, this.meta.episodeLine].filter(Boolean).join(' · '), position: this.video.currentTime || 0});
+    const url = externalPlayerUrl(this.stream?.url, {title: [this.meta.title, this.meta.episodeLine].filter(Boolean).join(' · '), position: this.resumePoint()});
     if (!url) return;
     this.video.pause();
     location.href = url;
@@ -160,28 +200,20 @@ export class PlayerScreen extends EventTarget {
   setSubtitleSearch(on) { this.menus.setSubtitleSearch(on); }
 
   /**
-   * Shows subtitles in the remembered language when nothing is shown yet:
-   * the file's own track first, then an exact match for this release, then
-   * the first add-on file. Choosing Off in the menu forgets the language.
+   * One teardown: every part stops its timers, listeners and gestures and
+   * lets go of the phone (full screen, wake lock, the app behind, the lock
+   * screen's controls), then the app hears where playback got to.
    */
-  autoSubtitle() {
-    const want = this.prefs.subtitleLanguage;
-    if (!want || !this.ready || this.engine.selectedSubtitle) return;
-    const options = this.engine.subtitleOptions().filter(s => s.supported && baseLanguage(s.language) === want);
-    const match = options.find(s => !s.forced) || options[0];
-    if (match) this.engine.selectSubtitle(match.id);
-  }
-
   close(reason = 'user') {
     if (!this.isOpen) return;
     this.isOpen = false;
-    const time = this.video.currentTime, duration = this.video.duration || 0;
-    this.emit('progress', {time, duration, final: true});
-    this.emit('close', {time, duration, reason});
+    const time = this.firstFrame ? this.video.currentTime : 0, duration = Number.isFinite(this.video.duration) ? this.video.duration : 0;
     removeEventListener('keydown', this.onKey);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.popLayer?.(); this.popLayer = null; // also pops an open modal's or panel's entry
     for (const part of this.parts) part.close();
+    this.emit('progress', {time, duration, final: true});
+    this.emit('close', {time, duration, reason});
     this.engine.reset();
     this.root.hidden = true;
   }
@@ -198,13 +230,20 @@ export class PlayerScreen extends EventTarget {
   flash(text, o) { this.ctl.flash(text, o); }
   layout() { layout(this); }
 
+  /**
+   * Called on every timeupdate: the skip button and next card always, the
+   * clock and the bar only while something shows them (showControls and the
+   * lock's hint draw them afresh when they appear).
+   */
   updateTime() {
     const t = this.scrub.time ?? this.video.currentTime, d = this.video.duration;
-    const known = Number.isFinite(d) && d > 0;
-    this.timeEl.textContent = !known ? clock(t) : this.remaining ? '−' + clock(d - t) : `${clock(t)} / ${clock(d)}`;
-    if (known) this.seekbar.update(t, d);
     this.markers.updateSkip(t);
     this.markers.updateNext(t, d);
+    if (!this.ctl.showing) return;
+    const known = Number.isFinite(d) && d > 0;
+    const text = d === Infinity ? 'Live' : !known ? clock(t) : this.remaining ? '−' + clock(d - t) : `${clock(t)} / ${clock(d)}`;
+    if (this.timeEl.textContent !== text) this.timeEl.textContent = text;
+    this.seekbar.update(t, d);
   }
 
   // ——— Playback actions ———
@@ -245,32 +284,12 @@ export class PlayerScreen extends EventTarget {
     this.flash('Sound on');
   }
 
-  // ——— The video's own events ———
-
-  bindVideo() {
-    const v = this.video, ctl = this.ctl;
-    v.addEventListener('playing', () => {
-      if (!this.firstFrame) { this.firstFrame = true; this.loader.show(false); this.showControls(); }
-      ctl.setBuffering(false); ctl.updatePlayState(); this.system.wake(true);
-    });
-    v.addEventListener('waiting', () => { if (this.firstFrame) ctl.setBuffering(true); });
-    v.addEventListener('pause', () => {
-      this.pausedAt = performance.now();
-      ctl.updatePlayState(); this.system.wake(false); this.showControls(false); this.emitProgress(true);
-    });
-    v.addEventListener('play', () => { ctl.updatePlayState(); this.scheduleHide(); });
-    v.addEventListener('volumechange', () => { this.mutedChip.hidden = !(v.muted || v.volume === 0); });
-    v.addEventListener('timeupdate', () => { this.updateTime(); this.emitProgress(false); this.system.positionState(); });
-    v.addEventListener('progress', () => this.updateTime());
-    v.addEventListener('durationchange', () => this.updateTime());
-    v.addEventListener('ratechange', () => { this.speedBtn.textContent = `Speed ${this.touch.holding ? this.touch.holdBase : v.playbackRate}x`; });
-    v.addEventListener('ended', () => { this.showControls(false); this.emitProgress(true); });
-  }
-
+  /** Tells the app where playback is: every 10 s while it runs, and at once when `force`d (a pause, the end, leaving). */
   emitProgress(force, final = false) {
     const now = performance.now();
     if (!force && now - this.lastProgress < 10000) return;
     this.lastProgress = now;
-    if (this.video.currentTime > 0) this.emit('progress', {time: this.video.currentTime, duration: this.video.duration || 0, final});
+    const d = this.video.duration;
+    if (this.video.currentTime > 0) this.emit('progress', {time: this.video.currentTime, duration: Number.isFinite(d) ? d : 0, final});
   }
 }
