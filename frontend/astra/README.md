@@ -712,6 +712,11 @@ measured height, so nothing covers the title or the buttons.
   film that comes with no container facts (HLS, DASH, or one the browser
   plays by itself) is asked from its own first frame whether it is PQ or
   HLG (`Picture.see`), so it is treated the same. A
+  **Dolby Vision profile 5** film (IPT planes the browser shows purple and
+  green; the record read from an MKV's or MP4's header) has its colours
+  corrected before the tone-mapping (`dolby.js`), even with everything else
+  off, under a "Correct Dolby Vision colours" switch; colours the browser
+  clipped (saturated blues, the deepest greens) come out only nearly right. A
   film from a host that does not let the page read it keeps the plain
   picture too; the section says why. When frames start to be missed it
   steps itself down (Animation to Standard, then smooth banding off, then
