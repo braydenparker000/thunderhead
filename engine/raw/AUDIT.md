@@ -4,6 +4,9 @@ The owner asked for a complete audit of the photo editor, read and run by one re
 down and **no code changed** until the audit has been compared with the true ceiling. This is that record.
 [REVIEW.md](REVIEW.md) is the earlier talk about how good the editor is; [STATUS.md](STATUS.md) says what is built.
 
+**Fixed since (2026-11-16):** 3.1, P.1, P.4, 1.1, 1.2, 1.3, 1.4, 2.1, 4.1, 8.1, 8.4, 8.10, 8.11. [HANDOFF.md](HANDOFF.md) has
+what each fix did and what it measured; the findings below are as the audit found them.
+
 How to read a finding. **Proven**: reproduced here, with the measurement. **By reading**: seen in the code, not
 run. **Suspect**: a mechanism that fits, not shown to be the cause of anything. Severity: **A** a wrong picture, a
 lost photo or edit, or something the owner would feel on every use; **B** a real fault, small or rare; **C** a

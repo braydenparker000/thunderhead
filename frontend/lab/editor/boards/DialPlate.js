@@ -66,7 +66,7 @@ export default class Component extends DCLogic {
       wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); this.props.onhold?.(true); moved(() => !!this.drag || !!this.spin, false, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
+      down: (e) => { stop(); this.props.onhold?.(true); moved(() => !!this.drag || !!this.spin, info().making, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger

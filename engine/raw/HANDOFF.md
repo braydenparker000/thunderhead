@@ -4,22 +4,42 @@ For whoever carries on, a person or a model that was not here. Read this, then [
 finding, with its measurement), then [../../AGENTS.md](../../AGENTS.md). [STATUS.md](STATUS.md) says what is
 built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 
-## Where things stand
+## Where things stand (updated 2026-11-16, second session)
 
-- The audit is finished and nothing in the product was changed. The only files added are AUDIT.md, this file and
-  the audit's scripts in [checks/audit/](checks/audit/), on the branch
-  `claude/thunderhead-photo-editor-review-2ye8x9`. No pull request is open.
-- One fix was written and then taken back out at the owner's word: the dial's (finding 1.1 and 1.2). The owner
-  said go on 2026-11-16 and it is now applied (`DialPlate.js`, with its test in
-  `tests/lab-editor-faults-browser.test.mjs`, which fails without the fix and passes with it).
-- **What the owner asked for next, in their words: "Then we'll compare to true ceiling and true best
-  behavior."** So the next step is that talk, not code. For each finding below, "the ceiling" is this audit's
-  view of the best known behaviour, to start that talk from. Fix nothing until the owner has said which.
+- The audit's fixes are built, on `claude/zealous-brahmagupta-bnap32`, in one pull request (the owner, 2026-11-16:
+  "build build build and ship all at once ... less PRs, quicker to live"). What each did, as measured here:
+
+| # | Fix | Measured (software GPU; the phone not checked) |
+|---|---|---|
+| 3.1 | `net-fringe.js`: red and blue laid on green's places before the network (each site read round where the lens drew it, carried by its ratio to green; green beside a site weighted four times a corner's); the lens pass no longer undoes fringing after the network | known picture, fringed, colour in the outer ring: 27.3 → 34.0 dB clean (usual 34.0), 27.3 → 33.9 at ISO 3200 (usual 33.7); centre 33.2 → 35.9. Real files, speckle at the right edge: public RAF 6.1 → 1.1 (usual 1.6), one of the owner's at ISO 800 36 → 9.2. Rims gone by eye. No reference picture moved (no fringing there) |
+| P.1, P.4 | `session.js` `draw`/`cover`, `zoom.js`: from 100 % an edit draws the view alone; the fitted photo 300 ms after edits rest. The dial's log says `busy` | `tests/lab-editor-zoomed-browser.test.mjs` (fails without it). The phone's log is the real proof |
+| 1.1, 1.2 | `DialPlate.js` (the set-aside patch) | its test fails without it |
+| 1.4 | `reduce.js`: Lanczos-3 in linear light, each result held between the least and most of its central taps; output sharpening of a reduced file eased by what the old softness took (`0.892 a − 0.216`) | zone plate through `reduce.js` itself (sRGB numbers, as the export hands them): moire 12.0 → 7.4, contrast at half the limit 0.91 → 1.00, at 0.8 0.76 → 0.94; a bright bar leaves nothing darker than the dark side. 26 MP → 1.8 MP: 0.4 s → 1.3 s here. Page and thread still the same to the byte |
+| 8.1 | `store.js`: a 480 px tile at import, made in the background for older photos; the grid lazy; the cull view reads the camera's JPEG when shown | 12 RAFs: 6.5 s of decoding → 0.14 s; tiles 320 × 480. Import costs about 0.6 s a RAF more here |
+| 4.1 | `session.js` `level`: the lean read with no straightening | `raf6.mjs`: −0.6, −0.6, −0.6 |
+| 8.4 | `ViewTools.js`: before drawn with the present crop | `raf8.mjs`: both halves one scene; before 79.3 = the hold's |
+| 1.3 | `wgsl.js` `moved`: an offset under the floor | `exact.mjs`: level 0 → 0. bench-ref.json made again: frame, cut, edited moved at most 0.0013; nothing else |
+| 8.10 | `app/name-sheet.js` | `tests/lab-editor-small-fixes-browser.test.mjs` |
+| 8.11 | `editor.css` reduced-motion rule | the same test |
+| 2.1 | `decoder.js`: a thread whose decode failed is let go once its other work is done | the same test |
+
+- Still open: P.2 (zoom stalls: make the `move` log say what ran), P.3 (two-minute export), 1.5 (the dial's
+  picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
+  committed test.
+- **Colour.** Adobe's installers (DNG Converter 18.6, Camera Raw 18.6 for Windows) carry Adobe Standard for the X-E5
+  and X-T5 and the Adobe Color/Neutral/Portrait/Vivid looks (the editor reads them all), and the four newest film
+  simulation looks, but **not** the "Camera PROVIA/Standard" base and the other film simulations: only their names
+  are in the program. Nothing of Adobe's goes into this repository. The true colour check needs one RAF exported by
+  Lightroom Mobile in Adobe Color, all else zero, 16-bit TIFF: asked of the owner.
+- **Other networks.** vkdt's `jddcnn` (X-Trans weights, codeberg.org/hanatos/vkdt-nn), X-veon and neural-demosaic
+  exist; none has a licence for its weights. The owner is asking their authors. Score any on the known picture
+  against Starfish before switching.
 
 ## How this owner works (learnt the hard way in this session)
 
 - **Audit before change.** "It's your repo" did not mean "mend as you go": a fix made during the review was
-  unwelcome. Say what you will change and wait for the word.
+  unwelcome. Say what you will change and wait for the word. Once the word is given: build it all and ship it in
+  one pull request, and run only the tests that touch it, not the whole suite (2026-11-16).
 - **Do the review yourself.** Sub-agents were refused for it twice ("you yourself do it. Deep audit part by
   part. So nothing is missed. No sub agents").
 - Say a few words often while working; long silences worry them. Plain words, no jargon, "you".

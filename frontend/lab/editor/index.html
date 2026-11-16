@@ -375,7 +375,7 @@
         <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
           <sc-for list="{{g.items}}" as="p" hint-placeholder-count="6">
             <button onClick="{{p.open}}" aria-label="{{p.aria}}" style="position: relative; aspect-ratio: 1; overflow: hidden; background: #111; opacity: {{p.dim}}">
-              <img src="{{p.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
+              <img src="{{p.src}}" alt="" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
               <span style="position: absolute; left: 5px; top: 4px; font-size: 11px; color: {{p.flagInk}}; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.flag}}</span>
               <span style="position: absolute; right: 5px; top: 5px; display: {{p.simShow}}; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #dedbd4">{{p.sim}}</span>
               <span style="position: absolute; left: 5px; bottom: 3px; font-size: 9px; letter-spacing: 1px; color: #f2efe8; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.stars}}</span>

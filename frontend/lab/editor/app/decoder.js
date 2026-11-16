@@ -5,12 +5,17 @@
 
 let worker = /** @type {Worker | null} */ (null), asked = 0;
 const waiting = /** @type {Map<string, () => void>} */ (new Map());   // each request not yet answered in full: what to do should the thread fall over
+const open = /** @type {WeakMap<Worker, number>} */ (new WeakMap()), spent = /** @type {WeakSet<Worker>} */ (new WeakSet());   // each thread's requests not yet answered; threads let go
 /** Asks the decoder. `hear` is given each answer to this request, and says true once it has heard the last.
  * @param {Record<string, any>} msg @param {Transferable[]} give @param {(answer: any) => boolean} hear */
 export function ask(msg, give, hear) {
   warm(); const to = /** @type {Worker} */ (worker), tag = `q${++asked}`;
-  const on = (/** @type {MessageEvent} */ m) => { if (m.data.tag === tag && hear(m.data)) { to.removeEventListener('message', on); waiting.delete(tag); } };
-  waiting.set(tag, () => { to.removeEventListener('message', on); waiting.delete(tag); hear({ error: 'The decoder stopped. Try again.', tag }); });
+  open.set(to, (open.get(to) || 0) + 1);
+  // a decode that failed inside the thread (a trap in its WebAssembly: out of memory, a file it chokes on) may have left it
+  // holding what it had: the next photo goes to a new thread, and this one is let go once what else it is doing is done (AUDIT.md 2.1)
+  const done = (/** @type {boolean} */ bad) => { const n = (open.get(to) || 1) - 1; open.set(to, n); if (bad && worker === to) { worker = null; spent.add(to); } if (!n && spent.has(to)) to.terminate(); };
+  const on = (/** @type {MessageEvent} */ m) => { if (m.data.tag === tag && hear(m.data)) { to.removeEventListener('message', on); waiting.delete(tag); done(!!m.data.error && !('jpeg' in msg)); } };
+  waiting.set(tag, () => { to.removeEventListener('message', on); waiting.delete(tag); done(false); hear({ error: 'The decoder stopped. Try again.', tag }); });
   to.addEventListener('message', on); to.postMessage({ ...msg, tag }, give);
 }
 /** Starts the decoder before a photo asks for it: its code, its WebAssembly and its threads take a while the

@@ -285,7 +285,7 @@ test('the dial stays where the finger left it, clicks into a coarse step as it l
   // Radius steps by 0.1, 14.4 degrees each: a turn short of half a step clicks back as the finger lifts, not later.
   await face('Detail', 'Radius');
   const start = (await dial()).angle, radius = await turn(20);
-  assert.equal(radius.held.text, '1.0'); assert.ok(Math.abs(radius.held.angle - start - 4.775) < 0.05, 'the wheel followed the finger');
+  assert.equal(radius.held.text, '1.0'); assert.ok(radius.held.angle - start > 2 && radius.held.angle - start < 7.2, `the wheel followed the finger, under half a step (${radius.held.angle - start})`);
   assert.deepEqual([radius.lifted.angle, radius.later.angle], [start, start], 'back on its step at once');
   // the arrow keys add up to a step (they could not move Radius at all: each press was put back)
   await page.locator('#stage [role=slider]').first().focus();

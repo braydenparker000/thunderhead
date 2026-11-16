@@ -139,7 +139,7 @@ export async function full(e, img, mosaic) {
       }],
       ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
       ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
-      ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe && !net)],   // the network leaves the lens's fringing in: the lens pass undoes it
+      ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe)],   // the demosaic and the network (net-fringe.js) both lay red and blue on green's places
     ];
     /** The same work as `steps`, in parts small enough to hand the GPU one at a time, each its own submission and
      * waited for (the screen's views: `region` with `pace`): the usual demosaic a pass at a time, sharpening a

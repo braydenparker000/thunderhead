@@ -16,6 +16,7 @@ import * as shown from '../app/shown.js';
 import * as kept from '../app/looks.js';
 import * as recipes from '../app/recipes.js';
 import { XMP_MAX_BYTES, lookOfXmp } from '../app/xmp.js';
+import { askName } from '../app/name-sheet.js';
 
 const FACES = ['Presets', 'Mine'];
 const SAMPLES = { Presets: [['Moody 01', 'contrast(1.2) saturate(0.7) brightness(0.92)'], ['Moody 02', 'contrast(1.1) saturate(0.6) hue-rotate(-10deg) brightness(0.95)'], ['Golden', 'saturate(1.2) sepia(0.25) brightness(1.05)'],
@@ -91,7 +92,7 @@ export default class Component extends DCLogic {
     const looks = pgroups.length > 1 ? inPack.filter((l) => (l.group || '') === pgroup) : inPack;
     const cards = pk ? [] : packs.map((p) => ({ name: p, tag: String(faced.filter((l) => l.pack === p).length), src: photo.jpeg(), pick: () => set({ shelf: 'pack:' + p, group: '', look: '', del: '', note: '', upTo: 8 }) }));
     const on = face === 'Presets' ? (real ? photo.cubeOn() : S.look) : S.look, own = fx ? undefined : looks.find((l) => l.id === on);
-    const save = () => { const name = real ? prompt('Name this look', `My look ${mine.length + 1}`) : ''; if (name?.trim()) kept.addMine(name.trim().slice(0, 40), photo.state()).then((m) => set({ face: 'Mine', look: m.id, note: '' })); };
+    const save = () => { if (real) askName('Name this look', `My look ${mine.length + 1}`).then((name) => { if (name) kept.addMine(name, photo.state()).then((m) => set({ face: 'Mine', look: m.id, note: '' })); }); };
     const wear = (r) => { const left = recipes.wear(r), film = photo.looks().find((l) => l.id === photo.look())?.label || ''; const names = (l) => l.map((t) => t.split(':')[0]).join(', '), none = left.filter((t) => /not applied|not replicated|no profile/.test(t)), near = left.filter((t) => !none.includes(t));
       set({ look: r.id, del: '', note: [r.name, film, near.length ? `near only: ${names(near)}` : '', none.length ? `not here: ${names(none)}` : ''].filter(Boolean).join(' · ') }); };
     const card = (real && !pk ? [{ name: 'Fuji recipes', tag: 'WEEKLY', src: photo.jpeg(), pick: () => this.shelf(true) }] : []).concat(face === 'Presets' ? cards : []);

@@ -55,7 +55,7 @@ let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geome
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
 // a count that moves whenever the fitted photo is drawn anew
-let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, past = /** @type {hist.Past | null} */ (null), gen = 0;
+let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, past = /** @type {hist.Past | null} */ (null), gen = 0, covered = () => false, behind = false, rest = 0;
 const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
 warm();
@@ -158,15 +158,16 @@ function paint(more) {
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
   return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, ...more });
 }
-/** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
-export async function draw(fit = true) {
+export const cover = (/** @type {() => boolean} */ f) => { covered = f; };   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
+/** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */
+export async function draw(fit = true, all = false) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
   drawing = true; if (fit) gen++;
-  const was = `${canvas.width},${canvas.height}`;
-  try { await paint({ fit }); } finally { drawing = false; }   // a frame that fails must not hold every later one
+  const was = `${canvas.width},${canvas.height}`, hid = fit && !all && covered(); behind = hid || (behind && !fit);
+  clearTimeout(rest); try { await paint({ fit: fit && !hid }); } finally { drawing = false; }   // a frame that fails must not hold every later one
   if (was !== `${canvas.width},${canvas.height}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
-  if (again) { again = false; draw(); }
+  if (again) { again = false; draw(); } else if (behind) rest = window.setTimeout(() => { if (behind) draw(true, true); }, 300);
 }
 /** Whether a frame is being drawn or waiting to be (check scripts wait on this, not on a clock). */
 export const busy = () => drawing || again;
@@ -218,8 +219,8 @@ export function setGeo(g, val = '') { if (!cur) return; cur.geo = isNone(g) ? nu
 export const curve = () => cur?.curve || null;
 /** Sets one channel's points (RGB, R, G or B); none, with no channel, straightens them all. @param {string} [ch] @param {number[][]} [pts] */
 export function setCurve(ch, pts) { if (!cur) return; cur.curve = ch && pts ? { ...cur.curve, [ch]: pts } : null; changed(); draw(); save('curve', ch ? `Curve · ${ch}` : 'Curve reset', ''); }
-/** How far the picture's lines lean, in degrees clockwise (engine/level.js), read from it as it is shown. */
-export async function level() { const im = await pixels(); return im ? tilt(im) : 0; }
+/** How far the picture's lines lean, in degrees clockwise (engine/level.js), read from it as cropped and turned but not straightened. */
+export async function level() { const me = cur, st = state(); let im = /** @type {ImageData | null} */ (null); if (st.geo) st.geo = { ...st.geo, angle: 0 }; await alone(async () => { if (cur === me && eng && me) { await unseen(st); im = await eng.snapshot(); } }); return im ? tilt(im) : 0; }   // read with no straightening, so pressing Auto again gives the same angle (AUDIT.md 4.1)
 /** Moves whenever the fitted photo is drawn anew or another photo opens: what was made from it is then old. */
 export const stamp = () => gen;
 

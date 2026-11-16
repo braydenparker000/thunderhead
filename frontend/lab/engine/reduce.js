@@ -1,6 +1,6 @@
 // @ts-check
 // An export's work on the processor, after the GPU (export.js develops the photo and reads it back): each band of
-// the full-size photo brought to a file's size by averaging in linear light, sharpened for its use if asked, and
+// the full-size photo brought to a file's size by a Lanczos filter in linear light, sharpened for its use if asked, and
 // handed to the file's writer (files.js). It runs on the export's own thread (export-worker.js), or on the page
 // where that thread cannot start: the same code either way, so the files are the same to the byte.
 import { reseed, writer } from './files.js';
@@ -23,28 +23,59 @@ function reducer(sw, sh, ow, oh, out) {
     for (let i = 0, o = 0; o < px.length; i += 4, o += 3) { px[o] = SAME[half[i]]; px[o + 1] = SAME[half[i + 1]]; px[o + 2] = SAME[half[i + 2]]; }
     await out.rows(px, n);
   };
-  // each sensor pixel's light goes to the output pixel it falls in, split with the next where it straddles two
-  const rx = sw / ow, ry = sh / oh, norm = 1 / (rx * ry), line = ow * 3, to = new Uint32Array(sw), share = new Float32Array(sw);
-  for (let x = 0; x < sw; x++) { const o = Math.min(ow - 1, Math.floor(x / rx)); to[x] = o * 3; share[x] = o + 1 < ow ? Math.max(0, Math.min(1, (o + 1) * rx - x)) : 1; }
-  let acc = new Float32Array(line), next = new Float32Array(line), row = 0, y = 0;   // the output row being gathered, and the one after
-  const one = new Float32Array(line + 3);
-  return async (/** @type {Uint16Array} */ half, /** @type {number} */ n) => {
-    const px = new Uint16Array((Math.ceil(n / ry) + 2) * line);
-    let made = 0;
-    const emit = () => { for (let k = 0, o = made++ * line; k < line; k++) px[o + k] = ENC[Math.min(65535, Math.round(Math.sqrt(acc[k] * norm) * 65535))]; [acc, next] = [next, acc]; next.fill(0); row++; };
-    for (let r = 0; r < n; r++, y++) {
-      one.fill(0);
-      for (let x = 0, i = r * sw * 4; x < sw; x++, i += 4) {
-        const o = to[x], a = share[x], R = LIGHT[half[i]], G = LIGHT[half[i + 1]], B = LIGHT[half[i + 2]];
-        one[o] += R * a; one[o + 1] += G * a; one[o + 2] += B * a;
-        if (a < 1) { one[o + 3] += R * (1 - a); one[o + 4] += G * (1 - a); one[o + 5] += B * (1 - a); }
+  // Lanczos-3 in linear light, rows then columns (AUDIT.md 1.4: an area average kept 78 % of the contrast just under the
+  // small picture's limit and left twice the moire past it; this keeps all of it, as darktable's export does). Each
+  // result is held between the least and most of what it was made from, so a bright edge cannot ring dark beside it.
+  // each output pixel's K taps, flat: where each reads, its weight, and the taps within a source pixel of its middle,
+  // whose least and most it is held between
+  const taps = (/** @type {number} */ n, /** @type {number} */ o) => {
+    const r = n / o, s = Math.max(1, r), K = Math.ceil(6 * s) + 2, at = new Int32Array(o * K), w = new Float32Array(o * K), mid = new Int32Array(o * 2), last = new Int32Array(o);
+    for (let X = 0; X < o; X++) {
+      const c = (X + 0.5) * r - 0.5, a = Math.ceil(c - 3 * s);
+      let sum = 0, m0 = K, m1 = 0;
+      for (let k = 0; k < K; k++) {
+        const x = a + k, t = Math.abs(x - c) / s, v = t < 1e-6 ? 1 : t >= 3 ? 0 : (3 * Math.sin(Math.PI * t) * Math.sin((Math.PI * t) / 3)) / (Math.PI * Math.PI * t * t);
+        at[X * K + k] = Math.min(n - 1, Math.max(0, x)); w[X * K + k] = v; sum += v;
+        if (Math.abs(x - c) <= Math.max(1, r / 2)) { m0 = Math.min(m0, k); m1 = k; }
       }
-      const o = Math.min(oh - 1, Math.floor(y / ry)), a = o + 1 < oh ? Math.max(0, Math.min(1, (o + 1) * ry - y)) : 1;
-      while (row < o) emit();
-      for (let k = 0; k < line; k++) { acc[k] += one[k] * a; next[k] += one[k] * (1 - a); }
+      for (let k = 0; k < K; k++) w[X * K + k] /= sum;
+      mid[X * 2] = m0; mid[X * 2 + 1] = m1; last[X] = Math.min(n - 1, a + K - 1);
     }
-    if (y === sh) emit();
-    if (made) await out.rows(px, made);
+    return { K, at, w, mid, last };
+  };
+  const tx = taps(sw, ow), ty = taps(sh, oh), line = ow * 3, keep = new Map(), one = new Float32Array(sw * 3), K = tx.K;
+  let got = 0, Y = 0;   // the input rows seen, the output row next made
+  const across = (/** @type {Uint16Array} */ half, /** @type {number} */ r) => {   // an input row taken to ow wide, in light
+    for (let x = 0, i = r * sw * 4, o = 0; x < sw; x++, i += 4, o += 3) { one[o] = LIGHT[half[i]]; one[o + 1] = LIGHT[half[i + 1]]; one[o + 2] = LIGHT[half[i + 2]]; }
+    const row = new Float32Array(line), { at, w, mid } = tx;
+    for (let X = 0, base = 0; X < ow; X++, base += K) {
+      let r = 0, g = 0, b = 0;
+      for (let k = base; k < base + K; k++) { const i = at[k] * 3, m = w[k]; r += m * one[i]; g += m * one[i + 1]; b += m * one[i + 2]; }
+      let rl = 1, gl = 1, bl = 1, rh = 0, gh = 0, bh = 0;
+      for (let k = base + mid[X * 2]; k <= base + mid[X * 2 + 1]; k++) { const i = at[k] * 3, R = one[i], G = one[i + 1], B = one[i + 2]; if (R < rl) rl = R; if (R > rh) rh = R; if (G < gl) gl = G; if (G > gh) gh = G; if (B < bl) bl = B; if (B > bh) bh = B; }
+      row[X * 3] = r < rl ? rl : r > rh ? rh : r; row[X * 3 + 1] = g < gl ? gl : g > gh ? gh : g; row[X * 3 + 2] = b < bl ? bl : b > bh ? bh : b;
+    }
+    return row;
+  };
+  return async (/** @type {Uint16Array} */ half, /** @type {number} */ n) => {
+    for (let r = 0; r < n; r++) keep.set(got++, across(half, r));
+    const ready = [];
+    const KY = ty.K;
+    while (Y < oh && (ty.last[Y] < got || got === sh)) {
+      const px = new Uint16Array(line), acc = new Float32Array(line), lo = new Float32Array(line).fill(1), hi = new Float32Array(line), m0 = ty.mid[Y * 2], m1 = ty.mid[Y * 2 + 1];
+      for (let j = 0; j < KY; j++) {
+        const src = /** @type {Float32Array} */ (keep.get(ty.at[Y * KY + j])), m = ty.w[Y * KY + j];
+        for (let k = 0; k < line; k++) acc[k] += m * src[k];
+        if (j >= m0 && j <= m1) for (let k = 0; k < line; k++) { const v = src[k]; if (v < lo[k]) lo[k] = v; if (v > hi[k]) hi[k] = v; }
+      }
+      for (let k = 0; k < line; k++) { const v = acc[k] < lo[k] ? lo[k] : acc[k] > hi[k] ? hi[k] : acc[k]; px[k] = ENC[Math.round(Math.sqrt(v) * 65535)]; }
+      ready.push(px); Y++;
+      const first = Y < oh ? ty.at[Y * KY] : got;   // rows no later output row reads are let go
+      for (const k of keep.keys()) if (k < first) keep.delete(k);
+    }
+    if (!ready.length) return;
+    const all = new Uint16Array(ready.length * line); ready.forEach((p, i) => all.set(p, i * line));
+    await out.rows(all, ready.length);
   };
 }
 
@@ -91,7 +122,8 @@ export const OUTPUT = /** @type {Record<string, Record<string, number>>} */ ({ S
 export function sink(sw, sh, list, band) {
   reseed();   // each export's dither starts the same, so the same photo makes the same file wherever it is made
   const outs = list.map((j) => {
-    const file = 'rows' in j.file ? j.file : writer(j.file, j.ow, j.oh, band), out = j.sharpen > 0 ? crisp(file, j.ow, j.sharpen) : file;
+    // output sharpening was tuned on the area average's softer picture: a reduced file is sharpened by what makes up the same at half its limit
+    const amt = j.ow < sw ? Math.max(0, 0.892 * j.sharpen - 0.216) : j.sharpen, file = 'rows' in j.file ? j.file : writer(j.file, j.ow, j.oh, band), out = amt > 0 ? crisp(file, j.ow, amt) : file;
     return { out, push: reducer(sw, sh, j.ow, j.oh, out) };
   });
   return {

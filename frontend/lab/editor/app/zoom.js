@@ -296,4 +296,4 @@ photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== phot
 
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);
-photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); });
+photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); }); photo.cover(() => live.isConnected && live.style.display === 'block' && z / full() >= 0.999);

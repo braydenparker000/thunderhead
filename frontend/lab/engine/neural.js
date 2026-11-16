@@ -18,6 +18,7 @@ import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
 import { noiseAt } from './noise.js';
 import { choose, chosen, ways } from './net-tune.js';
 import { canSlice, paced } from './net-pace.js';
+import { FRINGE_FLOATS, fringeWGSL, packFringe } from './net-fringe.js';
 
 export { phaseOf };
 const DIR = new URL('./nets/starfish-xtrans/', import.meta.url);
@@ -67,7 +68,8 @@ struct D { at: vec4i,      // the window's first sensor pixel (x, y), and how ma
            gain: vec4f,    // what brings red, green and blue to green's scale (the shot's white balance)
            na: vec4f, nb: vec4f,   // a site's noise: its variance is na × its value + nb, for red, green and blue; na.w and nb.w: the grain put back (place)
            n: vec4u,       // spots to retouch (heal.js): how many
-           sp: array<vec4f, ${SPOTS * SPOT_ROWS}> };
+           sp: array<vec4f, ${SPOTS * SPOT_ROWS}>,
+           cen: vec4f, ca: array<vec4f, 16> };   // the lens's colour fringing (net-fringe.js)
 @group(0) @binding(0) var mosaic: texture_2d<u32>;
 @group(0) @binding(1) var<uniform> d: D;
 @group(0) @binding(2) var<storage, read_write> mos: array<T>;
@@ -93,14 +95,15 @@ fn raw(q: vec2i) -> f32 {
   for (var i = 0u; i < d.n.x; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, c); if (k.x > 0.0) { v = mix(v, own(q + vec2i(d.sp[i * ${SPOT_ROWS}u + 1u].xy)) * k.y, k.x); } }
   return v;
 }
+${fringeWGSL}
 @compute @workgroup_size(8, 8)
 fn cut(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= d.at.z || i32(id.y) >= d.at.w) { return; }
   let q = d.at.xy + vec2i(id.xy);
   nearby(vec2f(q) + 0.5, 0.0);
-  let v = clamp(raw(q), 0.0, 1.0); let c = colour(q); let g = d.gain[c]; let p = id.y * WIN + id.x;
+  let s = site(q); let v = clamp(s.x, 0.0, 1.0); let c = colour(q); let g = d.gain[c]; let p = id.y * WIN + id.x;
   mos[p] = T(v * g);
-  sig[p] = T(sqrt(max(d.na[c] * v + d.nb[c], 0.0)) * g);
+  sig[p] = T(sqrt(max(d.na[c] * v + d.nb[c], 0.0)) * s.y * g);
 }
 @compute @workgroup_size(8, 8)
 fn place(@builtin(global_invocation_id) id: vec3u) {
@@ -113,7 +116,7 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
   // to its noise (d.nb.w: the signal to noise where half is put back), so shadows stay clean.
   if (d.na.w > 0.0 && own(q) < ${CLIP}) {
     nearby(vec2f(q) + 0.5, 0.0);
-    let c = colour(q); let v = clamp(raw(q), 0.0, 1.0); let g = d.gain[c];
+    let c = colour(q); let v = clamp(site(q).x, 0.0, 1.0); let g = d.gain[c];
     let z = clamp((v * g - c3[c]) / (sqrt(max(d.na[c] * v + d.nb[c], 1e-12)) * g), -3.0, 3.0);
     let lum = max(dot(c3, vec3f(0.25, 0.5, 0.25)), 1e-6); let sl = sqrt(max(d.na.y * lum + d.nb.y, 0.0));
     let snr = lum / max(sl, 1e-9);
@@ -208,7 +211,7 @@ export function compile(device, kind = kindOf(device), kept = true) {
 /** Makes rectangles of the photo by the network, each up to maxW × maxH sensor pixels, as demosaic.js's
  * `demosaicer` does: `run` adds the passes to a frame's commands and the result is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
- * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number, noise?: { a: number[], b: number[] } | null }} info `noise`: a raw site's own (full.js reads it from the photo), else `iso`: the photo's, for the table's;
+ * @param {{ phase: number[], black: number, white: number, wb: number[], iso?: number, smooth?: number, noise?: { a: number[], b: number[] } | null, fringe?: { centre: number[], reach: number, table: Float32Array } | null }} info `fringe`: lens.js `fringeOf`, undone before the network (net-fringe.js); `noise`: a raw site's own (full.js reads it from the photo), else `iso`: the photo's, for the table's;
  *   `smooth`: how much of that noise the network is told of (1: all of it; less keeps more grain, more smooths further)
  * @param {number} maxW @param {number} maxH @param {{ kind?: 'f16' | 'f32', kept?: boolean | number[] }} [o] which network (`compile`): the engine test page asks for others than the usual */
 export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
@@ -222,7 +225,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
   const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)),   // (read from when its passes are compared: net-tune.js)
      out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);
-  const SIZE = 128 + SPOTS * SPOT_ROWS * 16, view = mosaic.createView();
+  const FR = 32 + SPOTS * SPOT_ROWS * 4, SIZE = (FR + FRINGE_FLOATS) * 4, view = mosaic.createView();
   /** A window's own settings and bindings: several windows are laid in one frame's commands, each read when it runs.
    * @type {{ uni: GPUBuffer, valid: GPUBuffer, cut: GPUBindGroup, place: GPUBindGroup, ops: GPUBindGroup[] }[]} */
   const slots = [];
@@ -249,6 +252,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     i.set([wx, wy, vw, vh, x0, y0, cw, ch, rx, ry, rw, rh, px, py]); f[14] = info.black; f[15] = 1 / (info.white - info.black);
     f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, 0], 16); f.set(noise.a.map((a) => a * k), 20); f.set(noise.b.map((b) => b * k), 24); f[23] = keep; f[27] = quiet;
     if (spots) { i[28] = spots[0]; f.set(spots.subarray(4), 32); }
+    packFringe(f, FR, info.fringe);
     device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw]));
     return [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1], ...g.ops.map((o, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number]} */ ([pipes[j], s.ops[j], o.groups[0], o.groups[1], o.groups[2]])), [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1]];
   };
