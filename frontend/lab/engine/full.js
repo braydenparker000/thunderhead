@@ -13,7 +13,9 @@ import { compile as compileNet, demosaicer as network } from './neural.js';
 import { timed } from './net-tune.js';
 import { autoWays } from './net-auto.js';
 import { crew, helper } from './net-cpu.js';
-import { SIDE, remake } from './proxy-hq.js';
+import { SIDE, need, remake } from './proxy-hq.js';
+import { room } from './gpu-memory.js';
+import { doing, turn } from './work.js';
 import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
@@ -46,12 +48,15 @@ export async function full(e, img, mosaic) {
     await new Promise((r) => setTimeout(r));
   }
   // the editing copy made again from these pixels at full resolution, crisper than the decoder's quick one and without its false colour on fine lines (proxy-hq.js)
-  const maker = await (sensor ? demosaicer(device, tex, { phase, black: img.meta.black, white: img.meta.white, wb: img.meta.wb, fringe: null }, SIDE, SIDE) : copier(device, tex, SIDE, SIDE));
-  await remake(device, e.gpu.src, e.gpu.w, e.gpu.h, maker, W, H, e.alive, sensor ? { mos: tex, phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb) } : null).then((copy) => { if (copy) e.refresh(copy); }, (err) => console.warn('the editing copy was not made again:', err)).finally(() => maker.destroy());
+  // (not opened light after a reset, nor where it would take more GPU memory than the phone has to spare: gpu-memory.js; a copy kept from before is given back by the session instead)
+  if (!img.meta.light && !img.meta.copyKept && room(need(e.gpu.w, e.gpu.h))) {
+    const maker = await (sensor ? demosaicer(device, tex, { phase, black: img.meta.black, white: img.meta.white, wb: img.meta.wb, fringe: null }, SIDE, SIDE) : copier(device, tex, SIDE, SIDE));
+    await remake(device, e.gpu.src, e.gpu.w, e.gpu.h, maker, W, H, e.alive, sensor ? { mos: tex, phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb) } : null).then((copy) => { if (copy) { e.refresh(copy); img.meta.copyMade = copy; } }, (err) => console.warn('the editing copy was not made again:', err)).finally(() => maker.destroy());
+  }
   // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
-  if (sensor && img.meta.net) setTimeout(() => compileNet(device).then(() => autoWays(device)).catch(() => {}), 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
+  if (sensor && img.meta.net && !img.meta.light) setTimeout(async () => { await turn(); const done = doing('Preparing Starfish'); compileNet(device).then(() => autoWays(device)).catch(() => {}).finally(done); }, 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
   // How noisy a raw site is, for the network: as the photo says where it says (a made-up one), else read from the
   // photo's own flat places (noise-fit.js), held to within what this sensor can be; else the sensor's own figure.
   const told = (() => {

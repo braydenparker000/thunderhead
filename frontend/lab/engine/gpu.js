@@ -19,6 +19,8 @@ import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
 import { autoWhite, samples } from './autowhite.js';
 import { geometry, toSensor, warpPipe, warper } from './warp.js';
+import { count } from './gpu-memory.js';
+import { fitSharpener } from './fit-sharp.js';
 
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
 /** The profile's tables in one buffer, and what the shader needs to find them. @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick @param {number} w */
@@ -53,6 +55,7 @@ function gpu() {
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No GPU adapter.');
     const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('shader-f16') ? ['shader-f16'] : [] });   // half floats, where the GPU has them: the network's (neural.js)
+    count(device);   // every buffer and texture counted against the phone's budget (gpu-memory.js)
     // lost: the next photo gets a new device; a page with a photo open is told, unless the device was let go on purpose (engine.dispose, the page leaving)
     device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; if (l.reason !== 'destroyed') dispatchEvent(new Event('th-gpu-lost')); });
     const module = device.createShaderModule({ code: WGSL });
@@ -80,7 +83,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
-  const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), crisp = fitSharpener(device);
   // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
   let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0, gone = false;   // gone: disposed, perhaps while a frame was on its way
@@ -91,7 +94,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     if (nw === ow && nh === oh) return false;
     for (const b of [flat, back]) b?.destroy(); out?.destroy(); mask?.destroy(); bend?.destroy();
     ow = nw; oh = nh; row = Math.ceil((ow * 4) / 256) * 256;
-    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });   // (read and written again by the fitted frame's sharpening: fit-sharp.js)
     flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }); bend = warper(device, bendP, src, flat);
     mask = masks(device, maskP, flat, uni, ow, oh);
     back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
@@ -152,7 +155,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     return toneOf([0, 3, 6].map((o) => Math.max(0, m[o] * s[0] + m[o + 1] * s[1] + m[o + 2] * s[2]) * k));
   };
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, grainSize?: number, chrome?: number, chromeBlue?: number, cube?: number, defringe?: number, masks?: import('./local.js').Mask[] | null, showMaskNo?: number, baseEv?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, edge?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, grainSize?: number, chrome?: number, chromeBlue?: number, cube?: number, defringe?: number, masks?: import('./local.js').Mask[] | null, showMaskNo?: number, baseEv?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, fitSharpen?: boolean, rebuild?: boolean, dither?: boolean, edge?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; grainSize: the grain's specks' size, times its start (1); chrome, chromeBlue: Color Chrome's strengths, 0..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; fit: false leaves the
    * fitted photo as it is and re-makes only the full-resolution views (100 %); exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
@@ -198,6 +201,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     if (fit) {
       const pass = enc.beginComputePass();
       pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(ow / 8), Math.ceil(oh / 8)); pass.end();
+      if (more.fitSharpen && (more.sharpen || 0) > 0) crisp.run(enc, out, ow, oh, /** @type {number} */ (more.sharpen), more.detail ?? 0.25);   // the editor's frames: Sharpening as the fitted photo shows it
       if (ctx && shown) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
       if (back && shown) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
     }
@@ -226,7 +230,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { gone = true; for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); };
+  const dispose = () => { gone = true; for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); crisp.destroy(); };
   /** The editing copy was made again in `src` (proxy-hq.js): laid out and its masks made anew at the next render, and the page's copy is `proxy`. @param {Uint16Array} proxy */
   const refresh = (proxy) => { img.proxy = proxy; bent = false; masked = fined = hazed = ''; airFor = null; };
   /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.

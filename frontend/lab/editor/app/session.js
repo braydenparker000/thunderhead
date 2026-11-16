@@ -7,7 +7,6 @@ import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
 import { isNone } from '../../engine/crop.js';
 import { tilt } from '../../engine/level.js';
-import { START } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { pref, prefOn } from '/th/pref.js';
 import { auto, dials, forget } from './adjust.js';
@@ -19,16 +18,13 @@ import { begin } from './starts.js';
 import { profileFor } from './recipe-map.js';
 import { ask } from './decoder.js';
 import { firstPicture, keepView, note, onScreen, tap } from './kept-view.js';
+import { loadCopy, saveCopy } from './copy-kept.js';
+import { hold as claim } from '../../engine/work.js';
+import { inMB } from '../../engine/gpu-memory.js';
 
-/** Each adjustment's starting value (display units: EV, K, or −100..100). */
-export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0, Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, 'Grain size': 25, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
-/** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
-export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', 'Grain size', 'Defringe', ...Object.keys(START)]);
-export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Auto: null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
-const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
+import { BASELINE_EV, STILL, WB, ZERO, noiseStart } from './values.js';
+export { LIVE, STILL, WB, ZERO, noiseStart } from './values.js';
 export const wideScreen = matchMedia('(color-gamut: p3)').matches, space = /** @type {{ colorSpace: PredefinedColorSpace }} */ ({ colorSpace: wideScreen ? 'display-p3' : 'srgb' });   // a screen that shows Display P3 (a phone's does): the photo is drawn in its colours, stronger than sRGB's where the photo has them; a tile, the histogram, a kept picture and an export's frames stay as asked
-/** Where a JPEG starts that a RAF does not: the camera sharpened it and cleaned its colour already. */
-export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Color noise': 0 });
 
 export const events = new EventTarget();
 export const changed = () => events.dispatchEvent(new Event('change'));
@@ -71,8 +67,6 @@ const place = () => { const s = /** @type {HTMLElement | null} */ (document.quer
 /** @param {string} status */
 export const say = (status) => { if (cur) { cur.status = status; changed(); } };
 
-/** Where Noise starts for a photo shot at an ISO: nothing up to 400, then 20 more for each doubling, to 40 from 1600 up. @param {number} iso */
-export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math.log2((iso || 100) / 400))));
 /** Opens a photo from the Library. @param {string} id @param {boolean} [quick] without its full-size pixels (work that only passes through: clip.js)
  * @param {boolean} [again] the photo that is open already, anew (its GPU device was lost) */
 export async function open(id, quick = false, again = false) {
@@ -99,6 +93,7 @@ export async function open(id, quick = false, again = false) {
   const heard = performance.now(); if (cur !== me) { r.picture?.close(); return; }
   if (r.picture) { if (quick) r.picture.close(); else sensor(r.picture); }
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
+  const keptCopy = r.proxy && !shaken.has(id) ? await loadCopy(id, r.proxy.length) : null; if (keptCopy) { r.proxy = keptCopy; r.meta.copyKept = true; }   // the better copy made before for this photo (copy-kept.js), from the first frame
   try {
     const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback'), wideScreen), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
@@ -110,14 +105,15 @@ export async function open(id, quick = false, again = false) {
     const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') !== 'shot' ? l.find((x) => x.label === 'Adobe Color') : null;
     if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
-    r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true);   // Full-size detail: Faster (engine/demosaic.js)
+    r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true); r.meta.light = shaken.has(id);   // Full-size detail: Faster (engine/demosaic.js)
     applyProfile();
-    await draw(); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
+    await draw(); if (cur === me) { ready = true; place(); say(shaken.has(id) ? LIGHT : ''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
-      if (cur === me) { big = b; changed(); draw(); if (b) note('full', performance.now() - began); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor)
+      if (r.meta.copyMade) { saveCopy(id, r.meta.copyMade); delete r.meta.copyMade; }   // kept for the next open
+      if (cur === me) { big = b; changed(); draw(); if (b) note('full', performance.now() - began, inMB()); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor)
     }).catch((err) => { console.warn('full size', err); if (cur === me) say('The full-size photo could not be made, so 100 % and export are not there. Open the photo again.'); });
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }
@@ -157,7 +153,7 @@ function paint(more) {
   performance.mark('th:frame'); const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, wide: wideScreen && more?.screen !== false, ...more });
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, wide: wideScreen && more?.screen !== false, fitSharpen: true, ...more });
 }
 export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, zoomed in or out: drawn once, so the 100 % view's layer shows before the first edit there   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */
@@ -166,7 +162,7 @@ export async function draw(fit = true, all = false) {
   if (drawing) { again = true; return; }
   drawing = true; if (fit) gen++;
   const was = `${eng.size()}`, hid = fit && !all && covered(); behind = hid || (behind && !fit);
-  clearTimeout(rest); try { await paint({ fit: fit && !hid }); } finally { drawing = false; }   // a frame that fails must not hold every later one
+  const mine = claim(); clearTimeout(rest); try { await paint({ fit: fit && !hid }); } finally { drawing = false; mine(); }   // a frame that fails must not hold every later one; work that can wait waits for it (engine/work.js)
   if (was !== `${eng?.size()}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
   if (again) { again = false; draw(); } else if (behind) rest = window.setTimeout(function due() { if (!behind) return; if (drawing) rest = window.setTimeout(due, 100); else draw(true, true); }, 300);   // (busy then: tried again, never drawn the covered way)
 }
@@ -178,7 +174,7 @@ export const wanted = () => again;
 export async function alone(job) {
   while (drawing) await sleep(30);
   drawing = true;
-  try { await job(); } finally { drawing = false; }
+  const mine = claim(); try { await job(); } finally { drawing = false; mine(); }
   if (again) { again = false; await draw(); }
 }
 /** The photo as last rendered, `w` pixels wide (0: the editing copy's own size), as a JPEG; `also` is handed the frame whole. @param {number} w @param {(im: ImageData) => void} [also] */
@@ -259,8 +255,12 @@ async function keepTile(/** @type {typeof cur} */ me) {
 }
 /** Closes the open photo (it was deleted). */
 export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; opening.id = ''; img.removeAttribute('src'); place(); changed(); }
-// The graphics chip was reset under the photo (the phone took it back, or its driver fell over): the picture would stay frozen with no word, so the edit is kept and the photo opened again on a new device.
-addEventListener('th-gpu-lost', () => { const me = cur; if (!me) return; store.saveEdit(me.id, record(me, past)).catch(() => {}).finally(() => open(me.id, false, true)); });
+// The graphics chip was reset under the photo (the phone took it back, its driver fell over, or it ran out of memory): the edit is kept and the photo opened again once, light (no copy made again, no
+// Starfish at 100 %), and said; a second reset on it is not followed by a third open (Chrome itself refuses a page the GPU after two of its crashes in two minutes), only said (2026-11-16: a photo opened over and over).
+const shaken = new Set(), LIGHT = 'The graphics chip reset, so this photo is open in a lighter mode: no sharper copy, no Starfish at 100 %.';
+addEventListener('th-gpu-lost', () => { const me = cur; if (!me) return; const twice = shaken.has(me.id); note('lost', 0, { twice: twice ? 1 : 0 }); shaken.add(me.id); store.saveEdit(me.id, record(me, past)).catch(() => {}).finally(() => { if (!twice) open(me.id, false, true); else if (cur === me) say('The graphics chip reset again on this photo, so it was left as it is. Close the editor and open it again; your edit is kept.'); }); });
+/** Whether the open photo is open light after its graphics chip reset (zoom.js leaves Starfish out). */
+export const light = () => !!cur && shaken.has(cur.id);
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
 /** Back, or forward again, to a step: the edit as it stood then. @param {number} i */
