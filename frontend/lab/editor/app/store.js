@@ -4,6 +4,7 @@
 // of the edit for its Library tile and one the screen's size to show while it opens again (kept-view.js); the photo's record and its edit live in IndexedDB. Nothing leaves the phone. Persistent storage is asked for so Chrome
 // keeps all of it when space runs low.
 import { shot } from '../../engine/exif.js';
+import { copyName } from './copy-kept.js';
 
 const DB = 'th-editor';
 /** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
@@ -49,7 +50,7 @@ export const kept = () => safe;
 export async function sweep(age = 3600e3) {
   const known = new Set(/** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).map((p) => p.id));
   let back = 0;
-  for (const folder of ['raw', 'jpg', 'thumb', 'view', 'grid']) {
+  for (const folder of ['raw', 'jpg', 'thumb', 'view', 'grid', 'copy']) {
     const d = await dir(folder);
     for await (const [name, h] of /** @type {any} */ (d).entries()) {
       const id = name.replace(/\.\w+$/, '');
@@ -244,7 +245,7 @@ export async function restore(ids) {
  * @param {string[]} [ids] every deleted photo when not given */
 export async function empty(ids) {
   for (const { id } of bin.filter((x) => !ids || ids.includes(x.id))) {
-    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`], ['view', `${id}.pic`], ['grid', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
+    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`], ['view', `${id}.pic`], ['grid', `${id}.jpg`], ['copy', copyName(id)]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
     for (const m of [urls, tiles, grid]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
     bin = bin.filter((p) => p.id !== id);

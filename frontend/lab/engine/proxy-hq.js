@@ -13,14 +13,19 @@
 // out of the copy. A picture (a JPEG) is shrunk from its own pixels alone (picture.js `copier`). The clipped flags are
 // any of the cell's, as the decoder's are (the highlight rebuild reads them).
 
-const TILE = 342;   // copy pixels a tile's side: 1026 sensor pixels, about 1 MP of the demosaic's buffers at a time
+import { doing, turn } from './work.js';
+
+const TILE = 228;   // copy pixels a tile's side: 684 sensor pixels, about half a megapixel of the demosaic's buffers at a time (2026-11-16: 342 asked twice the memory)
 const REACH = 8;    // Lanczos-3 at a third: sensor pixels each side of a copy pixel's middle that weigh in
-const BUDGET = 30_000;   // ms the whole copy may take: a GPU slower than that (a software one) keeps the decoder's copy
+const BUDGET = 30_000;   // ms of the GPU's own time the whole copy may take: a GPU slower than that (a software one) keeps the decoder's copy
+const CHUNK = 4 << 20;   // bytes read back at a time: the new copy comes back to the page a piece at a time, not all at once
 /** The largest rectangle a tile asks of the demosaic (or the copier), each way: what to make it with. */
 export const SIDE = 3 * TILE + 2 * REACH + 1;
 const sinc = (/** @type {number} */ x) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));
 const WEIGHTS = Array.from({ length: 2 * REACH + 1 }, (_, i) => sinc((i - REACH) / 3) * sinc((i - REACH) / 9));
 const SUM = WEIGHTS.reduce((s, w) => s + w, 0);
+/** The GPU memory making the copy again asks, its maker's included (a demosaic's buffers are about 36 bytes a pixel of `SIDE` squared), for a copy w x h. @param {number} w @param {number} h */
+export const need = (w, h) => w * h * 8 + SIDE * TILE * 48 + CHUNK + SIDE * SIDE * 36;
 
 const SHADER = /* wgsl */ `
 struct P { rect: vec4i, tile: vec4i, copy: vec2u, phase: vec2i, black: f32, scale: f32, sensor: u32, pad: u32, wb: vec4f }   // the demosaiced rectangle (sensor); the tile (copy pixels); the copy's size; the mosaic's own
@@ -85,28 +90,30 @@ fn down(@builtin(global_invocation_id) id: vec3u) {
  * as `maker` makes it a rectangle at a time (demosaic.js `demosaicer` or picture.js `copier`, made for `SIDE` x `SIDE`),
  * and gives the new copy read back for the page's own uses (the eyedropper, Auto, the heal's search); null where the
  * photo closed first (`alive`), or where this GPU would take longer than `BUDGET` (timed on the first two tiles: a phone's
- * makes a 40 MP photo in seconds, a software GPU in minutes). A tile a submit, the GPU let go between them, so the photo's
- * own frames go on meanwhile.
+ * makes a 40 MP photo in seconds, a software GPU in minutes). A tile a submit, each when nothing in front holds the GPU
+ * (work.js `turn`), so the photo's own frames go first; the badge says "Building a sharper copy" meanwhile.
  * @param {GPUDevice} device @param {GPUBuffer} dst @param {number} w @param {number} h
  * @param {{ out: GPUBuffer, run: (enc: GPUCommandEncoder, rx: number, ry: number, rw: number, rh: number, spots?: Float32Array | null) => void }} maker
  * @param {number} W @param {number} H @param {() => boolean} [alive]
  * @param {{ mos: GPUTexture, phase: number[], black: number, white: number, wb: number[] } | null} [sensor] the sensor's pixels, for the copy's colour (a picture: none) */
 export async function remake(device, dst, w, h, maker, W, H, alive = () => true, sensor = null) {
+  const done = doing('Building a sharper copy');
   const module = device.createShaderModule({ code: SHADER });
   const [across, down] = await Promise.all(['across', 'down'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
   const bytes = w * h * 8, uni = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const none = sensor ? null : device.createTexture({ size: [1, 1], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING });
   const mid = device.createBuffer({ size: SIDE * TILE * 48, usage: GPUBufferUsage.STORAGE });
   const made = device.createBuffer({ size: bytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-  const back = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const back = device.createBuffer({ size: CHUNK, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
   const entries = [...[uni, maker.out, mid, made].map((buffer, binding) => ({ binding, resource: /** @type {GPUBindingResource} */ ({ buffer }) })), { binding: 4, resource: (sensor?.mos || /** @type {GPUTexture} */ (none)).createView() }];
   const binds = [[across, [0, 1, 2]], [down, [0, 2, 3, 4]]].map(([pipe, uses]) => device.createBindGroup({ layout: /** @type {GPUComputePipeline} */ (pipe).getBindGroupLayout(0), entries: entries.filter((e) => /** @type {number[]} */ (uses).includes(e.binding)) }));
   const g1 = sensor?.wb?.[1] || 1, wb = sensor ? [(sensor.wb?.[0] || g1) / g1, 1, (sensor.wb?.[2] || g1) / g1] : [1, 1, 1];   // the light's balance, so brightness is read as a grey would be
-  const tiles = Math.ceil(w / TILE) * Math.ceil(h / TILE), t0 = performance.now();
+  const tiles = Math.ceil(w / TILE) * Math.ceil(h / TILE);
+  let spent = 0;   // the GPU's own time on the tiles, waits for the photo's frames left out
   try {
     for (let cy = 0, k = 0; cy < h; cy += TILE) for (let cx = 0; cx < w; cx += TILE, k++) {
-      if (!alive()) return null;
-      const tw = Math.min(TILE, w - cx), th = Math.min(TILE, h - cy);
+      await turn(); if (!alive()) return null;
+      const t = performance.now(), tw = Math.min(TILE, w - cx), th = Math.min(TILE, h - cy);
       const rx = Math.max(0, 3 * cx + 1 - REACH), ry = Math.max(0, 3 * cy + 1 - REACH);
       const rw = Math.min(W, 3 * (cx + tw - 1) + 2 + REACH) - rx, rh = Math.min(H, 3 * (cy + th - 1) + 2 + REACH) - ry;
       const u = new ArrayBuffer(80); new Int32Array(u).set([rx, ry, rw, rh, cx, cy, tw, th]); new Uint32Array(u).set([w, h], 8); new Int32Array(u).set(sensor?.phase || [0, 0], 10);
@@ -119,14 +126,17 @@ export async function remake(device, dst, w, h, maker, W, H, alive = () => true,
       pass.setPipeline(down); pass.setBindGroup(0, binds[1]); pass.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8));
       pass.end();
       device.queue.submit([enc.finish()]);
-      if (k % 2 === 1) { await device.queue.onSubmittedWorkDone(); await new Promise((r) => setTimeout(r)); }   // the photo's frames between
-      if (k === 1 && tiles > 2 && ((performance.now() - t0) / 2) * tiles > BUDGET) { console.info(`the editing copy is kept as the decoder made it: this GPU would take ${Math.round(((performance.now() - t0) / 2000) * tiles)} s`); return null; }
+      await device.queue.onSubmittedWorkDone(); spent += performance.now() - t;
+      if (k === 1 && tiles > 2 && (spent / 2) * tiles > BUDGET) { console.info(`the editing copy is kept as the decoder made it: this GPU would take ${Math.round((spent / 2000) * tiles)} s`); return null; }
     }
     if (!alive()) return null;
-    const enc = device.createCommandEncoder();
-    enc.copyBufferToBuffer(made, 0, dst, 0, bytes); enc.copyBufferToBuffer(made, 0, back, 0, bytes);
-    device.queue.submit([enc.finish()]);
-    await back.mapAsync(GPUMapMode.READ);
-    return new Uint16Array(back.getMappedRange().slice(0));
-  } finally { for (const b of [uni, mid, made, back]) b.destroy(); none?.destroy(); }
+    { const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(made, 0, dst, 0, bytes); device.queue.submit([enc.finish()]); }
+    const copy = new Uint16Array(w * h * 4);   // and back to the page, a piece at a time
+    for (let o = 0; o < bytes; o += CHUNK) {
+      const n = Math.min(CHUNK, bytes - o), enc = device.createCommandEncoder();
+      enc.copyBufferToBuffer(made, o, back, 0, n); device.queue.submit([enc.finish()]);
+      await back.mapAsync(GPUMapMode.READ, 0, n); copy.set(new Uint16Array(back.getMappedRange(0, n)), o / 2); back.unmap();
+    }
+    return copy;
+  } finally { for (const b of [uni, mid, made, back]) b.destroy(); none?.destroy(); done(); }
 }
