@@ -10,7 +10,7 @@
       "text": "Exports use the phone's CPU beside its GPU, so they finish sooner; smaller ones are sharper, with less moiré."
     },
     {
-      "text": "Fine lines in the editor show less false colour, and the photo stays as sharp as before."
+      "text": "Zoomed out, photos are now built from a full demosaic: crisper, with less false colour on fine lines."
     },
     {
       "text": "The Library loads faster, the dial stays put, Auto level holds, and before and after show your crop."

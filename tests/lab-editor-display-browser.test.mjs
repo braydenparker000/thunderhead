@@ -1,6 +1,7 @@
 // How the photo's editing copy is made (frontend/lab/engine/proxy-hq.js): once the sensor's pixels are on the GPU the
-// copy is made again from them, with less false colour than the decoder's quick one and as sharp (the known photo,
-// against its truth). (The fitted photo shrunk to the screen's pixels on the GPU, tried 2026-11-16, looked softer on
+// copy is made again from them at full resolution (its brightness from the full demosaic, shrunk by Lanczos-3; its
+// colour from each colour's own sites), with less false colour than the decoder's quick one and sharper (the known
+// photo, against its truth). (The fitted photo shrunk to the screen's pixels on the GPU, tried 2026-11-16, looked softer on
 // the owner's phone than the browser's own shrink, and was taken out the same day.)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-test('the editing copy made again from the sensor has less false colour than the decoder\'s and is as sharp, against the known photo\'s truth', opts, async () => {
+test('the editing copy made again from the sensor has less false colour than the decoder\'s and is sharper, against the known photo\'s truth', opts, async () => {
   const page = await browser.newPage({ serviceWorkers: 'block' });
   await page.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
   await page.waitForSelector('html[data-bench=ready]');
@@ -42,5 +43,5 @@ test('the editing copy made again from the sensor has less false colour than the
   });
   assert.ok(r.changed, 'the copy was made again');
   assert.ok(r.made < r.quick * 0.9, `less false colour than the decoder's copy (${r.made.toFixed(4)} against ${r.quick.toFixed(4)})`);
-  assert.ok(r.step >= r.quickStep * 0.98, `as sharp as the decoder's copy: the step from one pixel to the next ${r.step.toFixed(4)} against ${r.quickStep.toFixed(4)} (the truth's ${r.truthStep.toFixed(4)})`);
+  assert.ok(r.step >= r.quickStep * 1.05, `sharper than the decoder's copy: the step from one pixel to the next ${r.step.toFixed(4)} against ${r.quickStep.toFixed(4)} (the truth's ${r.truthStep.toFixed(4)})`);
 });

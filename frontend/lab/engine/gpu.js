@@ -240,5 +240,5 @@ export async function engine(canvas, img, readback = false) {
   const base = { device, src, w, h, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
   /** Retouching (heal.js): where a spot's replacement is best taken from. @param {{ x: number, y: number, r: number }} s @param {boolean} [wide] */
   const healSource = (s, wide) => findSource(s, geo, img, wide);
-  return { render, refresh, size: () => [ow, oh], setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, refresh, alive: () => !gone, size: () => [ow, oh], setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

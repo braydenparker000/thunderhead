@@ -45,14 +45,18 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
     for (let i = 0; i < 400 && !photo.whole(); i++) await new Promise((res) => setTimeout(res, 50));
     const big = photo.whole(), out = { added, kind: p.kind, tile: store.urlNow(p.id).startsWith('blob:'), status: photo.current().status, line: photo.kindLine(), stem: photo.stem(p.name), looks: photo.looks().length,
       starts: [photo.value('Sharpening'), photo.value('Noise'), photo.value('Color noise'), photo.edited('Sharpening')], size: [big?.width, big?.height], shape: photo.shape(), history: photo.history().steps.map((s) => `${s.name} ${s.val}`) };
-    // the fitted photo: the picture a third of its size, each pixel a Gaussian mean (sigma 0.82) of the picture's round its
-    // 3 x 3 in linear light, as the editing copy is made again once the picture is on the GPU (engine/proxy-hq.js)
+    // the fitted photo: the picture a third of its size by Lanczos-3 in linear light, each pixel held between the least and
+    // the most of the 3 x 3 it stands for, as the editing copy is made again once the picture is on the GPU (engine/proxy-hq.js)
     const fit = await photo.pixels(), lin = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }, enc = (v) => 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
-    const TH = truth.length / 4 / W, held = (v, n) => Math.min(n - 1, Math.max(0, v));
+    const TH = truth.length / 4 / W, held = (v, n) => Math.min(n - 1, Math.max(0, v)), sinc = (t) => (t === 0 ? 1 : Math.sin(Math.PI * t) / (Math.PI * t));
+    const L3 = Array.from({ length: 17 }, (_, i) => sinc((i - 8) / 3) * sinc((i - 8) / 9)), L3s = L3.reduce((a, b) => a + b, 0);
     let fs = 0, fm = 0;
-    for (let y = 0; y < fit.height; y++) for (let x = 0; x < fit.width; x++) for (let k = 0; k < 3; k++) {
-      let s = 0, w = 0; for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) { const g = Math.exp(-(i * i + j * j) / (2 * 0.82 * 0.82)); s += g * lin(truth[(held(y * 3 + 1 + j, TH) * W + held(x * 3 + 1 + i, W)) * 4 + k]); w += g; }
-      const d = Math.abs(enc(s / w) - fit.data[(y * fit.width + x) * 4 + k]); fs += d; fm = Math.max(fm, d);
+    for (let k = 0; k < 3; k++) {
+      const across = Array.from({ length: TH }, (_, r) => Array.from({ length: fit.width }, (_, x) => { let a = 0, lo = 9, hi = -9; for (let d = -8; d <= 8; d++) { const v = lin(truth[(r * W + held(3 * x + 1 + d, W)) * 4 + k]); a += L3[d + 8] * v; if (Math.abs(d) <= 1) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } return [a / L3s, lo, hi]; }));
+      for (let y = 0; y < fit.height; y++) for (let x = 0; x < fit.width; x++) {
+        let a = 0, lo = 9, hi = -9; for (let d = -8; d <= 8; d++) { const m = across[held(3 * y + 1 + d, TH)][x]; a += L3[d + 8] * m[0]; if (Math.abs(d) <= 1) { lo = Math.min(lo, m[1]); hi = Math.max(hi, m[2]); } }
+        const dv = Math.abs(enc(Math.min(hi, Math.max(lo, a / L3s))) - fit.data[(y * fit.width + x) * 4 + k]); fs += dv; fm = Math.max(fm, dv);
+      }
     }
     out.fit = { w: fit.width, h: fit.height, mean: fs / (fit.width * fit.height * 3), most: fm };
     // its own pixels, as 100 % shows them

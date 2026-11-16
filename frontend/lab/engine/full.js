@@ -13,7 +13,7 @@ import { compile as compileNet, demosaicer as network } from './neural.js';
 import { timed } from './net-tune.js';
 import { autoWays } from './net-auto.js';
 import { crew, helper } from './net-cpu.js';
-import { remake } from './proxy-hq.js';
+import { SIDE, remake } from './proxy-hq.js';
 import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
@@ -45,8 +45,9 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
-  // the editing copy made again from these pixels, better than the decoder's quick one: no false colour on fine lines (proxy-hq.js)
-  await remake(device, e.gpu.src, e.gpu.w, e.gpu.h, sensor ? { mos: tex, phase, black: img.meta.black, white: img.meta.white } : { pic: tex }).then((copy) => e.refresh(copy), (err) => console.warn('the editing copy was not made again:', err));
+  // the editing copy made again from these pixels at full resolution, crisper than the decoder's quick one and without its false colour on fine lines (proxy-hq.js)
+  const maker = await (sensor ? demosaicer(device, tex, { phase, black: img.meta.black, white: img.meta.white, wb: img.meta.wb, fringe: null }, SIDE, SIDE) : copier(device, tex, SIDE, SIDE));
+  await remake(device, e.gpu.src, e.gpu.w, e.gpu.h, maker, W, H, e.alive, sensor ? { mos: tex, phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb) } : null).then((copy) => { if (copy) e.refresh(copy); }, (err) => console.warn('the editing copy was not made again:', err)).finally(() => maker.destroy());
   // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
