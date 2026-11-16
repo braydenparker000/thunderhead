@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-15-astra-sooner",
-  "date": "2026-11-15",
+  "id": "2026-11-16-astra-previews",
+  "date": "2026-11-16",
   "lines": [
     {
-      "text": "Astra's films start much sooner, in about a second on a slow link, and resuming is as quick. Less is fetched ahead.",
+      "text": "Astra: rest your finger while dragging the seek bar and a picture of that place appears. Playback has the switch.",
       "open": "astra"
     },
     {
-      "text": "Settings, Playback has Get ready ahead: Astra reads your TorBox list early and prepares the next episode."
+      "text": "Films whose Dolby or DTS sound Astra converts start as fast as the rest, and keep their surround for headphones."
     },
     {
-      "text": "Sound has Even loudness and Headphone surround. Picture has an Animation upscaler, and HDR films can be sharpened."
+      "text": "Dolby Vision films that showed purple and green get their colours corrected. HDR works on every kind of stream."
     },
     {
-      "text": "Dolby sound plays straight through where your phone can decode it. Every film Astra can read gets its full player."
+      "text": "More old files play: H.264 in AVI, H.263 in 3GP, and Windows Media sound in MKV."
     }
   ]
 }

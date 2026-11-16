@@ -415,6 +415,7 @@ how each behaves is in `frontend/astra/README.md`.
 | Converted sound (Dolby Digital, DTS, TrueHD where the phone has no decoder) fed from Astra's own Matroska reader, so it starts with the picture | `engine/sound-stream.js` |
 | Converted surround kept whole (FLAC) while Headphone surround is on | `engine/sound-six.js`, `player-sound.js`, `player/sound-menu.js` |
 | HDR seen from the film's own frame on routes with no container facts (HLS, DASH, the browser's own player) | `enhance/picture.js` (`see`) |
+| More files for the software decoder: H.264 in AVI, H.263 in 3GP, Windows Media sound in MKV (three recorded patches to libmedia's readers) | `engine/software.js`, `frontend/assets/libmedia/` (`licenses/libmedia-modifications.txt`) |
 | Dolby Vision profile 5: colours corrected in the picture filter, without the per-frame reshaping (switch in the Picture section, on by default) | `enhance/dolby.js`, `tonemap.js`, `engine/mp4.js`, `player/picture-menu.js` |
 
 ## Open questions / tests
