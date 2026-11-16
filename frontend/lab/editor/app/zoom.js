@@ -2,16 +2,14 @@
 // Zoom on the photo (docs/design/EDITOR.md), wherever a board marks its slot data-zoom: pinch freely from the
 // fitted photo to 300 %, drag to look around, double-tap for 100 % and back. While fingers move nothing is
 // drawn: the picture on screen is moved and scaled. When they stop, the sensor's pixels are drawn over the
-// editing copy (../../engine/full.js): from 100 % up in one pass that then follows every control live; from
-// 40 % to 100 %, where more than a screenful of the sensor shows, in a few passes onto a still canvas (a
-// control moved there shows the editing copy until it rests). Below 40 % the editing copy is sharp enough.
+// editing copy (../../engine/full.js): from 100 % up in one pass that then follows every control live; below,
+// where more than a screenful of the sensor shows, in a few passes onto a still canvas (a control moved there
+// shows the editing copy until it rests), fitted too, so Sharpening and Noise show as an export makes them.
 //
-// A board whose one finger is a tool (Masks, Heal) marks its slot data-zoom="tool": there only two fingers zoom
-// and move the photo, wherever in the photo's room they land, and whatever the board marks data-zoom-with (what
-// it lays over the photo) is moved and scaled with it.
-//
-// A one-finger pan let go while moving glides on and eases to rest (fling.js); two fingers tapped undo a step and
-// three redo one (taps.js).
+// A board whose one finger is a tool (Masks, Heal) marks its slot data-zoom="tool": there only two fingers zoom and move the
+// photo, wherever in the photo's room they land, and whatever the board marks data-zoom-with (what it lays over the photo) is
+// moved and scaled with it. A one-finger pan let go while moving glides on and eases to rest (fling.js); two fingers tapped
+// undo a step and three redo one (taps.js).
 //
 // The photo is not inside any board. It lives in one layer of its own (`home`) under the boards, and a board's
 // slot is only a window: the layer takes the window's place and glides to the next board's. So changing tool
@@ -24,6 +22,7 @@ import { fling, gliding, halt, heard, speed, trail } from './fling.js';
 import { hear } from './taps.js';
 import { tell } from './told.js';
 import { moved } from './moved.js';
+import { flip, flying } from './flip.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -107,15 +106,15 @@ function layout() {
   z = Math.min(z, most()); hold(); apply();
 }
 const watch = new ResizeObserver(() => { layout(); rest(); });
-const GLIDE = 'left 320ms cubic-bezier(0.2, 0.85, 0.2, 1), top 320ms cubic-bezier(0.2, 0.85, 0.2, 1), width 320ms cubic-bezier(0.2, 0.85, 0.2, 1), height 320ms cubic-bezier(0.2, 0.85, 0.2, 1)';
-let glide = 0;
+let glide = 0; const GLIDE = 'left 320ms cubic-bezier(0.2, 0.85, 0.2, 1), top 320ms cubic-bezier(0.2, 0.85, 0.2, 1), width 320ms cubic-bezier(0.2, 0.85, 0.2, 1), height 320ms cubic-bezier(0.2, 0.85, 0.2, 1)';
 /** The layer takes its window's place (in the frame's own pixels); with no window on the page it is put away. */
 function follow() {
   if (!win?.isConnected) { home.style.display = 'none'; return; }
   const fr = frame().getBoundingClientRect(), r = win.getBoundingClientRect(), k = fr.width / 412 || 1, to = { left: `${(r.left - fr.left) / k}px`, top: `${(r.top - fr.top) / k}px`, width: `${r.width / k}px`, height: `${r.height / k}px` };
   // shown, and its window moved or resized (another board's, or one whose panel settled after it showed): the photo glides there, never jumps
-  if (home.style.display === 'block' && Object.entries(to).some(([p, v]) => home.style.getPropertyValue(p) !== v) && !matchMedia('(prefers-reduced-motion: reduce)').matches) { clearTimeout(glide); home.style.transition = GLIDE; glide = setTimeout(() => { home.style.transition = 'none'; }, 360); }
+  const moves = home.style.display === 'block' && Object.entries(to).some(([p, v]) => home.style.getPropertyValue(p) !== v), before = wrap.getBoundingClientRect(); if (moves && z > 1.02 && !matchMedia('(prefers-reduced-motion: reduce)').matches) { clearTimeout(glide); home.style.transition = GLIDE; glide = setTimeout(() => { home.style.transition = 'none'; }, 360); }   // zoomed: its window's edges glide
   Object.assign(home.style, { display: 'block', ...to });
+  if (moves && z <= 1.02) { layout(); flip(wrap, before, transform(), k, tx, ty, home); }   // fitted: by its transform alone (flip.js)
   wrap.style.filter = win.style.filter || 'none';   // what a board lays on its window (Heal's Visualize) is laid on the photo
 }
 const seen = new ResizeObserver(follow);   // the window moves or resizes (a panel opening), or leaves with its board
@@ -203,9 +202,9 @@ const rest = () => settle(120);
 function settle(ms) {
   clearTimeout(timer); job++;
   timer = setTimeout(() => {
-    if ((g && !tool()) || gliding()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
+    if ((g && !tool()) || gliding() || flying()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
     photo.events.dispatchEvent(new Event('change'));
-    const mine = job, began = performance.now(), sharp = z / full() >= 0.4 && !!photo.whole(); badge.classList.toggle('busy', sharp);   // a dot beats on the badge while the sensor's pixels are being made
+    const mine = job, began = performance.now(), sharp = !!photo.whole(); badge.classList.toggle('busy', sharp);   // a dot beats on the badge while the sensor's pixels are being made
     detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; badge.classList.remove('busy'); if (sharp) { photo.took.detail = (performance.now() - began) / 1000; note('detail', photo.took.detail * 1000); photo.events.dispatchEvent(new Event('change')); } });
   }, ms);
 }
@@ -236,10 +235,10 @@ function stale() {
   again = window.setTimeout(() => { again = 0; if (z / full() >= FINE) settle(0); }, 400);
 }
 /** A full-size view is made for the screen a part at a time (engine/full.js `region`) and left undone the moment fingers move the photo, it glides, a newer job has begun or an edit's frame waits; `took` gathers each part's time. */
-let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); } });
+let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); performance.mark('th:part'); } });
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
-const FINE = 0.999;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best)
+const FINE = 0.999, LOW = 10_000; let perPx = 0;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best); zoomed out under 40 %, the sensor's pixels are drawn only where this phone makes them in LOW ms (perPx: its own time a sensor pixel, measured)
 /** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
  * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
  * and while a control moves. @param {number} mine @param {number} X @param {number} Y @param {number} w @param {number} h */
@@ -254,13 +253,13 @@ async function finer(mine, X, Y, w, h) {
   const took = /** @type {number[]} */ ([]);
   making2++; try { await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h, null, pace(mine, took)); im = at && (await fine.read()); fine.rest(); }); } finally { making2--; }
   if (mine !== job || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...parts(took) }); again1(mine); return; }
-  closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d')).putImageData(im, 0, 0);
+  closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d', photo.space)).putImageData(im, 0, 0);
   place(closer, at.X, at.Y, at.cw, at.ch); fined = 1; note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...parts(took) });
 }
 async function detail(/** @type {number} */ mine) {
-  mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
+  if (z > 1.02) performance.mark('th:map'); mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
   const p = z / full(), k = scale(), q = f.fw / (f.w * z);   // sensor pixels to a design pixel, as shown
-  if (!win?.isConnected || p < 0.4 || !photo.whole()) { hide(); return; }
+  if (!win?.isConnected || !photo.whole() || (p < 0.4 && (win.dataset.masks !== undefined || perPx * f.fw * f.fh > LOW))) { hide(); return; }   // zoomed out: not over a mask shown in red, nor where it would take too long
   const v = await ensure();
   if (mine !== job || !v || !win) return;
   const X = Math.max(0, Math.floor(-(f.ox + tx) * q)), Y = Math.max(0, Math.floor(-(f.oy + ty) * q));
@@ -278,22 +277,23 @@ async function detail(/** @type {number} */ mine) {
     return;
   }
   // 40 % to 100 %: more than the view holds, so a tile at a time onto the still canvas
-  const w = Math.round((X1 - X) * p), h = Math.round((Y1 - Y) * p), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d')), at0 = v.at(), LAP = 8;
+  const w = Math.round((X1 - X) * p), h = Math.round((Y1 - Y) * p), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d', photo.space)), at0 = v.at(), LAP = 8;
   const tw = Math.min(Math.ceil(412 * k), v.room()[0]) - LAP, th = Math.min(Math.ceil(600 * k), v.room()[1]) - LAP, stamp = photo.stamp();
-  live.style.display = 'none'; still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high';
+  live.style.display = 'none'; still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high'; const t0 = performance.now(); let px = 0;
   for (let y = Y; y < Y1; y += th) for (let x = X; x < X1; x += tw) {
     let im = /** @type {ImageData | null} */ (null), at = at0;
-    await photo.alone(async () => { if (mine !== job) return; await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y), null, pace(mine, [])); im = at && (await v.read()); v.rest(); });
+    await photo.alone(async () => { if (mine !== job) return; performance.mark('th:tile'); await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y), null, pace(mine, [])); im = at && (await v.read()); v.rest(); });
     if (mine !== job || !im || !at) { again1(mine); return; }
     const bm = await createImageBitmap(im);
     ctx.drawImage(bm, (at.X - X) * p, (at.Y - Y) * p, at.cw * p, at.ch * p); bm.close();
+    px += at.cw * at.ch; perPx = (performance.now() - t0) / px; if (p < 0.4 && perPx * (X1 - X) * (Y1 - Y) > LOW) { hide(); return; }   // zoomed out where it would take too long: the editing copy stays
   }
   if (mine !== job) return;
   place(still, X, Y, X1 - X, Y1 - Y); tiled = stamp;
 }
 // an edit while the still canvas shows: it is of the photo as it was, so the editing copy shows until the control rests
-photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } });
+photo.events.addEventListener('change', () => queueMicrotask(() => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } }));   // (once the edit's frame has begun: an edit is told before it is drawn)
 
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);
-photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); }); photo.cover(() => live.isConnected && live.style.display === 'block' && z / full() >= 0.999);
+photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected) settle(60); }); photo.cover(() => live.isConnected && live.style.display === 'block' && z / full() >= 0.999);

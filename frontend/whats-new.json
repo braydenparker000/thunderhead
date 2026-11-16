@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-16-editor-audit-fixes",
+  "id": "2026-11-16-editor-view-at-its-best",
   "date": "2026-11-16",
   "lines": [
     {
-      "text": "Editor: exports and the 100 % view lose the purple and green fringes near the frame's edges. Export again to fix one.",
+      "text": "Zoomed out, the editor shows your photo as an export makes it, Sharpening included, once you stop moving.",
       "open": "photos"
     },
     {
-      "text": "Exports use the phone's CPU beside its GPU, so they finish sooner; smaller ones are sharper, with less moiré."
+      "text": "On your phone's wide-colour screen, photos show their full colour, not only sRGB's."
     },
     {
-      "text": "Zoomed out, photos are now built from a full demosaic: crisper, with less false colour on fine lines."
+      "text": "After an export, the Export board says how many parts your phone's CPU made beside its GPU."
     },
     {
-      "text": "The Library loads faster, the dial stays put, Auto level holds, and before and after show your crop."
+      "text": "Moving between boards, the photo glides more smoothly."
     }
   ]
 }

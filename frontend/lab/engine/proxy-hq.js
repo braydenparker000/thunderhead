@@ -111,7 +111,7 @@ export async function remake(device, dst, w, h, maker, W, H, alive = () => true,
       const rw = Math.min(W, 3 * (cx + tw - 1) + 2 + REACH) - rx, rh = Math.min(H, 3 * (cy + th - 1) + 2 + REACH) - ry;
       const u = new ArrayBuffer(80); new Int32Array(u).set([rx, ry, rw, rh, cx, cy, tw, th]); new Uint32Array(u).set([w, h], 8); new Int32Array(u).set(sensor?.phase || [0, 0], 10);
       new Float32Array(u).set([sensor?.black ?? 0, sensor ? 65535 / Math.max(1, sensor.white - sensor.black) : 1], 12); new Uint32Array(u).set([sensor ? 1 : 0], 14); new Float32Array(u).set([...wb, 0], 16);
-      device.queue.writeBuffer(uni, 0, u);
+      device.queue.writeBuffer(uni, 0, u); performance.mark('th:copy');   // (the editor's gesture log says what ran in its worst gap: app/moved.js)
       const enc = device.createCommandEncoder();
       maker.run(enc, rx, ry, rw, rh, null);
       const pass = enc.beginComputePass();

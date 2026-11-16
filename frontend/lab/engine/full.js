@@ -114,7 +114,7 @@ export async function full(e, img, mosaic) {
     const out = device.createTexture({ size: [maxW, maxH], format, usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
     const lastBind = device.createBindGroup({ layout: last.getBindGroupLayout(0), entries: [{ binding: 0, resource: mid.createView() }, { binding: 1, resource: { buffer: funi } }, { binding: 2, resource: out.createView() }] });
     const ctx = canvas && !readback ? /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu')) : null;
-    ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
+    ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque', ...e.space });   // the screen's colours, as the fitted photo's (gpu.js)
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     /** @typedef {{ stop?: () => boolean, note?: (ms: number) => void }} Pace `stop`: asked after each part; `note`: told how long each took on the GPU */
     let bind = /** @type {GPUBindGroup | null} */ (null);
@@ -134,7 +134,7 @@ export async function full(e, img, mosaic) {
       b.unmap(); b.destroy();
       return px;
     }
-    async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw); }
+    async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw, /** @type {Rect} */ (made).ch, e.space); }
     async function halves() { return new Uint16Array((await bytes()).buffer); }
     /** What makes a rectangle's colours from the sensor, a step at a time, by name (an export times them apart).
      * @param {Rect} r @param {Float32Array} f the frame's settings @returns {[string, (enc: GPUCommandEncoder) => void][]} */
@@ -197,7 +197,7 @@ export async function full(e, img, mosaic) {
       after: async () => {
         if (!readback || !canvas || !made) return;
         const was = made, px = await read();
-        /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).putImageData(px, 0, 0); self.onframe?.(was);
+        /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d', e.space)).putImageData(px, 0, 0); self.onframe?.(was);
       },
     };
     /** Aims the view at the rectangle whose top left is (X, Y) in the picture, cw × ch pixels (kept inside the

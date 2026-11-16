@@ -71,6 +71,8 @@ function made(way, q) {
 }
 /** Where an export's time went (engine/export.js `develop`), as whole numbers for the timings: developing, reading
  * back, writing, and each step of the first pieces in ms a megapixel. @param {Record<string, any>} c */
+/** How much of the last export the phone's CPU made beside its GPU (engine/export.js): the Export board says it when the file is saved. */
+export const helped = { cpu: 0, parts: 0 };
 const spent = (c) => ({ gpu: Math.round(c.gpu || 0), read: Math.round(c.read || 0), write: Math.round(c.write || 0), wait: Math.round(c.wait || 0), off: c.off || 0, net: c.net || 0, fell: c.fell || 0, again: c.again || 0, held: c.held || 0, cpu: c.cpu || 0, cores: c.helpers || 0,
   ...Object.fromEntries(Object.entries(c.split || {}).map(([k, v]) => [k, Math.round(Number(v) / Math.max(1, c.splitPx || 1) * 1e6)])),
   ...Object.fromEntries((c.ops || []).map((/** @type {number} */ v, /** @type {number} */ i) => [`op${i}`, Math.round(v)])) });   // the network's passes timed apart, as this phone runs them (engine/net-tune.js `timed`)
@@ -125,11 +127,12 @@ export async function save(presets, progress, how = {}) {
         for (const k of Object.keys(clock)) delete clock[k];
         clock.again = 1;
       }
-    } } finally { if (wide) await photo.settle().catch(() => {}); }   // the screen's own colours again, whatever became of the export
+    } } finally { await photo.settle().catch(() => {}); }   // the screen's own colours again (a wide one's too, after an sRGB file), whatever became of the export
     await held?.clear();
     for (const [k, r] of files.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
+  Object.assign(helped, { cpu: clock.cpu || 0, parts: clock.parts || 0 });
   note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
   return saved;
 }

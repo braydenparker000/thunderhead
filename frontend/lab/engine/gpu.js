@@ -68,13 +68,15 @@ function gpu() {
 export const warm = () => gpu().then(() => true, () => false);
 
 /** Sets up the device and uploads the proxy; returns setProfile(pick) and render(ev, contrast) → GPU ms.
- * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback */
-export async function engine(canvas, img, readback = false) {
+ * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback
+ * @param {boolean} [wideScreen] the screen shows Display P3: the canvas is set up for it, and frames asked `wide` fill it (the editor's own) */
+export async function engine(canvas, img, readback = false, wideScreen = false) {
   const { adapter, device, pipe, bakePipe, maskP, bendP, lut } = await gpu();
   const { width: w, height: h } = img, cell = (img.meta.fullWidth ??= w * 3) / w;
   img.meta.fullHeight ??= h * 3; img.meta.width = w;
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
-  ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
+  const space = /** @type {{ colorSpace: PredefinedColorSpace }} */ ({ colorSpace: wideScreen ? 'display-p3' : 'srgb' });   // the screen's own colours: a canvas and its pictures say which
+  ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque', ...space });
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
@@ -158,7 +160,7 @@ export async function engine(canvas, img, readback = false) {
    * cannot show off at its edge instead of easing them in with their hue held (wgsl.js `fit`: to compare); mask: false sets Highlights and
    * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
    * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries;
-   * wide: the frame's colours are Display P3's, for a file that says so (icc.js): never for the screen */
+   * wide: the frame's colours are Display P3's, for a file that says so (icc.js), or for a screen that shows them (`wideScreen`) */
   const render = async (ev, contrast, more = {}) => {
     if (painted.sync(more.masks)) setProfile(picked);   // a first brush mask made the layers' texture: everything that binds it binds again
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
@@ -209,7 +211,7 @@ export async function engine(canvas, img, readback = false) {
       const b8 = new Uint8Array(back.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
       for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);
       back.unmap();
-      /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).putImageData(new ImageData(px, ow, oh), 0, 0);
+      /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d', space)).putImageData(new ImageData(px, ow, oh, space), 0, 0);
     }
     return gpuMs;
   };
@@ -240,5 +242,5 @@ export async function engine(canvas, img, readback = false) {
   const base = { device, src, w, h, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
   /** Retouching (heal.js): where a spot's replacement is best taken from. @param {{ x: number, y: number, r: number }} s @param {boolean} [wide] */
   const healSource = (s, wide) => findSource(s, geo, img, wide);
-  return { render, refresh, alive: () => !gone, size: () => [ow, oh], setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, refresh, alive: () => !gone, space, size: () => [ow, oh], setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

@@ -16,7 +16,7 @@ export class DCLogic {
   setState(patch) {
     this.state = { ...this.state, ...patch };
     if (this._keep) kept[this._keep[0]] = Object.fromEntries(this._keep[1].map((k) => [k, this.state[k]]));
-    if (this._host && !this._queued) { this._queued = true; queueMicrotask(() => { this._queued = false; this._host.render(); }); }
+    if (this._host && !this._queued) { this._queued = true; queueMicrotask(() => { this._queued = false; performance.mark('th:board'); this._host.render(); }); }
   }
 }
 

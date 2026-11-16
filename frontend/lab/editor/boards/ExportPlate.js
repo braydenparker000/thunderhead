@@ -11,7 +11,7 @@
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
-import { cancelled, day, jobs, keepPresets, madeAlready, netWhy, presets, save } from '../app/save.js';
+import { cancelled, day, helped, jobs, keepPresets, madeAlready, netWhy, presets, save } from '../app/save.js';
 import { about, countdown, estimate, left } from '../app/eta.js';
 import { kept } from '../app/timings.js';
 import * as shown from '../app/shown.js';
@@ -105,7 +105,7 @@ export default class Component extends DCLogic {
       // while it saves, Cancel gives it up: nothing is saved, and the board is ready to save again
       cancel: () => this.stop?.abort(),
       showTell: tell.length > 0, tellLines: tell,
-      showDone: S.done, doneTitle: S.stopped ? 'Export cancelled' : S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
+      showDone: S.done, doneTitle: S.stopped ? 'Export cancelled' : S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}${real && helped.cpu ? ` · CPU made ${helped.cpu} of ${helped.parts} parts` : ''}`,
       doneLines: S.stopped ? [] : S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${facts(x)}`),
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),

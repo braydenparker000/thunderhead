@@ -98,7 +98,7 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
       signal?.throwIfAborted();
       progress?.((y + n) / sh);
     }
-    if (clock && v.net) clock.laid = v.laid();
+    if (clock) { if (v.net) clock.laid = v.laid(); clock.parts = pieces + (clock.cpu || 0); }   // parts: every piece, the GPU's and the CPU's
     const t3 = performance.now(), ops = clock && how.ops && v.ops ? v.ops(how.ops === true ? 0 : how.ops).catch(() => null) : null, blobs = await s.done();   // the network's passes timed apart, while the files are finished
     if (clock) { clock.wait = (clock.wait || 0) + performance.now() - t3; clock.write = s.ms(); const t = ops && (await ops); if (t) clock.ops = t; }
     signal?.throwIfAborted();
