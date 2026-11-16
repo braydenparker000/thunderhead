@@ -292,8 +292,8 @@ export class SoftwareSession extends EventTarget {
     try { HTMLMediaElement.prototype.pause.call(this.video); } catch {}
     this.unmute();
     if (this.video.srcObject === this.stream) this.video.srcObject = null;
-    this.stream?.getTracks().forEach(t => t.stop());
-    if (this.engine) stopLibmedia(this.AVPlayer, this.engine);
-    this.engine = null;
+    // The tracks stop after libmedia has: it writes frames to them without a catch, and a write to a stopped track is a page error.
+    const tracks = this.stream?.getTracks() || [], stop = () => tracks.forEach(t => t.stop());
+    if (this.engine) stopLibmedia(this.AVPlayer, this.engine).then(stop, stop); else stop(); this.engine = null;
   }
 }
