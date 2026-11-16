@@ -35,7 +35,19 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | — | `zoom.js` `follow`: the photo glides whenever its window moves or resizes, not only as a board takes it (it jumped 14 to 42 px when a board's panel settled after it showed) | the glide's frames cannot be seen on a software GPU: **check on the phone** |
 | 8.6, 8.12, 8.13, 8.15, 4.2 | headers on one line with an ellipsis; the curve's readout top left; a focus ring for keys only; the white balance menu shuts as the dock rises; Heal's Size in pixels in the row too | by reading and the boards looked at |
 
-- Still open: P.2 (zoom stalls: make the `move` log say what ran), 1.5 (the dial's
+- **Third round, the same day** (the owner: "Do 2,4,5,6,7 in one pr"), after the owner found the fitted photo low in
+  quality beside the camera's JPEG. Found on the way: **the fitted photo showed no Sharpening and no Noise at all** (only
+  100 % and exports apply them), so it was softer than any export of it.
+
+| # | Change | Proved here (software GPU; the phone not checked) |
+|---|---|---|
+| 2 | `zoom.js` `detail`: below 40 % too, once the photo rests, its full resolution is drawn in tiles onto the still canvas at the screen's size (Sharpening and Noise as an export makes them); not on Masks (its red mask is on the fitted photo); only where this phone's own time a sensor pixel (`perPx`, measured on every tiled view) says it is done in 10 s (`LOW`), else the copy stays. `detail` timings are noted at fit too | `tests/lab-editor-hq-browser.test.mjs`: the layer at the screen's size, with more than 1.1 times the copy's fine detail at Sharpening 100. Fixed with it: an edit is told before its frame begins, so a still canvas could stay over a one-tap edit; it is now hidden once the frame has begun |
+| 4 | `session.js` `wideScreen`: on a `(color-gamut: p3)` screen the photo, its 100 % view and the still canvases are drawn in Display P3 (canvases set up for it, `gpu.js`/`full.js`/`zoom.js`); tiles, the histogram, kept pictures, `.cube` tables and sRGB exports stay sRGB (`unseen`, explicit `wide`); after any export the screen's colours are put back | the same file: the canvas is P3, sRGB's red reads (234, 51, 35) in P3's numbers, the histogram's pixels stay (255, 0, 0) |
+| 5 | `export.js` `clock.parts`; `save.js` `helped`; the Export board: "Saved to Downloads · 72 s · CPU made 9 of 40 parts" | by reading: the phone's next export says it |
+| 6 | `moved.js`: whatever can hold a frame up marks itself (`th:frame`, `th:part`, `th:tile`, `th:map`, `th:board`, `th:copy`) and the browser's long tasks are watched; a gesture's log says what ran in its worst gap (`ran`) | the same file: a frame held 400 ms by a tile says `tile` |
+| 7 | `flip.js`: fitted, the photo goes to another board's window by its transform alone (the layer takes its place at once, then a transform eases the photo from where it showed); zoomed in, the window's edges still glide | the same file: only `transform` animates, the layer's box is not eased, it lands on its fitted place |
+
+- Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
   committed test.
 - **Colour.** Adobe's installers (DNG Converter 18.6, Camera Raw 18.6 for Windows) carry Adobe Standard for the X-E5

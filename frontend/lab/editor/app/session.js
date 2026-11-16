@@ -26,6 +26,7 @@ export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', 'Grain size', 'Defringe', ...Object.keys(START)]);
 export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Auto: null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
 const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
+export const wideScreen = matchMedia('(color-gamut: p3)').matches, space = /** @type {{ colorSpace: PredefinedColorSpace }} */ ({ colorSpace: wideScreen ? 'display-p3' : 'srgb' });   // a screen that shows Display P3 (a phone's does): the photo is drawn in its colours, stronger than sRGB's where the photo has them; a tile, the histogram, a kept picture and an export's frames stay as asked
 /** Where a JPEG starts that a RAF does not: the camera sharpened it and cleaned its colour already. */
 export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Color noise': 0 });
 
@@ -99,7 +100,7 @@ export async function open(id, quick = false, again = false) {
   if (r.picture) { if (quick) r.picture.close(); else sensor(r.picture); }
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
   try {
-    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
+    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback'), wideScreen), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
     // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO, most at the highest); one opened before keeps the start it was given then.
     me.noise0 = typeof edit.noise0 === 'number' ? edit.noise0 : typeof edit.Noise === 'number' || !prefOn('photos.new_noise', true) ? 0 : noiseStart(r.meta.iso || 0);
@@ -153,10 +154,10 @@ export function custom() {
 
 /** One render with the photo's values. @param {Parameters<NonNullable<typeof eng>['render']>[2]} [more] */
 function paint(more) {
-  const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
+  performance.mark('th:frame'); const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, ...more });
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, wide: wideScreen && more?.screen !== false, ...more });
 }
 export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, zoomed in or out: drawn once, so the 100 % view's layer shows before the first edit there   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */

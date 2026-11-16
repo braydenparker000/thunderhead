@@ -4,7 +4,19 @@
 // whether the GPU was making a full-size view when it began, which is when a gesture has stuttered: that work is
 // now given to the GPU a part at a time and left when a finger comes down (engine/net-pace.js, full.js `region`),
 // and these numbers are how it is known whether that is enough on the real phone. Nothing of the photo is noted.
+// And what ran in the worst gap (`ran`, AUDIT.md P.2): whatever can hold a frame up marks itself as it runs, with the
+// browser's own performance marks (th:frame an engine frame, th:part a part of a full-size view, th:tile a tile of the
+// still canvas, th:map the zoom's map, th:board a board drawn again, th:copy a tile of the editing copy made again),
+// and `long` is a long task the browser saw (a script that held the page 50 ms or more).
 import { note } from './timings.js';
+
+const KINDS = ['frame', 'part', 'tile', 'map', 'board', 'copy'];
+const clear = () => { for (const k of KINDS) performance.clearMarks(`th:${k}`); };
+let longs = /** @type {number[][]} */ ([]);
+try { new PerformanceObserver((l) => { for (const e of l.getEntries()) longs.push([e.startTime, e.startTime + e.duration]); if (longs.length > 50) longs = longs.slice(-25); }).observe({ type: 'longtask' }); } catch { /* a browser without it */ }
+setInterval(() => { if (!run) clear(); }, 60_000);   // kept no longer than a gesture could want them
+/** What ran between `a` and `b` (ms, the page's clock), each kind once; 'none' for nothing marked. @param {number} a @param {number} b */
+const within = (a, b) => [...KINDS.filter((k) => performance.getEntriesByName(`th:${k}`, 'mark').some((m) => m.startTime >= a && m.startTime <= b)), ...(longs.some(([s, e]) => s < b && e > a) ? ['long'] : [])].join(' ') || 'none';
 
 let run = 0, wasBusy = false;
 /** A gesture has begun (or goes on): frames are watched until `active` says it is over. A finger that comes down
@@ -15,16 +27,18 @@ let run = 0, wasBusy = false;
 export function moved(active, busy, kind = 'move', more = {}) {
   wasBusy ||= busy;
   if (run) return;
+  clear();
   const began = performance.now();
-  let last = began, frames = 0, worst = 0, slow = 0, idle = 0;
+  let last = began, frames = 0, worst = 0, slow = 0, idle = 0, wa = 0, wb = 0, was = began;
   const tick = (/** @type {number} */ now) => {
-    const gap = now - last; last = now; frames++;
-    if (gap > worst) worst = gap;
+    const gap = now - last, t = performance.now(); frames++;   // (the gap's ends by the page's own clock, which the marks keep: a frame's time may not be on it)
+    if (gap > worst) { worst = gap; wa = was; wb = t; }
+    last = now; was = t;
     if (gap > 34) slow++;
     idle = active() ? 0 : idle + 1;
     if (idle < 3) { run = requestAnimationFrame(tick); return; }   // over once nothing has moved it for three frames
     run = 0;
-    if (frames > 6) note(kind, now - began, { frames, worst: Math.round(worst), slow, busy: wasBusy ? 1 : 0, ...more });   // (a tap is no gesture)
+    if (frames > 6) note(kind, now - began, { frames, worst: Math.round(worst), ran: within(wa, wb), slow, busy: wasBusy ? 1 : 0, ...more });   // (a tap is no gesture)
     wasBusy = false;
   };
   run = requestAnimationFrame(tick);

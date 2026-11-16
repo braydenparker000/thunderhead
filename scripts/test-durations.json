@@ -128,6 +128,7 @@
     "tests/lab-editor-export-eta.test.mjs": 1000,
     "tests/lab-editor-export-smooth-browser.test.mjs": 196500,
     "tests/lab-editor-faults-browser.test.mjs": 36600,
+    "tests/lab-editor-hq-browser.test.mjs": 40000,
     "tests/lab-editor-jpeg-browser.test.mjs": 26300,
     "tests/lab-editor-keep-browser.test.mjs": 7900,
     "tests/lab-editor-many-browser.test.mjs": 28500,
