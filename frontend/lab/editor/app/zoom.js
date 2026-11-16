@@ -58,7 +58,7 @@ const most = () => Math.max(1, 3 * full());
 /** Where a double-tap goes: 100 %, or 200 % with the owner's setting (Settings › Photos › Editor). */
 const tapTo = () => Math.min(most(), full() * (pref('photos.double_tap') === '200' ? 2 : 1));
 /** Whether the photo is zoomed, and to what per cent of the sensor's pixels. */
-export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100), making: making2 > 0 });   // making: a full-size view is being made
+export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100), making: making2 > 0, rest: !timer && !loading() });   // making: a full-size view is being made; rest: nothing waits to be drawn, nothing is being made
 /** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
 export const fitted = () => ({ left: f.ox, top: f.oy, width: f.w, height: f.h });
 const tool = () => win?.dataset.zoom === 'tool';
@@ -79,7 +79,7 @@ function apply(ease = false) {
   wrap.style.transition = ease ? EASE : 'none';
   wrap.style.transform = transform();
   if (tool()) for (const el of /** @type {NodeListOf<HTMLElement>} */ (ear().querySelectorAll('[data-zoom-with]'))) { el.style.transition = wrap.style.transition; el.style.transform = wrap.style.transform; }
-  const on = z > 1.02, pct = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
+  const on = z > 1.02, pct = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`; if (madeFor >= 0 && z / full() < THIRD) hide();   // under a third the copy is the picture: no layer of the sensor's lingers
   map.style.display = on ? 'block' : 'none'; badge.style.display = on || loading() ? 'block' : 'none'; photo.atFit(!on); wrap.toggleAttribute('data-px', on && z / full() >= 2);
   if (!on) return;
   pctEl.textContent = `${info().pct}%`;
@@ -192,7 +192,7 @@ function touch(/** @type {PointerEvent} */ e) {
 function launch(now) {
   const v = speed(now);
   if (!v || matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
-  clearTimeout(timer); job++;   // no detail is made for where it was let go
+  clearTimeout(timer); timer = 0; job++;   // no detail is made for where it was let go
   fling({ x: tx, y: ty, vx: f.w * z > f.W ? v[0] : 0, vy: f.h * z > f.H ? v[1] : 0, inside, show: (x, y) => { tx = x; ty = y; apply(); }, rest: () => settle(60) });
   return true;
 }
@@ -206,7 +206,7 @@ const rest = () => settle(120);
 function settle(ms) {
   clearTimeout(timer); job++;
   timer = setTimeout(() => {
-    if ((g && !tool()) || gliding() || flying()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
+    timer = 0; if ((g && !tool()) || gliding() || flying()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
     photo.events.dispatchEvent(new Event('change'));
     const mine = job, began = performance.now(), sharp = z / full() >= THIRD && !!photo.whole();   // (the badge's dot beats while they are made: zoom-note.js)
     detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; if (sharp) { photo.took.detail = (performance.now() - began) / 1000; note('detail', photo.took.detail * 1000); photo.events.dispatchEvent(new Event('change')); } });
@@ -237,7 +237,7 @@ const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2 * (net
 let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); performance.mark('th:part'); } });
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
-const FINE = 0.999, THIRD = 0.34;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best); under a third of the sensor's size the copy has the screen's pixels already
+const FINE = 0.999, THIRD = 0.37;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best); under a third of the sensor's size the copy has the screen's pixels already, and a little over it is stretched under a tenth, which does not show (no tiles made for that)
 /** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
  * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
  * and while a control moves. @param {number} mine @param {number} X @param {number} Y @param {number} w @param {number} h */

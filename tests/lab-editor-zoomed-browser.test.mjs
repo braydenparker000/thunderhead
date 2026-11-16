@@ -48,10 +48,16 @@ test('at 100 % an edit shows the copy at once, and the full-size view comes back
   assert.ok(said.includes('Loading full detail|true'), `the badge said what was loading, its dot beating (${said})`);
   const before = await fitted();
   // an edit at 100 %: the copy shows it at once, the full-size view of the photo as it was hidden
-  await page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js'); a.setValues({ Exposure: 1.5 }, 'Exposure', 'Exposure', '+1.5'); while (p.busy()) await new Promise((r) => setTimeout(r, 5)); });
+  const hidden = await page.evaluate(async () => {
+    const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js'), L = /** @type {HTMLElement} */ (p.canvas.parentElement?.children[3]);
+    a.setValues({ Exposure: 1.5 }, 'Exposure', 'Exposure', '+1.5'); await Promise.resolve(); await Promise.resolve();
+    const at = L.style.display !== 'block';   // as the edit's frame begins (it may be made again once the edit rests, on a slow machine before the frame is read)
+    while (p.busy()) await new Promise((r) => setTimeout(r, 5));
+    return at;
+  });
   const edited = await fitted();
   assert.ok(edited > before + 20, `the copy shows the edit at once (${before.toFixed(1)} → ${edited.toFixed(1)})`);
-  assert.equal(await live(), false, 'the full-size view of the photo as it was is hidden');
+  assert.equal(hidden, true, 'the full-size view of the photo as it was is hidden as the edit is drawn');
   // once edits rest, the full-size view is made again
   await until(live, { timeout: 120_000, message: 'the full-size view comes back once edits rest' });
   // zoomed out it is the same picture

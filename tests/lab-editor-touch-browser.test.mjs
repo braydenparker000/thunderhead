@@ -53,9 +53,10 @@ const at = (page) => page.evaluate(async () => (await import('/lab/editor/app/se
 /** The photo's slot on screen: its middle, and the fitted photo's box. */
 const slot = (page) => page.evaluate(async () => { const z = await import('/lab/editor/app/zoom.js'), b = document.querySelector('#stage [data-keep="photo"]').getBoundingClientRect(), f = z.fitted(); return { x: b.left + f.left + f.width / 2, y: b.top + f.top + f.height / 2, left: f.left }; });
 /** Several fingers down at once and up again, `ms` later (CDP touch: pointer events of the touch kind). Each waits
- * for the page to finish drawing first: the software GPU holds the page while it draws, and a tap is a matter of ms. */
+ * for the page to finish drawing first, the zoom's detail too (this small photo fitted is past a third of its size, so
+ * its full detail is made at rest): the software GPU holds the page while it draws, and a tap is a matter of ms. */
 async function taps(cdp, points, ms = 60) {
-  await until(() => cdp.send('Runtime.evaluate', { expression: 'import("/lab/editor/app/session.js").then((p) => !p.busy())', awaitPromise: true }).then((r) => r.result.value), { message: 'the page drew' });
+  await until(() => cdp.send('Runtime.evaluate', { expression: 'Promise.all([import("/lab/editor/app/session.js"), import("/lab/editor/app/zoom.js")]).then(([p, z]) => !p.busy() && z.info().rest)', awaitPromise: true }).then((r) => r.result.value), { message: 'the page drew' });
   await new Promise((r) => setTimeout(r, 150));
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
   await new Promise((r) => setTimeout(r, ms));
