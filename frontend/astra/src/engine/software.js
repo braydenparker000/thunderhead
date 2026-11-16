@@ -30,15 +30,15 @@ const READ_CHUNK = 1 << 20;
 
 /** Video codecs (Mediabunny names) this path can decode. */
 export const SOFTWARE_VIDEO = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1']);
-/** Audio codecs it can decode. TrueHD and ALAC have no decoder here; Windows Media Audio it decodes in an AVI only.
+/** Audio codecs it can decode. TrueHD and ALAC have no decoder here; Windows Media Audio it decodes in AVI and MKV.
  * MPEG Layer I and II (the sound of DVDs' MPG files and of broadcast TS) have no build of their own: the MP3
  * build decodes them, being the same decoder for all three layers. libmedia's MPG and TS readers already
  * name that sound MP3; a Matroska file's is renamed as it is read (fixMkvLayers). Heard with
  * scripts/astra/heard.cjs: the test tone at its pitch and level in MPG, TS and MKV. */
 export const SOFTWARE_AUDIO = new Set(['aac', 'ac3', 'eac3', 'dts', 'mp3', 'opus', 'flac', 'vorbis']);
 // Codecs Mediabunny has no name for (sound, then picture), by the name the Matroska or MP4 file gives them.
-const OTHER_AUDIO = /^A_MPEG\/L[12]$/i;
-const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_THEORA|V_MJPEG|V_MS\/VFW\/FOURCC|V_MPEGI\/ISO\/VVC|mp4v|vvc1|vvi1)$/i;
+const OTHER_AUDIO = /^(A_MPEG\/L[12]|A_MS\/ACM)$/i; // A_MS/ACM: WMA in MKV (another sound by that name plays silent); s263 (below): H.263 in 3GP
+const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_THEORA|V_MJPEG|V_MS\/VFW\/FOURCC|V_MPEGI\/ISO\/VVC|mp4v|vvc1|vvi1|s263|h263)$/i;
 export const softwareVideo = track => SOFTWARE_VIDEO.has(track.codec) || (!track.codec && OTHER_VIDEO.test(String(track.internalCodec ?? '')));
 export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm') || (!track.codec && OTHER_AUDIO.test(String(track.internalCodec ?? '')));
 
@@ -292,8 +292,8 @@ export class SoftwareSession extends EventTarget {
     try { HTMLMediaElement.prototype.pause.call(this.video); } catch {}
     this.unmute();
     if (this.video.srcObject === this.stream) this.video.srcObject = null;
-    this.stream?.getTracks().forEach(t => t.stop());
-    if (this.engine) stopLibmedia(this.AVPlayer, this.engine);
-    this.engine = null;
+    // The tracks stop after libmedia has: it writes frames to them without a catch, and a write to a stopped track is a page error.
+    const tracks = this.stream?.getTracks() || [], stop = () => tracks.forEach(t => t.stop());
+    if (this.engine) stopLibmedia(this.AVPlayer, this.engine).then(stop, stop); else stop(); this.engine = null;
   }
 }

@@ -3,7 +3,7 @@
 import * as MB from '../../vendor/mediabunny.js';
 import {HttpSource, SourceError} from './http-source.js';
 import {readLayout, subtitleTracks} from './mkv.js';
-import {readMoov, readMp4Subtitles} from './mp4.js';
+import {readMoov, readMp4Subtitles, mp4DolbyVision} from './mp4.js';
 import {mp4Chapters} from './chapters.js';
 import {languageName} from './languages.js';
 import {videoCodecName, audioCodecName} from './labels.js';
@@ -107,6 +107,8 @@ async function describe(url, source, opened, signal, onStatus, keep) {
       const moov = await readMoov((s, e) => source.read(s, e), source.size);
       subtitles = await readMp4Subtitles(null, 0, moov);
       chapters = moov ? mp4Chapters(moov) : [];
+      const dv = mp4DolbyVision(moov); // Mediabunny does not read the sample entry's dvcC/dvvC box
+      if (dv && video[0]) video[0].dolbyVision = dv;
     } catch {}
   }
   for (const s of subtitles) s.languageName = languageName(s.language);

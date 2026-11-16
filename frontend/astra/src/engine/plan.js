@@ -128,7 +128,8 @@ export function planPlayback(probe, caps, prefs = {}) {
   const subtitleOptions = subtitles.map(s => ({track: s, label: subtitleLabel(s), supported: !!s.format && !s.encrypted, reason: s.encrypted ? 'Encrypted subtitles.' : s.format ? '' : s.image ? `${s.image} picture subtitles cannot be shown.` : 'Unknown subtitle format.'}));
   const dv = video?.dolbyVision;
   if (dv) {
-    if (dv.compatibility === 0) notes.push(`Dolby Vision profile ${dv.profile} has no standard picture underneath, so colours may look wrong (purple and green) in a browser. A HDR10 or SDR source, or another app, shows it properly.`);
+    if (dv.compatibility === 0 && dv.profile === 5) notes.push('Dolby Vision profile 5 has no standard picture underneath: Astra corrects its colours itself (Picture, in the menu). If they still look wrong, an HDR10 or SDR source shows it properly.');
+    else if (dv.compatibility === 0) notes.push(`Dolby Vision profile ${dv.profile} has no standard picture underneath, so colours may look wrong (purple and green) in a browser. A HDR10 or SDR source, or another app, shows it properly.`);
     else notes.push(`Dolby Vision profile ${dv.profile}: shown as ${dv.compatibility === 1 || dv.compatibility === 6 ? 'HDR10' : dv.compatibility === 2 ? 'SDR' : 'HLG'}.`);
   }
 

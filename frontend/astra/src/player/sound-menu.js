@@ -7,8 +7,9 @@
 // Sound per player, made on the first change that needs it.
 //
 // Headphone surround is offered only for sound that reaches the page with a
-// centre and surrounds: not for a track the engine converts (it arrives mixed
-// to stereo) nor for the software decoder (its chain gets stereo).
+// centre and surrounds: not for the software decoder (its chain gets stereo),
+// and for a track the engine converts only where the engine can keep it whole
+// (engine.setSurround: otherwise it arrives mixed to stereo).
 //
 // Where the engine does part of the job, it is asked to (each call only when
 // the engine has the method): a track the engine converts (Dolby Digital,
@@ -85,6 +86,7 @@ export class SoundControl {
     const engineDialogue = this.rebuilt && has(e, 'setDialogue');
     if (has(e, 'setDialogue')) e.setDialogue(engineDialogue ? w.dialogue : 0);
     if (this.advance) e.setAudioAdvance(w.delay < 0 ? -w.delay : 0);
+    if (has(e, 'setSurround')) e.setSurround(w.headphones);
     const chain = this.chainSettings();
     if (this.load !== e.load_) { this.load = e.load_; this.chain = null; this.routed = false; } // a new load builds a new sound path
     if (this.sound) this.sound.mode = e.mode;
@@ -116,10 +118,11 @@ export class SoundControl {
   /** Whether the sound reaching the page has a centre and surrounds to place: what the chain counted, else what the track says. */
   surround() {
     const e = this.p.engine;
-    if (!this.p.ready || e.mode === 'software' || this.rebuilt) return false;
+    if (!this.p.ready || e.mode === 'software') return false;
+    const track = e.audio?.find?.(a => a.id === e.selectedAudio), n = track?.option?.track?.channels;
+    if (this.rebuilt) return has(e, 'canKeepSurround') && e.canKeepSurround(n); // kept whole only while the toggle is on
     const counted = this.sound?.state().channels;
     if (counted) return placeable(counted);
-    const track = e.audio?.find?.(a => a.id === e.selectedAudio), n = track?.option?.track?.channels;
     return n ? placeable(n) : /\b[5-7]\.1\b/.test(track?.label || '');
   }
 

@@ -16,9 +16,9 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
-| `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
-| `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-stream.js` (converted sound from Astra's own Matroska reader), `sound-six.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
+| `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
 | `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
 | `src/addons/` | The Stremio add-on protocol client (`client.js`), TorBox link resolution (`debrid.js`), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
@@ -288,7 +288,11 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    decodes them: passed to the phone's own decoder, surround kept, no
    converter downloaded), `rebuilt` (AC-3, E-AC-3 and DTS elsewhere, Dolby
    TrueHD, Vorbis, PCM and G.711: decoded and re-encoded to Opus on the
-   device; each decoder downloads only when a film needs it) or `unsupported` (ALAC
+   device; each decoder downloads only when a film needs it; in a Matroska
+   film the decoder is fed block by block from Astra's own reader,
+   `sound-stream.js`, so such sound starts as fast as the picture; with
+   Headphone surround on, 5 to 8 channels are kept whole as uncompressed
+   FLAC, `sound-six.js`) or `unsupported` (ALAC
    and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
@@ -433,7 +437,7 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    offers it to the phone's video apps (VLC, MX Player…) through an Android
    intent with the title and position (`src/player/external.js`).
 
-### What plays (measured 2026-11-10)
+### What plays (measured 2026-11-10, again 2026-11-16)
 
 Seventy-two short test films, one for each container and codec pairing
 worth trying, were played through `/astra/lab/` in desktop Chrome (which has
@@ -443,14 +447,26 @@ read "56 play, four of them without sound", and that was the checker's
 fault: see MPEG Layer II below).
 Before this pass 38 of the first 64 played and 14 showed black or stalled.
 These counts were made with Mediabunny 1.55.7, before the TrueHD decoder
-and the engine work of 2026-11-15, and the matrix has not been run again
-since. Dolby TrueHD, then among the files that stop, now plays
+and the engine work of 2026-11-15. Dolby TrueHD, then among the files that stop, now plays
 (`truehd.mkv` in `tests/astra-play-browser.test.mjs`).
+Run again on 2026-11-16 (73 films, the three-minute one among them, in the
+Chrome for Testing 153 the browser checks use): 55 play, 9 stop with a
+reason, 9 fail; then, with three small patches to libmedia's readers (below),
+61 play, 6 stop with a reason and 6 fail, one of them 10-bit H.264 in MP4,
+which played before and in both runs again after (the checker's STILL: a
+flake). The seven that changed are the four
+H.264 AVIs, H.263 in 3GP and the two MKVs with Windows Media Audio, each
+heard at the test tone's pitch by `scripts/astra/heard.cjs`. Of the other
+five, four are the checker's STILL (two looks at the picture alike) on films
+whose clock and frame count ran, not looked at further: the MPG pair (see
+the note in `scripts/astra/README.md`), the open-GOP MKV, and 4K HEVC in
+software, whose seek also stuck. The fifth is Sorenson Spark in FLV, below.
 
 | Picture | Where | How |
 |---|---|---|
 | H.264, VP9, AV1 | MP4, MOV, MKV, WebM, TS, M2TS | the phone's decoder (`remux`; when the matrix ran, a plain MP4 or WebM went `native`) |
-| H.264 | FLV | software decoder |
+| H.264 | FLV, AVI | software decoder |
+| H.263 | 3GP; AVI wired, not tried | software decoder |
 | HEVC (8 and 10 bit) | MP4, MKV, TS | the phone's decoder where it has one, else software |
 | VP8 | WebM as it is; MKV in software | |
 | MPEG-4 ASP (Xvid, DivX), MS-MPEG4, WMV 7/8/9, Motion JPEG | AVI, MKV; MPEG-4 also in MP4 | software decoder |
@@ -461,16 +477,30 @@ Sound: AAC, Opus, FLAC and MP3 as they are; AC-3, E-AC-3, DTS, Dolby
 TrueHD, Vorbis, PCM (every kind in MOV and MKV) and G.711 (µ-law and A-law,
 in MOV) converted as they play, and so is MP3 in a MOV file (or, all but
 TrueHD and G.711, decoded by the software decoder when it plays the file);
-Windows Media Audio and ADPCM in an AVI.
+Windows Media Audio in AVI and MKV; ADPCM in an AVI.
 
 Stops with a reason (and the offer of another app): the Windows Media
 container (WMV, ASF) and RealMedia, which nothing here unpacks; Theora in
-an Ogg file; H.263 in 3GP; Motion JPEG in MOV; Sorenson Spark in FLV;
-ProRes; a file whose only sound is ALAC or WMA in an MKV. Still
-broken: H.264 inside an AVI, where libmedia 1.3.1 fails on a stream with
-no decoder setup in its header ("Offset is outside the bounds of the
-DataView" in its worker); it stops with "could not show a picture" after
-six seconds of sound.
+an Ogg file; Motion JPEG in MOV; ProRes; a file whose only sound is
+ALAC. Sorenson Spark in FLV stops with "Astra has no decoder for the
+video": libmedia's H.263 build has FFmpeg's `h263` decoders but not its
+`flv` one (tried 2026-11-16: named as FLV1, the build will not open it).
+
+**Three patches to libmedia's readers** (2026-11-16, one expression each,
+recorded in `frontend/assets/libmedia/licenses/libmedia-modifications.txt`
+and as `edits` in `frontend/ported.json`; checked by
+`tests/astra-formats.test.mjs`, played by `tests/astra-formats-browser.test.mjs`).
+H.264 in an AVI with no decoder setup in its header (as ffmpeg writes it)
+failed with "Offset is outside the bounds of the DataView": the AVI reader
+left such a stream unmarked as Annex B, so the decoder read its start codes
+as lengths. 3GP calls H.263 `s263`, which the MP4 reader did not know.
+The Matroska reader gave an `A_MS/ACM` track (Windows Media Audio, as MKV
+keeps it) no codec at all; it now reads the WAV header inside, as FFmpeg
+does. No newer libmedia helps: 1.3.1 (2026-06-27) is still the newest
+release, and the 13 commits on upstream master since (to 2026-11-15) touch
+none of these, nor add a Windows Media, RealMedia or ALAC reader or
+decoder. Motion JPEG in MOV was tried the same way: named, it is read and
+its sound plays, but no picture comes, so it still stops.
 
 **MPEG Layer II** (the usual sound of VCDs, DVDs' MPG files and DVB
 recordings) plays, in MPG, TS and, since 2026-11-11, MKV. There is no
@@ -608,7 +638,13 @@ measured height, so nothing covers the title or the buttons.
   The sleep timer and Sound only last until the player closes.
 - **The seek bar** shows the skippable parts (intro, recap, outro) as tinted
   spans, the chapters as thin gaps (none closer than 6 px), and A and B
-  while repeating; dragging shows the chapter's name under the time. A
+  while repeating; dragging shows the chapter's name under the time, and,
+  once the finger rests 120 ms, the picture at that place: the key frame
+  nearest it, found from the index already in memory, fetched alone beside
+  the film's own download (1.5 MB at most) and decoded by one WebCodecs
+  decoder per film; 24 pictures are kept. No previews with the data saver
+  on, with no connection, for a film Astra does not unpack itself, or with
+  "Seek previews" off in the Playback menu. A
   stream with no length (live) shows a full bar marked Live that cannot be
   dragged or swiped across.
 - **Frame by frame**: while paused, the buttons beside play step one frame
@@ -705,6 +741,14 @@ measured height, so nothing covers the title or the buttons.
   that cannot draw into half floats keeps the plain picture for them, and
   so does an HDR film in HLG (or one that does not say it is PQ): the
   browser's own picture maps those rightly, and the section says why. A
+  film that comes with no container facts (HLS, DASH, or one the browser
+  plays by itself) is asked from its own first frame whether it is PQ or
+  HLG (`Picture.see`), so it is treated the same. A
+  **Dolby Vision profile 5** film (IPT planes the browser shows purple and
+  green; the record read from an MKV's or MP4's header) has its colours
+  corrected before the tone-mapping (`dolby.js`), even with everything else
+  off, under a "Correct Dolby Vision colours" switch; colours the browser
+  clipped (saturated blues, the deepest greens) come out only nearly right. A
   film from a host that does not let the page read it keeps the plain
   picture too; the section says why. When frames start to be missed it
   steps itself down (Animation to Standard, then smooth banding off, then
@@ -863,6 +907,7 @@ skip in a browser without it.
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
 | `astra-early.test.mjs` | Half-second fragments. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
+| `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on. |
 | `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
 | `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running, and the player handing the film's length to the reader. |
 | `astra-feed.test.mjs` | A film's attached fonts (bounded), which files libass can draw, the second track moved to the top, the sound tap's bookkeeping. |
@@ -892,13 +937,15 @@ skip in a browser without it.
 | `astra-libass-browser.test.mjs` | The libass layer: placement, drawing only while a line shows, the film's font, delay, destroy, and a start that fails falling back. |
 | `astra-enhance-browser.test.mjs` | Sound measured after the chain and the picture read back from the canvas, on real films. |
 | `astra-sound-browser.test.mjs` | Even loudness bringing two films 12 dB apart together while the volume stays the owner's, headphone surround placing the left surround, and the Sound tab's two switches. |
+| `astra-preview.test.mjs`, `astra-preview-browser.test.mjs` | Seek previews: the key frame chosen from a Matroska and an MP4 index, one frame's bytes fetched, the pictures kept and let go, the bubble on a drag, and none with the data saver or the switch off. |
+| `astra-dolby.test.mjs`, `astra-dolby-browser.test.mjs` | Dolby Vision profile 5: the record read from an MKV and an MP4, the colour matrices against their sources, and IPT patches drawn through the filter coming out as the colours they stand for (and wrong with the switch off). |
 | `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped along the BT.2390 curve, read back from the canvas. |
 | `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |
 | `astra-app-play-browser.test.mjs` | The app end to end: an invented add-on, a tap on a stream, chapters, the sound tap fed, data used, the Sound tab, Find a line, another source drawn by libass, no page error. |
 | `astra-tap-browser.test.mjs` | From a tap to the first picture in the real app with Get ready ahead on, off and under the saver: the list read once, the press's resolve taken by the tap, the next episode made ready so Next asks nothing, nothing before a tap when off, nothing ever playing without one. |
 | `astra-open-browser.test.mjs` | The Thunderhead's link (`?find=…&max_mb=…`) opens Details, the size chip, nothing plays by itself. |
 
-- **Films**: `tests/fixtures/astra/` (about 3.4 MB, committed). Most are
+- **Films**: `tests/fixtures/astra/` (about 3.7 MB, committed). Most are
   made by `bash scripts/astra/fixtures.sh [film…]` (needs ffmpeg; name
   films to remake only those, since x264 builds differ). Each is a moving
   test picture with a clock and a sine tone per sound track at its own
@@ -906,12 +953,15 @@ skip in a browser without it.
   tracks, SRT, chapters), `surround.mkv` (Dolby Digital 5.1), `plain.mp4`
   (a plain MP4, unpacked by Astra like any other film), `open.webm` (VP9,
   Opus), `anime.mkv` (the hand-written, invented `signs.ass` with Inter Bold
-  attached), `centre.mkv` (a tone in the centre channel only), `truehd.mkv`,
+  attached), `centre.mkv` (a tone in the centre channel only), `truehd.mkv`, `dts.mkv` (DTS 5.1, 3 s),
   `hevc.mkv` (software decoder in the test browser), `clusters.mkv` (a
   cluster every 5 s and a key frame every 10 s, so half the clusters begin
   between key frames: Astra's Matroska reader), `frontcues.mkv` (its cue
   index before the clusters), `hls/` and `dash/`; `beside.srt` loads beside
-  a film. Three are made by the command in their test's header:
+  a film. `dolby-patches.webm` and `dolby-untagged.webm` (grey and colour
+  patches carried as Dolby Vision profile 5 carries them, in VP9 so the
+  test browsers decode them) are made by `node scripts/astra/dolby-patches.mjs`.
+  Three are made by the command in their test's header:
   `hls2/` (two picture-only levels, 320x180 and 1920x1080, for the level a
   player's size takes; `astra-routes-browser.test.mjs`),
   `hdr-patches.webm` (VP9 profile 2, PQ, BT.2020 grey and colour patches at

@@ -1,6 +1,6 @@
 // The picture filter's WebGL2 work: the film's frame is uploaded once per
 // presented frame, then drawn through the passes that are on:
-//   frame -> [tone map, HDR films only] -> [deband] -> upscale -> [RCAS] -> canvas
+//   frame -> [tone map, HDR films only; with Dolby Vision profile 5 colours corrected first] -> [deband] -> upscale -> [RCAS] -> canvas
 // where the upscale is either EASU to the output size (Standard, fsr.js) or Anime4K's network to
 // twice the film's size (anime4k.js), then resampled to the output size. Everything before the
 // upscale runs at the film's size. Passes that are off are skipped, not run as no-ops. Targets are
@@ -8,7 +8,8 @@
 // Anime4K's layers are RGBA16F, which needs a float-renderable WebGL2 (Filter.half).
 
 import {VERTEX, DEBAND, EASU, RCAS, BLIT} from './fsr.js';
-import {TONEMAP, WHITE, SOURCE_PEAK, SHOWN_PEAK, curve} from './tonemap.js';
+import {TONEMAP, WHITE, SOURCE_PEAK, SHOWN_PEAK, curve, tonemapShader} from './tonemap.js';
+import {DOLBY_FILM, correction, cols} from './dolby.js';
 import * as anime4k from './anime4k.js';
 
 /** The screen shows Display P3: an HDR film is brought into it rather than into sRGB. */
@@ -53,30 +54,38 @@ export class Filter {
    * page may not read (the caller turns the filter off for that film). An HDR film goes up as
    * half floats, which keeps its highlights (an 8-bit upload clips everything over 203 nits), with
    * the browser converting it into the canvas's colour space: Display P3 on a wide-gamut screen.
+   * `half` alone (a Dolby Vision film the browser takes for SDR) uploads half floats in sRGB.
    * @param {HTMLVideoElement} video
    */
-  upload(video, hdr = false) {
+  upload(video, hdr = false, half = hdr) {
     const gl = this.gl, space = hdr && wideScreen() ? 'display-p3' : 'srgb';
     if (space !== this.space && 'unpackColorSpace' in gl) { gl.unpackColorSpace = space; gl.drawingBufferColorSpace = space; this.space = space; }
     gl.bindTexture(gl.TEXTURE_2D, this.frame);
-    if (hdr) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, video);
+    if (half) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, video);
     else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, video);
-    this.hdr = hdr;
+    this.hdr = half;
     this.size.in = [video.videoWidth, video.videoHeight];
   }
 
   /**
    * Draws the uploaded frame to the canvas at its current size. `upscale` 'anime' runs Anime4K
    * where it applies (half floats, and a picture shown over 1.2 times larger); otherwise Standard.
-   * @param {{sharpen: number, deband: boolean, upscale?: string, restore?: boolean}} s
+   * `dolby`: the frame's colorSpace when the film is Dolby Vision profile 5 and its colours are corrected (dolby.js).
+   * @param {{sharpen: number, deband: boolean, upscale?: string, restore?: boolean, dolby?: object|null}} s
    */
-  draw({sharpen, deband, upscale = 'standard', restore = false}) {
+  draw({sharpen, deband, upscale = 'standard', restore = false, dolby = null}) {
     const gl = this.gl, [iw, ih] = this.size.in, ow = this.canvas.width, oh = this.canvas.height;
     let src = this.frame;
     if (this.hdr) {
-      const t = this.target('mapped', iw, ih, gl.RGBA16F, gl.LINEAR), p = this.programs.tonemap ||= program(gl, TONEMAP, ['src', 'top', 'maxLum', 'ks', 'white', 'shownPeak']), c = curve(SOURCE_PEAK, SHOWN_PEAK);
+      const names = ['src', 'top', 'maxLum', 'ks', 'white', 'shownPeak'], t = this.target('mapped', iw, ih, gl.RGBA16F, gl.LINEAR), c = curve(SOURCE_PEAK, SHOWN_PEAK);
+      const p = dolby ? this.programs.dolby ||= program(gl, tonemapShader(DOLBY_FILM), [...names, 'dvPQ', 'dvToRGB', 'dvA', 'dvB', 'dvLight']) : this.programs.tonemap ||= program(gl, TONEMAP, names);
       pass(gl, p, t.fb, iw, ih, src);
       gl.uniform1f(p.u.top, c.top); gl.uniform1f(p.u.maxLum, c.maxLum); gl.uniform1f(p.u.ks, c.ks); gl.uniform1f(p.u.white, WHITE); gl.uniform1f(p.u.shownPeak, SHOWN_PEAK);
+      if (dolby) {
+        const key = JSON.stringify([dolby, this.space]), k = this.dv?.key === key ? this.dv : this.dv = {key, ...correction(dolby, this.space)};
+        gl.uniform1f(p.u.dvPQ, k.pq ? 1 : 0); gl.uniformMatrix3fv(p.u.dvToRGB, false, cols(k.toRGB)); gl.uniformMatrix3fv(p.u.dvA, false, cols(k.a));
+        gl.uniform3f(p.u.dvB, k.b[0], k.b[1], k.b[2]); gl.uniformMatrix3fv(p.u.dvLight, false, cols(k.light));
+      }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       src = t.tex;
     }
