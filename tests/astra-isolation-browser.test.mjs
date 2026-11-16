@@ -98,8 +98,8 @@ test('the second opening is cross-origin isolated, and posters, films, the softw
   await page.waitForFunction(() => { const all = [...document.querySelectorAll('img')].filter((i) => /\/p\d\.png/.test(i.src)); return all.length >= 4 && all.every((i) => i.complete && i.naturalWidth) && new Set(all.map((i) => i.src)).size === 4; }, null, { timeout: 10_000 });
 
   // A film the page may not read is handed to the browser and plays; a readable one plays through Astra.
-  assert.deepEqual(await play(page, `${host.url('plain.mp4')}?nocors`), { mode: 'native', played: true, error: null });
-  const readable = await play(page, host.url('multi.mkv'));
+  assert.deepEqual(await play(page, `${host.url('open.webm')}?nocors`), { mode: 'native', played: true, error: null });
+  const readable = await play(page, host.url('open.webm')); // VP9 and Opus: every browser the tests run in decodes them (CI's has no H.264)
   assert.ok(readable.played && ['remux', 'native'].includes(readable.mode), JSON.stringify(readable));
   // The software decoder (when this browser does not decode HEVC itself) plays, its workers told one core fewer.
   const soft = await play(page, host.url('hevc.mkv'));

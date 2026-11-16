@@ -108,6 +108,9 @@ test('in picture-in-picture the app behind takes taps; back in the player it is 
     const { page } = await player(t, { viewport });
     assert.equal(await page.evaluate(() => document.querySelector('.behind').inert), true);
     await page.evaluate(() => { fake.plays(5); p.system.minimize(); });
+    // Minimising leaves full screen where the browser had granted it: the tap goes once the page has settled and the
+    // app behind is what lies under the finger.
+    await page.waitForFunction(() => !document.fullscreenElement && !!document.elementFromPoint(60, 150)?.closest('.behind'));
     await page.touchscreen.tap(60, 150);
     assert.equal(await page.evaluate(() => window.behindTaps), 1, `the tap reached the app (${viewport.width}×${viewport.height})`);
     await page.evaluate(() => p.system.restoreFromPip());
