@@ -27,8 +27,9 @@ test('at 100 % an edit shows the copy at once, and the full-size view comes back
   await page.goto(`${base}/lab/editor/?readback`, { waitUntil: 'load' });
   await page.waitForSelector('#stage header');
   await page.evaluate(async () => {
-    const c = new OffscreenCanvas(900, 600), g = c.getContext('2d');
-    for (let y = 0; y < 600; y += 30) for (let x = 0; x < 900; x += 30) { g.fillStyle = `hsl(${(x / 900) * 360} 40% ${25 + (((x + y) / 30) % 2) * 20}%)`; g.fillRect(x, y, 30, 30); }
+    // (large enough that fitted it is under the zoom's band of tiles, 37 % of its size: zoomed out the copy is the picture)
+    const c = new OffscreenCanvas(1500, 1000), g = c.getContext('2d');
+    for (let y = 0; y < 1000; y += 30) for (let x = 0; x < 1500; x += 30) { g.fillStyle = `hsl(${(x / 1500) * 360} 40% ${25 + (((x + y) / 30) % 2) * 20}%)`; g.fillRect(x, y, 30, 30); }
     const store = await import('/lab/editor/app/store.js'), photo = await import('/lab/editor/app/session.js');
     await store.add([new File([await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 })], 'IMG_0011.jpg', { type: 'image/jpeg', lastModified: 1_700_000_000_000 })], () => {});
     await photo.open(store.photos()[0].id);
@@ -62,6 +63,7 @@ test('at 100 % an edit shows the copy at once, and the full-size view comes back
   await until(live, { timeout: 120_000, message: 'the full-size view comes back once edits rest' });
   // zoomed out it is the same picture
   await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).toggle()); await page.waitForTimeout(400); await quiet();
+  await until(() => page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).info().rest), { timeout: 120_000, message: 'the zoom rests' });   // (whatever it would make, made)
   assert.ok(Math.abs((await fitted()) - edited) < 0.5, 'zoomed out, the fitted photo is the edit');
   assert.equal(await page.evaluate(async () => !!(await import('/lab/editor/app/session.js')).canvas.parentElement?.querySelector('canvas.zl[style*="display: block"]')), false, 'and no full-size layer lies over it');
   assert.deepEqual(errors, []);
