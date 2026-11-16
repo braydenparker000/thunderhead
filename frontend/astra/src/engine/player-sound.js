@@ -10,6 +10,11 @@
 // setDialogue(step 0-2): rebuilt sound (Dolby Digital, DTS, TrueHD) is mixed to
 //   stereo by the engine, so the centre (where speech is) is raised there, by
 //   centreGain(step). Sound passed through as it is is left to enhance/sound.js.
+// setSurround(on): Headphone surround is on: rebuilt sound of 5 to 8 channels
+//   is then kept whole (sound-six.js) rather than mixed to stereo, where this
+//   browser plays it (canKeepSurround), so the page's chain can place it. The
+//   browser fixes the sound's channels when a media source starts, so a change
+//   (or a track whose kind differs) opens a fresh session at the same place.
 // setAudioAdvance(seconds 0-1): the sound plays that much earlier than the
 //   picture (remux mode; elsewhere accepted and nothing happens: the page's own
 //   delay can only make sound later).
@@ -18,6 +23,8 @@
 import {TapFeed} from './sound-tap.js';
 import {centreGain} from '../enhance/sound-chain.js';
 import {routeSoftwareSound} from './software-sound.js';
+import {FLAC, flacPlays, soundMime} from './sound-six.js';
+import {placeable} from '../enhance/headphone.js';
 
 export const soundMethods = {
   setSoundTap(tap) {
@@ -31,6 +38,36 @@ export const soundMethods = {
     this.dialogueStep = Math.max(0, Math.min(2, Math.round(Number(step) || 0)));
     if (this.mode === 'remux') this.session?.setCentre?.(centreGain(this.dialogueStep));
   },
+
+  setSurround(on) {
+    this.surroundOn = !!on;
+    const session = this.mode === 'remux' && !this.reopening ? this.session : null;
+    if (!session?.queues?.audio || !session.audio) return;
+    session.surround = this.surroundOn;
+    if ((soundMime(session, session.audio) === FLAC) !== (session.audioMime === FLAC)) this.reopenSound();
+  },
+
+  /** A fresh remux session where the film is, for the sound's other kind; the picture pauses briefly. */
+  async reopenSound() {
+    const id = this.load_, at = this.video.currentTime, playing = this.playing, subtitle = this.selectedSubtitle;
+    const chosen = this.audio.find(a => a.id === this.selectedAudio)?.option;
+    this.reopening = true;
+    this.record('sound', this.surroundOn ? 'surround kept whole' : 'surround mixed to stereo');
+    this.session?.destroy(); this.session = null;
+    if (chosen && this.plan.audio) this.plan = {...this.plan, audio: {track: chosen.track, delivery: chosen.delivery}};
+    try {
+      await this.startRemux(at, id);
+      if (id !== this.load_) return;
+      if (this.selectedSubtitle !== subtitle) this.selectSubtitle(subtitle);
+      if (playing) this.video.play().catch(() => {});
+    } catch (error) {
+      if (id === this.load_) this.fail('Playback stopped.', String(error?.message || error), {decode: !error?.kind});
+    } finally { this.reopening = false; }
+    if (id === this.load_) this.setSurround(this.surroundOn); // changed again meanwhile
+  },
+
+  /** Whether rebuilt sound of `channels` channels can reach the page whole here (remux mode). */
+  canKeepSurround(channels) { return this.mode === 'remux' && placeable(channels) && flacPlays(); },
 
   setAudioAdvance(seconds) {
     this.audioAdvance = Math.max(0, Math.min(1, Number(seconds) || 0));
@@ -48,5 +85,6 @@ export const soundMethods = {
     session.tap = this.tapFeed?.forLoad(this.load_) ?? null;
     session.centre = centreGain(this.dialogueStep || 0);
     session.advance = this.audioAdvance || 0;
+    session.surround = !!this.surroundOn;
   },
 };

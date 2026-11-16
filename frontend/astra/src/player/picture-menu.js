@@ -5,7 +5,9 @@
 // the filter cannot take (a host that does not let the page read it, HDR on a
 // device that cannot draw it at half-float precision, an HDR film that is not
 // PQ) simply shows the plain picture, and the section says why. PQ films are
-// tone-mapped (tonemap.js); HLG ones keep the browser's own picture.
+// tone-mapped (tonemap.js); HLG ones keep the browser's own picture. A Dolby Vision profile 5 film
+// (planes in IPT, which the browser shows purple and green) has its colours corrected by the filter
+// (dolby.js) even with everything else off, unless "Correct Dolby Vision colours" is turned off.
 //
 // Why the stream-info menu: it is where the film's picture is described
 // (size, HDR, frames dropped), it already opens as a menu a thumb reaches
@@ -15,13 +17,13 @@
 // falls behind, a notice says so once, in plain words.
 
 import {h} from '../ui/dom.js';
-import {Picture, HDR} from '../enhance/picture.js';
+import {Picture, HDR, DOLBY} from '../enhance/picture.js';
 import {savePrefs} from './prefs.js';
 
 export const SHARPEN = [[0, 'Off'], [0.35, 'Low'], [0.65, 'Medium'], [1, 'High']];
 export const UPSCALE = [['standard', 'Standard'], ['anime', 'Animation (Anime4K)']];
 // Reasons that only mean "not for this film": shown in the section, never as a notice.
-const quiet = r => r === HDR.reason || r === HDR.notPQ || /host|Nothing is loaded|address/.test(r);
+const quiet = r => r === HDR.reason || r === DOLBY.reason || r === HDR.notPQ || /host|Nothing is loaded|address/.test(r);
 
 export class PictureControl {
   constructor(p) {
@@ -29,21 +31,28 @@ export class PictureControl {
     this.picture = null;
     this.told = new Set(); // notices already shown for this film
     // Before the filter's own loadstart handler (registered later, on first use): the last film's HDR must not refuse this one.
-    p.video.addEventListener('loadstart', () => { if (this.picture) this.picture.hdr = false; this.told.clear(); });
+    p.video.addEventListener('loadstart', () => { if (this.picture) { this.picture.hdr = false; this.picture.transfer = ''; this.picture.dolby = false; } this.told.clear(); });
     p.engine.addEventListener('ready', () => this.apply());
   }
 
   get wanted() { const s = this.p.prefs; return {sharpen: Math.min(1, Math.max(0, +s.sharpen || 0)), deband: !!s.deband, upscale: s.upscale === 'anime' ? 'anime' : 'standard'}; }
   static on(w) { return w.sharpen > 0 || w.deband || w.upscale === 'anime'; }
   get hdr() { return !!this.p.engine.info?.video?.[0]?.hdr; }
+  // Profile 5 only: 7 and 8 carry an HDR10, SDR or HLG picture the browser shows properly.
+  get dolby() { return this.p.engine.info?.video?.[0]?.dolbyVision?.profile === 5; }
+  get fixDolby() { return this.p.prefs.dolbyFix !== false; }
+  /** Whether the filter runs for this film: something asked for, or Dolby Vision colours to correct. */
+  active(w = this.wanted) { return PictureControl.on(w) || (this.dolby && this.fixDolby); }
   // 'pq', 'hlg' or 'bt709'…, from the container's colour fields (Mediabunny's hdr is true for 'pq' and 'hlg'); '' when not known.
   get transfer() { return this.p.engine.info?.video?.[0]?.decoderConfig?.colorSpace?.transfer || ''; }
 
   apply() {
     const w = this.wanted;
-    if (!this.picture && !PictureControl.on(w)) return;
+    if (!this.picture && !this.active(w)) return;
     this.make();
-    this.picture.hdr = this.hdr; this.picture.transfer = this.transfer;
+    Object.assign(this.picture, {dolby: this.dolby, fixDolby: this.fixDolby});
+    // Told by the container where the engine read one; otherwise the filter asks the frame itself (Picture.see).
+    if (this.hdr) { this.picture.hdr = true; this.picture.transfer = this.transfer; }
     this.picture.set(w);
   }
 
@@ -79,10 +88,11 @@ export class PictureControl {
   /** What the section says under its chips: why it is off, or how it is doing. */
   status() {
     const s = this.picture?.state(), w = this.wanted;
-    if (!PictureControl.on(w)) return '';
+    if (!this.active(w)) return '';
     if (!this.p.ready) return 'Starts with the film.';
+    if (s?.reason === DOLBY.reason) return 'This phone cannot draw the picture precisely enough to correct its colours, so the plain picture shows.';
     if (s?.reason === HDR.reason) return 'This phone cannot draw HDR films through the filter, so the plain picture shows.';
-    if (s?.reason === HDR.notPQ) return this.transfer === 'hlg' ? 'This film is HDR in HLG, which the filter cannot tone-map yet, so the plain picture shows.' : 'This HDR film does not say it is PQ, the only kind the filter can tone-map, so the plain picture shows.';
+    if (s?.reason === HDR.notPQ) return (this.transfer || this.picture?.transfer) === 'hlg' ? 'This film is HDR in HLG, which the filter cannot tone-map yet, so the plain picture shows.' : 'This HDR film does not say it is PQ, the only kind the filter can tone-map, so the plain picture shows.';
     if (s?.reason) return /host/.test(s.reason) ? 'This film comes from a host that does not let Astra draw its picture, so the plain picture shows.' : /fast enough/.test(s.reason) ? 'Turned itself off: this phone could not keep up with this film.' : s.reason;
     if (s?.on && s.fallback === 'slow') return s.level > 0 ? 'Standard upscaling, turned down a little, to keep the film smooth.' : 'Standard upscaling for now: Animation could not keep the film smooth.';
     if (s?.on && s.fallback === 'device') return 'This phone cannot run Animation upscaling, so Standard is used.';
@@ -100,8 +110,19 @@ export class PictureControl {
         h('p', {class: 'ap-pb-note'}, 'Animation suits drawn films and series, and uses more battery.')),
       group('Sharpen', h('div', {class: 'ap-chips'}, ...SHARPEN.map(([v, label]) => chip(label, v === w.sharpen, () => this.change({sharpen: v}), {'aria-label': v ? `Sharpen ${label}` : 'Sharpen off'})))),
       group('Smooth banding', h('div', {class: 'ap-chips'}, chip(w.deband ? 'On' : 'Off', w.deband, () => this.change({deband: !w.deband}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(w.deband), 'aria-label': 'Smooth banding'})),
-        h('p', {class: 'ap-pb-note'}, 'Softens stripes in skies and shadows.'))),
+        h('p', {class: 'ap-pb-note'}, 'Softens stripes in skies and shadows.')),
+      this.dolby ? group('Correct Dolby Vision colours', h('div', {class: 'ap-chips'}, chip(this.fixDolby ? 'On' : 'Off', this.fixDolby, () => this.change({dolbyFix: !this.fixDolby}), {role: 'switch', 'aria-pressed': null, 'aria-checked': String(this.fixDolby), 'aria-label': 'Correct Dolby Vision colours'})),
+        h('p', {class: 'ap-pb-note'}, this.dolbyNote())) : null),
       status ? h('p', {class: 'ap-pb-note ap-picture-status'}, status) : null);
+  }
+
+  /** One plain line under the Dolby Vision switch. */
+  dolbyNote() {
+    const s = this.picture?.state();
+    if (!this.fixDolby) return 'Off: the colours show as the browser decodes them, purple and green.';
+    if (s?.dolby) return 'Dolby Vision colours are being corrected.';
+    if (s?.reason) return 'The colours cannot be corrected here.';
+    return 'This film is Dolby Vision with no standard picture underneath.';
   }
 
   /** The player closed: the canvas goes, and comes back with the next film. */

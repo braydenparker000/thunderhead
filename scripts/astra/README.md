@@ -32,6 +32,7 @@ npm run serve &
 | `tone.cjs <file>...` | The sound a film really makes: its loudest pitch and its level on each side (the test tone is 440 Hz; 5.1 sound is mixed to stereo with the centre at -3 dB). |
 | `rewrap.mjs <in> <out>` | A film's video re-wrapped as Astra does it, saved as a file for `ffmpeg -v error -i <out> -f null -` (no output means every frame decoded). The check for HEVC, which desktop Chrome cannot play. |
 | `fixtures.sh [film…]` | Makes the small committed films the browser tests play (`tests/fixtures/astra/`, about 3.4 MB): a test picture with a clock and a tone per sound track at its own pitch. Name films to remake only those. `hls2/`, `hdr-patches.webm` and `surround-left.mkv` are made by the commands in their tests' headers instead. |
+| `dolby-patches.mjs` | Makes the two Dolby Vision test clips (`dolby-patches.webm`, `dolby-untagged.webm`): known greys and colours written as IPTPQc2 planes and encoded as VP9. Needs ffmpeg. |
 | `vendor.mjs [--check]` | Copies Astra's vendored libraries (Mediabunny and its decoders, hls.js, dash.js, JASSUB) into `frontend/astra/vendor/` from the npm packages pinned in `vendor.json`, and records each file's hash; `--check` verifies every file against those hashes without the network. |
 | `files.mjs` | Astra's release as staged, for `scripts/stage.mjs`, the service worker and the tests: every file with a short hash, and the release's name, a hash of that list. |
 

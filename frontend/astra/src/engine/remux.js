@@ -10,7 +10,7 @@
 import * as MB from '../../vendor/mediabunny.js';
 import {mediaSourceClass} from './capabilities.js';
 import {AppendQueue, bufferedAt, bufferedAhead, bufferedEnd} from './mse.js';
-import {audioMime, videoMime} from './plan.js';
+import {videoMime} from './plan.js';
 import {fragmentWriter} from './fragments.js';
 import {pumpAudio} from './remux-audio.js';
 import {EarlyCuts} from './early.js';
@@ -18,11 +18,11 @@ import {loadDecoders} from './audio-decoders.js';
 import {StallWatch} from './stall-watch.js';
 import {mkvPackets} from './mkv-packets.js';
 import {hasCentre} from '../enhance/sound-chain.js';
+import {soundMime} from './sound-six.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
 // and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
 export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
-const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
 const SLICE_MS = 8;
@@ -87,15 +87,15 @@ export class RemuxSession extends EventTarget {
     }).finally(() => { this.opening.abort(); URL.revokeObjectURL(this.url); });
     // Transport streams (and some recordings) start well after zero; play
     // them from 0:00 by shifting the media rather than leaving a gap.
-    const read = [[this.videoTrack, true], [this.audio?.track, this.audio?.delivery !== 'rebuilt']].filter(([t]) => t?.ref); // rebuilt sound: Mediabunny's
-    const sinks = read.map(([t, own]) => (own && this.sink(t)) || t.ref); // every sink first, so the clusters they read are shared
-    const firsts = this.packets?.startsAtZero() ? [0] : await Promise.all(sinks.map((s, i) => s.getFirstTimestamp?.().catch(() => read[i][0].ref.getFirstTimestamp?.() ?? 0).catch(() => 0) ?? 0));
+    const read = [this.videoTrack, this.audio?.track].filter(t => t?.ref); // rebuilt sound too (sound-stream.js)
+    const sinks = read.map(t => this.sink(t) || t.ref); // every sink first, so the clusters they read are shared
+    const firsts = this.packets?.startsAtZero() ? [0] : await Promise.all(sinks.map((s, i) => s.getFirstTimestamp?.().catch(() => read[i].ref.getFirstTimestamp?.() ?? 0).catch(() => 0) ?? 0));
     const first = firsts.length ? Math.min(...firsts) : 0;
     this.offset = first > 0.05 ? first : 0;
     if (this.info.duration > 0) this.ms.duration = Math.max(0.1, this.info.duration - this.offset);
     const fatal = error => this.fail(error);
     if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal);
-    if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track)), this.video, fatal);
+    if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audioMime = soundMime(this, this.audio)), this.video, fatal);
     if (this.queues.video) this.queues.video.buffer.timestampOffset = -this.offset;
     if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
     this.video.addEventListener('seeking', this.onSeeking);
@@ -163,8 +163,8 @@ export class RemuxSession extends EventTarget {
 
   /** Empties the audio buffer and fills it again from just before the playhead: another track, or the same one changed. */
   async refillAudio(choice = this.audio) {
-    const mime = choice.delivery === 'rebuilt' ? OPUS : audioMime(choice.track);
-    const was = this.audio.delivery === 'rebuilt' ? OPUS : audioMime(this.audio.track);
+    const was = this.audioMime, mime = soundMime(this, choice, was); // rebuilt: whole (FLAC, sound-six.js) or stereo Opus, as it began
+    this.audioMime = mime;
     this.audio = choice;
     this.ended.audio = false;
     const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});

@@ -19,7 +19,7 @@ const { chromium } = require('playwright');
         return connect.call(this, to, ...rest);
       };
     });
-    await p.goto(`http://127.0.0.1:8080/astra/lab/?src=${encodeURIComponent('http://127.0.0.1:8090/' + f)}&autoplay=1`);
+    await p.goto(`${process.env.BASE || 'http://127.0.0.1:8080'}/astra/lab/?src=${encodeURIComponent((process.env.FILMS || 'http://127.0.0.1:8090') + '/' + f)}&autoplay=1`);
     await p.waitForFunction(() => document.getElementById('video').currentTime > 2, null, { timeout: 40000 }).catch(() => {});
     await p.waitForTimeout(1500);
     const r = await p.evaluate(() => ({ mode: window.astraLab?.player?.plan?.mode ?? '?', taps: window.__taps.map((a) => {

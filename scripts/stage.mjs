@@ -283,7 +283,9 @@ const budgets = [
   ['engine lab wasm bytes', sum(/^lab\/engine\/.*\.wasm$/), 11_500_000],
   // (2026-11-10) libmedia as shipped: the player's chunks and 25 decoder builds, measured. Eleven were added that
   // day (MPEG-1/2, MPEG-4 ASP, MS-MPEG4, WMV, WMA, Motion JPEG, Theora, H.263, Speex, ADPCM, VVC): 7,055,442 bytes.
-  ['astra software decoder bytes', sum(/^assets\/libmedia\//), 18_980_491],
+  // (2026-11-16) Three one-expression patches to the readers (H.264 in AVI, H.263 in 3GP, WMA in MKV) and their note in
+  // licenses/libmedia-modifications.txt: 1,905 bytes more, measured.
+  ['astra software decoder bytes', sum(/^assets\/libmedia\//), 18_982_396],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

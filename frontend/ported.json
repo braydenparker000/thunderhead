@@ -1682,9 +1682,17 @@
    "adjustments": []
   },
   "assets/libmedia/573.avplayer.js": {
-   "sha256": "e51f5114380919e26b2a4b14ea2d1de12b6fa2eeb35d344eeaf99d8ba9424f1e",
+   "sha256": "1b7f7d3bb2dae80a722a8aeed78c72950dabd00a011bfc91310edd8f349290ca",
    "old_sha256": "e51f5114380919e26b2a4b14ea2d1de12b6fa2eeb35d344eeaf99d8ba9424f1e",
-   "adjustments": []
+   "adjustments": [
+    "improvement"
+   ],
+   "edits": [
+    [
+     "o=40;else if(\"A_MS/ACM\"===t.codecId&&(null===(i=t.codecPrivate)||void 0===i?void 0:i.size)>=18){const e=t.codecPrivate.data;d.codecpar.codecTag=e[1]<<8|e[0],d.codecpar.codecId=u.gi[d.codecpar.codecTag]||0,d.codecpar.bitrate=BigInt(8*((e[8]|e[9]<<8|e[10]<<16|e[11]<<24)>>>0)),d.codecpar.blockAlign=e[13]<<8|e[12],d.codecpar.bitsPerCodedSample=e[15]<<8|e[14],o=18}else if(\"V_QUICKTIME\"",
+     "o=40;else if(\"V_QUICKTIME\""
+    ]
+   ]
   },
   "assets/libmedia/630.avplayer.js": {
    "sha256": "415df8b918bf9fd2a62e1ffc94bb66e6b97e760fbf7cfcc2126757ab0336971f",
@@ -1707,9 +1715,17 @@
    "adjustments": []
   },
   "assets/libmedia/749.avplayer.js": {
-   "sha256": "7b482b04b30cae090e90d610e11043419037822a73ff397a159b985017e49f09",
+   "sha256": "91014f15e608a04de305eac5b29212c538eea5a4c7b5a8a25c5144ffaaecb78f",
    "old_sha256": "7b482b04b30cae090e90d610e11043419037822a73ff397a159b985017e49f09",
-   "adjustments": []
+   "adjustments": [
+    "improvement"
+   ],
+   "edits": [
+    [
+     "[(0,r.A)(\"H263\")]:4,[(0,r.A)(\"s263\")]:4,",
+     "[(0,r.A)(\"H263\")]:4,"
+    ]
+   ]
   },
   "assets/libmedia/790.avplayer.js": {
    "sha256": "7a8a7e78e770479ceb9400778c97b8d87d5d0c582cf57d1219ace14e66659a0f",
@@ -1737,9 +1753,17 @@
    "adjustments": []
   },
   "assets/libmedia/943.avplayer.js": {
-   "sha256": "d54c87ee87e1f1cb74847d306c35aa08cd5161d5bd2241778bf53c02a6a770dd",
+   "sha256": "a5a991329d9b4c201b0d8ee0ed2ec3376a3c6662f12dd5a030793e361c134c2b",
    "old_sha256": "d54c87ee87e1f1cb74847d306c35aa08cd5161d5bd2241778bf53c02a6a770dd",
-   "adjustments": []
+   "adjustments": [
+    "improvement"
+   ],
+   "edits": [
+    [
+     "[(0,i.A)(\"H263\")]:4,[(0,i.A)(\"s263\")]:4,",
+     "[(0,i.A)(\"H263\")]:4,"
+    ]
+   ]
   },
   "assets/libmedia/956.avplayer.js": {
    "sha256": "d59993fab247da694514807e502106372d77d9bb2ddcd02931e689b78a3be4e0",
@@ -1752,9 +1776,17 @@
    "adjustments": []
   },
   "assets/libmedia/97.avplayer.js": {
-   "sha256": "ba8dd58b3ea2d6751dc36bcd66dfe31c25dbdc8567accbb382b74c26bf42fb9b",
+   "sha256": "02e598a019f1ff41e59ae470580184f4407cfae85af3232b4a07e0628441afb7",
    "old_sha256": "ba8dd58b3ea2d6751dc36bcd66dfe31c25dbdc8567accbb382b74c26bf42fb9b",
-   "adjustments": []
+   "adjustments": [
+    "improvement"
+   ],
+   "edits": [
+    [
+     "e.codecpar.profile===u.N_&&(e.codecpar.profile=2)}else 27!==e.codecpar.codecId&&173!==e.codecpar.codecId&&196!==e.codecpar.codecId||(e.codecpar.flags|=1);27!==e.codecpar.codecId",
+     "e.codecpar.profile===u.N_&&(e.codecpar.profile=2)}27!==e.codecpar.codecId"
+    ]
+   ]
   },
   "assets/libmedia/991.avplayer.js": {
    "sha256": "75972214329948e9321f1980ab2a93ec4cd913579a78656e91e6196be8b74de0",

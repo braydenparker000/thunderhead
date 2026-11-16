@@ -1,8 +1,10 @@
 // The MP4 facts Mediabunny does not expose: text subtitle tracks (3GPP timed
 // text "tx3g", QuickTime "text" and WebVTT "wvtt") and where each of their
-// samples sits in the file. Audio and video stay with Mediabunny.
+// samples sits in the file, and a video track's Dolby Vision configuration. Audio and video stay with Mediabunny.
 //
 // `read(start, end)` returns bytes [start, end) of the file.
+
+import {dolbyVision} from './mkv.js';
 
 const CONTAINERS = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'udta']);
 const TEXT_FORMATS = {tx3g: 'tx3g', text: 'tx3g', wvtt: 'wvtt'};
@@ -81,6 +83,26 @@ export async function readMoov(read, size) {
   }
   if (!moov || moov.length > (64 << 20)) return null;
   return read(moov.pos, moov.pos + moov.length);
+}
+
+/**
+ * The first video track's Dolby Vision configuration record ({profile, level, compatibility}, mkv.js), from
+ * a dvcC, dvvC or dvwC box after its sample entry's 78 fixed bytes (dvh1, dvhe, hvc1, hev1…); null when none.
+ */
+export function mp4DolbyVision(bytes) {
+  const root = bytes && boxes(bytes).next().value;
+  if (!root || root.type !== 'moov') return null;
+  for (const trak of boxes(bytes, root.start, root.end)) {
+    if (trak.type !== 'trak') continue;
+    const mdia = child(bytes, trak, 'mdia'), hdlr = mdia && child(bytes, mdia, 'hdlr');
+    if (!hdlr || type4(bytes, hdlr.start + 8) !== 'vide') continue;
+    const minf = child(bytes, mdia, 'minf'), stbl = minf && child(bytes, minf, 'stbl'), stsd = stbl && child(bytes, stbl, 'stsd');
+    const entry = stsd && boxes(bytes, stsd.start + 8, stsd.end).next().value;
+    if (!entry) return null;
+    for (const b of boxes(bytes, entry.start + 78, entry.end)) if (/^dv[cvw]C$/.test(b.type)) return dolbyVision(bytes.subarray(b.start, b.end));
+    return null;
+  }
+  return null;
 }
 
 /** Lists text subtitle tracks with their samples, from the movie box (read here when not given). */

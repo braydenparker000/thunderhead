@@ -23,6 +23,7 @@ import {dataMethods} from './player-data.js';
 import {soundMethods} from './player-sound.js';
 import {routeMethods} from './player-routes.js';
 import {reportMethods} from './player-report.js';
+import {addPreviews} from './player-preview.js';
 
 const MEDIA_ERRORS = {
   1: 'Playback was stopped.',
@@ -291,6 +292,7 @@ export {baseLanguage};
 // streams (adaptive.js), the data count and saver (player-data.js), the sound features (player-sound.js), what a failed
 // route teaches (player-routes.js) and the report (player-report.js) live apart.
 Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods, soundMethods, routeMethods, reportMethods);
+addPreviews(AstraPlayer.prototype); // seek previews (player-preview.js), closed with each film
 // The saver reaches hls.js and dash.js too (adaptive.js): each time it is put on the film loaded now.
 const applySaver = AstraPlayer.prototype.applyDataSaver;
 AstraPlayer.prototype.applyDataSaver = function () { applySaver.call(this); this.tuneAdaptive(); };

@@ -404,6 +404,20 @@ or picks a stream by itself.
 | Upscaling: Standard (FSR 1.0) or Animation (Anime4K), stepping down; HDR films tone-mapped (BT.2390) | `enhance/anime4k.js`, `anime4k-upscale.js`, `anime4k-restore.js`, `tonemap.js`, `filter.js`, `picture.js`, `player/picture-menu.js` |
 | Several cores (cross-origin isolation, libmedia threads): present, switched off | `frontend/astra/sw.js` (`ISOLATE`), `engine/software-threads.js` (`THREADS`) |
 
+## The player, as built (2026-11-16, third round)
+
+The experiments of the second round that proved themselves. Paths are under `frontend/astra/src/`;
+how each behaves is in `frontend/astra/README.md`.
+
+| What | Where |
+|---|---|
+| Seek previews: the key frame where a drag rests, in the seek bar's bubble (switch in the Playback menu; off with the data saver) | `engine/preview.js`, `preview-frames.js`, `preview-decode.js`, `player-preview.js`, `player/seek-preview.js` |
+| Converted sound (Dolby Digital, DTS, TrueHD where the phone has no decoder) fed from Astra's own Matroska reader, so it starts with the picture | `engine/sound-stream.js` |
+| Converted surround kept whole (FLAC) while Headphone surround is on | `engine/sound-six.js`, `player-sound.js`, `player/sound-menu.js` |
+| HDR seen from the film's own frame on routes with no container facts (HLS, DASH, the browser's own player) | `enhance/picture.js` (`see`) |
+| More files for the software decoder: H.264 in AVI, H.263 in 3GP, Windows Media sound in MKV (three recorded patches to libmedia's readers) | `engine/software.js`, `frontend/assets/libmedia/` (`licenses/libmedia-modifications.txt`) |
+| Dolby Vision profile 5: colours corrected in the picture filter, without the per-frame reshaping (switch in the Picture section, on by default) | `enhance/dolby.js`, `tonemap.js`, `engine/mp4.js`, `player/picture-menu.js` |
+
 ## Open questions / tests
 
 | # | Question | How to settle |

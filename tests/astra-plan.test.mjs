@@ -86,13 +86,16 @@ test('sound only the software decoder has takes the whole file there', () => {
   assert.equal(ac3.mode, 'software');
   assert.match(ac3.notes.join(' '), /Dolby Digital in this file plays only through Astra's software decoder/);
   // Sound nothing here decodes: refused, or silent when the viewer said so.
-  for (const [id, label] of [['A_ALAC', 'ALAC'], ['A_MS/ACM', 'Windows audio (WMA)']]) {
+  for (const [id, label] of [['A_ALAC', 'ALAC']]) {
     const film = file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: id, label })]);
     assert.equal(plan(film).mode, 'unsupported', id);
     assert.equal(plan(film).silent, true);
     assert.match(plan(film).reason, new RegExp(label.replace(/[()]/g, '\\$&')));
     assert.equal(plan(film, caps(), { allowSilent: true }).mode, 'remux');
   }
+  // Windows Media Audio in a Matroska file: libmedia's Matroska reader, patched, hands it to its WMA build.
+  const wma = plan(file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: 'A_MS/ACM', label: 'Windows audio (WMA)' })]));
+  assert.deepEqual([wma.mode, wma.audio?.delivery], ['software', 'software']);
   // MPEG Layer II (a DVD's or a broadcast's sound, kept in a Matroska file): the software decoder's MP3 build decodes it.
   const mp2 = plan(file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: 'A_MPEG/L2', label: 'MPEG Layer II' })]));
   assert.equal(mp2.mode, 'software');
@@ -116,8 +119,9 @@ test('a file Astra cannot unpack: the software decoder where it reads the contai
   assert.equal(ogv.mode, 'unsupported');
   assert.match(ogv.reason, /Theora/);
   assert.equal(plan(file('Ogg', null, [audio('vorbis', 'vorbis')])).mode, 'remux');
-  // H.263 in a 3GP file has no decoder here either.
-  assert.equal(plan(file('MP4', video(null, null, { internalCodec: 's263', label: 'H.263' }), [audio('aac', 'mp4a.40.2')])).mode, 'unsupported');
+  // H.263 in a 3GP file: libmedia's MP4 reader, patched, knows its name and hands it to its H.263 build.
+  assert.equal(plan(file('MP4', video(null, null, { internalCodec: 's263', label: 'H.263' }), [audio('aac', 'mp4a.40.2')])).mode, 'software');
+  assert.equal(plan(file('MP4', video(null, null, { internalCodec: 's263', label: 'H.263' }), [audio('aac', 'mp4a.40.2')]), caps({ software: false })).mode, 'unsupported');
 });
 
 test('the software decoder names what it can decode', () => {

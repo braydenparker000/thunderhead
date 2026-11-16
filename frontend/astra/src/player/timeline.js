@@ -1,5 +1,5 @@
 // The seek bar: the played and buffered lengths, the thumb, the time bubble
-// (and the chapter's name) while dragging, and what a screen reader hears. Dragging shares p.scrub
+// (with the picture where the drag would land, seek-preview.js, and the chapter's name) while dragging, and what a screen reader hears. Dragging shares p.scrub
 // ({active, time}) with the swipe on the picture. A stream with no length (a
 // live one) shows a full bar marked Live and cannot be dragged.
 
@@ -7,11 +7,13 @@ import {clock, h} from '../ui/dom.js';
 import {put} from './view.js';
 import {chapterAt} from './rules.js';
 import {chaptersOf} from './marks.js';
+import {SeekPreview} from './seek-preview.js';
 
 export class Timeline {
   constructor(p) {
     this.p = p;
     this.pointer = null;
+    this.preview = new SeekPreview(p);
     this.bind();
   }
 
@@ -23,7 +25,7 @@ export class Timeline {
       const f = p.scrub.time / (length() || 1);
       // The chapter's name under the time, when the film has chapters.
       const chapter = chapterAt(chaptersOf(p.engine), p.scrub.time);
-      p.bubble.replaceChildren(clock(p.scrub.time), chapter?.title ? h('small', {}, chapter.title) : '');
+      p.bubble.replaceChildren(...this.preview.nodes(), clock(p.scrub.time), chapter?.title ? h('small', {}, chapter.title) : '');
       p.bubble.hidden = false;
       const half = Math.ceil(p.bubble.offsetWidth / 2) + 4; // a chapter's name widens it: kept inside the bar
       p.bubble.style.left = `clamp(${half}px, ${(f * 100).toFixed(2)}%, calc(100% - ${half}px))`;
@@ -33,9 +35,9 @@ export class Timeline {
       this.pointer = e.pointerId;
       try { tl.setPointerCapture(e.pointerId); } catch {}
       tl.classList.add('active');
-      p.scrub.active = true; p.scrub.time = at(e); p.updateTime(); bubble(); p.showControls(false);
+      p.scrub.active = true; p.scrub.time = at(e); this.preview.start(); this.preview.moved(p.scrub.time); p.updateTime(); bubble(); p.showControls(false);
     });
-    tl.addEventListener('pointermove', e => { if (this.pointer === e.pointerId) { p.scrub.time = at(e); p.updateTime(); bubble(); } });
+    tl.addEventListener('pointermove', e => { if (this.pointer === e.pointerId) { p.scrub.time = at(e); this.preview.moved(p.scrub.time); p.updateTime(); bubble(); } });
     const end = e => {
       if (this.pointer !== e.pointerId) return;
       try { if (e.type === 'pointerup' && p.scrub.time != null && length()) p.video.currentTime = p.scrub.time; }
@@ -54,6 +56,7 @@ export class Timeline {
   stop() {
     const p = this.p;
     this.pointer = null;
+    this.preview.stop();
     p.timeline.classList.remove('active');
     p.bubble.hidden = true;
     p.scrub.time = null; p.scrub.active = false;

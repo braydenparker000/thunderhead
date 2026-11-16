@@ -36,6 +36,8 @@ const SCALES = [1, 0.75, 0.5];
 export const HDR = Object.freeze({whiteNits: 203, toneMapped: true, reason: 'HDR films keep the plain picture on this device: it cannot draw them at the precision their highlights need.',
   // The tone-mapping takes the film as PQ; HLG (or HDR of no known kind) put through it would come out wrong.
   notPQ: 'HDR films in HLG keep the plain picture: the filter tone-maps PQ films only.'});
+/** Dolby Vision profile 5 (dolby.js): the filter corrects its colours, even with nothing else on. Where it cannot, this reason. */
+export const DOLBY = Object.freeze({reason: 'Dolby Vision colours cannot be corrected on this device: it cannot draw the picture at the precision they need.'});
 /** Upscales the filter offers: FSR 1.0 for any film, Anime4K's network for drawn animation. */
 export const UPSCALES = ['standard', 'anime'];
 
@@ -80,6 +82,7 @@ export class Picture {
    * @param {HTMLElement} layer  an element over the video and under the subtitles; the canvas goes in first
    * @param {{onReport?: (reason: string) => void, hdr?: boolean, transfer?: string}} [options]  hdr: the film is HDR, uploaded and
    *   tone-mapped as PQ when `transfer` is 'pq' (its decoder config's colorSpace.transfer); any other HDR film keeps the plain picture
+   * `dolby` (set by the player): the film is Dolby Vision profile 5; `fixDolby`: its colours are corrected (on by default).
    */
   constructor(video, layer, {onReport, hdr = false, transfer = 'pq'} = {}) {
     Object.assign(this, {video, layer, hdr, transfer, onReport: onReport || (() => {})});
@@ -89,17 +92,19 @@ export class Picture {
     this.on = false; this.filter = null; this.canvas = null; this.frameId = 0;
     this.level = 0; // 0 everything, 1 no de-band, 2 and 3 smaller outputs
     this.reason = ''; this.restored = false; this.refused = '';
+    this.dolby = false; this.fixDolby = true; this.colorSpace = null; // the frame's, as the browser read it (VideoFrame)
     this.stats = {ms: 0, frames: 0, missed: 0, dropped: 0, total: 0, bad: 0, last: 0};
     this.onFrame = (now, meta) => this.frame(meta);
     this.onShape = () => this.place();
     this.onWake = () => this.request();
     // A new film is a fresh start: it may be readable (or fast enough) where the last was not.
-    this.onLoad = () => { this.refused = ''; this.level = 0; this.reason = ''; this.fallback = ''; if (this.wanted()) this.start(); };
+    this.onLoad = () => { this.refused = ''; this.seen = false; this.colorSpace = null; this.level = 0; this.reason = ''; this.fallback = ''; if (this.wanted()) this.start(); };
     video.addEventListener('loadstart', this.onLoad);
   }
 
   report(reason) { this.reason = reason; this.onReport(reason); }
-  wanted() { return this.settings.sharpen > 0 || this.settings.deband || this.upscale === 'anime'; }
+  wanted() { return this.settings.sharpen > 0 || this.settings.deband || this.upscale === 'anime' || this.correcting(); }
+  correcting() { return this.dolby && this.fixDolby; }
 
   /** {sharpen: 0-1, deband: bool, upscale: 'standard' | 'anime'}; sharpen 0, de-band off and Standard turn the filter off. */
   set(next = {}) {
@@ -111,13 +116,13 @@ export class Picture {
   }
 
   state() {
-    return {on: this.on, shown: !!this.canvas?.isConnected, settings: {...this.settings}, upscale: this.upscale, drawn: this.filter?.used || '', fallback: this.fallback, level: this.level, size: this.filter && {...this.filter.size, out: [this.canvas?.width, this.canvas?.height]}, ms: +this.stats.ms.toFixed(2), reason: this.reason};
+    return {on: this.on, dolby: this.on && this.correcting(), shown: !!this.canvas?.isConnected, settings: {...this.settings}, upscale: this.upscale, drawn: this.filter?.used || '', fallback: this.fallback, level: this.level, size: this.filter && {...this.filter.size, out: [this.canvas?.width, this.canvas?.height]}, ms: +this.stats.ms.toFixed(2), reason: this.reason};
   }
 
   start() {
     const why = this.refused || unreadable(this.video);
     if (why) { this.stop(); this.report(why); return false; }
-    if (this.hdr && this.transfer !== 'pq') { this.stop(); this.report(HDR.notPQ); return false; }
+    if (this.hdr && this.transfer && this.transfer !== 'pq') { this.stop(); this.report(HDR.notPQ); return false; }
     if (this.on) { this.request(); return true; }
     try {
       this.canvas = document.createElement('canvas');
@@ -129,7 +134,7 @@ export class Picture {
       canvas.addEventListener('webglcontextrestored', () => { if (canvas === this.canvas) this.restore(); });
       this.filter = new Filter(this.canvas);
     } catch (e) { this.stop(); this.report(`The sharper picture could not start: ${e.message}`); return false; }
-    if (this.hdr && !this.filter.half) { this.stop(); this.report(HDR.reason); return false; }
+    if ((this.hdr || this.correcting()) && !this.filter.half) { this.stop(); this.report(this.correcting() ? DOLBY.reason : HDR.reason); return false; }
     this.on = true;
     this.watch = new ResizeObserver(this.onShape);
     this.watch.observe(this.video); this.watch.observe(this.layer);
@@ -188,20 +193,36 @@ export class Picture {
     this.request();
   }
 
+  /**
+   * What the frame itself says, once a film: a film played by the browser, hls.js or dash.js comes with no container
+   * facts, and an HDR film uploaded as an ordinary one loses everything above reference white.
+   */
+  see() {
+    this.seen = true;
+    let transfer = '';
+    try { const f = new VideoFrame(this.video), c = f.colorSpace || {}; transfer = c.transfer || ''; this.colorSpace = {matrix: c.matrix ?? null, fullRange: !!c.fullRange, transfer: transfer || null}; f.close(); } catch { this.seen = false; return; }
+    if (transfer === 'pq' || transfer === 'hlg') { this.hdr = true; this.transfer = transfer; }
+  }
+
   draw() {
     if (!this.on || !this.filter || this.filter.gl.isContextLost()) return;
-    if (this.hdr && !this.filter.half) return this.refuse(HDR.reason);
+    const fix = this.correcting();
+    if (!this.seen && (!this.hdr || !this.transfer || fix) && typeof VideoFrame === 'function') this.see();
+    if (this.hdr && this.transfer !== 'pq') return this.refuse(HDR.notPQ);
+    if ((this.hdr || fix) && !this.filter.half) return this.refuse(fix ? DOLBY.reason : HDR.reason);
+    // Without WebCodecs the frame cannot say how the browser read it: the container's word, else BT.601 at limited range (dolby.js).
+    const dolby = fix ? this.colorSpace || {matrix: this.hdr ? 'bt2020-ncl' : null, fullRange: false, transfer: this.hdr ? 'pq' : null} : null;
     const t0 = performance.now();
-    try { this.filter.upload(this.video, this.hdr); }
+    try { this.filter.upload(this.video, this.hdr, this.hdr || fix); }
     catch (e) {
       if (e?.name === 'SecurityError') return this.refuse('This film comes from a host that does not let the page read its picture, so the plain picture stays.');
-      if (this.hdr) return this.refuse(HDR.reason);
+      if (this.hdr || fix) return this.refuse(fix ? DOLBY.reason : HDR.reason);
       return this.refuse(`The sharper picture stopped: ${e?.message || e}`);
     }
     if (this.canvas && this.filter.size.in[0] && (this.canvas.width < 2 || this.filter.size.in.join() !== this.film)) { this.film = this.filter.size.in.join(); this.place(); }
     const anime = this.upscale === 'anime' && !this.fallback;
     if (anime && !this.filter.half) this.fallback = 'device';
-    this.filter.draw({sharpen: this.settings.sharpen, deband: this.settings.deband && this.level === 0, upscale: anime ? 'anime' : 'standard', restore: this.restore});
+    this.filter.draw({sharpen: this.settings.sharpen, deband: this.settings.deband && this.level === 0, upscale: anime ? 'anime' : 'standard', restore: this.restore, dolby});
     this.stats.ms = this.stats.ms * 0.9 + (performance.now() - t0) * 0.1;
     if (this.canvas && !this.canvas.isConnected) this.layer.prepend(this.canvas);
   }

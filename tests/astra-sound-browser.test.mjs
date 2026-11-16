@@ -261,7 +261,7 @@ test('the Sound tab: Even loudness is saved and remembers each title\'s gain; He
   assert.ok(centre.includes('Headphone surround'), '5.1 the page receives: offered');
   assert.match(await page.locator('.ap-sound').textContent(), /For headphones: places the film's speakers around you\./);
   await page.locator('[aria-label="Headphone surround"]').click();
-  const placed = await page.evaluate(async () => { for (let i = 0; i < 100 && !/^6,true/.test(p.extras.sound.sound.chain?.key); i++) await wait(50); const s = p.extras.sound.sound; return { settings: s.state().settings, key: s.chain.key }; });
+  const placed = await page.evaluate(async () => { for (let i = 0; i < 300 && !/^6,true/.test(p.extras.sound.sound.chain?.key); i++) await wait(50); const s = p.extras.sound.sound; return { settings: s.state().settings, key: s.chain.key }; });
   assert.equal(placed.settings.headphones, true);
   assert.match(placed.key, /^6,true/, 'the chain places the six channels');
   await page.evaluate((u) => film(u, 'tt-one'), host.url('multi.mkv'));
