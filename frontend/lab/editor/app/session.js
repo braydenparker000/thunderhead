@@ -32,7 +32,7 @@ export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Co
 export const events = new EventTarget();
 export const changed = () => events.dispatchEvent(new Event('change'));
 export const canvas = document.createElement('canvas'), img = document.createElement('img');
-canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited'; new ResizeObserver(() => { if (ready && fitNow) draw(true, true); }).observe(canvas);   // its size on screen known or changed: drawn at the screen's pixels
+canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited';
 for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height: 100%; display: block';
 // boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
 // data-zoom is filled by zoom.js, which puts itself here
@@ -156,10 +156,9 @@ function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
-  const r = canvas.getBoundingClientRect(); e.setScreen(fitNow && r.width > 0 ? [Math.round(r.width * devicePixelRatio), Math.round(r.height * devicePixelRatio)] : null);   // fitted: the screen's own pixels (present.js)
   return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, ...more });
 }
-export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, fitted (the canvas at the screen's pixels) or not (the editing copy's, for a sharp pinch)   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
+export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, zoomed in or out: drawn once, so the 100 % view's layer shows before the first edit there   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */
 export async function draw(fit = true, all = false) {
   if (!eng || !cur) return;

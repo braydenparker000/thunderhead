@@ -4,7 +4,7 @@
 // box is a poor filter, and on an X-Trans sensor a cell's reds, greens and blues sit in different places, so a line
 // thinner than the cell lands on them unevenly and comes out coloured (AUDIT.md 8.5: 3.5 times the sensor's own
 // fine colour, on a fitted crop). Here each colour of each copy pixel is a weighted mean of that colour's sites
-// round the cell's middle (a Gaussian, the same for all three), so the three describe the same place and detail
+// round the cell's middle (a Gaussian as wide as the box, the same for all three), so the three describe the same place and detail
 // past the copy's limit is taken out rather than folded back. A picture (a JPEG) is made over again the same way.
 // The clipped flags are the decoder's own (any clipped site in the cell), which the highlight rebuild reads.
 
@@ -20,7 +20,7 @@ fn colour(q: vec2i) -> u32 {   // 0 red, 1 green, 2 blue: demosaic.js's layout
   return select(0u, 2u, (((b.x + b.y) & 1) == 1) != (m.y == 1));
 }
 fn lin(c: vec3f) -> vec3f { return select(pow((c + 0.055) / 1.055, vec3f(2.4)), c / 12.92, c <= vec3f(0.04045)); }
-const R = 4; const S2 = ${2 * 1.1 * 1.1};   // the Gaussian's reach, in sites, and twice its variance (sigma 1.1 sites)
+const R = 4; const S2 = ${2 * 0.82 * 0.82};   // the Gaussian's reach, in sites, and twice its variance (sigma 0.82 sites: the decoder's 3 x 3 box's own spread, so the copy is as sharp as its; 1.1 was softer, 2026-11-16)
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= d.size.x || id.y >= d.size.y) { return; }

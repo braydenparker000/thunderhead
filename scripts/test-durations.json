@@ -123,7 +123,7 @@
     "tests/lab-editor-autowb-browser.test.mjs": 14600,
     "tests/lab-editor-backup-browser.test.mjs": 12100,
     "tests/lab-editor-clip-browser.test.mjs": 18400,
-    "tests/lab-editor-display-browser.test.mjs": 37000,
+    "tests/lab-editor-display-browser.test.mjs": 6400,
     "tests/lab-editor-export-board-browser.test.mjs": 66000,
     "tests/lab-editor-export-eta.test.mjs": 1000,
     "tests/lab-editor-export-smooth-browser.test.mjs": 196500,

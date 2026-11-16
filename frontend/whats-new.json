@@ -10,7 +10,7 @@
       "text": "Exports use the phone's CPU beside its GPU, so they finish sooner; smaller ones are sharper, with less moiré."
     },
     {
-      "text": "The photo is drawn at your screen's own pixels, without false rings or false colour on fine detail."
+      "text": "Fine lines in the editor show less false colour, and the photo stays as sharp as before."
     },
     {
       "text": "The Library loads faster, the dial stays put, Auto level holds, and before and after show your crop."
