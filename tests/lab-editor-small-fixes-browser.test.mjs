@@ -1,7 +1,8 @@
-// Three of the audit's smaller faults, each held (engine/raw/AUDIT.md): naming a look opens the editor's own sheet,
+// Four of the editor's smaller faults, each held (engine/raw/AUDIT.md): naming a look opens the editor's own sheet,
 // never the browser's prompt box (8.10); with less motion asked for, rows and tiles appear in place and the plate
 // fades (8.11, as EDITOR.md says); and a decode that fails inside the decoder's thread sends the next request to a
-// new thread, which works (2.1). The photo is a JPEG drawn by the test, on a software GPU.
+// new thread, which works (2.1); and a frame that starts while the next photo is opening is waited for before the
+// photo before is let go, never read back from memory already given up. The photos are JPEGs drawn by the test, on a software GPU.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -90,5 +91,25 @@ test('a decode that fails inside the decoder\'s thread sends the next request to
   assert.ok(out.failed, 'the bad file failed');
   assert.equal(out.made, out.after1 + 1, 'the next request started a new thread');
   assert.ok(typeof out.band === 'number' && out.band > 100, `the new thread answered (${out.band})`);
+  await context.close();
+});
+
+test('a frame that starts while the next photo opens is waited for before the photo before is let go', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, serviceWorkers: 'block' }), page = await context.newPage(), errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/lab/editor/?readback`, { waitUntil: 'load' });
+  await page.waitForSelector('#stage header');
+  const rounds = await page.evaluate(async () => {
+    const mk = async (name, hue) => { const c = new OffscreenCanvas(600, 400), g = c.getContext('2d'); g.fillStyle = `hsl(${hue} 50% 50%)`; g.fillRect(0, 0, 600, 400); return new File([await c.convertToBlob({ type: 'image/jpeg' })], name, { type: 'image/jpeg', lastModified: 1_700_000_000_000 + hue }); };
+    const store = await import('/lab/editor/app/store.js'), p = await import('/lab/editor/app/session.js');
+    await store.add([await mk('IMG_0021.jpg', 10), await mk('IMG_0022.jpg', 200)], () => {});
+    const ids = store.photos().map((x) => x.id), calm = async () => { for (let i = 0; i < 2400 && !(p.ready && p.whole() && !p.busy()); i++) await new Promise((r) => setTimeout(r, 50)); };
+    await p.open(ids[0]); await calm();
+    for (let k = 1; k <= 3; k++) { const o = p.open(ids[k % 2]); p.draw(); await o; await calm(); }   // (before: each of these read a freed buffer)
+    return 3;
+  });
+  await page.waitForTimeout(500);
+  assert.equal(rounds, 3);
+  assert.deepEqual(errors, [], 'no frame read memory its photo had given up');
   await context.close();
 });

@@ -82,7 +82,7 @@ export async function engine(canvas, img, readback = false) {
   const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
-  let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0, screen = /** @type {[number, number] | null} */ (null);
+  let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0, screen = /** @type {[number, number] | null} */ (null), gone = false;   // gone: disposed, perhaps while a frame was on its way
   const show = presenter(device);   // the fitted photo shrunk to the screen's pixels (present.js)
   const none = /** @type {any} */ (null);
   let out = /** @type {GPUTexture} */ (none), flat = /** @type {GPUBuffer} */ (none), bend = /** @type {ReturnType<typeof warper>} */ (none), mask = /** @type {ReturnType<typeof masks>} */ (none), back = /** @type {GPUBuffer | null} */ (null);
@@ -209,7 +209,7 @@ export async function engine(canvas, img, readback = false) {
     await device.queue.onSubmittedWorkDone();
     const gpuMs = performance.now() - t;
     if (shown) for (const v of views) await v.after();
-    if (back && shown && fit) {
+    if (back && shown && fit && !gone) {   // (a photo closed while its frame was drawn: nothing to read)
       await back.mapAsync(GPUMapMode.READ);
       const b8 = new Uint8Array(back.getMappedRange()), px = new Uint8ClampedArray(cw * ch * 4);
       for (let y = 0; y < ch; y++) px.set(b8.subarray(y * crow, y * crow + cw * 4), y * cw * 4);
@@ -229,7 +229,7 @@ export async function engine(canvas, img, readback = false) {
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); show.destroy(); };
+  const dispose = () => { gone = true; for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); show.destroy(); };
   /** The screen's pixels the fitted photo fills (null: zoomed in, the canvas is the frame's own size). @param {[number, number] | null} s */
   const setScreen = (s) => { screen = s; };
   /** The editing copy was made again in `src` (proxy-hq.js): laid out and its masks made anew at the next render, and the page's copy is `proxy`. @param {Uint16Array} proxy */
