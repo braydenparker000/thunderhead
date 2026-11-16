@@ -20,9 +20,13 @@ export default class Component extends DCLogic {
   renderVals() {
     const PERIOD = 360 / 72, FRAMES = 12, FRAME_H = 150, R = 240;   // R = the dial's radius in the design's pixels, so the knurl tracks the finger
     const label = this.props.label ?? 'Exposure', unit = this.props.unit ?? 'EV';
-    // a new adjustment, or a change made elsewhere (a preset, Undo): the dial goes to it; never under a finger or while it runs on
-    if (typeof this.props.value === 'number' && (label !== this.seen || (!this.drag && !this.spin && Math.abs(this.props.value * 36 - this.state.angle) > 1))) {
-      this.seen = label; this.state.angle = Math.max(-180, Math.min(180, this.props.value * 36));
+    // a new adjustment, or a change made elsewhere (a preset, Undo, a reset): the dial goes to it; never under a finger or while it runs on.
+    // After a turn of its own the wheel stays where the finger left it: the value it gave is rounded to the control's step, and going to
+    // that moved the wheel by up to half a step a moment after the finger had lifted (`rest` below settles what is further off than that)
+    const pv = this.props.value, turned = (a) => Math.max(-180, Math.min(180, a * 36));
+    if (typeof pv === 'number') {
+      if (label !== this.seen || (pv !== this.had && !this.own && !this.drag && !this.spin)) { this.seen = label; this.state.angle = turned(pv); }
+      this.had = pv;
     }
     const { angle } = this.state;
     const ev = unit === 'EV';
@@ -38,7 +42,12 @@ export default class Component extends DCLogic {
       if (at0 !== null && was !== at0 && (now === at0 || (was - at0) * (now - at0) < 0)) tick('detent');
       else if (Math.abs(now) >= edge && Math.abs(was) < edge) tick('end');
     };
-    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); felt(this.state.angle, c); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
+    // (`own` holds until the board has drawn what this turn gave: its draw is queued by `onturn`, before the line that lets go)
+    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); felt(this.state.angle, c); this.own = true; this.setState({ angle: c }); this.props.onturn?.(c / 36); queueMicrotask(() => { this.own = false; }); return c; };
+    // The dial has come to rest. A value more than 2 degrees from where the wheel stands is a click of a coarse control (Radius: 14 degrees
+    // a step) or the end of a range the wheel was turned past: the wheel goes there now, as the finger lifts. Nearer than that it is only
+    // the value's own rounding (a whole number of a 0 to 100 control is 3.6 degrees), and the wheel stays under where the finger was.
+    const rest = () => queueMicrotask(() => { const v = this.props.value; if (typeof v === 'number' && !this.drag && !this.spin && Math.abs(turned(v) - this.state.angle) > 2) this.setState({ angle: turned(v) }); });
     const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
     const run = (v0) => {   // degrees a millisecond, dying away
       let vel = v0, last = performance.now();
@@ -46,7 +55,7 @@ export default class Component extends DCLogic {
         const dt = Math.min(40, now - last); last = now;
         const a = setAngle(this.state.angle + vel * dt); vel *= Math.exp(-dt / 320);
         this.spin = Math.abs(vel) < 0.012 || Math.abs(a) >= 180 ? 0 : requestAnimationFrame(step);
-        if (!this.spin) { this.setState({}); this.props.onhold?.(false); }
+        if (!this.spin) { this.setState({}); this.props.onhold?.(false); rest(); }
       };
       this.spin = requestAnimationFrame(step);
     };
@@ -57,7 +66,7 @@ export default class Component extends DCLogic {
       wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); this.props.onhold?.(true); moved(() => !!this.drag || !!this.spin, false, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
+      down: (e) => { stop(); this.props.onhold?.(true); moved(() => !!this.drag || !!this.spin, info().making, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger
@@ -70,7 +79,7 @@ export default class Component extends DCLogic {
         if (d.far < 5 && e.timeStamp - d.t < 320) {   // a tap: the second of two quick ones puts the value back where it starts
           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
         } else if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) return run(d.v);
-        this.props.onhold?.(false);
+        this.props.onhold?.(false); rest();
       },
       key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
     };

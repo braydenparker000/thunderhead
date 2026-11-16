@@ -32,8 +32,8 @@ const make = (/** @type {string} */ tag, /** @type {string} */ css, cls = '') =>
 const LAYER = 'position: absolute; pointer-events: none; display: none';
 const wrap = make('div', 'position: absolute; transform-origin: 0 0; will-change: transform', 'fillphoto');
 const over = /** @type {HTMLImageElement} */ (make('img', `${LAYER}; inset: 0; image-rendering: pixelated`));   // the clipping overlay
-const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER)), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));
-const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));   // from 100 %: what shows, made by the network once the photo rests (`finer`)
+const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl')), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl'));   // zl: fades in, crisp pixels from 200 % (editor.css)
+const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl'));   // from 100 %: what shows, made by the network once the photo rests (`finer`)
 const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: none', 'glass');
 const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
@@ -77,7 +77,7 @@ function apply(ease = false) {
   wrap.style.transform = transform();
   if (tool()) for (const el of /** @type {NodeListOf<HTMLElement>} */ (ear().querySelectorAll('[data-zoom-with]'))) { el.style.transition = wrap.style.transition; el.style.transform = wrap.style.transform; }
   const on = z > 1.02, pct = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
-  badge.style.display = map.style.display = on ? 'block' : 'none';
+  badge.style.display = map.style.display = on ? 'block' : 'none'; photo.atFit(!on); wrap.toggleAttribute('data-px', on && z / full() >= 2);
   if (!on) return;
   badge.textContent = `${info().pct}%`;
   box.style.left = pct(-(f.ox + tx) / (f.w * z)); box.style.top = pct(-(f.oy + ty) / (f.h * z));
@@ -112,8 +112,10 @@ let glide = 0;
 /** The layer takes its window's place (in the frame's own pixels); with no window on the page it is put away. */
 function follow() {
   if (!win?.isConnected) { home.style.display = 'none'; return; }
-  const fr = frame().getBoundingClientRect(), r = win.getBoundingClientRect(), k = fr.width / 412 || 1;
-  Object.assign(home.style, { display: 'block', left: `${(r.left - fr.left) / k}px`, top: `${(r.top - fr.top) / k}px`, width: `${r.width / k}px`, height: `${r.height / k}px` });
+  const fr = frame().getBoundingClientRect(), r = win.getBoundingClientRect(), k = fr.width / 412 || 1, to = { left: `${(r.left - fr.left) / k}px`, top: `${(r.top - fr.top) / k}px`, width: `${r.width / k}px`, height: `${r.height / k}px` };
+  // shown, and its window moved or resized (another board's, or one whose panel settled after it showed): the photo glides there, never jumps
+  if (home.style.display === 'block' && Object.entries(to).some(([p, v]) => home.style.getPropertyValue(p) !== v) && !matchMedia('(prefers-reduced-motion: reduce)').matches) { clearTimeout(glide); home.style.transition = GLIDE; glide = setTimeout(() => { home.style.transition = 'none'; }, 360); }
+  Object.assign(home.style, { display: 'block', ...to });
   wrap.style.filter = win.style.filter || 'none';   // what a board lays on its window (Heal's Visualize) is laid on the photo
 }
 const seen = new ResizeObserver(follow);   // the window moves or resizes (a panel opening), or leaves with its board
@@ -128,12 +130,10 @@ photo.hooks.fill = (s, el) => {
   }
   if (photo.current() !== shown) { shown = photo.current(); z = 1; tx = ty = 0; job++; hide(); }   // another photo: fitted again
   if (s !== win) {   // another board's window: the layer glides to it, zoomed as it was
-    const moved = !!win && home.style.display !== 'none';
     if (win) seen.unobserve(win);
     win = s; seen.observe(s); styled.disconnect(); styled.observe(s, { attributes: true, attributeFilter: ['style'] }); pts.clear(); g = null;
     const low = s.dataset.zoom !== 'top';
     badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
-    clearTimeout(glide); home.style.transition = moved ? GLIDE : 'none'; glide = setTimeout(() => { home.style.transition = 'none'; }, 360);
   }
   if (el.parentElement !== wrap) wrap.replaceChildren(el, over, still, live, closer);
   follow(); layout();
@@ -296,4 +296,4 @@ photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== phot
 
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);
-photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); });
+photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); }); photo.cover(() => live.isConnected && live.style.display === 'block' && z / full() >= 0.999);

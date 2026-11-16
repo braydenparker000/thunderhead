@@ -45,3 +45,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 html,#frame{touch-action:pan-x pan-y}
 /* a small key's room for a finger: at least 44 × 44 without changing how it looks (--hit: how far past its edges, as inset takes it) */
 .hit{position:relative}.hit::before{content:'';position:absolute;inset:var(--hit,-6px 0)}
+/* less motion (EDITOR.md): rows and tiles appear in place, the plate fades, the dial still turns (AUDIT.md 8.11) */
+@media (prefers-reduced-motion:reduce){.fly,#dock,#stage [role=dialog]{animation:none!important}#stage.enter .plate{animation:fade 200ms ease both}@keyframes fade{from{opacity:0}to{opacity:1}}button,.zl,#stage [style*="cubic-bezier"]{transition:none!important}}
+/* zoom.js's sharper layers fade in over the softer picture rather than popping; from 200 % a sensor pixel shows as a crisp square, below it smoothly (as GIMP and Gwenview do) */
+.zl{transition:opacity 180ms ease-out}@starting-style{.zl{opacity:0}}[data-px] .zl{image-rendering:pixelated}
+/* where the keyboard's focus is (AUDIT.md 8.13): a ring for keys only, never for a touch, over the dial's and drum's own outline: none */
+#stage :focus-visible,#dock :focus-visible{outline:2px solid rgba(232,32,42,0.9)!important;outline-offset:2px}

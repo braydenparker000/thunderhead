@@ -19,6 +19,7 @@ import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
 import { autoWhite, samples } from './autowhite.js';
 import { geometry, toSensor, warpPipe, warper } from './warp.js';
+import { presenter } from './present.js';
 
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
 /** The profile's tables in one buffer, and what the shader needs to find them. @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick @param {number} w */
@@ -76,12 +77,13 @@ export async function engine(canvas, img, readback = false) {
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
   ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
   const t0 = performance.now();
-  const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
-  let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0;
+  let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0, screen = /** @type {[number, number] | null} */ (null), gone = false;   // gone: disposed, perhaps while a frame was on its way
+  const show = presenter(device);   // the fitted photo shrunk to the screen's pixels (present.js)
   const none = /** @type {any} */ (null);
   let out = /** @type {GPUTexture} */ (none), flat = /** @type {GPUBuffer} */ (none), bend = /** @type {ReturnType<typeof warper>} */ (none), mask = /** @type {ReturnType<typeof masks>} */ (none), back = /** @type {GPUBuffer | null} */ (null);
   const lay = () => {
@@ -89,7 +91,7 @@ export async function engine(canvas, img, readback = false) {
     if (nw === ow && nh === oh) return false;
     for (const b of [flat, back]) b?.destroy(); out?.destroy(); mask?.destroy(); bend?.destroy();
     ow = nw; oh = nh; row = Math.ceil((ow * 4) / 256) * 256;
-    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING });
     flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }); bend = warper(device, bendP, src, flat);
     mask = masks(device, maskP, flat, uni, ow, oh);
     back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
@@ -192,24 +194,27 @@ export async function engine(canvas, img, readback = false) {
     if (more.texture && fined !== lit) { mask.fine.run(enc); fined = lit; }   // the finer mask and the haze mask, likewise made when first needed
     if ((more.dehaze || 0) > 0 && hazed !== lit) { mask.haze.run(enc); hazed = lit; }
     const shown = more.screen !== false, fit = more.fit !== false;
-    if (shown && fit && (canvas.width !== ow || canvas.height !== oh)) { canvas.width = ow; canvas.height = oh; }   // the canvas takes a crop's size when it is first shown
+    // the canvas takes the frame's size (a crop's, when first shown), or while the photo is fitted the screen's (present.js)
+    const [cw, ch] = screen && screen[0] < ow ? [screen[0], Math.max(1, Math.round((screen[0] * oh) / ow))] : [ow, oh], crow = Math.ceil((cw * 4) / 256) * 256;
+    if (shown && fit && (canvas.width !== cw || canvas.height !== ch)) { canvas.width = cw; canvas.height = ch; }
     if (fit) {
       const pass = enc.beginComputePass();
       pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(ow / 8), Math.ceil(oh / 8)); pass.end();
-      if (ctx && shown) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
-      if (back && shown) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
+      const face = shown && cw !== ow ? show.run(enc, out, ow, oh, cw, ch) : out;
+      if (ctx && shown) enc.copyTextureToTexture({ texture: face }, { texture: ctx.getCurrentTexture() }, [cw, ch]);
+      if (readback && shown) { if (!back || back.size < crow * ch) { back?.destroy(); back = device.createBuffer({ size: crow * ch, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }); } enc.copyTextureToBuffer({ texture: face }, { buffer: back, bytesPerRow: crow }, [cw, ch]); }
     }
     if (shown) { for (const v of views) v.frame(enc, u); lastU = u; }
     device.queue.submit([enc.finish()]);
     await device.queue.onSubmittedWorkDone();
     const gpuMs = performance.now() - t;
     if (shown) for (const v of views) await v.after();
-    if (back && shown && fit) {
+    if (back && shown && fit && !gone) {   // (a photo closed while its frame was drawn: nothing to read)
       await back.mapAsync(GPUMapMode.READ);
-      const b8 = new Uint8Array(back.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
-      for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);
+      const b8 = new Uint8Array(back.getMappedRange()), px = new Uint8ClampedArray(cw * ch * 4);
+      for (let y = 0; y < ch; y++) px.set(b8.subarray(y * crow, y * crow + cw * 4), y * cw * 4);
       back.unmap();
-      /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).putImageData(new ImageData(px, ow, oh), 0, 0);
+      /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).putImageData(new ImageData(px, cw, ch), 0, 0);
     }
     return gpuMs;
   };
@@ -224,7 +229,11 @@ export async function engine(canvas, img, readback = false) {
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); };
+  const dispose = () => { gone = true; for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); show.destroy(); };
+  /** The screen's pixels the fitted photo fills (null: zoomed in, the canvas is the frame's own size). @param {[number, number] | null} s */
+  const setScreen = (s) => { screen = s; };
+  /** The editing copy was made again in `src` (proxy-hq.js): laid out and its masks made anew at the next render, and the page's copy is `proxy`. @param {Uint16Array} proxy */
+  const refresh = (proxy) => { img.proxy = proxy; bent = false; masked = fined = hazed = ''; airFor = null; };
   /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.
    * and the crop (crop.js). A crop that changes the picture's size makes its surfaces anew. `draft` lays it out
    * the quick way (two taps, no fringing pass), for while a control moves.
@@ -235,8 +244,8 @@ export async function engine(canvas, img, readback = false) {
   /** Auto white balance (autowhite.js): the light read from the editing copy's colours, as Temp and Tint under the profile. */
   const autoWb = () => autoWhite(samples(img), asShot, /** @type {any} */ (picked?.profile || fallback));
   /** What full.js builds on. */
-  const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
+  const base = { device, src, w, h, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
   /** Retouching (heal.js): where a spot's replacement is best taken from. @param {{ x: number, y: number, r: number }} s @param {boolean} [wide] */
   const healSource = (s, wide) => findSource(s, geo, img, wide);
-  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, setScreen, refresh, size: () => [ow, oh], setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, autoWb, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

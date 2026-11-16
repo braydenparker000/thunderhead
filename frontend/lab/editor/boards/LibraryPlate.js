@@ -47,9 +47,9 @@ export default class Component extends DCLogic {
     this.drag = null;
     // a photo's tile follows its edit, so the roll is read again when the open photo changes; and what the photos take on this phone
     this.keep('Library', ['filter', 'find', 'sort', 'cols']);
-    const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0 || this.app; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.max(0, Math.min(this.state.idx, r.photos.length - 1)) : 6 }); } };
+    const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); removeEventListener('th-editor-photos', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0 || this.app; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.max(0, Math.min(this.state.idx, r.photos.length - 1)) : 6 }); } };
     photo.events.addEventListener('change', hear);
-    addEventListener('th-editor-photos', hear, { once: true });   // photos from before their shooting data was kept got it, and with it their place by the camera's clock (app/store.js)
+    addEventListener('th-editor-photos', hear);   // photos from before their shooting data was kept got it, and their place by the camera's clock; or their small tiles were made (app/store.js)
     if (this.app) store.usage().then((used) => this.setState({ used }), () => {});
     // an export the page did not live to finish is offered again, once (app/save.js)
     const cut = this.app ? cutOff() : null;
@@ -83,6 +83,7 @@ export default class Component extends DCLogic {
       : (S.sort === 1 ? shoots.map((_, i) => i).reverse() : shoots.map((_, i) => i)).map((g) => ({ title: shoots[g], count: String(shown.filter((p) => p.shoot === g).length), items: order(shown.filter((p) => p.shoot === g)).map(tile) })).filter((g) => g.items.length);
     const n = P.length, cur = P[Math.max(0, Math.min(S.idx, n - 1))] || { id: -1, name: ' ', src: '', pos: '50% 50%', zoom: '1', sim: '', filter: 'none', rating: 0, flag: 'none', shoot: 0 };   // none at all: an empty stand-in
     const curT = tile(cur);
+    if (S.view === 'cull' && cur.key && store.bigNow(cur.key) === cur.src && this.big !== cur.key) { this.big = cur.key; store.jpegUrl(cur.key).then(() => this.setState({})); }   // shown big: the camera's JPEG, read now
     const step = (from, dir) => { let i = from; do { i += dir; } while (S.skip && i >= 0 && i < n && P[i].flag === 'reject'); return i < 0 || i >= n ? from : i; };
     // (a rating or flag the phone would not keep: the screen goes back to what the phone holds)
     const setPhoto = (patch) => { if (cur.key) store.update(cur.key, patch).catch((e) => { console.warn('photo not updated', e); const r = roll(); this.setState({ photos: r.photos, shoots: r.shoots }); }); set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) }); };
@@ -182,7 +183,7 @@ export default class Component extends DCLogic {
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),
       cullDot: S.cullMode ? '#e8202a' : '#4f5357', cullGlow: S.cullMode ? '0 0 6px rgba(232,32,42,0.7)' : 'none', cycleSort: () => set({ sort: (S.sort + 1) % 3 }), sortName: `${sorts[S.sort]} ▾`,
       cycleSize: () => set({ cols: S.cols === 3 ? 4 : S.cols === 4 ? 2 : 3 }), sizeGlyph: S.cols === 4 ? '▦' : S.cols === 2 ? '◫' : '▤',
-      cur: { ...curT, meta: [`${S.idx + 1} / ${n}`, cur.sim].filter(Boolean).join(' · ') },
+      cur: { ...curT, src: cur.key ? store.bigNow(cur.key) : curT.src, meta: [`${S.idx + 1} / ${n}`, cur.sim].filter(Boolean).join(' · ') },
       strip: !n ? [] : [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => { const p = P[Math.max(0, Math.min(n - 1, S.idx + d))]; const out = S.idx + d < 0 || S.idx + d >= n;
         return { src: p.src, pos: p.pos, filter: p.filter, ringW: d === 0 ? 2 : 0, lift: d === 0 ? 0 : 3, o: out ? 0 : d === 0 ? 1 : p.flag === 'reject' ? 0.3 : 0.65 }; }),
       rollName: (shoots[cur.shoot] || '').split(' · ')[1] ?? shoots[cur.shoot] ?? '', pos: String(S.idx + 1), total: String(n),

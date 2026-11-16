@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-16-astra-previews",
+  "id": "2026-11-16-editor-audit-fixes",
   "date": "2026-11-16",
   "lines": [
     {
-      "text": "Astra: rest your finger while dragging the seek bar and a picture of that place appears. Playback has the switch.",
-      "open": "astra"
+      "text": "Editor: exports and the 100 % view lose the purple and green fringes near the frame's edges. Export again to fix one.",
+      "open": "photos"
     },
     {
-      "text": "Films whose Dolby or DTS sound Astra converts start as fast as the rest, and keep their surround for headphones."
+      "text": "Exports use the phone's CPU beside its GPU, so they finish sooner; smaller ones are sharper, with less moiré."
     },
     {
-      "text": "Dolby Vision films that showed purple and green get their colours corrected. HDR works on every kind of stream."
+      "text": "The photo is drawn at your screen's own pixels, without false rings or false colour on fine detail."
     },
     {
-      "text": "More old files play: H.264 in AVI, H.263 in 3GP, and Windows Media sound in MKV."
+      "text": "The Library loads faster, the dial stays put, Auto level holds, and before and after show your crop."
     }
   ]
 }

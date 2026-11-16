@@ -3,7 +3,7 @@ name = "th-netcpu"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "The network's heaviest pass (a 3 x 3 convolution) for the phone's CPU, in WebAssembly's vector maths: what the engine test page times beside the GPU (frontend/lab/engine/cpu-bench.js)"
+description = "The X-Trans network's layers for the phone's CPU, in WebAssembly's vector maths: an export's windows made beside the GPU (frontend/lab/engine/net-cpu.js)"
 
 [lib]
 crate-type = ["cdylib"]

@@ -270,8 +270,8 @@ fn develop(c0: vec3f) -> vec3f { return finish(colour(c0)); }
 // What the table holds for a colour: how far colour() moves it, on a square-root scale (even enough across the
 // range for 16-bit floats, and cheap to undo). With nothing moved it is all zeros, so a picture (picture.js) comes
 // out as it went in, and a small edit is a small, smooth thing to read between points.
-const LOW = 0.000244140625; const HIGH = 16.0;   // the table's own range (shape): 2^-12 to 2^4
-fn moved(c: vec3f, t: vec3f) -> vec3f { let y = max(sqrt(clamp(c, vec3f(LOW), vec3f(HIGH))) + t, vec3f(0.0)); return y * y; }
+const LOW = 0.000244140625; const HIGH = 16.0;   // the table's own range (shape): 2^-12 to 2^4; under it the move at LOW is an offset, so a 0 nothing moved stays 0 (AUDIT.md 1.3)
+fn moved(c: vec3f, t: vec3f) -> vec3f { let y = max(sqrt(clamp(c, vec3f(LOW), vec3f(HIGH))) + t, vec3f(0.0)); return select(y * y, max(c + y * y - LOW, vec3f(0.0)), c < vec3f(LOW)); }
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
   if (any(id >= vec3u(N))) { return; }

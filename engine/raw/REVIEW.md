@@ -117,7 +117,7 @@ M several, L a project of its own.
 | # | Step | Ours | Best known |
 |---|---|---|---|
 | 22 | Colours too strong for the screen | Eased in with their hue held (since 2026-11-11; it was clipped) | Brought into range smoothly |
-| 23 | Resize | Area average in linear light | The same |
+| 23 | Resize | Lanczos-3 in linear light, held between its neighbours so a bright edge cannot ring dark (since 2026-11-16; it was an area average, softer with more moiré: AUDIT.md 1.4) | The same (darktable's export) |
 | 24 | Output sharpening | Screen or Print, three amounts, after the resize | The same |
 | **25** | Colour space and depth | sRGB only; 8 bits dithered, or 16-bit TIFF | Also Display P3 with a profile embedded; HDR output for phone screens |
 | 26 | JPEG | Full colour resolution from quality 90, standard tables; the board's quality is the encoder's, number for number (100 is 100: every table 1) | A smarter encoder (jpegli): smaller files at the same quality |

@@ -12,6 +12,8 @@ import { fringeOf } from './lens.js';
 import { compile as compileNet, demosaicer as network } from './neural.js';
 import { timed } from './net-tune.js';
 import { autoWays } from './net-auto.js';
+import { crew, helper } from './net-cpu.js';
+import { remake } from './proxy-hq.js';
 import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
@@ -43,6 +45,8 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, sensor, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
+  // the editing copy made again from these pixels, better than the decoder's quick one: no false colour on fine lines (proxy-hq.js)
+  await remake(device, e.gpu.src, e.gpu.w, e.gpu.h, sensor ? { mos: tex, phase, black: img.meta.black, white: img.meta.white } : { pic: tex }).then((copy) => e.refresh(copy), (err) => console.warn('the editing copy was not made again:', err));
   // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
@@ -66,14 +70,16 @@ export async function full(e, img, mosaic) {
    * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats
    * @param {boolean | 'twice' | 'once'} [best] true: the sensor's colours by the network (neural.js): truer and cleaner, and many
    *   times the work. Where the GPU will not have it, the view is made the usual way and says so (`net`, and `lost`: why). 'twice' and
-   *   'once': the usual demosaic looking twice (Best) or once (Faster) whatever the photo is set to, for comparing them */
-  const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false) => {
+   *   'once': the usual demosaic looking twice (Best) or once (Faster) whatever the photo is set to, for comparing them
+   * @param {boolean} [cpu] an export by the network: some of its windows made on the CPU's cores as well (net-cpu.js, `ahead`) */
+  const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false, cpu = false) => {
     const format = deep ? 'rgba16float' : 'rgba8unorm', [pipe, last] = await Promise.all([deepPipe(device), finishPipe(device, format)]), size = deep ? 8 : 4;
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
     let lost = '';   // why the network, asked for, is not what makes this view
     const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); lost = String(err?.message || err); return null; }) : null;
+    const team = net && cpu && deep ? await crew().catch((err) => { console.warn('the CPU does not help the network:', err); return null; }) : null, help = team ? helper(device, /** @type {any} */ (net), team) : null;
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     // How much sensor a rectangle takes round what it draws on (warp.js `reach`). An export's piece by the network
     // needs less: noise reduction's neighbourhoods are not used (the network took the noise out), and the 12 pixels
@@ -99,7 +105,7 @@ export async function full(e, img, mosaic) {
     // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
     // turn of Noise or Sharpening then starts from the copy, not from the sensor again (the demosaic is most of the work).
     const aside = device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
-    let held = '';
+    let held = '', given = /** @type {((enc: GPUCommandEncoder) => void) | null} */ (null);   // a rectangle's colours made by the CPU (`ahead`), laid in by `region`
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     // the frame pass writes `mid`; the last pass sharpens that into `out`
@@ -112,7 +118,9 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ stop?: () => boolean, note?: (ms: number) => void }} Pace `stop`: asked after each part; `note`: told how long each took on the GPU */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, laid: () => (net ? net.laid : 0), ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    /** A rectangle's colours made on the CPU while the GPU is at others: what `region` is then given (null where the CPU cannot). @param {number} X @param {number} Y @param {number} cw @param {number} ch */
+    const ahead = async (X, Y, cw, ch) => { const r = shape(X, Y, cw, ch), f = new Float32Array(e.gpu.settings()); return /** @type {NonNullable<typeof help>} */ (help)(r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); };
+    const self = { place, rest: () => { at = null; }, region, ahead: help ? ahead : null, helpers: team ? team.n : 0, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, laid: () => (net ? net.laid : 0), ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -134,12 +142,12 @@ export async function full(e, img, mosaic) {
         // what the rectangle was made from: where on the sensor, and (the network) how much noise it was told of
         const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8;
         if (held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
-        if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
+        if (given) given(enc); else if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
         enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++;
       }],
       ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
       ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
-      ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe && !net)],   // the network leaves the lens's fringing in: the lens pass undoes it
+      ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe)],   // the demosaic and the network (net-fringe.js) both lay red and blue on green's places
     ];
     /** The same work as `steps`, in parts small enough to hand the GPU one at a time, each its own submission and
      * waited for (the screen's views: `region` with `pace`): the usual demosaic a pass at a time, sharpening a
@@ -195,20 +203,31 @@ export async function full(e, img, mosaic) {
      * picture and the view's room). The engine's next render draws it. Returns where it ended up.
      * @param {number} X @param {number} Y @param {number} cw @param {number} ch */
     function place(X, Y, cw, ch) {
+      const r = shape(X, Y, cw, ch);
+      if (at && at.X === r.X && at.Y === r.Y && at.cw === r.cw && at.ch === r.ch) return at;
+      fresh = false;
+      return (at = r);
+    }
+    /** Where a rectangle sits, kept inside the picture and the view's room, and the sensor it draws on. @param {number} X @param {number} Y @param {number} cw @param {number} ch @returns {Rect} */
+    function shape(X, Y, cw, ch) {
       const [fw, fh] = pic();
       cw = Math.max(8, Math.min(Math.round(cw), fit[0])); ch = Math.max(8, Math.min(Math.round(ch), fit[1]));
       X = Math.max(0, Math.min(Math.round(X), fw - cw)); Y = Math.max(0, Math.min(Math.round(Y), fh - ch));
-      if (at && at.X === X && at.Y === Y && at.cw === cw && at.ch === ch) return at;
       const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch, pad);
-      fresh = false;
-      return (at = { X, Y, cw, ch, rx, ry, rw, rh });
+      return { X, Y, cw, ch, rx, ry, rw, rh };
     }
     /** place(), drawn now with the last shown frame's settings (a test, or one band of an export).
      * @param {number} X @param {number} Y @param {number} cw @param {number} ch @param {Record<string, number> | null} [clock]
      * @param {Pace | null} [pace] for the screen: the rectangle's colours are made a part at a time (`parts`), so the page is drawn in between
-     *   and a touch is answered; when `pace.stop` says yes the rest is left undone and null is given @returns {Promise<Rect | null>} */
-    async function region(X, Y, cw, ch, clock = null, pace = null) {
+     *   and a touch is answered; when `pace.stop` says yes the rest is left undone and null is given
+     * @param {((enc: GPUCommandEncoder) => void) | null} [made] the rectangle's colours as the CPU made them (`ahead`) @returns {Promise<Rect | null>} */
+    async function region(X, Y, cw, ch, clock = null, pace = null, made = null) {
       const r = place(X, Y, cw, ch), u = e.gpu.settings();
+      if (made) { fresh = false; given = made; }
+      try { return await drawn(r, u, clock, pace); } finally { given = null; }
+    }
+    /** @param {Rect} r @param {ArrayBuffer} u @param {Record<string, number> | null} clock @param {Pace | null} pace */
+    async function drawn(r, u, clock, pace) {
       // timed a step at a time for an export's first pieces (`clock` gathers each step's ms): where the phone's time goes
       const timed = async (/** @type {string} */ name, /** @type {(enc: GPUCommandEncoder) => void} */ run) => {
         const t = performance.now(), one = device.createCommandEncoder(); run(one); device.queue.submit([one.finish()]); await device.queue.onSubmittedWorkDone();
@@ -228,7 +247,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; team?.end(); views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };

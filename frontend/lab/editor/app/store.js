@@ -35,7 +35,7 @@ async function write(folder, name, data) {
 let cache = [];
 /** @type {Photo[]} */
 let bin = [];   // photos deleted lately: out of the Library, still on the phone (`remove`, `restore`)
-const urls = /** @type {Map<string, string>} */ (new Map()), tiles = /** @type {Map<string, string>} */ (new Map());   // each photo's camera JPEG; its edit, small, where there is one
+const urls = /** @type {Map<string, string>} */ (new Map()), tiles = /** @type {Map<string, string>} */ (new Map()), grid = /** @type {Map<string, string>} */ (new Map());   // each photo's camera JPEG; its edit, small, where there is one; its own small tile
 /** Every photo, newest first (loaded once at start, then kept in step). */
 export const photos = () => cache;
 let safe = false;
@@ -49,7 +49,7 @@ export const kept = () => safe;
 export async function sweep(age = 3600e3) {
   const known = new Set(/** @type {Photo[]} */ (await tx('photos', (s) => s.getAll())).map((p) => p.id));
   let back = 0;
-  for (const folder of ['raw', 'jpg', 'thumb', 'view']) {
+  for (const folder of ['raw', 'jpg', 'thumb', 'view', 'grid']) {
     const d = await dir(folder);
     for await (const [name, h] of /** @type {any} */ (d).entries()) {
       const id = name.replace(/\.\w+$/, '');
@@ -81,12 +81,17 @@ export async function init() {
   empty(bin.filter((p) => Date.now() - (p.deleted || 0) > KEEP_DAYS * 864e5).map((p) => p.id)).catch((e) => console.warn('photos: deleted ones not cleared', e));
   sweep().catch(() => {});
   fill().then((n) => { if (n) dispatchEvent(new Event('th-editor-photos')); }, () => {});   // the Library reads the roll again
+  // each tile is a small picture made once (AUDIT.md 8.1: the camera's 13 MP JPEG was decoded for every tile); the camera's JPEG is read when it is shown big
+  const lack = /** @type {Photo[]} */ ([]);
   await Promise.all(cache.map(async (p) => {
-    await jpegUrl(p.id);
+    try { grid.set(p.id, URL.createObjectURL(await (await (await dir('grid')).getFileHandle(`${p.id}.jpg`)).getFile())); } catch { lack.push(p); await jpegUrl(p.id); }
     if (p.edited) try { tiles.set(p.id, URL.createObjectURL(await (await (await dir('thumb')).getFileHandle(`${p.id}.jpg`)).getFile())); } catch {}
   }));
+  (async () => { for (const [k, p] of lack.entries()) { await small(p.id, await (await (await dir('jpg')).getFileHandle(`${p.id}.jpg`)).getFile()).catch(() => {}); if (k % 6 === 5 || k === lack.length - 1) dispatchEvent(new Event('th-editor-photos')); } })().catch(() => {});   // photos from before tiles: theirs made now, a few at a time
   return cache;
 }
+/** The photo's small tile (480 pixels on its longer side), made from its picture and kept. @param {string} id @param {Blob} jpg */
+async function small(id, jpg) { const b = await reduced(jpg, 480); await write('grid', `${id}.jpg`, b); const u = grid.get(id); if (u) URL.revokeObjectURL(u); grid.set(id, URL.createObjectURL(b)); }
 
 /** The camera's JPEG inside a RAF: its offset and length at bytes 84 and 88, big-endian. @param {ArrayBuffer} buf */
 export function embedded(buf) {
@@ -99,9 +104,9 @@ export function embedded(buf) {
 const RAF = /\.raf$/i, JPEG = /\.jpe?g$/i;
 /** The name a photo's original is kept under. @param {string} id @param {Photo['kind']} [kind] */
 const orig = (id, kind) => `${id}.${kind === 'jpeg' ? 'jpg' : kind === 'stack' ? 'stk' : 'raf'}`;
-/** A picture file made small (1600 pixels on its longer side), for its tile and for the screen while it opens. @param {Blob} file */
-async function reduced(file) {
-  const bm = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bm.width, bm.height)), c = new OffscreenCanvas(Math.max(1, Math.round(bm.width * k)), Math.max(1, Math.round(bm.height * k)));
+/** A picture file made small (`long` pixels on its longer side): 1600 for the screen while it opens, 480 for a tile. @param {Blob} file */
+async function reduced(file, long = 1600) {
+  const bm = await createImageBitmap(file), k = Math.min(1, long / Math.max(bm.width, bm.height)), c = new OffscreenCanvas(Math.max(1, Math.round(bm.width * k)), Math.max(1, Math.round(bm.height * k)));
   const g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d'));
   g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close();
   return c.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
@@ -113,7 +118,7 @@ async function copyIn(file, more = {}) {
   let jpg = /** @type {Blob | null} */ (null);
   if (kind) { jpg = await reduced(file); await write('raw', orig(id, kind), file); }
   else { const buf = await file.arrayBuffer(); jpg = embedded(buf); if (!jpg && more.source) throw new Error('not a RAF'); await write('raw', orig(id), buf); }
-  if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); }
+  if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); await small(id, jpg); }
   const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg || new Blob()).slice(0, 1 << 17).arrayBuffer()));   // a JPEG's own Exif; a RAF's is in the camera's JPEG inside it
   /** @type {Photo} */
   const p = { id, name: file.name, size: file.size, taken: at || file.lastModified, stamp: file.lastModified, shot: made, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}), ...more };
@@ -128,7 +133,7 @@ async function adopt(id, name, file) {
   if (!kind && !/\.raf$/.test(name)) return false;   // a stack cannot be told from its file alone: it is left where it is
   const jpg = kind ? await reduced(file) : embedded(await file.arrayBuffer());
   if (!jpg) return false;
-  await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg));
+  await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); await small(id, jpg);
   const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg).slice(0, 1 << 17).arrayBuffer()));
   /** @type {Photo} */
   const p = { id, name: `Recovered ${id.slice(0, 8)}.${kind ? 'jpg' : 'RAF'}`, size: file.size, taken: at || file.lastModified, stamp: file.lastModified, shot: made, added: Date.now(), film: '', rating: 0, flag: 'none', ...(kind ? { kind } : {}) };
@@ -159,7 +164,7 @@ export async function add(files, step) {
 export async function addMade(name, parts, from, more) {
   const id = crypto.randomUUID(), file = new Blob(parts);
   await write('raw', orig(id, 'stack'), file);
-  try { const jpg = await (await (await dir('jpg')).getFileHandle(`${from}.jpg`)).getFile(); await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); } catch { /* it has none: the tile is the sample's until the stack is edited */ }
+  try { const jpg = await (await (await dir('jpg')).getFileHandle(`${from}.jpg`)).getFile(); await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); await small(id, jpg); } catch { /* it has none: the tile is the sample's until the stack is edited */ }
   /** @type {Photo} */
   const p = { id, name, size: file.size, taken: Date.now(), added: Date.now(), film: '', rating: 0, flag: 'none', kind: 'stack', ...more };
   await tx('photos', (s) => s.put(p), 'readwrite');
@@ -202,8 +207,10 @@ export async function jpegHead(id) {
   const own = cache.find((x) => x.id === id)?.kind === 'jpeg';
   try { return new Uint8Array(await (await (await (await dir(own ? 'raw' : 'jpg')).getFileHandle(`${id}.jpg`)).getFile()).slice(0, 1 << 17).arrayBuffer()); } catch { return new Uint8Array(0); }
 }
-/** The photo's Library tile: its edit where one was kept, else the camera's JPEG (init and add load them all). @param {string} id */
-export const urlNow = (id) => tiles.get(id) || urls.get(id) || '/lab/editor/assets/sample.jpg';
+/** The photo's Library tile: its edit where one was kept, else its own small tile, else the camera's JPEG. @param {string} id */
+export const urlNow = (id) => tiles.get(id) || grid.get(id) || urls.get(id) || '/lab/editor/assets/sample.jpg';
+/** The photo big (the cull view): the camera's JPEG once read (`jpegUrl`), else its tile. @param {string} id */
+export const bigNow = (id) => (tiles.has(id) ? '' : urls.get(id)) || urlNow(id);
 /** Keeps a small picture of the photo as edited, for its tile; null when it is back as imported. @param {string} id @param {Blob | null} blob */
 export async function saveTile(id, blob) {
   const old = tiles.get(id);
@@ -237,9 +244,9 @@ export async function restore(ids) {
  * @param {string[]} [ids] every deleted photo when not given */
 export async function empty(ids) {
   for (const { id } of bin.filter((x) => !ids || ids.includes(x.id))) {
-    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`], ['view', `${id}.pic`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
+    for (const [folder, name] of [['raw', `${id}.raf`], ['raw', `${id}.jpg`], ['raw', `${id}.stk`], ['jpg', `${id}.jpg`], ['thumb', `${id}.jpg`], ['view', `${id}.pic`], ['grid', `${id}.jpg`]]) await (await dir(folder)).removeEntry(name).catch(() => {});
     await tx('photos', (s) => s.delete(id), 'readwrite'); await tx('edits', (s) => s.delete(id), 'readwrite');
-    for (const m of [urls, tiles]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
+    for (const m of [urls, tiles, grid]) { const u = m.get(id); if (u?.startsWith('blob:')) URL.revokeObjectURL(u); m.delete(id); }
     bin = bin.filter((p) => p.id !== id);
   }
 }

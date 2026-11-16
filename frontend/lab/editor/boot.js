@@ -60,7 +60,7 @@ else {
     const label = b.getAttribute('aria-label') || '', text = (b.textContent || '').trim();
     let to = '';
     if (label === 'Undo') { undo(); return; }
-    if (label === 'Back to the tools') { e.stopPropagation(); e.preventDefault(); dock.hidden = veil.hidden = false; return; }
+    if (label === 'Back to the tools') { e.stopPropagation(); e.preventDefault(); dock.hidden = veil.hidden = false; document.dispatchEvent(new Event('editor:dock')); return; }   // (a board shuts what it has open under the dock: AUDIT.md 8.15)
     // Opened from Photos' Edit: its back arrow goes back there, not to this editor's own Library.
     if (label === 'Back to Photos' && fromPhotos && history.state?.first) { e.stopPropagation(); e.preventDefault(); history.back(); return; }
     if (label === 'Back to Photos' || label === 'Back to Library') to = 'Library';

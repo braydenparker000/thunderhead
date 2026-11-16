@@ -22,7 +22,8 @@ const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how
 /** How an export runs: `signal` gives it up (it then rejects with the signal's reason, an AbortError), `encode` is
  * the JPEG encoder, `worker: false` keeps all its work on the page, `ops` times one of the network's windows a
  * pass at a time once the photo is made, as it is compiled here (`clock.ops`, in ms: net-tune.js `timed`), and `keep` holds the finished bands. (`ops` as a number: that many pixels of the window's side only, for a test on a slow GPU.)
- * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean | number, keep?: Keep | null }} How */
+ * `cpu`: false keeps the CPU's cores out of an export by the network (net-cpu.js); 'always' has them take a piece whenever one is left (a test).
+ * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean | number, keep?: Keep | null, cpu?: boolean | 'always' }} How */
 /** An export asked for by the network that the network cannot make here: nothing is made in its place. */
 export class NoBest extends Error { constructor(/** @type {string} */ why) { super(`Best quality cannot run on this phone just now (${why}). Nothing was saved, and no lesser method was put in its place.`); this.name = 'NoBest'; } }
 
@@ -44,9 +45,9 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
   // The network works a window of the sensor at a time (neural.js: 990 pixels of each 1056 are its own), so its pieces
   // are cut to sit in one window each and to fill it: the least of its work then goes on the context round a piece.
   const [wide, rows] = best && big.raw ? [NET_SIDE, NET_SIDE] : [TILE, BAND];   // (a picture with no sensor data is not the network's, whatever is asked)
-  const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best).catch(async (err) => { (await off)?.terminate(); throw err; });
+  const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best, how.cpu !== false).catch(async (err) => { (await off)?.terminate(); throw err; });
   if (v.lost) { const why = v.lost; v.dispose(); (await off)?.terminate(); throw new NoBest(why); }
-  if (clock) clock.net = v.net ? 1 : 0;
+  if (clock) { clock.net = v.net ? 1 : 0; clock.helpers = v.helpers || 0; }   // helpers: the CPU's cores at the network beside the GPU (net-cpu.js); `cpu`: the pieces they made
   let s = /** @type {import('./export-thread.js').Sink | null} */ (null);
   try {
     const outs = jobs.map((j) => {
@@ -58,16 +59,37 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
     if (clock) clock.off = s.off ? 1 : 0;
     const [tw, th] = v.room().map((r) => Math.max(8, r - 2 * EDGE));
     let pieces = 0;
+    const team = v.ahead ? pacer(how.cpu === 'always') : null;   // the CPU's cores beside the GPU (net-cpu.js), while they keep up
     for (let y = 0; y < sh; y += th) {
       const n = Math.min(th, sh - y), was = (await how.keep?.get(y, n, sw)) || null, band = was || new Uint16Array(sw * n * 4);
       if (was && clock) clock.held = (clock.held || 0) + n;
-      for (let x = 0; x < sw && !was; x += tw) {   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
+      const xs = []; for (let x = 0; x < sw && !was; x += tw) xs.push(x);   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
+      let done = 0;
+      /** A piece into the band: made on the GPU, or with its colours made by the CPU (`made`). @param {number} x @param {any} [made] */
+      const lay = async (x, made = null) => {
         signal?.throwIfAborted();
-        const w = Math.min(tw, sw - x), t0 = performance.now(), split = clock && pieces < SPLIT ? (clock.split ??= {}) : null;
-        const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
+        const w = Math.min(tw, sw - x), t0 = performance.now(), split = clock && pieces < SPLIT && !made ? (clock.split ??= {}) : null;
+        const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split, null, made), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
         if (clock) { clock.gpu = (clock.gpu || 0) + t1 - t0; clock.read = (clock.read || 0) + performance.now() - t1; if (split) clock.splitPx = (clock.splitPx || 0) + at.cw * at.ch; } pieces++;
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
-        if (v.net) progress?.((y + (n * (x + w)) / sw) / sh);   // (the network's pieces are large: said a piece at a time, not a band)
+        if (v.net) progress?.((y + (n * ++done) / xs.length) / sh);   // (the network's pieces are large: said a piece at a time, not a band)
+        return performance.now() - t0;
+      };
+      if (!team) { for (const x of xs) await lay(x); } else {
+        // the GPU takes the band's pieces from the left and the CPU from the right; the CPU takes one only while the
+        // pieces still left would keep the GPU busy longer than the CPU needs for it, so it never holds an export up
+        let left = 0, right = xs.length - 1;
+        const ready = /** @type {[number, any][]} */ ([]);
+        const cpu = (async () => {
+          while (right > left && team.worth(right - left)) {
+            const i = right--, t = performance.now(), made = await /** @type {NonNullable<typeof v.ahead>} */ (v.ahead)(xs[i] - EDGE, y - EDGE, Math.min(tw, sw - xs[i]) + 2 * EDGE, n + 2 * EDGE);
+            if (!made) { right++; team.off(); break; }
+            team.cpu(performance.now() - t); ready.push([i, made]);
+          }
+        })();
+        const theirs = async () => { while (ready.length) { const [i, made] = /** @type {[number, any]} */ (ready.shift()); await lay(xs[i], made); if (clock) clock.cpu = (clock.cpu || 0) + 1; } };
+        while (left <= right) { team.gpu(await lay(xs[left++])); await theirs(); }
+        await cpu; await theirs();
       }
       if (!was) await how.keep?.put(y, n, sw, band);
       const t2 = performance.now();
@@ -86,4 +108,19 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
     if (s) s.drop(); else off.then((w) => w?.terminate());
     throw err;
   } finally { v.dispose(); }
+}
+
+/** When the CPU should take a piece (export.js `develop`): it keeps how long a piece takes each way, and the CPU takes
+ * one while `left` pieces would keep the GPU busy longer than the CPU needs for one. Until it has timed both, the CPU
+ * is taken to need two and a half times the GPU's (the owner's 4 GB phone: 1.2 times, measured), and once it has
+ * needed more than four times, it is left out for the rest of the export. */
+function pacer(always = false) {
+  let g = 0, c = 0, out = false;
+  const mean = (/** @type {number} */ was, /** @type {number} */ ms) => (was ? was * 0.6 + ms * 0.4 : ms);
+  return {
+    worth: (/** @type {number} */ left) => always || (!out && (g ? left * g > (c || 2.5 * g) : left >= 3)),
+    gpu: (/** @type {number} */ ms) => { g = mean(g, ms); },
+    cpu: (/** @type {number} */ ms) => { c = mean(c, ms); if (g && c > 4 * g) out = true; },
+    off: () => { out = true; },
+  };
 }

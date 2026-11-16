@@ -58,8 +58,8 @@ export default class Component extends DCLogic {
     };
     if (real) Object.assign(hints, { zoom: `${zi.pct}% · drag to look around; the red box shows where you are. Pinch for more or less, up to 300%; double-tap goes in and out.`,
       compare: 'BEFORE / AFTER · drag the line. Anywhere else, press and hold the photo to see it as imported.', history: 'HISTORY · tap a step to go back to it; the next edit starts a new branch from there. Undo steps back one.' });
-    // a photo's own: the picture before any edit, its scope, its history and its versions
-    const first = real ? photo.versions()[0] : null, beforeSrc = first && !zoomed && (split || S.holding) ? tile('before:', first.st, 0) : '';
+    // a photo's own: the picture before any edit (with the crop it has now, so both halves show one scene: AUDIT.md 8.4), its scope, its history and its versions
+    const first = real ? photo.versions()[0] : null, g = photo.geo(), beforeSrc = first && !zoomed && (split || S.holding) ? tile(`before:${JSON.stringify(g)}`, () => ({ ...first.st, geo: g }), 0, undefined, true) : '';
     const sc = !S.hist || none ? null : real ? scope() : SCOPE;
     if (real) zoom.clip(sc && S.clip ? sc.clip : '');
     const past = real ? photo.history() : null;

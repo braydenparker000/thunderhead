@@ -4,8 +4,8 @@
 // they did; the eyedropper's tap reaches the picker and its ask goes with its board; an empty Library and a Find with
 // no match say so; Crop and Export give the size the export will have, and a JPEG is called a JPEG; the Import sheet
 // goes at a tap outside it; small keys have room for a finger; a chip row fades where it runs on; and the small ones
-// (an empty film badge, the cull counter, a JPEG's Profile face, Mine's count, Heal's dial, Versions' header). The
-// photos are JPEGs drawn by the test, on a software GPU.
+// (an empty film badge, the cull counter, a JPEG's Profile face, Mine's count, Heal's dial, Versions' header); and the
+// dial stays where a finger left it. The photos are JPEGs drawn by the test, on a software GPU.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -249,6 +249,49 @@ test('the boards: crop and Undo, the history, the eyedropper, sizes, keys, rows 
   await page.touchscreen.tap(ring[0], ring[1]); await page.waitForTimeout(300);
   const small = await dialText(), px = (s) => Number(/Size (\d+)/.exec(s)?.[1]);
   assert.ok(px(big) > px(small) + 20, `the dial shows the chosen spot's size (${big} then ${small})`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the dial stays where the finger left it, clicks into a coarse step as it lifts, follows Undo, and its keys step every control', opts, async () => {
+  const { context, page, errors, cdp } = await launch();
+  await bringIn(page, await drawn(page, [['DIAL_1.jpg', '#5a7a52']]));
+  await page.evaluate(async () => { const s = await import('/lab/editor/app/store.js'), p = await import('/lab/editor/app/session.js'); await p.open(s.photos()[0].id); });
+  await go(page, 'Edit'); await ready(page);
+  const face = async (name, adj) => { await page.evaluate(([name, adj]) => { const c = document.querySelector('#stage')._root.c; c.setState({ face: name, adj: { ...c.state.adj, [name]: adj } }); }, [name, adj]); await page.waitForTimeout(100); await settle(page); };
+  const dial = () => page.evaluate(() => { const el = document.querySelector('#stage [role=slider]'); return { angle: el.closest('dc-host')._inst.c.state.angle, text: el.getAttribute('aria-valuetext').trim(), label: el.getAttribute('aria-label') }; });
+  /** A slow turn of `px`, the finger resting before it lifts (no fling); the dial as the finger lifts, and as it is once the page has gone quiet. */
+  const turn = async (px) => {
+    const b = await page.locator('#stage [role=slider]').first().boundingBox(), y = b.y + b.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y }] });
+    for (let i = 1; i <= Math.abs(px); i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200 + Math.sign(px) * i, y }] });
+    await page.waitForTimeout(200);
+    const held = await dial();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(120); const lifted = await dial();
+    await ready(page); await page.waitForTimeout(700);   // the edit is saved and the boards told: what used to move the wheel
+    return { held, lifted, later: await dial() };
+  };
+  // Noise is a whole number, 3.6 degrees of the wheel each: 8 px of finger is 1.9 degrees, which is Noise 1 at 3.6. The wheel stays at 1.9.
+  await face('Detail', 'Noise');
+  const noise = await turn(8);
+  assert.equal(noise.held.label, 'Noise'); assert.equal(noise.later.text, '1');
+  assert.ok(Math.abs(noise.held.angle + 178.09) < 0.05, `8 px turns the wheel 1.9 degrees (${noise.held.angle})`);
+  assert.equal(noise.lifted.angle, noise.held.angle, 'the wheel does not move as the finger lifts');
+  assert.equal(noise.later.angle, noise.held.angle, 'nor a moment later, when the page next draws the board');
+  // Undo is a change from elsewhere: the wheel goes to it.
+  await page.evaluate(async () => (await import('/lab/editor/app/session.js')).undo()); await page.waitForTimeout(100);
+  assert.deepEqual([(await dial()).text, (await dial()).angle], ['0', -180], 'Undo turns the wheel back');
+  // Radius steps by 0.1, 14.4 degrees each: a turn short of half a step clicks back as the finger lifts, not later.
+  await face('Detail', 'Radius');
+  const start = (await dial()).angle, radius = await turn(20);
+  assert.equal(radius.held.text, '1.0'); assert.ok(radius.held.angle - start > 2 && radius.held.angle - start < 7.2, `the wheel followed the finger, under half a step (${radius.held.angle - start})`);
+  assert.deepEqual([radius.lifted.angle, radius.later.angle], [start, start], 'back on its step at once');
+  // the arrow keys add up to a step (they could not move Radius at all: each press was put back)
+  await page.locator('#stage [role=slider]').first().focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(100);
+  assert.equal((await dial()).text, '1.1', 'four presses of the right arrow: Radius 1.1');
   assert.deepEqual(errors, []);
   await context.close();
 });
