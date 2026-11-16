@@ -7,7 +7,8 @@
 import {AstraPlayer} from '../engine/player.js';
 import {TUNING} from '../engine/remux.js';
 import {PlayerScreen} from '../player/player-screen.js';
-import {deviceReport} from '../engine/capabilities.js';
+import {deviceReport, surroundWords} from '../engine/capabilities.js';
+import {threadsReport} from '../engine/software-threads.js';
 import {describeInfo} from '../engine/probe.js';
 import {channelName} from '../engine/labels.js';
 import {languageName} from '../engine/languages.js';
@@ -235,6 +236,7 @@ function openPlayer(ctx, collected, sourceId) {
 }
 
 /** Next or chosen episode: the same release group if it has one; otherwise the sources panel opens and nothing loads until a tap. */
+// A developer page: this asks afresh and ignores the next episode the app keeps prepared (app/next-ready.js), on purpose.
 async function switchEpisode(video) {
   const s = screen, ctx = {...s.lab.ctx, video, id: video.id, title: `${s.lab.ctx.item.name} S${video.season} E${video.episode}`};
   const group = s.stream?.bingeGroup;
@@ -255,6 +257,8 @@ deviceReport().then(d => {
   $('device').replaceChildren(
     ...Object.entries(d.mse).map(([k, v]) => fact(k, v ? 'Supported' : 'Not supported', v ? 'good' : 'bad')),
     fact('Opus encoder', d.opusEncoder ? 'Available (used to convert Dolby and DTS audio)' : 'Missing', d.opusEncoder ? 'good' : 'bad'),
+    fact('Dolby and DTS sound', surroundWords(d)),
+    fact('Software decoder', threadsReport(), crossOriginIsolated ? 'good' : ''),
   );
 });
 

@@ -23,8 +23,12 @@ export const DEFAULTS = Object.freeze({
   boost: 1, // the Sound section's volume boost (1..3), put on every film it can be (sound-menu.js)
   night: false, // night mode: quiet sound up, loud sound down
   dialogue: 0, // clearer speech, 0..2 steps
+  loudness: false, // even loudness from film to film (enhance/leveller.js)
+  levels: {}, // each title's settled loudness gain in dB, by its id, at most 200 (enhance/loudness.js cleans it)
+  headphones: false, // headphone surround: 5.1 placed around the head (enhance/headphone.js)
   sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
   deband: false, // smooth banding
+  upscale: 'standard', // the Picture section's upscale: standard (FSR 1.0) | anime (Anime4K, for drawn animation)
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];

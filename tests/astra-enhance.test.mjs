@@ -1,9 +1,11 @@
 // The pure parts of Astra's sound and picture enhancements (frontend/astra/src/enhance/): the
-// stereo mix the chain does itself agrees with the engine's own, and the picture's sizes.
+// stereo mix the chain does itself agrees with the engine's own, the picture's sizes, and the BT.2390
+// curve that maps an HDR film to the SDR canvas.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { stereoMatrix, centreGain, settle, isOff, makeupGain, LIMIT } from '../frontend/astra/src/enhance/sound-chain.js';
 import { shownSize, outputSize } from '../frontend/astra/src/enhance/picture.js';
+import { eetf, pq, pqNits, curve, eetfPQ } from '../frontend/astra/src/enhance/tonemap.js';
 import { toStereo } from '../frontend/astra/src/engine/downmix.js';
 
 const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} is not ${b}`);
@@ -42,4 +44,20 @@ test('the picture is drawn at the size it is shown, capped at 1080p, never below
   assert.deepEqual(outputSize([1170, 658], 3, [320, 180]), [1920, 1080]);
   assert.deepEqual(outputSize([640, 360], 2, [320, 180], 0.5), [640, 360]);
   assert.deepEqual(outputSize([400, 225], 1, [1280, 720]), [1280, 720], 'shown smaller than the film: the film\'s own size');
+});
+
+// Expected values from an independent implementation of ITU-R BT.2390 5.4.1 (Python, 40-digit decimals).
+test('BT.2390 EETF: PQ round trip, unchanged below the knee, bent smoothly to the target peak above it', () => {
+  near(pq(100), 0.5080784215173949, 1e-12); near(pq(203), 0.5806888810416079, 1e-12); near(pq(1000), 0.7518270962470418, 1e-12);
+  for (const n of [0.01, 1, 5, 100, 203, 1000, 10000]) near(pqNits(pq(n)), n, n * 1e-9);
+  // 1000-nit source on a 406-nit canvas (the shipped constants): 5, 20, 100, 203 untouched.
+  for (const [n, want] of [[5, 5], [20, 20], [100, 100], [203, 203], [300, 294.9822168528088], [500, 381.6947054482469], [700, 402.5763888659582], [1000, 406], [4000, 406]]) near(eetf(n), want, 1e-6 * want);
+  near(eetf(600, 1000, 203), 201.32416453286868, 1e-6);
+  near(eetf(1000, 4000, 406), 376.0092653205163, 1e-6);
+  const c = curve(1000, 406);
+  let last = 0;
+  for (let e = 0; e <= 1.0001; e += 0.01) { const v = eetfPQ(e, c); assert.ok(v >= last - 1e-12, 'rising everywhere'); last = v; }
+  near(eetfPQ(1, c), c.maxLum, 1e-12);
+  const d = 1e-6; near((eetfPQ(c.ks + d, c) - eetfPQ(c.ks, c)) / d, 1, 1e-3); near((eetfPQ(1, c) - eetfPQ(1 - d, c)) / d, 0, 1e-3);
+  near(eetf(800, 1000, 1000), 800, 1e-6); // a screen as bright as the source: nothing to do
 });

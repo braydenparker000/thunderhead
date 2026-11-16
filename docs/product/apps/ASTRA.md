@@ -18,6 +18,14 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
 2. **The mind may pick a title and open it; the owner picks the stream** (owner ruling 2026-10-27).
    Above all, it never auto-picks a stream from a torrent or debrid source. Astra itself ranks nothing
    and plays nothing without a tap.
+   **Owner ruling 2026-11-15:** three earlier limits are relaxed so films start sooner. Before a tap,
+   Astra may read the owner's own TorBox list when streams are listed and resolve the stream under a
+   finger as the press begins; every film the page can read is unpacked by Astra (a plain MP4/WebM
+   too); and the next episode of the same release may be prepared (its stream resolved and its file
+   described) before Next. All of the before-a-tap work is behind Settings › Playback › "Get ready
+   ahead" (on by default) and is off with the data saver. Still in force: nothing plays without a tap;
+   Astra never ranks, picks or pre-selects a stream on the list; secrets never leave the phone or
+   reach storage (§5).
 3. **Add-on URLs, stream URLs and the debrid token are secrets.** On the server they are stored only
    Worker-encrypted; they never appear in logs, senses, surfaces, errors, the mind's context or the repo.
 4. **libmedia stays** (owner ruling 2026-10-28: the owner has permission, and it is Astra's software decoder for HEVC/AV1/VP9 without hardware support, 10-bit H.264 and AVI/FLV/MPEG-PS). mediabunny (MPL-2.0) stays too. libmedia is a named exception to the no-GPL rule; keep its licence files beside it.
@@ -174,6 +182,16 @@ How it is enforced:
    "best stream", no auto-play of the first result, no auto-resolve before a tap. The existing behavior
    stays and gains a test: `StreamsScreen` renders, waits 10 s, and asserts no player was created and no
    debrid request was made.
+   **Owner ruling 2026-11-15 ("Get ready ahead"):** with Settings › Playback › "Get ready ahead" on (the
+   default) and the data saver off, Streams reads the owner's own TorBox list once per account when
+   streams are listed and opens a connection to TorBox, and a finger coming down on a TorBox stream
+   starts resolving that stream, whose answer the tap then takes (`app/ready.js`); a sound converter a
+   listed label needs may be fetched ahead on an unmetered connection; and while an episode plays, the
+   next episode's streams are collected and, only for a stream of the release group playing now (the
+   rule Next already follows), resolved and described, never played (`app/next-ready.js`). With the
+   switch off or the saver on, no TorBox, add-on or film-host request is made before a tap
+   (`tests/astra-tap-browser.test.mjs`). Unchanged: nothing plays without a tap, and no stream is
+   ranked, picked or pre-selected on the list.
    **The owner's filter chips (2026-11-11, `addons/stream-facts.js`):** a second row under the add-ons,
    for the owner who wants small files to save data: Smallest first; one size limit (under 700 MB,
    1.5 GB or 3 GB); any of the picture sizes (720p, 1080p, 4K, SD) and codecs (HEVC, AV1); Clear. They
@@ -229,6 +247,12 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    saved copy never keys a cache by a query: pages are saved by address alone, the page reports its
    files without query or fragment, and the worker's activate step deletes any entry an earlier
    version saved with one. The skip-times lookup (below) sends no add-on, stream or title name.
+6. **As built (owner ruling 2026-11-15):** what "Get ready ahead" (§4.4) reads stays in the page's
+   memory only: the owner's TorBox list and resolved addresses for ten minutes, keyed by the token in
+   memory, never written to storage or sent anywhere but TorBox. A film's header and index kept on the
+   phone (IndexedDB `astra-films`) are keyed by the file's size and a SHA-256 of its first 64 KiB,
+   never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
+   codec names only.
 
 ### 5.3 Server copy (Worker-encrypted)
 
@@ -254,6 +278,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 | dash.js 5.2.0 | BSD-3-Clause | Vendor (§2 #7). **Vendored 2026-11-15** (`vendor/dash/`); its build also holds `buffer`, `ieee754`, codem-isoboxer and a `String.fromCodePoint` polyfill (MIT, BSD-3-Clause), whose notices ship beside it. |
 | JASSUB 2.5.37 (`vendor/jassub/`, added 2026-11-15) | MIT for JASSUB itself; inside its WebAssembly: libass (ISC), FreeType (FTL, chosen over GPL-2.0), HarfBuzz (MIT-Modern-Variant), GNU FriBidi (LGPL-2.1+), Brotli and mimalloc (MIT), Emscripten's runtime; bundled with abslink (Apache-2.0), rvfc-polyfill (GPL-3.0, inactive in Chrome) and throughput (MIT); Liberation Sans (OFL 1.1) as the fallback font | Keep. Every part, its licence and its source are listed in `vendor/LICENSES.md`; the LGPL part is linked into separate `.wasm` files anyone can rebuild and replace. rvfc-polyfill is a GPL file shipped under the owner's any-licence ruling (AGENTS.md, 2026-11-09), its source public. |
 | AMD FidelityFX Super Resolution 1.0 (EASU, RCAS), ported in `src/enhance/fsr.js` (added 2026-11-15) | MIT (Advanced Micro Devices) | Keep, with its notice in the file and in `src/enhance/LICENSES.md`. The de-band pass beside it is Astra's own. |
+| Anime4K "Upscale CNN x2 (S)" and "Restore CNN (S)" shaders, in `src/enhance/anime4k-upscale.js` and `anime4k-restore.js` (added 2026-11-15) | MIT (bloc97) | Keep, with its notice in the files and in `src/enhance/LICENSES.md`. |
 | libmedia 1.3.1 (AVPlayer JS) | LGPL-3.0 | Its JavaScript alone would be allowed, but it is useless without its decoders. |
 | libmedia FFmpeg decoders (`decode/*.wasm`, `resample`, `stretchpitch`) | **GPL-3.0 in effect.** At the pinned commit (`152f629…`), `build/build-ffmpeg-decoder.sh` and `build/build-ffmpeg-util.sh` configure FFmpeg with `--enable-gpl --enable-version3`. FFmpeg built with `--enable-gpl` is distributed under the GPL. (The old repo ships no x264/x265 encoders, which upstream names as its GPL parts, but the decoder build flag alone settles it.) | **Kept by owner ruling 2026-10-28** (owner has permission; named exception to the no-GPL rule). Ship its licence files beside it. |
 | Nuvio, Stremio web | GPL | Design references only; nothing copied (as today). |
@@ -311,7 +336,7 @@ font checks (§2), and the `?open=` deep link.
 **As built (2026-11-15):** Astra's tests are `tests/astra-*.test.mjs` in the root `node --test` run,
 the browser ones (`*-browser.test.mjs`) through Playwright against films from a local file host
 (`tests/fixtures/astra-host.mjs`) that can misbehave on purpose. The films are made by
-`scripts/astra/fixtures.sh` and committed (`tests/fixtures/astra/`, about 2.7 MB); `node
+`scripts/astra/fixtures.sh` and committed (`tests/fixtures/astra/`, about 3.4 MB); `node
 scripts/astra/vendor.mjs --check` checks the vendored files. Each file is listed in
 `frontend/astra/README.md`, Tests.
 
@@ -359,6 +384,25 @@ Kitsu or (first season only) IMDb id, it sends that public id to `api.ani.zip` t
 MyAnimeList id, and the MyAnimeList id, the episode number and the file's length in whole seconds to
 `api.aniskip.com`; no cookies, no referrer, no add-on, stream or title name. Either way the Skip
 button only offers: nothing skips without a tap.
+
+## The player, as built (2026-11-15, second round)
+
+Added in the second round of 2026-11-15, under the owner ruling of that day (rule 2, §4.4). Paths are
+under `frontend/astra/src/`; how each behaves is in `frontend/astra/README.md`. Nothing in it plays
+or picks a stream by itself.
+
+| Capability | Where |
+|---|---|
+| Reads answered as bytes arrive; only what is asked for fetched while a film is described; read-ahead and cache sized by the film's bitrate, asked for in bounded requests | `engine/http-source.js`, `source-stream.js`, `source-blocks.js`, `source-tuning.js` |
+| A film's end asked for beside its start; side reads that never disturb playback; downloads asked again when the network changes | `engine/source-tail.js`, `side-read.js`, `http-source.js` |
+| A film's header and index remembered on the phone (by size and a hash of its first 64 KiB) | `engine/film-memory.js`, `file-hash.js` |
+| Astra's own Matroska reader: packets as a cluster's bytes arrive, seeks by the cue index, Mediabunny as the fallback | `engine/mkv-packets.js`, `mkv-blocks.js`, `mkv-sink.js` |
+| Every readable film unpacked by Astra; Dolby Digital, DD+ and DTS passed to the phone's decoder where it has one; failed routes remembered 30 days | `engine/plan.js`, `player-routes.js`, `route-memory.js` |
+| HLS and DASH with a phone's settings: level capped to the player, buffer targets, the saver's 720p ceiling | `engine/adaptive.js`, `adaptive-tuning.js` |
+| Get ready ahead: TorBox list and resolve before the tap; the next episode prepared (switch in Settings › Playback) | `app/ready.js`, `app/next-ready.js`, `addons/debrid.js`, `screens/streams.js`, `screens/settings.js` |
+| Even loudness (BS.1770, -18 LUFS, remembered per title) and headphone surround | `enhance/loudness.js`, `leveller.js`, `headphone.js`, `sound-chain.js`, `player/sound-menu.js` |
+| Upscaling: Standard (FSR 1.0) or Animation (Anime4K), stepping down; HDR films tone-mapped (BT.2390) | `enhance/anime4k.js`, `anime4k-upscale.js`, `anime4k-restore.js`, `tonemap.js`, `filter.js`, `picture.js`, `player/picture-menu.js` |
+| Several cores (cross-origin isolation, libmedia threads): present, switched off | `frontend/astra/sw.js` (`ISOLATE`), `engine/software-threads.js` (`THREADS`) |
 
 ## Open questions / tests
 

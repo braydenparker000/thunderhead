@@ -83,6 +83,7 @@ export const skipEpisode = (meta, video) => video && meta?.type !== 'movie' && v
 
 function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0}, ticket) {
   app.setCovered(true);
+  app.nextReady?.stop(); // whatever was being made ready belongs to the episode left
   const {next, options} = describe(meta, video);
   app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}};
   app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true});
@@ -98,6 +99,8 @@ async function resolveAndLoad(app, stream, startTime, ticket) {
 export function bindPlayer(app) {
   const player = app.player;
   app.skip = new SkipTimes(player, {settings: () => app.settings});
+  // The next episode made ready before Next (next-ready.js), loaded with the player rather than at start-up.
+  import('./next-ready.js').then(({NextReady}) => { app.nextReady ??= new NextReady(app); }, () => {});
   const save = (time, duration) => {
     const p = app.playing;
     if (!p || !keepProgress(time, p.load)) return;
@@ -106,9 +109,10 @@ export function bindPlayer(app) {
       next: p.next ? {videoId: p.next.id, season: p.next.season, episode: p.next.episode, title: p.next.title, thumbnail: p.next.thumbnail} : null});
     if (entry?.completed && !app.watched.has(p.meta.type, p.meta.id, v ? v.id : null)) app.watched.set(p.meta.type, p.meta.id, v ? v.id : null, true);
   };
-  player.addEventListener('progress', e => { save(e.detail.time, e.detail.duration); if (e.detail.final) app.progress.flush(true); });
+  player.addEventListener('progress', e => { save(e.detail.time, e.detail.duration); if (e.detail.final) app.progress.flush(true); else app.nextReady?.check(e.detail.time, e.detail.duration); });
   player.addEventListener('close', () => {
     app.playTicket++; // whatever was on its way is dropped
+    app.nextReady?.stop();
     app.skip.stop();
     app.progress.flush(true); app.playing = null; app.subtitleSearch?.abort(); app.subtitleSearch = null; app.setCovered(app.stack.length > 0);
   });
@@ -120,6 +124,7 @@ export function bindPlayer(app) {
     if (!p) return;
     e.preventDefault();
     const {source, startTime} = e.detail, ticket = ++app.playTicket;
+    app.nextReady?.stop(); // made ready for the release group playing before
     Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}});
     app.skip.episode(skipEpisode(p.meta, p.video)); // the same episode keeps its finder; one picked from a new episode's list starts
     player.defer(source.stream, startTime);
@@ -133,6 +138,7 @@ export function bindPlayer(app) {
  * panel). What plays stops while its streams are collected. The same
  * release group plays on when it has the episode; otherwise the episode's
  * sources, through the owner's filters, wait for the owner to pick one.
+ * Streams collected ahead for this episode (next-ready.js) are used without asking the add-ons again.
  */
 async function switchEpisode(app, video) {
   const {meta} = app.playing || {};
@@ -143,8 +149,8 @@ async function switchEpisode(app, video) {
   const group = player.stream?.bingeGroup;
   player.video.pause();
   player.showLoading(true);
-  const streams = new app.screenTypes.streams(app, meta, video, {headless: true});
-  const all = await streams.collect().catch(() => []);
+  // The streams collected ahead for this episode (next-ready.js: ten minutes, the same release group), else asked now.
+  const all = app.nextReady?.take(video, group) || await new app.screenTypes.streams(app, meta, video, {headless: true}).collect().catch(() => []);
   if (ticket !== app.playTicket || !player.isOpen) return; // closed, or another pick since
   if (!all.length) return player.showError('None of your add-ons returned a playable stream for this episode.');
   const {sources, hidden} = filterSources(all, app.store.get('streamFilters', null), app.maxMb);

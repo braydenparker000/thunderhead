@@ -108,6 +108,9 @@ test('in picture-in-picture the app behind takes taps; back in the player it is 
     const { page } = await player(t, { viewport });
     assert.equal(await page.evaluate(() => document.querySelector('.behind').inert), true);
     await page.evaluate(() => { fake.plays(5); p.system.minimize(); });
+    // Minimising leaves full screen where the browser had granted it: the tap goes once the page has settled and the
+    // app behind is what lies under the finger.
+    await page.waitForFunction(() => !document.fullscreenElement && !!document.elementFromPoint(60, 150)?.closest('.behind'));
     await page.touchscreen.tap(60, 150);
     assert.equal(await page.evaluate(() => window.behindTaps), 1, `the tap reached the app (${viewport.width}×${viewport.height})`);
     await page.evaluate(() => p.system.restoreFromPip());
@@ -118,15 +121,22 @@ test('in picture-in-picture the app behind takes taps; back in the player it is 
 test('leaving full screen while the page is hidden, or just back, is not back: the player stays open', opts, async (t) => {
   const { page } = await player(t);
   const open = await page.evaluate(async () => {
-    if (document.fullscreenElement) await document.exitFullscreen(); // out of full screen (as Chrome takes it when the app goes to the background)
-    await new Promise((r) => setTimeout(r, 50));
     const s = p.system, seen = [];
     let state = 'hidden';
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
-    // Out of full screen for the whole check, whatever this browser grants or takes back in the meantime.
-    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
     const mm = window.matchMedia.bind(window);
     window.matchMedia = (q) => (q === '(pointer: coarse)' ? { matches: true } : mm(q)); // a phone's finger
+    // Out of full screen as Chrome takes it when the app goes to the background: the browser's own change, while
+    // hidden, waited for. (Made in view, it would be a real back once the page is a second old: on a busy machine
+    // the setup takes that long, and the player closed before the check began.)
+    if (document.fullscreenElement) {
+      const changed = new Promise((r) => document.addEventListener('fullscreenchange', r, { once: true }));
+      await document.exitFullscreen();
+      await changed;
+    }
+    seen.push(p.isOpen);
+    // Out of full screen for the whole check, whatever this browser grants or takes back in the meantime.
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
     Object.assign(s, { wasFullscreen: true, wantFullscreen: true, visibleAt: 0 });
     s.fullscreenChanged(); seen.push(p.isOpen); // the change as the app goes to the background
     state = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
@@ -135,7 +145,7 @@ test('leaving full screen while the page is hidden, or just back, is not back: t
     s.fullscreenChanged(); seen.push(p.isOpen); // a real exit, in view: back, which closes
     return seen;
   });
-  assert.deepEqual(open, [true, true, false]);
+  assert.deepEqual(open, [true, true, true, false]);
 });
 
 test('hold for 2× ends with the first finger’s lift, even after a second finger came and went', opts, async (t) => {

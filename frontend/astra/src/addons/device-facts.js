@@ -52,8 +52,32 @@ export function wordsFor(question, answer) {
   return answer.supported && answer.smooth && answer.powerEfficient ? DIRECT : SOFTWARE;
 }
 
-/** The second note, said from the label alone. */
-export const soundNote = stream => (playFactsOf(stream).sound ? SOUND : '');
+// Sound the planner passes to the phone's own decoder when the browser says it can (engine/plan.js
+// PASSABLE and audioDelivery), with the codec string it asks about. The check is copied here rather
+// than imported: the engine's modules are not part of start-up (tests/astra-startup.test.mjs).
+const PASSED = [
+  ['dts', /(?<![a-z])dts/i, 'dtsc'],
+  ['eac3', /(?<![a-z0-9])(dd\+|ddp|e-?ac-?3|dolby digital plus)/i, 'ec-3'],
+  ['ac3', /(?<![a-z0-9])(dd(?![a-z+])|ac-?3|dolby digital(?! plus))/i, 'ac-3'],
+];
+const mseSays = mime => { try { const M = globalThis.MediaSource || globalThis.ManagedMediaSource; return !!M?.isTypeSupported(mime); } catch { return false; } };
+/** Whether a pass-through of this codec failed here in the last 30 days (engine/route-memory.js passFailed). */
+function passFailedHere(codec, now = Date.now()) {
+  try { const at = JSON.parse(globalThis.localStorage?.getItem('astra-routes') || 'null')?.pass?.[codec]; return Number.isFinite(at) && at <= now + 864e5 && now - at < 30 * 864e5; } catch { return false; }
+}
+
+/**
+ * The second note, said from the label: nothing when every sound it names is one this phone plays
+ * as it is (the browser says so and it has not failed here), the conversion note otherwise.
+ * @param {{mse?: (mime: string) => boolean, passFailed?: (codec: string) => boolean}} [caps] for tests
+ */
+export function soundNote(stream, {mse = mseSays, passFailed = passFailedHere} = {}) {
+  if (!playFactsOf(stream).sound) return '';
+  const t = [stream?.name, stream?.title, stream?.filename].filter(Boolean).join(' '); // as stream-facts.js reads it
+  const named = PASSED.filter(([, re]) => re.test(t));
+  const plays = named.length > 0 && named.every(([codec, , cs]) => !passFailed(codec) && mse(`audio/mp4; codecs="${cs}"`));
+  return plays ? '' : SOUND;
+}
 
 // One question per codec and picture size per session: the answer, once known, or its promise.
 const answers = new Map();

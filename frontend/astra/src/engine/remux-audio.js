@@ -39,7 +39,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
       sample.close();
     }
   } else {
-    const sink = new MB.EncodedPacketSink(track);
+    const sink = session.sink?.(choice.track) || new MB.EncodedPacketSink(track); // Astra's own Matroska reader, when it reads this film
     const start = await sink.getPacket(from) ?? await sink.getFirstPacket();
     if (!start) { session.ended.audio = true; return session.finish(); }
     const source = new MB.EncodedAudioPacketSource(track.codec);

@@ -16,11 +16,12 @@ import {pumpAudio} from './remux-audio.js';
 import {EarlyCuts} from './early.js';
 import {loadDecoders} from './audio-decoders.js';
 import {StallWatch} from './stall-watch.js';
+import {mkvPackets} from './mkv-packets.js';
 import {hasCentre} from '../enhance/sound-chain.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
 // and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
-export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20};
+export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
 const OPUS = 'audio/mp4; codecs="opus"';
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
@@ -42,6 +43,8 @@ export class RemuxSession extends EventTarget {
     this.audio = plan.audio;
     this.source = plan.source || null; // the range reader, told when playback jumps
     this.early = plan.early !== false; // half-second video fragments (early.js); off for a second try after a decode error
+    // A Matroska film's picture and passed-through sound are read by Astra's own reader (mkv-packets.js), block by block.
+    this.packets = plan.source && TUNING.ownMkv ? mkvPackets(plan.info, (start, end) => plan.source.read(start, end)) : null;
     this.queues = {};
     this.ended = {video: !plan.video, audio: !plan.audio};
     this.destroyed = false;
@@ -84,7 +87,9 @@ export class RemuxSession extends EventTarget {
     }).finally(() => { this.opening.abort(); URL.revokeObjectURL(this.url); });
     // Transport streams (and some recordings) start well after zero; play
     // them from 0:00 by shifting the media rather than leaving a gap.
-    const firsts = await Promise.all([this.videoTrack?.ref, this.audio?.track.ref].filter(Boolean).map(t => t.getFirstTimestamp?.().catch(() => 0) ?? 0));
+    const read = [[this.videoTrack, true], [this.audio?.track, this.audio?.delivery !== 'rebuilt']].filter(([t]) => t?.ref); // rebuilt sound: Mediabunny's
+    const sinks = read.map(([t, own]) => (own && this.sink(t)) || t.ref); // every sink first, so the clusters they read are shared
+    const firsts = this.packets?.startsAtZero() ? [0] : await Promise.all(sinks.map((s, i) => s.getFirstTimestamp?.().catch(() => read[i][0].ref.getFirstTimestamp?.() ?? 0).catch(() => 0) ?? 0));
     const first = firsts.length ? Math.min(...firsts) : 0;
     this.offset = first > 0.05 ? first : 0;
     if (this.info.duration > 0) this.ms.duration = Math.max(0.1, this.info.duration - this.offset);
@@ -217,11 +222,14 @@ export class RemuxSession extends EventTarget {
     return current();
   }
 
+  /** The track's packets: Astra's own Matroska reader, or null for Mediabunny's. */
+  sink(track) { return this.packets?.sink(track) || null; }
+
   output(kind, generation, early = null) { return fragmentWriter(this.queues[kind], this.stats, kind, generation, early); }
 
   async pumpVideo(generation, from) {
     const track = this.videoTrack.ref;
-    const sink = new MB.EncodedPacketSink(track);
+    const sink = this.sink(this.videoTrack) || new MB.EncodedPacketSink(track);
     const start = await sink.getKeyPacket(from, {verifyKeyPackets: true}) ?? await sink.getFirstPacket();
     if (this.queues.video.generation !== generation) return;
     if (!start) { this.ended.video = true; return this.finish(); }
@@ -254,6 +262,8 @@ export class RemuxSession extends EventTarget {
   fail(error) {
     if (this.destroyed) return;
     if (error?.name === 'InputDisposedError' || error?.kind === 'closed') return;
+    // Astra's own Matroska reader met something it will not guess at: Mediabunny's reads the film from here on.
+    if (error?.kind === 'mkv-fallback') { if (this.packets) { this.packets = null; this.stats.fallback = error.message; this.jumpTo(this.video.currentTime); } return; }
     this.emit('error', error);
   }
 

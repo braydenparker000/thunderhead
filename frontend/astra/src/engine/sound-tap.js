@@ -19,10 +19,18 @@
 // the decoder works off the page's thread, packets wait for it in a bounded
 // backlog (dropped past it) rather than holding up the reading, and any error in the listener or the decoder ends the
 // tapping for that film (with a line in the engine's log).
+//
+// Sound passed through to the phone's own decoder may be one WebCodecs cannot decode even where the media
+// pipeline can (Dolby Digital, DTS on most phones), so the browser is asked first
+// (AudioDecoder.isConfigSupported, once per sound format per page); when it says no, the tapping ends for
+// that film with one plain line in the log ("Skip intro cannot hear this film's sound: ..."), not an error.
 
 // Packets handed to the decoder at a time; the rest wait here (reading comes in bursts of up to the read-ahead,
 // 40 s), up to MAX_BACKLOG seconds of sound, past which packets are not tapped.
 const MAX_QUEUE = 16, MAX_BACKLOG = 60;
+// WebCodecs' answer per sound format (codec, channels, rate): true, false, or the promise of it.
+const hears = new Map();
+const NAMES = {'ac-3': 'Dolby Digital', 'ec-3': 'Dolby Digital Plus', dtsc: 'DTS', dtsh: 'DTS-HD', dtsl: 'DTS-HD MA', dtse: 'DTS Express'};
 
 export class TapFeed {
   /**
@@ -100,7 +108,7 @@ export class TapFeed {
     if (!this.wants(t, packet.duration)) return;
     const start = performance.now();
     try {
-      if (this.key !== key || !this.decoder || this.decoder.state === 'closed') this.openDecoder(track, offset, key);
+      if (this.key !== key || this.decoder?.state === 'closed') { if (!this.open(track, offset, key)) return; }
       if (this.waiting >= MAX_BACKLOG) { this.stats.dropped++; return; }
       this.waiting += packet.duration || 0;
       this.backlog.push(new EncodedAudioChunk({type: 'key', timestamp: Math.round(packet.timestamp * 1e6), duration: Math.round(packet.duration * 1e6), data: packet.data}));
@@ -120,16 +128,49 @@ export class TapFeed {
     } catch (error) { this.end(error); }
   }
 
-  openDecoder(track, offset, key) {
+  /**
+   * Readies the decoder for a pipeline: at once when WebCodecs is known to decode this sound, after its
+   * answer otherwise (the packets wait in the backlog meanwhile); false when it is known not to.
+   */
+  open(track, offset, key) {
     this.closeDecoder();
-    if (!track.decoderConfig) throw Error('no decoder configuration for this sound');
+    const config = track.decoderConfig;
+    if (!config) throw Error('no decoder configuration for this sound');
     this.key = key;
+    const format = `${config.codec}/${config.numberOfChannels}/${config.sampleRate}`;
+    let known = hears.get(format);
+    if (known === undefined) {
+      const ask = typeof AudioDecoder.isConfigSupported === 'function' ? AudioDecoder.isConfigSupported(config) : Promise.resolve({supported: true});
+      known = Promise.resolve(ask).then(r => !!r?.supported, () => false);
+      hears.set(format, known);
+      known.then(yes => hears.set(format, yes));
+    }
+    if (known === false) { this.cannotHear(config.codec); return false; }
+    if (known === true) { this.openDecoder(config, offset); return true; }
+    known.then(yes => {
+      if (this.dead || this.key !== key || this.decoder) return; // a later pipeline or film asks for itself
+      if (!yes) return this.cannotHear(config.codec);
+      try { this.openDecoder(config, offset); this.drain(); } catch (error) { this.end(error); }
+    });
+    return true;
+  }
+
+  /** Ends the tapping for this film because WebCodecs cannot decode its sound: a plain line, not an error. */
+  cannotHear(codec) {
+    if (this.dead) return;
+    this.dead = true;
+    this.closeDecoder();
+    const name = NAMES[codec] || NAMES[String(codec).slice(0, 4)] || String(codec).slice(0, 40);
+    this.log(`Skip intro cannot hear this film's sound: this browser cannot decode ${name} for it`);
+  }
+
+  openDecoder(config, offset) {
     const decoder = this.decoder = new AudioDecoder({
       output: data => this.decoded(data, offset, decoder),
       error: error => { if (this.decoder === decoder) this.end(error); },
     });
     decoder.addEventListener?.('dequeue', () => { if (this.decoder === decoder) this.drain(); });
-    decoder.configure(track.decoderConfig);
+    decoder.configure(config);
   }
 
   decoded(data, offset, decoder) {

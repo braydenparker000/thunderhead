@@ -1,6 +1,7 @@
 // The Matroska facts Mediabunny does not expose: the file's subtitle tracks,
-// its chapters (chapters.js) and the subtitle blocks inside its clusters. Audio and video are left to
-// Mediabunny; this reader only walks the element tree.
+// its chapters (chapters.js), the subtitle blocks inside its clusters and each
+// track's cue points. This reader only walks the element tree; the picture's and
+// sound's blocks are read by mkv-packets.js.
 //
 // `read(start, end)` returns bytes [start, end) of the file.
 
@@ -14,6 +15,7 @@ const ID = {
   CodecID: 0x86, CodecPrivate: 0x63a2, ContentEncodings: 0x6d80, ContentEncoding: 0x6240, ContentEncodingType: 0x5033,
   ContentCompression: 0x5034, ContentCompAlgo: 0x4254, ContentCompSettings: 0x4255,
   Chapters: 0x1043a770, Cues: 0x1c53bb6b, CuePoint: 0xbb, CueTime: 0xb3, CueTrackPositions: 0xb7, CueClusterPosition: 0xf1,
+  CueTrack: 0xf7, CueRelativePosition: 0xf0, CodecDelay: 0x56aa, ReferenceBlock: 0xfb,
   Cluster: 0x1f43b675, Timestamp: 0xe7, SimpleBlock: 0xa3, BlockGroup: 0xa0, Block: 0xa1, BlockDuration: 0x9b,
   BlockAdditionMapping: 0x41e4, BlockAddIDType: 0x41e7, BlockAddIDExtraData: 0x41ed,
   Attachments: 0x1941a469, AttachedFile: 0x61a7, FileName: 0x466e, FileMediaType: 0x4660, FileData: 0x465c,
@@ -93,6 +95,7 @@ function parseTrack(bytes, start, end) {
     else if (c.id === ID.FlagHearingImpaired) t.hearingImpaired = uint(bytes, c.dataStart, c.dataEnd) === 1;
     else if (c.id === ID.FlagCommentary) t.commentary = uint(bytes, c.dataStart, c.dataEnd) === 1;
     else if (c.id === ID.DefaultDuration) t.defaultDuration = uint(bytes, c.dataStart, c.dataEnd); // nanoseconds a frame lasts
+    else if (c.id === ID.CodecDelay) t.codecDelay = uint(bytes, c.dataStart, c.dataEnd); // nanoseconds (Opus)
     else if (c.id === ID.BlockAdditionMapping) {
       let type = 0, extra = null;
       for (const f of children(bytes, c.dataStart, c.dataEnd)) {
@@ -112,6 +115,7 @@ function parseTrack(bytes, start, end) {
             else if (g.id === ID.ContentCompSettings) settings = bytes.slice(g.dataStart, g.dataEnd);
           }
         }
+        t.encodings = (t.encodings || 0) + 1; // more than one, one undone after another: Astra's own packet reader leaves those to Mediabunny
         t.compression = type === 1 ? {encrypted: true} : {algo, settings};
       }
     }
@@ -130,7 +134,7 @@ export async function readLayout(read, size) {
   const segment = header(head, ebml.dataStart + ebml.size);
   if (!segment || segment.id !== ID.Segment) throw Error('Matroska segment not found');
   const segmentStart = segment.dataStart, segmentEnd = segment.size == null ? size : Math.min(size, segmentStart + segment.size);
-  const layout = {segmentStart, timestampScale: 1e6, duration: null, tracks: [], cues: null, firstCluster: null, chapters: []};
+  const layout = {segmentStart, segmentEnd, timestampScale: 1e6, duration: null, tracks: [], cues: null, firstCluster: null, chapters: []};
   const seeks = new Map();
   const load = async (start, length) => (start + length <= head.length ? head.subarray(start, start + length) : read(start, start + length));
   const parseTop = async (h, pos) => {
@@ -155,7 +159,7 @@ export async function readLayout(read, size) {
     } else if (h.id === ID.Tracks) {
       for (const e of children(body, 0, body.length)) if (e.id === ID.TrackEntry) layout.tracks.push(parseTrack(body, e.dataStart, e.dataEnd));
     } else if (h.id === ID.Cues) {
-      layout.cues = parseCues(body, segmentStart, layout.timestampScale);
+      [layout.cues, layout.trackCues] = parseCues(body, segmentStart, layout.timestampScale);
     } else if (h.id === ID.Chapters) {
       layout.chapters = mkvChapters(body);
     }
@@ -194,22 +198,36 @@ export async function readLayout(read, size) {
   return layout;
 }
 
+// The cue index two ways: each cluster it names with its earliest time (the subtitle scanner), and each track's own
+// points as {ticks (the file's time units), position, relative (where the block sits in its cluster, or null)}, in
+// time order (Astra's own packet reader, mkv-packets.js). A long film's index is a few thousand points.
 function parseCues(bytes, segmentStart, scale) {
-  const byCluster = new Map();
+  const byCluster = new Map(), byTrack = new Map();
   for (const p of children(bytes, 0, bytes.length)) {
     if (p.id !== ID.CuePoint) continue;
     let time = 0;
-    const clusters = [];
+    const places = [];
     for (const f of children(bytes, p.dataStart, p.dataEnd)) {
       if (f.id === ID.CueTime) time = uint(bytes, f.dataStart, f.dataEnd);
-      else if (f.id === ID.CueTrackPositions) for (const g of children(bytes, f.dataStart, f.dataEnd)) {
-        if (g.id === ID.CueClusterPosition) clusters.push(segmentStart + uint(bytes, g.dataStart, g.dataEnd));
+      else if (f.id === ID.CueTrackPositions) {
+        const place = {track: 0, position: null, relative: null};
+        for (const g of children(bytes, f.dataStart, f.dataEnd)) {
+          if (g.id === ID.CueClusterPosition) place.position = segmentStart + uint(bytes, g.dataStart, g.dataEnd);
+          else if (g.id === ID.CueTrack) place.track = uint(bytes, g.dataStart, g.dataEnd);
+          else if (g.id === ID.CueRelativePosition) place.relative = uint(bytes, g.dataStart, g.dataEnd);
+        }
+        if (place.position != null) places.push(place);
       }
     }
     const seconds = time * scale / 1e9;
-    for (const c of clusters) if (!byCluster.has(c) || byCluster.get(c) > seconds) byCluster.set(c, seconds);
+    for (const {track, position, relative} of places) {
+      if (!byCluster.has(position) || byCluster.get(position) > seconds) byCluster.set(position, seconds);
+      if (!byTrack.has(track)) byTrack.set(track, []);
+      byTrack.get(track).push({ticks: time, position, relative});
+    }
   }
-  return [...byCluster].map(([position, time]) => ({time, position})).sort((a, b) => a.position - b.position);
+  for (const list of byTrack.values()) list.sort((a, b) => a.ticks - b.ticks || a.position - b.position);
+  return [[...byCluster].map(([position, time]) => ({time, position})).sort((a, b) => a.position - b.position), byTrack];
 }
 
 /** The subtitle tracks of a layout, described for the planner and the menus. */

@@ -189,7 +189,9 @@ export class SettingsScreen {
         choiceRow('Picture size', [['fit', 'Fit'], ['fill', 'Fill'], ['zoom', 'Zoom']], p.aspect, v => save({aspect: v})),
         choiceRow('Rotation', ORIENTATIONS, p.orientation, v => save({orientation: v})),
         switchRow('Picture-in-picture', 'Keep watching in a small window when you leave Astra, where Chrome allows it. The player’s top bar has a button for it too.', p.autoPip, v => save({autoPip: v})),
-        choiceRow('Save mobile data', [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']], p.dataSaver, v => save({dataSaver: v}), 'On mobile data Astra reads less far ahead of the film.')),
+        choiceRow('Save mobile data', [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']], p.dataSaver, v => save({dataSaver: v}), 'On mobile data Astra reads less far ahead of the film.'),
+        // An Astra setting (it travels in a backup); off, nothing is asked of TorBox or a film's host until a tap (app/ready.js).
+        switchRow('Get ready ahead', 'Reads your TorBox list when streams are listed and prepares the next episode, so films start sooner. Uses a little data.', this.app.settings.readyAhead !== false, v => { this.app.saveSettings({readyAhead: v}); page.render(); })),
       // Both are Astra settings, so they travel in a backup; the lookup is only ever turned on here, by the owner.
       group('Skip intro',
         switchRow('Find intros by sound', 'Works out a series’ opening and ending on this phone by comparing episodes. Nothing is sent anywhere.', this.app.settings.findIntros !== false, v => { this.app.saveSettings({findIntros: v}); page.render(); }),

@@ -9,8 +9,10 @@
 // The drawing is ours to pace: a frame is asked of libass only while the
 // layer is shown and an event is on screen (plus one empty frame to clear
 // it), so subtitles that are off or silent cost nothing on a slow phone.
-// Without cross-origin isolation (this site cannot send the headers) JASSUB
-// renders on one thread, which is enough for a phone's picture size.
+// JASSUB renders on one thread unless the page is cross-origin isolated (which
+// Astra's worker can make it: ISOLATE in sw.js, off); isolated, it starts as many
+// threads as the phone has cores less two by itself, which measured no faster
+// for signs and typesetting and slower to start (2026-11-15).
 
 import {parseAssHeader} from './ass.js';
 import {parseTime} from './markup.js';

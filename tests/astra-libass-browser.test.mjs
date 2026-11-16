@@ -64,10 +64,23 @@ async function page(t) {
    * pixels in each box ([x0, y0, x1, y1] as fractions), and the first box's alpha mask.
    */
   const look = (at, boxes = []) => page.evaluate(async ([at, boxes]) => {
-    const { video } = window.film, canvas = window.libass.canvas;
-    video.pause();
-    if (Math.abs(video.currentTime - at) > 0.01) { video.currentTime = at; await new Promise((r) => video.addEventListener('seeked', r, { once: true })); }
-    await new Promise((r) => setTimeout(r, 300)); // the worker draws asynchronously
+    const { video } = window.film, libass = window.libass, canvas = libass.canvas, jassub = libass.jassub, render = jassub.manualRender, asked = [];
+    // The worker draws asynchronously, and its frame reaches the page's canvas later still (on a busy machine more
+    // than half a second after libass has finished it). So every frame asked of libass is waited for, and the
+    // canvas is read only once it shows that frame: first cleared (no line on screen) and seen empty, then drawn
+    // and seen lit when a line is on screen. A fixed 300 ms once stood in for all of it.
+    jassub.manualRender = function (...a) { const r = render.apply(this, a); asked.push(r); return r; };
+    const any = () => { const W = canvas.clientWidth, H = canvas.clientHeight, o = new OffscreenCanvas(W, H), c = o.getContext('2d'); c.drawImage(canvas, 0, 0, W, H); const d = c.getImageData(0, 0, W, H).data; for (let k = 3; k < d.length; k += 4) if (d[k]) return true; return false; };
+    const drawn = async () => { for (let n = -1; n !== asked.length || jassub.busy;) { n = asked.length; await Promise.allSettled(asked); if (jassub.busy) await new Promise((r) => setTimeout(r, 20)); } };
+    const shows = async (on) => { for (const end = performance.now() + 15_000; any() !== on && performance.now() < end;) await new Promise((r) => requestAnimationFrame(r)); };
+    try {
+      video.pause();
+      if (Math.abs(video.currentTime - at) > 0.01) { video.currentTime = at; await new Promise((r) => video.addEventListener('seeked', r, { once: true })); }
+      await new Promise((r) => setTimeout(r)); // the layer's own pause and seeked handlers have run
+      const delay = libass.delay;
+      libass.setDelay(1e6); await drawn(); await shows(false); // nothing on screen: cleared
+      libass.setDelay(delay); await drawn(); await shows(libass.drawn); // the frame for here
+    } finally { jassub.manualRender = render; }
     const W = canvas.clientWidth, H = canvas.clientHeight, out = new OffscreenCanvas(W, H), g = out.getContext('2d');
     g.drawImage(canvas, 0, 0, W, H);
     const d = g.getImageData(0, 0, W, H).data, lit = (x, y) => d[(y * W + x) * 4 + 3] > 0;
@@ -104,20 +117,22 @@ test('libass draws the signs where the script puts them, and nothing when no lin
   assert.equal((await p.look(3)).n, 0, 'and not at its own time');
   await p.page.evaluate(() => window.libass.setDelay(0));
   // Playing: frames are asked of libass while a line shows, at most one (to clear) between lines, none hidden.
-  const asked = (from, ms) => p.page.evaluate(async ([from, ms]) => {
+  // Measured over the film's own clock (from `from` to `to` s, ended on the frame that reaches it), not the wall's:
+  // on a busy machine half a second of wall time held few frames, or ran a play from 9.15 s on into the next line.
+  const asked = (from, to) => p.page.evaluate(async ([from, to]) => {
     const { video } = window.film, jassub = window.libass.jassub, render = jassub.manualRender;
     let n = 0;
     jassub.manualRender = function (...a) { n++; return render.apply(this, a); };
     video.currentTime = from; await video.play();
-    await new Promise((r) => setTimeout(r, ms));
+    await new Promise((r) => { const on = (now, meta) => (meta.mediaTime >= to ? r() : video.requestVideoFrameCallback(on)); video.requestVideoFrameCallback(on); });
     video.pause(); jassub.manualRender = render;
     return n;
-  }, [from, ms]);
-  assert.ok(await asked(2.5, 500) > 3, 'frames follow the picture while a line shows');
-  assert.ok(await asked(9.15, 500) <= 2, 'between lines libass is left alone');
+  }, [from, to]);
+  assert.ok(await asked(2.5, 3) > 3, 'frames follow the picture while a line shows');
+  assert.ok(await asked(9.15, 9.65) <= 2, 'between lines libass is left alone');
   await p.page.evaluate(() => window.libass.setVisible(false));
   assert.equal(await p.page.evaluate(() => getComputedStyle(window.libass.canvas).display), 'none');
-  assert.equal(await asked(2.5, 400), 0, 'hidden, no frame is asked for');
+  assert.equal(await asked(2.5, 2.9), 0, 'hidden, no frame is asked for');
   assert.deepEqual(p.errors, []);
 });
 

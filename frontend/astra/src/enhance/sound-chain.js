@@ -1,10 +1,30 @@
 // The sound chain itself, on any AudioContext: louder (boost through a
 // limiter), night mode (a gentle compressor), clearer speech (a lifted centre
-// channel, or a lifted speech band in stereo) and sound later than the picture.
+// channel, or a lifted speech band in stereo), sound later than the picture,
+// even loudness from film to film (leveller.js) and 5.1 placed around the head
+// for headphones (headphone.js).
+//
+// In order: the mix to stereo (plain, with the centre lifted, or placed for
+// headphones), the even-loudness gain, night mode, boost, the limiter, the
+// delay. The loudness gain comes first so night mode's threshold meets every
+// film at the same level and works the same on each; boost is the owner's own
+// "louder" on top of the evened level; the limiter comes after both, so
+// neither a lift nor a boost can clip.
+//
 // It runs from its own input gain to its own output gain, so the same chain can
 // sit after a <video> element (sound.js) or inside the software decoder's own
-// audio graph. With every feature off the input is wired straight to the
-// output: nothing touches a sample.
+// audio graph. With every feature off the input reaches the output through one
+// gain at exactly 1: nothing changes a sample.
+//
+// Switching a feature on or off builds the new path beside the old one and
+// crossfades: the new path runs silent for WARM seconds first (a limiter or a
+// compressor just made, and the HRTF panners, need about 150 ms to reach their
+// steady level, and a delay needs its own length to fill), then the two swap
+// with a linear 50 ms ramp, whose weights add up to 1, so the level never goes
+// above the louder of the two and nothing clicks. The old path is then let go.
+
+import {Leveller} from './leveller.js';
+import {placeSpeakers, placeable, hrtfReady} from './headphone.js';
 
 /** Decibels one dialogue step adds (to the centre channel, or to the speech band in stereo). */
 export const STEP_DB = 4;
@@ -24,16 +44,22 @@ export const LIMIT = {threshold: -1, knee: 0, ratio: 20, attack: 0.001, release:
 /** The speech band lifted in stereo: a peaking filter at 2 kHz two octaves wide (about 1 to 4 kHz). */
 export const SPEECH = {frequency: 2000, Q: 0.7};
 
+/** A switch: the new path runs silent this long (seconds), then the paths swap over FADE. */
+export const WARM = 0.2, FADE = 0.05;
+
 const H = Math.SQRT1_2;
 const clamp = (x, lo, hi, d) => Number.isFinite(+x) ? Math.min(hi, Math.max(lo, +x)) : d;
 const step = s => Math.round(clamp(s, 0, 2, 0));
 
-/** The settings as the chain uses them: boost 1 to 3, night on or off, dialogue 0 to 2 steps, delay 0 to 1 s. */
+/**
+ * The settings as the chain uses them: boost 1 to 3, night on or off, dialogue 0 to 2 steps, delay 0 to 1 s,
+ * and the two later switches, loudness (even loudness) and headphones (headphone surround), present only while on.
+ */
 export function settle(s = {}) {
-  return {boost: clamp(s.boost, 1, 3, 1), night: !!s.night, dialogue: step(s.dialogue), delay: clamp(s.delay, 0, 1, 0)};
+  return {boost: clamp(s.boost, 1, 3, 1), night: !!s.night, dialogue: step(s.dialogue), delay: clamp(s.delay, 0, 1, 0), ...(s.loudness ? {loudness: true} : {}), ...(s.headphones ? {headphones: true} : {})};
 }
 export const OFF = Object.freeze(settle());
-export const isOff = s => s.boost === 1 && !s.night && !s.dialogue && !s.delay;
+export const isOff = s => s.boost === 1 && !s.night && !s.dialogue && !s.delay && !s.loudness && !s.headphones;
 
 /**
  * The gain on the centre channel for a dialogue step (0, 1 or 2): 1, +4 dB,
@@ -77,50 +103,73 @@ export function makeupGain({threshold, ratio}) {
 }
 
 export class SoundChain {
-  /** @param {BaseAudioContext} ctx */
-  constructor(ctx) {
+  /**
+   * @param {BaseAudioContext} ctx
+   * @param {{volume?: () => number, onSettle?: (id: string, db: number) => void}} [options] for even loudness (leveller.js)
+   */
+  constructor(ctx, options = {}) {
     this.ctx = ctx;
+    this.options = options;
+    this.level = null; // the even-loudness meter and gain, while on
+    this.start = {id: null, db: 0, known: false}; // the film playing, and where its loudness gain starts
     this.in = ctx.createGain();
     this.out = ctx.createGain();
-    this.in.connect(this.out);
-    this.nodes = [];
+    this.paths = []; // the path playing, last; those before it fading out
+    this.path({nodes: [], from: this.in, level: null}, 0);
     this.key = 'off';
     this.ref = {};
     this.settings = OFF;
     this.channels = 0;
   }
 
+  /** The film playing (its id) and where its loudness gain starts ({db, known}: startLevel in loudness.js). */
+  film(id, {db = 0, known = false} = {}) {
+    this.start = {id, db, known};
+    this.level?.film(id, this.start);
+  }
+
   /** Sets the features; `channels` is what the input really carries (0 while unknown). */
   apply(settings, channels = this.channels) {
     const s = this.settings = settle(settings);
     this.channels = channels;
-    const centre = s.dialogue > 0 && hasCentre(channels), mid = s.dialogue > 0 && channels > 0 && !hasCentre(channels);
-    const limit = s.boost > 1 || s.dialogue > 0;
-    const key = isOff(s) ? 'off' : [centre && channels, mid, s.night, limit, s.delay > 0].join();
-    if (key !== this.key) this.build(s, {centre, mid, limit}, key);
-    const {boost, peak, lifts, delay} = this.ref, t = this.ctx.currentTime;
-    if (boost) boost.gain.value = s.boost;
-    if (peak) peak.gain.value = STEP_DB * s.dialogue;
-    if (lifts) for (const g of lifts) g.gain.value = H * centreGain(s.dialogue);
+    // Chromium loads its HRTF data the first time a panner is made and pans plainly until then: placed only once it is in.
+    const hrtf = !!s.headphones && hrtfReady(this.ctx, () => this.apply(this.settings, this.channels));
+    const phones = hrtf && placeable(channels);
+    const centre = !phones && s.dialogue > 0 && hasCentre(channels), mid = s.dialogue > 0 && channels > 0 && !hasCentre(channels);
+    const limit = s.boost > 1 || s.dialogue > 0 || !!s.loudness || phones;
+    if (s.loudness && !this.level) { this.level = new Leveller(this.ctx, this.options); this.level.film(this.start.id, this.start); this.level.listen(this.in); this.in.connect(this.level.gain); this.key = ''; }
+    if (!s.loudness && this.level) { this.level = null; this.key = ''; } // closed with the path it feeds, once that has faded out
+    const key = isOff(s) ? 'off' : [(centre || phones) && channels, phones, mid, s.loudness, s.night, limit, s.delay > 0].join();
+    if (key !== this.key) this.build(s, {centre, mid, limit, phones}, key);
+    const {boost, peak, lifts, delay} = this.ref, t = this.ctx.currentTime, to = (p, v) => p.setTargetAtTime(v, t, 0.015);
+    if (boost) to(boost.gain, s.boost);
+    if (peak) to(peak.gain, STEP_DB * s.dialogue);
+    if (lifts) for (const g of lifts) to(g.gain, H * centreGain(s.dialogue));
     if (delay) delay.delayTime.setTargetAtTime(s.delay, t, 0.03);
   }
 
-  build(s, {centre, mid, limit}, key) {
-    const ctx = this.ctx;
-    this.in.disconnect();
-    for (const n of this.nodes) n.disconnect();
-    this.nodes = []; this.ref = {}; this.key = key;
-    if (key === 'off') { this.in.connect(this.out); return; }
-    const keep = n => (this.nodes.push(n), n);
+  build(s, {centre, mid, limit, phones}, key) {
+    const ctx = this.ctx, nodes = [], from = this.level?.gain || this.in;
+    this.ref = {}; this.key = key;
+    // The even-loudness gain sits before the mix (both are plain gains, so the order makes no difference) and feeds both paths.
+    if (key === 'off') return this.path({nodes, from: this.in, level: null}, WARM);
+    const keep = n => (nodes.push(n), n);
     const gain = (v = 1, channels = 0, interpretation = 'speakers') => {
       const g = keep(ctx.createGain());
       g.gain.value = v;
       if (channels) Object.assign(g, {channelCount: channels, channelCountMode: 'explicit', channelInterpretation: interpretation});
       return g;
     };
-    let node = this.in;
-    const then = n => { node.connect(n); node = n; return n; };
-    if (centre) {
+    let node = null, first = null;
+    const then = n => { if (node) node.connect(n); else first = n; node = n; return n; };
+    if (phones) {
+      // Headphones: each speaker placed around the head instead of the plain mix, the centre still lifted for dialogue.
+      const n = this.channels, split = keep(ctx.createChannelSplitter(n));
+      then(gain(1, n, 'discrete')).connect(split);
+      const placed = placeSpeakers(ctx, split, n, keep, centreGain(s.dialogue));
+      this.ref.lifts = placed.lifts;
+      node = placed.out;
+    } else if (centre) {
       // The browser would mix 5.1 down only after this chain, so mix it here, with the centre raised.
       const n = this.channels, split = keep(ctx.createChannelSplitter(n)), merge = keep(ctx.createChannelMerger(2));
       then(gain(1, n, 'discrete')).connect(split);
@@ -150,12 +199,58 @@ export class SoundChain {
     if (s.boost > 1) this.ref.boost = then(gain(s.boost));
     if (limit) { then(compressor(ctx, LIMIT, keep)); then(gain(1 / makeupGain(LIMIT))); }
     if (s.delay > 0) { this.ref.delay = then(keep(ctx.createDelay(1))); this.ref.delay.delayTime.value = s.delay; }
-    node.connect(this.out);
+    this.path({nodes, from, level: this.level, first, last: node}, WARM + (s.delay > 0 ? s.delay : 0));
   }
 
-  /** Back to pass-through: input wired straight to output. */
+  /**
+   * Puts a path in: its first node (or its fade alone) fed by `from`, its last into a fade gain into the output.
+   * The fade opens after `warm` seconds as those of the paths before it close; they are let go once closed.
+   */
+  path(p, warm) {
+    const ctx = this.ctx, t = ctx.currentTime, start = t + warm, end = start + (warm ? FADE : 0);
+    p.fade = ctx.createGain();
+    (p.last || p.from).connect(p.fade); p.fade.connect(this.out);
+    if (p.first) p.from.connect(p.first);
+    p.ramp = warm ? [start, 0, end, 1] : [0, 1, 0, 1];
+    if (warm) { p.fade.gain.setValueAtTime(0, t); p.fade.gain.setValueAtTime(0, start); p.fade.gain.linearRampToValueAtTime(1, end); }
+    for (const old of this.paths) {
+      // Each fade is one straight ramp [t0, v0, t1, v1]: written again as it was up to the new fade's start, then down to 0 with it.
+      const g = old.fade.gain, [t0, , t1] = old.ramp, at = x => rampAt(old.ramp, x);
+      g.cancelScheduledValues(t); g.setValueAtTime(at(t), t);
+      for (const b of [t0, t1]) if (b > t && b < start) g.linearRampToValueAtTime(at(b), b);
+      g.linearRampToValueAtTime(at(start), start); g.linearRampToValueAtTime(0, end);
+      old.ramp = [start, at(start), end, 0]; old.end = end;
+      if (!warm) this.drop(old);
+      else if (!old.timer) old.timer = this.later(old);
+    }
+    this.paths = [...this.paths.filter(o => warm && !o.gone), p];
+  }
+
+  // Lets an old path go once its fade has closed (by the sound's own clock, which stops while the context is suspended).
+  later(old) {
+    return setTimeout(() => {
+      old.timer = 0;
+      if (this.ctx.state !== 'closed' && this.ctx.currentTime < old.end + 0.02) { old.timer = this.later(old); return; }
+      this.drop(old);
+      this.paths = this.paths.filter(o => o !== old);
+    }, this.ctx.state === 'running' ? Math.max(20, (old.end - this.ctx.currentTime) * 1000 + 40) : 500);
+  }
+
+  drop(old) {
+    old.gone = true; clearTimeout(old.timer);
+    const cut = (a, b) => { try { a.disconnect(b); } catch {} }; // a pair never joined throws
+    cut(old.from, old.first || old.fade);
+    for (const n of old.nodes) n.disconnect();
+    old.fade.disconnect();
+    if (old.level && old.level !== this.level && !this.paths.some(o => o !== old && !o.gone && o.level === old.level)) { cut(this.in, old.level.gain); old.level.close(); }
+  }
+
+  /** Back to pass-through: input to output through a gain at 1. */
   close() { this.apply(OFF); }
 }
+
+/** A fade's gain at time x on its ramp [t0, v0, t1, v1]: v0 until t0, v1 from t1, a straight line between. */
+const rampAt = ([t0, v0, t1, v1], x) => x <= t0 ? v0 : x >= t1 ? v1 : v0 + (v1 - v0) * (x - t0) / (t1 - t0);
 
 function compressor(ctx, settings, keep) {
   const c = keep(ctx.createDynamicsCompressor());

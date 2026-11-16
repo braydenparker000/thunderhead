@@ -16,16 +16,26 @@ export function openSubtitlesHash(size, head, tail) {
 }
 
 /**
- * Hashes a remote file. `head` is the first 64 KiB when already at hand; the
- * last 64 KiB is one small range request of its own.
+ * Hashes a remote file. `head` is the first 64 KiB and `tail` the last when
+ * already at hand (the range reader has them once the probe read the index
+ * at the end); what is missing is one small range request of its own.
  */
-export async function remoteFileHash(url, size, {headers = {}, head = null, signal, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
+export async function remoteFileHash(url, size, {headers = {}, head = null, tail = null, signal, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
   if (!(size >= HASH_CHUNK * 2)) return null;
   const range = async (start, end) => {
     const r = await fetchFn(url, {headers: {...headers, Range: `bytes=${start}-${end - 1}`}, signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     if (r.status !== 206) { r.body?.cancel().catch(() => {}); throw Error('range'); }
     return new Uint8Array(await r.arrayBuffer());
   };
-  const [first, last] = await Promise.all([head && head.length >= HASH_CHUNK ? head : range(0, HASH_CHUNK), range(size - HASH_CHUNK, size)]);
+  const [first, last] = await Promise.all([head && head.length >= HASH_CHUNK ? head : range(0, HASH_CHUNK), tail && tail.length >= HASH_CHUNK ? tail : range(size - HASH_CHUNK, size)]);
   return openSubtitlesHash(size, first, last);
+}
+
+/**
+ * A film's name for Astra's own memory of it (film-memory.js): its size and a SHA-256 of its first 64 KiB, the
+ * bytes the range reader reads first and the hash above reuses. Never its address, which carries secrets.
+ */
+export async function headKey(size, head) {
+  const bytes = head.subarray(0, HASH_CHUNK), sum = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return `${size}:${[...sum].map(b => b.toString(16).padStart(2, '0')).join('')}`;
 }

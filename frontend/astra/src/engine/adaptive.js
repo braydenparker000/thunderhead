@@ -7,6 +7,8 @@
 
 import {languageName} from './languages.js';
 import {markupSpans} from '../subtitles/parse.js';
+import {hlsTuning, dashTuning, capHls, capNow} from './adaptive-tuning.js';
+import {saverOn} from './player-data.js';
 
 const VENDOR = new URL('../../vendor/', import.meta.url);
 const LIBRARIES = { // hls.js 1.6.13 and dash.js 5.2.0, as vendor/vendor.json pins them
@@ -42,7 +44,9 @@ export const adaptiveMethods = {
     const Hls = await until(library('hls'), signal);
     if (id !== this.load_) return;
     if (!Hls.isSupported()) { await this.startNative(url, startTime, signal); this.mode = 'native'; return; }
-    const hls = new Hls({startPosition: startTime > 0 ? startTime : -1, xhrSetup: xhr => { for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v); }, renderTextTracksNatively: true});
+    const saver = () => saverOn(this.saverSetting ?? 'auto');
+    const hls = new Hls({startPosition: startTime > 0 ? startTime : -1, xhrSetup: xhr => { for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v); }, renderTextTracksNatively: true, ...hlsTuning(saver())});
+    capHls(hls, saver); // the picture no larger than the player (and 720p's worth with the saver on): adaptive-tuning.js
     this.hls = hls;
     let recovered = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
@@ -81,6 +85,7 @@ export const adaptiveMethods = {
     const player = dashjs.MediaPlayer().create();
     // A live stream that names no clock of its own is timed from its own host's answer, not dash.js's default (a third party's).
     player.updateSettings({streaming: {utcSynchronization: {defaultTimingSource: {scheme: 'urn:mpeg:dash:utc:http-head:2014', value: url}}}});
+    player.updateSettings(dashTuning(saverOn(this.saverSetting ?? 'auto'))); // a phone's settings: adaptive-tuning.js
     this.dash = player;
     const events = dashjs.MediaPlayer.events;
     // What the stream has cost (dataUsed): every piece dash.js loaded.
@@ -103,6 +108,14 @@ export const adaptiveMethods = {
     const texts = player.getTracksFor('text') || [];
     this.textTracks = this.textTracks.filter(t => t.kind !== 'stream').concat(texts.map((t, i) => ({id: 'dash-sub:' + i, index: i, label: t.labels?.[0]?.text || languageName(t.lang) || `Subtitles ${i + 1}`, language: t.lang || '', kind: 'stream', supported: true})));
     player.enableText?.(false);
+    this.tuneAdaptive(); // the saver's ceiling needs the stream's own picture sizes
+  },
+
+  /** Puts the data saver's reach (and its ceiling on the picture) on the HLS or DASH player of the film loaded now. */
+  tuneAdaptive() {
+    const on = saverOn(this.saverSetting ?? 'auto');
+    if (this.hls) { Object.assign(this.hls.config, hlsTuning(on)); capNow(this.hls, on); } // hls.js reads its config afresh as it loads
+    if (this.dash) this.dash.updateSettings(dashTuning(on, this.dash));
   },
 
   /**

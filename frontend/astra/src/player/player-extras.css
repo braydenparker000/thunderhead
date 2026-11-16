@@ -71,6 +71,8 @@
 .ap.locked .ap-boost, .ap.overlay .ap-boost, .ap.mini .ap-boost, .ap.sound-only .ap-boost { display: none; }
 .ap-sound-why { max-width: 640px; margin: 0 0 16px; padding: 10px 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); font-size: 14px; line-height: 20px; }
 .ap-sound .ap-pb { gap: 16px 40px; }
+.ap-sound-switch { display: flex; align-items: center; gap: 14px; }
+.ap-sound-switch .ap-chip { flex: none; min-width: 56px; padding: 0 14px; }
 
 /* Picture (picture-menu.js), at the top of Stream info */
 .ap-picture { max-width: 820px; margin: 0 0 20px; }

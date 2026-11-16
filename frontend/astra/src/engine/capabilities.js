@@ -2,6 +2,8 @@
 // assumed from its name. Every answer here comes from Media Source
 // Extensions, the media element or WebCodecs.
 
+import {passFailed} from './route-memory.js';
+
 const MSE = globalThis.MediaSource || globalThis.ManagedMediaSource || null;
 
 export function mediaSourceClass() { return MSE; }
@@ -44,9 +46,26 @@ export const REPORTED = {
   'MP3': 'audio/mp4; codecs="mp3"',
   'AC-3': 'audio/mp4; codecs="ac-3"',
   'E-AC-3': 'audio/mp4; codecs="ec-3"',
+  'DTS': 'audio/mp4; codecs="dtsc"',
 };
+
+/** The surround formats Astra passes through where the browser says it decodes them (plan.js PASSABLE). */
+const SURROUND = [['AC-3', 'ac3', 'Dolby Digital'], ['E-AC-3', 'eac3', 'Dolby Digital Plus'], ['DTS', 'dts', 'DTS']];
+const list = names => names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+
+/** The device report's answer on Dolby and DTS sound, in plain words (the lab's device panel). */
+export function surroundWords(d) {
+  const plays = [], failed = [], converted = [];
+  for (const [key, codec, name] of SURROUND) (d.mse[key] ? d.passFailed?.[codec] ? failed : plays : converted).push(name);
+  const parts = [];
+  if (plays.length) parts.push(`${list(plays)} play${plays.length > 1 ? '' : 's'} as ${plays.length > 1 ? 'they are' : 'it is'}, through the phone's own decoder`);
+  if (failed.length) parts.push(`${list(failed)} failed when played as ${failed.length > 1 ? 'they are' : 'it is'}, so ${failed.length > 1 ? 'they are' : 'it is'} converted to stereo on this phone`);
+  if (converted.length) parts.push(`${list(converted)} ${converted.length > 1 ? 'are' : 'is'} converted to stereo on this phone${d.opusEncoder ? '' : ' (but this browser cannot convert sound)'}`);
+  return parts.join('; ') + '.';
+}
 
 export async function deviceReport() {
   const mse = Object.fromEntries(Object.entries(REPORTED).map(([k, v]) => [k, mseSupports(v)]));
-  return {mse, opusEncoder: await canEncodeAudio('opus'), mediaSource: MSE ? MSE.name : 'none', webCodecs: !!globalThis.VideoDecoder};
+  const failed = Object.fromEntries(SURROUND.map(([, codec]) => [codec, passFailed(codec)]));
+  return {mse, passFailed: failed, opusEncoder: await canEncodeAudio('opus'), mediaSource: MSE ? MSE.name : 'none', webCodecs: !!globalThis.VideoDecoder};
 }

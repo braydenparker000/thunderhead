@@ -30,14 +30,45 @@ export const startMethods = {
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     session.addEventListener('stall', e => this.record('stall', e.detail));
-    session.addEventListener('audioended', () => { if (this.session === session) this.resume('The sound in this file ended before the picture.', {silent: true}); });
+    session.addEventListener('audioended', () => {
+      if (this.session !== session) return;
+      // Sound passed through that never reached its buffer did not end: the browser did not take it (player-routes.js).
+      if (!session.queues.audio?.buffer.buffered.length && this.passThroughFailed('The sound did not start.')) return;
+      this.resume('The sound in this file ended before the picture.', {silent: true});
+    });
     this.session = session;
     this.soundToSession(session); // the sound tap, dialogue lift and sound advance (player-sound.js)
     this.applyDataSaver(); // how far ahead it reads, with the data saver on or off
     this.startScanner();
     await session.start(startTime);
     if (id !== this.load_) return;
+    this.watchPassedSound(session); // sound the browser said it plays as it is, until it does
     if (plan.subtitle) this.selectSubtitle(plan.subtitle.id);
+  },
+
+  /** A plain MP4/WebM the browser plays whole (plan.whole) whose unpacking failed before the first picture: once, it may go to Chrome as it is. */
+  canGoWhole(error) {
+    return !this.started && !this.wentWhole && this.mode === 'remux' && !!this.plan?.whole && this.readable && !error?.kind;
+  },
+
+  /** Hands such a film to the browser as it is, from where it was asked to start; the other fallbacks still follow. */
+  async goWhole(reason) {
+    const id = this.load_, at = this.video.currentTime || this.startTime || 0;
+    this.wentWhole = true;
+    this.record('fallback', 'native: ' + reason);
+    this.stopScanners();
+    this.session?.destroy(); this.session = null;
+    this.probed?.input?.dispose?.(); this.probed?.source?.close?.(); // Chrome reads the file itself from here (the software decoder reopens it)
+    this.mode = 'native';
+    this.plan = {...this.plan, mode: 'native', notes: [...(this.plan?.notes || []), `Astra could not unpack this file (${reason}). Chrome will play it as-is: no audio track choice and no built-in subtitles.`]};
+    this.video.removeAttribute('src');
+    try { this.video.load(); } catch {}
+    await this.startNative(this.url, at, this.abort?.signal);
+    if (id !== this.load_) return;
+    this.emit('tracks');
+    this.video.play().catch(() => {});
+    this.offerChapters();
+    this.emit('ready', this.plan);
   },
 
   /** Software decoding through libmedia (see software.js). */
@@ -46,12 +77,16 @@ export const startMethods = {
     probed.input?.dispose?.();
     const session = new SoftwareSession(this.video, {source: probed.source});
     session.addEventListener('status', e => this.status(e.detail));
-    session.addEventListener('error', e => { this.record('error', {message: 'software', detail: String(e.detail?.message || e.detail)}); this.emit('error', {message: 'The software decoder could not continue with this file.', detail: String(e.detail?.message || e.detail), plan: this.plan}); });
+    session.addEventListener('error', e => { if (this.session === session) this.routeSoftwareFailed(); this.record('error', {message: 'software', detail: String(e.detail?.message || e.detail)}); this.emit('error', {message: 'The software decoder could not continue with this file.', detail: String(e.detail?.message || e.detail), plan: this.plan}); });
     session.addEventListener('tracks', () => this.emit('tracks'));
     this.session = session;
     this.startScanner();
-    await session.start(startTime, {autoplay: false}); // throws, kind 'closed', when this load was replaced meanwhile
+    try { await session.start(startTime, {autoplay: false}); } catch (error) { // throws, kind 'closed', when this load was replaced meanwhile
+      if (id === this.load_) this.routeSoftwareFailed();
+      throw error;
+    }
     if (id !== this.load_) return;
+    this.watchSoftwareRoute(session, startTime); // a picture that fell back here is confirmed once it plays
     // Audio tracks as libmedia numbers them, labelled from the probe when it read the same file.
     const streams = session.audioStreams(), known = info?.audio || [], same = known.length === streams.length;
     this.audio = streams.map((s, i) => {

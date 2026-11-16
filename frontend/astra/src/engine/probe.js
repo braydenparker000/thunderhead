@@ -112,6 +112,7 @@ async function describe(url, source, opened, signal, onStatus, keep) {
   for (const s of subtitles) s.languageName = languageName(s.language);
   // Mediabunny lists no picture it cannot name in a transport stream (MPEG-2) or an Ogg file (Theora).
   const hiddenVideo = video.length ? '' : container.includes('transport') ? 'ts' : container.includes('ogg') && (/\.ogv$/i.test(pathOf(url)) || /^video\//i.test(opened.contentType || '')) ? 'ogg' : '';
+  source.learn(duration); // the reader's reach and cache follow the film's bitrate from here
   source.doneProbing();
   return {
     readable: true, source, input,

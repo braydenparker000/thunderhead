@@ -6,9 +6,9 @@
 // Events: 'status' (detail: text), 'ready', 'tracks', 'error' (detail: {message, detail}).
 // `chapters` ([{start, end, title}] in seconds, [] when none) is set before 'ready'.
 
-import {probe, describeInfo} from './probe.js';
+import {probe} from './probe.js';
 import {planPlayback, audioLabel, subtitleLabel} from './plan.js';
-import {mseSupports, nativeCanPlay, canEncodeAudio, deviceReport} from './capabilities.js';
+import {mseSupports, nativeCanPlay, canEncodeAudio} from './capabilities.js';
 import {softwareVideo} from './software.js';
 import {HttpSource} from './http-source.js';
 import {remoteFileHash, HASH_CHUNK} from './file-hash.js';
@@ -21,6 +21,8 @@ import {startMethods} from './player-start.js';
 import {finishChapters} from './chapters.js';
 import {dataMethods} from './player-data.js';
 import {soundMethods} from './player-sound.js';
+import {routeMethods} from './player-routes.js';
+import {reportMethods} from './player-report.js';
 
 const MEDIA_ERRORS = {
   1: 'Playback was stopped.',
@@ -75,6 +77,8 @@ export class AstraPlayer extends EventTarget {
    * own unpacking or in Chrome is retried once with the software decoder.
    */
   fail(message, detail, {decode = false, network = false} = {}) {
+    if (decode && this.passThroughFailed(message)) return; // sound passed through that did not play is rebuilt first (player-routes.js)
+    if (decode && this.canGoWhole()) { this.goWhole(message); return; } // a plain film the browser plays whole goes to it (player-start.js)
     if (!this.started && decode && this.canFallBack()) { this.fallBack(message); return; }
     // While playing, a decoder that gives up (a seek into an open GOP in Chrome's
     // own decoder, a hardware decoder taken away) is met first with a fresh
@@ -129,6 +133,7 @@ export class AstraPlayer extends EventTarget {
   async fallBack(reason, play = true) {
     const id = this.load_, at = this.video.currentTime || this.startTime || 0;
     this.fellBack = true;
+    this.routeFellBack(this.mode); // remembered for this device once software plays it (player-routes.js)
     this.record('fallback', reason);
     this.status('Switching to the software decoder…');
     this.stopScanners();
@@ -154,6 +159,7 @@ export class AstraPlayer extends EventTarget {
       this.emit('ready', this.plan);
     } catch (error) {
       if (id !== this.load_) return;
+      this.routeSoftwareFailed();
       this.record('error', {message: reason, detail: String(error?.message || error)});
       this.emit('error', {message: reason, detail: String(error?.message || error), plan: this.plan});
     }
@@ -165,7 +171,8 @@ export class AstraPlayer extends EventTarget {
   async load({url, headers = {}, startTime = 0, autoplay = false, prefs = {}, subtitles = []}) {
     this.reset(); // ends the load before this one: its awaits find a newer load and stop
     const id = this.load_;
-    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, resuming: false, resumedAt: NaN, plainFragments: false});
+    this.routeRetry(url); // "Try again" on a film whose remembered route failed
+    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false});
     const languages = prefs.languages || preferredLanguages();
     const controller = this.abort = new AbortController(), signal = controller.signal;
     try {
@@ -176,7 +183,7 @@ export class AstraPlayer extends EventTarget {
       probed.source?.onState?.(state => { if (id === this.load_) this.emit('network', state); });
       this.info = probed.info;
       this.fileFacts(id, url, headers, probed, signal);
-      const caps = {mse: mseSupports, native: nativeCanPlay, opusEncode: await canEncodeAudio('opus'), software: typeof WebAssembly === 'object' && typeof MediaStream === 'function'};
+      const caps = {mse: mseSupports, native: nativeCanPlay, opusEncode: await canEncodeAudio('opus'), software: typeof WebAssembly === 'object' && typeof MediaStream === 'function', ...this.routeCaps()};
       if (id !== this.load_) return;
       this.caps = caps;
       this.readable = probed.readable && !probed.adaptive;
@@ -189,9 +196,12 @@ export class AstraPlayer extends EventTarget {
       if (this.mode === 'remux') {
         try { await this.startRemux(startTime, id); } catch (error) {
           if (id !== this.load_) return;
-          if (!this.canFallBack()) throw error;
-          await this.fallBack(String(error?.message || error));
-          return this.plan;
+          if (!await this.passRetry(error, startTime, id)) {
+            if (this.canGoWhole(error)) { await this.goWhole(String(error?.message || error)); return this.plan; }
+            if (!this.canFallBack()) throw error;
+            await this.fallBack(String(error?.message || error));
+            return this.plan;
+          }
         }
       } else if (this.mode === 'software') await this.startSoftware(startTime, id);
       else if (this.mode === 'hls') await this.startHls(url, headers, startTime, id, signal);
@@ -229,7 +239,7 @@ export class AstraPlayer extends EventTarget {
   }
 
   /**
-   * Learns the file's size and OpenSubtitles hash (two small reads) so
+   * Learns the file's size and OpenSubtitles hash (from the reader, else two small reads) so
    * subtitle add-ons can match this exact release; emits 'filefacts'.
    */
   async fileFacts(load, url, headers, probed, signal) {
@@ -237,34 +247,19 @@ export class AstraPlayer extends EventTarget {
     const size = probed.readable && !probed.adaptive ? probed.info?.size || probed.source?.size || null : null;
     if (size) {
       try {
-        const head = probed.source?.has(0, HASH_CHUNK) ? await probed.source.read(0, HASH_CHUNK) : null;
-        hash = await remoteFileHash(probed.source?.url || url, size, {headers, head: head && head.slice(), signal});
+        // Both chunks from the reader when it has them (the tail is asked for beside the start: source-tail.js).
+        const src = probed.source, part = async (start, end) => (await src?.tail?.done, src?.has(start, end)) ? (await src.read(start, end)).slice() : null;
+        hash = await remoteFileHash(src?.url || url, size, {headers, head: await part(0, HASH_CHUNK), tail: await part(size - HASH_CHUNK, size), signal});
       } catch {}
     }
     if (load === this.load_ && !signal.aborted) this.emit('filefacts', {load, hash, size});
-  }
-
-  /** A shareable report: what the file contains, how it plays, what this device supports. */
-  async report() {
-    return {
-      astra: 'playback-report/1', userAgent: navigator.userAgent, mode: this.mode,
-      plan: this.plan && {mode: this.plan.mode, reason: this.plan.reason, notes: this.plan.notes, audio: this.plan.audio?.label, delivery: this.plan.audio?.delivery},
-      info: describeInfo(this.info), device: await deviceReport(),
-      health: this.session?.health?.() ?? null, stats: this.session?.stats ?? null,
-      subtitles: {clustersScanned: this.scanner?.clustersRead ?? 0, cues: Object.fromEntries([...this.cues].map(([k, v]) => [k, v.length]))},
-      video: {currentTime: this.video.currentTime, readyState: this.video.readyState, error: this.video.error?.message || null,
-        quality: this.video.getVideoPlaybackQuality ? (({totalVideoFrames, droppedVideoFrames}) => ({totalVideoFrames, droppedVideoFrames}))(this.video.getVideoPlaybackQuality()) : null,
-        size: this.video.videoWidth ? `${this.video.videoWidth}x${this.video.videoHeight}` : null},
-      network: this.probed?.source ? {bytes: this.probed.source.bytesFetched} : null,
-      log: this.log.slice(-60),
-    };
   }
 
   /** Ends what is playing or loading: every await of that load finds a newer one (load_) and stops; its downloads close. */
   reset() {
     this.load_++;
     this.abort?.abort(); this.abort = null;
-    this.stopScanners();
+    this.stopScanners(); this.stopPassWatch();
     this.session?.destroy(); this.session = null; this.tapFeed?.closeDecoder(); // sound still decoding for the tap is dropped
     this.hls?.destroy(); this.hls = null;
     this.dash?.reset(); this.dash = null;
@@ -293,5 +288,9 @@ export class AstraPlayer extends EventTarget {
 export {baseLanguage};
 
 // Starting each pipeline (player-start.js), subtitles (player-subtitles.js, with libass and the second track), adaptive
-// streams (adaptive.js), the data count and saver (player-data.js) and the sound features (player-sound.js) live apart.
-Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods, soundMethods);
+// streams (adaptive.js), the data count and saver (player-data.js), the sound features (player-sound.js), what a failed
+// route teaches (player-routes.js) and the report (player-report.js) live apart.
+Object.assign(AstraPlayer.prototype, startMethods, subtitleMethods, adaptiveMethods, dataMethods, soundMethods, routeMethods, reportMethods);
+// The saver reaches hls.js and dash.js too (adaptive.js): each time it is put on the film loaded now.
+const applySaver = AstraPlayer.prototype.applyDataSaver;
+AstraPlayer.prototype.applyDataSaver = function () { applySaver.call(this); this.tuneAdaptive(); };
