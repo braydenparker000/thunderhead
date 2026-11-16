@@ -1,0 +1,115 @@
+diff --git a/frontend/lab/editor/boards/DialPlate.js b/frontend/lab/editor/boards/DialPlate.js
+index 6c1d219..1f00379 100644
+--- a/frontend/lab/editor/boards/DialPlate.js
++++ b/frontend/lab/editor/boards/DialPlate.js
+@@ -20,9 +20,13 @@ export default class Component extends DCLogic {
+   renderVals() {
+     const PERIOD = 360 / 72, FRAMES = 12, FRAME_H = 150, R = 240;   // R = the dial's radius in the design's pixels, so the knurl tracks the finger
+     const label = this.props.label ?? 'Exposure', unit = this.props.unit ?? 'EV';
+-    // a new adjustment, or a change made elsewhere (a preset, Undo): the dial goes to it; never under a finger or while it runs on
+-    if (typeof this.props.value === 'number' && (label !== this.seen || (!this.drag && !this.spin && Math.abs(this.props.value * 36 - this.state.angle) > 1))) {
+-      this.seen = label; this.state.angle = Math.max(-180, Math.min(180, this.props.value * 36));
++    // a new adjustment, or a change made elsewhere (a preset, Undo, a reset): the dial goes to it; never under a finger or while it runs on.
++    // After a turn of its own the wheel stays where the finger left it: the value it gave is rounded to the control's step, and going to
++    // that moved the wheel by up to half a step a moment after the finger had lifted (`rest` below settles what is further off than that)
++    const pv = this.props.value, turned = (a) => Math.max(-180, Math.min(180, a * 36));
++    if (typeof pv === 'number') {
++      if (label !== this.seen || (pv !== this.had && !this.own && !this.drag && !this.spin)) { this.seen = label; this.state.angle = turned(pv); }
++      this.had = pv;
+     }
+     const { angle } = this.state;
+     const ev = unit === 'EV';
+@@ -38,7 +42,12 @@ export default class Component extends DCLogic {
+       if (at0 !== null && was !== at0 && (now === at0 || (was - at0) * (now - at0) < 0)) tick('detent');
+       else if (Math.abs(now) >= edge && Math.abs(was) < edge) tick('end');
+     };
+-    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); felt(this.state.angle, c); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
++    // (`own` holds until the board has drawn what this turn gave: its draw is queued by `onturn`, before the line that lets go)
++    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); felt(this.state.angle, c); this.own = true; this.setState({ angle: c }); this.props.onturn?.(c / 36); queueMicrotask(() => { this.own = false; }); return c; };
++    // The dial has come to rest. A value more than 2 degrees from where the wheel stands is a click of a coarse control (Radius: 14 degrees
++    // a step) or the end of a range the wheel was turned past: the wheel goes there now, as the finger lifts. Nearer than that it is only
++    // the value's own rounding (a whole number of a 0 to 100 control is 3.6 degrees), and the wheel stays under where the finger was.
++    const rest = () => queueMicrotask(() => { const v = this.props.value; if (typeof v === 'number' && !this.drag && !this.spin && Math.abs(turned(v) - this.state.angle) > 2) this.setState({ angle: turned(v) }); });
+     const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
+     const run = (v0) => {   // degrees a millisecond, dying away
+       let vel = v0, last = performance.now();
+@@ -46,7 +55,7 @@ export default class Component extends DCLogic {
+         const dt = Math.min(40, now - last); last = now;
+         const a = setAngle(this.state.angle + vel * dt); vel *= Math.exp(-dt / 320);
+         this.spin = Math.abs(vel) < 0.012 || Math.abs(a) >= 180 ? 0 : requestAnimationFrame(step);
+-        if (!this.spin) { this.setState({}); this.props.onhold?.(false); }
++        if (!this.spin) { this.setState({}); this.props.onhold?.(false); rest(); }
+       };
+       this.spin = requestAnimationFrame(step);
+     };
+@@ -70,7 +79,7 @@ export default class Component extends DCLogic {
+         if (d.far < 5 && e.timeStamp - d.t < 320) {   // a tap: the second of two quick ones puts the value back where it starts
+           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
+         } else if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) return run(d.v);
+-        this.props.onhold?.(false);
++        this.props.onhold?.(false); rest();
+       },
+       key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
+     };
+diff --git a/tests/lab-editor-faults-browser.test.mjs b/tests/lab-editor-faults-browser.test.mjs
+index a10ef70..89d9c35 100644
+--- a/tests/lab-editor-faults-browser.test.mjs
++++ b/tests/lab-editor-faults-browser.test.mjs
+@@ -4,8 +4,8 @@
+ // they did; the eyedropper's tap reaches the picker and its ask goes with its board; an empty Library and a Find with
+ // no match say so; Crop and Export give the size the export will have, and a JPEG is called a JPEG; the Import sheet
+ // goes at a tap outside it; small keys have room for a finger; a chip row fades where it runs on; and the small ones
+-// (an empty film badge, the cull counter, a JPEG's Profile face, Mine's count, Heal's dial, Versions' header). The
+-// photos are JPEGs drawn by the test, on a software GPU.
++// (an empty film badge, the cull counter, a JPEG's Profile face, Mine's count, Heal's dial, Versions' header); and the
++// dial stays where a finger left it. The photos are JPEGs drawn by the test, on a software GPU.
+ import { test, before, after } from 'node:test';
+ import assert from 'node:assert/strict';
+ import { chromium } from 'playwright';
+@@ -252,3 +252,46 @@ test('the boards: crop and Undo, the history, the eyedropper, sizes, keys, rows
+   assert.deepEqual(errors, []);
+   await context.close();
+ });
++
++test('the dial stays where the finger left it, clicks into a coarse step as it lifts, follows Undo, and its keys step every control', opts, async () => {
++  const { context, page, errors, cdp } = await launch();
++  await bringIn(page, await drawn(page, [['DIAL_1.jpg', '#5a7a52']]));
++  await page.evaluate(async () => { const s = await import('/lab/editor/app/store.js'), p = await import('/lab/editor/app/session.js'); await p.open(s.photos()[0].id); });
++  await go(page, 'Edit'); await ready(page);
++  const face = async (name, adj) => { await page.evaluate(([name, adj]) => { const c = document.querySelector('#stage')._root.c; c.setState({ face: name, adj: { ...c.state.adj, [name]: adj } }); }, [name, adj]); await page.waitForTimeout(100); await settle(page); };
++  const dial = () => page.evaluate(() => { const el = document.querySelector('#stage [role=slider]'); return { angle: el.closest('dc-host')._inst.c.state.angle, text: el.getAttribute('aria-valuetext').trim(), label: el.getAttribute('aria-label') }; });
++  /** A slow turn of `px`, the finger resting before it lifts (no fling); the dial as the finger lifts, and as it is once the page has gone quiet. */
++  const turn = async (px) => {
++    const b = await page.locator('#stage [role=slider]').first().boundingBox(), y = b.y + b.height / 2;
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y }] });
++    for (let i = 1; i <= Math.abs(px); i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200 + Math.sign(px) * i, y }] });
++    await page.waitForTimeout(200);
++    const held = await dial();
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
++    await page.waitForTimeout(120); const lifted = await dial();
++    await ready(page); await page.waitForTimeout(700);   // the edit is saved and the boards told: what used to move the wheel
++    return { held, lifted, later: await dial() };
++  };
++  // Noise is a whole number, 3.6 degrees of the wheel each: 8 px of finger is 1.9 degrees, which is Noise 1 at 3.6. The wheel stays at 1.9.
++  await face('Detail', 'Noise');
++  const noise = await turn(8);
++  assert.equal(noise.held.label, 'Noise'); assert.equal(noise.later.text, '1');
++  assert.ok(Math.abs(noise.held.angle + 178.09) < 0.05, `8 px turns the wheel 1.9 degrees (${noise.held.angle})`);
++  assert.equal(noise.lifted.angle, noise.held.angle, 'the wheel does not move as the finger lifts');
++  assert.equal(noise.later.angle, noise.held.angle, 'nor a moment later, when the page next draws the board');
++  // Undo is a change from elsewhere: the wheel goes to it.
++  await page.evaluate(async () => (await import('/lab/editor/app/session.js')).undo()); await page.waitForTimeout(100);
++  assert.deepEqual([(await dial()).text, (await dial()).angle], ['0', -180], 'Undo turns the wheel back');
++  // Radius steps by 0.1, 14.4 degrees each: a turn short of half a step clicks back as the finger lifts, not later.
++  await face('Detail', 'Radius');
++  const start = (await dial()).angle, radius = await turn(20);
++  assert.equal(radius.held.text, '1.0'); assert.ok(Math.abs(radius.held.angle - start - 4.775) < 0.05, 'the wheel followed the finger');
++  assert.deepEqual([radius.lifted.angle, radius.later.angle], [start, start], 'back on its step at once');
++  // the arrow keys add up to a step (they could not move Radius at all: each press was put back)
++  await page.locator('#stage [role=slider]').first().focus();
++  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
++  await page.waitForTimeout(100);
++  assert.equal((await dial()).text, '1.1', 'four presses of the right arrow: Radius 1.1');
++  assert.deepEqual(errors, []);
++  await context.close();
++});
