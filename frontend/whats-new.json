@@ -1,19 +1,10 @@
 {
-  "id": "2026-11-16-astra-previews",
+  "id": "2026-11-16-editor-dial",
   "date": "2026-11-16",
   "lines": [
     {
-      "text": "Astra: rest your finger while dragging the seek bar and a picture of that place appears. Playback has the switch.",
-      "open": "astra"
-    },
-    {
-      "text": "Films whose Dolby or DTS sound Astra converts start as fast as the rest, and keep their surround for headphones."
-    },
-    {
-      "text": "Dolby Vision films that showed purple and green get their colours corrected. HDR works on every kind of stream."
-    },
-    {
-      "text": "More old files play: H.264 in AVI, H.263 in 3GP, and Windows Media sound in MKV."
+      "text": "Editor: the dial stays exactly where your finger leaves it, and the arrow keys now step every control, Radius too.",
+      "open": "photos"
     }
   ]
 }

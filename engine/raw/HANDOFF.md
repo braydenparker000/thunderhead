@@ -9,9 +9,9 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 - The audit is finished and nothing in the product was changed. The only files added are AUDIT.md, this file and
   the audit's scripts in [checks/audit/](checks/audit/), on the branch
   `claude/thunderhead-photo-editor-review-2ye8x9`. No pull request is open.
-- One fix was written and then taken back out at the owner's word: the dial's (finding 1.1 and 1.2). It is kept
-  as [checks/audit/dial-fix.patch](checks/audit/dial-fix.patch), with a test that fails without it and passed
-  with it. `git apply` it when the owner says go.
+- One fix was written and then taken back out at the owner's word: the dial's (finding 1.1 and 1.2). The owner
+  said go on 2026-11-16 and it is now applied (`DialPlate.js`, with its test in
+  `tests/lab-editor-faults-browser.test.mjs`, which fails without the fix and passes with it).
 - **What the owner asked for next, in their words: "Then we'll compare to true ceiling and true best
   behavior."** So the next step is that talk, not code. For each finding below, "the ceiling" is this audit's
   view of the best known behaviour, to start that talk from. Fix nothing until the owner has said which.
@@ -104,8 +104,7 @@ One pull request each, in this order unless the owner says otherwise. "Done when
 
 ### 1.1, 1.2 The dial moves after the finger lifts; the arrow keys cannot move Radius (A, B)
 
-Apply `checks/audit/dial-fix.patch` (DialPlate.js and a test in `tests/lab-editor-faults-browser.test.mjs`, which
-then stands at 297 lines: the cap is 299). The wheel follows only a change made elsewhere; a coarse step clicks
+Done 2026-11-16: `DialPlate.js` and a test in `tests/lab-editor-faults-browser.test.mjs` (297 lines: the cap is 299). The wheel follows only a change made elsewhere; a coarse step clicks
 in as the finger lifts (over 2° off). Check the Export board's dial too (AUDIT 8.9) and the slim window.
 
 ### 1.4 A reduced export is softer and has more moiré (A)

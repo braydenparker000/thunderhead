@@ -25,7 +25,6 @@ node engine/raw/checks/audit/raf4.mjs
 | `raf7.mjs` | every kind of file an export writes, from a crop of the RAF, into `$AUDIT_OUT/files` for checking with other tools | Part 5 |
 | `raf8.mjs` | before/after and press-and-hold on a cropped photo; the Looks and Export boards | 8.4 |
 | `lib.mjs` | twelve RAFs in the Library (`AUDIT_RAFS`: a folder of them): the decodes its tiles cost | 8.1 |
-| `dial-fix.patch` | the fix for 1.1 and 1.2 that was written and set aside, with its test: `git apply` it | 1.1, 1.2 |
 
 `speckle.py` needs Pillow and numpy. A RAF of the owner's is fetched with `node scripts/workshop.mjs` and stays
 outside the repository, with every picture made from it.
