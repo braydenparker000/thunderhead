@@ -709,6 +709,9 @@ measured height, so nothing covers the title or the buttons.
   that cannot draw into half floats keeps the plain picture for them, and
   so does an HDR film in HLG (or one that does not say it is PQ): the
   browser's own picture maps those rightly, and the section says why. A
+  film that comes with no container facts (HLS, DASH, or one the browser
+  plays by itself) is asked from its own first frame whether it is PQ or
+  HLG (`Picture.see`), so it is treated the same. A
   film from a host that does not let the page read it keeps the plain
   picture too; the section says why. When frames start to be missed it
   steps itself down (Animation to Standard, then smooth banding off, then
