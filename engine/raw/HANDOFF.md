@@ -31,9 +31,26 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
   simulation looks, but **not** the "Camera PROVIA/Standard" base and the other film simulations: only their names
   are in the program. Nothing of Adobe's goes into this repository. The true colour check needs one RAF exported by
   Lightroom Mobile in Adobe Color, all else zero, 16-bit TIFF: asked of the owner.
-- **Other networks.** vkdt's `jddcnn` (X-Trans weights, codeberg.org/hanatos/vkdt-nn), X-veon and neural-demosaic
-  exist; none has a licence for its weights. The owner is asking their authors. Score any on the known picture
-  against Starfish before switching.
+- **Other networks: a shoot-out (2026-11-16).** On the known picture (720 px; clean, ISO 3200, fringed), each fed as
+  its own code feeds it (vkdt's `input.comp`/`pu.glsl`; X-veon's `web/src/pipeline`), all scored alike (dB, overall /
+  colour / the roadmap's fair measure of detail):
+
+  | | clean | ISO 3200 |
+  |---|---|---|
+  | Starfish (ours, with 3.1) | **38.1** / **35.5** / 40.4 | **37.1** / **35.4** / 39.7 |
+  | X-veon (7.8 M weights, demosaic only, no licence) | 36.1 / 33.9 / **40.8** | 34.6 / 33.4 / **40.1** |
+  | vkdt `jddcnn` xtrc (white-balanced in; xtrn worse) | 37.4 / 34.4 / 39.3 | 35.9 / 34.1 / 38.2 |
+  | the usual demosaic (+ its NR at ISO 3200) | 36.9 / 34.8 / 38.1 | 35.7 / 34.5 / 38.0 |
+
+  X-veon's lead on the fair measure does not survive a look by quarter: on thin dark lines over texture it is 4 dB
+  under Starfish (33.1 against 37.3), it leaves the noise in a smooth sky at ISO 3200 (40.1 against 47.6), and its
+  colour shortfall is false colour, not a cast (its best overall gains are 1.00). Starfish stays. Two things it
+  showed: **on thin lines over texture the usual demosaic beats Starfish by 2.2 dB** (39.5 against 37.3: Starfish's
+  own notes say it can zipper on sharp edges), and fringing is the larger loss for every network that does not lay
+  colours right first (3.1). The way past the ceiling is to retrain Starfish (its training code is in its repository,
+  `training/xtrans_wgpu/`, MIT or Apache) with lens fringing and thin lines in its training data, as DxO's newest
+  network does: a GPU machine's work for hours, not this container's. DxO's own model cannot be used (closed);
+  its PureRAW trial can serve as a yardstick if the owner sends its DNGs of a few RAFs. No author was contacted.
 
 ## How this owner works (learnt the hard way in this session)
 
