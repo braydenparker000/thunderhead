@@ -1,5 +1,5 @@
-# The checks a commit must pass (TESTING.md §1.1), as five jobs at once: the site and mind suites
-# in four parts (scripts/test-part.mjs deals the files by measured time) and the Worker's suite. Called by
+# The checks a commit must pass (TESTING.md §1.1), as six jobs at once: the site and mind suites
+# in five parts (scripts/test-part.mjs deals the files by measured time) and the Worker's suite. Called by
 # Deploy before anything goes live and by Test on every other branch, so each commit is checked
 # once, in about two minutes. `npm test` runs exactly the same checks in one go.
 name: Checks
@@ -27,13 +27,14 @@ jobs:
   check:
     name: ${{ matrix.part }}
     runs-on: ubuntu-24.04
-    # 15 (10 until 2026-11-13): CI's machine makes the software-GPU tests about twice as slowly as the measured
-    # table says, and a part that had passed for weeks ran out of time with nothing failing.
-    timeout-minutes: 15
+    # 20 (15 until 2026-11-16, 10 until 2026-11-13): CI's machine makes the software-GPU tests about twice as slowly as
+    # the measured table says, and a part that had passed for weeks ran out of time with nothing failing; on 2026-11-16
+    # a part ran out at 14:59 with every test passed. A stalled test is still caught in five minutes (test-part.mjs QUIET).
+    timeout-minutes: 20
     strategy:
       fail-fast: true
       matrix:
-        part: [site 1/4, site 2/4, site 3/4, site 4/4, worker]
+        part: [site 1/5, site 2/5, site 3/5, site 4/5, site 5/5, worker]
     steps:
       # A failing test is fixed, never retried into green (TESTING.md §1 rule 8). The rule was broken by hand three
       # times in one day (2026-11-14), each re-run hiding a test that failed again later, so on a branch a re-run
@@ -71,8 +72,8 @@ jobs:
           if [[ -n "$LAB" ]]; then
             if [[ "$PART" == worker ]]; then echo "lab-only change: the Worker's suite is not run"; exit 0; fi
             # part 1: the types, the contract and the page budgets as preflight checks them. Then the lab's tests,
-            # dealt over the four parts as the whole suite is (one part could not hold the editor's in its time)
-            if [[ "$PART" == 'site 1/4' ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
+            # dealt over the five parts as the whole suite is (one part could not hold the editor's in its time)
+            if [[ "$PART" == 'site 1/5' ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
             read -ra files <<< "$LAB"
             part="${PART#site }"
             node scripts/test-part.mjs "${part%/*}" "${part#*/}" --only "${files[@]}"

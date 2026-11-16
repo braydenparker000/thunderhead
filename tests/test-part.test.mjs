@@ -10,8 +10,8 @@ import { QUIET, deal, durations, heavy, run, testFiles, weights } from '../scrip
 /** The site parts in .github/workflows/checks.yml: "site k/n" in its matrix. */
 const PARTS = Number(/part: \[site 1\/(\d+)/.exec(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'))?.[1]);
 
-test('every test file lands in exactly one of the four parts', () => {
-  assert.equal(PARTS, 4, 'checks.yml runs the site and mind suites in four parts');
+test('every test file lands in exactly one of the five parts', () => {
+  assert.equal(PARTS, 5, 'checks.yml runs the site and mind suites in five parts');
   const files = testFiles();
   assert.ok(files.includes('tests/test-part.test.mjs') && files.includes('mind/tests/th.test.mjs'));
   const weighed = weights(files);
@@ -51,10 +51,10 @@ test('the files that draw on the software GPU are known, and a part has time for
     [true, true, true, false, false, false]);
   const files = testFiles(), of = new Map(weights(files).map((w) => [w.file, w.weight]));
   assert.ok(files.filter(heavy).length >= 15, 'the editor\'s browser tests are among the test files');
-  assert.match(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'), /\n    timeout-minutes: 15\n/, 'the job\'s limit this is reckoned against');
+  assert.match(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'), /\n    timeout-minutes: 20\n/, 'the job\'s limit this is reckoned against');
   for (const [i, part] of deal(weights(files), PARTS).entries()) {
     const ms = part.filter(heavy).reduce((s, f) => s + of.get(f), 0);
-    assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's fifteen minutes (CI makes them about twice as slowly)`);
+    assert.ok(ms < 420_000, `part ${i + 1}'s software-GPU files take ${Math.round(ms / 1000)} s one after another: under seven of the job's twenty minutes (CI makes them about twice as slowly, and the part's other files and set-up take the rest)`);
   }
 });
 
