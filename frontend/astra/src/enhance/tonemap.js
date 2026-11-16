@@ -51,11 +51,15 @@ export function eetf(nits, source = SOURCE_PEAK, target = SHOWN_PEAK) {
   return pqNits(eetfPQ(pq(nits) / c.top, c) * c.top);
 }
 
+/** What the pass takes from the frame: the film's light in the canvas's primaries, in nits. */
+const PLAIN_FILM = 'vec3 film(vec3 e) { return max(decode(e), 0.0) * white; }';
+
 /**
  * The tone-mapping pass, at the film's size: frame (RGBA16F, as described above) to an SDR,
  * sRGB-encoded picture the other passes take as they take any film. Same maths as eetf().
+ * `film` replaces how a texel becomes light (dolby.js: a Dolby Vision profile 5 film's planes).
  */
-export const TONEMAP = `#version 300 es
+export const tonemapShader = (film = PLAIN_FILM) => `#version 300 es
 precision highp float;
 uniform sampler2D src; uniform float top, maxLum, ks, white, shownPeak;
 out vec4 color;
@@ -64,10 +68,12 @@ float pq(float n) { float y = pow(max(n, 0.0) / 10000.0, M1); return pow((C1 + C
 float pqNits(float e) { float p = pow(max(e, 0.0), 1.0 / M2); return 10000.0 * pow(max(p - C1, 0.0) / (C2 - C3 * p), 1.0 / M1); }
 vec3 decode(vec3 e) { vec3 a = abs(e); return sign(e) * mix(a / 12.92, pow((a + 0.055) / 1.055, vec3(2.4)), step(0.04045, a)); }
 vec3 encode(vec3 l) { return mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l)); }
+${film}
 void main() {
-  vec3 c = max(decode(texelFetch(src, ivec2(gl_FragCoord.xy), 0).rgb), 0.0) * white;
+  vec3 c = film(texelFetch(src, ivec2(gl_FragCoord.xy), 0).rgb);
   float m = max(max(c.r, c.g), c.b), e = clamp(pq(m) / top, 0.0, 1.0);
   if (maxLum < 1.0 && e >= ks) { float t = (e - ks) / (1.0 - ks), t2 = t * t, t3 = t2 * t; e = (2.0 * t3 - 3.0 * t2 + 1.0) * ks + (t3 - 2.0 * t2 + t) * (1.0 - ks) + (-2.0 * t3 + 3.0 * t2) * maxLum; }
   c *= m > 0.0 ? pqNits(e * top) / m : 0.0;
   color = vec4(encode(clamp(c / shownPeak, 0.0, 1.0)), 1.0);
 }`;
+export const TONEMAP = tonemapShader();

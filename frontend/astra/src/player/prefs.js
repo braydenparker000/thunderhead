@@ -29,6 +29,7 @@ export const DEFAULTS = Object.freeze({
   sharpen: 0, // the Picture section's sharpening, 0..1 (picture-menu.js)
   deband: false, // smooth banding
   upscale: 'standard', // the Picture section's upscale: standard (FSR 1.0) | anime (Anime4K, for drawn animation)
+  dolbyFix: true, // the Picture section's Dolby Vision profile 5 colour correction (enhance/dolby.js), shown only for such a film
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
