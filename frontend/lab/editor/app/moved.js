@@ -29,11 +29,11 @@ export function moved(active, busy, kind = 'move', more = {}) {
   if (run) return;
   clear();
   const began = performance.now();
-  let last = began, frames = 0, worst = 0, slow = 0, idle = 0, wa = 0, wb = 0, was = began;
-  const tick = (/** @type {number} */ now) => {
-    const gap = now - last, t = performance.now(); frames++;   // (the gap's ends by the page's own clock, which the marks keep: a frame's time may not be on it)
-    if (gap > worst) { worst = gap; wa = was; wb = t; }
-    last = now; was = t;
+  let last = began, frames = 0, worst = 0, slow = 0, idle = 0, wa = 0, wb = 0;
+  const tick = () => {
+    const now = performance.now(), gap = now - last; frames++;   // (by the page's own clock, which the marks keep: a frame's own time may not be on it)
+    if (gap > worst) { worst = gap; wa = last; wb = now; }
+    last = now;
     if (gap > 34) slow++;
     idle = active() ? 0 : idle + 1;
     if (idle < 3) { run = requestAnimationFrame(tick); return; }   // over once nothing has moved it for three frames

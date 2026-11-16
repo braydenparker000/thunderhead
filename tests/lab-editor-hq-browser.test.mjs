@@ -1,5 +1,5 @@
-// The editor's view at its best (2026-11-16): zoomed out, once the photo rests, its full resolution is drawn over the
-// editing copy at the screen's own size, so Sharpening shows as an export makes it (app/zoom.js); on a screen that shows
+// The editor's view at its best (2026-11-16): zoomed out, the editing copy shows with Sharpening as an export has it
+// (engine/fit-sharp.js) and no full-size layer over it (app/zoom.js: the copy has the screen's pixels); on a screen that shows
 // Display P3 the photo is drawn in its colours, while what is kept or measured stays sRGB (app/session.js `wideScreen`);
 // a board's window that moves takes the photo there by a transform alone (app/flip.js); and a gesture's log says what ran
 // in its worst gap (app/moved.js). The photos are JPEGs drawn by the test, on a software GPU.
@@ -46,17 +46,19 @@ const layers = (page) => page.evaluate(async () => {
   return still ? { w: still.width, h: still.height, shown: Math.round(still.getBoundingClientRect().width * devicePixelRatio), detail: detail(still), fitted: detail(p.canvas) } : null;
 });
 
-test('zoomed out, once the photo rests its full resolution is drawn at the screen\'s size, Sharpening and all; an edit shows the copy until it rests', opts, async () => {
+test('zoomed out, the copy shows with Sharpening as an export has it, and no full-size layer lies over it', opts, async () => {
   const { context, page, errors } = await opened();
-  await page.evaluate(async () => (await import('/lab/editor/app/adjust.js')).setValues({ Sharpening: 100 }, 'Sharpening', 'Sharpening', '100'));
-  let l = null;
-  await until(async () => (l = await layers(page)) !== null, { timeout: 120_000, message: 'the full-resolution layer shows over the fitted photo' });
-  assert.ok(Math.abs(l.w - l.shown) <= 1, `at the screen's own size (${l.w} for ${l.shown})`);
-  assert.ok(l.detail > l.fitted * 1.1, `sharper than the editing copy, as an export is (${l.detail.toFixed(2)} against ${l.fitted.toFixed(2)})`);
-  // an edit: the layer is of the photo as it was, so the copy shows until the edit rests, then the layer is made again
-  const gone = await page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'), s0 = p.stamp(); (await import('/lab/editor/app/adjust.js')).setValues({ Exposure: 0.5 }, 'Exposure', 'Exposure', '+0.5'); while (p.stamp() === s0) await new Promise((r) => setTimeout(r, 5)); await new Promise((r) => setTimeout(r)); return ![...document.querySelectorAll('canvas.zl')].some((c) => c.style.display === 'block'); });
-  assert.ok(gone, 'hidden while the edit is drawn');
-  await until(async () => (await layers(page)) !== null, { timeout: 120_000, message: 'drawn again once the edit rests' });
+  const detail = (sharpening) => page.evaluate(async (v) => {
+    const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js');
+    a.setValues({ Sharpening: v }, 'Sharpening', 'Sharpening', String(v)); while (p.busy()) await new Promise((r) => setTimeout(r, 5));
+    const c = p.canvas, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, w = c.width; let s = 0, n = 0;
+    for (let i = 4 * (w + 1); i < d.length - 4 * (w + 1); i += 4) { s += Math.abs(2 * d[i + 1] - d[i - 3] - d[i + 5]); n++; }
+    return { detail: s / n, layer: [...document.querySelectorAll('canvas.zl')].some((x) => x.style.display === 'block') };
+  }, sharpening);
+  const plain = await detail(0), sharp = await detail(100);
+  await page.waitForTimeout(800);
+  assert.ok(sharp.detail > plain.detail * 1.1, `Sharpening shows zoomed out (${plain.detail.toFixed(2)} → ${sharp.detail.toFixed(2)})`);
+  assert.equal(sharp.layer || (await layers(page)) !== null, false, 'no full-size layer over the fitted photo');
   assert.deepEqual(errors, []);
   await context.close();
 });

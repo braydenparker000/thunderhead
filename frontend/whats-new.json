@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-16-editor-view-at-its-best",
+  "id": "2026-11-16-editor-safe-and-sharp",
   "date": "2026-11-16",
   "lines": [
     {
-      "text": "Zoomed out, the editor shows your photo as an export makes it, Sharpening included, once you stop moving.",
+      "text": "The editor never reopens a photo over and over: after a graphics reset it opens once in a lighter mode.",
       "open": "photos"
     },
     {
-      "text": "On your phone's wide-colour screen, photos show their full colour, not only sRGB's."
+      "text": "Zoomed out, Sharpening shows as your export will have it; zoomed in, full detail then Starfish load when you stop."
     },
     {
-      "text": "After an export, the Export board says how many parts your phone's CPU made beside its GPU."
+      "text": "A small note under the zoom's red dot says what is loading."
     },
     {
-      "text": "Moving between boards, the photo glides more smoothly."
+      "text": "Opening a photo again shows its sharper copy at once, and the editor stays within your phone's memory."
     }
   ]
 }

@@ -1,8 +1,8 @@
-// A zoomed photo's edits (AUDIT.md P.1): from 100 % the full-size view covers the window, so an edit's frame draws that
-// view alone and leaves the fitted photo under it; the fitted photo is drawn once edits rest, and is right then and once
-// zoomed out. What is checked is the fitted photo's own canvas (the page runs with ?readback, so its pixels can be read):
-// unchanged just after an edit's frame at 100 %, changed by the edit once it rests. The photo is a JPEG drawn by the
-// test, on a software GPU, where a frame takes seconds: how fast it is on a phone is the phone's own log's to say.
+// A zoomed photo's edits (the owner, 2026-11-16: "when the dial stops it can load the edit"): at 100 % an edit shows the
+// editing copy at once, the full-size view laid over it hidden (a layer only shows for the edit it was made for), and
+// the full-size view comes back once edits rest, the badge naming it under its beating dot meanwhile; zoomed out it is
+// the same picture. What is checked is the fitted photo's own canvas (the page runs with ?readback, so its pixels can be
+// read) and the zoom's layers. The photo is a JPEG drawn by the test, on a software GPU.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -20,7 +20,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-test('at 100 % an edit draws the full-size view alone, and the fitted photo follows once edits rest and when zoomed out', opts, async () => {
+test('at 100 % an edit shows the copy at once, and the full-size view comes back once edits rest, named under the badge\'s dot; zoomed out it is the same picture', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, serviceWorkers: 'block' });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -34,37 +34,30 @@ test('at 100 % an edit draws the full-size view alone, and the fitted photo foll
     await photo.open(store.photos()[0].id);
     document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' }));
     for (let i = 0; i < 2400 && !(photo.ready && photo.whole() && !photo.busy()); i++) await new Promise((r) => setTimeout(r, 50));
+    // what the badge says, as it says it
+    const p = photo.canvas.parentElement?.parentElement?.querySelector('.glass'), said = (window.__said = []);
+    new MutationObserver(() => { const n = p?.lastElementChild; if (n && n.textContent) said.push(`${n.textContent}|${p?.firstElementChild?.classList.contains('busy')}`); }).observe(/** @type {Node} */ (p), { subtree: true, childList: true, characterData: true, attributes: true });
   });
-  // the fitted photo's mean brightness, read from its own canvas
+  // the fitted photo's mean brightness, read from its own canvas; whether the full-size view shows (the zoom's layers: the photo's canvas, the clipping, still, live, the network's)
   const fitted = () => page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'), c = p.canvas, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4) / 3; });
+  const live = () => page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'); return /** @type {HTMLElement} */ (p.canvas.parentElement?.children[3]).style.display === 'block'; });
   const quiet = () => until(() => page.evaluate(async () => !(await import('/lab/editor/app/session.js')).busy()), { timeout: 120_000, message: 'the page is quiet' });
   await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).toggle());
-  await until(() => page.evaluate(async () => { const z = await import('/lab/editor/app/zoom.js'), p = await import('/lab/editor/app/session.js'); return z.info().pct >= 100 && p.took.detail > 0 && !p.busy(); }), { timeout: 120_000, message: 'at 100 % with its full-size view' });
-  const before = await fitted(), stamp = await page.evaluate(async () => (await import('/lab/editor/app/session.js')).stamp());
-  // an edit at 100 %: its frame is the view's alone; the fitted photo is behind but the boards are told the edit changed
-  const after1 = await page.evaluate(async () => {
-    const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js');
-    a.setValues({ Exposure: 1.5 }, 'Exposure', 'Exposure', '+1.5');
-    while (p.busy()) await new Promise((r) => setTimeout(r, 5));
-    const c = p.canvas, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
-    return { mean: s / (d.length / 4) / 3, stamp: p.stamp() };
-  });
-  assert.ok(Math.abs(after1.mean - before) < 0.5, `the fitted photo is not drawn under the view (${before.toFixed(1)} → ${after1.mean.toFixed(1)})`);
-  assert.ok(after1.stamp > stamp, 'the boards are told the photo changed');
-  // once edits rest, it is drawn: brighter by the edit
-  // (waited for, not timed: on a slow machine the network's own view may hold the engine when edits rest, and the fitted photo then waits its turn)
-  let rested = before;
-  await until(async () => (rested = await fitted()) > before + 20, { timeout: 120_000, message: `the fitted photo follows once edits rest (${before.toFixed(1)} → ${rested.toFixed(1)})` });
-  // zoomed out it is the same picture, and an edit there draws it at once
+  await until(async () => (await live()) && (await page.evaluate(async () => { const z = await import('/lab/editor/app/zoom.js'), p = await import('/lab/editor/app/session.js'); return z.info().pct >= 100 && p.took.detail > 0 && !p.busy(); })), { timeout: 120_000, message: 'at 100 % with its full-size view' });
+  const said = await page.evaluate(() => window.__said);
+  assert.ok(said.includes('Loading full detail|true'), `the badge said what was loading, its dot beating (${said})`);
+  const before = await fitted();
+  // an edit at 100 %: the copy shows it at once, the full-size view of the photo as it was hidden
+  await page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js'); a.setValues({ Exposure: 1.5 }, 'Exposure', 'Exposure', '+1.5'); while (p.busy()) await new Promise((r) => setTimeout(r, 5)); });
+  const edited = await fitted();
+  assert.ok(edited > before + 20, `the copy shows the edit at once (${before.toFixed(1)} → ${edited.toFixed(1)})`);
+  assert.equal(await live(), false, 'the full-size view of the photo as it was is hidden');
+  // once edits rest, the full-size view is made again
+  await until(live, { timeout: 120_000, message: 'the full-size view comes back once edits rest' });
+  // zoomed out it is the same picture
   await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).toggle()); await page.waitForTimeout(400); await quiet();
-  assert.ok(Math.abs((await fitted()) - rested) < 0.5, 'zoomed out, the fitted photo is the edit');
-  const fit2 = await page.evaluate(async () => {
-    const p = await import('/lab/editor/app/session.js'), a = await import('/lab/editor/app/adjust.js');
-    a.setValues({ Exposure: 0 }, 'Exposure', 'Exposure', '0');
-    while (p.busy()) await new Promise((r) => setTimeout(r, 5));
-    const c = p.canvas, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4) / 3;
-  });
-  assert.ok(Math.abs(fit2 - before) < 1, `fitted, an edit draws the fitted photo in its own frame (${fit2.toFixed(1)} against ${before.toFixed(1)})`);
+  assert.ok(Math.abs((await fitted()) - edited) < 0.5, 'zoomed out, the fitted photo is the edit');
+  assert.equal(await page.evaluate(async () => !!(await import('/lab/editor/app/session.js')).canvas.parentElement?.querySelector('canvas.zl[style*="display: block"]')), false, 'and no full-size layer lies over it');
   assert.deepEqual(errors, []);
   await context.close();
 });

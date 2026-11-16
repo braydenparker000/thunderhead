@@ -47,6 +47,28 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | 6 | `moved.js`: whatever can hold a frame up marks itself (`th:frame`, `th:part`, `th:tile`, `th:map`, `th:board`, `th:copy`) and the browser's long tasks are watched; a gesture's log says what ran in its worst gap (`ran`) | the same file: a frame held 400 ms by a tile says `tile` |
 | 7 | `flip.js`: fitted, the photo goes to another board's window by its transform alone (the layer takes its place at once, then a transform eases the photo from where it showed); zoomed in, the window's edges still glide | the same file: only `transform` animates, the layer's box is not eased, it lands on its fitted place |
 
+- **Fourth round, the same evening: the editor rebuilt to be safe on a small phone** (the owner: "Let's design the system
+  from the ground up exactly how it should work"). After the third round went live, a photo opened over and over on the
+  owner's Galaxy A35 ("Opening…", the camera's JPEG, again). The mechanism, read in the code: a lost GPU device made the
+  session open the photo again, with no limit, into the same loss (and Chrome refuses a page the GPU after two of its
+  crashes in two minutes). The likely loss: GPU memory and work at once in the first seconds after opening. Measured on the
+  owner's 40 MP RAF (software GPU, every buffer counted): the photo itself about 190 MB (sensor 76, copy 34, its laid-out
+  form 34, the lens's 17, the frame 17, masks and the colour table about 10); the copy made again 125 MB more at first (58
+  now); the zoomed-out view's full-size passes 130 more, both running at once at the open: 523 MB, where the afternoon's
+  version held about 270 there. The design agreed with the owner, built in one pull request:
+
+| Part | What | Proved here |
+|---|---|---|
+| No loop | `session.js` `th-gpu-lost`: a reset opens the photo once more, light (no copy made again, no Starfish), and says so; a second is only said. Both in the timings (`lost`) | `tests/lab-editor-guard-browser.test.mjs` |
+| Memory | `engine/gpu-memory.js`: every buffer and texture counted; the budget by the phone's memory (720 MB at 8 GB, 480 at 4–6 GB, 240 below; `?budget=` for checks), lowered for good when the GPU says it ran out. The copy made again asks `room` and is left where it would not fit; Starfish's view and the full-size view are never held together where both would not fit | the same file: a 20 MB budget leaves the copy and the editor stays under it; an out-of-memory error lowers the budget and it is kept |
+| Queue | `engine/work.js`: frames, the zoom's views and a finger on the photo hold the GPU; the copy made again and Starfish's compiling wait their turn between slices. What is made is named: under the zoom badge's beating dot, small (`zoom-note.js`) | the same file; `lab-editor-zoomed-browser.test.mjs` sees "Loading full detail" under a beating dot |
+| Zoom | `zoom.js`: to a third of the sensor's size the copy, sharpened as an export is (`engine/fit-sharp.js`, 0.24 at Sharpening 40: fine detail 7.42 → 8.44, the export's 8.44); a third to 100 % tiles at rest (`zoom-tiles.js`, kept for a pan back); from 100 % an edit shows the copy at once and the full-size view comes back once it rests, then Starfish's with no cap. The zoomed-out full-size layer of the third round is gone | `lab-editor-hq-browser.test.mjs`, `lab-editor-zoomed-browser.test.mjs`, the guard file's tiles |
+| Copy | `proxy-hq.js` in 228-pixel tiles (half the memory), read back 4 MB at a time, after the photo's frames; kept on the phone for the last six photos (`copy-kept.js`) and taken on the next open | the guard file: opened again, nothing made again |
+
+  Not done, and why: the zoomed-out photo is still processed at the copy's size, not the screen's (that would rework
+  every tool's sizing: masks, crop, heal, brushes); the turn logs from the A15 will say whether the dial needs it. Only
+  the phone can say how much memory a Mali GPU gives Chrome: the timings now carry `mb`, `peakMb` and `budgetMb` on `full`.
+
 - Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
   committed test.
@@ -78,6 +100,8 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 
 ## How this owner works (learnt the hard way in this session)
 
+- **Merging is pre-approved** (the owner, 2026-11-16: "You always have my approval to merge and go live"): once
+  CI is green, merge and confirm the live `release.json`, without asking again.
 - **Audit before change.** "It's your repo" did not mean "mend as you go": a fix made during the review was
   unwelcome. Say what you will change and wait for the word. Once the word is given: build it all and ship it in
   one pull request, and run only the tests that touch it, not the whole suite (2026-11-16).

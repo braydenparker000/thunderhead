@@ -22,7 +22,7 @@ import { loadCopy, saveCopy } from './copy-kept.js';
 import { hold as claim } from '../../engine/work.js';
 import { inMB } from '../../engine/gpu-memory.js';
 
-import { BASELINE_EV, STILL, ZERO, noiseStart } from './values.js';
+import { BASELINE_EV, STILL, WB, ZERO, noiseStart } from './values.js';
 export { LIVE, STILL, WB, ZERO, noiseStart } from './values.js';
 export const wideScreen = matchMedia('(color-gamut: p3)').matches, space = /** @type {{ colorSpace: PredefinedColorSpace }} */ ({ colorSpace: wideScreen ? 'display-p3' : 'srgb' });   // a screen that shows Display P3 (a phone's does): the photo is drawn in its colours, stronger than sRGB's where the photo has them; a tile, the histogram, a kept picture and an export's frames stay as asked
 
