@@ -94,7 +94,7 @@ export class Picture {
     this.onShape = () => this.place();
     this.onWake = () => this.request();
     // A new film is a fresh start: it may be readable (or fast enough) where the last was not.
-    this.onLoad = () => { this.refused = ''; this.level = 0; this.reason = ''; this.fallback = ''; if (this.wanted()) this.start(); };
+    this.onLoad = () => { this.refused = ''; this.seen = false; this.level = 0; this.reason = ''; this.fallback = ''; if (this.wanted()) this.start(); };
     video.addEventListener('loadstart', this.onLoad);
   }
 
@@ -117,7 +117,7 @@ export class Picture {
   start() {
     const why = this.refused || unreadable(this.video);
     if (why) { this.stop(); this.report(why); return false; }
-    if (this.hdr && this.transfer !== 'pq') { this.stop(); this.report(HDR.notPQ); return false; }
+    if (this.hdr && this.transfer && this.transfer !== 'pq') { this.stop(); this.report(HDR.notPQ); return false; }
     if (this.on) { this.request(); return true; }
     try {
       this.canvas = document.createElement('canvas');
@@ -188,8 +188,21 @@ export class Picture {
     this.request();
   }
 
+  /**
+   * What the frame itself says, once a film: a film played by the browser, hls.js or dash.js comes with no container
+   * facts, and an HDR film uploaded as an ordinary one loses everything above reference white.
+   */
+  see() {
+    this.seen = true;
+    let transfer = '';
+    try { const f = new VideoFrame(this.video); transfer = f.colorSpace?.transfer || ''; f.close(); } catch { this.seen = false; return; }
+    if (transfer === 'pq' || transfer === 'hlg') { this.hdr = true; this.transfer = transfer; }
+  }
+
   draw() {
     if (!this.on || !this.filter || this.filter.gl.isContextLost()) return;
+    if (!this.seen && (!this.hdr || !this.transfer) && typeof VideoFrame === 'function') this.see();
+    if (this.hdr && this.transfer !== 'pq') return this.refuse(HDR.notPQ);
     if (this.hdr && !this.filter.half) return this.refuse(HDR.reason);
     const t0 = performance.now();
     try { this.filter.upload(this.video, this.hdr); }

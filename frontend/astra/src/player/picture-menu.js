@@ -29,7 +29,7 @@ export class PictureControl {
     this.picture = null;
     this.told = new Set(); // notices already shown for this film
     // Before the filter's own loadstart handler (registered later, on first use): the last film's HDR must not refuse this one.
-    p.video.addEventListener('loadstart', () => { if (this.picture) this.picture.hdr = false; this.told.clear(); });
+    p.video.addEventListener('loadstart', () => { if (this.picture) { this.picture.hdr = false; this.picture.transfer = ''; } this.told.clear(); });
     p.engine.addEventListener('ready', () => this.apply());
   }
 
@@ -43,7 +43,8 @@ export class PictureControl {
     const w = this.wanted;
     if (!this.picture && !PictureControl.on(w)) return;
     this.make();
-    this.picture.hdr = this.hdr; this.picture.transfer = this.transfer;
+    // Told by the container where the engine read one; otherwise the filter asks the frame itself (Picture.see).
+    if (this.hdr) { this.picture.hdr = true; this.picture.transfer = this.transfer; }
     this.picture.set(w);
   }
 
@@ -82,7 +83,7 @@ export class PictureControl {
     if (!PictureControl.on(w)) return '';
     if (!this.p.ready) return 'Starts with the film.';
     if (s?.reason === HDR.reason) return 'This phone cannot draw HDR films through the filter, so the plain picture shows.';
-    if (s?.reason === HDR.notPQ) return this.transfer === 'hlg' ? 'This film is HDR in HLG, which the filter cannot tone-map yet, so the plain picture shows.' : 'This HDR film does not say it is PQ, the only kind the filter can tone-map, so the plain picture shows.';
+    if (s?.reason === HDR.notPQ) return (this.transfer || this.picture?.transfer) === 'hlg' ? 'This film is HDR in HLG, which the filter cannot tone-map yet, so the plain picture shows.' : 'This HDR film does not say it is PQ, the only kind the filter can tone-map, so the plain picture shows.';
     if (s?.reason) return /host/.test(s.reason) ? 'This film comes from a host that does not let Astra draw its picture, so the plain picture shows.' : /fast enough/.test(s.reason) ? 'Turned itself off: this phone could not keep up with this film.' : s.reason;
     if (s?.on && s.fallback === 'slow') return s.level > 0 ? 'Standard upscaling, turned down a little, to keep the film smooth.' : 'Standard upscaling for now: Animation could not keep the film smooth.';
     if (s?.on && s.fallback === 'device') return 'This phone cannot run Animation upscaling, so Standard is used.';

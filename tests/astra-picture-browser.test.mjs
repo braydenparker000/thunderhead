@@ -150,6 +150,39 @@ test('picture: an HDR film is tone-mapped close to the browser\'s own picture, w
   assert.deepEqual(errors, []);
 });
 
+test('picture: a film the browser plays by itself is seen to be HDR from its own frame: PQ is tone-mapped, HLG keeps the plain picture', opts, async (t) => {
+  const { page: p, errors } = await page(t);
+  const r = await p.evaluate(async (urls) => {
+    const { Picture } = await import('/astra/src/enhance/picture.js');
+    const out = {};
+    for (const [name, url] of Object.entries(urls)) {
+      const { video, layer } = box();
+      video.crossOrigin = 'anonymous'; video.src = url;
+      await new Promise((ok, no) => { video.onloadeddata = ok; video.onerror = () => no(Error('this browser cannot play the HDR clip')); }).catch((e) => (out.skip = e.message));
+      if (out.skip) return out;
+      video.currentTime = 0.5; await new Promise((r) => video.addEventListener('seeked', r, { once: true }));
+      // As the Picture section leaves it for a film with no container facts (HLS, DASH, the browser's own player): nobody says HDR.
+      const reports = [], pic = new Picture(video, layer, { onReport: (why) => reports.push(why), hdr: false, transfer: '' });
+      pic.set({ sharpen: 0.35 });
+      for (let i = 0; i < 60 && !pic.seen && !reports.length; i++) await wait(50);
+      await wait(300);
+      const row = pic.on && readRow(pic, video, 180);
+      out[name] = { hdr: pic.hdr, transfer: pic.transfer, on: pic.on, reports, greys: row ? [32, 96, 160, 224, 288].map((x) => row.at((x * row.W) / 320)[0]) : null };
+      pic.close(); video.remove(); layer.remove();
+    }
+    return out;
+  }, { pq: host.url('hdr-patches.webm'), hlg: host.url('hdr-hlg.webm'), plain: host.url('open.webm') });
+  if (r.skip) return t.skip(r.skip);
+  t.diagnostic(`PQ ${JSON.stringify(r.pq)}; HLG ${JSON.stringify(r.hlg)}; ordinary ${JSON.stringify({ ...r.plain, greys: undefined })}`);
+  assert.deepEqual([r.pq.hdr, r.pq.transfer, r.pq.on, r.pq.reports], [true, 'pq', true, []], 'PQ is seen and filtered');
+  const want = [29, 63, 136, 188, 255];
+  r.pq.greys.forEach((v, i) => assert.ok(Math.abs(v - want[i]) <= 3, `patch ${i}: ${v}, the curve says ${want[i]}`));
+  assert.deepEqual([r.hlg.hdr, r.hlg.transfer, r.hlg.on], [true, 'hlg', false], 'HLG is seen and left alone');
+  assert.equal(r.hlg.reports.length, 1, 'and says why, once');
+  assert.deepEqual([r.plain.hdr, r.plain.on, r.plain.reports], [false, true, []], 'an ordinary film is filtered as before');
+  assert.deepEqual(errors, []);
+});
+
 test('picture: an HLG film keeps the plain picture, and the Picture section says why; a PQ film is still filtered', opts, async (t) => {
   const { page: p, errors } = await page(t);
   const r = await p.evaluate(async (urls) => {
