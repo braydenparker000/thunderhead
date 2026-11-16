@@ -30,6 +30,8 @@ export default class Component extends DCLogic {
     this.keep('Edit', ['face', 'adj', 'chan', 'mixColor', 'mixAttr', 'zone', 'kind']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
+    const shut = () => { if (this._host?.stale) document.removeEventListener('editor:dock', shut); else if (this.state.wbMenu) this.setState({ wbMenu: false }); };   // the dock raised over it: the white balance menu shuts
+    document.addEventListener('editor:dock', shut);
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), seen = shown.face(), real = seen.real ? photo.current() : null, face = S.face, app = shown.app;

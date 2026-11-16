@@ -223,7 +223,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   if (!lead) throw new Error('the network is for another pattern');
   const [lx, ly] = lead, snap = (/** @type {number} */ v, /** @type {number} */ l) => v - ((((v - l) % 6) + 6) % 6);
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)),   // (read from when its passes are compared: net-tune.js)
+  const bufs = g.sizes.map((size, id) => held[id] || buf(size, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST)),   // (read from when its passes are compared: net-tune.js; written by net-cpu.js)
      out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);
   const FR = 32 + SPOTS * SPOT_ROWS * 4, SIZE = (FR + FRINGE_FLOATS) * 4, view = mosaic.createView();
   /** A window's own settings and bindings: several windows are laid in one frame's commands, each read when it runs.
@@ -254,7 +254,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     if (spots) { i[28] = spots[0]; f.set(spots.subarray(4), 32); }
     packFringe(f, FR, info.fringe);
     device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw]));
-    return [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1], ...g.ops.map((o, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number]} */ ([pipes[j], s.ops[j], o.groups[0], o.groups[1], o.groups[2]])), [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1]];
+    return Object.assign([[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1], ...g.ops.map((o, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number]} */ ([pipes[j], s.ops[j], o.groups[0], o.groups[1], o.groups[2]])), [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1]], { vw, vh });   // (vh: the window's rows filled, which net-cpu.js reads back)
   };
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [smooth] this once, in place of `info.smooth`
@@ -282,6 +282,6 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     return true;
   };
   /** What net-tune.js measures this network by. `lay(side)`: one window (all of it, or `side` pixels of it) made ready, as its passes. @type {Parts} */
-  const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1) };
-  return { out, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); for (const s of slots) { s.uni.destroy(); s.valid.destroy(); } } };
+  const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1), at: lay };   // `at`: any window, for net-cpu.js
+  return { out, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); slots.forEach((s) => { s.uni.destroy(); s.valid.destroy(); }); } };   // (forEach: net-cpu.js's windows leave gaps)
 }

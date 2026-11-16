@@ -45,12 +45,14 @@ test('a JPEG opens as it is, then edits, retouches and exports like any photo', 
     for (let i = 0; i < 400 && !photo.whole(); i++) await new Promise((res) => setTimeout(res, 50));
     const big = photo.whole(), out = { added, kind: p.kind, tile: store.urlNow(p.id).startsWith('blob:'), status: photo.current().status, line: photo.kindLine(), stem: photo.stem(p.name), looks: photo.looks().length,
       starts: [photo.value('Sharpening'), photo.value('Noise'), photo.value('Color noise'), photo.edited('Sharpening')], size: [big?.width, big?.height], shape: photo.shape(), history: photo.history().steps.map((s) => `${s.name} ${s.val}`) };
-    // the fitted photo: the picture a third of its size
+    // the fitted photo: the picture a third of its size, each pixel a Gaussian mean (sigma 1.1) of the picture's round its
+    // 3 x 3 in linear light, as the editing copy is made again once the picture is on the GPU (engine/proxy-hq.js)
     const fit = await photo.pixels(), lin = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }, enc = (v) => 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
+    const TH = truth.length / 4 / W, held = (v, n) => Math.min(n - 1, Math.max(0, v));
     let fs = 0, fm = 0;
     for (let y = 0; y < fit.height; y++) for (let x = 0; x < fit.width; x++) for (let k = 0; k < 3; k++) {
-      let s = 0; for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) s += lin(truth[((y * 3 + j) * W + x * 3 + i) * 4 + k]);   // the mean of 3 × 3 in linear light
-      const d = Math.abs(enc(s / 9) - fit.data[(y * fit.width + x) * 4 + k]); fs += d; fm = Math.max(fm, d);
+      let s = 0, w = 0; for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) { const g = Math.exp(-(i * i + j * j) / (2 * 1.1 * 1.1)); s += g * lin(truth[(held(y * 3 + 1 + j, TH) * W + held(x * 3 + 1 + i, W)) * 4 + k]); w += g; }
+      const d = Math.abs(enc(s / w) - fit.data[(y * fit.width + x) * 4 + k]); fs += d; fm = Math.max(fm, d);
     }
     out.fit = { w: fit.width, h: fit.height, mean: fs / (fit.width * fit.height * 3), most: fm };
     // its own pixels, as 100 % shows them

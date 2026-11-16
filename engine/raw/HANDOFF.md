@@ -23,7 +23,19 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | 8.11 | `editor.css` reduced-motion rule | the same test |
 | 2.1 | `decoder.js`: a thread whose decode failed is let go once its other work is done | the same test |
 
-- Still open: P.2 (zoom stalls: make the `move` log say what ran), P.3 (two-minute export), 1.5 (the dial's
+- **Second round, the same day** (the owner: "start on export speed ... research how the image should be displayed at
+  all zoom ranges ... then implement ... make sure the UI is free of glitches"):
+
+| # | Fix | Measured here (software GPU; the phone not checked) |
+|---|---|---|
+| P.3 | `net-cpu.js`, `net-cpu-worker.js`, `engine/netcpu` (`conv3r`, `conv1r`, `head`): an export by the network hands windows to the CPU's cores while the GPU makes the others; the GPU still does each window's `cut` and `place`. `export.js` `pacer`: the CPU takes a piece only while the GPU's remaining pieces would outlast it, and drops out at four times the GPU's time | a CPU window's raw values within 1.2e-6 of the GPU's; an export helped by the CPU differs from one without in 52 of 6.7 M values, by one level. The phone's own numbers (`tog` 32 against `gpu1` 18.5) predict about 119 s → 70 s on the 4 GB phone: **its next `save` log (`cpu`: pieces, `cores`) is the proof** |
+| 8.5 | `proxy-hq.js`: the editing copy made again on the GPU from the sensor (a Gaussian, sigma 1.1 sites, the same for each colour) once the sensor is up; the decoder's clipped flags kept | colour speckle of the copy on the public file's panels 5.5/6.7 → 3.9/4.8, brightness detail 4.03 → 3.77; the known photo: less colour error than the decoder's copy |
+| — | `present.js`: fitted, the frame shrunk to the screen's own pixels on the GPU (Lanczos-3, linear light, held to its neighbours) rather than by the browser; zoomed in, the canvas is the copy's size (`session.js` `atFit`, from `zoom.js`) | a zone plate's ripple past the screen's limit 16.5 → 7.4 (a proper shrink: 5.8), detail kept |
+| — | `editor.css` `.zl`: zoom's sharper layers fade in; from 200 % they show as crisp pixels | by reading |
+| — | `zoom.js` `follow`: the photo glides whenever its window moves or resizes, not only as a board takes it (it jumped 14 to 42 px when a board's panel settled after it showed) | the glide's frames cannot be seen on a software GPU: **check on the phone** |
+| 8.6, 8.12, 8.13, 8.15, 4.2 | headers on one line with an ellipsis; the curve's readout top left; a focus ring for keys only; the white balance menu shuts as the dock rises; Heal's Size in pixels in the row too | by reading and the boards looked at |
+
+- Still open: P.2 (zoom stalls: make the `move` log say what ran), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
   committed test.
 - **Colour.** Adobe's installers (DNG Converter 18.6, Camera Raw 18.6 for Windows) carry Adobe Standard for the X-E5

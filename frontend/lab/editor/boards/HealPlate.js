@@ -44,7 +44,7 @@ export default class Component extends DCLogic {
     const ctl = rows[S.tool].includes(S.ctl) ? S.ctl : 'Size', val = V[ctl];
     const START = { Size: 30, Feather: 50, Opacity: 100 };
     const undoSpot = () => { if (real) heal.undoSpot(); set({ spots: real ? S.spots : spots.slice(0, -1), sel: Math.max(0, spots.length - 2) }); };
-    const chips = rows[S.tool].map((a) => ({ name: a, value: String(Math.round(V[a])), on: a === ctl, pick: () => set({ ctl: a }) }))
+    const chips = rows[S.tool].map((a) => ({ name: a, value: String(Math.round(a === 'Size' ? size : V[a])), on: a === ctl, pick: () => set({ ctl: a }) }))   // Size in screen pixels, as the dial says it (AUDIT.md 4.2)
       .concat([{ name: 'Visualize', value: S.viz ? 'ON' : 'OFF', on: S.viz, pick: () => set({ viz: !S.viz }) }, { name: 'Undo spot', entry: true, pick: undoSpot },
         { name: 'Clear all', entry: true, hot: true, pick: () => { if (real) heal.clear(); set({ spots: real ? S.spots : [], sel: 0 }); } }]);
     // the dial set to `v` (1..100): the chosen spot takes it, and so does the next one made

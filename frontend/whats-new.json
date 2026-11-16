@@ -7,13 +7,13 @@
       "open": "photos"
     },
     {
-      "text": "Smaller exports are sharper, with much less moiré, and the Library's tiles load many times faster."
+      "text": "Exports use the phone's CPU beside its GPU, so they finish sooner; smaller ones are sharper, with less moiré."
     },
     {
-      "text": "The dial stays smooth when zoomed in and stays exactly where your finger leaves it."
+      "text": "The photo is drawn at your screen's own pixels, without false rings or false colour on fine detail."
     },
     {
-      "text": "Auto level gives the same angle every press, before and after show your crop, and black is truly black."
+      "text": "The Library loads faster, the dial stays put, Auto level holds, and before and after show your crop."
     }
   ]
 }

@@ -1,10 +1,11 @@
-# The network's heavy pass for the CPU
+# The network on the CPU
 
-`src/lib.rs` is one 3 x 3 convolution with a leaky ReLU, shaped like the network's two heaviest passes
-(`frontend/lab/engine/nets/starfish-xtrans/`: 288 channels in, 144 out), written for a phone's CPU in
-WebAssembly's vector maths. It is here to be measured, not used: the engine test page (`/lab/engine/`,
-`cpu-bench.js`) runs it on one, two, four and all of the phone's cores beside the GPU's own time for the
-same work, so whether the CPU is worth bringing in is a number from the phone, not a guess.
+`src/lib.rs` is the X-Trans network's layers for a phone's CPU, written in WebAssembly's vector maths: a 3 x 3
+convolution (`conv3`, and `conv3r` on a strip of a window with a ring of its neighbours' rows), a 1 x 1 (`conv1r`)
+and the full-size head (`head`), all with the leaky ReLU the network uses. An export by the network hands some of
+its windows to the CPU's cores while the GPU makes the others (`frontend/lab/engine/net-cpu.js`,
+`net-cpu-worker.js`, `export.js`): measured on the owner's 4 GB phone, the two at once get through 1.74 times what
+the GPU does alone. `conv3` alone is still what the engine test page times (`cpu-bench.js`, `net-both.js`).
 
 Two builds of the one source, both committed (the site has no build step):
 

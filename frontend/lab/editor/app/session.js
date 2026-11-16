@@ -32,7 +32,7 @@ export const STILL = /** @type {Record<string, number>} */ ({ Sharpening: 0, 'Co
 export const events = new EventTarget();
 export const changed = () => events.dispatchEvent(new Event('change'));
 export const canvas = document.createElement('canvas'), img = document.createElement('img');
-canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited';
+canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited'; new ResizeObserver(() => { if (ready && fitNow) draw(true, true); }).observe(canvas);   // its size on screen known or changed: drawn at the screen's pixels
 for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height: 100%; display: block';
 // boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
 // data-zoom is filled by zoom.js, which puts itself here
@@ -55,7 +55,7 @@ let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geome
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
 // a count that moves whenever the fitted photo is drawn anew
-let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, past = /** @type {hist.Past | null} */ (null), gen = 0, covered = () => false, behind = false, rest = 0;
+let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, past = /** @type {hist.Past | null} */ (null), gen = 0, covered = () => false, behind = false, rest = 0, fitNow = true;
 const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
 warm();
@@ -116,7 +116,7 @@ export async function open(id, quick = false, again = false) {
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
-      if (cur === me) { big = b; changed(); if (b) note('full', performance.now() - began); } else b?.dispose();
+      if (cur === me) { big = b; changed(); draw(); if (b) note('full', performance.now() - began); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor)
     }).catch((err) => { console.warn('full size', err); if (cur === me) say('The full-size photo could not be made, so 100 % and export are not there. Open the photo again.'); });
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }
@@ -156,17 +156,18 @@ function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
+  const r = canvas.getBoundingClientRect(); e.setScreen(fitNow && r.width > 0 ? [Math.round(r.width * devicePixelRatio), Math.round(r.height * devicePixelRatio)] : null);   // fitted: the screen's own pixels (present.js)
   return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, ...more });
 }
-export const cover = (/** @type {() => boolean} */ f) => { covered = f; };   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
+export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, fitted (the canvas at the screen's pixels) or not (the editing copy's, for a sharp pinch)   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */
 export async function draw(fit = true, all = false) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
   drawing = true; if (fit) gen++;
-  const was = `${canvas.width},${canvas.height}`, hid = fit && !all && covered(); behind = hid || (behind && !fit);
+  const was = `${eng.size()}`, hid = fit && !all && covered(); behind = hid || (behind && !fit);
   clearTimeout(rest); try { await paint({ fit: fit && !hid }); } finally { drawing = false; }   // a frame that fails must not hold every later one
-  if (was !== `${canvas.width},${canvas.height}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
+  if (was !== `${eng?.size()}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
   if (again) { again = false; draw(); } else if (behind) rest = window.setTimeout(() => { if (behind) draw(true, true); }, 300);
 }
 /** Whether a frame is being drawn or waiting to be (check scripts wait on this, not on a clock). */
@@ -231,7 +232,7 @@ export const whole = () => big;
 export const settle = (/** @type {{ wide?: boolean }} */ more = {}) => paint({ fit: false, ...more });   // wide: for a Display P3 file's pieces (save.js): never left so for the screen
 export { jpegBand } from './decoder.js';
 /** The upright photo's size in sensor pixels. */
-export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
+export const shape = () => (ready && eng ? eng.size().map((v) => v * 3) : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
 /** Draws the 100 % view where it now looks. */
 export async function frame() { while (drawing) await sleep(8); await draw(false); }
 /** Saves the edit to this phone, shortly. Given a name, the change is first noted as a step of the photo's history

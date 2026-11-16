@@ -4,7 +4,8 @@ The owner asked for a complete audit of the photo editor, read and run by one re
 down and **no code changed** until the audit has been compared with the true ceiling. This is that record.
 [REVIEW.md](REVIEW.md) is the earlier talk about how good the editor is; [STATUS.md](STATUS.md) says what is built.
 
-**Fixed since (2026-11-16):** 3.1, P.1, P.4, 1.1, 1.2, 1.3, 1.4, 2.1, 4.1, 8.1, 8.4, 8.10, 8.11. [HANDOFF.md](HANDOFF.md) has
+**Fixed since (2026-11-16):** 3.1, P.1, P.4, 1.1, 1.2, 1.3, 1.4, 2.1, 4.1, 4.2, 8.1, 8.4, 8.5, 8.6, 8.10, 8.11, 8.12, 8.13, 8.15; P.3 built
+(the CPU beside the GPU), its gain the phone's to show. [HANDOFF.md](HANDOFF.md) has
 what each fix did and what it measured; the findings below are as the audit found them.
 
 How to read a finding. **Proven**: reproduced here, with the measurement. **By reading**: seen in the code, not
