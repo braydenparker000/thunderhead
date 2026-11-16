@@ -1,12 +1,14 @@
 // @ts-check
 // The editor's own sheet for a name (a look kept as Mine): glass like the Import sheet, over the photo, with a field,
 // Cancel and Save. It stands where the browser's own prompt box was, the one place the browser's own grey box showed
-// through, with the site's address on it (AUDIT.md 8.10). Enter saves, Escape or a tap outside cancels.
+// through, with the site's address on it (AUDIT.md 8.10). Enter saves, Escape or a tap outside cancels. It stays up while
+// the photo changes under it (2026-11-16: a board drawn again took it away, the full detail arriving as it was asked).
 
 /** Asks for a name: resolves with it (trimmed, at most `max` characters), or '' when cancelled.
  * @param {string} title @param {string} start the name offered @param {number} [max] */
 export function askName(title, start, max = 40) {
-  const host = /** @type {HTMLElement} */ (document.querySelector('#stage') || document.body);
+  // over the boards, not among them: a board drawn again (on any change of the photo's) lays out its own children only
+  const host = /** @type {HTMLElement} */ (document.getElementById('frame') || document.body);
   return new Promise((done) => {
     const veil = document.createElement('div'), sheet = document.createElement('form'), head = document.createElement('div'), field = document.createElement('input');
     const keys = document.createElement('div'), no = document.createElement('button'), yes = document.createElement('button');

@@ -1,6 +1,6 @@
 // Four of the editor's smaller faults, each held (engine/raw/AUDIT.md): naming a look opens the editor's own sheet,
-// never the browser's prompt box (8.10); with less motion asked for, rows and tiles appear in place and the plate
-// fades (8.11, as EDITOR.md says); and a decode that fails inside the decoder's thread sends the next request to a
+// never the browser's prompt box, and it stays up while the boards are drawn again (8.10); with less motion asked for,
+// rows and tiles appear in place and the plate fades (8.11, as EDITOR.md says); and a decode that fails inside the decoder's thread sends the next request to a
 // new thread, which works (2.1); and a frame that starts while the next photo is opening is waited for before the
 // photo before is let go, never read back from memory already given up. The photos are JPEGs drawn by the test, on a software GPU.
 import { test, before, after } from 'node:test';
@@ -47,6 +47,9 @@ test('naming a look opens the editor\'s own sheet, and the name it gives is kept
   await page.getByRole('button', { name: 'SAVE CURRENT' }).click();
   const sheet = page.getByRole('dialog', { name: 'Name this look' });
   await sheet.waitFor();
+  // the photo changes under it (its full detail arrives, say): the boards are drawn again, and the sheet stays
+  await page.evaluate(async () => { (await import('/lab/editor/app/session.js')).changed(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+  assert.equal(await sheet.count(), 1, 'the sheet stays up while the boards are drawn again');
   await page.keyboard.press('End'); await page.keyboard.type(' warm'); await page.keyboard.press('Enter');
   await sheet.waitFor({ state: 'detached' });
   await until(() => page.evaluate(async () => (await import('/lab/editor/app/looks.js')).list('mine').some((l) => l.name === 'My look 1 warm')), { message: 'the look is kept under its name' });
