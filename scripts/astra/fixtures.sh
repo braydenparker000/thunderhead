@@ -73,6 +73,12 @@ want truehd.mkv && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 770 6)" -map 0:
   -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2 -c:a truehd -strict -2 -ac 2 \
   -metadata:s:a:0 language=eng "$out/truehd.mkv"
 
+# dts.mkv: H.264 with DTS 5.1 at 880 Hz (decoded and rebuilt on the device). ffmpeg's DTS encoder is experimental
+# (-strict -2) and takes no less than 704 kbit/s for 5.1, so the film is 3 s (under 300 kB).
+want dts.mkv && ff -f lavfi -i "$(pic 3)" -f lavfi -i "$(tone 880 3)" -map 0:v -map 1:a \
+  -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2 -c:a dca -strict -2 -b:a 704k -ac 6 \
+  -metadata:s:a:0 language=eng "$out/dts.mkv"
+
 # hevc.mkv: HEVC (which this headless Chromium cannot decode, so the software decoder plays it) and a 1 kHz AAC tone. 8 s.
 want hevc.mkv && ff -f lavfi -i "$(pic 8)" -f lavfi -i "$(tone 1000 8)" -map 0:v -map 1:a -c:v libx265 -preset slow -b:v 40k -x265-params log-level=error \
   -c:a aac -b:a 24k -ac 2 "$out/hevc.mkv"

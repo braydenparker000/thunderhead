@@ -16,7 +16,7 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged) and `intro-store.js` (what Skip intro has learned, in IndexedDB). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `adaptive.js` (HLS and DASH). Reading: `probe.js`, `http-source.js` and `source-stream.js` (the range reader), `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`. Playing: `remux.js`, `remux-audio.js`, `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js` and `software-sound.js` (libmedia). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `adaptive.js` (HLS and DASH). Reading: `probe.js`, `http-source.js` and `source-stream.js` (the range reader), `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`. Playing: `remux.js`, `remux-audio.js`, `sound-stream.js` (converted sound from Astra's own Matroska reader), `sound-six.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js` and `software-sound.js` (libmedia). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0; see `LICENSES.md` there), `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
@@ -248,7 +248,10 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    reason and an offer to play the file in another app. Audio tracks are
    `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3, E-AC-3, DTS, Dolby TrueHD,
    Vorbis, MP3, PCM and G.711: decoded and re-encoded to Opus on the device;
-   each decoder downloads only when a film needs it) or `unsupported` (ALAC
+   each decoder downloads only when a film needs it; in a Matroska film the
+   decoder is fed block by block from Astra's own reader, `sound-stream.js`,
+   so such sound starts as fast as the picture; with Headphone surround on, 5
+   to 8 channels are kept whole as uncompressed FLAC, `sound-six.js`) or `unsupported` (ALAC
    and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
@@ -657,6 +660,7 @@ skip in a browser without it.
 | `astra-engine.test.mjs` | The range reader against hosts that cut, stall, answer nothing or move; headers read without trusting their sizes (MKV, clusters, MP4); the stall watchdog; early fragments; playlists without byte ranges. |
 | `astra-source.test.mjs` | After a seek the dropped pipelines' reads end and their downloads close. |
 | `astra-early.test.mjs`, `astra-downmix.test.mjs` | Half-second fragments; converted sound mixed a sample at a time. |
+| `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on. |
 | `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
 | `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running. |
 | `astra-feed.test.mjs` | A film's attached fonts (bounded), which files libass can draw, the second track moved to the top, the sound tap's bookkeeping. |
@@ -688,7 +692,7 @@ skip in a browser without it.
   SRT, chapters), `surround.mkv` (Dolby Digital 5.1), `plain.mp4` (plays
   natively), `open.webm` (VP9, Opus), `anime.mkv` (the hand-written,
   invented `signs.ass` with Inter Bold attached), `centre.mkv` (a tone in
-  the centre channel only), `truehd.mkv`, `hevc.mkv` (software decoder in
+  the centre channel only), `truehd.mkv`, `dts.mkv` (DTS 5.1, 3 s), `hevc.mkv` (software decoder in
   the test browser), `hls/` and `dash/`; `beside.srt` loads beside a film.
 - **The file host** (`tests/fixtures/astra-host.mjs`) serves them as a real
   host does (byte ranges, readable from another origin) and counts what was
