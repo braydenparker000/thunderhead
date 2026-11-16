@@ -18,6 +18,11 @@
 .ap-pin { position: absolute; top: calc(50% - 12px); width: 2px; height: 24px; margin-left: -1px; border-radius: 1px; background: var(--ap-accent); pointer-events: none; }
 .ap-pin::after { content: 'A'; position: absolute; bottom: 100%; left: -4px; font: 700 10px/12px var(--font); font-style: normal; color: var(--ap-accent); }
 .ap-pin.b::after { content: 'B'; }
+/* Seek previews (seek-preview.js): the key frame above the time, its box shaped like the film and kept while it loads. */
+.ap-bubble:has(.ap-preview) { padding: 4px 4px 6px; text-align: center; }
+.ap-preview { display: block; height: clamp(72px, 28vmin, 112px); width: auto; max-width: min(60vw, 260px); margin: 0 auto 4px; border-radius: calc(var(--r-md) - 2px); background: rgba(255,255,255,.1); object-fit: contain; transition: opacity .12s; }
+.ap-preview.empty { background: linear-gradient(100deg, rgba(255,255,255,.06) 30%, rgba(255,255,255,.14) 50%, rgba(255,255,255,.06) 70%) 0 0 / 300% 100%; }
+.ap-preview.stale { opacity: .55; }
 .ap-bubble small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 500; line-height: 16px; color: rgba(255,255,255,.78); text-align: center; }
 
 /* The Playback menu */

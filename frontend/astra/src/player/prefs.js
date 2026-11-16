@@ -30,6 +30,7 @@ export const DEFAULTS = Object.freeze({
   deband: false, // smooth banding
   upscale: 'standard', // the Picture section's upscale: standard (FSR 1.0) | anime (Anime4K, for drawn animation)
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
+  seekPreviews: true, // the picture in the seek bar's bubble (seek-preview.js); never with the data saver on
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 
