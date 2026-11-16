@@ -168,7 +168,7 @@ export async function draw(fit = true, all = false) {
   const was = `${eng.size()}`, hid = fit && !all && covered(); behind = hid || (behind && !fit);
   clearTimeout(rest); try { await paint({ fit: fit && !hid }); } finally { drawing = false; }   // a frame that fails must not hold every later one
   if (was !== `${eng?.size()}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
-  if (again) { again = false; draw(); } else if (behind) rest = window.setTimeout(() => { if (behind) draw(true, true); }, 300);
+  if (again) { again = false; draw(); } else if (behind) rest = window.setTimeout(function due() { if (!behind) return; if (drawing) rest = window.setTimeout(due, 100); else draw(true, true); }, 300);   // (busy then: tried again, never drawn the covered way)
 }
 /** Whether a frame is being drawn or waiting to be (check scripts wait on this, not on a clock). */
 export const busy = () => drawing || again;

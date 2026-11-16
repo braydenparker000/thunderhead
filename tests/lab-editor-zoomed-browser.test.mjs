@@ -52,9 +52,9 @@ test('at 100 % an edit draws the full-size view alone, and the fitted photo foll
   assert.ok(Math.abs(after1.mean - before) < 0.5, `the fitted photo is not drawn under the view (${before.toFixed(1)} → ${after1.mean.toFixed(1)})`);
   assert.ok(after1.stamp > stamp, 'the boards are told the photo changed');
   // once edits rest, it is drawn: brighter by the edit
-  await page.waitForTimeout(400); await quiet();
-  const rested = await fitted();
-  assert.ok(rested > before + 20, `the fitted photo follows once edits rest (${before.toFixed(1)} → ${rested.toFixed(1)})`);
+  // (waited for, not timed: on a slow machine the network's own view may hold the engine when edits rest, and the fitted photo then waits its turn)
+  let rested = before;
+  await until(async () => (rested = await fitted()) > before + 20, { timeout: 120_000, message: `the fitted photo follows once edits rest (${before.toFixed(1)} → ${rested.toFixed(1)})` });
   // zoomed out it is the same picture, and an edit there draws it at once
   await page.evaluate(async () => (await import('/lab/editor/app/zoom.js')).toggle()); await page.waitForTimeout(400); await quiet();
   assert.ok(Math.abs((await fitted()) - rested) < 0.5, 'zoomed out, the fitted photo is the edit');
