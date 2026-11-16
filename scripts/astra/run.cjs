@@ -1,9 +1,9 @@
-// Each test film played through Astra's lab page in real Chrome: node run.cjs [name filter]
+// Each test film played through Astra's lab page in real Chrome: node run.cjs [name filter] (MEDIA=<films dir>, OUT=<dir for matrix.json>)
 // For each: what Astra decided, whether the picture and the sound really ran, how long the first frame took, what went wrong.
 const { chromium } = require('playwright'); const fs = require('fs');
-const SITE = process.env.BASE || 'http://127.0.0.1:8080', FILMS = process.env.FILMS || 'http://127.0.0.1:8090', dir = __dirname + '/media', only = process.argv[2] || '';
+const SITE = process.env.BASE || 'http://127.0.0.1:8080', FILMS = process.env.FILMS || 'http://127.0.0.1:8090', dir = process.env.MEDIA || __dirname + '/media', out = process.env.OUT || __dirname + '/out', only = process.argv[2] || '';
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--headless=new', '--enable-unsafe-webgpu'] });
+  const b = await chromium.launch({ executablePath: process.env.CHROME || process.env.CHROMIUM_PATH || '/usr/bin/google-chrome', args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--headless=new', '--enable-unsafe-webgpu'] });
   const rows = [];
   for (const f of fs.readdirSync(dir).sort()) {
     if (only && !new RegExp(only).test(f)) continue;
@@ -34,7 +34,7 @@ const SITE = process.env.BASE || 'http://127.0.0.1:8080', FILMS = process.env.FI
     const r = rows.at(-1); console.log(`${r.plays.padEnd(7)} ${f.padEnd(30)} ${String(r.mode).padEnd(11)} ${r.fell.padEnd(9)} ${r.picture.padEnd(7)} first ${String(r.first).padStart(5)} ms  t ${String(r.t).padStart(4)}  frames ${r.frames.padEnd(8)} sound ${String(r.sound).padStart(7)}  seek ${r.seek.padEnd(14)} ${r.audio.slice(0, 40).padEnd(40)} ${r.why}`);
     await ctx.close();
   }
-  fs.writeFileSync(__dirname + '/out/matrix.json', JSON.stringify(rows, null, 1));
+  fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(out + '/matrix.json', JSON.stringify(rows, null, 1));
   console.log(`${rows.filter((r) => r.plays === 'PLAYS').length} play, ${rows.filter((r) => r.plays === 'refused').length} refused, ${rows.filter((r) => r.plays === 'FAILS').length} fail, of ${rows.length}`);
   await b.close();
 })();

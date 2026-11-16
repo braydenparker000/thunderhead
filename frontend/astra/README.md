@@ -437,7 +437,7 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    offers it to the phone's video apps (VLC, MX Player…) through an Android
    intent with the title and position (`src/player/external.js`).
 
-### What plays (measured 2026-11-10)
+### What plays (measured 2026-11-10, again 2026-11-16)
 
 Seventy-two short test films, one for each container and codec pairing
 worth trying, were played through `/astra/lab/` in desktop Chrome (which has
@@ -447,14 +447,26 @@ read "56 play, four of them without sound", and that was the checker's
 fault: see MPEG Layer II below).
 Before this pass 38 of the first 64 played and 14 showed black or stalled.
 These counts were made with Mediabunny 1.55.7, before the TrueHD decoder
-and the engine work of 2026-11-15, and the matrix has not been run again
-since. Dolby TrueHD, then among the files that stop, now plays
+and the engine work of 2026-11-15. Dolby TrueHD, then among the files that stop, now plays
 (`truehd.mkv` in `tests/astra-play-browser.test.mjs`).
+Run again on 2026-11-16 (73 films, the three-minute one among them, in the
+Chrome for Testing 153 the browser checks use): 55 play, 9 stop with a
+reason, 9 fail; then, with three small patches to libmedia's readers (below),
+61 play, 6 stop with a reason and 6 fail, one of them 10-bit H.264 in MP4,
+which played before and in both runs again after (the checker's STILL: a
+flake). The seven that changed are the four
+H.264 AVIs, H.263 in 3GP and the two MKVs with Windows Media Audio, each
+heard at the test tone's pitch by `scripts/astra/heard.cjs`. Of the other
+five, four are the checker's STILL (two looks at the picture alike) on films
+whose clock and frame count ran, not looked at further: the MPG pair (see
+the note in `scripts/astra/README.md`), the open-GOP MKV, and 4K HEVC in
+software, whose seek also stuck. The fifth is Sorenson Spark in FLV, below.
 
 | Picture | Where | How |
 |---|---|---|
 | H.264, VP9, AV1 | MP4, MOV, MKV, WebM, TS, M2TS | the phone's decoder (`remux`; when the matrix ran, a plain MP4 or WebM went `native`) |
-| H.264 | FLV | software decoder |
+| H.264 | FLV, AVI | software decoder |
+| H.263 | 3GP; AVI wired, not tried | software decoder |
 | HEVC (8 and 10 bit) | MP4, MKV, TS | the phone's decoder where it has one, else software |
 | VP8 | WebM as it is; MKV in software | |
 | MPEG-4 ASP (Xvid, DivX), MS-MPEG4, WMV 7/8/9, Motion JPEG | AVI, MKV; MPEG-4 also in MP4 | software decoder |
@@ -465,16 +477,30 @@ Sound: AAC, Opus, FLAC and MP3 as they are; AC-3, E-AC-3, DTS, Dolby
 TrueHD, Vorbis, PCM (every kind in MOV and MKV) and G.711 (µ-law and A-law,
 in MOV) converted as they play, and so is MP3 in a MOV file (or, all but
 TrueHD and G.711, decoded by the software decoder when it plays the file);
-Windows Media Audio and ADPCM in an AVI.
+Windows Media Audio in AVI and MKV; ADPCM in an AVI.
 
 Stops with a reason (and the offer of another app): the Windows Media
 container (WMV, ASF) and RealMedia, which nothing here unpacks; Theora in
-an Ogg file; H.263 in 3GP; Motion JPEG in MOV; Sorenson Spark in FLV;
-ProRes; a file whose only sound is ALAC or WMA in an MKV. Still
-broken: H.264 inside an AVI, where libmedia 1.3.1 fails on a stream with
-no decoder setup in its header ("Offset is outside the bounds of the
-DataView" in its worker); it stops with "could not show a picture" after
-six seconds of sound.
+an Ogg file; Motion JPEG in MOV; ProRes; a file whose only sound is
+ALAC. Sorenson Spark in FLV stops with "Astra has no decoder for the
+video": libmedia's H.263 build has FFmpeg's `h263` decoders but not its
+`flv` one (tried 2026-11-16: named as FLV1, the build will not open it).
+
+**Three patches to libmedia's readers** (2026-11-16, one expression each,
+recorded in `frontend/assets/libmedia/licenses/libmedia-modifications.txt`
+and as `edits` in `frontend/ported.json`; checked by
+`tests/astra-formats.test.mjs`, played by `tests/astra-formats-browser.test.mjs`).
+H.264 in an AVI with no decoder setup in its header (as ffmpeg writes it)
+failed with "Offset is outside the bounds of the DataView": the AVI reader
+left such a stream unmarked as Annex B, so the decoder read its start codes
+as lengths. 3GP calls H.263 `s263`, which the MP4 reader did not know.
+The Matroska reader gave an `A_MS/ACM` track (Windows Media Audio, as MKV
+keeps it) no codec at all; it now reads the WAV header inside, as FFmpeg
+does. No newer libmedia helps: 1.3.1 (2026-06-27) is still the newest
+release, and the 13 commits on upstream master since (to 2026-11-15) touch
+none of these, nor add a Windows Media, RealMedia or ALAC reader or
+decoder. Motion JPEG in MOV was tried the same way: named, it is read and
+its sound plays, but no picture comes, so it still stops.
 
 **MPEG Layer II** (the usual sound of VCDs, DVDs' MPG files and DVB
 recordings) plays, in MPG, TS and, since 2026-11-11, MKV. There is no
