@@ -107,13 +107,13 @@ test('a gesture\'s log says what ran in its worst gap', opts, async () => {
   const r = await page.evaluate(async () => {
     const { moved } = await import('/lab/editor/app/moved.js'), { kept } = await import('/lab/editor/app/timings.js');
     let n = 0, held = false;
-    // a dozen frames, one held up 400 ms by a tile of the still canvas
-    moved(() => { n++; if (n === 6 && !held) { held = true; performance.mark('th:tile'); const t = performance.now(); while (performance.now() - t < 400); } return n <= 12; }, false);
+    // a dozen frames, one held up 1.5 s by a tile of the still canvas (longer than any gap a busy machine makes on its own)
+    moved(() => { n++; if (n === 6 && !held) { held = true; performance.mark('th:tile'); const t = performance.now(); while (performance.now() - t < 1500); } return n <= 12; }, false);
     for (let i = 0; i < 300 && !kept().some((x) => x.kind === 'move'); i++) await new Promise((r) => setTimeout(r, 20));
     return kept().filter((x) => x.kind === 'move').at(-1);
   });
   assert.ok(r, 'the gesture was noted');
-  assert.ok(r.worst >= 390, `its worst gap is the held frame (${r.worst} ms)`);
+  assert.ok(r.worst >= 1490, `its worst gap is the held frame (${r.worst} ms)`);
   assert.match(String(r.ran), /\btile\b/, `and it says a tile ran then (${r.ran})`);
   await page.close();
 });
