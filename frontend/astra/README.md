@@ -892,7 +892,7 @@ skip in a browser without it.
 | `astra-libass-browser.test.mjs` | The libass layer: placement, drawing only while a line shows, the film's font, delay, destroy, and a start that fails falling back. |
 | `astra-enhance-browser.test.mjs` | Sound measured after the chain and the picture read back from the canvas, on real films. |
 | `astra-sound-browser.test.mjs` | Even loudness bringing two films 12 dB apart together while the volume stays the owner's, headphone surround placing the left surround, and the Sound tab's two switches. |
-| `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped close to the browser's own picture, read back from the canvas. |
+| `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped along the BT.2390 curve, read back from the canvas. |
 | `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |
 | `astra-app-play-browser.test.mjs` | The app end to end: an invented add-on, a tap on a stream, chapters, the sound tap fed, data used, the Sound tab, Find a line, another source drawn by libass, no page error. |
 | `astra-tap-browser.test.mjs` | From a tap to the first picture in the real app with Get ready ahead on, off and under the saver: the list read once, the press's resolve taken by the tap, the next episode made ready so Next asks nothing, nothing before a tap when off, nothing ever playing without one. |
