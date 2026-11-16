@@ -18,3 +18,24 @@ provided under those same terms; see the accompanying license texts.
 Added 2026-11-10: the decoder builds mpeg2video, mpeg4, msmpeg4, mjpeg, theora,
 h263, wmv, wma, speex, adpcm and vvc (decode/<name>-simd.wasm), copied
 unmodified from dist/decode/ of the same libmedia commit.
+
+Added 2026-11-16: three more Astra modifications to the runtime chunks, each one
+expression, under the same terms. Each is recorded exactly, as the text now in
+the chunk and the upstream text it replaced, in Astra's frontend/ported.json
+(the "edits" of each file); tests/astra-formats.test.mjs checks they are there.
+
+1. 97.avplayer.js, the AVI reader (packages/avformat/src/formats/IAviFormat.ts):
+   an H.264, HEVC or VVC stream with no decoder setup in its header (as ffmpeg
+   and most tools write H.264 in AVI) is marked as Annex B, which is what its
+   packets are. Upstream left the mark off and the decoder read the start codes
+   as lengths ("Offset is outside the bounds of the DataView"). Still so in
+   upstream master 5978d2b (2026-11-15).
+2. 749.avplayer.js and 943.avplayer.js, the MP4 reader's sample entry names
+   (packages/avformat/src/formats/isobmff/isobmff.ts, tag2CodecId): "s263",
+   the name 3GP files give H.263, is read as H.263, as "H263" already was.
+3. 573.avplayer.js, the Matroska reader (IMatroskaFormat.ts): an A_MS/ACM
+   track (sound kept as a Windows WAVEFORMATEX, as Windows Media Audio is in
+   MKV) is given the codec its format tag names (the reader's own WAV tag
+   table), its bit rate, block size and bits per sample from that header, and
+   the bytes after the header's 18 as its decoder setup, as FFmpeg does.
+   Upstream gave such a track no codec at all.

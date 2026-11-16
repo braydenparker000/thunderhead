@@ -86,6 +86,16 @@ want clusters.mkv && ff -f lavfi -i "$(pic 30)" -f lavfi -i "$(tone 440 30)" -ma
 want frontcues.mkv && ff -f lavfi -i "$(pic 12)" -f lavfi -i "$(tone 440 12)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main \
   -pix_fmt yuv420p -b:v 50k -g 24 -bf 2 -c:a aac -b:a 24k -ac 2 -reserve_index_space 4096 "$out/frontcues.mkv"
 
+# h264.avi, h263.3gp, wma.mkv: kinds only the software decoder plays, each through a small patch to libmedia's readers
+# (frontend/assets/libmedia/licenses/libmedia-modifications.txt). H.264 in an AVI with no decoder setup in its header
+# (as ffmpeg and most tools write it) and MP3 at 440 Hz; H.263 in 3GP (its own picture sizes) and AAC at 550 Hz;
+# H.264 with Windows Media Audio in an MKV at 660 Hz. 6 s each.
+small=(-c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p -b:v 40k -g 24 -bf 2)
+want h264.avi && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 440 6)" -map 0:v -map 1:a "${small[@]}" -c:a libmp3lame -b:a 32k -ac 1 "$out/h264.avi"
+want h263.3gp && ff -f lavfi -i "testsrc2=size=176x144:rate=12:duration=6" -f lavfi -i "$(tone 550 6)" -map 0:v -map 1:a -c:v h263 -b:v 60k -g 24 \
+  -c:a aac -b:a 24k -ac 1 -ar 22050 "$out/h263.3gp"
+want wma.mkv && ff -f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 660 6)" -map 0:v -map 1:a "${small[@]}" -c:a wmav2 -b:a 32k -ac 1 "$out/wma.mkv"
+
 # hls/ and dash/: the same 6 s of picture and a 440 Hz tone as an HLS stream (three 2 s transport-stream segments
 # and their playlist) and as a DASH stream (2 s fragmented-MP4 segments, picture and sound apart, and the manifest).
 adaptive=(-f lavfi -i "$(pic 6)" -f lavfi -i "$(tone 440 6)" -map 0:v -map 1:a -c:v libx264 -preset veryslow -profile:v main -pix_fmt yuv420p
