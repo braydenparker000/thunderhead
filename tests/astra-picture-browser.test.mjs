@@ -141,7 +141,11 @@ test('picture: an HDR film is tone-mapped close to the browser\'s own picture, w
   r.greys.forEach((c, i) => assert.ok(Math.max(...c) - Math.min(...c) <= 1, `patch ${i} stays grey (${c})`));
   const want = [29, 63, 136, 188, 255]; // the BT.2390 curve's values for these patches (tests/astra-enhance.test.mjs)
   r.greys.forEach((c, i) => assert.ok(Math.abs(c[0] - want[i]) <= 3, `patch ${i}: ${c[0]}, the curve says ${want[i]}`));
-  r.greys.forEach((c, i) => assert.ok(Math.abs(c[0] - r.plainGreys[i][0]) <= 4, `patch ${i} is close to the browser's own picture (${c[0]} vs ${r.plainGreys[i][0]})`));
+  // The browser's own picture is a second witness only where the browser tone-maps HDR itself. A machine with no
+  // HDR path (the CI runner) hands the 2D canvas the raw PQ signal, which clips 203 nits to white: nothing to match.
+  const browserMaps = r.plainGreys[3][0] < 250;
+  if (!browserMaps) t.diagnostic('this browser does not tone-map HDR itself: checked against the curve alone');
+  else r.greys.forEach((c, i) => assert.ok(Math.abs(c[0] - r.plainGreys[i][0]) <= 4, `patch ${i} is close to the browser's own picture (${c[0]} vs ${r.plainGreys[i][0]})`));
   assert.ok(r.greys[3][0] < 200 && r.greys[4][0] > 245, 'reference white has headroom and 1000 nits is still brighter: nothing clipped at 203');
   assert.deepEqual(errors, []);
 });
