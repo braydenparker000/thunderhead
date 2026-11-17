@@ -59,6 +59,9 @@ async function drag(cdp, [x0, y0], [x1, y1], steps = 10) {
  * lines, and whether the whole 44 px square about that box's middle lands on the key. */
 const hits = (page, selector, all = false) => page.evaluate(async ([selector, all]) => {
   const out = [];
+  // the key as it is on screen: a board just opened may still be laid out, or drawn again (its histogram arriving), so
+  // what the selector found a moment ago can be gone or not yet sized; asked again until it is there and has a size
+  for (let i = 0; i < 150; i++) { const e = document.querySelector(selector), r = e?.getBoundingClientRect(); if (e?.isConnected && r && r.width > 0 && r.height > 0) break; await new Promise((res) => setTimeout(res, 20)); }
   for (const el of all ? document.querySelectorAll(selector) : [document.querySelector(selector)]) {
     if (!el) { out.push({ selector, missing: true }); continue; }
     el.scrollIntoView({ block: 'nearest', inline: 'center' }); await new Promise((r) => requestAnimationFrame(r));
