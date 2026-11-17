@@ -7,7 +7,6 @@
 // about the made-up photo and nothing else): a driver that makes a slightly wrong picture is known of without
 // the owner testing anything. The button makes the same check and keeps it the same way.
 import { BUILD } from './build.js';
-import { log } from '/th/report/journal.js';
 import { judge, pictures } from './bench.js';
 
 const KEY = 'th.pictures.checked', TIMINGS = 'th.editor.timings';
@@ -41,7 +40,7 @@ export async function check() {
   try {
     localStorage.setItem(KEY, JSON.stringify(checked));
     const all = JSON.parse(localStorage.getItem(TIMINGS) || '[]'); all.push(numbers(checked, Object.keys(got.shots))); localStorage.setItem(TIMINGS, JSON.stringify(all.slice(-120)));
-    { const n = /** @type {any} */ (numbers(checked, Object.keys(got.shots))); void log(n.kind, n); }   // and to the editor's reports (th/report/journal.js)
+    { const n = /** @type {any} */ (numbers(checked, Object.keys(got.shots))); void import('/th/report/journal.js').then((j) => j.log(n.kind, n)).catch(() => {}); }   // and to the editor's reports (th/report/journal.js; loaded only here, so a check of these numbers in node needs no page)
   } catch { /* a private window: nothing is kept */ }
   return { ...got, verdict, checked };
 }
