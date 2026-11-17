@@ -1,9 +1,11 @@
 // @ts-check
 // Settings › Privacy and data (MENU-AND-SETTINGS.md §6.7): the senses each app sends your Worker and
-// error reports, kept by the Worker; then, as plain text, what leaves at all; then Export, which
+// error reports, kept by the Worker; the editor's reports as this phone has them (reports.js); then, as plain
+// text, what leaves at all; then Export, which
 // opens the Export page over this one.
 import { group, row } from './components.js';
 import { infoRow, renderGroup } from './catalog.js';
+import { reportsGroup } from './reports.js';
 
 /** What goes anywhere but the owner's own Worker: nothing else does. */
 const LEAVES = /** @type {const} */ ([
@@ -18,6 +20,6 @@ export function page(body) {
     onClick: () => void import('./settings.js').then((m) => m.openPage('export', { over: true })) });
   out.dataset.page = 'export';
   return renderGroup(body, 'privacy', {
-    after: [group('What leaves this phone', LEAVES.map(([title, detail]) => infoRow(title, detail))), group('Your data', [out])],
+    after: [reportsGroup(), group('What leaves this phone', LEAVES.map(([title, detail]) => infoRow(title, detail))), group('Your data', [out])],
   });
 }

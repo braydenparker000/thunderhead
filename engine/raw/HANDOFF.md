@@ -89,6 +89,22 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
   To read next: the A15's and the A35's `lost` lines (job, since, mb) say what resets them; `fine` and `detail` lines
   with `level` say how gentle each has gone.
 
+- **Sixth round (2026-11-17): the editor's reports, designed again.** The A15's timings from after the fifth round never
+  reached the owner: one localStorage list that each tab read and wrote whole (an old tab wrote its copy over the new
+  entries; entries of 00:40 showed up only in a later send), sent only by home, only when home was opened, at most
+  every ten minutes, through a second list of fields to keep that had to be updated by hand (it was not, the round
+  before). The owner: "design a better reporting design if you don't have the pull of the old one". Now:
+
+| Part | What | Proved here |
+|---|---|---|
+| Recorder | `th/report/journal.js`: each event its own record in IndexedDB `th-report` (`events`, `sessions`, `meta`), written as it happens; heavy jobs `begin`/`end` (open, full, export, and the badge's: copy, prep, starfish, detail, via `work.js`); a visit (session) per page, marked hidden/closed as the page goes (closed also in localStorage at once, so a reload is not a death); the next visit finds one that never closed: `died` with the heaviest job left unended; `phone` (Chrome's model number, Android) and `gpu` (vendor, architecture); kept 14 days | `tests/lab-editor-report-browser.test.mjs` |
+| One list | `th/report/fields.js` (a plain script, so the background worker loads it too): kinds, numbers, fractions, fixed words; a field not on it is dropped where it is recorded and logged as `dropped` by name; a test scans every `note(…)` in `frontend/lab` for fields not on it | `tests/report-fields.test.mjs` |
+| Sender | `th/report/send.js` in the background worker (`sw.js` importScripts; `sync` tag `th-report` and a `report-send` message): a day's events for one phone as `report-<model>-<day>.json`, put up whole, the day's file before removed, a month on removed; signed in only; off by the switch (the pages tell the recorder: `meta.send`). Home sends itself where there is no background worker; Settings' Send now | `tests/settings-workshop-browser.test.mjs` |
+| Settings | `apps/settings/reports.js`: Privacy and data › Editor reports: kept · waiting · last sent · not kept, and Send now | the same |
+| Reader | `scripts/reports.mjs`: each visit as a timeline, phone by phone: ▶/■ for a job begun and ended, ✖ RESET with what it blamed and the memory, ✖ DIED with what was running | `tests/report-fields.test.mjs` |
+| Memory | `gpu-memory.js`: what a lost device held is let go with it (a destroy after the loss counted again: -62 MB on the A15) | — |
+
+
 - Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
   committed test.
@@ -147,7 +163,8 @@ Real RAFs (the repository holds none):
 
 ```bash
 mkdir -p /tmp/audit/raf && curl -sSL -o /tmp/audit/raf/DSCF0021.RAF https://raw.pixls.us/data/Fujifilm/X-T5/DSCF0021.RAF   # public domain, the X-E5's sensor, an 18 mm f/2 with strong fringing
-node scripts/workshop.mjs list                    # the owner's own X-E5 RAFs and the phones' editor-timings.json (the owner allowed this on 2026-11-15)
+node scripts/workshop.mjs list                    # the owner's own X-E5 RAFs and the phones' editor reports (the owner allowed this on 2026-11-15)
+node scripts/reports.mjs --days 1                 # the editor's reports, each visit as a timeline, phone by phone (--phone SM-A155F)
 node scripts/workshop.mjs get <id> /tmp/audit/own # keep them outside the repository
 ```
 

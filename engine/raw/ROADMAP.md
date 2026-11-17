@@ -159,7 +159,7 @@ history, before and after, the histogram and clipping, batch paste, match, stack
    First, numbers from real use with no work for the owner (built): the editor keeps how long each open, the
    full-size pixels, the first full-size view and each export took, with the decoder's start-up split into its
    code, its WebAssembly and its threads (`lab/editor/app/timings.js`), and home passes them on to the
-   workshop's folder (`th/workshop/timings.js`; Settings › Privacy and data › Editor timings turns it off).
+   workshop's folder (the editor's reports since 2026-11-17: `th/report/`; Settings › Privacy and data › Editor reports turns it off).
    What is known so far: on the phone the decode is 1.4 s of an 8.1 s open, and here the decoder's start-up
    is 0.15 s, so the other 6.7 s is the phone's start-up or a download; the decoder is now started while the
    Library is on screen. The full-size pipeline does about 1.2 megapixels a second on the phone, which is

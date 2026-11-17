@@ -18,6 +18,7 @@ import { begin } from './starts.js';
 import { profileFor } from './recipe-map.js';
 import { ask } from './decoder.js';
 import { firstPicture, keepView, note, onScreen, tap } from './kept-view.js';
+import { begin as job } from './timings.js';
 import { loadCopy, saveCopy } from './copy-kept.js';
 import { hold as claim } from '../../engine/work.js';
 import { inMB } from '../../engine/gpu-memory.js';
@@ -74,7 +75,7 @@ export async function open(id, quick = false, again = false) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || (cur?.id === id && !again)) return;
   Object.assign(opening, { id, name: p.name }); tap(); changed();   // the boards name it at once (shown.js)
-  const turn = ++asked, began = performance.now(), [saved, url] = await firstPicture(id), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
+  const turn = ++asked, began = performance.now(), opened1 = job('open'), [saved, url] = await firstPicture(id), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
   while (drawing) await sleep(8);   // a frame of the photo before may be in flight (its tile, a dial's last turn, a redraw for the screen's size): waited for after the last await, so none starts before its engine is let go
   if (turn !== asked || (cur?.id === id && !again)) return;
   took.open = took.detail = took.save = 0; again = false; opened = began;
@@ -109,10 +110,10 @@ export async function open(id, quick = false, again = false) {
     r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true);   // Full-size detail: Faster (engine/demosaic.js)
     r.meta.onCopy = (/** @type {Uint16Array} */ copy) => { saveCopy(id, copy); if (cur === me) draw(); };   // the copy made again later, a while after a reset (engine/full.js)
     applyProfile();
-    await draw(); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
+    await draw(); opened1(cur === me ? 'done' : 'left'); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
-      const b = cur === me ? await full(e, r, m) : null;
+      const fulled = job('full'), b = cur === me ? await full(e, r, m).finally(() => fulled(cur === me ? 'done' : 'left')) : (fulled('left'), null);
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
       if (r.meta.copyMade) { saveCopy(id, r.meta.copyMade); delete r.meta.copyMade; }   // kept for the next open
       if (cur === me) { big = b; changed(); draw(); note('full', performance.now() - began, { ...inMB(), ...(b ? {} : { left: 1 }) }); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor; left: none made)

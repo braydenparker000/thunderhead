@@ -27,7 +27,7 @@ const curl = (args) => execFileSync('curl', ['-sSf', '--retry', '4', '--retry-de
 /** @param {string} path */
 const json = (path) => JSON.parse(curl([`${API}${path}`]).toString('utf8'));
 
-function account() {
+export function account() {
   if (process.env.CLOUDFLARE_ACCOUNT_ID) return process.env.CLOUDFLARE_ACCOUNT_ID;
   const all = json('/accounts').result ?? [];
   if (all.length !== 1) throw new Error(`the credential sees ${all.length} accounts: set CLOUDFLARE_ACCOUNT_ID`);

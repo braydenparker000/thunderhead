@@ -5,6 +5,7 @@
 // and which was picked; never the photo's or a file's name.
 import { S, bus, changed, label, method, other } from './state.js';
 import { KEEP, cleanMarks } from './tiles.js';
+import { log } from '/th/report/journal.js';
 import { progress, pump, ready, show } from './render.js';
 import * as view from './view.js';
 
@@ -36,6 +37,7 @@ function prefer() {
   const c = view.centre(), round = (/** @type {number} */ v) => Math.round(v * 1000) / 1000;
   const mark = { at: Date.now(), x: round(c.x), y: round(c.y), zoom: round(view.zoom()), a: a.kind, b: b.kind, picked: shown.kind };
   try { localStorage.setItem(MARKS, JSON.stringify(cleanMarks([...marks(), mark]).slice(-KEEP))); } catch {}
+  void log('mark', { x: mark.x, y: mark.y, zoom: mark.zoom, a: mark.a, b: mark.b, picked: mark.picked });   // and to the editor's reports (th/report/journal.js)
   S.revealed.add(a.id); S.revealed.add(b.id);
   say(`Kept: ${shown.name} over ${(shown === a ? b : a).name}`);
 }

@@ -1,9 +1,10 @@
 // @ts-check
 // The engine page's "The network on this phone": one button that measures the network (net-bench.js), the result as
 // text to read and copy, and the last runs kept in this browser. Its numbers also go where the editor's timings go
-// (the owner's own storage, when that setting is on: th/workshop/timings.js), so a run need not be copied by hand.
+// (the editor's reports: th/report/journal.js), so a run need not be copied by hand.
 import { netBench } from './net-bench.js';
 import { BUILD } from './build.js';
+import { log } from '/th/report/journal.js';
 import { fresh } from './fresh.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -60,7 +61,7 @@ const two = (r) => {
   return { gpu1: h(b.alone), tog: h(best.cpu + best.gpu), togn: best.cores, ...(last ? { togl: h(last.cpu + last.gpu) } : {}) };
 };
 
-/** The run's numbers as one of the editor's timings (th/workshop/timings-core.js passes on the fields it knows). @param {NetRun} r */
+/** The run's numbers as one of the editor's timings (th/report/fields.js keeps the fields it knows). @param {NetRun} r */
 export function numbers(r) {
   const cpu = (/** @type {string} */ build, /** @type {boolean} */ all) => { const rows = (r.cpu?.rows || []).filter((x) => x.build === build); return Math.round(100 * ((all ? rows.at(-1) : rows[0])?.gmacs || 0)); };
   const row = (/** @type {string} */ name, /** @type {number[]} */ list) => Object.fromEntries(list.map((v, j) => [`${name}${j + 1}`, Math.round(v)]));   // (op0 is the cut, as in an export's timings)
@@ -81,6 +82,7 @@ if (out && go && copy) {
       r.build = BUILD;
       last = r; out.textContent = text(r); /** @type {any} */ (window).__net = r;
       try { localStorage.setItem(KEY, JSON.stringify([r, ...past()].slice(0, 6))); const all = JSON.parse(localStorage.getItem(TIMINGS) || '[]'); all.push(numbers(r)); localStorage.setItem(TIMINGS, JSON.stringify(all.slice(-120))); } catch { /* a private window: nothing is kept */ }
+      { const n = /** @type {any} */ (numbers(r)); void log(n.kind, n); }   // and to the editor's reports (th/report/journal.js)
       say('Done. The ways it found faster and as true are kept for the editor on this phone. Copy the result and paste it where it is wanted.');
     } catch (err) { console.error(err); say(`Stopped: ${/** @type {any} */ (err)?.message || err}`); }
     go.disabled = false; copy.disabled = !last;

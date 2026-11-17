@@ -958,14 +958,18 @@ Nothing else in the Worker reads these files and no agent key may call these rou
 owner gave the account's storage to reads the pieces from the bucket and joins them
 (`scripts/workshop.mjs`). They stay until the owner removes them.
 
-One file there is the phone's own: `editor-timings.json`, which home sends a while after it opens
-(`frontend/th/workshop/timings.js`; at most once in ten minutes, only when the editor has kept a new
-timing, the one before it removed). It holds how long the editor took on this phone to open a photo
-(with the decoder's start-up and decode), to have its full-size pixels, to show them and to export,
-as numbers and a few fixed words (`timings-core.js` keeps known fields only), never a photo, a name
-or a setting. The owner's verdicts from the compare page (`/lab/editor/compare/`) ride in the same file
-as `marks`: where on a photo (as fractions), how far in, which two ways were shown and which was
-picked, never which photo. Off with Settings › Privacy and data › Editor timings.
+Some files there are the phones' own: the editor's reports, `report-<model>-<day>.json`, a day's events
+for one phone (frontend/th/report/, 2026-11-17). The editor records each event as its own record in IndexedDB
+`th-report` as it happens (`journal.js`): its timings, each heavy job as it begins and ends (an unended one is
+what was running when the chip or the page died), a reset with what it blamed and the GPU memory held, a visit
+that never closed (found by the next: `died`), the phone's model and its graphics chip, and the compare page's
+verdicts. The site's background worker (`sw.js`, loading `send.js`) sends what is new when the editor asks (it
+goes to the background, closes, after a reset) and on the browser's own retries; home and Settings' "Send now"
+use the same sender. Each send puts up the day's file whole and removes the one sent of that day before; a day's
+file is removed after 30 days. Known fields only (`fields.js`: one list for the phone, the worker and
+`scripts/reports.mjs`, which prints each visit as a timeline), numbers and fixed words, never a photo, a name or
+a setting. Off with Settings › Privacy and data › Editor reports: then nothing leaves the phone (it keeps its
+own two weeks).
 
 ## 12. WebSocket protocol (`/v1/live`)
 

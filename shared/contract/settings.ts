@@ -193,8 +193,8 @@ export const SETTINGS = [
   { ...SENSES, section: 'Reports', key: 'privacy.errors', label: 'Error reports',
     detail: 'When something breaks, what broke and where, never what you wrote.' },
   // The editor's timings (th/workshop/timings.js): kept on this phone, passed on by home to the owner's storage.
-  { key: 'privacy.editor_timings', group: 'privacy', section: 'Reports', label: 'Editor timings', kind: 'switch', scope: 'phone', mind: false, default: true,
-    detail: 'How long opening, zooming and exporting a photo took, and which way you picked on the compare page, as numbers only, to your own storage, so a slow step can be found and fixed. Never a photo or its name.' },
+  { key: 'privacy.editor_timings', group: 'privacy', section: 'Reports', label: 'Editor reports', kind: 'switch', scope: 'phone', mind: false, default: true,
+    detail: 'What the photo editor did on this phone: how long each step took, what was running when the graphics chip reset, the phone model and its graphics chip, and which way you picked on the compare page. Numbers and a few fixed words, to your own storage, so a slow or failing step can be found. Never a photo, its name or your edits. Off, nothing leaves the phone.' },
   // What Photos is (th/registry/apps.js `landing`): the new editor and its own Library, or, with
   // Classic, the shelf and the editor before (kept on hand until its Drive side has moved over).
   { key: 'photos.editor', group: 'photos', section: 'Editor', label: 'Photos opens', kind: 'choice', scope: 'phone', mind: false,

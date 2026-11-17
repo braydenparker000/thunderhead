@@ -18,7 +18,7 @@ test('only lab pages and their engine builds count as a lab change', () => {
   assert.deepEqual([...(labPages(['tests/lab-engine-x.test.mjs'], sources) ?? [])], ['engine', 'editor'], 'a lab test changed alone is still a lab change');
   assert.equal(labPages(['frontend/lab/editor/app/save.js', 'tests/photos-browser.test.mjs'], sources), null, 'a test of another page is not');
   assert.equal(labPages(['frontend/lab/editor/app/save.js', 'tests/fixtures/waits.mjs'], sources), null, 'what every test shares is not');
-  assert.equal(labPages(['frontend/lab/editor/app/save.js', 'frontend/th/workshop/timings-core.js'], sources), null, "the shell's code is not");
+  assert.equal(labPages(['frontend/lab/editor/app/save.js', 'frontend/th/report/send.js'], sources), null, "the shell's code is not");
   assert.equal(labPages([]), null, 'no change at all runs everything');
 });
 

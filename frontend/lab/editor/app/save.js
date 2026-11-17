@@ -5,7 +5,7 @@ import { OUTPUT, develop } from '../../engine/export.js';
 import { carry, taken } from '../../engine/exif.js';
 import * as photo from './session.js';
 import { outSize } from './shown.js';
-import { note } from './timings.js';
+import { begin, note } from './timings.js';
 import * as store from './store.js';
 import { pref, prefOn } from '/th/pref.js';
 import { CONFIG } from '/config.js';
@@ -100,7 +100,7 @@ export const cancelled = (err) => err?.name === 'AbortError';
 export async function save(presets, progress, how = {}) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
-  const began = performance.now(), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
+  const began = performance.now(), exporting = begin('export'), clock = /** @type {Record<string, any>} */ ({}), head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
   const best = netOn(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);   // the screen kept awake: a phone that sleeps takes the tab back
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
@@ -133,7 +133,7 @@ export async function save(presets, progress, how = {}) {
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
   Object.assign(helped, { cpu: clock.cpu || 0, parts: clock.parts || 0 });
-  note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
+  exporting(saved.length ? 'done' : 'left'); note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
   return saved;
 }
 
