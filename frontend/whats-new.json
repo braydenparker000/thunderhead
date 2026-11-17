@@ -1,16 +1,16 @@
 {
-  "id": "2026-11-17-editor-reports",
+  "id": "2026-11-17-editor-copy-plain",
   "date": "2026-11-17",
   "lines": [
     {
-      "text": "The photo editor now keeps a flight record of each visit, so a crash or a graphics reset can be traced.",
+      "text": "The editor's sharper copy is rebuilt to be gentler on phone graphics chips; the photo looks the same.",
       "open": "photos"
     },
     {
-      "text": "Reports go to your own storage in the background, even after you close the editor; no need to open home."
+      "text": "If it still resets the chip twice running on a phone, it waits a day before trying again."
     },
     {
-      "text": "Settings › Privacy and data › Editor reports shows what is kept and waiting, with Send now."
+      "text": "Editor reports now say which step of building the sharper copy was running if something goes wrong."
     }
   ]
 }

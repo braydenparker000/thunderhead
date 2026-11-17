@@ -9,7 +9,7 @@ import * as photo from './session.js';
 import { note } from './timings.js';
 import { tell } from './told.js';
 import { room } from '../../engine/gpu-memory.js';
-import { calm, level, share, went } from '../../engine/gentle.js';
+import { level, share, wait, went } from '../../engine/gentle.js';
 import { SLICE_MS } from '../../engine/net-pace.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
@@ -31,7 +31,7 @@ export function starfish(z) {
   async function finer(job, mine, X, Y, w, h) {
     const big = photo.whole();
     if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
-    if (level('starfish')) { await calm(); if (!mine() || photo.whole() !== big) return; }   // (gentle.js: it was being made when the chip reset)
+    if (level('starfish')) { await wait('starfish'); if (!mine() || photo.whole() !== big) return; }   // (gentle.js: it was being made when the chip reset)
     const t0 = performance.now(); let made = 0;   // how long the network's view took to make, when it had to be (the timings say: the first one of a photo compiles it unless that was done behind the photo, full.js)
     if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) {
       letFine(); if (!room(viewMem(w, h, true))) z.drop();

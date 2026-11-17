@@ -29,5 +29,12 @@ export function doing(what) {
 export const making = () => ORDER.find((w) => running.includes(w)) || running[0] || '';
 /** Everything being made now, each once (what a reset is blamed on: gentle.js). */
 export const allMaking = () => [...new Set(running)];
+/** A step of a job begins (`job`: one of the editor's reports' words, th/report/fields.js), heard by the editor
+ * (lab/editor/app/timings.js) as the page's `th-job` event; the returned function says it ended (once). @param {string} job */
+export function mark(job) {
+  const say = (/** @type {boolean} */ on) => globalThis.dispatchEvent?.(new CustomEvent('th-job', { detail: { job, on } }));
+  say(true); let over = false;
+  return () => { if (!over) { over = true; say(false); } };
+}
 /** Calls `f` whenever that changes. @param {() => void} f */
 export const onMaking = (f) => { heard.add(f); };

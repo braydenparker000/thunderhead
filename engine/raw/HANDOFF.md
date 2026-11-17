@@ -104,6 +104,18 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | Reader | `scripts/reports.mjs`: each visit as a timeline, phone by phone: ▶/■ for a job begun and ended, ✖ RESET with what it blamed and the memory, ✖ DIED with what was running | `tests/report-fields.test.mjs` |
 | Memory | `gpu-memory.js`: what a lost device held is let go with it (a destroy after the loss counted again: -62 MB on the A15) | — |
 
+- **Seventh round (2026-11-17): the copy made again, written plainly.** The first report from the new recorder (the
+  A35, SM-A356E, Android 16, Arm Valhall, 8 GB) put the reset half a second into the copy made again (`proxy-hq.js`),
+  at 254 of 720 MB; everything after it ran (opened again in 1.5 s, full detail 1.75 s, Starfish 3 s then 0.8 s). Not
+  memory and not size: the copy's passes themselves. Done:
+
+| Part | What | Proved here |
+|---|---|---|
+| Steps | `work.js` `mark` → the page's `th-job` event → `timings.js`: `copy-maker` (its demosaic made, `full.js`), `copy-compile` (its passes), `copy-tile` (the first tile), `copy-read` (reading back), each begun and ended; a death names the step | `lab-editor-report-browser.test.mjs` |
+| Plain passes | `proxy-hq.js`: the 17 taps each way written out with their weights (no constant array indexed as it runs), a site's colour summed by a mask (no vector indexed as it runs), the colour from each colour's own sites its own pass (`tint`); the copy the same to 2 levels of 65535 (mean 0.14), its flags the same, on the known photo | the display, jpeg and guard files |
+| A day | `gentle.js` (key `.2`: what the phones learnt of the old passes let go): a job that reset the chip twice running waits a day (`waitIn`/`wait`), and is tried again then; made whole once, it waits no more | the guard file |
+
+
 
 - Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a

@@ -42,6 +42,8 @@ test('a visit is recorded as it goes: the open and the full-size pixels begun an
   await until(async () => (await kept(page)).events.some((e) => e.kind === 'full'), { message: 'its full-size pixels recorded' });
   const a = await kept(page), mine = a.events.filter((e) => e.s === a.visit), kinds = mine.map((e) => `${e.kind}${e.job ? `:${e.job}` : ''}`);
   for (const k of ['begin:open', 'end:open', 'open', 'begin:full', 'end:full', 'full', 'phone', 'gpu']) assert.ok(kinds.includes(k), `${k} in ${kinds}`);
+  // the copy made again, step by step (engine/proxy-hq.js): which one a reset comes in is said
+  for (const k of ['copy-maker', 'copy-compile', 'copy-tile', 'copy-read']) assert.ok(kinds.includes(`begin:${k}`) && kinds.includes(`end:${k}`), `${k} begun and ended in ${kinds}`);
   assert.ok(kinds.indexOf('begin:open') < kinds.indexOf('end:open'), 'begun before it ended');
   assert.ok(mine.every((e, i) => i === 0 || e.n > mine[i - 1].n), 'in order');
   assert.ok(a.sessions.some((s) => s.id === a.visit && s.closed === 0), 'the visit is open while the page is');

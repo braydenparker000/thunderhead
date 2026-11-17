@@ -13,7 +13,7 @@
 // out of the copy. A picture (a JPEG) is shrunk from its own pixels alone (picture.js `copier`). The clipped flags are
 // any of the cell's, as the decoder's are (the highlight rebuild reads them).
 
-import { doing, turn } from './work.js';
+import { doing, mark, turn } from './work.js';
 
 export const TILE = 228;   // copy pixels a tile's side: 684 sensor pixels, about half a megapixel of the demosaic's buffers at a time (2026-11-16: 342 asked twice the memory)
 const REACH = 8;    // Lanczos-3 at a third: sensor pixels each side of a copy pixel's middle that weigh in
@@ -27,6 +27,12 @@ const SUM = WEIGHTS.reduce((s, w) => s + w, 0);
 /** The GPU memory making the copy again asks, its maker's included (a demosaic's buffers are about 36 bytes a pixel of `SIDE` squared), for a copy w x h. @param {number} w @param {number} h */
 export const need = (w, h) => w * h * 8 + SIDE * TILE * 48 + CHUNK + SIDE * SIDE * 36;
 
+// The shader is written plainly for the phones' graphics drivers (2026-11-17: the A35's chip reset half a second into
+// the first copy, at 254 of its 720 MB): no array or vector indexed by a number known only as it runs (the 17 taps each
+// way are written out with their weights; a site's colour picks its sum by a mask), and the colour from each colour's
+// own sites is its own pass (`tint`), so no one pass holds much at once.
+const tap = (/** @type {(d: number) => string} */ f) => WEIGHTS.map((_, i) => f(i - REACH)).join('\n    ');
+const w = (/** @type {number} */ d) => (WEIGHTS[d + REACH] / SUM).toFixed(8);
 const SHADER = /* wgsl */ `
 struct P { rect: vec4i, tile: vec4i, copy: vec2u, phase: vec2i, black: f32, scale: f32, sensor: u32, pad: u32, wb: vec4f }   // the demosaiced rectangle (sensor); the tile (copy pixels); the copy's size; the mosaic's own
 @group(0) @binding(0) var<uniform> p: P;
@@ -34,56 +40,57 @@ struct P { rect: vec4i, tile: vec4i, copy: vec2u, phase: vec2i, black: f32, scal
 @group(0) @binding(2) var<storage, read_write> mid: array<vec4f>;  // across done, down to do: the sum and its flags, the least, the most
 @group(0) @binding(3) var<storage, read_write> outp: array<u32>;   // the new copy
 @group(0) @binding(4) var mos: texture_2d<u32>;                     // the sensor's pixels (a picture's copy: unused)
-const W = array<f32, ${WEIGHTS.length}>(${WEIGHTS.map((w) => (w / SUM).toFixed(8)).join(', ')});
 fn at(x: i32, y: i32) -> vec4f {
-  let n = u32(y * p.rect.z + x) * 2u; let a = src[n]; let b = src[n + 1u];
+  let n = u32(y * p.rect.z + clamp(x, 0, p.rect.z - 1)) * 2u; let a = src[n]; let b = src[n + 1u];
   return vec4f(f32(a & 0xffffu), f32(a >> 16u), f32(b & 0xffffu), f32(b >> 16u));
 }
 @compute @workgroup_size(8, 8)
 fn across(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= p.tile.z || i32(id.y) >= p.rect.w) { return; }
-  let c = 3 * (p.tile.x + i32(id.x)) + 1 - p.rect.x;
-  var s = vec3f(0.0); var lo = vec3f(1e9); var hi = vec3f(-1e9); var flags = 0u;
-  for (var d = -${REACH}; d <= ${REACH}; d++) {
-    let v = at(clamp(c + d, 0, p.rect.z - 1), i32(id.y));
-    s += W[d + ${REACH}] * v.rgb;
-    if (abs(d) <= 1) { lo = min(lo, v.rgb); hi = max(hi, v.rgb); flags |= u32(v.a); }
-  }
+  let c = 3 * (p.tile.x + i32(id.x)) + 1 - p.rect.x; let y = i32(id.y);
+  var s = vec3f(0.0);
+  ${tap((d) => `s += ${w(d)} * at(c + ${d}, y).rgb;`)}
+  let l = at(c - 1, y); let m0 = at(c, y); let r = at(c + 1, y);
+  let lo = min(min(l.rgb, m0.rgb), r.rgb); let hi = max(max(l.rgb, m0.rgb), r.rgb); let flags = u32(l.a) | u32(m0.a) | u32(r.a);
   let m = (id.y * u32(p.tile.z) + id.x) * 3u;
   mid[m] = vec4f(s, f32(flags)); mid[m + 1u] = vec4f(lo, 0.0); mid[m + 2u] = vec4f(hi, 0.0);
 }
-fn colour(q: vec2i) -> u32 {   // 0 red, 1 green, 2 blue: demosaic.js's layout
-  let s = q + p.phase + 6000; let b = s / 3; let m = s - b * 3;
-  if (((m.x + m.y) & 1) == 0) { return 1u; }
-  return select(0u, 2u, (((b.x + b.y) & 1) == 1) != (m.y == 1));
-}
-/** each colour's own sites round a copy pixel's middle, weighted alike (sigma 0.82 sites, the decoder's box's spread) */
-fn hue(c: vec2i) -> vec3f {
-  let n = vec2i(textureDimensions(mos)); var s = vec3f(0.0); var w = vec3f(0.0);
-  for (var dy = -4; dy <= 4; dy++) { for (var dx = -4; dx <= 4; dx++) {
-    let q = clamp(c + vec2i(dx, dy), vec2i(0), n - 1); let wt = exp(-f32(dx * dx + dy * dy) / ${2 * 0.82 * 0.82}); let k = colour(q);
-    s[k] += wt * f32(textureLoad(mos, q, 0).r); w[k] += wt;
-  } }
-  return max(s / max(w, vec3f(1e-9)) - p.black, vec3f(0.0)) * p.scale;
-}
+fn row(y: i32, x: u32) -> u32 { return (u32(clamp(y, 0, p.rect.w - 1)) * u32(p.tile.z) + x) * 3u; }
 @compute @workgroup_size(8, 8)
 fn down(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= p.tile.z || i32(id.y) >= p.tile.w) { return; }
   let c = 3 * (p.tile.y + i32(id.y)) + 1 - p.rect.y;
-  var s = vec3f(0.0); var lo = vec3f(1e9); var hi = vec3f(-1e9); var flags = 0u;
-  for (var d = -${REACH}; d <= ${REACH}; d++) {
-    let m = (u32(clamp(c + d, 0, p.rect.w - 1)) * u32(p.tile.z) + id.x) * 3u;
-    s += W[d + ${REACH}] * mid[m].rgb;
-    if (abs(d) <= 1) { lo = min(lo, mid[m + 1u].rgb); hi = max(hi, mid[m + 2u].rgb); flags |= u32(mid[m].a); }
-  }
-  var v = clamp(s, lo, hi);
-  if (p.sensor == 1u) {   // the demosaic's brightness, the smoother estimate's colour
-    let g = hue(vec2i(3 * (p.tile.x + i32(id.x)) + 1, 3 * (p.tile.y + i32(id.y)) + 1)); let y = dot(v, p.wb.xyz); let yg = dot(g, p.wb.xyz);
-    if (yg > 1.0) { v = g * (y / yg); }
-  }
-  let u = vec3u(clamp(v, vec3f(0.0), vec3f(65535.0)) + 0.5);
+  var s = vec3f(0.0);
+  ${tap((d) => `s += ${w(d)} * mid[row(c + ${d}, id.x)].rgb;`)}
+  let u0 = row(c - 1, id.x); let u1 = row(c, id.x); let u2 = row(c + 1, id.x);
+  let lo = min(min(mid[u0 + 1u].rgb, mid[u1 + 1u].rgb), mid[u2 + 1u].rgb); let hi = max(max(mid[u0 + 2u].rgb, mid[u1 + 2u].rgb), mid[u2 + 2u].rgb);
+  let flags = u32(mid[u0].a) | u32(mid[u1].a) | u32(mid[u2].a);
+  let u = vec3u(clamp(clamp(s, lo, hi), vec3f(0.0), vec3f(65535.0)) + 0.5);
   let n = (u32(p.tile.y + i32(id.y)) * p.copy.x + u32(p.tile.x + i32(id.x))) * 2u;
   outp[n] = u.x | (u.y << 16u); outp[n + 1u] = u.z | ((flags & 0xffffu) << 16u);
+}
+fn colour(q: vec2i) -> vec3f {   // a site's colour as a mask: red, green or blue (demosaic.js's layout)
+  let s = q + p.phase + 6000; let b = s / 3; let m = s - b * 3;
+  if (((m.x + m.y) & 1) == 0) { return vec3f(0.0, 1.0, 0.0); }
+  return select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), (((b.x + b.y) & 1) == 1) != (m.y == 1));
+}
+/** the sensor's: the demosaic's brightness, the colour of each colour's own sites round the copy pixel's middle, weighted
+ * alike (sigma 0.82 sites, the decoder's box's spread) */
+@compute @workgroup_size(8, 8)
+fn tint(@builtin(global_invocation_id) id: vec3u) {
+  if (i32(id.x) >= p.tile.z || i32(id.y) >= p.tile.w) { return; }
+  let n = (u32(p.tile.y + i32(id.y)) * p.copy.x + u32(p.tile.x + i32(id.x))) * 2u; let a = outp[n]; let b = outp[n + 1u];
+  let v = vec3f(f32(a & 0xffffu), f32(a >> 16u), f32(b & 0xffffu));
+  let c = vec2i(3 * (p.tile.x + i32(id.x)) + 1, 3 * (p.tile.y + i32(id.y)) + 1); let e = vec2i(textureDimensions(mos)) - 1;
+  var s = vec3f(0.0); var w = vec3f(0.0);
+  for (var dy = -4; dy <= 4; dy++) { for (var dx = -4; dx <= 4; dx++) {
+    let q = clamp(c + vec2i(dx, dy), vec2i(0), e); let k = colour(q) * exp(-f32(dx * dx + dy * dy) / ${2 * 0.82 * 0.82});
+    s += k * f32(textureLoad(mos, q, 0).r); w += k;
+  } }
+  let g = max(s / max(w, vec3f(1e-9)) - p.black, vec3f(0.0)) * p.scale; let yv = dot(v, p.wb.xyz); let yg = dot(g, p.wb.xyz);
+  if (yg <= 1.0) { return; }
+  let u = vec3u(clamp(g * (yv / yg), vec3f(0.0), vec3f(65535.0)) + 0.5);
+  outp[n] = u.x | (u.y << 16u); outp[n + 1u] = u.z | (b & 0xffff0000u);
 }`;
 
 /** Makes the editing copy (w x h, four 16-bit values a pixel) again into `dst`, from the photo's full resolution (W x H)
@@ -99,15 +106,17 @@ fn down(@builtin(global_invocation_id) id: vec3u) {
  * @param {number} [tile] copy pixels a tile's side, at most TILE (smaller on a phone whose chip reset making it: gentle.js) */
 export async function remake(device, dst, w, h, maker, W, H, alive = () => true, sensor = null, tile = TILE) {
   const done = doing('Building a sharper copy');
+  let ended = mark('copy-compile');   // (each step marked as it begins and ends: the editor's reports say which one a reset came in)
   const module = device.createShaderModule({ code: SHADER });
-  const [across, down] = await Promise.all(['across', 'down'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+  const [across, down, tint] = await Promise.all(['across', 'down', 'tint'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+  ended();
   const bytes = w * h * 8, uni = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const none = sensor ? null : device.createTexture({ size: [1, 1], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING });
   const mid = device.createBuffer({ size: SIDE * TILE * 48, usage: GPUBufferUsage.STORAGE });
   const made = device.createBuffer({ size: bytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
   const back = device.createBuffer({ size: CHUNK, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
   const entries = [...[uni, maker.out, mid, made].map((buffer, binding) => ({ binding, resource: /** @type {GPUBindingResource} */ ({ buffer }) })), { binding: 4, resource: (sensor?.mos || /** @type {GPUTexture} */ (none)).createView() }];
-  const binds = [[across, [0, 1, 2]], [down, [0, 2, 3, 4]]].map(([pipe, uses]) => device.createBindGroup({ layout: /** @type {GPUComputePipeline} */ (pipe).getBindGroupLayout(0), entries: entries.filter((e) => /** @type {number[]} */ (uses).includes(e.binding)) }));
+  const binds = [[across, [0, 1, 2]], [down, [0, 2, 3]], [tint, [0, 3, 4]]].map(([pipe, uses]) => device.createBindGroup({ layout: /** @type {GPUComputePipeline} */ (pipe).getBindGroupLayout(0), entries: entries.filter((e) => /** @type {number[]} */ (uses).includes(e.binding)) }));
   const g1 = sensor?.wb?.[1] || 1, wb = sensor ? [(sensor.wb?.[0] || g1) / g1, 1, (sensor.wb?.[2] || g1) / g1] : [1, 1, 1];   // the light's balance, so brightness is read as a grey would be
   const T = Math.max(8, Math.min(TILE, Math.round(tile))), tiles = Math.ceil(w / T) * Math.ceil(h / T);
   let spent = 0;   // the GPU's own time on the tiles, waits for the photo's frames left out
@@ -125,12 +134,15 @@ export async function remake(device, dst, w, h, maker, W, H, alive = () => true,
       const pass = enc.beginComputePass();
       pass.setPipeline(across); pass.setBindGroup(0, binds[0]); pass.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(rh / 8));
       pass.setPipeline(down); pass.setBindGroup(0, binds[1]); pass.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8));
+      if (sensor) { pass.setPipeline(tint); pass.setBindGroup(0, binds[2]); pass.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8)); }
       pass.end();
+      if (k === 0) ended = mark('copy-tile');   // the first tile
       device.queue.submit([enc.finish()]);
-      await device.queue.onSubmittedWorkDone(); spent += performance.now() - t;
+      await device.queue.onSubmittedWorkDone(); spent += performance.now() - t; if (k === 0) ended();
       if (k === 1 && tiles > 2 && (spent / 2) * tiles > BUDGET) { console.info(`the editing copy is kept as the decoder made it: this GPU would take ${Math.round((spent / 2000) * tiles)} s`); return null; }
     }
     if (!alive()) return null;
+    ended = mark('copy-read');
     { const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(made, 0, dst, 0, bytes); device.queue.submit([enc.finish()]); }
     const copy = new Uint16Array(w * h * 4);   // and back to the page, a piece at a time
     for (let o = 0; o < bytes; o += CHUNK) {
@@ -139,5 +151,5 @@ export async function remake(device, dst, w, h, maker, W, H, alive = () => true,
       await back.mapAsync(GPUMapMode.READ, 0, n); copy.set(new Uint16Array(back.getMappedRange(0, n)), o / 2); back.unmap();
     }
     return copy;
-  } finally { for (const b of [uni, mid, made, back]) b.destroy(); none?.destroy(); done(); }
+  } finally { ended(); for (const b of [uni, mid, made, back]) b.destroy(); none?.destroy(); done(); }
 }

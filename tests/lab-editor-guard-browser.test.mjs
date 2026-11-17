@@ -79,7 +79,9 @@ test('a job blamed for a reset hands the GPU half the pieces, grows back after t
     for (let i = 0; i < 9; i++) g.blame('copy'); out.most = g.level('copy');
     out.jobs = ['Building a sharper copy', 'Preparing Starfish', 'Loading Starfish', 'Loading full detail', ''].map(g.jobOf);
     await g.calm(); out.after = g.calmIn();
-    out.kept = JSON.parse(localStorage.getItem('th.editor.gentle')).jobs.starfish.level;
+    out.kept = JSON.parse(localStorage.getItem('th.editor.gentle.2')).jobs.starfish.level;
+    // twice running: not tried again for a day; made whole once, tried again as soon as the while allows
+    out.day = Math.round(g.waitIn('copy') / 3_600_000); g.went('copy'); out.again = g.waitIn('copy');
     return out;
   });
   await page.close();
@@ -90,6 +92,8 @@ test('a job blamed for a reset hands the GPU half the pieces, grows back after t
   assert.deepEqual(r.jobs, ['copy', 'prep', 'starfish', 'detail', 'none']);
   assert.equal(r.after, 0, 'the while ends');
   assert.equal(r.kept, 1, 'kept on the phone');
+  assert.equal(r.day, 24, 'a job that reset the chip twice running waits a day');
+  assert.equal(r.again, 0, 'and once made whole, no longer');
 });
 
 test('GPU memory is counted against the phone\'s budget: the copy made again is left where it would not fit, and running out lowers the budget for good', opts, async () => {
@@ -126,13 +130,13 @@ test('the copy made again goes in smaller tiles on a phone whose chip reset maki
     const tiles = () => performance.getEntriesByName('th:copy', 'mark').length, k = known(720), eng = await engine(document.createElement('canvas'), k, true);
     const made = async () => { delete k.meta.copyMade; const n = tiles(), big = await full(eng, k, k.mosaic.slice()); return { big, tiles: tiles() - n, at: !!k.meta.copyMade }; };
     const a = await made(); a.big?.dispose();
-    localStorage.setItem('th.editor.gentle', JSON.stringify({ last: 0, jobs: { copy: { level: 2, ok: 0 } } }));   // two resets blamed on it, long ago
+    localStorage.setItem('th.editor.gentle.2', JSON.stringify({ last: 0, jobs: { copy: { level: 2, ok: 0 } } }));   // two resets blamed on it, long ago
     const b = await made(); b.big?.dispose();
     g.blame('none');   // a reset just now: the copy waits out the while, and the session hears of it then
     let told = -1; k.meta.onCopy = (/** @type {Uint16Array} */ c) => { told = c.length; };
     const c = await made();
     for (let i = 0; i < 200 && told < 0; i++) await new Promise((res) => setTimeout(res, 50));
-    c.big?.dispose(); eng.dispose(); localStorage.removeItem('th.editor.gentle');
+    c.big?.dispose(); eng.dispose(); localStorage.removeItem('th.editor.gentle.2');
     return { usual: a.tiles, gentle: b.tiles, made: [a.at, b.at, c.at], told: told === k.proxy.length };
   });
   await page.close();
