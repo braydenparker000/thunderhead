@@ -3,7 +3,8 @@
 // /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
 // their own service workers), and anything that is not a GET. It also shows Web Push notifications
-// and finishes Photos' background uploads, and makes Photos' editor cross-origin isolated (`isolate`).
+// and finishes Photos' background uploads, makes Photos' editor cross-origin isolated (`isolate`), and sends the
+// editor's reports (th/report/send.js).
 const BUILD = 0;
 const CACHE = `th-${BUILD}`;
 const VENDOR = 'th-vendor';
@@ -19,6 +20,11 @@ const FRESH = ['/release.json', '/config.js'];
  * (docs.google.com sends no COEP) only ever opens on Photos' other places. */
 const EDITOR = (/** @type {URL} */ url) => (url.pathname === '/photos/' && url.searchParams.has('edit')) || url.pathname === '/lab/lightcraft/' || url.pathname === '/lab/engine/' || url.pathname === '/lab/editor/' || url.pathname === '/lab/editor/compare/';
 const ENGINE_WORKERS = /^\/(apps\/photos\/edit|photos\/engine|lab\/lightcraft|lab\/engine)\//;
+
+// The editor's reports go from here (th/report/send.js): when a page asks, and on the browser's own retries (sync).
+try { importScripts('/th/report/fields.js', '/th/report/send.js'); } catch { /* a release without them */ }
+const report = () => (self.thReportSend ? self.thReportSend().then((r) => { if (r.why === 'not sent') throw new Error('to be tried again'); return r; }) : Promise.resolve(null));
+self.addEventListener('sync', (event) => { if (event.tag === 'th-report') event.waitUntil(report()); });
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -49,6 +55,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'skipWaiting') self.skipWaiting();
+  if (event.data?.type === 'report-send') event.waitUntil(report().catch(() => null));
   // The editor asks, each time it opens with a signal, to be kept for when there is none.
   if (event.data?.type === 'keepEditor') event.waitUntil(keepEditor().then((r) => r, (e) => ({ kept: false, fetched: 0, why: String(e?.message || e) })).then((r) => event.source?.postMessage({ type: 'editorKept', build: BUILD, ...r })));
 });

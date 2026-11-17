@@ -10,6 +10,7 @@
 // zoomed view's full-size passes) asks `room` first; what the photo cannot do without (its copy, its frame) is not asked.
 
 const KEY = 'th.editor.gpuBudget', MB = 1 << 20;
+let eras = 0;
 /** Bytes a texel, by format (those the engine makes; anything else counts 4). */
 const BPP = /** @type {Record<string, number>} */ ({ r8unorm: 1, r8uint: 1, r16uint: 2, r16float: 2, r32float: 4, r32uint: 4, rg16float: 4, rgba8unorm: 4, bgra8unorm: 4, rg32float: 8, rgba16float: 8, rgba16uint: 8, rgba32float: 16, rgba32uint: 16 });
 
@@ -38,13 +39,13 @@ function texBytes(d) {
 
 /** Counts what `device` makes from now on, and hears it run out. A lost device's memory is gone with it. @param {GPUDevice} device */
 export function count(device) {
-  memory.used = 0;
+  memory.used = 0; const era = ++eras;   // (what a device lost before this one held is let go with it: its late destroys count for nothing)
   const buffer = device.createBuffer.bind(device), texture = device.createTexture.bind(device);
   /** @template {GPUBuffer | GPUTexture} T @param {T} o @param {number} bytes @returns {T} */
   const held = (o, bytes) => {
     memory.used += bytes; memory.peak = Math.max(memory.peak, memory.used);
     const destroy = o.destroy.bind(o); let gone = false;
-    o.destroy = () => { if (!gone) { gone = true; memory.used -= bytes; } destroy(); };
+    o.destroy = () => { if (!gone) { gone = true; if (era === eras && !lost) memory.used -= bytes; } destroy(); };
     return o;
   };
   device.createBuffer = (d) => held(buffer(d), d.size);
@@ -56,7 +57,8 @@ export function count(device) {
     try { localStorage.setItem(KEY, String(memory.budget)); } catch { /* a private window */ }
     dispatchEvent(new Event('th-gpu-oom'));
   });
-  device.lost.then(() => { memory.lost = memory.used; memory.used = 0; });
+  let lost = false;
+  device.lost.then(() => { lost = true; memory.lost = memory.used; memory.used = 0; });
 }
 
 /** The numbers in MB, for the timings. */

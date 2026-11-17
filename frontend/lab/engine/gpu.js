@@ -54,6 +54,7 @@ function gpu() {
     if (!navigator.gpu) throw new Error('This browser has no WebGPU.');
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No GPU adapter.');
+    dispatchEvent(new CustomEvent('th-gpu', { detail: { vendor: adapter.info?.vendor || '', arch: adapter.info?.architecture || '' } }));   // what the chip is, for the editor's reports (lab/editor/app/timings.js)
     const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('shader-f16') ? ['shader-f16'] : [] });   // half floats, where the GPU has them: the network's (neural.js)
     count(device);   // every buffer and texture counted against the phone's budget (gpu-memory.js)
     // lost: the next photo gets a new device; a page with a photo open is told, unless the device was let go on purpose (engine.dispose, the page leaving)

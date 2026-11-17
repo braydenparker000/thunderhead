@@ -1,19 +1,16 @@
 {
-  "id": "2026-11-17-editor-keeps-trying",
+  "id": "2026-11-17-editor-reports",
   "date": "2026-11-17",
   "lines": [
     {
-      "text": "After a graphics reset the editor opens the photo again with nothing switched off, and goes gentler on your phone.",
+      "text": "The photo editor now keeps a flight record of each visit, so a crash or a graphics reset can be traced.",
       "open": "photos"
     },
     {
-      "text": "Zoomed in, full detail loads once the dial comes to rest, not while it is still running on."
+      "text": "Reports go to your own storage in the background, even after you close the editor; no need to open home."
     },
     {
-      "text": "Starfish stays on after a reset: it waits a moment, then works in smaller pieces."
-    },
-    {
-      "text": "Graphics resets and memory use now reach your editor timings, so the cause can be found."
+      "text": "Settings › Privacy and data › Editor reports shows what is kept and waiting, with Send now."
     }
   ]
 }

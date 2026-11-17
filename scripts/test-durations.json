@@ -246,7 +246,7 @@
     "tests/tree-tested.test.mjs": 1800,
     "tests/verb-intents.test.mjs": 1000,
     "tests/worker-secrets.test.mjs": 1000,
-    "tests/workshop-timings.test.mjs": 1000,
+    "tests/report-fields.test.mjs": 1000,
     "tests/zone-browser.test.mjs": 4200
   }
 }

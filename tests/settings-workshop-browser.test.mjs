@@ -2,7 +2,8 @@
 // mocked Worker that keeps pieces as the real one does (API.md §11.27): a file goes up in pieces,
 // each with its own SHA-256; one that stops part way says so, and the same file chosen again sends
 // only the rest; the pieces joined are the file; a file already there is not sent again; Remove
-// asks first, then takes it. And home's own file there, the editor's timings (th/workshop/timings.js).
+// asks first, then takes it. And the editor's reports there (th/report/: the recorder, and the sender the background
+// worker and Settings use), with Settings' line about them.
 // Invented bytes only.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -111,36 +112,42 @@ test('a file goes to the workshop in pieces, goes on from where it stopped, and 
   await context.close();
 });
 
-test('home passes the editor’s timings on: known fields only, one file, the one before removed, and not when switched off', opts, async () => {
-  const at = Date.UTC(2026, 10, 12, 8);
-  const timings = [{ at, kind: 'open', ms: 8127, file: 'raf', decode: 1399, pool: 5000, name: 'DSCF0042.RAF' }, { at: at + 1, kind: 'save', ms: 57685, files: 1, px: 39806928, kinds: 'JPEG' }];
-  const { page, context, errors, w } = await home({ 'th.editor.timings': JSON.stringify(timings) });
-  const send = () => page.evaluate(() => import('/th/workshop/timings.js').then((m) => m.sendTimings()));
-  await send();
+test('the editor’s reports go from the recorder: known fields only, a day to one file, the one before removed, none when switched off; Settings shows them', opts, async () => {
+  const { page, context, errors, w } = await home();
+  const send = () => page.evaluate(async () => { await import('/th/report/fields.js'); await import('/th/report/send.js'); return /** @type {any} */ (globalThis).thReportSend(); });
+  // what the editor records: a visit, a job begun and ended, a timing with a field not on the list
+  await page.evaluate(async () => {
+    const j = await import('/th/report/journal.js'); j.start(); await j.allow(true);
+    const end = j.begin('open'); await j.log('open', { ms: 8127, file: 'raf', name: 'DSCF0042.RAF' }); end();
+    for (let i = 0; i < 100 && (await j.stats()).kept < 5; i++) await new Promise((r) => setTimeout(r, 20));
+  });
+  const first = await send();
+  assert.equal(first.files, 1);
   assert.equal(w.files.size, 1);
-  const [[first, f]] = [...w.files.entries()], said = JSON.parse(f.pieces.get(1).toString('utf8'));
-  assert.equal(f.name, 'editor-timings.json');
-  assert.deepEqual(said.timings, [{ kind: 'open', at, ms: 8127, decode: 1399, pool: 5000, file: 'raf' }, { kind: 'save', at: at + 1, ms: 57685, px: 39806928, files: 1, kinds: 'JPEG' }]);
-  assert.deepEqual([said.v, typeof said.build, typeof said.agent, typeof said.cores], [1, 'string', 'string', 'number']);
-  // Nothing new, or too soon: nothing goes.
-  await send();
+  const [[id1, f]] = [...w.files.entries()], said = JSON.parse(f.pieces.get(1).toString('utf8')), day = new Date().toISOString().slice(0, 10);
+  assert.equal(f.name, `report-phone-${day}.json`, 'a day to one file, by the phone (headless Chrome names no model)');
+  assert.equal(said.v, 2); assert.equal(said.day, day);
+  const kinds = said.events.map((/** @type {any} */ e) => e.kind);
+  for (const k of ['begin', 'open', 'dropped', 'end', 'phone']) assert.ok(kinds.includes(k), `${k} in ${kinds}`);
+  const open = said.events.find((/** @type {any} */ e) => e.kind === 'open');
+  assert.deepEqual([open.ms, open.file, 'name' in open], [8127, 'raf', false], 'known fields only');
+  assert.equal(said.events.find((/** @type {any} */ e) => e.kind === 'dropped').name, 'name', 'the field left off is named, so it is seen');
+  assert.equal(said.sessions.length, 1);
+  // nothing new: nothing goes
+  assert.equal((await send()).why, 'nothing new');
   assert.equal(w.puts.length, 1);
-  // A new timing, well past the ten minutes between sends: a new file, and the one before is removed.
-  await page.evaluate((t) => {
-    const all = JSON.parse(localStorage.getItem('th.editor.timings')); all.push({ at: t, kind: 'full', ms: 2100 }); localStorage.setItem('th.editor.timings', JSON.stringify(all));
-    const sent = JSON.parse(localStorage.getItem('th.workshop.timings')); sent.when -= 7 * 60 * 60_000; localStorage.setItem('th.workshop.timings', JSON.stringify(sent));
-  }, at + 2);
+  // something new: the day's file goes again whole, and the one before is removed
+  await page.evaluate(async () => { const j = await import('/th/report/journal.js'); await j.log('full', { ms: 2100, mb: 175 }); });
   await send();
-  assert.deepEqual([w.puts.length, w.deletes, w.files.size], [2, [first], 1]);
-  assert.equal(JSON.parse([...w.files.values()][0].pieces.get(1).toString('utf8')).timings.length, 3);
-  // Switched off in Settings › Privacy and data: nothing goes, however new.
-  await page.evaluate((t) => {
-    localStorage.setItem('th.s.privacy.editor_timings', 'false');
-    const all = JSON.parse(localStorage.getItem('th.editor.timings')); all.push({ at: t, kind: 'full', ms: 1900 }); localStorage.setItem('th.editor.timings', JSON.stringify(all));
-    const sent = JSON.parse(localStorage.getItem('th.workshop.timings')); sent.when -= 7 * 60 * 60_000; localStorage.setItem('th.workshop.timings', JSON.stringify(sent));
-  }, at + 3);
-  await send();
+  assert.deepEqual([w.puts.length, w.deletes, w.files.size], [2, [id1], 1]);
+  assert.ok(JSON.parse([...w.files.values()][0].pieces.get(1).toString('utf8')).events.some((/** @type {any} */ e) => e.kind === 'full' && e.mb === 175));
+  // switched off: nothing goes, however new
+  await page.evaluate(async () => { const j = await import('/th/report/journal.js'); await j.allow(false); await j.log('full', { ms: 1900 }); });
+  assert.equal((await send()).why, 'switched off');
   assert.equal(w.puts.length, 2);
+  // Settings › Privacy and data says what is kept and waiting, and when they last went
+  await page.evaluate(async () => { const { reportsGroup } = await import('/apps/settings/reports.js'); document.body.append(reportsGroup()); });
+  await page.waitForFunction(() => /\d+ kept · 1 waiting · last sent just now/.test(document.querySelector('[data-reports="line"] .row-detail')?.textContent || ''));
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -23,7 +23,7 @@ export function summed(shots, verdict) {
   const worst = (/** @type {'db' | 'grid'} */ k) => Math.max(0, ...names.map((n) => Number(/** @type {any} */ (verdict[n])?.[k]) || 0));
   return { shots: names.length, same: names.length - different.length, different, db: worst('db'), grid: worst('grid'), net: shots.network?.psnr ?? 0, netNoisy: shots.networkNoisy?.psnr ?? 0 };
 }
-/** The check as one of the editor's timings (th/workshop/timings-core.js passes on the fields it knows): how many
+/** The check as one of the editor's timings (th/report/fields.js keeps the fields it knows): how many
  * pictures, how many the same, which are not (a bit each, in the order they are made), the furthest off in
  * hundredths of a dB and ten-thousandths of a square, and how true the network was to the scene, clean and noisy
  * (hundredths of a dB). @param {Checked} c @param {string[]} names the pictures in the order they are made */
@@ -40,6 +40,7 @@ export async function check() {
   try {
     localStorage.setItem(KEY, JSON.stringify(checked));
     const all = JSON.parse(localStorage.getItem(TIMINGS) || '[]'); all.push(numbers(checked, Object.keys(got.shots))); localStorage.setItem(TIMINGS, JSON.stringify(all.slice(-120)));
+    { const n = /** @type {any} */ (numbers(checked, Object.keys(got.shots))); void import('/th/report/journal.js').then((j) => j.log(n.kind, n)).catch(() => {}); }   // and to the editor's reports (th/report/journal.js; loaded only here, so a check of these numbers in node needs no page)
   } catch { /* a private window: nothing is kept */ }
   return { ...got, verdict, checked };
 }
