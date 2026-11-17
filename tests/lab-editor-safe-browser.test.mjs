@@ -119,7 +119,7 @@ test('an edit is written the moment the page is hidden; after the graphics chip 
   }, ids);
   assert.equal(r.atOnce, null, 'a change waits a moment before it is written');
   assert.equal(r.hidden, 0.8, 'hidden, it is written at once');
-  assert.deepEqual(r.again, { open: true, anew: true, exposure: 0.8, status: 'The graphics chip reset, so this photo is open in a lighter mode: no sharper copy, no Starfish at 100 %.' });   // (open light once, and said: app/session.js)
+  assert.deepEqual(r.again, { open: true, anew: true, exposure: 0.8, status: '' });   // (opened again with nothing left off: app/reset.js)
   assert.deepEqual(errors, []);
   await context.close();
 });

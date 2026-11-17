@@ -27,5 +27,7 @@ export function doing(what) {
 }
 /** The most pressing thing being made now, or '' for nothing. */
 export const making = () => ORDER.find((w) => running.includes(w)) || running[0] || '';
+/** Everything being made now, each once (what a reset is blamed on: gentle.js). */
+export const allMaking = () => [...new Set(running)];
 /** Calls `f` whenever that changes. @param {() => void} f */
 export const onMaking = (f) => { heard.add(f); };

@@ -22,10 +22,11 @@ export const SLICE_MS = 12;
  * yes, the rest is left undone and false is given (what was written so far is of no use). How many blocks go in a
  * submission is found as it goes: more while they take under half the aim, fewer when over one and a half times.
  * @param {GPUDevice} device @param {Paced[]} passes @param {GPUBuffer} valid the window's settings (z0 is its third word)
- * @param {{ stop?: () => boolean, note?: (ms: number) => void }} [o] `note`: told how long each submission took
+ * @param {{ stop?: () => boolean, note?: (ms: number) => void, aim?: number }} [o] `note`: told how long each submission took; `aim`: ms a submission should take (SLICE_MS; less on a phone whose chip reset making it: gentle.js)
  * @returns {Promise<boolean>} whether all of it was made */
 export async function paced(device, passes, valid, o = {}) {
   const z0 = (/** @type {number} */ z) => device.queue.writeBuffer(valid, 8, new Uint32Array([z]));
+  const aim = o.aim || SLICE_MS;
   try {
     for (const [pipe, bind, a, b, c, can] of passes) {
       let take = can ? 1 : c;
@@ -38,7 +39,7 @@ export async function paced(device, passes, valid, o = {}) {
         const ms = performance.now() - t;
         o.note?.(ms);
         z += n;
-        if (can) take = ms < SLICE_MS / 2 ? Math.min(c, take * 2) : ms > SLICE_MS * 1.5 ? Math.max(1, take >> 1) : take;
+        if (can) take = ms < aim / 2 ? Math.min(c, take * 2) : ms > aim * 1.5 ? Math.max(1, take >> 1) : take;
         if (o.stop?.()) return false;
       }
     }

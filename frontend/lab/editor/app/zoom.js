@@ -27,6 +27,8 @@ import { badgeLines } from './zoom-note.js';
 import { forget, tiles } from './zoom-tiles.js';
 import { doing, hold as claim, making as loading } from '../../engine/work.js';
 import { room } from '../../engine/gpu-memory.js';
+import { level, share, went } from '../../engine/gentle.js';
+import { starfish, viewMem } from './zoom-fine.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
@@ -48,7 +50,6 @@ let win = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} 
 let f = { W: 0, H: 0, w: 1, h: 1, ox: 0, oy: 0, fw: 1, fh: 1 };   // the slot, and the photo fitted in it (design pixels); the photo's sensor size
 let z = 1, tx = 0, ty = 0, job = 0, timer = 0, madeFor = -1, fingers = /** @type {null | (() => void)} */ (null);   // the wrap's scale and shift from fitted; the detail being made; the edit its layers show (photo.stamp); a finger's hold on the GPU
 let view = /** @type {View | null} */ (null), from = /** @type {Big | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
-let fine = /** @type {View | null} */ (null), fineOf = /** @type {Big | null} */ (null), fineCap = [0, 0];   // the network's view of the photo, and how much it holds
 
 const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage')?.parentElement);
 /** Screen pixels in one of the design's (the page's frame is the 412-wide design, scaled to the screen). */
@@ -206,7 +207,9 @@ const rest = () => settle(120);
 function settle(ms) {
   clearTimeout(timer); job++;
   timer = setTimeout(() => {
-    timer = 0; if ((g && !tool()) || gliding() || flying()) { settle(ms); return; }   // fingers still move the photo, or it glides: drawn once it rests
+    timer = 0; const st = photo.stamp();
+    if (st !== edited) { edited = st; heldAt = performance.now(); if (madeFor >= 0 && madeFor !== st) hide(); settle(REST); return; }   // an edit since it was asked for (its frame may begin after its news): REST more
+    if ((g && !tool()) || gliding() || flying() || dialing() || photo.busy()) { settle(ms); return; }   // fingers still move the photo, it glides, the dial turns or an edit's frame is drawn: once it rests
     photo.events.dispatchEvent(new Event('change'));
     const mine = job, began = performance.now(), sharp = z / full() >= THIRD && !!photo.whole();   // (the badge's dot beats while they are made: zoom-note.js)
     detail(mine).catch((e) => console.error('zoom detail', e)).then(() => { if (mine !== job) return; if (sharp) { photo.took.detail = (performance.now() - began) / 1000; note('detail', photo.took.detail * 1000); photo.events.dispatchEvent(new Event('change')); } });
@@ -230,31 +233,13 @@ function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** 
   const q = f.w / f.fw;
   Object.assign(c.style, { left: '0', top: '0', width: `${c.width}px`, height: `${c.height}px`, transformOrigin: '0 0', transform: `translate(${X * q}px, ${Y * q}px) scale(${(w * q) / c.width}, ${(h * q) / c.height})`, display: 'block' });
 }
-let own = false, lostSaid = false;   // a frame the detail asked for itself
-/** The GPU memory a full-size view w x h asks (measured: about 34 bytes a pixel of its square, 56 with Starfish's). @param {number} w @param {number} h */
-const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2 * (net ? 56 : 34), letFine = () => { if (fine && fineOf === photo.whole()) fine.dispose(); fine = null; fineOf = null; fineCap = [0, 0]; };
+let own = false;   // a frame the detail asked for itself
 /** A full-size view is made for the screen a part at a time (engine/full.js `region`) and left undone the moment fingers move the photo, it glides, a newer job has begun or an edit's frame waits; `took` gathers each part's time. */
 let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); performance.mark('th:part'); } });
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
+const sf = starfish({ closer, place, pace, parts, again: again1, drop: () => { view?.dispose(); view = null; cap = 0; }, busy: (n) => { making2 += n; } }), letFine = sf.letFine;   // Starfish's view (zoom-fine.js)
 const FINE = 0.999, THIRD = 0.37;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best); under a third of the sensor's size the copy has the screen's pixels already, and a little over it is stretched under a tenth, which does not show (no tiles made for that)
-/** The rectangle of the photo that shows, made by the network (engine/neural.js) and laid over the live view. Made
- * with the engine to itself and only once the photo rests, never in a dial's frame: the live view shows meanwhile
- * and while a control moves. @param {number} mine @param {number} X @param {number} Y @param {number} w @param {number} h */
-async function finer(mine, X, Y, w, h) {
-  const big = photo.whole();
-  if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
-  const t0 = performance.now(); let made = 0;   // how long the network's view took to make, when it had to be (the timings say: the first one of a photo compiles it unless that was done behind the photo, full.js)
-  if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) { letFine(); if (!room(viewMem(w, h, true))) { view?.dispose(); view = null; cap = 0; } if (!room(viewMem(w, h, true))) { note('fine', 0, { left: 1, memory: 1 }); return; } fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; made = performance.now() - t0; }
-  if (!fine.net || mine !== job) { if (fine.lost && !lostSaid) { lostSaid = true; tell('Best quality cannot run on this phone just now: this is the standard view'); } return; }   // a GPU that will not have the network: the live view is all there is, and it is said, once
-  const began = performance.now();
-  let im = /** @type {ImageData | null} */ (null), at = fine.at();
-  const took = /** @type {number[]} */ ([]);
-  making2++; try { await photo.alone(async () => { if (mine !== job || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h, null, pace(mine, took)); im = at && (await fine.read()); fine.rest(); }); } finally { making2--; }
-  if (mine !== job || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...parts(took) }); again1(mine); return; }
-  closer.width = im.width; closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (closer.getContext('2d', photo.space)).putImageData(im, 0, 0);
-  place(closer, at.X, at.Y, at.cw, at.ch); note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...parts(took) });
-}
 async function detail(/** @type {number} */ mine) {
   if (z > 1.02) performance.mark('th:map'); mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
   const p = z / full(), k = scale(), q = f.fw / (f.w * z), stamp = photo.stamp();   // sensor pixels to a design pixel, as shown
@@ -265,7 +250,11 @@ async function detail(/** @type {number} */ mine) {
     if (mine !== job || !v || !win) return;
     const X = Math.max(0, Math.floor(-(f.ox + tx) * q)), Y = Math.max(0, Math.floor(-(f.oy + ty) * q));
     const X1 = Math.min(f.fw, Math.ceil((f.W - f.ox - tx) * q)), Y1 = Math.min(f.fh, Math.ceil((f.H - f.oy - ty) * q));
-    if (p >= 0.999) {   // one pass, then Starfish's, however long it takes (the owner: no cap), the full detail showing meanwhile
+    const gentle = level('detail') > 0, fin = async () => {   // then Starfish's, from 100 %, the badge naming it
+      if (!(p >= FINE && prefOn('photos.neural', true))) { closer.style.display = 'none'; return; }
+      const sd = doing('Loading Starfish'); try { await sf.finer(mine, () => mine === job, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2); } catch (e) { console.warn('zoom network', e); } finally { sd(); }
+    };
+    if (p >= 0.999 && !gentle) {   // one pass, then Starfish's, however long it takes (the owner: no cap), the full detail showing meanwhile
       const r = slot.getBoundingClientRect(), dx = r.left * devicePixelRatio + (f.ox + tx) * k, dy = r.top * devicePixelRatio + (f.oy + ty) * k;
       if (Math.abs(p - 1) < 0.001) { tx += (Math.round(dx) - dx) / k; ty += (Math.round(dy) - dy) / k; apply(); }   // at 100 % exactly, on whole screen pixels
       const [rw, rh] = v.room(), w = Math.min(X1 - X + 2, rw), h = Math.min(Y1 - Y + 2, rh);   // strongly straightened, the view holds less than a screenful: its middle
@@ -274,25 +263,34 @@ async function detail(/** @type {number} */ mine) {
       let ok = false; own = true; making2++; try { await photo.alone(async () => { ok = mine === job && !!(await v.region(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h, null, pace(mine, []))); }); if (ok) await photo.frame(); } finally { own = false; making2--; }
       if (!ok) { if (mine !== job || g || gliding()) note('detail', 0, { left: 1 }); again1(mine); return; }
       if (mine !== job) return;
-      still.style.display = 'none'; madeFor = stamp; done();
-      if (p >= FINE && prefOn('photos.neural', true) && !photo.light()) { const fin = doing('Loading Starfish'); await finer(mine, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2).catch((e) => console.warn('zoom network', e)).finally(fin); } else closer.style.display = 'none';
+      still.style.display = 'none'; madeFor = stamp; went('detail'); done();
+      await fin();
       return;
     }
-    // a third to 100 %: more than the view holds, so a tile at a time onto the still canvas, tiles made before at this scale for this edit taken as kept
-    const w = Math.round((X1 - X) * p), h = Math.round((Y1 - Y) * p), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d', photo.space));
-    const tw = Math.min(Math.ceil(412 * k), v.room()[0]) - 8, th = Math.min(Math.ceil(600 * k), v.room()[1]) - 8;
+    // a third to 100 %: more than the view holds, so a tile at a time onto the still canvas, tiles made before at this scale for this edit taken as kept;
+    // from 100 % too on a phone whose chip reset making the full detail (gentle.js), in tiles a share of the usual, at the sensor's own scale
+    const sc = Math.min(p, 1), w = Math.round((X1 - X) * sc), h = Math.round((Y1 - Y) * sc), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d', photo.space)), s = gentle ? Math.sqrt(share('detail')) : 1;
+    const tw = Math.max(64, Math.round((Math.min(Math.ceil(412 * k), v.room()[0]) - 8) * s)), th = Math.max(64, Math.round((Math.min(Math.ceil(600 * k), v.room()[1]) - 8) * s));
     live.style.display = closer.style.display = still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high';
-    const ok = await tiles({ ctx, X, Y, X1, Y1, p, tw, th, key: `${stamp}|${p.toFixed(4)}`, mine: () => mine === job, make: async (x, y, mw, mh) => {
+    const ok = await tiles({ ctx, X, Y, X1, Y1, p: sc, tw, th, key: `${stamp}|${sc.toFixed(4)}|${tw}`, mine: () => mine === job, make: async (x, y, mw, mh) => {
       let made = /** @type {{ im: ImageData, X: number, Y: number } | null} */ (null);
       await photo.alone(async () => { if (mine !== job) return; performance.mark('th:tile'); await photo.settle(); const at = await v.region(x, y, Math.min(mw, f.fw - x), Math.min(mh, f.fh - y), null, pace(mine, [])); const im = at && (await v.read()); v.rest(); if (im && at) made = { im, X: at.X, Y: at.Y }; });
       return made;
     } });
     if (!ok) { again1(mine); return; }
-    if (mine === job) { place(still, X, Y, X1 - X, Y1 - Y); madeFor = stamp; }
+    if (mine !== job) return;
+    place(still, X, Y, X1 - X, Y1 - Y); madeFor = stamp; went('detail'); done();
+    if (p >= 0.999) await fin();
   } finally { done(); }
 }
-// an edit while a layer shows: it is of the photo as it was, so the copy shows until the control rests (once the edit's frame has begun: an edit is told before it is drawn)
-photo.events.addEventListener('change', () => queueMicrotask(() => { if (madeFor >= 0 && madeFor !== photo.stamp()) { hide(); settle(350); } }));
+// An edit while a layer shows, or where one would be made: the layer is of the photo as it was, so the copy shows, and the full detail is made REST ms
+// after the last edit, the dial at rest (the owner, 2026-11-17: "when the dial stops", not when the finger lifts and it coasts on). Every edit puts it
+// off again (once the edit's frame has begun: an edit is told before it is drawn); news the zoom gives the boards itself is no edit (the stamp is the same).
+const REST = 150; let edited = -1, held = false, heldAt = 0;
+const dialing = () => held && performance.now() - heldAt < 3000;   // (a dial held still 3 s, or one taken away while it ran on, holds nothing up)
+photo.events.addEventListener('change', () => queueMicrotask(() => { const s = photo.stamp(); if (s === edited) return; edited = s; heldAt = performance.now(); if (madeFor !== s && (madeFor >= 0 || z / full() >= THIRD)) { hide(); settle(REST); } }));
+/** The dial is held or runs on (true), or has come to rest (false): boards/DialPlate.js. @param {boolean} on */
+export function dial(on) { held = on; heldAt = performance.now(); if (!on && timer) settle(REST); }
 
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);

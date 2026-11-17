@@ -14,6 +14,9 @@ test('only timings of known kinds, with their known fields, are kept', () => {
     { at: 2800, kind: 'move', ms: 1432.7, frames: 81, worst: 48.2, slow: 2, busy: 1, where: 'the photo' },
     { at: 2900, kind: 'fine', ms: 2310, px: 1000000, parts: 96, part: 17.6, left: 1 },
     { at: 2950, kind: 'turn', ms: 1810.2, frames: 61, worst: 171.4, slow: 40, busy: 0, pct: 100, label: 'Exposure' },
+    { at: 2960, kind: 'lost', ms: 0, job: 'prep', since: 6012.4, mb: 231, peakMb: 254, budgetMb: 480, level: 1, again: 1, calm: 120000, gpu: 'mali' },
+    { at: 2970, kind: 'move', ms: 900, frames: 50, worst: 210, slow: 3, busy: 1, ran: 'tile copy long' },
+    { at: 2980, kind: 'lost', ms: 0, job: '<script>', ran: 'tile; rm' },
     { at: 3000, kind: 'open', ms: 900, file: '../../secret' },
     { at: 4000, kind: 'spy', ms: 1 },
     { kind: 'open', ms: 5 },
@@ -27,6 +30,9 @@ test('only timings of known kinds, with their known fields, are kept', () => {
     { kind: 'move', at: 2800, ms: 1433, frames: 81, worst: 48, slow: 2, busy: 1 },   // a gesture on the photo: how its frames went, and whether a full-size view was being made
     { kind: 'fine', at: 2900, ms: 2310, px: 1000000, parts: 96, part: 18, left: 1 },   // a view made a part at a time: how many, the longest, whether it was left for a touch
     { kind: 'turn', at: 2950, ms: 1810, frames: 61, worst: 171, slow: 40, busy: 0, pct: 100 },   // a turn of the dial: how the page kept up, and how far in the photo was (never which control)
+    { kind: 'lost', at: 2960, ms: 0, again: 1, since: 6012, mb: 231, peakMb: 254, budgetMb: 480, level: 1, calm: 120000, job: 'prep' },   // a reset: what it was making, when, the memory held, how gentle that job is now
+    { kind: 'move', at: 2970, ms: 900, frames: 50, worst: 210, slow: 3, busy: 1, ran: 'tile copy long' },   // and what ran in a gesture's worst gap, in its fixed words
+    { kind: 'lost', at: 2980, ms: 0 },
     { kind: 'open', at: 3000, ms: 900 },
   ]);
   assert.deepEqual(clean('not a list'), []);

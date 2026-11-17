@@ -21,6 +21,7 @@ import { firstPicture, keepView, note, onScreen, tap } from './kept-view.js';
 import { loadCopy, saveCopy } from './copy-kept.js';
 import { hold as claim } from '../../engine/work.js';
 import { inMB } from '../../engine/gpu-memory.js';
+import { reset } from './reset.js';
 
 import { BASELINE_EV, STILL, WB, ZERO, noiseStart } from './values.js';
 export { LIVE, STILL, WB, ZERO, noiseStart } from './values.js';
@@ -48,7 +49,7 @@ export let cur = null;
 export const took = { open: 0, detail: 0, save: 0 };
 export const view = { mask: -1 };   // the mask laid over the picture in red while the Masks board is up (masks.js)
 let masking = false;
-let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size
+let bent = '', base = false, whole0 = [7728, 5152], opened = 0;   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size; when the photo open was asked for
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
 // a count that moves whenever the fitted photo is drawn anew
@@ -76,7 +77,7 @@ export async function open(id, quick = false, again = false) {
   const turn = ++asked, began = performance.now(), [saved, url] = await firstPicture(id), edit = saved || {}, plain = p.kind === 'jpeg', zero = { ...ZERO, ...(plain ? STILL : {}) };   // a JPEG: a picture already (engine/picture.js)
   while (drawing) await sleep(8);   // a frame of the photo before may be in flight (its tile, a dial's last turn, a redraw for the screen's size): waited for after the last await, so none starts before its engine is let go
   if (turn !== asked || (cur?.id === id && !again)) return;
-  took.open = took.detail = took.save = 0; again = false;
+  took.open = took.detail = took.save = 0; again = false; opened = began;
   cur = { id, name: p.name, plain, values: { ...zero, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: plain ? 0 : BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
   ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: zero, wb: 'As shot', profile: '' }, state(), plain ? 'JPEG' : 'RAF'); img.src = url; opening.id = ''; place(); onScreen(); changed();
   const me = cur, stack = p.kind === 'stack', buf = plain || stack ? null : await store.raw(id);   // a stack: frames averaged into one (stack.js), kept as sensor data
@@ -93,7 +94,7 @@ export async function open(id, quick = false, again = false) {
   const heard = performance.now(); if (cur !== me) { r.picture?.close(); return; }
   if (r.picture) { if (quick) r.picture.close(); else sensor(r.picture); }
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
-  const keptCopy = r.proxy && !shaken.has(id) ? await loadCopy(id, r.proxy.length) : null; if (keptCopy) { r.proxy = keptCopy; r.meta.copyKept = true; }   // the better copy made before for this photo (copy-kept.js), from the first frame
+  const keptCopy = r.proxy ? await loadCopy(id, r.proxy.length) : null; if (keptCopy) { r.proxy = keptCopy; r.meta.copyKept = true; }   // the better copy made before for this photo (copy-kept.js), from the first frame
   try {
     const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback'), wideScreen), plain ? [] : profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
@@ -105,16 +106,17 @@ export async function open(id, quick = false, again = false) {
     const fresh = !Object.keys(edit).length, color = fresh && pref('photos.new_profile') !== 'shot' ? l.find((x) => x.label === 'Adobe Color') : null;
     if (color) { me.profile = color.id; if (past) for (const st of past.steps) st.st.profile = color.id; }
     begin(me, past, fresh ? p.shot || {} : null, edit);   // the start kept for its camera and lens (starts.js)
-    r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true); r.meta.light = shaken.has(id);   // Full-size detail: Faster (engine/demosaic.js)
+    r.meta.quick = pref('photos.demosaic') === 'faster'; r.meta.net = prefOn('photos.neural', true);   // Full-size detail: Faster (engine/demosaic.js)
+    r.meta.onCopy = (/** @type {Uint16Array} */ copy) => { saveCopy(id, copy); if (cur === me) draw(); };   // the copy made again later, a while after a reset (engine/full.js)
     applyProfile();
-    await draw(); if (cur === me) { ready = true; place(); say(shaken.has(id) ? LIGHT : ''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
+    await draw(); if (cur === me) { ready = true; place(); say(''); took.open = (performance.now() - began) / 1000; note('open', took.open * 1000, { file: p.kind || 'raf', quick, heard: Math.round(heard - began), decode: Math.round(r.decodeMs || 0), threads: r.threads || 0, ...(r.boot || {}), px: whole0[0] * whole0[1] }); }
     if (cur === me && fresh && prefOn('photos.new_auto', false)) auto();
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       if (m instanceof Uint16Array) /** @type {any} */ (m.buffer).transfer?.(0); else m.close();   // its 80 MB given back now: the GPU has its own copy
       if (r.meta.copyMade) { saveCopy(id, r.meta.copyMade); delete r.meta.copyMade; }   // kept for the next open
-      if (cur === me) { big = b; changed(); draw(); if (b) note('full', performance.now() - began, inMB()); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor)
-    }).catch((err) => { console.warn('full size', err); if (cur === me) say('The full-size photo could not be made, so 100 % and export are not there. Open the photo again.'); });
+      if (cur === me) { big = b; changed(); draw(); note('full', performance.now() - began, { ...inMB(), ...(b ? {} : { left: 1 }) }); } else b?.dispose();   // (drawn: the editing copy was made again from the sensor; left: none made)
+    }).catch((err) => { console.warn('full size', err); note('full', performance.now() - began, { ...inMB(), left: 1 }); if (cur === me) say('The full-size photo could not be made, so 100 % and export are not there. Open the photo again.'); });
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }
 
@@ -255,12 +257,8 @@ async function keepTile(/** @type {typeof cur} */ me) {
 }
 /** Closes the open photo (it was deleted). */
 export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; opening.id = ''; img.removeAttribute('src'); place(); changed(); }
-// The graphics chip was reset under the photo (the phone took it back, its driver fell over, or it ran out of memory): the edit is kept and the photo opened again once, light (no copy made again, no
-// Starfish at 100 %), and said; a second reset on it is not followed by a third open (Chrome itself refuses a page the GPU after two of its crashes in two minutes), only said (2026-11-16: a photo opened over and over).
-const shaken = new Set(), LIGHT = 'The graphics chip reset, so this photo is open in a lighter mode: no sharper copy, no Starfish at 100 %.';
-addEventListener('th-gpu-lost', () => { const me = cur; if (!me) return; const twice = shaken.has(me.id); note('lost', 0, { twice: twice ? 1 : 0 }); shaken.add(me.id); store.saveEdit(me.id, record(me, past)).catch(() => {}).finally(() => { if (!twice) open(me.id, false, true); else if (cur === me) say('The graphics chip reset again on this photo, so it was left as it is. Close the editor and open it again; your edit is kept.'); }); });
-/** Whether the open photo is open light after its graphics chip reset (zoom.js leaves Starfish out). */
-export const light = () => !!cur && shaken.has(cur.id);
+// The graphics chip was reset under the photo: the edit kept and the photo opened again, gentler (reset.js, engine/gentle.js)
+addEventListener('th-gpu-lost', () => { const me = cur; if (me) reset({ id: me.id, began: opened, keep: () => store.saveEdit(me.id, record(me, past)), open: () => open(me.id, false, true), say: (s) => { if (cur === me) say(s); }, still: () => cur === me }); });
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
 /** Back, or forward again, to a step: the edit as it stood then. @param {number} i */

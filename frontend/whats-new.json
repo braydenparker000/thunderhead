@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-16-editor-safe-and-sharp",
-  "date": "2026-11-16",
+  "id": "2026-11-17-editor-keeps-trying",
+  "date": "2026-11-17",
   "lines": [
     {
-      "text": "The editor never reopens a photo over and over: after a graphics reset it opens once in a lighter mode.",
+      "text": "After a graphics reset the editor opens the photo again with nothing switched off, and goes gentler on your phone.",
       "open": "photos"
     },
     {
-      "text": "Zoomed out, Sharpening shows as your export will have it; zoomed in, full detail then Starfish load when you stop."
+      "text": "Zoomed in, full detail loads once the dial comes to rest, not while it is still running on."
     },
     {
-      "text": "A small note under the zoom's red dot says what is loading."
+      "text": "Starfish stays on after a reset: it waits a moment, then works in smaller pieces."
     },
     {
-      "text": "Opening a photo again shows its sharper copy at once, and the editor stays within your phone's memory."
+      "text": "Graphics resets and memory use now reach your editor timings, so the cause can be found."
     }
   ]
 }
