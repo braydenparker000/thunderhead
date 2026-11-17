@@ -21,7 +21,7 @@
   const MARKS = '(frame|part|tile|map|board|copy|long)', WAY = /^(classic|faster|network|camera|file)$/;
   const WORDS = /** @type {Record<string, RegExp>} */ ({
     file: /^(raf|jpeg|stack)$/, kinds: /^(JPEG|PNG|TIFF)( (JPEG|PNG|TIFF)){0,7}$/,
-    job: /^(none|open|full|copy|prep|starfish|detail|export)$/,   // a heavy job (and what a reset or a death blamed)
+    job: /^(none|open|full|copy|copy-maker|copy-compile|copy-tile|copy-read|prep|starfish|detail|export)$/,   // a heavy job (and what a reset or a death blamed); the copy's own steps: its demosaic made, its passes compiled, its first tile, its reading back
     outcome: /^(done|left|failed)$/,
     ran: new RegExp(`^(none|${MARKS}( ${MARKS}){0,6})$`),   // what ran in a gesture's worst gap (lab/editor/app/moved.js)
     model: /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,31}$/, android: /^[0-9.]{1,12}$/,   // the phone's model number (SM-A155F) and Android version, as Chrome gives them

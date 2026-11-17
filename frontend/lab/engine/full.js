@@ -14,9 +14,9 @@ import { timed } from './net-tune.js';
 import { autoWays } from './net-auto.js';
 import { crew, helper } from './net-cpu.js';
 import { SIDE, TILE, need, remake } from './proxy-hq.js';
-import { calm, calmIn, share, went } from './gentle.js';
+import { share, wait, waitIn, went } from './gentle.js';
 import { room } from './gpu-memory.js';
-import { doing, turn } from './work.js';
+import { doing, mark, turn } from './work.js';
 import { dialled, fitNoise, sensorNoise } from './noise-fit.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
@@ -55,20 +55,20 @@ export async function full(e, img, mosaic) {
   let gone = false;
   const copy = async () => {
     if (gone || !room(need(e.gpu.w, e.gpu.h))) return null;
-    const maker = await (sensor ? demosaicer(device, tex, { phase, black: img.meta.black, white: img.meta.white, wb: img.meta.wb, fringe: null }, SIDE, SIDE) : copier(device, tex, SIDE, SIDE));
+    const made1 = mark('copy-maker'), maker = await (sensor ? demosaicer(device, tex, { phase, black: img.meta.black, white: img.meta.white, wb: img.meta.wb, fringe: null }, SIDE, SIDE) : copier(device, tex, SIDE, SIDE)); made1();
     const tile = Math.max(28, Math.round(TILE * share('copy')));
     return remake(device, e.gpu.src, e.gpu.w, e.gpu.h, maker, W, H, () => e.alive() && !gone, sensor ? { mos: tex, phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb) } : null, tile)
       .then((made) => { if (made && !gone) { e.refresh(made); went('copy'); return made; } return null; }, (err) => { console.warn('the editing copy was not made again:', err); return null; }).finally(() => maker.destroy());
   };
   if (!img.meta.copyKept) {
-    if (!calmIn()) img.meta.copyMade = await copy();
-    else calm().then(copy).then((made) => { if (made) img.meta.onCopy?.(made); });
+    if (!waitIn('copy')) img.meta.copyMade = await copy();
+    else wait('copy').then(copy).then((made) => { if (made) img.meta.onCopy?.(made); });
   }
   // and the network, where it will be used (meta.net: the owner's setting), a moment after the sensor's pixels are in
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
   // (a while after a reset, later: gentle.js)
-  if (sensor && img.meta.net) setTimeout(async () => { await calm(); await turn(); if (gone) return; const done = doing('Preparing Starfish'); compileNet(device).then(() => autoWays(device)).catch(() => {}).finally(done); }, 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
+  if (sensor && img.meta.net) setTimeout(async () => { await wait('prep'); await turn(); if (gone) return; const done = doing('Preparing Starfish'); compileNet(device).then(() => autoWays(device)).catch(() => {}).finally(done); }, 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
   // How noisy a raw site is, for the network: as the photo says where it says (a made-up one), else read from the
   // photo's own flat places (noise-fit.js), held to within what this sensor can be; else the sensor's own figure.
   const told = (() => {

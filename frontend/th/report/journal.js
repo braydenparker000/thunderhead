@@ -93,7 +93,7 @@ async function found() {
   const d = await db();
   if (!d) return;
   /** @type {any[]} */ const open = await new Promise((resolve) => { const r = d.transaction('sessions').objectStore('sessions').getAll(); r.onsuccess = () => resolve(r.result || []); r.onerror = () => resolve([]); });
-  const HEAVY = ['copy', 'prep', 'starfish', 'detail', 'export', 'full', 'open'];
+  const HEAVY = ['copy-maker', 'copy-compile', 'copy-tile', 'copy-read', 'copy', 'prep', 'starfish', 'detail', 'export', 'full', 'open'];
   const shutIds = new Set(closedIds());
   for (const s of open.filter((x) => !x.closed && x.id !== session && shutIds.has(x.id))) await put('sessions', { ...s, closed: 1 });
   for (const s of open.filter((x) => !x.closed && x.id !== session && !shutIds.has(x.id))) {

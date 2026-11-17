@@ -34,5 +34,8 @@ onMaking(() => {
   for (const j of now) if (!going.has(j)) going.set(j, begin(j));
   for (const [j, end] of going) if (!now.has(j)) { end(); going.delete(j); }
 });
+// the steps of a job the engine marks (engine/work.js `mark`: the copy's), each as it begins and ends
+const steps = /** @type {Map<string, ReturnType<typeof begin>>} */ (new Map());
+addEventListener('th-job', (e) => { const { job, on } = /** @type {CustomEvent} */ (e).detail || {}; if (on) steps.set(job, begin(job)); else { steps.get(job)?.(); steps.delete(job); } });
 // and what the graphics chip is, once the engine has it (engine/gpu.js)
 addEventListener('th-gpu', (e) => { const d = /** @type {CustomEvent} */ (e).detail || {}; void log('gpu', { vendor: String(d.vendor || '').toLowerCase(), arch: String(d.arch || '').toLowerCase() }); });
