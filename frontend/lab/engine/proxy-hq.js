@@ -15,7 +15,7 @@
 
 import { doing, turn } from './work.js';
 
-const TILE = 228;   // copy pixels a tile's side: 684 sensor pixels, about half a megapixel of the demosaic's buffers at a time (2026-11-16: 342 asked twice the memory)
+export const TILE = 228;   // copy pixels a tile's side: 684 sensor pixels, about half a megapixel of the demosaic's buffers at a time (2026-11-16: 342 asked twice the memory)
 const REACH = 8;    // Lanczos-3 at a third: sensor pixels each side of a copy pixel's middle that weigh in
 const BUDGET = 30_000;   // ms of the GPU's own time the whole copy may take: a GPU slower than that (a software one) keeps the decoder's copy
 const CHUNK = 4 << 20;   // bytes read back at a time: the new copy comes back to the page a piece at a time, not all at once
@@ -95,8 +95,9 @@ fn down(@builtin(global_invocation_id) id: vec3u) {
  * @param {GPUDevice} device @param {GPUBuffer} dst @param {number} w @param {number} h
  * @param {{ out: GPUBuffer, run: (enc: GPUCommandEncoder, rx: number, ry: number, rw: number, rh: number, spots?: Float32Array | null) => void }} maker
  * @param {number} W @param {number} H @param {() => boolean} [alive]
- * @param {{ mos: GPUTexture, phase: number[], black: number, white: number, wb: number[] } | null} [sensor] the sensor's pixels, for the copy's colour (a picture: none) */
-export async function remake(device, dst, w, h, maker, W, H, alive = () => true, sensor = null) {
+ * @param {{ mos: GPUTexture, phase: number[], black: number, white: number, wb: number[] } | null} [sensor] the sensor's pixels, for the copy's colour (a picture: none)
+ * @param {number} [tile] copy pixels a tile's side, at most TILE (smaller on a phone whose chip reset making it: gentle.js) */
+export async function remake(device, dst, w, h, maker, W, H, alive = () => true, sensor = null, tile = TILE) {
   const done = doing('Building a sharper copy');
   const module = device.createShaderModule({ code: SHADER });
   const [across, down] = await Promise.all(['across', 'down'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
@@ -108,12 +109,12 @@ export async function remake(device, dst, w, h, maker, W, H, alive = () => true,
   const entries = [...[uni, maker.out, mid, made].map((buffer, binding) => ({ binding, resource: /** @type {GPUBindingResource} */ ({ buffer }) })), { binding: 4, resource: (sensor?.mos || /** @type {GPUTexture} */ (none)).createView() }];
   const binds = [[across, [0, 1, 2]], [down, [0, 2, 3, 4]]].map(([pipe, uses]) => device.createBindGroup({ layout: /** @type {GPUComputePipeline} */ (pipe).getBindGroupLayout(0), entries: entries.filter((e) => /** @type {number[]} */ (uses).includes(e.binding)) }));
   const g1 = sensor?.wb?.[1] || 1, wb = sensor ? [(sensor.wb?.[0] || g1) / g1, 1, (sensor.wb?.[2] || g1) / g1] : [1, 1, 1];   // the light's balance, so brightness is read as a grey would be
-  const tiles = Math.ceil(w / TILE) * Math.ceil(h / TILE);
+  const T = Math.max(8, Math.min(TILE, Math.round(tile))), tiles = Math.ceil(w / T) * Math.ceil(h / T);
   let spent = 0;   // the GPU's own time on the tiles, waits for the photo's frames left out
   try {
-    for (let cy = 0, k = 0; cy < h; cy += TILE) for (let cx = 0; cx < w; cx += TILE, k++) {
+    for (let cy = 0, k = 0; cy < h; cy += T) for (let cx = 0; cx < w; cx += T, k++) {
       await turn(); if (!alive()) return null;
-      const t = performance.now(), tw = Math.min(TILE, w - cx), th = Math.min(TILE, h - cy);
+      const t = performance.now(), tw = Math.min(T, w - cx), th = Math.min(T, h - cy);
       const rx = Math.max(0, 3 * cx + 1 - REACH), ry = Math.max(0, 3 * cy + 1 - REACH);
       const rw = Math.min(W, 3 * (cx + tw - 1) + 2 + REACH) - rx, rh = Math.min(H, 3 * (cy + th - 1) + 2 + REACH) - ry;
       const u = new ArrayBuffer(80); new Int32Array(u).set([rx, ry, rw, rh, cx, cy, tw, th]); new Uint32Array(u).set([w, h], 8); new Int32Array(u).set(sensor?.phase || [0, 0], 10);

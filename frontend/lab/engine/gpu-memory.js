@@ -13,8 +13,8 @@ const KEY = 'th.editor.gpuBudget', MB = 1 << 20;
 /** Bytes a texel, by format (those the engine makes; anything else counts 4). */
 const BPP = /** @type {Record<string, number>} */ ({ r8unorm: 1, r8uint: 1, r16uint: 2, r16float: 2, r32float: 4, r32uint: 4, rg16float: 4, rgba8unorm: 4, bgra8unorm: 4, rg32float: 8, rgba16float: 8, rgba16uint: 8, rgba32float: 16, rgba32uint: 16 });
 
-/** What is held now, the most held, the budget, and how many times the GPU ran out. */
-export const memory = { used: 0, peak: 0, budget: 0, oom: 0 };
+/** What is held now, the most held, the budget, how many times the GPU ran out, and what was held when the device was last lost. */
+export const memory = { used: 0, peak: 0, budget: 0, oom: 0, lost: 0 };
 
 /** The budget in bytes: `?budget=` (MB, the checks' way to hold a phone's), else one learnt here, else by the phone's memory. */
 function budgetOf() {
@@ -56,7 +56,7 @@ export function count(device) {
     try { localStorage.setItem(KEY, String(memory.budget)); } catch { /* a private window */ }
     dispatchEvent(new Event('th-gpu-oom'));
   });
-  device.lost.then(() => { memory.used = 0; });
+  device.lost.then(() => { memory.lost = memory.used; memory.used = 0; });
 }
 
 /** The numbers in MB, for the timings. */

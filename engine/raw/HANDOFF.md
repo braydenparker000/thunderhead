@@ -4,7 +4,7 @@ For whoever carries on, a person or a model that was not here. Read this, then [
 finding, with its measurement), then [../../AGENTS.md](../../AGENTS.md). [STATUS.md](STATUS.md) says what is
 built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 
-## Where things stand (updated 2026-11-16, second session)
+## Where things stand (updated 2026-11-17)
 
 - The audit's fixes are built, on `claude/zealous-brahmagupta-bnap32`, in one pull request (the owner, 2026-11-16:
   "build build build and ship all at once ... less PRs, quicker to live"). What each did, as measured here:
@@ -59,7 +59,7 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 
 | Part | What | Proved here |
 |---|---|---|
-| No loop | `session.js` `th-gpu-lost`: a reset opens the photo once more, light (no copy made again, no Starfish), and says so; a second is only said. Both in the timings (`lost`) | `tests/lab-editor-guard-browser.test.mjs` |
+| No loop | `session.js` `th-gpu-lost`: a reset opens the photo once more, light (no copy made again, no Starfish), and says so; a second is only said. Both in the timings (`lost`). (Replaced by the fifth round's gentle retries, below) | `tests/lab-editor-guard-browser.test.mjs` |
 | Memory | `engine/gpu-memory.js`: every buffer and texture counted; the budget by the phone's memory (720 MB at 8 GB, 480 at 4–6 GB, 240 below; `?budget=` for checks), lowered for good when the GPU says it ran out. The copy made again asks `room` and is left where it would not fit; Starfish's view and the full-size view are never held together where both would not fit | the same file: a 20 MB budget leaves the copy and the editor stays under it; an out-of-memory error lowers the budget and it is kept |
 | Queue | `engine/work.js`: frames, the zoom's views and a finger on the photo hold the GPU; the copy made again and Starfish's compiling wait their turn between slices. What is made is named: under the zoom badge's beating dot, small (`zoom-note.js`) | the same file; `lab-editor-zoomed-browser.test.mjs` sees "Loading full detail" under a beating dot |
 | Zoom | `zoom.js`: to a third of the sensor's size the copy (to 37 %: stretched under a tenth, which does not show), sharpened as an export is (`engine/fit-sharp.js`, 0.24 at Sharpening 40: fine detail 7.42 → 8.44, the export's 8.44); a third to 100 % tiles at rest (`zoom-tiles.js`, kept for a pan back); from 100 % an edit shows the copy at once and the full-size view comes back once it rests, then Starfish's with no cap. The zoomed-out full-size layer of the third round is gone | `lab-editor-hq-browser.test.mjs`, `lab-editor-zoomed-browser.test.mjs`, the guard file's tiles |
@@ -68,6 +68,26 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
   Not done, and why: the zoomed-out photo is still processed at the copy's size, not the screen's (that would rework
   every tool's sizing: masks, crop, heal, brushes); the turn logs from the A15 will say whether the dial needs it. Only
   the phone can say how much memory a Mali GPU gives Chrome: the timings now carry `mb`, `peakMb` and `budgetMb` on `full`.
+
+- **Fifth round (2026-11-17): after a reset, keep trying, gentler; the full detail waits for the dial.** The A15 reset on
+  the fourth round's build (its timings in the workshop: the photo opened 00:39:21, its full-size pixels and the copy
+  made again in by :24, the reset at :27, as Starfish's preparation began; then no full-size pixels again that session,
+  so Sharpening did nothing at 300 %: only the copy, stretched). The lighter mode had left the copy and Starfish off for
+  that photo, until a reload, and the new logs never reached the owner: the workshop's filter kept known fields only.
+  The owner: "It should never ever ever stay off ... It should just keep trying." Built in one pull request:
+
+| Part | What | Proved here |
+|---|---|---|
+| Logs | `th/workshop/timings-core.js`: `lost` and `oom` kinds; `mb`, `peakMb`, `budgetMb`, `since`, `level`, `tile`, `calm`; `job` and `ran` in fixed words | `tests/workshop-timings.test.mjs` |
+| Gentle | `engine/gentle.js`, per phone in localStorage: all that was being made at a reset is blamed (the badge's notes: `work.js` `allMaking`); each reset halves its pieces (to a sixteenth), three made whole grow them back a step; for 2 minutes after any reset (`?calm=` for checks) the copy made again and Starfish's preparation wait (Chrome shuts a page out of the GPU after two of its crashes in two minutes) | the guard file |
+| Reopen | `app/reset.js`: the photo opens again at once with nothing left off; a reset within the 2 minutes of the one before has it opened again once 2 minutes have gone by since; three times a page's life on its own, then said | the guard file, `lab-editor-safe-browser.test.mjs` |
+| Copy | `proxy-hq.js` `remake(…, tile)`: 228 → 114 → 57 → 28 copy pixels a side; in the while after a reset, later (`meta.onCopy`: the session keeps it and draws) | the guard file: 4 tiles → 25 at a quarter; made later, the session told |
+| Starfish | `app/zoom-fine.js` (out of `zoom.js`): blamed, it waits out the while, then each submission aims shorter (`net-pace.js` `aim`: 12 ms × its share) | — (the phone's) |
+| Detail | `zoom.js`: blamed, from 100 % too it is made in tiles a share of the usual, at the sensor's scale, then Starfish | — (the phone's) |
+| Dial | `zoom.js` `dial` (from `DialPlate.js`, as `onhold`): the full detail is made 150 ms after the last edit with the dial at rest (finger up and its run-on over) and no edit's frame being drawn; every edit puts it off, one seen late too | `lab-editor-zoomed-browser.test.mjs`: flicked, the dial ran on 775 ms after the finger lifted, the full detail began 300 ms after it stopped |
+
+  To read next: the A15's and the A35's `lost` lines (job, since, mb) say what resets them; `fine` and `detail` lines
+  with `level` say how gentle each has gone.
 
 - Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's
   picture), 7.1 (Drive: parked, ask first), every C note. 4.1 and 8.4 are proved by the audit's scripts, not by a
