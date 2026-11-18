@@ -3,6 +3,7 @@
 import * as MB from '../../vendor/mediabunny.js';
 import {HttpSource, SourceError} from './http-source.js';
 import {readLayout, subtitleTracks} from './mkv.js';
+import {hideElements} from './mkv-hide.js';
 import {readMoov, readMp4Subtitles, mp4DolbyVision} from './mp4.js';
 import {mp4Chapters} from './chapters.js';
 import {languageName} from './languages.js';
@@ -57,8 +58,9 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
 
 async function describe(url, source, opened, signal, onStatus, keep) {
   onStatus('Reading what is inside…');
+  // A Matroska file's attachments (fonts, megabytes of them) and tags are Void to Mediabunny, which would read them whole (mkv-hide.js).
   const input = new MB.Input({
-    source: new MB.CustomSource({getSize: () => source.size, read: (start, end) => source.read(start, end), maxCacheSize: 8 << 20}),
+    source: new MB.CustomSource({getSize: () => source.size, read: hideElements((start, end) => source.read(start, end), source.size, (from, to) => source.skips.push([from, to])), maxCacheSize: 8 << 20}),
     formats: MB.ALL_FORMATS,
   });
   keep(input);

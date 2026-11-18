@@ -6,7 +6,7 @@
 // downloads, previews last (source-gate.js); one answered as a dead link is asked again once the address is
 // renewed (source-renew.js).
 
-import {BLOCK, TIMING, SourceError, parseContentRange, ask} from './source-stream.js';
+import {BLOCK, TIMING, SourceError, parseContentRange, ask, skipped} from './source-stream.js';
 import {DEAD, renewed} from './source-renew.js';
 
 /**
@@ -65,11 +65,13 @@ export async function sideRead(source, start, end, signal, {into = null, onBytes
 /**
  * A download that began inside a block (a seek) leaves its first part unfetched; the subtitle scanners look
  * at whole blocks only, so once playback is under way that part is fetched on the side and the block is whole.
+ * Not when that part is all fonts attached before the first cluster (source.skips): no subtitle lies there, and
+ * it was up to 1 MiB of them, fetched 4 s into the film (2026-11-18).
  */
 export function fillHole(source, rec) {
   setTimeout(async () => {
-    if (source.closed || source.partials.get(rec.index) !== rec || rec.from === 0) return;
     const start = rec.index * BLOCK;
+    if (source.closed || source.partials.get(rec.index) !== rec || rec.from === 0 || skipped(source, start, start + rec.from)) return;
     try {
       const head = await sideRead(source, start, start + rec.from);
       if (source.closed || source.partials.get(rec.index) !== rec || source.blocks.has(rec.index)) return;

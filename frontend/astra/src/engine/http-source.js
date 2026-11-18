@@ -55,6 +55,7 @@ export class HttpSource {
     this.byteRate = 0; // the film's average bytes a second (learn)
     this.probing = false;
     this.probeReads = []; // what describing the file read, to be remembered (film-memory.js)
+    this.skips = []; // [from, to): what describing passes over by its size (a Matroska film's fonts, mkv-hide.js), never read on into while describing
     this.memory = memory; this.kept = null; this.recall = null;
     // Back online, or on another network: waiting retries go now, and a download gone quiet is asked again.
     this.retries = new Set();

@@ -6,12 +6,13 @@
 // asked for a libass layer (subtitles/renderer.js useLibass) with the script's
 // header and, for a film's own track, the fonts attached to the film
 // (mkv-attachments.js, read once per film when a styled track is first
-// chosen). The film's blocks of every styled track are kept as the scanner
+// chosen, once the first picture is up and beside playback: an 8 MB font read
+// as the film started shared the link with its first cluster). The film's blocks of every styled track are kept as the scanner
 // reads them, so a layer started later (a track chosen at minute 20) gets those
 // already read, and each new one as it comes. Off, another track, the delay
 // and closing reach libass through the renderer (setCues, setDelay, destroy).
 
-import {readFonts} from './mkv-attachments.js';
+import {readFonts, sideReader} from './mkv-attachments.js';
 
 /** The text of a subtitle file when it is ASS/SSA (libass can draw it), else null. */
 export function assScript(text, name = '') {
@@ -50,11 +51,12 @@ export const libassMethods = {
     });
   },
 
-  /** The film's attached fonts, read once per film ([] when it has none or they cannot be read). */
+  /** The film's attached fonts, read once per film once its first picture is up ([] when it has none or they cannot be read). */
   filmFonts() {
-    const at = this.info?.layout?.attachments, source = this.probed?.source;
+    const at = this.info?.layout?.attachments, source = this.probed?.source, video = this.video;
     if (at == null || !source || source.closed) return Promise.resolve([]);
-    return this.fontsRead ??= readFonts((s, e) => source.read(s, e), source.size, at).then(fonts => {
+    const shown = this.started || video.readyState >= 2 ? Promise.resolve() : new Promise(r => video.addEventListener('loadeddata', r, {once: true}));
+    return this.fontsRead ??= shown.then(() => source.closed ? [] : readFonts(sideReader(source), source.size, at)).then(fonts => {
       this.record('fonts', fonts.map(f => `${f.name} (${f.data.byteLength} bytes)`));
       return fonts;
     }, error => { this.record('fonts', `not read: ${error?.message || error}`); return []; });
