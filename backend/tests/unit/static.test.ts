@@ -34,7 +34,11 @@ const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.
-const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Record<string, string>; secrets: unknown };
+const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as {
+  vars: Record<string, string>;
+  secrets: unknown;
+  observability?: { traces?: { enabled?: boolean } };
+};
 
 /** Every secret name (SECURITY.md §11) and var (OPERATIONS.md §2) the Worker reads. P2 adds the
  * mind-chat trigger (SETUP.md K) and the live-wait mode (X1), P3 the mind-night trigger (L1), P4
@@ -175,6 +179,12 @@ describe('source rules', () => {
       expect(c, file).not.toMatch(/\.delete\(/);
       if (!file.endsWith('areas/music/upload.ts')) expect(c, file).not.toMatch(/\.put\(/);
     }
+  });
+
+  it('tracing stays off (SECURITY.md §8.2)', () => {
+    // A trace records each subrequest's address: Astra's relay asks film and add-on addresses and
+    // TorBox's requestdl with the key as `token=`, none of which may reach Cloudflare's logs.
+    expect(config.observability?.traces?.enabled ?? false).toBe(false);
   });
 
   it('secrets.required lists exactly the declared secrets', () => {

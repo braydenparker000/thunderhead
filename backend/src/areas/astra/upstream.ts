@@ -7,6 +7,7 @@ import { type AstraStep, type AstraStepName, ASTRA_LIMITS as L } from '../../../
 import { linkProblem } from '../../../../shared/contract/settings.ts';
 import type { AppEnv } from '../../http/auth';
 import { allowedOrigins } from '../../http/cors';
+import { present } from '../../lib/secrets';
 
 let fetcher: typeof fetch = (...a) => fetch(...a);
 /** For tests: the fetch TorBox and the add-ons are asked with. */
@@ -34,6 +35,8 @@ export interface Relay {
   /** The site's origin, sent as `Origin` on each hop so a server that echoes it answers as it
    * would the page; '' when the Worker knows none. */
   site: string;
+  /** The owner's TorBox key (TORBOX_KEY), or null when it is not set. Never leaves the Worker. */
+  key: string | null;
 }
 
 const IP = /^[0-9A-Fa-f:.]{2,45}$/;
@@ -47,6 +50,7 @@ export function relayFor(c: Context<AppEnv>): Relay {
     calls: 0,
     userIp: IP.test(ip) ? ip : null,
     site: origin && origins.has(origin) ? origin : ([...origins][0] ?? ''),
+    key: present(c.env.TORBOX_KEY),
   };
 }
 
@@ -78,6 +82,20 @@ export async function timed<T>(ms: number, work: (signal: AbortSignal) => Promis
 }
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Whether an address may be handed to the phone: never one that holds the key (as it is or
+ * URL-encoded), never one on TorBox's API host (its addresses carry a token). Checked on every
+ * address that leaves the Worker: requestdl's answer, a permanent link's, the forward's end. */
+export function handable(r: Relay, url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  if (host === 'api.torbox.app') return false;
+  return !r.key || (!url.includes(r.key) && !url.includes(encodeURIComponent(r.key)));
+}
 
 /** Whether the relay may ask this address: https, public, no user, password or port. */
 export function publicHttps(url: string): boolean {

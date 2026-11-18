@@ -1,7 +1,7 @@
 // Which file of a torrent Astra's relay asks TorBox for (areas/astra/files.ts): the add-on's index
 // when it agrees with the name and size, else the one file of that name, else of that size, else
-// the one video (samples and small files set aside), and never a guess between two. Invented
-// torrents only.
+// the one video (samples and small files set aside), and never a guess between two. An index alone
+// is taken only when it names the one video. Invented torrents only.
 import { describe, expect, it } from 'vitest';
 import { chooseFile, type Hints, mediaType, type TorrentFile, typeOfName } from '../../src/areas/astra/files';
 
@@ -23,8 +23,22 @@ const id = (h: Partial<Hints>, files = PACK) => chooseFile(files, { ...none, ...
 
 describe('choosing the file', () => {
   it('takes the index when it names a file and agrees with the name and size given', () => {
-    expect(id({ fileIndex: 1 })).toBe(1);
     expect(id({ fileIndex: 1, fileName: 'Invented.Show.S01E02.mkv', fileSize: 910 * MB })).toBe(1);
+    expect(id({ fileIndex: 1, fileSize: 910 * MB })).toBe(1);
+  });
+
+  it('takes an index alone only when it names the torrent’s one video: else it is a guess', () => {
+    // Two episodes: an add-on may count files differently from TorBox, so index 1 proves nothing.
+    expect(id({ fileIndex: 1 })).toBeNull();
+    const single = [
+      file(7, 'Film/Invented.Film.mkv', 2000 * MB),
+      file(8, 'Film/Sample.mkv', 30 * MB),
+      file(9, 'Film/info.nfo', 900),
+    ];
+    expect(id({ fileIndex: 7 }, single)).toBe(7);
+    expect(id({ fileIndex: 9 }, single)).toBeNull();
+    expect(id({ fileIndex: 8 }, single)).toBeNull();
+    expect(id({ fileIndex: 3 }, single)).toBeNull();
   });
 
   it('trusts the name and size over an index that disagrees, or names no file', () => {

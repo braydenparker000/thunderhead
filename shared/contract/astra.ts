@@ -23,13 +23,18 @@ export const ASTRA_LIMITS = {
   torbox_calls_max: 6,
   /** Requests a hop chain may take, the first included. */
   hops: 6,
-  /** Requests to /v1/astra/* one isolate takes a minute (TorBox allows 300 calls a minute a key). */
+  /** Taps ("play") and GET /v1/astra/torbox one isolate takes a minute, then 429; presses
+   * ("ahead") have their own count, so they never starve a tap, and past it answer no address. */
   per_minute: 30,
+  ahead_per_minute: 60,
   /** A video under this size on the add-on's own host is its "not ready yet" placeholder. */
   placeholder_bytes: 20 * 1024 * 1024,
   /** Files under this size (and sample files) are set aside when looking for the one video. */
   small_file_bytes: 50 * 1024 * 1024,
-  /** TorBox's list is read one page this long when looking for an item already in the account. */
+  /** How much of TorBox's list is read when looking for an item already in the account: a press
+   * ("ahead") reads only the newest items, so a big account costs little CPU; a tap whose second
+   * add TorBox refused reads a longer page. */
+  list_page_ahead: 100,
   list_page: 1000,
 } as const;
 
@@ -62,7 +67,10 @@ export interface AstraStep {
 }
 
 /** POST /v1/astra/play's answer. Errors are the usual envelope with `details.reason` (one plain
- * sentence for the owner) and `details.steps`. */
+ * sentence for the owner) and `details.steps`. `503 unavailable` means the film is not on TorBox
+ * (TorBox said for certain it is not cached, or the add-on answered its own "not ready" video): the
+ * page must not play the add-on's link instead, since that is how an add-on adds an uncached torrent
+ * (owner ruling 2026-11-18: nothing uncached is ever added by Astra). */
 export interface AstraPlayResponse {
   /** The film's direct address, or null when mode "ahead" could not get one without adding. */
   url: string | null;

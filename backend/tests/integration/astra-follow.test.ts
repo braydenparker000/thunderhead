@@ -165,6 +165,28 @@ describe('following the add-on’s forward', () => {
     expect([slow.status, slow.body.error?.details.reason]).toEqual([502, 'The add-on took too long to answer.']);
   });
 
+  it('never hands over an address that holds the key or is TorBox’s API itself', async () => {
+    world.hosts.set('addon.example', forward(`${CDN}?t=${KEY}`));
+    world.hosts.set('nexus-123.latm.cdn.example', film(900 * MB));
+    const keyed = await go({}, KEY);
+    expect([keyed.status, keyed.body.error?.code, keyed.body.error?.details.reason]).toEqual([
+      502,
+      'upstream',
+      'The address could not be passed on safely.',
+    ]);
+    expect(keyed.text).not.toContain(KEY);
+    // A permanent link whose answer is TorBox's API again is not passed on either.
+    const permalink = `${TORBOX}/torrents/requestdl?token=permalink-token&torrent_id=9&file_id=2&redirect=true`;
+    world.hosts.set('addon.example', forward(permalink));
+    world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [], link: `${TORBOX}/torrents/other?x=1` }));
+    const looped = await go({}, KEY);
+    expect([looped.status, looped.body.error?.details.reason, looped.body.error?.details.steps.at(-1)?.note]).toEqual([
+      502,
+      "TorBox did not give the file's address.",
+      'The address held the key or pointed at TorBox itself, so it was not passed on.',
+    ]);
+  });
+
   it('"ahead" never follows a link', async () => {
     world.hosts.set('addon.example', forward(CDN));
     const { status, body } = await go({ mode: 'ahead' });
@@ -179,9 +201,13 @@ describe('nothing the owner watches is logged or echoed (ASTRA.md §5.3)', () =>
     for (const level of ['log', 'info', 'warn', 'error', 'debug'] as const)
       vi.spyOn(console, level).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')));
     const secrets = [LINK, 'addon.example', HASH, KEY, FILE_NAME, 'cdn.example', 'permalink-token'];
+    // TorBox saying for certain the film is not cached (503, nothing followed); then TorBox down
+    // (cachedness unknown, so the add-on is followed): a host whose failure carries the address in
+    // its message, a broken answer the app does not expect (an internal error), and a success.
     world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [] }));
-    // A host whose failure carries the address in its message, a broken answer the app does not
-    // expect (an internal error), a placeholder, and a success.
+    const uncached = await go({ hash: HASH, fileName: FILE_NAME }, KEY);
+    expect(uncached.status).toBe(503);
+    world.hosts.set('api.torbox.app', () => new Response('', { status: 503 }));
     world.hosts.set('addon.example', () => {
       throw new TypeError(`fetch failed for ${LINK} ${HASH}`);
     });
@@ -194,7 +220,7 @@ describe('nothing the owner watches is logged or echoed (ASTRA.md §5.3)', () =>
     const ok = await go({ hash: HASH, fileName: FILE_NAME }, KEY);
     expect([failed.status, ok.status]).toEqual([502, 200]);
     expect(lines.length).toBeGreaterThan(0);
-    for (const text of [...lines, failed.text, broken.text, JSON.stringify(ok.body.steps)])
+    for (const text of [...lines, uncached.text, failed.text, broken.text, JSON.stringify(ok.body.steps)])
       for (const s of secrets) expect(text, s).not.toContain(s);
     expect(failed.body.error?.details.reason).toBe('The add-on could not be reached.');
   });

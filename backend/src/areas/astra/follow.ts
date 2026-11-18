@@ -5,13 +5,14 @@
 // TorBox permanent link on the way is asked for its JSON instead (its own token is the key it
 // needs). The first 200 or 206 ends it: its address, its size and type, and whether a page may
 // read it. A short video on the add-on's own host is its "not ready yet" placeholder, not a film.
-// Only those fields leave: never a body or a header.
+// Only those fields leave: never a body or a header, and never an address holding the key or on
+// TorBox's API host (`handable`).
 
 import { ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { isVideo, mediaType, typeOfName } from './files';
 import { isPermanentLink, permanentLink, TorboxTrouble } from './torbox';
-import { ask, mark, publicHttps, type Relay, TimedOut, timed, timesNow } from './upstream';
+import { ask, handable, mark, publicHttps, type Relay, TimedOut, timed, timesNow } from './upstream';
 import { NOTE, REASON } from './words';
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -82,6 +83,7 @@ export async function follow(r: Relay, link: string): Promise<Followed> {
     const type = mediaType(res.headers.get('Content-Type')) ?? typeOfName(path);
     if (new URL(url).hostname === home && isVideo(path, type) && size !== null && size < L.placeholder_bytes)
       return fail('unavailable', REASON.notReady, NOTE.placeholder);
+    if (!handable(r, url)) return fail('upstream', REASON.notHanded, NOTE.notHanded);
     const allow = res.headers.get('Access-Control-Allow-Origin');
     mark(r, 'follow', true, since, NOTE.reached(hop));
     return { ok: true, url, size, type, readable: allow === '*' || (r.site !== '' && allow === r.site) };

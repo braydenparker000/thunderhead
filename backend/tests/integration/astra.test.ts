@@ -1,12 +1,13 @@
 // Astra's relay, the TorBox side (ASTRA.md §4.4, SECURITY.md §8.2; owner rulings 2026-11-18):
 // only the owner's device may call it; without the key the direct path is skipped and the follow
 // path still works; a cached item already in the account plays from TorBox, a cached one not yet
-// in it is added with add_only_if_cached (seeding off, no zip), an uncached one is never added and
-// falls to the follow path in "play" and to no address in "ahead"; "ahead" never adds; a file that
-// cannot be told apart is never guessed and nothing is added for it; the direct path costs at most
-// four TorBox calls, a 429 is tried once more and no more; a slow TorBox gives up in time; GET
-// /v1/astra/torbox tells only whether the key is set and taken, and the plan number. Invented
-// hosts, hashes, key and films.
+// in it is added with add_only_if_cached (seeding off, no zip); one TorBox says for certain is not
+// cached is never added nor followed (503 in "play", no address in "ahead"), while an unknown answer,
+// no key or no hash still follow; "ahead" never adds; a file that cannot be told apart is never
+// guessed and nothing is added for it; the direct path costs at most four TorBox calls, a 429 is
+// tried once more and no more; a slow TorBox gives up in time; GET /v1/astra/torbox tells only
+// whether the key is set and taken, and the plan number. The counts, the press's short list and the
+// hand-over check are in astra-guards.test.ts. Invented hosts, hashes, key and films.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { forgetMinute } from '../../src/areas/astra/routes';
 import { useFetch, useTimes } from '../../src/areas/astra/upstream';
@@ -22,6 +23,7 @@ import {
   pathsAsked,
   relay,
   stubFetch,
+  TORBOX,
   type TorboxAnswer,
   type Torrent,
   torbox,
@@ -135,6 +137,9 @@ describe('POST /v1/astra/play, the direct path', () => {
     expect([body.via, body.url]).toEqual(['torbox', 'https://store-039.wnam.cdn.example/dl/77/0']);
     expect(body.steps[2]).toMatchObject({ step: 'add', ok: true, note: 'It was already in your TorBox account.' });
     expect(torboxCalls().length).toBeLessThanOrEqual(4);
+    // A tap whose second add was refused reads the longer page of the list.
+    const list = torboxCalls().find((a) => new URL(a.url).pathname.endsWith('/mylist'));
+    expect(new URL(list?.url ?? TORBOX).searchParams.get('limit')).toBe('1000');
   });
 
   it('a cached film not in the account is added only if cached, seeding off, no zip', async () => {
@@ -154,16 +159,45 @@ describe('POST /v1/astra/play, the direct path', () => {
     expect(torboxCalls().length).toBe(4);
   });
 
-  it('an uncached film is never added: "play" follows the add-on, "ahead" answers no address', async () => {
+  it('an uncached film is never added nor followed: "play" says so, "ahead" answers no address', async () => {
     world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [] }));
     const played = await play({ hash: HASH });
-    expect([played.body.via, steps(played.body)]).toEqual(['follow', ['key:true', 'cached:false', 'follow:true']]);
+    expect([played.status, played.body.error?.code, played.body.error?.details.reason]).toEqual([
+      503,
+      'unavailable',
+      'This film is not on TorBox yet, so Astra did not start it.',
+    ]);
+    expect(steps(played.body.error?.details ?? {})).toEqual(['key:true', 'cached:false']);
     expect(pathsAsked()).toEqual(['/torrents/checkcached']);
+    expect(world.asked.some((a) => !a.url.startsWith(TORBOX))).toBe(false);
+    // Cached when asked, then refused as not cached when added: the same answer, nothing followed.
     world.asked = [];
+    world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: [], add: 'not-cached' }));
+    const late = await play({ hash: HASH });
+    expect([late.status, steps(late.body.error?.details ?? {})]).toEqual([
+      503,
+      ['key:true', 'cached:true', 'add:false'],
+    ]);
+    expect(world.asked.some((a) => !a.url.startsWith(TORBOX))).toBe(false);
+    world.asked = [];
+    world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [] }));
     const ahead = await play({ hash: HASH, mode: 'ahead' });
     expect([ahead.status, ahead.body.url, ahead.body.via]).toEqual([200, null, null]);
     expect(pathsAsked()).toEqual(['/torrents/checkcached']);
     expect(world.asked.some((a) => !a.url.startsWith('https://api.torbox.app'))).toBe(false);
+  });
+
+  it('still follows the add-on when TorBox’s answer leaves it unknown, or no hash came', async () => {
+    world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [], cachedData: null }));
+    const odd = await play({ hash: HASH });
+    expect(odd.body.via).toBe('follow');
+    expect(odd.body.steps[1]).toMatchObject({
+      step: 'cached',
+      ok: false,
+      note: 'TorBox answered in a way the Worker could not read.',
+    });
+    const bare = await play({});
+    expect([bare.body.via, steps(bare.body)]).toEqual(['follow', ['key:true', 'cached:false', 'follow:true']]);
   });
 
   it('"ahead" answers from the account only, never adding, in three calls', async () => {
@@ -223,13 +257,6 @@ describe('POST /v1/astra/play, the direct path', () => {
     const { body } = await play({ hash: HASH });
     expect(body.steps[1]).toMatchObject({ step: 'cached', ok: false, note: 'TorBox did not answer in time.' });
     expect(body.via).toBe('follow');
-  });
-
-  it('takes at most 30 requests a minute in an isolate', async () => {
-    for (let i = 0; i < 30; i++) expect((await relay<TorboxAnswer>(D)).status).toBe(200);
-    const { status, body } = await relay(D, { body: { link: LINK, mode: 'ahead' } });
-    expect([status, body.error?.code]).toEqual([429, 'rate_limited']);
-    expect(body.error?.retry_after).toBeGreaterThan(0);
   });
 
   it('refuses a malformed request with 422, echoing nothing of it', async () => {
