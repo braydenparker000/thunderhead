@@ -207,8 +207,11 @@ How it is enforced:
    TorBox directly with the key the Worker holds, else, on a tap only, by following the add-on's
    forward. Mode "ahead" (before a tap) may read the owner's TorBox account but never adds anything
    and never follows a link; mode "play" (the tap) may add an item TorBox already has cached
-   (`add_only_if_cached`, seeding off), never an uncached one. The Worker resolves only the stream the
-   page names: a file it cannot tell apart from the others in a torrent is refused, never guessed.
+   (`add_only_if_cached`, seeding off), never an uncached one. When TorBox says for certain the film
+   is not cached, the tap is answered so ("This film is not on TorBox yet, so Astra did not start
+   it.") and the add-on's link is not followed, since following it is how an add-on adds an uncached
+   torrent. The Worker resolves only the stream the page names: a file it cannot tell apart from the
+   others in a torrent is refused, never guessed.
    **The owner's filter chips (2026-11-11, `addons/stream-facts.js`):** a second row under the add-ons,
    for the owner who wants small files to save data: Smallest first; one size limit (under 700 MB,
    1.5 GB or 3 GB); any of the picture sizes (720p, 1080p, 4K, SD) and codecs (HEVC, AV1); Clear. They
@@ -446,7 +449,7 @@ only, nothing stored or logged.
 
 | Route | What |
 |---|---|
-| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash: checkcached, then the item in the account ("play" adds a cached one; "ahead" only looks), the file (index, name, size or the one video; never a guess), requestdl for the phone's nearest server: at most 4 TorBox calls. Else, in "play" only, the add-on's forward followed (≤ 6 hops, 20 s); its short "not ready" video is an error saying so |
+| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash: checkcached (not cached for certain: "play" answers 503 and follows nothing), then the item in the account ("play" adds a cached one; "ahead" only looks among the newest 100), the file (name, size or the one video; an index alone only when it names the one video; never a guess), requestdl for the phone's nearest server: at most 4 TorBox calls. Else, in "play" only, the add-on's forward followed (≤ 6 hops, 20 s); its short "not ready" video is an error saying so. No address holding the key or on TorBox's API host leaves the Worker. Taps 30 a minute, presses 60 on their own count |
 | `GET /v1/astra/torbox` | `{configured, ok, plan}`: whether the key is set and TorBox takes it, and the plan number |
 
 Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and

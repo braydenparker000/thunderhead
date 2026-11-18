@@ -216,7 +216,7 @@ Owner ruling 2026-10-28: Music, Guitar, Podcasts, Astra and My Media are copied 
    **Music (P5) moved through its own service worker instead**, so the page itself is unchanged: it still addresses its library by the old Worker's URLs (its offline copies and song heads are keyed by them), and `music/sw.js` loads `th/music/bridge.js`, which answers those requests from the new Worker with the session read from `th-auth`, and only for a top-level page (a framed copy of the player never gets the session: the worker's own frame guard). Its page reads the session for two things only, both through `th/ported/session.js`, signed in and top-level only: its error reports (the shared `assets/error-report.js`, as on every ported page since P8) and its playback log (`th/music/report.js`, loaded by the player's own `th/music/dj.js`; timings and track ids to `POST /v1/ops/reports`, addresses cut to their host), so its CSP gains the API host at deploy (`MOVED_PAGES`), as Guitar's and My Media's do; the old host leaves it with N5. The bucket gets signed links, never the session. `tests/ported.test.mjs` allows exactly that one `th/` file, and only in `music/sw.js`.
    **Guitar (P6)** follows this rule as written: its page's CSP gains the API host at deploy (`MOVED_PAGES` in `scripts/site-config.mjs`), and its sources module reads the session through `th/ported/session.js` (top-level pages only, never creating the database), asking the new Worker when signed in and the old one otherwise; the test allows that file in `guitar/sources.js` only.
    **Podcasts (P8) moved as Music did**: `podcasts/sw.js` imports `th/podcasts/bridge.js`, which answers the page's requests to the old Worker's `/podcasts/*` (its `<audio>` element and downloads too) from the new Worker with the session from `th-auth`, for a top-level page only. The page holds no token and its CSP is unchanged (it already allows any `https:` host). The test allows that one `th/` file, and only in `podcasts/sw.js`. Since 2026-11-01 (NEXT-BATCH.md part 7) the page itself also loads `th/podcasts/progress.js` (one line in `podcasts/app.js`, the one `th/` file the test allows there), which reads the session through `th/ported/session.js` (signed in, top-level or home's own frame only) to sync the app's positions and follows with `/v1/podcasts/progress` and `/follows`; it writes only the app's own `progress` entries, and only before the app reads them. **The error reports of all five ported pages (P8)**: the shared `assets/error-report.js` reads the session (`th/ported/session.js`, the only `th/` file the test allows in it) and, signed in, sends to `POST /v1/ops/errors`; every address in a message is cut to its host first (Astra's add-on and stream addresses are secrets, ASTRA.md §5.2), and only a frame of the site's own code says where it came from.
-   **Astra (owner ruling 2026-11-18)** moves onto the sign-in under this rule, as Guitar did: its page reads the session through `th/ported/session.js` (top-level, or home's own frame) and gains the frame guard, and only then asks this Worker's `/v1/astra/*` for a film's address (§8.2). Signed out, it plays as before. The TorBox key is a Worker secret and never reaches the page.
+   **Astra (owner ruling 2026-11-18)** moves onto the sign-in under this rule, as Guitar did: its page reads the session through `th/ported/session.js`, which withholds it from a page framed by another site or nested deeper than home's own frame (`framedByOther`), as for Guitar; it does not load the visibility guard. With the session it asks this Worker's `/v1/astra/*` for a film's address (§8.2). Signed out, it plays as before. The TorBox key is a Worker secret and never reaches the page.
 5. **Home's own frames** (2026-11-01, the island, HOME.md §12.1): home opens Music and Podcasts in a frame. The frame's page reads the session only when its top page is this site's (reading the top's origin throws across sites: `framedByOther`, `th/ported/session.js`). The app's worker can't see who framed a request, so home first sends it a one-time token (a 128-bit random hex, by `postMessage` from a top-level page of this site, which no other site can do; answered on a `MessageChannel`), then opens the frame at `?th-frame=<token>`; the worker marks the client that navigation creates as trusted (`th/ported/frames.js`), once, within 60 s, and answers that page load from the app's own address (so no token is ever cached and it opens offline). Only home's own page (`/`, top-level) may hand a token. A page that reloads itself in the frame (Music on a day/night switch) asks home for a fresh token and claims its trust back (`th/ported/claim.js`); home hands one only to its own layer's frame. The marks are kept in a `th-frames` cache per app, since browsers stop idle workers, and dropped when their frame is gone. A frame without a fresh token, framed by any other site, or nested more than one level down (`framedByOther`) is untrusted as before. Its second reader (2026-11-01) found no way in for another site; its other findings (the canonical CSP, the offline load, the reload, a shell update stopping the music) were fixed before it shipped. Known: the Music page (its jsdelivr visualiser scripts and `'unsafe-eval'`) now runs unsandboxed inside home while open; a script injected there could reach home's page, as it could already reach the session. A browser test frames the player from another origin, with and without a made-up token, and sees no session used.
 
 | Ported page | Outside hosts it uses today (from its old CSP and code, 2026-10-28) | Notable allowances it keeps |
@@ -367,24 +367,31 @@ stream addresses to pass through this Worker in transit, for their signed-in dev
 stored or logged, with the TorBox key held here (owner rulings 2026-11-18, ASTRA.md §4.4). It is
 the one route that fetches addresses an add-on chooses, so it is held tight
 (`backend/src/areas/astra/`):
-- **Who:** the owner's device sessions only (route table `D`: the mind, Muse and CI get 403); 30
-  requests a minute per isolate, counted in memory (no row written), then `429`.
+- **Who:** the owner's device sessions only (route table `D`: the mind, Muse and CI get 403).
+  Counted per isolate in memory (no row written): taps ("play") and `GET /v1/astra/torbox` 30 a
+  minute, then `429`; presses ("ahead") 60 a minute on their own count, then no address (never a
+  429), so presses never starve a tap.
 - **What it may fetch:** TorBox's API at its fixed origin with `TORBOX_KEY` (checkcached, the
   account's list, requestdl, `/user/me`, and createtorrent with `add_only_if_cached` only on a tap,
-  mode "play": nothing uncached is ever added, nothing at all before a tap); and in "play" only, the
-  add-on link the owner tapped and its redirects: GET with `Range: bytes=0-0` and the site's
+  mode "play": nothing uncached is ever added, nothing at all before a tap; a press reads only the
+  list's newest 100 items); and in "play" only, unless TorBox said for certain the film is not cached
+  (then the answer is `503`: following the add-on's link is how an add-on adds an uncached torrent),
+  the add-on link the owner tapped and its redirects: GET with `Range: bytes=0-0` and the site's
   `Origin`, no cookie, referrer or credential, the body never read; each address https, no user,
   password or port, a host neither numeric nor local (`linkProblem`, as calendar links); at most 6
   hops in 20 s. A TorBox permanent link on the way is asked for its JSON with its own token. Each
   TorBox call 8 s, one retry on 429/5xx, at most 6 calls; the whole request 25 s.
 - **What it answers:** only `url`, `via`, `size`, `type`, `readable` and `steps`, never a body or a
   header of what it fetched; a short video on the add-on's own host (its "not ready" placeholder)
-  is an error, not an address. `steps[].note` and `details.reason` are fixed sentences and numbers.
+  is an error, not an address, and so is any address that holds the key or is on TorBox's API host
+  (checked on requestdl's answer, a permanent link's and the forward's end). `steps[].note` and
+  `details.reason` are fixed sentences and numbers.
 - **What it never keeps:** no row, object, cache or log line. Addresses, hashes and file names
   travel only in the POST body (never a path or query, so the invocation log's URL holds none) and
   in the answer; the key never leaves the Worker (the phone gets a file address carrying TorBox's
-  own 3-hour token). Workers tracing, which would record subrequest addresses, is off in
-  `wrangler.jsonc` and stays off. A log capture test checks none of them reaches a log line.
+  own 3-hour token). Workers tracing, which would record subrequest addresses (requestdl's
+  `token=` among them), is off in `wrangler.jsonc`, and the static test fails if it is turned on. A
+  log capture test checks none of them reaches a log line.
 
 ## 9. Presigned media URLs
 

@@ -3,7 +3,8 @@
 // file and agrees with the name and size the page gave; else the one file of that name (narrowed by
 // size when several share it); else the one file of that size; else the torrent's one video, sample
 // files and small files set aside. Two candidates left is a refusal. An add-on may count files
-// differently from TorBox's ids, so the name and size win over the index when they disagree.
+// differently from TorBox's ids, so the name and size win over the index when they disagree, and an
+// index with neither is only taken when it names the torrent's one video (else it is a guess).
 import { ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 
 export interface TorrentFile {
@@ -64,16 +65,18 @@ const only = <T>(list: T[]): T | null => (list.length === 1 ? list[0] : null);
 export function chooseFile(files: TorrentFile[], h: Hints): TorrentFile | null {
   const named = (f: TorrentFile) => h.fileName !== null && baseName(f.name) === baseName(h.fileName);
   const sized = (f: TorrentFile) => h.fileSize !== null && f.size === h.fileSize;
-  if (h.fileIndex !== null) {
-    const at = files.find((f) => f.id === h.fileIndex);
-    if (at && (h.fileName === null || named(at)) && (h.fileSize === null || sized(at))) return at;
-  }
-  const byName = files.filter(named);
-  const pick = only(byName) ?? (byName.length > 1 ? only(byName.filter(sized)) : null) ?? only(files.filter(sized));
-  if (pick) return pick;
-  return only(
+  const oneVideo = only(
     files.filter(
       (f) => VIDEO.test(f.name) && !SAMPLE.test(f.name) && (f.size === null || f.size >= L.small_file_bytes),
     ),
   );
+  if (h.fileIndex !== null) {
+    const at = files.find((f) => f.id === h.fileIndex);
+    // A bare index may count files differently: only the torrent's one video confirms it.
+    if (h.fileName === null && h.fileSize === null) return at && at === oneVideo ? at : null;
+    if (at && (h.fileName === null || named(at)) && (h.fileSize === null || sized(at))) return at;
+  }
+  const byName = files.filter(named);
+  const pick = only(byName) ?? (byName.length > 1 ? only(byName.filter(sized)) : null) ?? only(files.filter(sized));
+  return pick ?? oneVideo;
 }

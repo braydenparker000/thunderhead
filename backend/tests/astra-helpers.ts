@@ -57,9 +57,18 @@ export interface Torrent {
   files: { id: number; name: string; size: number; mimetype?: string }[];
 }
 
-/** A TorBox that knows which hashes are cached and which torrents the account holds. `add`
- * says how createtorrent answers for an item already held: its id, or a duplicate refusal. */
-export function torbox(o: { cached: Torrent[]; owned: Torrent[]; add?: 'id' | 'duplicate'; nextId?: number }): Handler {
+/** A TorBox that knows which hashes are cached and which torrents the account holds (newest first;
+ * the list honours `offset` and `limit`). `add` says how createtorrent answers for an item already
+ * held: its id, or a duplicate refusal; `'not-cached'` refuses every add as not cached. `link`
+ * replaces requestdl's address; `cachedData` replaces checkcached's `data`. */
+export function torbox(o: {
+  cached: Torrent[];
+  owned: Torrent[];
+  add?: 'id' | 'duplicate' | 'not-cached';
+  nextId?: number;
+  link?: string;
+  cachedData?: unknown;
+}): Handler {
   return (req) => {
     const u = new URL(req.url);
     const path = u.pathname.replace('/v1/api', '');
@@ -74,7 +83,8 @@ export function torbox(o: { cached: Torrent[]; owned: Torrent[]; add?: 'id' | 'd
       if (token !== KEY && token !== 'permalink-token')
         return Response.json({ success: false, error: 'BAD_TOKEN' }, { status: 403 });
       return ok(
-        `https://store-039.wnam.cdn.example/dl/${u.searchParams.get('torrent_id')}/${u.searchParams.get('file_id')}`,
+        o.link ??
+          `https://store-039.wnam.cdn.example/dl/${u.searchParams.get('torrent_id')}/${u.searchParams.get('file_id')}`,
       );
     }
     if (req.headers.authorization !== `Bearer ${KEY}`)
@@ -82,6 +92,7 @@ export function torbox(o: { cached: Torrent[]; owned: Torrent[]; add?: 'id' | 'd
     if (path === '/torrents/checkcached') {
       const hash = u.searchParams.get('hash') ?? '';
       const t = o.cached.find((c) => c.hash === hash);
+      if ('cachedData' in o) return ok(o.cachedData);
       return ok(
         t
           ? { [hash]: { name: 'Invented', size: 1, hash, files: t.files.map(({ name, size }) => ({ name, size })) } }
@@ -91,7 +102,7 @@ export function torbox(o: { cached: Torrent[]; owned: Torrent[]; add?: 'id' | 'd
     if (path === '/torrents/createtorrent') {
       const hash = /btih:([0-9a-f]{40})/.exec(req.form?.magnet ?? '')?.[1] ?? '';
       const t = o.cached.find((c) => c.hash === hash);
-      if (!t)
+      if (!t || o.add === 'not-cached')
         return Response.json({ success: false, error: 'DOWNLOAD_NOT_CACHED', detail: 'Invented.' }, { status: 400 });
       const held = o.owned.find((c) => c.hash === hash);
       if (held && o.add === 'duplicate')
@@ -111,7 +122,8 @@ export function torbox(o: { cached: Torrent[]; owned: Torrent[]; add?: 'id' | 'd
         const t = o.owned.find((c) => c.id === Number(id));
         return t ? ok(shape(t)) : Response.json({ success: false, error: 'ITEM_NOT_FOUND' }, { status: 404 });
       }
-      return ok(o.owned.map(shape));
+      const offset = Number(u.searchParams.get('offset') ?? 0);
+      return ok(o.owned.slice(offset, offset + Number(u.searchParams.get('limit') ?? 1000)).map(shape));
     }
     return new Response('', { status: 404 });
   };

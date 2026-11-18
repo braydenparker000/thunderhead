@@ -6,7 +6,7 @@
 // TorBox's own words (`detail`) are never passed on: a step's note comes from words.ts.
 import { ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 import { mediaType, type TorrentFile } from './files';
-import { ask, publicHttps, type Relay, TimedOut, timed, timesNow, wait } from './upstream';
+import { ask, handable, publicHttps, type Relay, TimedOut, timed, timesNow, wait } from './upstream';
 import { NOTE } from './words';
 
 const API = 'https://api.torbox.app/v1/api';
@@ -105,12 +105,14 @@ const filesOf = (v: unknown): TorrentFile[] =>
   (Array.isArray(v) ? v : []).map(fileOf).filter((f): f is TorrentFile => f !== null);
 
 /** Whether TorBox has the torrent ready, and its files when it lists them. `data` is an object
- * keyed by hash (format=object), a list (format=list), or empty when nothing is cached. */
+ * keyed by hash (format=object), a list (format=list), or empty when nothing is cached: only then
+ * is "not cached" definite. Any other shape leaves it unknown, which is trouble, not "not cached". */
 export async function checkCached(r: Relay, key: string, hash: string) {
   const q = new URLSearchParams({ hash, format: 'object', list_files: 'true' });
   const { body } = must(await call(r, `/torrents/checkcached?${q}`, { key }));
   const ours = (e: unknown) => String(record(e).hash).toLowerCase() === hash;
   const data = body.data;
+  if (!data || typeof data !== 'object') throw new TorboxTrouble(NOTE.unreadable);
   const obj = record(data);
   const entry = Array.isArray(data)
     ? data.find(ours)
@@ -144,9 +146,10 @@ export async function addCached(
   return { refused: why };
 }
 
-/** The torrent in the owner's account with this hash, and its files, from the list's first page. */
-export async function findOwned(r: Relay, key: string, hash: string) {
-  const q = new URLSearchParams({ offset: '0', limit: String(L.list_page) });
+/** The torrent in the owner's account with this hash, and its files, from the list's first `page`
+ * items (a press reads only the newest: `list_page_ahead`). */
+export async function findOwned(r: Relay, key: string, hash: string, page: number) {
+  const q = new URLSearchParams({ offset: '0', limit: String(page) });
   const { body } = must(await call(r, `/torrents/mylist?${q}`, { key }));
   const list = Array.isArray(body.data) ? body.data : [];
   const t = list.map(record).find((e) => String(e.hash).toLowerCase() === hash && Number.isSafeInteger(e.id));
@@ -161,10 +164,12 @@ export async function torrentFiles(r: Relay, key: string, id: number): Promise<T
   return filesOf(one?.files);
 }
 
-/** The address requestdl answers with `redirect=false`: a public https address, or trouble. */
-function linkOf(a: Answer): string {
+/** The address requestdl answers with `redirect=false`: a public https address that may be handed
+ * to the phone (no key in it, not TorBox's API itself), or trouble. */
+function linkOf(r: Relay, a: Answer): string {
   const url = must(a).body.data;
   if (typeof url !== 'string' || !publicHttps(url)) throw new TorboxTrouble(NOTE.noLink);
+  if (!handable(r, url)) throw new TorboxTrouble(NOTE.notHanded);
   return url;
 }
 
@@ -178,7 +183,7 @@ export async function fileLink(r: Relay, key: string, torrent: number, file: num
     redirect: 'false',
   });
   if (r.userIp) q.set('user_ip', r.userIp);
-  return linkOf(await call(r, `/torrents/requestdl?${q}`));
+  return linkOf(r, await call(r, `/torrents/requestdl?${q}`));
 }
 
 /** A TorBox permanent link (…/requestdl?token=…&redirect=true) met on an add-on's forward. */
@@ -192,7 +197,7 @@ export async function permanentLink(r: Relay, url: string, until: number): Promi
   const u = new URL(url);
   u.searchParams.set('redirect', 'false');
   if (r.userIp) u.searchParams.set('user_ip', r.userIp);
-  return linkOf(await call(r, u.href, { until }));
+  return linkOf(r, await call(r, u.href, { until }));
 }
 
 /** GET /v1/astra/torbox: whether TorBox takes the key, and the plan number it gives. */
