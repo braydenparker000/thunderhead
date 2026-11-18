@@ -7,7 +7,7 @@
 // was waiting on. Read-ahead nobody waits for is reopened quietly or left. An address that has died is
 // renewed first, where the page gave a way to (source-renew.js).
 
-import {BLOCK, keepPart, takePart, present} from './source-blocks.js';
+import {BLOCK, keepPart, takePart, present, missing, assemble} from './source-blocks.js';
 import {renewed, dead} from './source-renew.js';
 
 export {BLOCK};
@@ -133,17 +133,19 @@ export async function runStream(source, stream, response) {
     while (index < source.blockCount()) {
       // What comes next is already here (another download fetched it): nothing to add.
       if (rec.filled === rec.from && source.blocks.has(index)) { stream.abort(); return; }
+      let value = null; // the next piece: the answer's, or bytes here already
       if (stream.at >= stream.end) {
         // All that was asked for came: the next part is asked for once the reader wants half a reach more.
         pause(stream, true);
         while (limit() - stream.at < Math.min(source.reach() / 2, source.size - stream.at) && !(stream.held && limit() > stream.at) && !signal.aborted) await new Promise(r => { stream.wake = r; });
         pause(stream, false);
         if (signal.aborted) return;
-        // Bytes here already (the film's end, asked for beside its start; what another download brought) are not
-        // asked for again: the next part stops where they begin, and a download that would bring none of its own ends.
+        // Bytes here already (the film's end, asked for beside its start; a range remembered; what another download
+        // brought) are not asked for again: the next part stops where they begin, and they are copied in from where
+        // they lie, so the block is still made whole (the subtitle scanners look at whole blocks only).
         const to = present(source, stream.at, limit());
-        if (to <= stream.at) { stream.abort(); return; }
-        await open(await request(source, stream, stream.at, to));
+        if (to > stream.at) await open(await request(source, stream, stream.at, to));
+        else { value = assemble(source, stream.at, Math.min(missing(source, stream.at, limit()), (index + 1) * BLOCK)); stream.end = stream.at + value.length; }
       } else if (stream.at - stream.want > source.reach()) {
         // Far ahead of every reader on an open-ended answer: asked again in parts where the host allows it, else paused.
         if (source.bounded !== false) { reader.cancel().catch(() => {}); stream.end = stream.at; continue; }
@@ -152,16 +154,19 @@ export async function runStream(source, stream, response) {
         pause(stream, false);
         if (signal.aborted) return;
       }
-      // A connection that goes quiet (no error, no bytes) would hang reads forever.
-      let stall;
-      const {done, value} = await Promise.race([reader.read(), new Promise((_, reject) => { stall = setTimeout(() => reject(new SourceError('stall', 'The host stopped sending.')), TIMING.stall); })])
-        .catch(error => { reader.cancel().catch(() => {}); throw error; })
-        .finally(() => clearTimeout(stall));
-      if (done && stream.at >= stream.end) continue;
-      // The answer ended before the part asked for did.
-      if (done) throw new SourceError('network', 'The host ended its answer early.');
-      source.bytesFetched += value.length; stream.received += value.length; stream.lastAt = Date.now();
-      if (stream.received >= PIECE && (source.failures || source.failingSince)) source.calm(); // the host is sending again
+      if (!value) {
+        // A connection that goes quiet (no error, no bytes) would hang reads forever.
+        let stall;
+        const piece = await Promise.race([reader.read(), new Promise((_, reject) => { stall = setTimeout(() => reject(new SourceError('stall', 'The host stopped sending.')), TIMING.stall); })])
+          .catch(error => { reader.cancel().catch(() => {}); throw error; })
+          .finally(() => clearTimeout(stall));
+        if (piece.done && stream.at >= stream.end) continue;
+        // The answer ended before the part asked for did.
+        if (piece.done) throw new SourceError('network', 'The host ended its answer early.');
+        value = piece.value;
+        source.bytesFetched += value.length; stream.received += value.length; stream.lastAt = Date.now();
+        if (stream.received >= PIECE && (source.failures || source.failingSince)) source.calm(); // the host is sending again
+      }
       let ended = false;
       for (let offset = 0; offset < value.length;) {
         const n = Math.min(rec.bytes.length - rec.filled, value.length - offset);

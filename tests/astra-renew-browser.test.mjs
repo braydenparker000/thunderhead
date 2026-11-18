@@ -85,14 +85,18 @@ test('never more than three requests to the film at once: a start, a far seek, a
     return got;
   });
   assert.ok(pictures >= 1, 'the drag fetched and showed key frames');
-  // A network change: the running download goes silent, then the phone says it is online again.
-  const before = host.stats.requests;
+  // A network change: a download running goes silent, then the phone says it is online again. By now the film's end
+  // may all be here (its tail is not fetched twice), so playback moves back to a place nothing has read yet (between
+  // the start's reach and the far seek): its download is the one that goes silent.
   host.control.bps = 1;
+  await p.page.evaluate(() => { window.p.video.currentTime = 20; });
   await new Promise((r) => setTimeout(r, 900));
   host.control.bps = 1_500_000;
+  const before = host.stats.requests, online = Date.now();
   await p.page.evaluate(() => dispatchEvent(new Event('online')));
-  await p.at((await p.seen()).t + 2);
+  await p.at(22, 8_000); // well before a silent answer counts as stalled (20 s)
   assert.ok(host.stats.requests > before, 'the silent download was asked again');
+  t.diagnostic(`playing on ${Date.now() - online} ms after the network came back`);
   assert.ok(host.stats.peak <= 3, `at most three requests open at once on the host (${host.stats.peak})`);
   assert.ok(await p.page.evaluate(() => window.p.probed.source.gate.peak) <= 3);
   assert.deepEqual([(await p.seen()).errors, p.errors], [[], []]);

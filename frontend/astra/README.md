@@ -674,7 +674,7 @@ picture of things (one line below).
 
 | Heavy film, other links | before | after |
 |---|---|---|
-| Fast: first, resume, far forward | 0.76, 0.74, 1.26 s | 0.80, 0.88, 1.23 s |
+| Fast (the same within the machine's noise): first, resume, far forward | 0.76, 0.74, 1.26 s | 0.80, 0.88, 1.23 s |
 | Fast: memory peak; JS heap; browser's buffer ahead | 653 MB; 231 MB; 39 s | 494 MB; 144 MB; 14 s |
 | Fast: downloaded in the first minute, for 203 MB of film played | 355 MB | 267 MB |
 | 40 Mbit/s, thread slowed: first, resume, far | 3.4, 3.1, 5.1 s | 2.1, 2.0, 3.1 s |
@@ -682,7 +682,25 @@ picture of things (one line below).
 | 8 Mbit/s: first, resume, far, last minute | 6.2, 11.1, 18.8, 11.2 s | 6.2, 5.9, 10.2, 6.0 s |
 | 8 Mbit/s: 60 s of play (17 s of film): stalls, time stalled | 8, 44 s | 8, 44 s |
 
-LONG_TABLE
+| Long film (2 h, 300 kbit/s), slowed | before | after |
+|---|---|---|
+| First picture from 0:00 | 1.40 s | 1.12 s |
+| Requests to the film's end before it (the 64 KiB tail, the 106 kB index from its first byte, the tail again in part) | 3 | 2 |
+| Resuming at 1:30:00; opened again (remembered) | 1.20 s; 0.63 s | 1.08 s; 0.49 s |
+| Far forward (to 1:00:00), far back (to 0:10:00), last minute (1:59:30) | 0.74, 0.59, 0.56 s | 0.66, 0.62, 0.52 s |
+| Five seconds on, inside the buffer | 0.03 s | 0.03 s |
+| 60 s of play: stalls; memory peak | 0; 135 MB | 0; 151 MB |
+| Fast: first, resume, remembered | 0.56, 0.66, 0.26 s | 0.44, 0.37, 0.18 s |
+
+A seek or a resume on the long film costs two bounded requests of 2 MiB
+(the picture from its cue's block, the sound from the start of that
+cluster) and about 1.5 MB before its picture; the cue lookup itself is
+nothing (3,600 points, searched in memory). A small film is no worse:
+
+| Small film (1 min, 720p at 3 Mbit/s; 1.5 MB/s a connection, 40 ms a request; 5 runs) | before | after |
+|---|---|---|
+| First picture; resuming at 0:30; opened again | 329, 673, 606 ms | 334, 633, 571 ms |
+| Far seek; memory peak | 71 ms; 146 MB | 73 ms; 137 MB |
 
 What fell over, and what changed (each with a test that would catch its
 loss):
@@ -712,8 +730,8 @@ loss):
   picture was copied twice while its cluster was read and each fragment
   once more to join its two boxes, 3 MB a second each on the heavy film:
   a block is now a view of the reader's own bytes and the boxes are
-  appended one after the other. With the smaller buffers, this is what
-  took the long tasks from 19 to 1 a minute.
+  appended one after the other. Together with the smaller buffers, the
+  long tasks went from 19 a minute to 1.
 - **An index larger than the tail was fetched twice in part**
   (`source-stream.js`, `source-blocks.js` `present()`;
   `tests/astra-bytes.test.mjs`). The download reading the long film's cue
@@ -721,20 +739,23 @@ loss):
   here begin.
 
 What is left: on a link slower than the film (8 and 20 Mbit/s against
-27.8) it stalls, as anything must: Chrome resumes as soon as a little is
-buffered, so it stalls often and briefly (8 or 9 times a minute) rather
-than once for longer, with the waiting state shown after 400 ms each time;
-nothing restarts or seeks meanwhile. A seek five seconds on is then not
-inside the buffer and waits for the download to reach it. On the fast
-link the page still peaks near 500 MB: the reader runs at the machine's
-own speed and Chrome's own decoding of 1080p is part of it (Chrome
-playing the same picture from a plain MP4 by itself, with no Astra:
-NATIVE_PSS). A seek five seconds on inside the buffer takes 0.5 to
-0.9 s on the fast machine, where Chrome playing the plain MP4 itself takes
-0.16 s: not explained yet. The machine's own Chromium counts nearly every
-frame as dropped while `requestVideoFrameCallback` is asked for again and
-again (the browser playing a file by itself too), so the script watches
-frames only while it waits for a picture. Not measured: the phone itself,
+27.8) it stalls, as anything must: 8 or 9 times a minute, about 2 s each
+at 20 Mbit/s and 5.5 s at 8, the element reporting `waiting` each time
+(the player shows its spinner after 400 ms of it; not looked at on screen
+here); nothing restarts or seeks meanwhile. A seek five seconds on is then
+not inside the buffer and waits for the download to reach it. The page is
+under 250 MB only while the link is slower than the film: at 40 Mbit/s it
+peaks at 380 MB, of which about 120 MB is garbage the collector had not
+taken yet (260 MB with a collection forced before each look), and on the
+fast link near 500 MB. For scale, Chrome playing the same picture from a
+plain MP4 by itself, with no Astra, peaks at 175 MB (the lab page alone:
+50 MB). On the fast machine a seek five seconds on, inside the buffer,
+takes 0.35 to 0.9 s where Chrome playing that MP4 itself takes 0.16 s: not
+explained yet, and the same before (four more runs of each, taken in turn:
+0.42 s before, 0.35 s after). This Chromium counts nearly every frame as
+dropped while `requestVideoFrameCallback` is asked for again and again
+(the browser playing a file by itself too), so the script watches frames
+only while it waits for a picture. Not measured: the phone itself,
 Chrome's video buffer limits on Android, HEVC and 4K films, a real debrid
 host, changing the sound track on the heavy film, a film with its index at
 the front.
@@ -1118,9 +1139,11 @@ skip in a browser without it.
 | `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
 | `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
 | `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment, and a report with no address, hash, key or file name; the scrubber itself. |
-| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, and waiting for a download by time rather than bytes. |
+| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
+| `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
+| `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
-| `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
+| `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
 | `astra-early.test.mjs` | Half-second fragments. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
 | `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on. |

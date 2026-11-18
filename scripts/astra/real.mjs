@@ -13,6 +13,7 @@
 // requests open at the time (one link), --conn paces each connection alone (bytes/s); --delay ms a request.
 // Options: --runs 3 --cpu 1 --mbit 0 --conn 0 --delay 0 --audio default|aac --resume 120 --play 60
 //          --far 120 --back 15 --last 165 --skip resume,warm,seeks --out results.json --before '<js run in the page first>'
+//          --gc (a garbage collection forced before each look at memory: what is still held)
 // Needs Playwright's Chromium (CHROMIUM_PATH, default /opt/pw-browsers/chromium) and ffprobe for --audio aac.
 // Films stay where they are: nothing of them is written here.
 import { chromium } from 'playwright';
@@ -89,7 +90,7 @@ function sample() {
     clusters: [...(p.session?.packets?.clusters?.values() || [])].reduce((n, c) => n + [...c.frames.values()].flat().reduce((m, f) => m + f.packet.data.byteLength, 0), 0) };
 }
 
-async function setup(browser, base, hooks) {
+async function setup(browser, base) {
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 } });
   const page = await ctx.newPage();
   const errors = [];
@@ -112,7 +113,6 @@ async function setup(browser, base, hooks) {
     p.addEventListener('error', (e) => { M.error = String(e.detail?.message) + ' ' + String(e.detail?.detail || '').slice(0, 200); });
   });
   if (O.before) await page.evaluate(O.before); // an experiment: e.g. "import('/astra/src/engine/remux.js').then(m => { m.TUNING.ownMkv = false; })"
-  hooks.cdp = cdp;
   return { ctx, page, errors, cdp };
 }
 
@@ -164,7 +164,7 @@ async function memory(cdp, root) {
 }
 
 async function playRun(browser, base, host, url, audioId, root) {
-  const hooks = {}, { ctx, page, errors, cdp } = await setup(browser, base, hooks);
+  const { ctx, page, errors, cdp } = await setup(browser, base);
   host.reset(); pacing(host);
   const out = { start: await open(page, url, 0, audioId) };
   out.startRequests = out.start.requests?.length; out.startHost = { requests: host.stats.requests, bytes: host.stats.bytes };
@@ -210,7 +210,7 @@ async function playRun(browser, base, host, url, audioId, root) {
 }
 
 async function resumeRun(browser, base, host, url, audioId) {
-  const hooks = {}, { ctx, page } = await setup(browser, base, hooks);
+  const { ctx, page } = await setup(browser, base);
   host.reset(); pacing(host);
   const r = await open(page, url, O.resume, audioId);
   await sleep(8000);

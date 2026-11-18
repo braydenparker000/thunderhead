@@ -120,6 +120,24 @@ test('an index larger than the tail: the download that reads it stops where the 
   const late = h.calls.filter((c) => c.from >= cues);
   assert.deepEqual(late.map((c) => c.from), [SIZE - TAIL, cues], 'the tail, and the index from its own byte: nothing more');
   assert.ok(late[1].to - cues < 2 * TAIL, 'which asked for little more than the margin past its header');
+  // The tail's bytes were copied into the download's block instead: it is whole from the index to the end of the file
+  // (the subtitle scanners look at whole blocks only; a remembered range inside a block is copied in the same way).
+  const last = Math.floor((SIZE - 1) / BLOCK);
+  assert.equal(source.partials.get(last)?.filled, source.blockLength(last));
+  source.close();
+});
+
+test('bytes here already inside a block (a range remembered, the tail) are copied in, not fetched again, and the block is whole', async () => {
+  const { source, calls } = await open({ pace: 1 });
+  source.learn(SIZE / (BLOCK / 8)); // a reach of 2 MiB: the download asks in parts
+  const from = 5 * BLOCK + 300_000, to = 5 * BLOCK + 400_000;
+  source.kept = [{ index: 5, bytes: Uint8Array.from({ length: to - from }, (_, i) => byteAt(from + i)), skew: 300_000, from: 300_000, filled: 400_000 }];
+  await source.read(0, 16);
+  await settle(source); // the first answer, read open-ended, is left at the reach: from here on it asks in parts
+  for (let at = 0; at < 6 * BLOCK; at += BLOCK / 2) assert.ok(same(await source.read(at, at + 16), at));
+  await until(() => source.blocks.has(5), { message: 'block 5 whole in the cache' });
+  assert.ok(same(source.blocks.get(5), 5 * BLOCK), 'with the right bytes');
+  assert.deepEqual(calls.filter((c) => c.from > 0 && c.from < to && c.to > from).map((c) => [c.from, c.to]), [], 'none asked for the bytes here');
   source.close();
 });
 
