@@ -62,7 +62,7 @@ export class AstraPlayer extends EventTarget {
       this.fail(MEDIA_ERRORS[e.code] || 'Playback failed.', e.message, {decode: e.code === 3 || e.code === 4, network: e.code === 2});
     };
     video.addEventListener('error', this.onVideoError);
-    this.onFirstFrame = () => { this.started = true; };
+    this.onFirstFrame = () => { if (!this.started) this.mark('picture'); this.started = true; };
     video.addEventListener('loadeddata', this.onFirstFrame);
     // Whether the film was running, kept apart from `paused`, which an error also sets.
     this.onRun = e => { if (e.type === 'playing') this.playing = true; else if (!video.error) this.playing = false; };
@@ -174,11 +174,11 @@ export class AstraPlayer extends EventTarget {
     this.reset(); // ends the load before this one: its awaits find a newer load and stop
     const id = this.load_;
     this.routeRetry(url); // "Try again" on a film whose remembered route failed
-    Object.assign(this, {url, renew: playerRenew(this, renew), headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false});
+    Object.assign(this, {url, renew: playerRenew(this, renew), headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false, loadAt: performance.now()});
     const languages = prefs.languages || preferredLanguages();
     const controller = this.abort = new AbortController(), signal = controller.signal;
     try {
-      const probed = await probe(url, {headers, signal, renew: this.renew, onStatus: t => this.status(t), onSource: s => { if (id === this.load_) { this.source = s; this.applyDataSaver(); } }});
+      const probed = await probe(url, {headers, signal, renew: this.renew, onStatus: t => this.status(t), onStep: (step, d) => id === this.load_ && this.mark(step, d), onSource: s => { if (id === this.load_) { this.source = s; this.applyDataSaver(); } }});
       if (id !== this.load_) { probed.source?.close(); probed.input?.dispose(); return; }
       this.probed = probed;
       // The connection to the host lost and found again while playing (the reader keeps trying meanwhile).
@@ -191,7 +191,7 @@ export class AstraPlayer extends EventTarget {
       this.readable = probed.readable && !probed.adaptive;
       this.plan = planPlayback(probed, caps, {...prefs, languages, requiresHeaders: Object.keys(headers).length > 0});
       this.mode = this.plan.mode;
-      this.record('plan', {mode: this.mode, notes: this.plan.notes, reason: this.plan.reason});
+      this.record('plan', {mode: this.mode, notes: this.plan.notes, reason: this.plan.reason}); this.mark('plan');
       if (this.mode === 'unsupported') { probed.source?.close(); probed.input?.dispose(); this.fail(this.plan.reason); return this.plan; }
       if (this.mode !== 'remux' && this.mode !== 'software') { probed.source?.close(); probed.input?.dispose(); }
       this.status(this.mode === 'remux' ? 'Preparing playback…' : 'Starting…');

@@ -30,6 +30,7 @@ export const startMethods = {
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     session.addEventListener('stall', e => this.record('stall', e.detail));
+    session.addEventListener('fragment', () => this.mark('fragment'), {once: true});
     session.addEventListener('converter', e => this.converterLate(session, e.detail));
     session.addEventListener('rebuffer', e => { if (!e.detail.holding || e.detail.first) this.record('rebuffer', e.detail); this.emit('rebuffer', e.detail); }); // a stall held for a slow link (rebuffer.js)
     session.addEventListener('audioended', () => {

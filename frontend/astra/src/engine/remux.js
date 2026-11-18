@@ -105,7 +105,7 @@ export class RemuxSession extends EventTarget {
     this.offset = first > 0.05 ? first : 0;
     if (this.info.duration > 0) this.ms.duration = Math.max(0.1, this.info.duration - this.offset);
     const fatal = error => this.fail(error);
-    if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal, this.source);
+    if (this.videoTrack) (this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal, this.source)).onFirst = () => this.emit('fragment');
     if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audioMime = soundMime(this, this.audio)), this.video, fatal, this.source);
     if (this.queues.video) this.queues.video.buffer.timestampOffset = -this.offset;
     if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -soundShift(this);

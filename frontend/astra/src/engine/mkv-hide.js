@@ -1,12 +1,13 @@
-// What Mediabunny is not shown of a Matroska file (probe.js hands it the file through this). Its reader walks the
-// top-level elements before the first cluster and reads the Attachments and Tags elements whole, for attached files
-// and the film's tags, which Astra takes from neither: the fonts of a styled subtitle track are read when such a
-// track is shown (mkv-attachments.js). A film with an 8 MB font attached started 12.2 s after one without on a
-// 5.4 Mbit/s link, having read 7.8 MB more (scripts/astra/real.mjs, 2026-11-18). Here, in the bytes Mediabunny is
-// handed, those two elements' headers are written as Void elements of the same length, which it skips by their size,
-// so the next header is asked for past them (a request of its own). The file's bytes in the reader's cache, and what
-// every other reader gets, are left as they are. Elements after the first cluster are never read by Mediabunny's
-// description and are left alone.
+// What Mediabunny and libmedia are not shown of a Matroska file (probe.js and software-loader.js hand it to them
+// through this). Mediabunny walks the top-level elements before the first cluster and reads the Attachments and Tags
+// elements whole, for attached files and the film's tags, which Astra takes from neither: the fonts of a styled
+// subtitle track are read when such a track is shown (mkv-attachments.js). A film with an 8 MB font attached started
+// 12.2 s after one without on a 5.4 Mbit/s link, having read 7.8 MB more (scripts/astra/real.mjs, 2026-11-18). Here, in
+// the bytes handed over, those two elements' headers are written as Void elements of the same length, which Mediabunny
+// skips by their size, so the next header is asked for past them (a request of its own). libmedia steps over a Void by
+// reading through it, so for it (`fill`) the body of each, and of each Void, is zeros, never fetched. The file's bytes
+// in the reader's cache, and what every other reader gets, are left as they are. Elements after the first cluster are
+// left alone.
 
 import {MKV_ID as ID, header} from './mkv.js';
 
@@ -32,12 +33,12 @@ export function voidHeader(length, size) {
 /**
  * Wraps `read(start, end)` (bytes [start, end) of the file, `size` bytes long) so that the Attachments and Tags
  * elements before the first cluster read as Void; `onHide(from, to)` is told the body of each, and of each Void, that
- * is passed over. The top-level headers are walked as far as each read reaches, a header at a time, so nothing is
- * asked for that Mediabunny would not ask for itself. A file that is not Matroska, or one the walk cannot follow, is
- * passed through untouched.
+ * is passed over, and with `fill` those bodies are zeros, not read. The top-level headers are walked as far as each read reaches, a header at a time, so nothing is
+ * asked for that Mediabunny would not ask for itself; `cluster` is where the first cluster lies once it is reached. A
+ * file that is not Matroska, or one the walk cannot follow, is passed through untouched.
  */
-export function hideElements(read, size, onHide = () => {}) {
-  const marks = []; // {at, bytes}: the header bytes rewritten
+export function hideElements(read, size, {onHide = () => {}, fill = false} = {}) {
+  const marks = [], bodies = []; // {at, bytes}: the header bytes rewritten; [from, to): the bodies passed over
   let next = null, done = false, walking = Promise.resolve();
   const headAt = async pos => header(await read(pos, Math.min(size, pos + 16)), 0);
   const walk = async end => {
@@ -51,16 +52,26 @@ export function hideElements(read, size, onHide = () => {}) {
     // A damaged file can hold endless tiny elements: the walk stops after a fair number.
     for (let guard = 0; !done && next < Math.min(end, size) && guard < 4096; guard++) {
       const h = await headAt(next);
+      if (h?.id === ID.Cluster) view.cluster = [next, h.size == null ? Infinity : next + h.dataStart + h.size];
       if (!h || h.size == null || h.id === ID.Cluster) { done = true; return; }
       const from = next + h.dataStart, to = from + h.size;
       if (HIDDEN.has(h.id)) marks.push({at: next, bytes: voidHeader(h.dataStart, h.size)});
-      if (HIDDEN.has(h.id) || h.id === VOID) onHide(from, to); // a Void is passed over by its size as it is
+      if (HIDDEN.has(h.id) || h.id === VOID) { bodies.push([from, to]); onHide(from, to); } // a Void is passed over by its size as it is
       next = to;
     }
   };
-  return async (start, end) => {
+  // With `fill`, a read that begins or ends inside a body passed over asks only for the part outside it.
+  const around = async (start, end) => {
+    const b = bodies.find(([from, to]) => start < to && end > from);
+    if (!b || (b[0] > start && b[1] < end)) return read(start, end);
+    const out = new Uint8Array(end - start);
+    if (start < b[0]) out.set(await read(start, b[0]), 0);
+    if (end > b[1]) out.set(await read(b[1], end), b[1] - start);
+    return out;
+  };
+  const view = async (start, end) => {
     if (!done) walking = walking.then(() => walk(end)).catch(() => { done = true; });
-    const [bytes] = await Promise.all([read(start, end), walking]);
+    const bytes = fill ? (await walking, await around(start, end)) : (await Promise.all([read(start, end), walking]))[0];
     let out = bytes;
     for (const {at, bytes: v} of marks) {
       const from = Math.max(start, at), to = Math.min(end, at + v.length);
@@ -70,4 +81,6 @@ export function hideElements(read, size, onHide = () => {}) {
     }
     return out;
   };
+  view.cluster = null; // [start, end) of the first cluster, once the walk reaches it
+  return view;
 }

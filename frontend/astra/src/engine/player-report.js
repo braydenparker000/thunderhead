@@ -6,6 +6,15 @@ import {describeInfo} from './probe.js';
 import {deviceReport} from './capabilities.js';
 
 export const reportMethods = {
+  /**
+   * A step of the start, timed in the log for the report ('timing'): ms since load(), the bytes and requests so far
+   * ('open', 'index', 'track', 'plan', 'fragment', 'picture'). Numbers and fixed words only, never an address or a name.
+   */
+  mark(step, extra = {}) {
+    const s = this.probed?.source || this.source;
+    this.record('timing', {step, ms: Math.round(performance.now() - (this.loadAt ?? 0)), bytes: s?.bytesFetched ?? 0, requests: s?.requests ?? 0, ...extra});
+  },
+
   async report() {
     return {
       astra: 'playback-report/1', userAgent: navigator.userAgent, mode: this.mode,
