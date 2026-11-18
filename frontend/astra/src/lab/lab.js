@@ -13,6 +13,7 @@ import {describeInfo} from '../engine/probe.js';
 import {channelName} from '../engine/labels.js';
 import {languageName} from '../engine/languages.js';
 import {installedAddons, searchCatalogs, fetchMeta, fetchStreams} from '../addons/client.js';
+import {linkFacts} from '../addons/link-facts.js';
 import {torboxPanel} from './torbox-panel.js';
 import {scrubSecrets} from './scrub.js';
 
@@ -188,7 +189,7 @@ function openStreams(ctx) {
           h('button', {class: 'stream' + (playable ? '' : ' disabled'), disabled: !playable, onclick: () => openPlayer(ctx, collected, g.addon.url + '#' + i)},
             h('b', {}, (s.name || g.addon.name).replace(/\n/g, ' ')), h('span', {}, s.title + (playable ? '' : s.infoHash ? '\nTorrent: needs a debrid add-on' : '\nNot a direct link'))),
           playable ? h('button', {class: 'chip analyse', onclick: () => play({...s, title: ctx.title})}, 'Analyse') : null,
-          playable ? h('button', {class: 'chip analyse', onclick: () => torbox.pick(s.url)}, 'TorBox') : null);
+          playable ? h('button', {class: 'chip analyse', onclick: () => torbox.pick(s.url, linkFacts(s.url, s))}, 'TorBox') : null);
       }),
     ]));
   };

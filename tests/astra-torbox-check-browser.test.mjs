@@ -147,6 +147,7 @@ test('an address typed over a handed-over one runs at the first tap', opts, asyn
 
 test('the lab lists streams from the add-ons Astra keeps (not only classic Astra\'s), and a stream\'s TorBox button fills the check as the owner\'s own pick', opts, async (t) => {
   const ADDON = 'https://addon.example/cfg-invented';
+  const OPAQUE = `${ADDON}/playback/torbox/T-4821/Invented.Film.2024.1080p.mkv`;
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   t.after(() => context.close());
   // As Astra itself stores them (app/store.js): nothing under the classic key.
@@ -161,9 +162,13 @@ test('the lab lists streams from the add-ons Astra keeps (not only classic Astra
       catalogs: [{ type: 'movie', id: 'top', name: 'Films', extra: [{ name: 'search' }] }] });
     if (path.includes('/catalog/')) return json(route, { metas: [{ id: 'tt0000777', type: 'movie', name: 'An Invented Film' }] });
     if (path.includes('/meta/')) return json(route, { meta: { id: 'tt0000777', type: 'movie', name: 'An Invented Film' } });
-    if (path.includes('/stream/')) return json(route, { streams: [{ name: 'Invented 1080p', title: 'Invented.Film.2024.1080p.mkv', url: LINK, behaviorHints: { filename: 'Invented.Film.2024.1080p.mkv', videoSize: 939230 } }] });
+    // A link that names no torrent (a reference in the hash's place); the hash is printed in the description, as an AIOStreams formatter can.
+    if (path.includes('/stream/')) return json(route, { streams: [{ name: 'Invented 1080p', description: `Invented.Film.2024.1080p.mkv\n${HASH}`, url: OPAQUE, behaviorHints: { filename: 'Invented.Film.2024.1080p.mkv', videoSize: 939230 } }] });
     return route.fulfill({ status: 404, body: '' });
   });
+  const asked = [];
+  await page.route('**/astra/src/addons/worker-api.js', (route) => route.fulfill({ contentType: 'text/javascript', body: STUB }));
+  await page.exposeFunction('__api', (path, method, body) => { asked.push({ path, body }); return path === '/v1/astra/torbox' ? { json: { configured: true, ok: true, plan: 1 } } : { error: 'Stopped here by the test.' }; });
   await page.goto(`${base}/astra/lab/`);
   assert.match(await page.locator('#addon-hint').textContent(), /1 add-on/);
   await page.fill('#search', 'invented');
@@ -174,7 +179,11 @@ test('the lab lists streams from the add-ons Astra keeps (not only classic Astra
   const fits = await row.evaluate((el) => { const r = el.getBoundingClientRect(); return [...el.querySelectorAll('button')].every((b) => { const q = b.getBoundingClientRect(); return q.left >= r.left - 1 && q.right <= innerWidth && q.width > 30; }); });
   assert.ok(fits, 'the stream and its two buttons fit a phone\'s width');
   await row.getByRole('button', { name: 'TorBox', exact: true }).click();
-  assert.equal(await page.inputValue('#torbox-link'), LINK);
+  assert.equal(await page.inputValue('#torbox-link'), OPAQUE);
   assert.equal(await page.locator('#torbox-run').textContent(), 'TorBox check', 'picked by the owner: no second tap asked');
+  // The check asks the Worker what Astra itself would: the torrent from the stream's words, the file's name and size.
+  await page.click('#torbox-run');
+  await page.waitForFunction(() => document.querySelector('#torbox-run').textContent === 'TorBox check' && document.querySelector('.check-step[data-step="c"]')?.dataset.state === 'bad', null, { timeout: 20_000 });
+  assert.deepEqual(asked.find((a) => a.path === '/v1/astra/play').body, { link: OPAQUE, hash: HASH, fileName: 'Invented.Film.2024.1080p.mkv', fileSize: 939230, mode: 'play' });
   assert.deepEqual(errors, []);
 });

@@ -25,8 +25,8 @@ export async function checkTools() {
  * requests alone; `tools` is checkTools (tests hand their own). Returns {fill(address)} for a handed-over address.
  */
 export function torboxPanel({form, field, button, list, copy, hint, stop = () => {}, tools = checkTools}) {
-  let steps = null, link = '', running = null, handed = '', asked = false;
-  field.addEventListener('input', () => { handed = ''; asked = false; button.textContent = 'TorBox check'; }); // typed or pasted: the owner's own
+  let steps = null, link = '', running = null, handed = '', asked = false, picked = null; // picked: {address, facts} of a stream from the lab's list
+  field.addEventListener('input', () => { handed = ''; asked = false; picked = null; button.textContent = 'TorBox check'; }); // typed or pasted: the owner's own
   const render = all => {
     list.hidden = false;
     list.replaceChildren(...all.map(s => {
@@ -59,7 +59,7 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
       stop();
       render(STEPS.map(([id, title]) => ({id, title, state: 'skip', lines: []})));
       const t = await tools();
-      steps = await torboxCheck(link, {...t, signal: running.signal, onStep: (_s, all) => render(all)});
+      steps = await torboxCheck(link, {...t, facts: picked?.address === link ? picked.facts : null, signal: running.signal, onStep: (_s, all) => render(all)});
       render(steps);
       copy.hidden = false;
     } catch (error) {
@@ -76,8 +76,8 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
     catch { hint.textContent = 'Copy failed; long-press to select the report below.'; hint.append(Object.assign(document.createElement('pre'), {textContent: report})); }
   });
   return {
-    fill(address) { if (address) { field.value = address; handed = field.value.trim(); asked = false; } },
+    fill(address) { if (address) { field.value = address; handed = field.value.trim(); asked = false; picked = null; } },
     /** A stream the owner picked from the lab's own list: theirs like a typed one, so no second tap; brought into view. */
-    pick(address) { field.value = address; handed = ''; asked = false; button.textContent = 'TorBox check'; form.scrollIntoView?.({block: 'center'}); },
+    pick(address, facts = null) { field.value = address; handed = ''; asked = false; picked = {address: field.value.trim(), facts}; button.textContent = 'TorBox check'; form.scrollIntoView?.({block: 'center'}); },
   };
 }
