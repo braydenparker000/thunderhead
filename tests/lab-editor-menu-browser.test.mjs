@@ -81,7 +81,7 @@ test('the panel slides: up or down a section, round, sideways the panel’s own,
   // and down on the row under it: a short swipe there is enough.
   const pts = () => page.evaluate(async () => JSON.stringify((await import('/lab/editor/app/session.js')).curve()));
   const was = await pts(), key = await page.locator('#stage [aria-label="Lift the point"]').boundingBox();
-  await swipe(line(key.x + key.width / 2, key.y + 10, key.y + 100));
+  await swipe(line(key.x + key.width / 2, key.y + 10, key.y + 100, 4));   // (a real swipe's first move is quick: here past the 8 px that tell a swipe at once, as a busy software GPU sends the next only when the last is handled)
   assert.equal(await section(page), 'Light', 'a swipe that began on the key is the panel\'s');
   assert.equal(await pts(), was, 'and lifted nothing');
   await swipe(line(150, 885, 745)); assert.equal(await section(page), 'Curve');
