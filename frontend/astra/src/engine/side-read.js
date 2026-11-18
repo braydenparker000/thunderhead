@@ -2,15 +2,19 @@
 // side read (seek previews) and the first part of a block a download began inside of. Neither goes through
 // the streams, the cache's order or the read-ahead, so neither can end, starve or redirect a download that
 // playback reads from. They send the same headers, keep the same time limits, fail with the same kinds of
-// error, and count their bytes in what the film has cost.
+// error, and count their bytes in what the film has cost. They wait for a connection slot behind playback's
+// downloads, previews last (source-gate.js); one answered as a dead link is asked again once the address is
+// renewed (source-renew.js).
 
 import {BLOCK, TIMING, SourceError, parseContentRange, ask} from './source-stream.js';
+import {DEAD, renewed} from './source-renew.js';
 
 /**
  * Bytes [start, end) of the file in one request of their own. Rejects a SourceError ('closed', 'stall', 'gone', 'status',
- * 'range', 'network'). `into` (end - start long) receives them, and `onBytes(filled)` hears of each piece as it arrives.
+ * 'range', 'network', or 'busy': a preview whose connection playback took). `into` (end - start long) receives them, and
+ * `onBytes(filled)` hears of each piece as it arrives. `kind` is its place in the gate's queue: 'side' or 'preview'.
  */
-export async function sideRead(source, start, end, signal, {into = null, onBytes = null} = {}) {
+export async function sideRead(source, start, end, signal, {into = null, onBytes = null, kind = 'side', again = false} = {}) {
   if (source.closed) throw new SourceError('closed', 'The file was closed.');
   end = Math.min(end, source.size ?? end);
   if (!(end > start)) return new Uint8Array(0);
@@ -22,7 +26,7 @@ export async function sideRead(source, start, end, signal, {into = null, onBytes
   try {
     let response;
     try {
-      response = await ask(source, {Range: `bytes=${start}-${end - 1}`}, controller.signal, TIMING.stall, 'stall');
+      response = await ask(source, {Range: `bytes=${start}-${end - 1}`}, controller.signal, TIMING.stall, 'stall', 'GET', kind);
     } catch (error) {
       if (controller.signal.aborted) throw closed();
       throw error instanceof SourceError ? error : new SourceError('network', 'The connection to the host dropped.', String(error?.message || error));
@@ -30,8 +34,9 @@ export async function sideRead(source, start, end, signal, {into = null, onBytes
     const range = parseContentRange(response.headers.get('content-range'));
     if (response.status !== 206 || (range && range.start !== start)) {
       response.body?.cancel().catch(() => {});
-      const kind = response.status === 404 || response.status === 410 ? 'gone' : response.status === 200 ? 'range' : 'status';
-      throw new SourceError(kind, `The host answered ${response.status} to a range request.`, response.status);
+      if (DEAD.has(response.status) && !again && await renewed(source) && !controller.signal.aborted) return await sideRead(source, start, end, signal, {into, onBytes, kind, again: true});
+      const why = response.status === 404 || response.status === 410 ? 'gone' : response.status === 200 ? 'range' : 'status';
+      throw new SourceError(why, `The host answered ${response.status} to a range request.`, response.status);
     }
     const out = into || new Uint8Array(end - start), reader = response.body.getReader();
     let filled = 0;

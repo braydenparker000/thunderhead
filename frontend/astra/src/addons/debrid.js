@@ -1,135 +1,144 @@
-// TorBox links from add-ons, resolved to the file's direct address once, so
-// range reads do not bounce through a redirect each time. Only reads the
-// account's own list; never adds, removes or changes a torrent.
+// A stream's address, found by the owner's own server. A web page cannot read TorBox's API, nor an
+// add-on's forwarding link that passes through it (neither lets another site's page read it), but it
+// can read TorBox's file servers; so Astra asks its server (POST /v1/astra/play, addons/worker-api.js)
+// with the add-on's link and what the link says of the file (addons/link-facts.js), and the server,
+// which holds the TorBox key, answers with the film's direct address: from TorBox itself, or where the
+// add-on's link leads. Signed out, or when the server cannot help, the add-on's own link is played as
+// before, with one plain sentence saying why (Stream info shows it; player/address.js).
+//
+// mode 'play' (after the owner's tap) may let the server add an item TorBox already holds to the
+// owner's account; mode 'ahead' (a finger coming down, the next episode) never adds anything, so it
+// answers without an address when the item is not in the account yet, and the tap then asks with 'play'.
+//
+// Answers are kept in memory only (never stored, gone with the page), per link, for 45 minutes (a
+// TorBox link lives 3 hours); one under way is shared. An answer without an address is not kept, except
+// a press's (mode 'ahead'), for a minute, so pressing the same card again asks nothing.
+//
+// A film TorBox does not hold yet is not played at all (via 'none'): opening the add-on's own link is how
+// an add-on starts a download there, and Astra never starts one (owner ruling 2026-11-18).
+// Signed out, every kept answer is forgotten; app.js forgets them when the add-ons change.
 
-const API = 'https://api.torbox.app/v1/api/';
-/** TorBox's origin, for a connection opened ahead of need (app/ready.js). */
-export const TORBOX_ORIGIN = new URL(API).origin;
-const isInt = v => /^\d+$/.test(String(v)) && Number.isSafeInteger(Number(v));
-const fileName = v => String(v || '').split(/[\\/]/).pop();
+import {api, session, plainSentence, WorkerError, NOT_SIGNED_IN} from './worker-api.js';
+import {linkFacts} from './link-facts.js';
 
-/** Recognises a TorBox download link or a Torrentio TorBox resolve link. */
-export function identifyTorbox(value) {
-  let u;
-  try { u = new URL(value); } catch { return null; }
-  if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
-  if (u.hostname === 'api.torbox.app' && /^\/v1\/api\/(torrents|usenet|webdl)\/requestdl$/.test(u.pathname)) {
-    if (!u.searchParams.get('token') || u.searchParams.get('zip_link') === 'true') return null;
-    const type = u.pathname.split('/')[3], idKey = {torrents: 'torrent_id', usenet: 'usenet_id', webdl: 'web_id'}[type];
-    if (!isInt(u.searchParams.get(idKey)) || !isInt(u.searchParams.get('file_id') || 0)) return null;
-    return {direct: u.href};
-  }
-  if (u.hostname !== 'torrentio.strem.fun') return null;
-  const p = u.pathname.split('/');
-  if (p[1] !== 'resolve' || p[2] !== 'torbox' || !p[3] || !/^[a-f0-9]{40}$/i.test(p[4] || '') || !p[5]) return null;
-  try { return {token: decodeURIComponent(p[3]), hash: p[4].toLowerCase(), filename: fileName(decodeURIComponent(p[5]))}; } catch { return null; }
-}
+export const KEEP = 45 * 60e3;
+/** How long a press that got no address is remembered. */
+export const MISS = 60e3;
+/** How long each mode waits for the server before playing the add-on's own link. */
+export const WAIT = {play: 30e3, ahead: 6e3};
 
-// The account's torrent list, kept in memory only (never written anywhere, gone with the page) for ten minutes
-// per token, so a second pick does not page through the whole list again. Keyed by the token itself, in memory.
-const LIST_TTL = 10 * 60e3;
-const lists = new Map(); // token -> {at, items}
-
-function keptList(token, now = Date.now()) {
-  const kept = lists.get(token);
-  if (kept && now - kept.at < LIST_TTL) return kept.items;
-  lists.delete(token);
-  return null;
-}
-
-/** Pages through the account's list (up to five requests of 100) until `found` finds it there; null when TorBox answers oddly. */
-async function accountList(json, token, found) {
-  const all = [];
-  for (let offset = 0; offset < 500; offset += 100) {
-    const items = await json(`${API}torrents/mylist?limit=100&offset=${offset}`, {Authorization: 'Bearer ' + token});
-    if (!Array.isArray(items)) return null;
-    all.push(...items);
-    if (items.length < 100 || found(items)) break;
-  }
-  lists.set(token, {at: Date.now(), items: all});
-  return all;
-}
-
-/** Forgets every kept list and answer (tests; a page that goes away forgets them anyway). */
-export function forgetLists() { lists.clear(); reading.clear(); answers.clear(); }
-
-// A list read now (warmList, ahead of a tap) that a tap meanwhile waits for rather than asking again: token -> promise.
-const reading = new Map();
-// Each link's answer, the file's direct address, kept in memory with the list's ten minutes: a press on a card
-// starts it (app/ready.js) and the tap that follows takes it, under way or done. link -> {at, promise}
-const answers = new Map();
-
-/** A TorBox JSON reader: the request as every TorBox ask here makes it, its `data` on success, else it throws. */
-const reader = (fetchFn, signal) => async (target, headers = {}) => {
-  const r = await fetchFn(target, {signal, headers, credentials: 'omit', mode: 'cors', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer'});
-  if (!r.ok) throw Error('TorBox lookup failed');
-  const body = await r.json();
-  if (body.success !== true) throw Error('TorBox lookup unavailable');
-  return body.data;
+// What the owner is told when the add-on's own link is used (never an address, a hash or a name).
+export const SAID = {
+  signedOut: NOT_SIGNED_IN,
+  timeout: 'Your server took too long to answer.',
+  unreachable: 'Your server could not be reached.',
+  noAddress: 'Your server found no direct address for this stream.',
 };
 
-/**
- * Reads the account's list for a Torrentio TorBox link into the ten-minute memory, ahead of a tap (the Streams
- * screen, app/ready.js), so the tap needs one request. Once a token, whatever links share it; nothing for
- * other links. Resolves true when a list was asked for. Never rejects.
- */
-export async function warmList(url, {fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
-  const source = identifyTorbox(url);
-  if (!source?.token || /[\r\n]/.test(source.token) || keptList(source.token) || reading.has(source.token)) return false;
-  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
-  const read = accountList(reader(fetchFn, controller.signal), source.token, () => false).catch(() => null)
-    .finally(() => { clearTimeout(timer); reading.delete(source.token); });
-  reading.set(source.token, read);
-  await read;
-  return true;
-}
+const STEPS = new Set(['key', 'cached', 'owned', 'add', 'file', 'link', 'follow']);
+const kept = new Map(); // link -> {at, mode, promise}
 
 /**
- * Resolves to the direct file address; returns the original link when it cannot. The answer is kept ten minutes
- * in memory (an answer still under way is shared): a press, then the tap, ask once. A failure is not kept.
+ * @typedef {{url: string | null, via: 'torbox' | 'follow' | 'addon' | 'none', size: number | null, type: string | null,
+ *   readable: boolean | null, steps: Array<{step: string, ok: boolean, ms: number, note?: string}>, reason: string | null}} Answer
  */
-export function resolveDebrid(url, options = {}) {
-  if (!identifyTorbox(url)) return Promise.resolve(url);
-  const kept = answers.get(url);
-  if (kept && Date.now() - kept.at < LIST_TTL) return kept.promise;
-  const entry = {at: Date.now()}, drop = () => { if (answers.get(url) === entry) answers.delete(url); };
-  entry.promise = lookup(url, options).then(final => { if (final === url) drop(); return final; }, error => { drop(); throw error; });
-  answers.set(url, entry);
+
+/** Forgets every kept answer (sign-out, the add-ons changed; tests). */
+export function forgetAnswers() { kept.clear(); }
+
+const httpsUrl = value => {
+  try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : null; } catch { return null; }
+};
+const count = v => (Number.isSafeInteger(v) && v > 0 ? v : null);
+
+/** The server's steps, as the contract has them; anything else is dropped. */
+function cleanSteps(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 20).filter(s => s && typeof s === 'object' && STEPS.has(s.step)).map(s => {
+    const note = plainSentence(s.note);
+    return {step: s.step, ok: s.ok === true, ms: Number.isFinite(s.ms) ? Math.max(0, Math.round(s.ms)) : 0, ...(note ? {note} : {})};
+  });
+}
+
+/** @returns {Answer} the add-on's own link, and why. */
+const addon = (stream, reason, steps = []) => ({url: stream?.url ?? null, via: 'addon', size: null, type: null, readable: null, steps, reason});
+
+/** @returns {Answer} */
+function fromAnswer(data, stream) {
+  const url = httpsUrl(data.url), steps = cleanSteps(data.steps);
+  if (!url) return addon(stream, SAID.noAddress, steps);
+  return {url, via: data.via === 'torbox' ? 'torbox' : 'follow', size: count(data.size), type: typeof data.type === 'string' ? data.type.slice(0, 100) : null,
+    readable: typeof data.readable === 'boolean' ? data.readable : null, steps, reason: null};
+}
+
+/** Asks the server, within the mode's wait. Never rejects. @returns {Promise<Answer>} */
+async function lookup(stream, mode, {fetchFn, read}) {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), WAIT[mode]);
+  const body = {link: stream.url, mode};
+  for (const [key, value] of Object.entries(linkFacts(stream.url, stream))) if (value !== null) body[key] = value;
+  try {
+    return fromAnswer(await api('/v1/astra/play', {method: 'POST', body, signal: controller.signal, fetchFn, read}), stream);
+  } catch (error) {
+    if (controller.signal.aborted) return addon(stream, SAID.timeout);
+    if (error instanceof WorkerError && error.code === 'signed-out') { kept.clear(); return addon(stream, SAID.signedOut); }
+    // Not on TorBox yet (the server's 503): no address at all, and the add-on's link is left alone.
+    if (error instanceof WorkerError && error.code === 'unavailable') return {url: null, via: 'none', size: null, type: null, readable: null, steps: cleanSteps(error.steps), reason: error.reason};
+    if (error instanceof WorkerError) return addon(stream, error.reason, cleanSteps(error.steps));
+    return addon(stream, SAID.unreachable);
+  } finally { clearTimeout(timer); }
+}
+
+/** Asks, and keeps the answer while it is under way and, when it has an address, 45 minutes after. */
+function ask(stream, mode, options) {
+  const link = stream.url, entry = {at: Date.now(), mode, promise: null};
+  entry.promise = lookup(stream, mode, options).then(answer => {
+    const found = answer.via === 'torbox' || answer.via === 'follow';
+    if (kept.get(link) === entry) { if (!found && mode === 'play') kept.delete(link); else { entry.at = Date.now(); entry.miss = !found; } }
+    return answer;
+  });
+  kept.set(link, entry);
   return entry.promise;
 }
 
-async function lookup(url, {signal, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
-  const source = identifyTorbox(url);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  signal?.addEventListener('abort', () => controller.abort(), {once: true});
-  const json = reader(fetchFn, controller.signal);
-  try {
-    let download = source.direct;
-    if (!download) {
-      if (/[\r\n]/.test(source.token)) return url;
-      const find = list => list?.find(i => String(i.hash || '').toLowerCase() === source.hash) || null;
-      const pick = list => {
-        const torrent = find(list), files = (torrent?.files || []).filter(f => fileName(f.short_name || f.name) === source.filename);
-        return torrent && isInt(torrent.id) && files.length === 1 && isInt(files[0].id) ? {torrent, file: files[0]} : null;
-      };
-      // The list asked earlier (ten minutes, this token) first; asked afresh once when the torrent (or its file) is not in it.
-      let found = pick(keptList(source.token) ?? await reading.get(source.token));
-      if (!found) {
-        const items = await accountList(json, source.token, find);
-        if (!items) return url;
-        found = pick(items);
-      }
-      if (!found) return url;
-      const {torrent, file} = found;
-      download = `${API}torrents/requestdl?` + new URLSearchParams({token: source.token, torrent_id: String(torrent.id), file_id: String(file.id)});
-    }
-    const target = new URL(download);
-    target.searchParams.set('redirect', 'false');
-    const final = new URL(String(await json(target.href)));
-    return final.protocol === 'https:' && !final.username && !final.password ? final.href : url;
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return url;
-  } finally { clearTimeout(timer); }
+/** A kept answer when it serves this mode, else a new ask. */
+function select(stream, mode, options) {
+  const link = stream.url, entry = kept.get(link);
+  if (entry && Date.now() - entry.at >= (entry.miss ? MISS : KEEP)) kept.delete(link);
+  const live = kept.get(link);
+  if (!live) return ask(stream, mode, options);
+  if (live.mode === 'play' || mode === 'ahead') return live.promise;
+  // A tap after a press: the press's answer when it has an address, else asked again to play.
+  if (live.miss) return ask(stream, 'play', options); // a press that found nothing: asked to play, and a second tap shares that ask
+  return live.promise.then(answer => (answer.via === 'torbox' || answer.via === 'follow' ? answer : select(stream, 'play', options)));
+}
+
+/** The caller's wait ends when its signal aborts; the ask itself goes on, and its answer is kept for the next. */
+function waitFor(promise, signal) {
+  if (!signal) return promise;
+  const stopped = () => signal.reason ?? new DOMException('Aborted', 'AbortError');
+  if (signal.aborted) return Promise.reject(stopped());
+  return new Promise((resolve, reject) => {
+    const stop = () => reject(stopped());
+    signal.addEventListener('abort', stop, {once: true});
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
+}
+
+/**
+ * The address to play for `stream` (Astra's stream: url, filename, size). Resolves an Answer and never
+ * rejects, unless `signal` aborts the wait. `fetchFn` and `read` (the session) are for tests.
+ * @param {{url: string | null, filename?: string, size?: number | null}} stream
+ * @param {{mode?: 'play' | 'ahead', signal?: AbortSignal, fetchFn?: typeof fetch, read?: typeof session}} [options]
+ * @returns {Promise<Answer>}
+ */
+export async function resolveStream(stream, {mode = 'play', signal, fetchFn, read = session} = {}) {
+  if (!httpsUrl(stream?.url)) return addon(stream, null); // a local player's or a plain link: nothing to ask
+  const signedIn = await waitFor(read(), signal);
+  if (!signedIn) { kept.clear(); return addon(stream, SAID.signedOut); }
+  return waitFor(select(stream, mode === 'ahead' ? 'ahead' : 'play', {fetchFn, read: async () => signedIn}), signal);
+}
+
+/** Asks afresh to play, whatever is kept (a link that stopped working mid-film). Never rejects. */
+export function renewStream(stream, options = {}) {
+  if (stream?.url) kept.delete(stream.url);
+  return resolveStream(stream, {...options, mode: 'play'});
 }

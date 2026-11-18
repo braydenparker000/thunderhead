@@ -1,36 +1,55 @@
 // From a tap to the first picture in the real Astra app (frontend/astra/src/app/ready.js, next-ready.js):
-// an invented add-on lists Torrentio-style TorBox links (answered here by route interception, as is
-// TorBox with an invented token, and the film host behind it is the test's own, tests/fixtures/astra-host.mjs).
-// With "Get ready ahead" on, the owner's list is read once when Streams shows, a press starts the resolve
-// and the tap takes it, the plain MP4 plays through Astra's own unpacking with sound and a data count, and
-// the next episode is made ready so Next needs no add-on or TorBox request; with the switch off or the data
-// saver on, nothing is asked before a tap; nothing ever plays without one. The switch persists in Settings.
-// Every DNS answer but the local host's is refused, so no request or connection can leave for a real host.
+// an invented add-on lists Torrentio-style links (answered here by route interception), the page is signed in
+// as the site keeps it, and a stand-in for the owner's server on another port answers POST /v1/astra/play with
+// addresses on https://cdn.example, whose films the test's own host serves (tests/fixtures/astra-host.mjs).
+// With "Get ready ahead" on, listing opens a connection to the server and asks it nothing, a press asks ahead
+// (nothing added) and the tap takes that answer, the plain MP4 plays through Astra's own unpacking with sound and
+// a data count, and the next episode is made ready so Next needs no add-on or server request; with the switch
+// off or the data saver on, nothing is asked before a tap; nothing ever plays without one. The switch persists
+// in Settings. Every DNS answer but the local host's is refused, so no request can leave for a real host.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
 import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
-const opts = { skip: live && 'local only (invented add-on, TorBox stand-in, synthetic films)', timeout: 60_000 };
+const opts = { skip: live && 'local only (invented add-on and server, synthetic films)', timeout: 60_000 };
 const ADDON = 'https://addon.example';
-const TOKEN = 'invented-token';
+const TOKEN = 'invented-session-token';
 const HASH = (n) => n.toString(16).padStart(40, '0');
 const FILES = { 1: 'plain.mp4', 2: 'open.webm', 3: 'plain.mp4' }; // torrent -> the film the host serves for it
 const META = { id: 'tt0000401', type: 'series', name: 'An Invented Series', description: 'Invented for the test.',
   videos: [{ id: 'tt0000401:1:1', season: 1, episode: 1, title: 'The first' }, { id: 'tt0000401:1:2', season: 1, episode: 2, title: 'The second' }] };
-const link = (n) => `https://torrentio.strem.fun/resolve/torbox/${TOKEN}/${HASH(n)}/Film%20${n}.mp4/0/Film%20${n}.mp4`;
+const link = (n) => `${ADDON}/resolve/torbox/invented-key/${HASH(n)}/null/0/Film%20${n}.mp4`;
 const STREAMS = {
   'tt0000401:1:1': [{ name: 'TB 360p', title: 'Ep 1 x264 AAC', url: link(1), behaviorHints: { bingeGroup: 'invented-group' } }, { name: 'TB 360p', title: 'Ep 1 VP9', url: link(2) }],
   'tt0000401:1:2': [{ name: 'TB 360p', title: 'Ep 2 VP9', url: link(2) }, { name: 'TB 360p', title: 'Ep 2 x264 AAC', url: link(3), behaviorHints: { bingeGroup: 'invented-group' } }],
 };
-let site, host, browser, base, h264 = false;
+/** The server's stand-in: every film is in the owner's TorBox account, so ahead and play both answer its address. */
+const asked = [];
+let site, host, api, browser, base, apiOrigin, h264 = false;
 
 before(async () => {
   if (live) return;
-  site = await serve(0, {});
+  api = createServer((req, res) => {
+    const cors = { 'Access-Control-Allow-Origin': req.headers.origin ?? '', Vary: 'Origin' };
+    if (req.method === 'OPTIONS') { res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' }); return res.end(); }
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method !== 'POST' || req.url !== '/v1/astra/play') { res.writeHead(404, cors); return res.end(); }
+      const b = JSON.parse(body), n = parseInt(b.hash, 16);
+      asked.push(b.mode);
+      res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: `https://cdn.example/${n}/${FILES[n]}`, via: 'torbox', size: null, type: null, readable: true, steps: [] }));
+    });
+  });
+  await new Promise((r) => api.listen(0, '127.0.0.1', r));
+  apiOrigin = `http://127.0.0.1:${api.address().port}`;
+  site = await serve(0, { api: apiOrigin });
   base = `http://127.0.0.1:${site.address().port}`;
   host = await astraHost();
   browser = await chromium.launch({ args: ['--no-proxy-server', '--autoplay-policy=no-user-gesture-required', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'], ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
@@ -38,29 +57,24 @@ before(async () => {
   h264 = await page.evaluate(() => MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d400d"'));
   await page.close();
 });
-after(async () => { await browser?.close(); site?.close(); await host?.close(); });
+after(async () => { await browser?.close(); site?.close(); api?.close(); await host?.close(); });
 
-/** The app with the invented add-on, TorBox and the film host routed; `seen` counts what was asked of each. */
+/** The app, signed in, with the invented add-on and the film host routed; `seen` counts what was asked of each. */
 async function app(t, { settings = {}, player = { dataSaver: 'never' } } = {}) {
   host.reset();
-  const seen = { list: 0, link: 0, streams: 0, films: 0, elsewhere: [] };
+  asked.length = 0;
+  const seen = { streams: 0, films: 0, links: 0, elsewhere: [], get ahead() { return asked.filter((m) => m === 'ahead').length; }, get play() { return asked.filter((m) => m === 'play').length; } };
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   t.after(() => context.close());
   const json = (route, v) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(v) });
-  await context.route((url) => !/^(http:\/\/127\.0\.0\.1|https:\/\/(addon\.example|api\.torbox\.app|cdn\.example)\/)/.test(url.href), (route) => { seen.elsewhere.push(new URL(route.request().url()).host); return route.abort(); });
+  await context.route((url) => !/^(http:\/\/127\.0\.0\.1|https:\/\/(addon\.example|cdn\.example)\/)/.test(url.href), (route) => { seen.elsewhere.push(new URL(route.request().url()).host); return route.abort(); });
   for (const known of ['https://v3-cinemeta.strem.io/**', 'https://opensubtitles-v3.strem.io/**', 'https://api.opensubtitles.com/**']) await context.route(known, (route) => route.fulfill({ status: 404, body: '' }));
   await context.route(`${ADDON}/**`, (route) => {
     const u = new URL(route.request().url());
     if (u.pathname === '/manifest.json') return json(route, { id: 'example', name: 'Example', version: '1.0.0', resources: ['meta', 'stream'], types: ['series'], idPrefixes: ['tt'], catalogs: [] });
     if (u.pathname.startsWith('/meta/series/')) return json(route, { meta: META });
     if (u.pathname.startsWith('/stream/')) { seen.streams++; return json(route, { streams: STREAMS[decodeURIComponent(u.pathname.split('/').pop().replace(/\.json$/, ''))] || [] }); }
-    return route.fulfill({ status: 404, body: '' });
-  });
-  await context.route('https://api.torbox.app/**', (route) => {
-    const u = new URL(route.request().url());
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization' } });
-    if (u.pathname.endsWith('/torrents/mylist')) { seen.list++; return json(route, { success: true, data: [1, 2, 3].map((n) => ({ id: n, hash: HASH(n), files: [{ id: 5, short_name: `Film ${n}.mp4` }] })) }); }
-    if (u.pathname.endsWith('/torrents/requestdl')) { seen.link++; return json(route, { success: true, data: `https://cdn.example/${u.searchParams.get('torrent_id')}/${FILES[u.searchParams.get('torrent_id')]}` }); }
+    if (u.pathname.startsWith('/resolve/')) seen.links++; // the add-on's own link: never opened while the server answers
     return route.fulfill({ status: 404, body: '' });
   });
   // The file's host, behind an https address as TorBox's are: the test's own host answers.
@@ -73,11 +87,19 @@ async function app(t, { settings = {}, player = { dataSaver: 'never' } } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/astra/`);
-  await page.evaluate(([url, settings, player]) => {
+  await page.evaluate(([url, settings, player, token]) => new Promise((resolve, reject) => {
     localStorage.setItem('astra.v2.addons', JSON.stringify([{ url: `${url}/manifest.json`, enabled: true, name: 'Example' }]));
     localStorage.setItem('astra.v2.settings', JSON.stringify(settings));
     localStorage.setItem('astra.v2.player', JSON.stringify(player));
-  }, [ADDON, settings, player]);
+    const req = indexedDB.open('th-auth', 1); // signed in, as the site keeps it
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session');
+      tx.oncomplete = () => { req.result.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }), [ADDON, settings, player, TOKEN]);
   await page.goto(`${base}/astra/`);
   await page.waitForFunction(() => window.astra?.openStreams);
   const streams = async (n = 0) => {
@@ -92,43 +114,44 @@ async function app(t, { settings = {}, player = { dataSaver: 'never' } } = {}) {
   return { page, errors, seen, streams, card, nothingPlays };
 }
 
-test('switch on: the list is read once when Streams shows, a press starts the resolve and the tap takes it, and the plain MP4 plays unpacked, with sound and a data count', opts, async (t) => {
+test('switch on: listing opens a connection to the server and asks nothing, a press asks ahead and the tap takes it, and the plain MP4 plays unpacked, with sound and a data count', opts, async (t) => {
   if (!h264) return t.skip('this browser has no H.264 decoder');
   const a = await app(t);
   await a.streams();
-  await a.page.waitForFunction(() => document.head.querySelector('link[rel="preconnect"][href="https://api.torbox.app"]'));
+  await a.page.waitForFunction((o) => document.head.querySelector(`link[rel="preconnect"][href="${o}"]`), apiOrigin);
   assert.deepEqual(await a.nothingPlays(), { player: false, playing: 0 }, 'nothing plays without a tap');
-  assert.deepEqual([a.seen.list, a.seen.link, a.seen.films], [1, 0, 0], 'the owner’s list read once; no stream resolved, no film touched');
+  assert.deepEqual([a.seen.ahead, a.seen.play, a.seen.films], [0, 0, 0], 'the server asked nothing; no film touched');
   // A finger comes down, then the press turns into a scroll.
   await a.card('Ep 1 x264').dispatchEvent('pointerdown');
   await a.card('Ep 1 x264').dispatchEvent('pointercancel');
   await a.page.waitForFunction(() => document.head.querySelector('link[rel="preconnect"][href="https://cdn.example"]'));
-  assert.deepEqual([a.seen.list, a.seen.link, a.seen.films], [1, 1, 0], 'the press resolved the address, and nothing else');
+  assert.deepEqual([a.seen.ahead, a.seen.play, a.seen.films], [1, 0, 0], 'the press asked ahead for the address, and nothing else');
   assert.deepEqual(await a.nothingPlays(), { player: false, playing: 0 }, 'a press is not a tap');
   await a.card('Ep 1 x264').click();
   await a.page.waitForFunction(() => { const p = window.astra.player; return p?.isOpen && p.engine.mode === 'remux' && p.video.currentTime > 0.5; }, null, { timeout: 20_000 });
-  assert.deepEqual([a.seen.list, a.seen.link], [1, 1], 'the tap took the answer under way: no TorBox request of its own');
+  assert.deepEqual([a.seen.ahead, a.seen.play], [1, 0], 'the tap took the press’s answer: no request of its own');
   const film = await a.page.evaluate(() => { const e = window.astra.player.engine; return { audio: e.audioOptions().map((o) => o.delivery), buffered: e.session?.queues.audio?.buffer.buffered.length > 0, used: e.dataUsed() }; });
   assert.deepEqual(film.audio, ['direct']);
   assert.ok(film.buffered, 'its sound is buffered');
   assert.ok(film.used > 0, `what it cost is counted (${film.used} bytes)`);
+  assert.equal(a.seen.links, 0, 'the add-on’s own link was never opened');
   assert.deepEqual(a.seen.elsewhere, []);
   assert.deepEqual(a.errors, []);
 });
 
-test('the data saver on, or the switch off: nothing is asked before a tap; off, the tap resolves as it did', opts, async (t) => {
+test('the data saver on, or the switch off: nothing is asked before a tap; off, the tap asks to play', opts, async (t) => {
   for (const [settings, player] of [[{}, { dataSaver: 'always' }], [{ readyAhead: false }, { dataSaver: 'never' }]]) {
     const a = await app(t, { settings, player });
     await a.streams();
     await a.card('Ep 1 x264').dispatchEvent('pointerdown');
     await a.card('Ep 1 x264').dispatchEvent('pointercancel');
     assert.deepEqual(await a.nothingPlays(), { player: false, playing: 0 });
-    assert.deepEqual([a.seen.list, a.seen.link, a.seen.films], [0, 0, 0], `nothing asked of TorBox or the host (${JSON.stringify({ settings, player })})`);
+    assert.deepEqual([a.seen.ahead, a.seen.play, a.seen.films], [0, 0, 0], `nothing asked of the server or the host (${JSON.stringify({ settings, player })})`);
     assert.equal(await a.page.evaluate(() => document.head.querySelectorAll('link[rel="preconnect"]').length), 0, 'no connection opened');
     if (settings.readyAhead === false && h264) {
       await a.card('Ep 1 x264').click();
       await a.page.waitForFunction(() => window.astra.player?.engine.mode === 'remux' && window.astra.player.video.currentTime > 0.3, null, { timeout: 20_000 });
-      assert.deepEqual([a.seen.list, a.seen.link], [1, 1], 'the tap resolved it');
+      assert.deepEqual([a.seen.ahead, a.seen.play], [0, 1], 'the tap asked to play');
       assert.equal(await a.page.evaluate(() => window.astra.nextReady.prepare()), null, 'and the next episode is not made ready');
       assert.equal(a.seen.streams, 1, 'not even its streams asked for');
     }
@@ -137,7 +160,7 @@ test('the data saver on, or the switch off: nothing is asked before a tap; off, 
   }
 });
 
-test('the next episode is made ready from the same release; Next then shows its picture without an add-on or TorBox request', opts, async (t) => {
+test('the next episode is made ready from the same release; Next then shows its picture without an add-on or server request', opts, async (t) => {
   if (!h264) return t.skip('this browser has no H.264 decoder');
   const a = await app(t);
   await a.streams();
@@ -147,12 +170,14 @@ test('the next episode is made ready from the same release; Next then shows its 
   assert.deepEqual([job?.described, job?.all], [true, 2], 'collected, and the same release’s file described');
   t.diagnostic(`making the next episode ready cost ${job.bytes} bytes of the film`);
   assert.ok(job.bytes > 0 && job.bytes < 1_000_000, 'describing only');
-  const asked = { streams: a.seen.streams, list: a.seen.list, link: a.seen.link };
-  assert.deepEqual(asked, { streams: 2, list: 1, link: 2 });
+  const before = { streams: a.seen.streams, ahead: a.seen.ahead, play: a.seen.play };
+  assert.equal(before.streams, 2);
+  assert.equal(asked.at(-1), 'ahead', 'the next episode’s address was asked ahead: nothing added');
   await a.page.evaluate(() => window.astra.player.markers.playNext());
   await a.page.waitForFunction(() => { const p = window.astra.player; return p.engine.url?.includes('/3/') && p.engine.mode === 'remux' && p.video.currentTime > 0.3; }, null, { timeout: 20_000 });
-  assert.deepEqual({ streams: a.seen.streams, list: a.seen.list, link: a.seen.link }, asked, 'Next asked no add-on and no TorBox');
+  assert.deepEqual({ streams: a.seen.streams, ahead: a.seen.ahead, play: a.seen.play }, before, 'Next asked no add-on and no server');
   assert.equal(await a.page.evaluate(() => window.astra.playing.video.id), 'tt0000401:1:2');
+  assert.equal(a.seen.links, 0);
   assert.deepEqual(a.seen.elsewhere, []);
   assert.deepEqual(a.errors, []);
 });

@@ -12,6 +12,7 @@ import {mseSupports, nativeCanPlay, canEncodeAudio} from './capabilities.js';
 import {softwareVideo} from './software.js';
 import {HttpSource} from './http-source.js';
 import {remoteFileHash, HASH_CHUNK} from './file-hash.js';
+import {playerRenew} from './source-renew.js';
 import {decodeSubtitleBytes} from '../addons/subtitles.js';
 import {SubtitleRenderer} from '../subtitles/renderer.js';
 import {preferredLanguages, languageName, baseLanguage} from './languages.js';
@@ -143,7 +144,7 @@ export class AstraPlayer extends EventTarget {
     try { this.video.load(); } catch {}
     try {
       if (!this.probed?.source || this.probed.source.closed) {
-        const source = new HttpSource(this.url, {headers: this.headers});
+        const source = new HttpSource(this.url, {headers: this.headers, renew: this.renew});
         this.bytesBefore = (this.bytesBefore || 0) + (this.probed?.source?.bytesFetched || 0); // what the film cost so far still counts
         await source.open(this.abort?.signal);
         if (id !== this.load_) { source.close(); return; }
@@ -167,17 +168,17 @@ export class AstraPlayer extends EventTarget {
   }
 
   /**
-   * @param {{url: string, headers?: object, startTime?: number, autoplay?: boolean, prefs?: object, subtitles?: Array}} options
+   * @param {{url: string, renew?: () => Promise<string>, headers?: object, startTime?: number, autoplay?: boolean, prefs?: object, subtitles?: Array}} options  `renew`: a fresh address for the same film when its own dies while it plays (source-renew.js)
    */
-  async load({url, headers = {}, startTime = 0, autoplay = false, prefs = {}, subtitles = []}) {
+  async load({url, renew = null, headers = {}, startTime = 0, autoplay = false, prefs = {}, subtitles = []}) {
     this.reset(); // ends the load before this one: its awaits find a newer load and stop
     const id = this.load_;
     this.routeRetry(url); // "Try again" on a film whose remembered route failed
-    Object.assign(this, {url, headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false});
+    Object.assign(this, {url, renew: playerRenew(this, renew), headers, startTime, started: false, fellBack: false, wentWhole: false, resuming: false, resumedAt: NaN, plainFragments: false});
     const languages = prefs.languages || preferredLanguages();
     const controller = this.abort = new AbortController(), signal = controller.signal;
     try {
-      const probed = await probe(url, {headers, signal, onStatus: t => this.status(t), onSource: s => { if (id === this.load_) { this.source = s; this.applyDataSaver(); } }});
+      const probed = await probe(url, {headers, signal, renew: this.renew, onStatus: t => this.status(t), onSource: s => { if (id === this.load_) { this.source = s; this.applyDataSaver(); } }});
       if (id !== this.load_) { probed.source?.close(); probed.input?.dispose(); return; }
       this.probed = probed;
       // The connection to the host lost and found again while playing (the reader keeps trying meanwhile).
@@ -250,7 +251,7 @@ export class AstraPlayer extends EventTarget {
       try {
         // Both chunks from the reader when it has them (the tail is asked for beside the start: source-tail.js).
         const src = probed.source, part = async (start, end) => (await src?.tail?.done, src?.has(start, end)) ? (await src.read(start, end)).slice() : null;
-        hash = await remoteFileHash(src?.url || url, size, {headers, head: await part(0, HASH_CHUNK), tail: await part(size - HASH_CHUNK, size), signal});
+        hash = await remoteFileHash(src?.url || url, size, {headers, head: await part(0, HASH_CHUNK), tail: await part(size - HASH_CHUNK, size), signal, read: src && ((s, e) => src.sideRead(s, e, {signal}))});
       } catch {}
     }
     if (load === this.load_ && !signal.aborted) this.emit('filefacts', {load, hash, size});

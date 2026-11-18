@@ -1986,6 +1986,22 @@
       "phase": "P9",
       "status": "built",
       "note": "removes a file, every piece"
+    },
+    "POST /v1/astra/play": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address, from TorBox with the Worker's key or by following the add-on's forward; not cached for certain: 503, nothing followed; ahead never adds or follows"
+    },
+    "GET /v1/astra/torbox": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "whether the TorBox key is set and accepted, and the plan number"
     }
   },
   "verbs": {

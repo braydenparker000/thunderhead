@@ -1,11 +1,14 @@
 // Getting ready before the owner's tap, on the Streams screen: what a tap will need is asked for while the
 // list is read, so the picture comes sooner. Nothing plays and nothing is chosen here: Astra never ranks,
-// picks or pre-selects a stream. Only the owner's own TorBox list is read, a connection to TorBox opened,
-// the stream under a finger resolved as the press begins (the tap then takes that answer), and the sound
-// converter a listed stream would need fetched. All of it stays in memory (addons/debrid.js); none of it
-// happens with Settings › Playback › "Get ready ahead" off, or with the data saver on.
+// picks or pre-selects a stream. When streams are listed, only a connection to the owner's own server is
+// opened (signed in); a finger coming down on a stream asks that server for its address with mode 'ahead'
+// (addons/debrid.js: it answers only from what is already in the owner's TorBox account, so nothing is
+// added to TorBox before a tap) and the tap then takes that answer; and the sound converter a listed stream
+// would need is fetched. All of it stays in memory; none of it happens with Settings › Playback › "Get
+// ready ahead" off, or with the data saver on.
 
-import {identifyTorbox, warmList, resolveDebrid, TORBOX_ORIGIN as TORBOX} from '../addons/debrid.js';
+import {resolveStream} from '../addons/debrid.js';
+import {apiOrigin} from '../addons/worker-api.js';
 import {saverOn} from '../engine/player-data.js';
 import {loadPrefs} from '../player/prefs.js';
 
@@ -33,19 +36,19 @@ export function soundOf(stream) {
   return SOUNDS.find(([, re]) => re.test(text))?.[0] ?? null;
 }
 
+const httpsLink = url => { try { return new URL(url).protocol === 'https:'; } catch { return false; } };
+
 /**
- * What to do ahead for the streams on screen, pure: `preconnect` when any is a TorBox link, `lists` one
- * link per TorBox account whose list a Torrentio-style link needs, `sounds` the converters a label asks
- * for (still to be checked against this phone), `metered` when the connection is metered. Nothing at all
- * when the setting is off or the data saver on.
+ * What to do ahead for the streams on screen, pure: `preconnect` when any has a link the owner's server
+ * could be asked about (https), `sounds` the converters a label asks for (still to be checked against
+ * this phone), `metered` when the connection is metered. Nothing at all when the setting is off or the
+ * data saver on.
  */
 export function readyWork(streams, {ahead = true, saver = false, connection = globalThis.navigator?.connection} = {}) {
-  const none = {preconnect: false, lists: [], sounds: [], metered: false};
+  const none = {preconnect: false, sounds: [], metered: false};
   if (!ahead || saver) return none;
-  const torbox = streams.filter(s => s?.url && identifyTorbox(s.url)), tokens = new Map();
-  for (const s of torbox) { const t = identifyTorbox(s.url).token; if (t && !tokens.has(t)) tokens.set(t, s.url); }
   const sounds = [...new Set(streams.filter(s => s?.url).map(soundOf).filter(Boolean))];
-  return {preconnect: torbox.length > 0, lists: [...tokens.values()], sounds, metered: !!(connection?.saveData || connection?.type === 'cellular')};
+  return {preconnect: streams.some(s => httpsLink(s?.url)), sounds, metered: !!(connection?.saveData || connection?.type === 'cellular')};
 }
 
 /** Whether the planner would convert this sound on this phone (plan.js audioDelivery), with the engine's own answers. */
@@ -74,10 +77,14 @@ const originOf = url => { try { const u = new URL(url); return u.protocol === 'h
 
 /** One per Streams screen (and the player's episode switch never makes one: it is headless). */
 export class ReadyAhead {
-  /** @param {{settings: object}} app @param {{fetchFn?: typeof fetch, prefs?: () => object, connection?: object, doc?: Document, resolve?: typeof resolveDebrid}} [options] */
-  constructor(app, {fetchFn, prefs = () => loadPrefs(), connection = globalThis.navigator?.connection, doc = globalThis.document, resolve = resolveDebrid} = {}) {
-    Object.assign(this, {app, fetchFn, prefs, connection, doc, resolve});
+  /**
+   * @param {{settings: object}} app
+   * @param {{prefs?: () => object, connection?: object, doc?: Document, resolve?: typeof resolveStream, origin?: () => Promise<string>}} [options]
+   */
+  constructor(app, {prefs = () => loadPrefs(), connection = globalThis.navigator?.connection, doc = globalThis.document, resolve = resolveStream, origin = () => apiOrigin()} = {}) {
+    Object.assign(this, {app, prefs, connection, doc, resolve, origin});
     this.sounds = new Set(); // converters already decided on for this screen
+    this.connecting = false; // the server's connection is opened once a screen
   }
 
   /** The switch is on and the data saver off. */
@@ -86,8 +93,11 @@ export class ReadyAhead {
   /** The streams on screen changed: whatever they will need is asked for, once. */
   listed(streams) {
     const work = readyWork(streams, {ahead: aheadSetting(this.app.settings), saver: saverNow(this.prefs(), this.connection), connection: this.connection});
-    if (work.preconnect) preconnect(TORBOX, this.doc);
-    for (const link of work.lists) warmList(link, this.fetchFn ? {fetchFn: this.fetchFn} : {});
+    // Only a connection to the owner's server (signed in): nothing is asked of it, or of TorBox, before a press.
+    if (work.preconnect && !this.connecting) {
+      this.connecting = true;
+      this.origin().then(o => { if (o) preconnect(o, this.doc); }, () => {});
+    }
     for (const codec of work.sounds) {
       if (this.sounds.has(codec)) continue;
       this.sounds.add(codec);
@@ -100,15 +110,16 @@ export class ReadyAhead {
   }
 
   /**
-   * A finger came down on a stream card: its address is resolved now, and the tap that follows takes the
-   * answer (addons/debrid.js keeps it ten minutes). A press that becomes a scroll or a long-press leaves the
-   * answer there and starts nothing else. Returns the answer's promise, or null when nothing was started.
+   * A finger came down on a stream card: its address is asked for now with mode 'ahead' (which never adds
+   * anything to TorBox), and the tap that follows takes the answer when it has an address (addons/debrid.js
+   * keeps it 45 minutes), else asks to play. A press that becomes a scroll or a long-press leaves the answer
+   * there and starts nothing else. Returns the answer's promise, or null when nothing was started.
    */
   pressed(stream) {
-    if (!stream?.url || !identifyTorbox(stream.url) || !this.allowed()) return null;
-    const answer = this.resolve(stream.url, this.fetchFn ? {fetchFn: this.fetchFn} : {});
+    if (!httpsLink(stream?.url) || !this.allowed()) return null;
+    const answer = this.resolve(stream, {mode: 'ahead'});
     // The file's host is known now: its connection is opened too (an origin only, never the address).
-    answer.then(url => { const o = originOf(url); if (o && url !== stream.url) preconnect(o, this.doc); }, () => {});
+    answer.then(a => { const o = originOf(a?.url); if (o && a.via !== 'addon') preconnect(o, this.doc); }, () => {});
     return answer;
   }
 }

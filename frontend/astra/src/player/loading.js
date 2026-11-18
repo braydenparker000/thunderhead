@@ -4,6 +4,7 @@
 
 import {h} from '../ui/dom.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
+import {addressNotice, tryAgain} from './address.js';
 
 export class Loading {
   constructor(p) {
@@ -46,7 +47,7 @@ export class Loading {
     p.loadingInfo.textContent = seconds < 5 ? '' : [`${Math.floor(seconds)} s`, bytes ? `${(bytes / 1e6).toFixed(1)} MB received` : ''].filter(Boolean).join(' · ');
     if (seconds * 1000 < p.constructor.SLOW_LOAD_MS || !p.loadingSlow.hidden) return;
     const status = p.loadingStatus.textContent;
-    const why = /Resolving/.test(status) ? 'The debrid service is slow to answer.'
+    const why = /Resolving/.test(status) ? 'Your server or TorBox is slow to answer.'
       : !bytes ? 'The host has not started sending the file.'
       : 'The host is sending the file slowly.';
     const others = p.sources.some(s => s.id !== p.sourceId);
@@ -61,6 +62,7 @@ export class Loading {
   /** A short message across the top for a few seconds, perhaps with one button ({label, run}); a tap anywhere on it puts it away. */
   notice(text, action = null) {
     const p = this.p;
+    text = addressNotice(p.stream?.resolved, text); // Chrome plays the add-on's link: why that link was used (address.js)
     p.noticeEl.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
     p.noticeEl.hidden = false;
     clearTimeout(this.noticeTimer);
@@ -91,12 +93,12 @@ export class Loading {
     const primary = connection ? 'retry' : external ? 'external' : others ? 'sources' : 'retry';
     p.errorCard.replaceChildren(
       h('h3', {}, gone ? 'This link no longer works' : connection ? 'Lost the connection' : plan?.mode === 'unsupported' ? 'Can’t play this here' : 'Playback stopped'), h('p', {}, message),
-      external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : null,
+      external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : '', // '' and not null: replaceChildren would write the word
       h('div', {class: 'ap-error-actions'},
         external ? h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
         plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,
         others ? h('button', {class: 'ap-chip' + (primary === 'sources' ? ' primary' : ''), type: 'button', onclick: () => { p.errorCard.hidden = true; p.openPanel('sources'); }}, 'Choose another source') : null,
-        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => p.load(p.stream, p.resumePoint())}, 'Try again') : null,
+        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => tryAgain(p)}, 'Try again') : null,
         report,
         h('button', {class: 'ap-chip', type: 'button', onclick: () => p.close('user')}, 'Close')));
     p.errorCard.hidden = false;

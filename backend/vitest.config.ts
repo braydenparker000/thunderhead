@@ -42,6 +42,8 @@ export default defineConfig({
           // Photos' OAuth client: invented values; Google itself is faked (areas/photos/google.ts useGoogle).
           GOOGLE_CLIENT_ID: '100000000001-test-client.apps.example',
           GOOGLE_CLIENT_SECRET: 'test-client-secret',
+          // No TorBox key in tests; the relay tests pass their own env with an invented key.
+          TORBOX_KEY: 'none',
           // The picker's public browser key: an invented value.
           GOOGLE_PICKER_KEY: 'test-picker-key',
           SITE_ORIGINS: 'https://site.example.test',

@@ -1,16 +1,19 @@
 {
-  "id": "2026-11-18-editor-sections-tools",
+  "id": "2026-11-18-astra-direct",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "In the editor, swipe the panel up or down: it rolls like a barrel to the next section.",
-      "open": "photos"
+      "text": "Astra asks your own server for a film's direct TorBox address, so it plays in Astra's full player.",
+      "open": "astra"
     },
     {
-      "text": "Tools are on a dial in the bottom-right corner: hold it and move your thumb round to change tool."
+      "text": "Add your TorBox key to your server once (a Worker secret) for the quickest route; without it, the add-on's link is used."
     },
     {
-      "text": "Tap the dial to leave it open, then tap a tool. The controls row now starts at the left edge."
+      "text": "Stream info says where a film comes from, and why when Chrome's plain player is used."
+    },
+    {
+      "text": "Nothing is added to your TorBox before you tap a stream."
     }
   ]
 }

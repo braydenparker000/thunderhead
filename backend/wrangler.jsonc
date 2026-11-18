@@ -65,6 +65,8 @@
   // MUSIC_UPLOAD_PUBLIC_KEYS is the upload tools' public keys, a JSON list (SETUP.md N4); while it
   // is `none`, /v1/music/uploads/* answers 503. VAPID_PRIVATE_JWK is Web Push's P-256 private key
   // (SECURITY.md §10): the deploy makes it once when the live Worker lacks it, so nobody sees it.
+  // TORBOX_KEY is the owner's TorBox API key for Astra's relay (SECURITY.md §8.2); only the owner
+  // sets it (backend/README.md); while it is `none`, /v1/astra/play skips TorBox and only follows.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -82,7 +84,8 @@
       "MUSIC_UPLOAD_PUBLIC_KEYS",
       "VAPID_PRIVATE_JWK",
       "GOOGLE_CLIENT_ID",
-      "GOOGLE_CLIENT_SECRET"
+      "GOOGLE_CLIENT_SECRET",
+      "TORBOX_KEY"
     ]
   },
   "vars": {

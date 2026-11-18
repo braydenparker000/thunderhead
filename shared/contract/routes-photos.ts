@@ -1,7 +1,8 @@
 // Photos' routes (photos.ts, API.md §11.26), kept beside routes.ts, which spreads them into ROUTES:
 // no import here, so the registry stays importable on its own. Only the owner's phone calls them;
 // the callback is Google's redirect back with the consent, checked by its one-use state.
-// The workshop's files (workshop.ts, API.md §11.27) are listed here too: routes.ts is at its length.
+// The workshop's files (workshop.ts, API.md §11.27) and Astra's relay (astra.ts, API.md §11.21) are
+// listed here too: routes.ts is at its length.
 export const PHOTO_ROUTES = {
   'GET /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'connected or not, the folder by name, a revoked grant' },
   'POST /v1/photos/drive/connect': { who: ['D'], phase: 'P9', note: "Google's consent address, scope drive.file, a state good for 10 minutes" },
@@ -35,4 +36,7 @@ export const PHOTO_ROUTES = {
   'GET /v1/workshop': { who: ['D'], phase: 'P9', note: 'the files sent for the workshop, newest first, and how much room they take' },
   'PUT /v1/workshop/:id/parts/:n': { who: ['D'], phase: 'P9', note: '?bytes=<the whole file>; one piece, bytes: 8 MiB but the last; TH-File-Name, TH-Sha256 of the piece' },
   'DELETE /v1/workshop/:id': { who: ['D'], phase: 'P9', note: 'removes a file, every piece' },
+  // Astra's relay: the owner's phone only (agent keys 403); addresses in transit, never kept or logged.
+  'POST /v1/astra/play': { who: ['D'], phase: 'P8', note: "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address, from TorBox with the Worker's key or by following the add-on's forward; not cached for certain: 503, nothing followed; ahead never adds or follows" },
+  'GET /v1/astra/torbox': { who: ['D'], phase: 'P8', note: 'whether the TorBox key is set and accepted, and the plan number' },
 } as const;

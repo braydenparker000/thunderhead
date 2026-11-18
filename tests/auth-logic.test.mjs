@@ -153,6 +153,9 @@ test('staging fills the API host into config.js and the CSP of the shell, sign-i
   assert.match(withApi(guitar, 'https://api.example', 'guitar/index.html'),
     /connect-src 'self' https:\/\/api\.example https:\/\/jarvis-hub-api\.braydenparker999\.workers\.dev /);
   assert.equal(withApi(guitar, 'https://api.example', 'guitar/credits.html'), guitar);
+  // Astra's page asks the new Worker for a film's address (2026-11-18): its CSP names the API host too.
+  const astra = await readFile(new URL('../frontend/astra/index.html', import.meta.url), 'utf8');
+  assert.match(withApi(astra, 'https://api.example', 'astra/index.html'), /connect-src 'self' https:\/\/api\.example https: /);
   // Study (P7) has its own page: the API host only (books come through the Worker).
   const study = await readFile(new URL('../frontend/study/index.html', import.meta.url), 'utf8');
   assert.match(withApi(study, 'https://api.example', 'study/index.html'),

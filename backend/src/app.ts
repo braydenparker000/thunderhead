@@ -10,6 +10,7 @@ import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
 import { PHOTO_LIMITS } from '../../shared/contract/photos.ts';
 import { TASTE_LIMITS } from '../../shared/contract/taste.ts';
 import { WORKSHOP_LIMITS } from '../../shared/contract/workshop.ts';
+import { astraRoutes } from './areas/astra/routes';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
@@ -169,6 +170,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
   .route('/v1', guitarRoutes)
+  .route('/v1', astraRoutes)
   .route('/v1', podcastsRoutes)
   .route('/v1', podcastSyncRoutes)
   .route('/v1', pushRoutes)

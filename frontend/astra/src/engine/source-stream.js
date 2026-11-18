@@ -4,9 +4,11 @@
 // cuts every connection after so many bytes) is simply continued from the
 // byte it reached. One that brought next to nothing is a failure: tried again
 // with a growing pause, for up to a minute from the first failed try a read
-// was waiting on. Read-ahead nobody waits for is reopened quietly or left.
+// was waiting on. Read-ahead nobody waits for is reopened quietly or left. An address that has died is
+// renewed first, where the page gave a way to (source-renew.js).
 
 import {BLOCK, keepPart, takePart} from './source-blocks.js';
+import {renewed, dead} from './source-renew.js';
 
 export {BLOCK};
 export const READ_AHEAD = 24 * BLOCK; // a stream pauses at most this far past the furthest byte read from it (the source's readAhead; less with the data saver)
@@ -25,6 +27,8 @@ export const TIMING = {
   backoff: 400, // the first pause before a retry; it doubles up to five seconds
   hole: 4000, // after a seek, the place playback reads from has the connection to itself this long (side-read.js)
   quiet: 3000, // when the network changes, a download that has brought nothing for this long is asked again
+  closing: 100, // a request broken off keeps its connection slot this long while it closes (source-gate.js)
+  renew: 15000, // the page has this long to give a fresh address for a link that died (source-renew.js)
 };
 
 /**
@@ -61,13 +65,14 @@ export function parseContentRange(value) {
 }
 
 /**
- * One request whose answer must begin within `ms` (its body may then take as long as it needs).
- * A host or a dead socket that never sends headers ends as a SourceError of kind `late`.
+ * One request whose answer must begin within `ms` (its body may then take as long as it needs; the wait for
+ * a free connection counts in `ms`). A host or a dead socket that never sends headers ends as a SourceError
+ * of kind `late`. `kind` places it in the connection gate's queue (source-gate.js).
  */
-export async function ask(source, headers, signal, ms, late, method = 'GET') {
+export async function ask(source, headers, signal, ms, late, method = 'GET', kind = 'play') {
   const timeout = new AbortController(), timer = setTimeout(() => timeout.abort(), ms);
   try {
-    return await source.request(headers, signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal, method);
+    return await source.request(headers, signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal, method, kind);
   } catch (error) {
     if (timeout.signal.aborted && !signal?.aborted) throw new SourceError(late, 'The host did not answer.');
     throw error;
@@ -193,6 +198,13 @@ export async function streamFailed(source, stream, error) {
   }
   // Read-ahead nobody is waiting for that brought nothing: left for the read that needs it. No clock starts.
   if (!source.servingWaiter(stream)) return source.reschedule();
+  // The address itself has died (a refused connection only once it is refused again): with a fresh one from the
+  // page, the download goes on from where it was, nothing counted and nothing shown (source-renew.js).
+  const gone = dead(error);
+  if (gone && (gone === 'status' || source.failures) && await renewed(source)) {
+    if (!source.closed) { source.calm(); if (source.servingWaiter(stream)) source.startStream(stream.at, null, stream.want); }
+    return source.reschedule();
+  }
   source.url = source.given; // a signed address a redirect led to may have expired: the next try starts from the address given
   // A lost, stalled or empty answer is retried with a growing pause for up to a minute from the first failed try a
   // read was waiting on (at once when the phone is back online); reads wait meanwhile, so playback goes on from
