@@ -69,6 +69,18 @@
       </details>
     </section>
 
+    <section class="lab-panel" aria-labelledby="torbox-label">
+      <h2 class="section-label" id="torbox-label">TorBox check</h2>
+      <p class="hint">From this phone, every step between a stream and its film: your sign-in, the Worker's TorBox key, the address it gives, reading it here, its speed and its connection limit, and what is inside.</p>
+      <form id="torbox-form" class="link-row check-row">
+        <input class="field" id="torbox-link" type="url" placeholder="A stream's address" autocomplete="off" aria-label="Stream address to check">
+        <button class="btn primary" id="torbox-run" type="submit">TorBox check</button>
+      </form>
+      <ol class="card checks" id="torbox-steps" aria-live="polite" hidden></ol>
+      <button class="btn" id="torbox-copy" type="button" hidden>Copy report</button>
+      <p class="hint" id="torbox-hint" role="status"></p>
+    </section>
+
     <section class="lab-panel">
       <h2 class="section-label">This phone</h2>
       <div class="card device" id="device"></div>

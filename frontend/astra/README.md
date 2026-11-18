@@ -15,8 +15,8 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `index.html`, `src/main.js` | The app at `/astra/`. Installable (`manifest.webmanifest`); `sw.js` opens it from a saved copy (below). |
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
-| `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-stream.js` (converted sound from Astra's own Matroska reader), `sound-six.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report; and the TorBox check (`torbox-check.js`, `torbox-panel.js`, with the report's scrubber `scrub.js`; see The playback lab, below). |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-stream.js` (converted sound from Astra's own Matroska reader), `sound-six.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
@@ -412,6 +412,49 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      speed it has shown (at least 256 KiB, at most 12 MiB); further ahead,
      the read asks for its own bytes, so a resume ten seconds in does not
      wait for megabytes the viewer skips on a slow link.
+   - *At most three connections* (`source-gate.js`). A TorBox link allows
+     four connections at once, and Astra keeps one in hand. Every request
+     the reader makes to the film (its downloads, the film's end, the
+     subtitle hash's reads, a block's first part, seek previews) takes one
+     of three slots first and gives it back when its answer is over: read to
+     its last byte (its Content-Length), cancelled, or broken off, which
+     keeps the slot 100 ms longer while the connection closes, so a download
+     restarted after a seek or a network change never stands beside the one
+     it replaces. A request that finds all three taken waits: playback's
+     downloads first, then side reads, previews last; and a download that
+     has to wait ends a preview's request to take its place. A free slot is
+     taken at once, so what need not wait is sent exactly when it was
+     before. The subtitle hash reads through the reader now (it fetched on
+     its own before). Each film has its own count (the next episode made
+     ready is another link); HLS, DASH and a film the browser plays itself
+     open their own connections. Measured 2026-11-18 on the test host (a
+     one-minute 3 Mbit/s film, 1.5 MB/s a connection and 40 ms a request,
+     `tests/fixtures/astra-host.mjs` counting the requests open at once):
+     before, a preview drag held four (and by the code's paths up to five
+     were possible: two downloads, the film's end and the hash's two reads
+     at the start); now never more than three over a start, a far seek, a
+     drag, a network change and a resume, with the same times to the first
+     picture (medians of 12 runs, Matroska: start 424 ms before and 425
+     after, resume at 30 s 475 and 475, far seek 832 and 832; MP4 with its
+     index at the end, 7 runs: 417 and 417, 997 and 999, 791 and 792).
+   - *A link that dies* (`source-renew.js`). A TorBox link lives three
+     hours. `AstraPlayer.load({url, renew})` takes an optional `renew`: an
+     async function giving a fresh address for the same film (the page asks
+     the owner's Worker again). When a request to the film, after it had
+     opened, is answered 401, 403, 404 or 410, or its connection is refused
+     twice in a row (a page cannot tell that from an error page without
+     CORS), the reader calls it once for every read waiting at that moment
+     (15 s at most, and at most once a minute), moves both the address it
+     was given and the one it reads from to the fresh one, and carries on
+     from the same place with nothing shown: the blocks held and the film's
+     memory belong to the file (its size and first bytes), not to an
+     address, and stay. A side read answered as dead is asked again once on
+     the fresh address. Without `renew`, at the very first open, or when
+     renewing fails or the fresh address dies too, the reader fails as it
+     always did. The player keeps the fresh address for its fallbacks, and
+     its log says a renewal happened, never the address. HLS, DASH and the
+     browser's own player read their addresses themselves and are not
+     renewed.
    The subtitle readers only peek at what playback already fetched, so they
    cost nothing and never pull the download along. A seek ends the
    downloads and reads of the place it left, so the new place has the whole
@@ -887,6 +930,47 @@ merged by kind; nothing ever skips by itself, and movies get neither.
   (4096x2304 at most), and a VobSub file that gives no frame size, or an
   impossible one, is placed as 720x576.
 
+## The playback lab
+
+`/astra/lab/` is the engineering page: play a link or a stream from the
+add-ons, see what the file holds and how it plays, this phone's decoders
+(the device report), and copy a playback report (run through the scrubber
+below before it reaches the clipboard).
+
+**The TorBox check** (`src/lab/torbox-check.js`, `torbox-panel.js`). A
+field for a stream's address (pasted, or handed over the way "Check
+playback in the lab" hands one: in the fragment, which the lab takes out of
+the address bar at once) and a "TorBox check" button. It first ends the
+lab's own playback, then runs, showing each step as it goes:
+
+- (a) signed in on this phone, and (b) `GET /v1/astra/torbox`: whether the
+  Worker holds the TorBox key, whether TorBox accepts it, and the plan;
+- (c) `POST /v1/astra/play` with the link (mode `play`, as a tap; the
+  hash too when the link's path shows one): how the Worker got the film's
+  address (`via`), whether the last answer let a page read it, and each of
+  its steps with its time;
+- (d) from the phone, the first and the last 64 KiB of that address:
+  status, whether the page could read it (and, when not, whether the server
+  answers at all), the size, the time to the first byte, and the TorBox
+  server group, the host's label before `tb-cdn` and nothing else of it;
+- (e) a 2 MB read for a speed figure;
+- (f) four requests at once, held, then a fifth beside them: the status of
+  each, all five ended at once (what the server does at a link's limit);
+- (g) the film's container and codecs by the engine's own probe, and the
+  route the planner would take.
+
+The Worker is asked through the page's own helper, `src/addons/worker-api.js`
+(`api(path, {method, body, signal})`, the owner's session, a top-level page
+only; it throws "not signed in" without a session), loaded when the check
+runs; without it the check stops at (a). **Copy report** copies plain text:
+the steps' words, which never hold an address, a hash, a key or a file
+name, run through `scrubSecrets` (`src/lab/scrub.js`, ASTRA.md §5.2 rule 3)
+with the link and the film's address named as well, so it is safe to paste
+into a chat. The scrubber turns every address into its host (or, for the
+reports, `[address]`), a key or token named in a query and any run of 32 or
+more hex or base64url characters into `***`, and a video or subtitle file's
+name into `[file]`.
+
 ## Tests
 
 The `tests/astra-*.test.mjs` files run in the root `npm test` (and `npm run
@@ -902,6 +986,9 @@ skip in a browser without it.
 | `astra-routes.test.mjs` | What the device remembers of a failed route (30 days, at most 40 pictures, broken storage), the lab's words on Dolby and DTS sound, and the phone settings hls.js and dash.js get, with the saver's 720p ceiling. |
 | `astra-engine.test.mjs` | The range reader against hosts that cut, stall, answer nothing or move; headers read without trusting their sizes (MKV, clusters, MP4); the stall watchdog; early fragments; playlists without byte ranges. |
 | `astra-source.test.mjs` | After a seek the dropped pipelines' reads end and their downloads close. |
+| `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
+| `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
+| `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment, and a report with no address, hash, key or file name; the scrubber itself. |
 | `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, and waiting for a download by time rather than bytes. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
@@ -975,7 +1062,14 @@ skip in a browser without it.
   connection after so many bytes), `bps` (a slow connection), `delay`
   (milliseconds each request waits before it is answered: a far host's
   round trip), `noRange` (sends the whole file), `noCors` (no CORS headers;
-  `?nocors` on one film's address does it for that film alone).
+  `?nocors` on one film's address does it for that film alone), `limit`
+  (a request beyond that many open at once answers 429, as a link's
+  connection limit might). `link(name, label)` is a second address for the
+  same film (`/via/<label>/<name>`, a renewed link) and `kill(url, status)`
+  makes one address answer 403 or 410 and cuts what it is sending: a link
+  that died. `stats.open` counts the requests being answered, from their
+  arrival to their end, and `stats.peak` the most at once; an answer ends
+  with its last byte, as a real server's does.
 - Vendored files: `node scripts/astra/vendor.mjs --check` checks every
   file in `vendor/` against the hashes in `vendor.json`, without the
   network.
@@ -1016,4 +1110,8 @@ decoder, no phone graphics chip, no HDR screen and no real network:
 - a film remembered (`astra-films`) on a real connection: how much sooner
   it opens the second time;
 - headphone surround's cost on the phone's processor;
-- a real network change (Wi-Fi to mobile data) while a film plays.
+- a real network change (Wi-Fi to mobile data) while a film plays;
+- TorBox itself: what its file servers do with a fifth connection to a
+  link, whether a renewed link plays on after a real link's three hours,
+  and the TorBox check against the owner's real Worker (only a stub of its
+  helper has answered it so far).

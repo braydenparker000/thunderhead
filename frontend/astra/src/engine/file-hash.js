@@ -18,11 +18,13 @@ export function openSubtitlesHash(size, head, tail) {
 /**
  * Hashes a remote file. `head` is the first 64 KiB and `tail` the last when
  * already at hand (the range reader has them once the probe read the index
- * at the end); what is missing is one small range request of its own.
+ * at the end); what is missing is one small range request of its own, made
+ * through `read(start, end)` when given (the range reader's side reads, which
+ * keep to its connection limit and renew a dead address), else fetched here.
  */
-export async function remoteFileHash(url, size, {headers = {}, head = null, tail = null, signal, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
+export async function remoteFileHash(url, size, {headers = {}, head = null, tail = null, signal, read = null, fetchFn = (...a) => globalThis.fetch(...a)} = {}) {
   if (!(size >= HASH_CHUNK * 2)) return null;
-  const range = async (start, end) => {
+  const range = read || async function (start, end) {
     const r = await fetchFn(url, {headers: {...headers, Range: `bytes=${start}-${end - 1}`}, signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     if (r.status !== 206) { r.body?.cancel().catch(() => {}); throw Error('range'); }
     return new Uint8Array(await r.arrayBuffer());

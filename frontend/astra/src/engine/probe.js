@@ -15,8 +15,8 @@ import {sniffContainer} from './software.js';
  * or {readable: false, error} when a page cannot read it (the planner then
  * hands the address to the browser as-is).
  */
-export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}, fetchFn} = {}) {
-  const source = new HttpSource(url, {headers, ...(fetchFn ? {fetchFn} : {})});
+export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}, fetchFn, renew = null} = {}) {
+  const source = new HttpSource(url, {headers, renew, ...(fetchFn ? {fetchFn} : {})});
   onSource(source); // so the loading screen can say how much has arrived
   source.probing = true; // read only what describing the file needs; playback may start elsewhere
   // A playlist is known by its address before anything is read, and by its type once the host answers, even
