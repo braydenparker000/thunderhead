@@ -2,7 +2,7 @@
 // fragmented MP4 untouched, so the phone's hardware decoder does the work.
 // Audio goes into its own SourceBuffer, either re-wrapped ('direct') or
 // decoded and re-encoded to Opus ('rebuilt') when the browser cannot decode
-// it. Changing audio track refills only that buffer.
+// it. Changing audio track refills only that buffer (remux-switch.js).
 //
 // Fragments carry absolute timestamps, so after a seek outside the buffered
 // range a new pipeline simply starts at the nearest key frame.
@@ -15,9 +15,10 @@ import {fragmentWriter} from './fragments.js';
 import {pumpAudio} from './remux-audio.js';
 import {EarlyCuts} from './early.js';
 import {loadDecoders} from './audio-decoders.js';
+import {switchMethods} from './remux-switch.js';
 import {StallWatch} from './stall-watch.js';
+import {Rebuffer} from './rebuffer.js';
 import {mkvPackets} from './mkv-packets.js';
-import {hasCentre} from '../enhance/sound-chain.js';
 import {soundMime} from './sound-six.js';
 import {aheadSeconds} from './hold.js';
 
@@ -27,7 +28,8 @@ export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; 
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
 const SLICE_MS = 8;
-const pageTurn = () => globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
+const exp = () => globalThis.__astraExp || {}; // EXPERIMENT (scratch): turn 'timeout'; head seconds for both kinds
+const pageTurn = () => exp().turn !== 'timeout' && globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
 
 export {loadDecoders};
 
@@ -103,6 +105,7 @@ export class RemuxSession extends EventTarget {
     for (const type of ['timeupdate', 'seeking', 'playing']) this.video.addEventListener(type, this.onProgress);
     if (startTime > 0) this.video.currentTime = startTime;
     this.watch = new StallWatch(this);
+    this.rebuffer = new Rebuffer(this, () => aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate)); // on a link slower than the film
     this.run(startTime);
   }
 
@@ -154,43 +157,6 @@ export class RemuxSession extends EventTarget {
     return run;
   }
 
-  /** Switches to another audio track: only the audio buffer is refilled. */
-  async setAudio(choice) {
-    if (this.destroyed || !this.queues.audio) return;
-    const ticket = this.tickets.audio = (this.tickets.audio || 0) + 1; // a track chosen later wins, even while this one's decoder downloads
-    if (choice.delivery === 'rebuilt') { this.emit('status', 'Loading the audio decoder…'); await loadDecoders(choice.track.codec); }
-    return this.serial('audio', () => this.refillAudio(choice), ticket);
-  }
-
-  /** Empties the audio buffer and fills it again from just before the playhead: another track, or the same one changed. */
-  async refillAudio(choice = this.audio) {
-    const was = this.audioMime, mime = soundMime(this, choice, was); // rebuilt: whole (FLAC, sound-six.js) or stereo Opus, as it began
-    this.audioMime = mime;
-    this.audio = choice;
-    this.ended.audio = false;
-    const generation = await this.queues.audio.reset({mime: mime !== was ? mime : null});
-    if (this.destroyed) return;
-    this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
-    this.flushAudio = generation; // see room()
-    this.pumpAudio(generation, Math.max(0, this.video.currentTime + this.advance - 0.3) + this.offset).catch(e => this.fail(e));
-  }
-
-  /** Sound `seconds` (0-1) earlier than the picture: the audio buffer's timestamps move back that much, refilled. */
-  setAdvance(seconds) {
-    const d = Math.min(1, Math.max(0, Number(seconds) || 0));
-    if (d === this.advance) return;
-    this.advance = d;
-    if (this.queues.audio) return this.serial('refill', () => this.refillAudio()); // after any track change asked before it
-  }
-
-  /** The gain on the centre channel as rebuilt sound is mixed to stereo (dialogue lift); sound not yet mixed is mixed again. */
-  setCentre(gain) {
-    const g = gain > 0 ? gain : 1;
-    if (g === this.centre) return;
-    this.centre = g;
-    if (this.queues.audio && this.audio?.delivery === 'rebuilt' && hasCentre(this.audio.track.channels)) return this.serial('refill', () => this.refillAudio());
-  }
-
   /** Waits while the pipeline is far enough ahead of the playhead. */
   async room(kind, timestamp, generation) {
     const queue = this.queues[kind];
@@ -213,7 +179,8 @@ export class RemuxSession extends EventTarget {
     // far past the picture, and the picture's blocks out of the reader's cache.
     const other = kind === 'video' ? 'audio' : 'video';
     const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
-    while (current() && (this.readAt[kind] - this.video.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || queue.pending() > TUNING.maxQueued)) {
+    const v = this.video, head = () => exp().head && (v.seeking || v.readyState < 3) && !this.rebuffer?.holding && this.readAt[kind] - v.currentTime > exp().head;
+    while (current() && (this.readAt[kind] - this.video.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || head() || (queue.pending() > TUNING.maxQueued && !queue.held))) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);
@@ -277,7 +244,7 @@ export class RemuxSession extends EventTarget {
   destroy() {
     this.destroyed = true;
     this.opening?.abort(); // a media source still opening: its wait ends, its address is let go
-    this.watch?.stop();
+    this.watch?.stop(); this.rebuffer?.stop();
     clearTimeout(this.seekTimer);
     this.video.removeEventListener('seeking', this.onSeeking);
     for (const type of ['timeupdate', 'seeking', 'playing']) this.video.removeEventListener(type, this.onProgress);
@@ -291,3 +258,5 @@ export class RemuxSession extends EventTarget {
 async function* inOrder(sink, start) {
   for (let packet = start; packet; packet = await sink.getNextPacket(packet)) yield packet;
 }
+
+Object.assign(RemuxSession.prototype, switchMethods); // another track, the sound's advance, the centre mixed again

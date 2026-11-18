@@ -28,7 +28,7 @@ export class EarlyCuts {
     // The writer begins a fragment at a key frame only when it is shown after every frame before it: a key frame
     // that repeats an earlier time (or comes before it) begins none, so it must not be counted as one.
     if (packet.type === 'key') { if (!this.started || packet.timestamp > this.high) { this.forced.push(false); this.cut = packet.timestamp; } }
-    else if (this.started && packet.timestamp > this.high && packet.timestamp - this.cut >= EVERY) {
+    else if (this.started && packet.timestamp > this.high && packet.timestamp - this.cut >= (globalThis.__astraExp?.every ?? EVERY)) { // EXPERIMENT
       out = packet.clone({type: 'key'});
       this.forced.push(true);
       this.cut = packet.timestamp;

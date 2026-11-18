@@ -14,6 +14,8 @@
 // Options: --runs 3 --cpu 1 --mbit 0 --conn 0 --delay 0 --audio default|aac --resume 120 --play 60
 //          --far 120 --back 15 --last 165 --skip resume,warm,seeks --out results.json --before '<js run in the page first>'
 //          --gc (a garbage collection forced before each look at memory: what is still held)
+//          --taps (a tap every 2 s while it plays, which changes a line of text as a menu would: how long from the tap to
+//          the next paint, by the browser's Event Timing, median and worst)
 // Needs Playwright's Chromium (CHROMIUM_PATH, default /opt/pw-browsers/chromium) and ffprobe for --audio aac.
 // Films stay where they are: nothing of them is written here.
 import { chromium } from 'playwright';
@@ -26,7 +28,7 @@ import { astraHost } from '../../tests/fixtures/astra-host.mjs';
 const args = process.argv.slice(2), film = resolve(args[0] || '');
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
 const O = { runs: +opt('runs', 3), cpu: +opt('cpu', 1), mbit: +opt('mbit', 0), conn: +opt('conn', 0), delay: +opt('delay', 0), audio: opt('audio', 'default'),
-  resume: +opt('resume', 120), play: +opt('play', 60), far: opt('far'), back: opt('back'), last: opt('last'), skip: new Set(String(opt('skip', '')).split(',')), out: opt('out'), before: opt('before'), gc: args.includes('--gc') };
+  resume: +opt('resume', 120), play: +opt('play', 60), far: opt('far'), back: opt('back'), last: opt('last'), skip: new Set(String(opt('skip', '')).split(',')), out: opt('out'), before: opt('before'), gc: args.includes('--gc'), taps: args.includes('--taps') };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const median = (xs) => { const v = xs.filter((x) => typeof x === 'number' && Number.isFinite(x)).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
 
@@ -73,6 +75,15 @@ function instrument() {
   };
   SourceBuffer.prototype.remove = function (a, b) { const v = window.p?.video; M.removes.push([Math.round(performance.now()), v ? +v.currentTime.toFixed(1) : null, +(+a).toFixed(1), b === Infinity ? 'end' : +(+b).toFixed(1)]); return rm.call(this, a, b); };
   new PerformanceObserver((l) => { for (const e of l.getEntries()) M.long.push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ entryTypes: ['longtask'] });
+  // A tap's way to the screen (--taps): each pointerdown changes a line of text, as a menu opening would.
+  M.taps = [];
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'pointerdown') M.taps.push([Math.round(e.startTime), e.duration]); }).observe({ type: 'event', durationThreshold: 16, buffered: true });
+  addEventListener('DOMContentLoaded', () => {
+    const pad = Object.assign(document.createElement('div'), { id: 'm-tap' }); // the place tapped, over the page's own
+    pad.style.cssText = 'position:fixed;left:0;top:0;width:60px;height:40px;z-index:2147483647;background:#000;color:#fff;font:10px sans-serif';
+    pad.addEventListener('pointerdown', () => { pad.textContent = 'tap ' + Math.round(performance.now()); });
+    document.body.append(pad);
+  });
   let last = performance.now();
   setInterval(() => { const now = performance.now(); M.late.push([Math.round(now), Math.round(now - last - 50)]); if (M.late.length > 4000) M.late.shift(); last = now; }, 50);
 }
@@ -175,6 +186,7 @@ async function playRun(browser, base, host, url, audioId, root) {
   let peak = { pss: 0, heap: 0, store: 0 };
   for (let i = 0; i < O.play; i++) {
     await sleep(1000);
+    if (O.taps && i % 2) await page.mouse.click(20, 20);
     const [s, m] = await Promise.all([page.evaluate(sample), memory(cdp, root)]);
     samples.push({ ...s, ...m });
     peak = { pss: Math.max(peak.pss, m.pss), heap: Math.max(peak.heap, m.heap || 0), store: Math.max(peak.store, m.store || 0) };
@@ -182,15 +194,18 @@ async function playRun(browser, base, host, url, audioId, root) {
   const p1 = await page.evaluate(() => {
     const M = window.__m, v = window.p.video, q = v.getVideoPlaybackQuality(), at = M.playAt;
     const w = M.waits.filter((x) => x[0] > at), stalls = []; let open = null;
-    for (const [t, e] of w) { if (e === 'waiting' && open == null) open = t; if (e === 'playing' && open != null) { stalls.push(t - open); open = null; } }
-    if (open != null) stalls.push(Math.round(performance.now() - open));
+    // Stalls (waiting to playing) and the stretches of play between them (playing, or the start, to waiting, or the end).
+    const runs = []; let from = at;
+    for (const [t, e] of w) { if (e === 'waiting' && open == null) { open = t; if (from != null) runs.push(t - from); from = null; } if (e === 'playing' && open != null) { stalls.push(t - open); open = null; from = t; } }
+    if (open != null) stalls.push(Math.round(performance.now() - open)); else if (from != null) runs.push(performance.now() - from);
+    const taps = M.taps.filter((x) => x[0] > at).map((x) => x[1]).sort((a, b) => a - b);
     const long = M.long.filter((l) => l[0] > at), late = M.late.filter((l) => l[0] > at).map((l) => l[1]);
-    return { q: [q.droppedVideoFrames, q.totalVideoFrames], t: v.currentTime, stalls, long: [long.length, long.reduce((n, l) => n + l[1], 0), Math.max(0, ...long.map((l) => l[1]))], lateMax: Math.max(0, ...late),
-      errors: { ...M.errors }, quota: M.quotaAt.length, requests: M.fetches.filter((f) => f.t > at).length, removes: M.removes.filter((r) => r[0] > at).length, removesUnder: M.removes.filter((r) => r[0] > at && r[3] !== 'end' && r[3] > r[1] - 0.5).length, log: window.p.log.filter((x) => ['stall', 'resume', 'fallback', 'error'].includes(x.kind)).map((x) => x.kind + ' ' + JSON.stringify(x.detail).slice(0, 120)) };
+    return { q: [q.droppedVideoFrames, q.totalVideoFrames], t: v.currentTime, stalls, longestRun: Math.round(Math.max(0, ...runs)), taps: taps.length ? [taps[taps.length >> 1], taps.at(-1), taps.length] : null, long: [long.length, long.reduce((n, l) => n + l[1], 0), Math.max(0, ...long.map((l) => l[1]))], lateMax: Math.max(0, ...late),
+      errors: { ...M.errors }, quota: M.quotaAt.length, requests: M.fetches.filter((f) => f.t > at).length, removes: M.removes.filter((r) => r[0] > at).length, removesUnder: M.removes.filter((r) => r[0] > at && r[3] !== 'end' && r[3] > r[1] - 0.5).length, log: window.p.log.filter((x) => ['stall', 'resume', 'fallback', 'error', 'rebuffer'].includes(x.kind)).map((x) => x.kind + ' ' + JSON.stringify(x.detail).slice(0, 120)) };
   });
   const played = await filmBytes(page, s0.t, p1.t);
   const last = samples.at(-1);
-  out.play = { seconds: +(p1.t - s0.t).toFixed(1), dropped: p1.q[0] - s0.q[0], frames: p1.q[1] - s0.q[1], stalls: p1.stalls.length, stallMs: p1.stalls.reduce((a, b) => a + b, 0), long: p1.long, lateMax: p1.lateMax, requests: p1.requests, restarts: last.restarts - samples[0].restarts,
+  out.play = { seconds: +(p1.t - s0.t).toFixed(1), dropped: p1.q[0] - s0.q[0], frames: p1.q[1] - s0.q[1], stalls: p1.stalls.length, stallMs: p1.stalls.reduce((a, b) => a + b, 0), stallWorst: Math.max(0, ...p1.stalls), longestRun: p1.longestRun, taps: p1.taps, long: p1.long, lateMax: p1.lateMax, requests: p1.requests, restarts: last.restarts - samples[0].restarts,
     fetchedTotal: last.fetched, played, appendErrors: p1.errors, quota: p1.quota, removes: p1.removes, removesUnderPlayhead: p1.removesUnder,
     aheadMax: Math.max(...samples.map((s) => s.el[1])), behindMax: Math.max(...samples.map((s) => s.el[0])), ahead: median(samples.map((s) => s.el[1])), behind: median(samples.map((s) => s.el[0])),
     holes: samples.filter((s) => s.el[2] > 1).length, cacheMax: Math.max(...samples.map((s) => s.cache)), queuedMax: Math.max(...samples.map((s) => s.queued)), peak, log: p1.log };
@@ -240,13 +255,13 @@ function pacing(host) {
     const run = await playRun(browser, base, host, url, audioId, root);
     if (!O.skip.has('resume')) run.resume = await resumeRun(browser, base, host, url, audioId);
     runs.push(run);
-    console.error(`run ${i + 1}: first ${run.start.ms} ms, resume ${run.resume?.ms} ms, warm ${run.warm?.ms} ms, seeks ${JSON.stringify(Object.fromEntries(Object.entries(run.seeks || {}).map(([k, v]) => [k, v?.ms ?? v])))}, stalls ${run.play.stalls}, dropped ${run.play.dropped}, pss ${(run.play.peak.pss / 1048576).toFixed(0)} MB`);
+    console.error(`run ${i + 1}: first ${run.start.ms} ms, resume ${run.resume?.ms} ms, warm ${run.warm?.ms} ms, seeks ${JSON.stringify(Object.fromEntries(Object.entries(run.seeks || {}).map(([k, v]) => [k, v?.ms ?? v])))}, stalls ${run.play.stalls} (${(run.play.stallMs / 1000).toFixed(1)} s, longest play ${(run.play.longestRun / 1000).toFixed(1)} s), dropped ${run.play.dropped}, pss ${(run.play.peak.pss / 1048576).toFixed(0)} MB`);
   }
   const m = (f) => median(runs.map(f)), MB = (x) => x == null ? null : +(x / 1048576).toFixed(1);
   const summary = { film: basename(film), cpu: O.cpu, mbit: O.mbit, conn: O.conn, delay: O.delay, audio: O.audio, runs: runs.length,
     first: m((r) => r.start.ms), firstRequests: m((r) => r.startRequests), firstMB: MB(m((r) => r.start.bytes)), resume: m((r) => r.resume?.ms), resumeRequests: m((r) => r.resume?.requests?.length), resumeMB: MB(m((r) => r.resume?.bytes)),
     warm: m((r) => r.warm?.ms), warmRequests: m((r) => r.warm?.requests?.length), near: m((r) => r.seeks?.near.ms), far: m((r) => r.seeks?.far.ms), farRequests: m((r) => r.seeks?.far.requests?.length), back: m((r) => r.seeks?.back.ms), last: m((r) => r.seeks?.last.ms),
-    dropped: m((r) => r.play.dropped), frames: m((r) => r.play.frames), stalls: m((r) => r.play.stalls), stallMs: m((r) => r.play.stallMs), playedS: m((r) => r.play.seconds),
+    dropped: m((r) => r.play.dropped), frames: m((r) => r.play.frames), stalls: m((r) => r.play.stalls), stallMs: m((r) => r.play.stallMs), stallWorst: m((r) => r.play.stallWorst), longestRun: m((r) => r.play.longestRun), tapMs: m((r) => r.play.taps?.[0]), tapWorst: m((r) => r.play.taps?.[1]), playedS: m((r) => r.play.seconds),
     downloadedMB: MB(m((r) => r.play.fetchedTotal)), playedMB: MB(m((r) => r.play.played)), aheadS: m((r) => r.play.ahead), aheadMaxS: m((r) => r.play.aheadMax), behindMaxS: m((r) => r.play.behindMax),
     quota: m((r) => r.play.quota), removesUnder: m((r) => r.play.removesUnderPlayhead), holes: m((r) => r.play.holes), cacheMaxMB: MB(m((r) => r.play.cacheMax)), queuedMaxMB: MB(m((r) => r.play.queuedMax)),
     pssPeakMB: MB(m((r) => r.play.peak.pss)), heapPeakMB: MB(m((r) => r.play.peak.heap)), storePeakMB: MB(m((r) => r.play.peak.store)), seekPssMB: MB(m((r) => r.seeks?.peak)),

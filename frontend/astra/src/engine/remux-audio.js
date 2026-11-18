@@ -15,6 +15,7 @@ import {ownSampleSink, SOUND} from './sound-stream.js';
 import {FLAC, sixRoom} from './sound-six.js';
 import {stereoWriter, wholeWriter} from './sound-write.js';
 import {apartUsable, convertApart} from './sound-apart.js';
+import {converterHere} from './sound-wait.js';
 
 /**
  * Runs one audio pipeline for `session` (a RemuxSession) until it ends, is replaced (a newer generation, another
@@ -25,6 +26,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
   const output = session.output('audio', generation);
   const live = () => session.audio === choice && session.queues.audio.generation === generation;
   if (choice.delivery === 'rebuilt') {
+    if (!await converterHere(session, generation, from, live)) return; // late or refused: silence meanwhile (sound-wait.js)
     const packets = session.ownSound !== false ? session.sink?.(choice.track) : null;
     if (packets && SOUND.own && session.soundApart !== false && apartUsable()) {
       session.stats.ownSound = session.stats.soundApart = true;
@@ -97,7 +99,9 @@ export async function pumpAudio(session, generation, from, inOrder) {
 const HEAD = 4;
 async function settled(session, timestamp, live) {
   const v = session.video;
-  while (live() && timestamp - session.offset - v.currentTime > HEAD && (v.seeking || v.readyState < 3)) await new Promise(resolve => setTimeout(resolve, 100));
+  if (globalThis.__astraExp?.head) return live(); // EXPERIMENT: the cap is in room() for both kinds
+  // A stall held for the link (rebuffer.js) is no such place: there both read on to what it waits for.
+  while (live() && timestamp - session.offset - v.currentTime > HEAD && (v.seeking || v.readyState < 3) && !session.rebuffer?.holding) await new Promise(resolve => setTimeout(resolve, 100));
   return live();
 }
 

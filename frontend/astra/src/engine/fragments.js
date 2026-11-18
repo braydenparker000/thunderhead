@@ -6,18 +6,61 @@ import {toStereo} from './downmix.js';
 
 /** An output whose fragments go to `queue` for `generation`; video fragments may be cut early (early.js). */
 export function fragmentWriter(queue, stats, kind, generation, early = null) {
-  let head = [], moof = null;
-  const send = bytes => { stats.appended += bytes.byteLength; queue.append(bytes, generation); };
+  let head = [], moof = null, at = null; // at: where the fragment begins, in the file's time
+  const send = bytes => { stats.appended += bytes.byteLength; queue.append(bytes, generation, at); };
   const format = new MB.Mp4OutputFormat({
-    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 1 : 0, // video: every key frame, real or early (early.js), begins a fragment
+    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? (globalThis.__astraExp?.audioFrag ?? 1) : 0, // EXPERIMENT // video: every key frame, real or early (early.js), begins a fragment
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
-    onMoof: data => { moof = data.slice(); early?.settle(moof); },
+    onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; early?.settle(moof); sized(output, moof); },
     // The two boxes go to the buffer one after the other, as they are: joined, each fragment was copied once more
     // (3 MB a second of a 25 Mbit/s film). The writer's `data` is its own array, not one it writes into again.
     onMdat: data => { send(moof); send(data); moof = null; },
   });
-  return new MB.Output({format, target: new MB.NullTarget()});
+  const output = new MB.Output({format, target: new MB.NullTarget()});
+  return output;
+}
+
+/**
+ * Mediabunny collects each box it hands over in an array that starts at 1 KiB and doubles, copied each time: a 1.7 MB
+ * fragment of picture left about 4 MB of arrays behind it (2 MiB of them kept until appended). Counted on the 25 Mbit/s
+ * film: 285 MiB of such arrays for 121 MiB of film read, the page's largest maker of garbage by far (2026-11-18). The
+ * fragment's sample sizes are in the moof that comes first, so the array for its mdat is made at its size, once: 114
+ * MiB. Where the writer is not as expected (another Mediabunny), nothing changes.
+ */
+export function sized(output, moof) {
+  const writer = output._muxer?.writer;
+  if (!writer || typeof writer.startTrackingWrites !== 'function') return;
+  if (!writer.sizedStart) {
+    const start = writer.startTrackingWrites;
+    writer.sizedStart = function () { start.call(this); if (this.nextSize > this.trackedWrites?.byteLength) this.trackedWrites = new Uint8Array(this.nextSize); this.nextSize = 0; };
+    writer.startTrackingWrites = writer.sizedStart;
+  }
+  const size = sampleBytes(moof);
+  writer.nextSize = size ? size + 16 : 0; // and the mdat's own header (8 bytes, 16 when large)
+}
+
+/** The bytes of every sample a `moof` box describes (0 when a run gives no sizes of its own). */
+export function sampleBytes(moof) {
+  const view = new DataView(moof.buffer, moof.byteOffset, moof.byteLength);
+  let total = 0, plain = true;
+  const walk = (at, end) => {
+    while (at + 8 <= end) {
+      const size = view.getUint32(at), type = view.getUint32(at + 4);
+      if (size < 8) return;
+      if (type === 0x6d6f6f66 || type === 0x74726166) walk(at + 8, at + size); // moof, traf
+      else if (type === 0x7472756e) { // trun: flags, sample count, [data offset], [first sample flags], then each sample
+        const flags = view.getUint32(at + 8) & 0xffffff, count = view.getUint32(at + 12);
+        if (!(flags & 0x200)) { plain = false; return; }
+        const each = 4 * ((flags & 0x100 ? 1 : 0) + 1 + (flags & 0x400 ? 1 : 0) + (flags & 0x800 ? 1 : 0));
+        let p = at + 16 + (flags & 1 ? 4 : 0) + (flags & 4 ? 4 : 0) + (flags & 0x100 ? 4 : 0);
+        for (let i = 0; i < count && p + 4 <= at + size; i++, p += each) total += view.getUint32(p);
+      }
+      at += size;
+    }
+  };
+  walk(0, moof.byteLength);
+  return plain ? total : 0;
 }
 
 /** One decoded sample as stereo at the same rate, its centre channel (if any) multiplied by `centre`. */

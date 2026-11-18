@@ -1,6 +1,7 @@
 // What the player says while it waits or after it stops: the loading screen
-// (how long, how much has arrived, and a way out when it drags on), the error
-// card with what can help, and the short notice across the top.
+// (how long, how much has arrived, and a way out when it drags on), how long a
+// wait for a slow link has left, under the spinner, the error card with what
+// can help, and the short notice across the top.
 
 import {h} from '../ui/dom.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
@@ -11,6 +12,24 @@ export class Loading {
     this.p = p;
     this.timer = 0;
     this.since = null;
+    p.engine.addEventListener('rebuffer', e => this.waitFor(e.detail));
+    p.engine.addEventListener('notice', e => this.notice(e.detail)); // what the engine finds while it plays (a converter late or refused)
+  }
+
+  /**
+   * On a link slower than the film the engine waits until enough is read to play a good while (rebuffer.js): when that
+   * wait has more than a couple of seconds left, a line under the spinner says how long, and why.
+   */
+  waitFor({holding, left}) {
+    const p = this.p;
+    if (!this.waitEl) {
+      // Placed by its own style, as the spinner's box (player.css .ap-buffering) has room for the ring only.
+      this.waitEl = h('p', {class: 'ap-wait', role: 'status', hidden: true, style: {position: 'absolute', top: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '80vw', margin: '0', textAlign: 'center', fontSize: '13px', lineHeight: '18px', color: 'rgba(255,255,255,.9)', textShadow: '0 1px 3px rgba(0,0,0,.8)', fontVariantNumeric: 'tabular-nums'}});
+      p.spinner.parentElement?.append(this.waitEl);
+    }
+    const show = holding && left != null && left > 2;
+    if (show) this.waitEl.replaceChildren('The connection is slower than this film.', h('br'), `Playing again in ${Math.ceil(left)} s`);
+    this.waitEl.hidden = !show;
   }
 
   show(on) {
@@ -109,6 +128,7 @@ export class Loading {
   close() {
     const p = this.p;
     this.show(false);
+    if (this.waitEl) this.waitEl.hidden = true;
     clearTimeout(this.noticeTimer);
     p.noticeEl.hidden = true;
     p.errorCard.hidden = true;

@@ -47,6 +47,12 @@ want multi.mkv && ff -f lavfi -i "$(pic 60)" -f lavfi -i "$(tone 440 60)" -f lav
 want surround.mkv && ff -f lavfi -i "$(pic 20)" -f lavfi -i "$(tone 660 20)" -map 0:v -map 1:a "${x264[@]}" -c:a ac3 -b:a 96k -ac 6 \
   -metadata:s:a:0 language=eng "$out/surround.mkv"
 
+# mixed.mkv: H.264 with Dolby Digital 5.1 at 660 Hz (rebuilt on the device, the default) and AAC stereo at 440 Hz (passed
+# through): what plays when the converter cannot be downloaded. 10 s.
+want mixed.mkv && ff -f lavfi -i "$(pic 10)" -f lavfi -i "$(tone 660 10)" -f lavfi -i "$(tone 440 10)" -map 0:v -map 1:a -map 2:a "${x264[@]}" \
+  -c:a:0 ac3 -b:a:0 96k -ac:a:0 6 -c:a:1 aac -b:a:1 24k -ac:a:1 2 -metadata:s:a:0 language=eng -metadata:s:a:0 title=Surround \
+  -metadata:s:a:1 language=eng -metadata:s:a:1 title=Stereo -disposition:a:0 default -disposition:a:1 0 "$out/mixed.mkv"
+
 # plain.mp4: one picture, one AAC track, the index first: the browser plays it as it is. 20 s.
 want plain.mp4 && ff -f lavfi -i "$(pic 20)" -f lavfi -i "$(tone 440 20)" -map 0:v -map 1:a "${x264[@]}" -c:a aac -b:a 24k -ac 2 \
   -movflags +faststart "$out/plain.mp4"

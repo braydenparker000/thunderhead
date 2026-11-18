@@ -1,9 +1,12 @@
 // Astra's early fragments (frontend/astra/src/engine/early.js): a video fragment is cut every half
 // second at a frame shown after all before it, handed to the writer as a key frame, and written back
-// as an ordinary frame when the fragment comes out. Packets and boxes here are invented.
+// as an ordinary frame when the fragment comes out. Packets and boxes here are invented. And the writer's mdat made
+// in one array of its size (fragments.js), not grown from 1 KiB by doubling.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EarlyCuts, demote, startsWithKey } from '../frontend/astra/src/engine/early.js';
+import { fragmentWriter, sampleBytes } from '../frontend/astra/src/engine/fragments.js';
+import * as MB from '../frontend/astra/vendor/mediabunny.js';
 
 const packet = (timestamp, type = 'delta') => ({ timestamp, type, clone(over) { return { ...this, ...over, copy: true }; } });
 
@@ -66,4 +69,22 @@ test('demote leaves sizes, durations and offsets alone', () => {
   const before = fragment(KEY), after = demote(fragment(KEY));
   const differing = [...before].map((b, i) => (b !== after[i] ? i : -1)).filter((i) => i >= 0);
   assert.deepEqual(differing, [before.length - 28, before.length - 27], 'only the two flag bytes change');
+});
+
+test("each fragment's mdat comes in one array of its own size, as its moof's sample sizes say", async () => {
+  const sent = [], queue = { append: (bytes) => sent.push(bytes) };
+  const output = fragmentWriter(queue, { appended: 0 }, 'video', 0, new EarlyCuts());
+  const source = new MB.EncodedVideoPacketSource('avc');
+  output.addVideoTrack(source);
+  await output.start();
+  const config = { codec: 'avc1.64001f', codedWidth: 64, codedHeight: 64, description: new Uint8Array([1, 100, 0, 31, 255, 225, 0, 4, 103, 100, 0, 31, 1, 0, 4, 104, 238, 60, 128]) };
+  for (let i = 0; i < 96; i++) await source.add(new MB.EncodedPacket(new Uint8Array(20_000 + i * 97), i % 24 ? 'delta' : 'key', i / 24, 1 / 24), i ? undefined : { decoderConfig: config });
+  await output.finalize();
+  const type = (b) => String.fromCharCode(...b.subarray(4, 8));
+  const pairs = sent.slice(1).reduce((out, b) => (type(b) === 'moof' ? out.push([b]) : out.at(-1).push(b), out), []);
+  assert.equal(pairs.length, 4, "a fragment for each key frame");
+  for (const [moof, mdat] of pairs) {
+    assert.equal(mdat.byteLength - 8, sampleBytes(moof), 'the moof says how large its mdat is');
+    assert.ok(mdat.buffer.byteLength <= mdat.byteLength + 16, `made at its size (${mdat.buffer.byteLength} for ${mdat.byteLength})`);
+  }
 });

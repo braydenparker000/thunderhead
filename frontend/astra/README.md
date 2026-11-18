@@ -368,7 +368,14 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
 3. **Play** (`remux.js`, `mse.js`, `early.js`, `downmix.js`). Video packets
    are re-wrapped as fragmented MP4 untouched, in half-second fragments, so
    the phone's hardware decoder does the work;
-   audio has its own SourceBuffer, so changing track refills only the audio.
+   audio has its own SourceBuffer, so changing track refills only the audio
+   (`remux-switch.js`): another track, or the same one mixed again for the
+   dialogue lift, is written over the old sound from a second past the
+   playhead, so the old sound plays to there, the new one from there, and the
+   picture does not stop. With less than 1.5 s of sound buffered ahead, or
+   the sound moved in time (Sound › earlier), the buffer is emptied and the
+   film seeks in place, which stops the picture briefly, as every change did
+   before (A slow link, a change of track, below).
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame, and a seek inside what is
    already buffered (or just ahead of where reading is) starts nothing. A
@@ -417,6 +424,42 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    the sound or the picture; when the sound ends before the picture, the
    film carries on from the same place without sound (the stream's notes say
    so), rather than stopping for good.
+   **A link slower than the film** (`rebuffer.js`). The browser plays on as
+   soon as anything is buffered, so such a link stalled every few seconds.
+   After a stall (not a start or a seek, which go as fast as they can) the
+   fragments of picture and sound now wait in the page until enough of the
+   film is read to play a good while, so the element waits by itself and
+   nothing is paused: 20 s of play times the part of each second the link
+   cannot bring in time, at least 3 s of film, doubled when a stall comes
+   within a minute of the last resume (twice at most), and never more than a
+   wait of 15 s nor the pipelines' read-ahead less 2 s. The link's speed is
+   what the reader received while a download ran, over the last 8 s of it; on
+   a link as fast as the film or faster nothing is held, and a film plays
+   exactly as before. The sound is held with the picture: with only the
+   picture held, Chrome played the sound on for up to 3 s over a frozen
+   picture before it waited. While such a wait has more than 2 s left, a line
+   under the spinner says so and how long ("The connection is slower than
+   this film. Playing again in 12 s", `player/loading.js`). The time spent
+   waiting is the same (the bytes are what they are); the interruptions are
+   fewer and longer apart (A slow link, below).
+   **A converter that does not come** (`sound-wait.js`, `player-start.js`
+   `converterLate`). Converted sound waits for its decoder's download; the
+   browser plays only where every track has data, so a refused download
+   stopped the film ("The audio converter could not be downloaded.", about
+   3 s in) and a slow one held back the first picture. Now the picture waits
+   for it at most 2 s once its own first second is buffered; then silence of
+   the sound buffer's kind is written in its place, so the film plays, and
+   the player says what happens: another track that needs no converter plays
+   instead when the film has one, in the preferred language first ("The
+   audio converter could not be downloaded, so this plays Stereo. Choose
+   Surround in Audio to try again."; the converted track stays in the menu,
+   and choosing it tries the download again); when the converter was only
+   slow, the chosen track comes back by itself once it arrives. A film with
+   no such track plays on without sound ("…so this plays without sound until
+   it can be."), the download is tried again every 15 s, and the sound comes
+   in over the silence from a second past the playhead when it arrives. A
+   track chosen while playing whose converter is refused leaves the track
+   that plays as it is, and says so.
    HLS and DASH streams play through hls.js and dash.js, served from Astra's
    own `vendor/` and loaded only when such a stream is played, with a
    phone's settings in place of their desktop defaults
@@ -757,7 +800,8 @@ What is left: on a link slower than the film (8 and 20 Mbit/s against
 27.8) it stalls, as anything must: 8 or 9 times a minute, about 2 s each
 at 20 Mbit/s and 5.5 s at 8, the element reporting `waiting` each time
 (the player shows its spinner after 400 ms of it; not looked at on screen
-here); nothing restarts or seeks meanwhile. A seek five seconds on is then
+here); nothing restarts or seeks meanwhile. (Since then a stall on such a
+link waits for seconds of film: fewer, longer stalls; A slow link, below.) A seek five seconds on is then
 not inside the buffer and waits for the download to reach it. The page is
 under 250 MB only while the link is slower than the film: at 40 Mbit/s it
 peaks at 380 MB, of which about 120 MB is garbage the collector had not
@@ -780,8 +824,9 @@ Earlier (2026-11-10, a three-minute 1080p film at 8 Mbit/s, Mediabunny
 Dolby Digital and DTS are mixed to stereo a sample at a time
 (`downmix.js`) and the picture arrives in half-second fragments
 (`early.js`, `scripts/astra/rewrap.mjs`); the audio decoder downloads while
-the first video is read. Changing the audio track stops the picture for
-about a third of a second (the seek in place that flushes the old sound).
+the first video is read. Changing the audio track stopped the picture for
+about a third of a second (the seek in place that flushed the old sound;
+since 2026-11-18 it does not stop it, `remux-switch.js`).
 
 ### Converted sound on a real film (measured 2026-11-18)
 
@@ -895,7 +940,9 @@ to Dolby Digital Plus, slowed: 3.2 s); the decoder now loads in the worker.
 Writing the new sound over the old from a second ahead, without emptying the
 buffer or seeking (tried in a copy of `remux.js`, not here: it is not this
 work's file), stopped the picture 0.1 to 0.4 s fast and 0.45 to 0.6 s
-slowed (2 runs each), and the tests that change track passed with it.
+slowed (2 runs each), and the tests that change track passed with it. It is
+how a track changes now (`remux-switch.js`; A slow link, a change of track,
+below).
 
 **Headphone surround** keeps Dolby Digital Plus 5.1 whole as FLAC: 576 kB
 a second, read 15 s ahead (`sound-six.js`). Slowed six times, the audio
@@ -931,10 +978,10 @@ drift with the place in the film. Its seeks: 0.3 to 1.4 s to sound after
 converter could not be downloaded." about 3 s after it is planned (three
 tries), before and after. Held back 8 s: the first picture waits for it
 (9.2 s from the tap before, 11.8 s after, one run each on a busy machine;
-the first picture always waits for the sound's first fragment). Playing on
-with another track or without sound, with a plain notice, is the player's
-part and is not done (`player-start.js`). In the app the decoder is usually
-fetched ahead, when the list of streams shows converted sound.
+the first picture always waits for the sound's first fragment). It plays on
+now, with another track or without sound (`sound-wait.js`; A slow link, a
+change of track, below). In the app the decoder is usually fetched ahead,
+when the list of streams shows converted sound.
 
 Not changed, measured: Opus at complexity 5 or with 60 ms frames instead of
 the browser's defaults (no difference beyond the noise in the browser
@@ -945,6 +992,29 @@ as the picture does, so a far seek throws away up to 40 s of conversion
 (in the worker now). Not
 measured: any of this on the phone; the workers' cost on its slower cores;
 a decoder that fails mid-film in the worker beyond the test's.
+
+### A slow link, a change of track, a converter that does not come (measured 2026-11-18)
+
+The heavy film again (`scripts/astra/real.mjs` and `heard.cjs`), in Playwright's Chromium on the four-core machine
+with nothing else measuring, before (commit `a84f9b1`) and after in the same sitting; medians of 3 runs unless said.
+
+**A link slower than the film** (`rebuffer.js`, How a file plays). The page's thread six times slower, one link of
+20 or 8 Mbit/s shared by the requests open, 40 ms a request; 120 s of play from the first picture:
+
+| Heavy film (27.8 Mbit/s), slowed | 20 Mbit/s before | after | 8 Mbit/s before | after |
+|---|---|---|---|---|
+| Stalls in 120 s | 11 | 3 | 11 | 6 |
+| Time stalled in all | 35.9 s | 39.7 s | 88.2 s | 87.6 s |
+| Longest play between stalls; longest stall | 10.7 s; 4.1 s | 39.5 s; 15.7 s | 4.2 s; 10.3 s | 7.0 s; 17.0 s |
+| Film played; first picture | 86.3 s; 2.52 s | 82.6 s; 2.46 s | 34.0 s; 4.84 s | 34.5 s; 4.85 s |
+| Memory at its peak (PSS); held in the page at most | 313 MB; 1.6 MB | 321 MB; 32 MB | 274 MB; 1.6 MB | 286 MB; 15 MB |
+
+At 20 Mbit/s the first stall waited for 5.6 s of film (8.4 s), the next, a minute later, for 10.7 s (15.7 s), and
+the film then played about 40 s at a time; the estimate shown under the spinner was within a second of the wait. At 8
+Mbit/s the 15 s cap holds every wait to about 4.3 s of film, so it plays 7 s at a time instead of 4: a link that slow
+is still a poor match for such a film, and the stalls only halve. The time stalled in all is the same within the
+measure (it ends inside a stall), as it must be; the film's bytes in the page while held are the price, and the page
+peaked 8 to 12 MB higher. The first picture, a start and a seek are not held.
 
 ### Several cores (present, switched off)
 
@@ -1372,6 +1442,8 @@ skip in a browser without it.
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
 | `astra-early.test.mjs` | Half-second fragments. |
+| `astra-rebuffer.test.mjs` | A link slower than the film: how many seconds are made ready after a stall, the link's speed counted only while a download runs, and a session's stall held and let go with a stand-in buffer (all that was held appended, a seek letting go at once, a fast link never held). |
+| `astra-switch-browser.test.mjs` | Changing sound track without stopping the picture (no seek in place, the new pitch heard); the converter refused, met with another track that needs none and a notice, or with silence until it can be downloaded and the sound coming in then. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
 | `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on; TrueHD converted in the sound worker with no encoder made and no decoder loaded on the page and its first fragment a quarter second, and the page taking the sound over when the worker fails mid-film. |
 | `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
@@ -1423,6 +1495,7 @@ skip in a browser without it.
   (a plain MP4, unpacked by Astra like any other film), `open.webm` (VP9,
   Opus), `anime.mkv` (the hand-written, invented `signs.ass` with Inter Bold
   attached), `centre.mkv` (a tone in the centre channel only), `truehd.mkv`, `dts.mkv` (DTS 5.1, 3 s),
+  `mixed.mkv` (Dolby Digital 5.1, converted, and AAC stereo, passed through),
   `hevc.mkv` (software decoder in the test browser), `clusters.mkv` (a
   cluster every 5 s and a key frame every 10 s, so half the clusters begin
   between key frames: Astra's Matroska reader), `frontcues.mkv` (its cue
