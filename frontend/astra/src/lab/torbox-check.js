@@ -165,7 +165,12 @@ export async function limitTest(fetchFn, url, total, signal) {
 async function describe(url, {probe, plan, caps, signal}) {
   if (typeof probe !== 'function') return ['skip', 'Not tried: the engine is not here.'];
   let probed;
-  try { probed = await probe(url, {signal}); } catch (error) { return ['bad', `The engine could not read it: ${reason(error)}.`]; }
+  // The five connections of the step before were only just let go: a host that counts them (TorBox allows four) can
+  // refuse the engine's first ask while they close. One more try after a moment, then it is the film's own trouble.
+  try { probed = await probe(url, {signal}); } catch {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    try { probed = await probe(url, {signal}); } catch (error) { return ['bad', `The engine could not read it: ${reason(error)}.`]; }
+  }
   try {
     const info = probed.info, route = plan ? plan(probed, caps || {}, {}) : null;
     const lines = [];
