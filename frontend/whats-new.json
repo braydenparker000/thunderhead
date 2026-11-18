@@ -1,16 +1,19 @@
 {
-  "id": "2026-11-18-editor-sections-tools-2",
+  "id": "2026-11-18-astra-fonts-start",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Swiping the editor's panel is now a flat slide that follows your finger, and the photo stays still while it moves.",
-      "open": "photos"
+      "text": "Astra: films with subtitle fonts attached (most anime) no longer download all the fonts before the first picture.",
+      "open": "astra"
     },
     {
-      "text": "A short swipe is enough, even on the curve: a swipe can start on the keys beside it."
+      "text": "On a slow connection that was 10 seconds or more of waiting. The fonts now load beside the film."
     },
     {
-      "text": "The tool dial now slides straight up or down: a click every step, round to every tool."
+      "text": "Working out what is inside a file has a time limit, so an odd file cannot hold a film for a minute and a half."
+    },
+    {
+      "text": "When this phone cannot play a film at all, Astra says so in a plain sentence."
     }
   ]
 }
