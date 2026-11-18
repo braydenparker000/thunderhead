@@ -102,6 +102,8 @@ async function resolveAndLoad(app, stream, startTime, ticket) {
   if (ticket !== app.playTicket || !app.player.isOpen) return;
   const {via, steps, reason} = answer;
   if (app.playing) app.playing.answer = {via, steps, reason};
+  // Not on TorBox yet: nothing is opened (the add-on's link would start a download there), and the player says so.
+  if (via === 'none') { app.player.loader.showError(reason || 'This film is not on TorBox yet.', {mode: 'unsupported'}); return; }
   // TorBox's file servers need none of the headers an add-on asks for its own link (a custom one would cost a preflight).
   const headers = via === 'torbox' ? {} : stream.headers;
   // Only a direct address is a renewal: the add-on's own link, which the page cannot read, would not help the engine.

@@ -93,7 +93,7 @@ export class Loading {
     const primary = connection ? 'retry' : external ? 'external' : others ? 'sources' : 'retry';
     p.errorCard.replaceChildren(
       h('h3', {}, gone ? 'This link no longer works' : connection ? 'Lost the connection' : plan?.mode === 'unsupported' ? 'Can’t play this here' : 'Playback stopped'), h('p', {}, message),
-      external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : null,
+      external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : '', // '' and not null: replaceChildren would write the word
       h('div', {class: 'ap-error-actions'},
         external ? h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
         plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,

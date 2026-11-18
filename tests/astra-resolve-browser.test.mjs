@@ -159,6 +159,28 @@ test('the server answers an error: the film plays through the add-on’s link, a
   assert.deepEqual(a.errors, []);
 });
 
+test('the server says the film is not on TorBox yet: nothing is opened, the add-on’s link least of all, and the player says why', opts, async (t) => {
+  const reason = 'This film is not on TorBox yet, so Astra did not start it.';
+  // A press gets no address (nothing is added before a tap); the tap is told the film is not there.
+  server.answer = (asked) => (asked.mode === 'ahead'
+    ? [200, { url: null, via: null, size: null, type: null, readable: null, steps: [{ step: 'cached', ok: false, ms: 20 }] }]
+    : [503, { error: { code: 'unavailable', message: 'Fixed.', details: { reason, steps: [{ step: 'cached', ok: false, ms: 20 }] }, request_id: 'r2' } }]);
+  const a = await app(t, { addonReadable: false });
+  await a.tap();
+  await a.page.waitForFunction(() => { const p = window.astra.player; return p?.isOpen && !p.errorCard.hidden; }, null, { timeout: 20_000 });
+  const card = await a.page.evaluate(() => { const p = window.astra.player; return { text: p.errorCard.querySelector('p').textContent, buttons: [...p.errorCard.querySelectorAll('button')].map((b) => b.textContent), spinning: !p.loaderEl?.hidden && p.loaderEl != null, mode: p.engine.mode, answer: window.astra.playing.answer.via }; });
+  if (process.env.ASTRA_SHOTS) await a.page.screenshot({ path: `${process.env.ASTRA_SHOTS}/resolve-not-on-torbox.png` });
+  assert.equal(card.text, reason);
+  assert.ok(!/\bnull\b|undefined/.test(await a.page.evaluate(() => window.astra.player.errorCard.textContent)), 'no stray word in the card');
+  assert.equal(card.answer, 'none');
+  assert.ok(!card.buttons.includes('Try again') && card.buttons.includes('Close'), `no retry that would open the link (${card.buttons})`);
+  assert.equal(a.seen.link, 0, 'the add-on’s own link was never opened: opening it is what starts a download on TorBox');
+  assert.equal(a.seen.films, 0);
+  assert.equal(server.asked.at(-1).body.mode, 'play', 'the tap asked to play');
+  assert.deepEqual(a.seen.elsewhere, []);
+  assert.deepEqual(a.errors, []);
+});
+
 test('signed out: nothing reaches the server and the add-on’s link plays as before', opts, async (t) => {
   server.answer = () => [200, { url: DIRECT, via: 'torbox', steps: [] }];
   const a = await app(t, { signedIn: false });

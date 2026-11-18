@@ -11,13 +11,19 @@
 // answers without an address when the item is not in the account yet, and the tap then asks with 'play'.
 //
 // Answers are kept in memory only (never stored, gone with the page), per link, for 45 minutes (a
-// TorBox link lives 3 hours); one under way is shared. An answer without an address is not kept.
+// TorBox link lives 3 hours); one under way is shared. An answer without an address is not kept, except
+// a press's (mode 'ahead'), for a minute, so pressing the same card again asks nothing.
+//
+// A film TorBox does not hold yet is not played at all (via 'none'): opening the add-on's own link is how
+// an add-on starts a download there, and Astra never starts one (owner ruling 2026-11-18).
 // Signed out, every kept answer is forgotten; app.js forgets them when the add-ons change.
 
 import {api, session, plainSentence, WorkerError, NOT_SIGNED_IN} from './worker-api.js';
 import {linkFacts} from './link-facts.js';
 
 export const KEEP = 45 * 60e3;
+/** How long a press that got no address is remembered. */
+export const MISS = 60e3;
 /** How long each mode waits for the server before playing the add-on's own link. */
 export const WAIT = {play: 30e3, ahead: 6e3};
 
@@ -33,7 +39,7 @@ const STEPS = new Set(['key', 'cached', 'owned', 'add', 'file', 'link', 'follow'
 const kept = new Map(); // link -> {at, mode, promise}
 
 /**
- * @typedef {{url: string | null, via: 'torbox' | 'follow' | 'addon', size: number | null, type: string | null,
+ * @typedef {{url: string | null, via: 'torbox' | 'follow' | 'addon' | 'none', size: number | null, type: string | null,
  *   readable: boolean | null, steps: Array<{step: string, ok: boolean, ms: number, note?: string}>, reason: string | null}} Answer
  */
 
@@ -74,6 +80,8 @@ async function lookup(stream, mode, {fetchFn, read}) {
   } catch (error) {
     if (controller.signal.aborted) return addon(stream, SAID.timeout);
     if (error instanceof WorkerError && error.code === 'signed-out') { kept.clear(); return addon(stream, SAID.signedOut); }
+    // Not on TorBox yet (the server's 503): no address at all, and the add-on's link is left alone.
+    if (error instanceof WorkerError && error.code === 'unavailable') return {url: null, via: 'none', size: null, type: null, readable: null, steps: cleanSteps(error.steps), reason: error.reason};
     if (error instanceof WorkerError) return addon(stream, error.reason, cleanSteps(error.steps));
     return addon(stream, SAID.unreachable);
   } finally { clearTimeout(timer); }
@@ -83,7 +91,8 @@ async function lookup(stream, mode, {fetchFn, read}) {
 function ask(stream, mode, options) {
   const link = stream.url, entry = {at: Date.now(), mode, promise: null};
   entry.promise = lookup(stream, mode, options).then(answer => {
-    if (kept.get(link) === entry) { if (answer.via === 'addon') kept.delete(link); else entry.at = Date.now(); }
+    const found = answer.via === 'torbox' || answer.via === 'follow';
+    if (kept.get(link) === entry) { if (!found && mode === 'play') kept.delete(link); else { entry.at = Date.now(); entry.miss = !found; } }
     return answer;
   });
   kept.set(link, entry);
@@ -93,12 +102,13 @@ function ask(stream, mode, options) {
 /** A kept answer when it serves this mode, else a new ask. */
 function select(stream, mode, options) {
   const link = stream.url, entry = kept.get(link);
-  if (entry && Date.now() - entry.at >= KEEP) kept.delete(link);
+  if (entry && Date.now() - entry.at >= (entry.miss ? MISS : KEEP)) kept.delete(link);
   const live = kept.get(link);
   if (!live) return ask(stream, mode, options);
   if (live.mode === 'play' || mode === 'ahead') return live.promise;
   // A tap after a press: the press's answer when it has an address, else asked again to play.
-  return live.promise.then(answer => (answer.via !== 'addon' ? answer : select(stream, 'play', options)));
+  if (live.miss) return ask(stream, 'play', options); // a press that found nothing: asked to play, and a second tap shares that ask
+  return live.promise.then(answer => (answer.via === 'torbox' || answer.via === 'follow' ? answer : select(stream, 'play', options)));
 }
 
 /** The caller's wait ends when its signal aborts; the ask itself goes on, and its answer is kept for the next. */
