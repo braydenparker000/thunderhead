@@ -3,6 +3,8 @@
 import * as MB from '../../vendor/mediabunny.js';
 import {HttpSource, SourceError} from './http-source.js';
 import {readLayout, subtitleTracks} from './mkv.js';
+import {hideElements} from './mkv-hide.js';
+import {describeLimit, heard} from './probe-limit.js';
 import {readMoov, readMp4Subtitles, mp4DolbyVision} from './mp4.js';
 import {mp4Chapters} from './chapters.js';
 import {languageName} from './languages.js';
@@ -21,9 +23,11 @@ const unread = t => t.codec === 'dts' && !DTS.some(c => mseSupports(`audio/mp4; 
 /**
  * Opens and describes a file. Resolves {readable: true, source, input, info}
  * or {readable: false, error} when a page cannot read it (the planner then
- * hands the address to the browser as-is).
+ * hands the address to the browser as-is). `onStep(step, detail)` hears when
+ * the file is open ('open'), its index is in ('index') and a track took over
+ * 200 ms to describe ('track'), for the engine's log.
  */
-export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}, fetchFn, renew = null} = {}) {
+export async function probe(url, {headers = {}, signal, onStatus = () => {}, onSource = () => {}, onStep = () => {}, fetchFn, renew = null} = {}) {
   const source = new HttpSource(url, {headers, renew, ...(fetchFn ? {fetchFn} : {})});
   onSource(source); // so the loading screen can say how much has arrived
   source.probing = true; // read only what describing the file needs; playback may start elsewhere
@@ -41,13 +45,14 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
     if (kind) return {readable: true, adaptive: kind, info: {container: kind.toUpperCase(), size: null}};
     return {readable: false, error: error instanceof SourceError ? error : new SourceError('unreadable', String(error?.message || error))};
   }
+  onStep('open');
   const kind = adaptiveKind(url, opened.contentType);
   if (kind) { source.close(); return {readable: true, adaptive: kind, info: {container: kind.toUpperCase(), size: opened.size}}; }
   let input = null;
   const drop = () => { input?.dispose(); input = null; };
   signal?.addEventListener('abort', drop, {once: true});
   try {
-    return await describe(url, source, opened, signal, onStatus, i => { input = i; });
+    return await describe(url, source, opened, signal, onStatus, onStep, i => { input = i; });
   } catch (error) {
     // Whatever went wrong while describing (or the load was ended): nothing is left reading.
     drop(); source.close();
@@ -55,10 +60,14 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
   } finally { signal?.removeEventListener('abort', drop); }
 }
 
-async function describe(url, source, opened, signal, onStatus, keep) {
+async function describe(url, source, opened, signal, onStatus, onStep, keep) {
   onStatus('Reading what is inside…');
+  // A Matroska file's attachments (fonts, megabytes of them) and tags are Void to Mediabunny, which would read them whole
+  // (mkv-hide.js); what describing the tracks reads past the first cluster is bounded (probe-limit.js).
+  const view = hideElements((start, end) => source.read(start, end), source.size, {onHide: (from, to) => source.skips.push([from, to])});
+  const limit = describeLimit(source, () => view.cluster?.[1] ?? 0);
   const input = new MB.Input({
-    source: new MB.CustomSource({getSize: () => source.size, read: (start, end) => source.read(start, end), maxCacheSize: 8 << 20}),
+    source: new MB.CustomSource({getSize: () => source.size, read: limit.wrap(view), maxCacheSize: 8 << 20}),
     formats: MB.ALL_FORMATS,
   });
   keep(input);
@@ -90,7 +99,14 @@ async function describe(url, source, opened, signal, onStatus, keep) {
     }
     return {...base, type: 'audio', channels: t.numberOfChannels, sampleRate: t.sampleRate, decoderConfig: unread(t) ? null : await t.getDecoderConfig().catch(() => null)};
   };
-  const described = await Promise.all(tracks.map(describeTrack));
+  limit.start();
+  const described = await Promise.all(tracks.map(async (t, i) => {
+    const at = performance.now(), d = await describeTrack(t), ms = Math.round(performance.now() - at);
+    if (limit.over && !d.codecString) { d.limited = true; heard(t); } // left as an unread track: describing it took too long
+    if (ms > 200) onStep('track', {track: i + 1, type: d.type, ms, ...(d.limited ? {limited: true} : {})});
+    return d;
+  }));
+  limit.end();
   const video = described.filter(t => t.type === 'video');
   const audio = described.filter(t => t.type === 'audio');
   for (const t of video) t.label = videoCodecName(t);
@@ -119,6 +135,7 @@ async function describe(url, source, opened, signal, onStatus, keep) {
       if (dv && video[0]) video[0].dolbyVision = dv;
     } catch {}
   }
+  onStep('index');
   for (const s of subtitles) s.languageName = languageName(s.language);
   // Mediabunny lists no picture it cannot name in a transport stream (MPEG-2) or an Ogg file (Theora).
   const hiddenVideo = video.length ? '' : container.includes('transport') ? 'ts' : container.includes('ogg') && (/\.ogv$/i.test(pathOf(url)) || /^video\//i.test(opened.contentType || '')) ? 'ogg' : '';

@@ -99,6 +99,7 @@ test('no TorBox key in the Worker: said so, and the add-on’s forward is still 
 });
 
 test('at a host that allows four connections, the fifth is refused, and all five end at once', async () => {
+  await until(() => host.stats.open === 0, { message: 'the film described before has let its connections go' }); // a download it ended is still closing
   host.reset();
   host.control.limit = 4;
   const said = await limitTest(fetch, host.url('multi.mkv'), 939230);

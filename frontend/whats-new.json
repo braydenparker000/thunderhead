@@ -1,16 +1,19 @@
 {
-  "id": "2026-11-18-editor-panel-slide-3",
+  "id": "2026-11-18-astra-fonts-start",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Swiping the editor's panel is smooth now: the photo no longer jumps, and taller panels grow as they slide in.",
-      "open": "photos"
+      "text": "Astra: films with subtitle fonts attached (most anime) no longer download all the fonts before the first picture.",
+      "open": "astra"
     },
     {
-      "text": "Fixed a swipe sometimes being taken twice, which could skip a section or snap back."
+      "text": "On a slow connection that was 10 seconds or more of waiting. The fonts now load beside the film."
     },
     {
-      "text": "Each swipe and tool-dial turn is now in your editor reports, so slow spots on your phone show up."
+      "text": "Working out what is inside a file has a time limit, so an odd file cannot hold a film for a minute and a half."
+    },
+    {
+      "text": "When this phone cannot play a film at all, Astra says so in a plain sentence."
     }
   ]
 }

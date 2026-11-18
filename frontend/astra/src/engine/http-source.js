@@ -55,6 +55,7 @@ export class HttpSource {
     this.byteRate = 0; // the film's average bytes a second (learn)
     this.probing = false;
     this.probeReads = []; // what describing the file read, to be remembered (film-memory.js)
+    this.skips = []; // [from, to): what describing passes over by its size (a Matroska film's fonts, mkv-hide.js), never read on into while describing
     this.memory = memory; this.kept = null; this.recall = null;
     // Back online, or on another network: waiting retries go now, and a download gone quiet is asked again.
     this.retries = new Set();
@@ -66,6 +67,7 @@ export class HttpSource {
 
   /** One request to the film once a connection slot is free (source-gate.js): `kind` 'play', 'side' or 'preview'. */
   request(headers, signal, method = 'GET', kind = 'play') {
+    this.requests = (this.requests || 0) + 1; // for the engine's own log (player-report.js mark)
     return gated(this, kind, signal, s => this.fetchFn(this.url, {method, headers: {...this.headers, ...headers}, signal: s, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'}));
   }
 
@@ -89,6 +91,13 @@ export class HttpSource {
     this.waiters.clear();
   }
 
+  /** Reads describing gave up on (probe-limit.js) end, and a download past `after` that only they wanted stops. */
+  letGo(ranges, after = 0) {
+    const gone = new SourceError('closed', 'Describing gave up on this read.');
+    for (const w of [...this.waiters]) if (ranges.some(([s, e]) => w.start === s && w.end === e)) { this.waiters.delete(w); w.reject(gone); }
+    for (const s of [...this.streams]) if (s.held && s.at > after && !this.servingWaiter(s)) s.abort();
+  }
+
   /** One bounded range request of its own, outside the downloads and the cache; seek previews pass `kind` 'preview'. */
   sideRead(start, end, {signal, kind = 'side'} = {}) { return sideRead(this, start, end, signal, {kind}); }
 
@@ -108,7 +117,15 @@ export class HttpSource {
     signal?.addEventListener('abort', () => this.close(), {once: true});
     let response;
     try {
-      response = await ask(this, {Range: 'bytes=0-'}, signal, TIMING.open, 'timeout');
+      // A host that counts a link's connections (TorBox allows four) answers 429 while ones just let go are still
+      // closing, and 503 when it is busy: it is asked again three times (400, 800, 1600 ms apart) before the answer stands.
+      for (let again = 0; ; again++) {
+        response = await ask(this, {Range: 'bytes=0-'}, signal, TIMING.open, 'timeout');
+        if ((response.status !== 429 && response.status !== 503) || again >= 3) break;
+        response.body?.cancel().catch(() => {});
+        await this.backOff(TIMING.backoff * 2 ** again);
+        if (signal?.aborted || this.closed) throw signal?.reason ?? new SourceError('closed', 'The file was closed.');
+      }
     } catch (error) {
       if (signal?.aborted || error instanceof SourceError) throw error;
       throw new SourceError('unreadable', 'This host does not let a web page read the file, or the connection failed.', String(error?.message || error));

@@ -6,6 +6,7 @@
 import {RemuxSession, loadDecoders} from './remux.js';
 import {SoftwareSession, softwareAudio} from './software.js';
 import {languageName} from './languages.js';
+import {videoMime} from './plan.js';
 
 const NETWORK_KINDS = new Set(['network', 'stall', 'timeout']);
 
@@ -30,6 +31,7 @@ export const startMethods = {
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     session.addEventListener('stall', e => this.record('stall', e.detail));
+    session.addEventListener('fragment', () => this.mark('fragment'), {once: true});
     session.addEventListener('converter', e => this.converterLate(session, e.detail));
     session.addEventListener('rebuffer', e => { if (!e.detail.holding || e.detail.first) this.record('rebuffer', e.detail); this.emit('rebuffer', e.detail); }); // a stall held for a slow link (rebuffer.js)
     session.addEventListener('audioended', () => {
@@ -117,6 +119,10 @@ export const startMethods = {
     this.startScanner();
     try { await session.start(startTime, {autoplay: false}); } catch (error) { // throws, kind 'closed', when this load was replaced meanwhile
       if (id === this.load_) this.routeSoftwareFailed();
+      // libmedia's own words stay in error.raw (the log, the report); the viewer reads why in a plain sentence.
+      const picture = info?.video?.[0], either = 'and Astra\'s software decoder could not read the file either.';
+      if (error?.raw && this.fellBack) error.message = `This phone could not decode this film's picture, ${either}`;
+      else if (error?.raw && picture && !this.caps?.mse?.(videoMime(picture))) error.message = `This phone's browser cannot decode this film's picture, ${either}`;
       throw error;
     }
     if (id !== this.load_) return;

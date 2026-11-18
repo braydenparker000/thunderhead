@@ -46,6 +46,8 @@ export function soon(source, stream, now = Date.now()) {
   if (!(stream.received >= PIECE)) return ran < SOON ? REUSE_WINDOW : GAP;
   return Math.floor(Math.max(GAP, Math.min(REUSE_WINDOW, (stream.received / Math.max(ran, 1)) * SOON)));
 }
+/** True when bytes [at, end) all lie in a part describing passed over by its size (source.skips, mkv-hide.js). */
+export const skipped = (source, at, end = at + 1) => source.skips.some(([from, to]) => at >= from && end <= to);
 /** A download pauses (true) or reads on (false): its running time, for its speed, leaves the pauses out. */
 function pause(stream, on) {
   const now = Date.now();
@@ -127,7 +129,10 @@ export async function runStream(source, stream, response) {
       // A download that broke off inside this block left its first part: go on from the byte it reached.
       rec = takePart(source, index, stream.at);
       if (rec) { stream.at = index * BLOCK + rec.filled; source.filling.add(rec); }
-      await open(await request(source, stream, stream.at, Math.max(limit(), Math.min(source.size, stream.at + PIECE))));
+      // While the file is described a download asks, as the first one does, for as far as describing may read on, and
+      // ends 64 KiB past the last byte asked of it (below) unless playback took it over first: after fonts attached the
+      // first cluster is where a film starts, and a part of 64 KiB there cost a round trip more (real.mjs, 2026-11-18).
+      await open(await request(source, stream, stream.at, Math.max(limit(), Math.min(source.size, stream.at + (stream.held ? source.reach() : PIECE)))));
     } else await open(finish(source, response, stream.at, source.size));
     if (!rec) { const off = stream.at - index * BLOCK; rec = {index, bytes: new Uint8Array(source.blockLength(index)), from: off, filled: off}; source.filling.add(rec); }
     while (index < source.blockCount()) {
@@ -181,9 +186,10 @@ export async function runStream(source, stream, response) {
       }
       source.arrived();
       if (ended) { stream.abort(); return; }
-      // While the file is being described, an open-ended download stops a little past the last byte asked of
-      // it: where playback will start is not known yet, and a paused connection still fills its window.
-      if (stream.held && stream.end >= source.size && stream.at > stream.until + PROBE_MARGIN) { stream.abort(); return; }
+      // While the file is being described, a download stops a little past the last byte asked of it (where
+      // playback will start is not known yet, and a paused connection still fills its window), and at once where
+      // what follows is passed over by its size: the bytes of fonts attached shared the link with the first cluster.
+      if (stream.held && (stream.at > stream.until + PROBE_MARGIN || (stream.at >= stream.until && skipped(source, stream.at)))) { stream.abort(); return; }
     }
   } finally {
     source.streams.delete(stream);
