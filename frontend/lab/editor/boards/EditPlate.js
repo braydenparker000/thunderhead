@@ -1,8 +1,8 @@
 // @ts-nocheck
 // The Edit board. The photo fills the screen above a short panel: the value's window, the dial that turns it, and
-// one row holding a drum and the adjustments. The drum stands on the left and turns up and down; each face is a
-// section (Light, Curve, Color, Mixer, Grading, Effects, Detail, Optics, Profile) and the section's adjustments fly
-// out of it into the row. The curve and the grading wheels are in the panel too, never over the photo: the panel
+// one row of the adjustments. Swiped up or down, the panel rolls like a barrel to the next section (Light, Curve,
+// Color, Mixer, Grading, Effects, Detail, Optics, Profile: boards/Barrel.js) and the section's adjustments rise into
+// the row. The curve and the grading wheels are in the panel too, never over the photo: the panel
 // grows for them and the photo's room gives way. The dial turns the chosen one, runs on when flicked, and two taps on it put the value
 // back where it starts. With a photo open (app/session.js) every value is the photo's; in the app with none open (or
 // another opening) it shows none (app/shown.js); only a screen of the design on its own plays a sample.
@@ -30,8 +30,8 @@ export default class Component extends DCLogic {
     this.keep('Edit', ['face', 'adj', 'chan', 'mixColor', 'mixAttr', 'zone', 'kind']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
-    const shut = () => { if (this._host?.stale) document.removeEventListener('editor:dock', shut); else if (this.state.wbMenu) this.setState({ wbMenu: false }); };   // the dock raised over it: the white balance menu shuts
-    document.addEventListener('editor:dock', shut);
+    const shut = () => { if (this._host?.stale) document.removeEventListener('editor:dial', shut); else if (this.state.wbMenu) this.setState({ wbMenu: false }); };   // the tool dial opened over it: the white balance menu shuts
+    document.addEventListener('editor:dial', shut);
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), seen = shown.face(), real = seen.real ? photo.current() : null, face = S.face, app = shown.app;
@@ -40,7 +40,7 @@ export default class Component extends DCLogic {
     const mixNames = COLORS.flatMap(([c]) => ['Hue', 'Sat', 'Lum'].map((a) => `Mix ${c} ${a}`)), gradeNames = ZONES.flatMap((z) => ['Hue', 'Sat', 'Lum'].map((a) => `Grade ${z} ${a}`)).concat(['Blending', 'Balance']);
     const counts = real ? { Light: moved(LISTS.Light.map((a) => a[0])), Curve: photo.curve() ? 1 : 0, Color: moved(LISTS.Color.map((a) => a[0])), Mixer: moved(mixNames), Grading: moved(gradeNames),
       Effects: moved(LISTS.Effects.map((a) => a[0])), Detail: moved(LISTS.Detail.map((a) => a[0])), Optics: moved(LISTS.Optics.map((a) => a[0])), Profile: real.profile ? 1 : 0 } : app ? {} : { Light: 5, Color: 4, Detail: 1, Optics: 1 };
-    // the row: what flies out of the drum for this face, and which of them the dial turns
+    // the row: this section's adjustments, and which of them the dial turns
     let chips = [], tiles = [], ctl = '', dialLabel = '', unit = '', point = null, auto = '';
     const pickAdj = (name) => { photo.pickWhite(false); set({ adj: { ...S.adj, [face]: name }, wbMenu: false }); };
     if (LISTS[face]) {
@@ -89,7 +89,7 @@ export default class Component extends DCLogic {
       dialStart: !point && live ? photo.startDial(ctl) : undefined,
       dialTurn: point ? point.turn : live ? (d) => photo.turn(ctl, d) : undefined, dialReset: point ? point.reset : live ? () => photo.reset(ctl) : undefined,
       auto, pressAuto: real ? photo.auto : undefined,
-      plateTop: 915 - plateH, photoH: 915 - plateH - 56, drumTop: plateH - 60, rowTop: plateH - 58,
+      plateTop: 915 - plateH, photoH: 915 - plateH - 56, rowTop: plateH - 58,
       isDial: mode === 'dial', isCurve: mode === 'curve', isWheel: mode === 'wheel', isTiles: mode === 'tiles', tiles,
       noTiles: real?.plain ? 'A JPEG has no camera profiles: its colours are already the camera’s own' : real ? 'No profiles on this phone yet: load them on the engine page' : '', dialLeft: !!real && !!ctl && photo.upward(ctl), chan: S.chan, zone: S.zone, pickZone: (z) => set({ zone: z }),
       curveIn: Math.round(cp[ci][0] * 255), curveOut: Math.round(cp[ci][1] * 255), nudgeUp: hold(1), nudgeDown: hold(-1), nudgeStop: () => { clearTimeout(this.rep); clearInterval(this.rep); },

@@ -12,8 +12,7 @@
 </head>
 <body data-board="App">
 <div id="frame"><div id="stage"></div>
-<div id="dockveil" hidden></div>
-<nav id="dock" class="glass" aria-label="Tools" hidden><button type="button" data-go="Looks" aria-label="Looks"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><circle cx="15" cy="10" r="5.5"/><circle cx="12" cy="15" r="5.5"/></svg></span><span>Looks</span></button><button type="button" data-go="Crop" aria-label="Crop"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v16h16"/><path d="M2 6h16v16"/></svg></span><span>Crop</span></button><button type="button" data-go="Edit" aria-label="Edit"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span><span>Edit</span></button><button type="button" data-go="Masks" aria-label="Masks"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 010 17z" fill="currentColor" stroke="none"/></svg></span><span>Masks</span></button><button type="button" data-go="Heal" aria-label="Heal"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></span><span>Heal</span></button><button type="button" data-go="Versions" aria-label="Versions"><span class="lens" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M7 5h10M9.5 2.5h5"/></svg></span><span>Versions</span></button></nav>
+<div id="tooldial"></div>
 </div>
 <template data-dc="EditPlate">
 <div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
@@ -52,7 +51,7 @@
       <div style="position: absolute; left: 14px; top: 10px; width: 264px; height: 264px"><div style="transform: scale(0.88); transform-origin: 0 0">
         <dc-import name="CurveOverlay" channel="{{chan}}" hint-size="300px,300px"></dc-import>
       </div></div>
-      <div style="position: absolute; left: 290px; top: 10px; width: 108px; height: 264px; display: flex; flex-direction: column; gap: 8px">
+      <div data-drag style="position: absolute; left: 290px; top: 10px; width: 108px; height: 264px; display: flex; flex-direction: column; gap: 8px">
         <div role="status" style="height: 64px; border-radius: 10px; padding: 9px 12px; box-sizing: border-box; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55); display: flex; flex-direction: column; justify-content: space-between">
           <span style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">IN</span><span style="font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: #c9ccd1">{{curveIn}}</span></span>
           <span style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">OUT</span><span style="font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: #f2efe8">{{curveOut}}</span></span>
@@ -62,11 +61,8 @@
         <button class="key" aria-label="Remove the point" onClick="{{removePoint}}" style="height: 40px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: {{removeInk}}">REMOVE</button>
       </div>
     </sc-if>
-    <div style="position: absolute; left: 10px; top: {{drumTop}}px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: {{rowTop}}px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: {{rowTop}}px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: {{rowTop}}px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="316px,48px"></dc-import></div>
   </div>
 
   <sc-if value="{{wbMenu}}" hint-placeholder-val="{{false}}">
@@ -81,7 +77,7 @@
 </div>
 </template>
 <template data-dc="CurveOverlay">
-<div onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}" role="group" aria-label="Tone curve, {{channel}} channel. Drag a point; tap the line to add one."
+<div data-drag onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}" role="group" aria-label="Tone curve, {{channel}} channel. Drag a point; tap the line to add one."
      style="width: 300px; height: 300px; position: relative; border-radius: 18px; overflow: hidden; touch-action: none; background: rgba(8,9,11,0.55); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 18px 40px rgba(0,0,0,0.5); font-family: Inter, system-ui, sans-serif">
   <svg width="300" height="300" viewBox="0 0 300 300" style="position: absolute; inset: 0" aria-hidden="true">
     <path d="{{hill}}" fill="rgba(255,255,255,0.07)"/>
@@ -122,14 +118,14 @@
 </template>
 <template data-dc="GradeWheel">
 <div style="width: 412px; height: 196px; position: relative; color: #eceff4; font-family: Inter, system-ui, sans-serif; user-select: none">
-  <div role="slider" aria-label="{{zone}} hue and saturation" aria-valuetext="Hue {{hue}} degrees, saturation {{sat}}" class="gw" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}"
+  <div data-drag role="slider" aria-label="{{zone}} hue and saturation" aria-valuetext="Hue {{hue}} degrees, saturation {{sat}}" class="gw" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}"
        style="position: absolute; left: 22px; top: 8px; width: 176px; height: 176px; border-radius: 50%; touch-action: none; cursor: grab; box-shadow: 0 0 0 1px rgba(0,0,0,0.8), 0 0 0 3px #2c2e2f, 0 0 0 4px rgba(255,255,255,0.10), 0 6px 14px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.12)">
     <span aria-hidden="true" style="position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: rgba(255,255,255,0.35)"></span>
     <span aria-hidden="true" style="position: absolute; left: {{px}}px; top: {{py}}px; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: {{puck}}; box-shadow: 0 0 0 2px #f2efe8, 0 2px 6px rgba(0,0,0,0.7)"></span>
   </div>
   <div style="position: absolute; left: 222px; top: 10px; width: 170px">
     <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: #f2efe8">{{zoneUp}}</span><span style="font-size: 10px; letter-spacing: 0.06em; color: #a6b0bc; font-variant-numeric: tabular-nums">{{tint}}</span></div>
-    <div role="slider" aria-label="{{zone}} brightness" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="{{lumNow}}" onPointerDown="{{lDown}}" onPointerMove="{{lMove}}" onPointerUp="{{lUp}}" onPointerCancel="{{lUp}}"
+    <div data-drag role="slider" aria-label="{{zone}} brightness" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="{{lumNow}}" onPointerDown="{{lDown}}" onPointerMove="{{lMove}}" onPointerUp="{{lUp}}" onPointerCancel="{{lUp}}"
          style="position: relative; margin-top: 10px; width: 160px; height: 44px; left: 5px; border-radius: 10px; touch-action: none; cursor: ew-resize; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55)">
       <span style="position: absolute; left: 10px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">BRIGHTNESS</span>
       <span aria-hidden="true" style="position: absolute; left: 8px; right: 8px; top: 31px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: rgba(255,255,255,0.13)"></span>
@@ -176,16 +172,45 @@
   </sc-for>
 </div>
 </template>
-<template data-dc="Drum">
-<div role="listbox" aria-label="Sections: {{now}}" aria-orientation="vertical" tabindex="0" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}" onKeyDown="{{key}}"
-     style="width: 80px; height: 52px; position: relative; border-radius: 10px; overflow: hidden; touch-action: none; cursor: ns-resize; perspective: 240px; background: #0b0c0d; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 1px 0 rgba(255,255,255,0.07), 0 2px 6px rgba(0,0,0,0.6); user-select: none; outline: none; font-family: Inter, system-ui, sans-serif">
-  <div style="position: absolute; inset: 0; transform-style: preserve-3d; transform: translateZ(-{{r}}px) rotateX({{angle}}deg); transition: {{ease}}">
-    <sc-for list="{{faces}}" as="f" hint-placeholder-count="9">
-      <span role="option" aria-selected="{{f.on}}" class="eng" style="position: absolute; left: 0; right: 0; top: 50%; height: {{fh}}px; margin-top: -{{half}}px; display: flex; align-items: center; justify-content: center; backface-visibility: hidden; transform: rotateX({{f.a}}deg) translateZ({{r}}px); background: linear-gradient(180deg, #323435, #1c1d1e); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.7); padding-left: 7px; box-sizing: border-box; font-size: {{f.size}}px; font-weight: 600; letter-spacing: {{f.gap}}em; color: {{f.ink}}">{{f.label}}<sup style="font-size: 7.5px; letter-spacing: 0; margin-left: 2px; color: {{f.countInk}}">{{f.count}}</sup></span>
-    </sc-for>
+<template data-dc="Barrel">
+<div role="listbox" aria-label="Sections: {{now}}" aria-orientation="vertical" tabindex="0" onKeyDown="{{key}}" style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; outline: none">
+  <sc-for list="{{faces}}" as="f" hint-placeholder-count="9"><span role="option" aria-selected="{{f.on}}">{{f.label}}<sup>{{f.count}}</sup></span></sc-for>
+</div>
+</template>
+<template data-dc="ToolDial">
+<div style="position: absolute; inset: 0; display: {{shown}}; color: #eceff4; font-family: Inter, system-ui, sans-serif; user-select: none">
+  <div aria-hidden="true" onClick="{{close}}" style="{{veil}}"></div>
+  <div aria-hidden="true" onClick="{{close}}" style="{{plates}}">
+    <div style="position: absolute; inset: 0; transform-style: preserve-3d">
+      <sc-for list="{{faces}}" as="f" hint-placeholder-count="1">
+        <div style="{{f.box}}">
+          <span class="eng" style="font-size: 26px; font-weight: 700; letter-spacing: 0.22em; color: #f2efe8">{{f.name}}</span>
+          <span style="max-width: 230px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 9px; font-weight: 600; letter-spacing: 0.16em">
+            <sc-for list="{{f.subs}}" as="s" hint-placeholder-count="4"><span style="color: {{s.ink}}">{{s.label}}</span></sc-for>
+          </span>
+        </div>
+      </sc-for>
+    </div>
   </div>
-  <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,0.82) 0, rgba(0,0,0,0) 36%, rgba(0,0,0,0) 64%, rgba(0,0,0,0.82) 100%)"></span>
-  <span aria-hidden="true" style="position: absolute; left: 3px; top: 50%; margin-top: -4px; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid #e8202a"></span>
+  <div role="group" aria-label="Tools" aria-hidden="{{closed}}" onPointerDown="{{sdown}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{cancel}}" style="{{dialBox}}">
+    <span aria-hidden="true" style="{{knurl}}"></span>
+    <span aria-hidden="true" style="{{face}}"></span>
+    <button aria-label="Close the tools" onClick="{{close}}" style="position: absolute; left: 102px; top: 102px; width: 116px; height: 116px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #34363a 0, #1a1b1d 70%); box-shadow: 0 0 0 1px #0b0c0c, 0 3px 10px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.14)"></button>
+    <span aria-hidden="true" style="position: absolute; left: 160px; top: 159px; width: 24px; height: 2px; border-radius: 1px; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.6); transform-origin: 0 50%; transform: rotate(225deg) translateX(26px); pointer-events: none"></span>
+    <div style="{{labels}}">
+      <sc-for list="{{ring}}" as="r" hint-placeholder-count="6"><button onClick="{{r.pick}}" aria-label="{{r.name}}" class="eng" style="{{r.style}}">{{r.label}}</button></sc-for>
+      <span aria-hidden="true" style="{{win}}"></span>
+      <span aria-hidden="true" style="position: absolute; left: 41px; top: 41px; width: 0; height: 0; margin: -4.5px 0 0 -6px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid #e8202a; transform: rotate(315deg); pointer-events: none"></span>
+    </div>
+  </div>
+  <button aria-label="{{restLabel}}" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{cancel}}" onKeyDown="{{key}}" onClick="{{tapKey}}" style="{{rest}}">
+    <span aria-hidden="true" style="position: absolute; inset: 0; border-radius: 84px 0 0 0; overflow: hidden"><span style="{{restKnurl}}"></span></span>
+    <span aria-hidden="true" class="eng" style="{{restFace}}">
+      <span style="position: absolute; right: 12px; bottom: 30px; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; color: #f2efe8">{{toolUp}}</span>
+      <span style="position: absolute; right: 12px; bottom: 18px; font-size: 6.5px; font-weight: 600; letter-spacing: 0.16em; color: #80848a; white-space: nowrap">{{sectionUp}}</span>
+      <span style="position: absolute; left: 17px; top: 17px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a; transform: rotate(315deg)"></span>
+    </span>
+  </button>
 </div>
 </template>
 <template data-dc="CropPlate">
@@ -229,11 +254,8 @@
     <div style="position: absolute; left: 0; top: 4px">
       <dc-import name="DialPlate" label="{{dialLabel}}" unit="" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" onhold="{{dialHold}}" auto="{{auto}}" onauto="{{pressAuto}}" hint-size="412px,144px"></dc-import>
     </div>
-    <div style="position: absolute; left: 10px; top: 150px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: 152px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="316px,48px"></dc-import></div>
   </div>
 </div>
 </template>
@@ -314,11 +336,8 @@
     <div style="position: absolute; left: 0; top: 40px">
       <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" onhold="{{dialHold}}" left="{{dialLeft}}" hint-size="412px,144px"></dc-import>
     </div>
-    <div style="position: absolute; left: 10px; top: 186px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: 188px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{rowSeed}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: 188px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: 188px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{rowSeed}}" hint-size="316px,48px"></dc-import></div>
   </div>
 </div>
 </template>
@@ -348,11 +367,8 @@
     <sc-if value="{{strong}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: 0; top: 4px"><dc-import name="DialPlate" slim="{{strong}}" left="{{strong}}" label="{{dialLabel}}" unit="%" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" hint-size="412px,44px"></dc-import></div></sc-if>
     <sc-if value="{{plain}}"><span role="status" style="position: absolute; left: 20px; right: 20px; top: 6px; height: 40px; display: flex; align-items: center; font-size: 11.5px; line-height: 1.35; color: #8d9197">{{hint}}</span></sc-if>
     <div style="position: absolute; left: 0; top: 52px"><dc-import name="Strip" tiles="{{tiles}}" label="{{stripLabel}}" empty="{{noTiles}}" onnear="{{near}}" hint-size="412px,92px"></dc-import></div>
-    <div style="position: absolute; left: 10px; top: 150px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: 152px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="316px,48px"></dc-import></div>
   </div>
 </div>
 </template>
@@ -528,11 +544,8 @@
     <div style="position: absolute; left: 0; top: 56px">
       <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" left="{{dialLeft}}" span="{{dialSpan}}" hint-size="412px,144px"></dc-import>
     </div>
-    <div style="position: absolute; left: 10px; top: 202px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: 204px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{rowSeed}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: 204px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: 204px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{rowSeed}}" hint-size="316px,48px"></dc-import></div>
   </div>
 </div>
 </template>
@@ -606,7 +619,6 @@
       </div>
     </sc-if>
     <div style="position: absolute; left: 14px; right: 74px; top: {{hintTop}}px; height: 48px; display: flex; align-items: center; font-size: 10.5px; line-height: 1.45; color: #8b8f95">{{hint}}</div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: {{hintTop}}px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
   </div>
 </div>
 </template>
@@ -651,11 +663,8 @@
     <div style="position: absolute; left: 0; top: 4px">
       <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" left="{{dialLeft}}" hint-size="412px,144px"></dc-import>
     </div>
-    <div style="position: absolute; left: 10px; top: 150px">
-      <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>
-    </div>
-    <div style="position: absolute; left: 94px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="254px,48px"></dc-import></div>
-    <button aria-label="Back to the tools" class="glass" style="position: absolute; right: 10px; top: 152px; width: 48px; height: 48px; border-radius: 24px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
+    <dc-import name="Barrel" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="1px,1px"></dc-import>
+    <div style="position: absolute; left: 10px; top: 152px"><dc-import name="Row" chips="{{chips}}" label="{{rowAria}}" seed="{{faceAt}}" hint-size="316px,48px"></dc-import></div>
   </div>
 </div>
 </template>
