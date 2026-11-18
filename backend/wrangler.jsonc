@@ -66,7 +66,7 @@
   // is `none`, /v1/music/uploads/* answers 503. VAPID_PRIVATE_JWK is Web Push's P-256 private key
   // (SECURITY.md §10): the deploy makes it once when the live Worker lacks it, so nobody sees it.
   // TORBOX_KEY is the owner's TorBox API key for Astra's relay (SECURITY.md §8.2); only the owner
-  // sets it (backend/README.md); while it is `none`, /v1/astra/play skips TorBox and only follows.
+  // sets it (backend/README.md); while it is `none`, /v1/astra/play skips TorBox and answers no address.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
