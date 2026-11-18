@@ -28,16 +28,15 @@ export class MkvFallback extends Error {
  */
 export async function* clusterBlocks(read, pos, size, wanted, from = 0, check = null) {
   let buf = new Uint8Array(0), bufStart = pos;
-  // Makes sure bytes [at, at + n) are held (fewer at the end of the file); returns the offset of `at` in `buf`.
+  // Makes sure bytes [at, at + n) are held (fewer at the end of the file); returns the offset of `at` in `buf`. The
+  // bytes are asked for again from `at`, those held already too: they come from the reader's cache, as a view of its
+  // block where they lie in one, so a block of picture is not copied here at all (it was copied twice, 3 MB a second
+  // of a 25 Mbit/s film each time, all of it for the garbage collector).
   const need = async (at, n) => {
-    const want = Math.min(at + n, size), have = bufStart + buf.length;
-    if (at >= bufStart && want <= have) return at - bufStart;
-    const from = at >= bufStart && at <= have ? have : at, to = Math.min(size, Math.max(want, from + CHUNK));
-    const more = to > from ? await read(from, to) : new Uint8Array(0);
-    const keep = at >= bufStart && at <= have ? buf.subarray(at - bufStart) : new Uint8Array(0);
-    const next = new Uint8Array(keep.length + more.length);
-    next.set(keep); next.set(more, keep.length);
-    buf = next; bufStart = at;
+    const want = Math.min(at + n, size);
+    if (at >= bufStart && want <= bufStart + buf.length) return at - bufStart;
+    const to = Math.min(size, Math.max(want, at + CHUNK));
+    buf = to > at ? await read(at, to) : new Uint8Array(0); bufStart = at;
     return 0;
   };
   let o = await need(pos, 12);
@@ -117,7 +116,7 @@ export async function* clusterBlocks(read, pos, size, wanted, from = 0, check = 
       const t = b + track.length, flags = buf[t + 2];
       const relative = (buf[t] << 8 | buf[t + 1]) << 16 >> 16;
       yield {track: track.value, ticks: base + relative, key: e.id === ID.SimpleBlock ? !!(flags & 0x80) : !reference,
-        lacing: flags >> 1 & 3, duration, payload: buf.slice(t + 3, stop), at: e.start};
+        lacing: flags >> 1 & 3, duration, payload: buf.subarray(t + 3, stop), at: e.start}; // a view: bytes that have arrived never change
     }
     // Void, CRC-32 and anything else of known size inside the cluster are stepped over.
     else if (!SKIP.has(e.id) && length > MAX_BLOCK) throw new MkvFallback('an unknown element too large to step over');

@@ -346,7 +346,11 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
-   (profile 5 has no standard picture underneath).
+   (profile 5 has no standard picture underneath). A DTS track's codec
+   string, which Mediabunny finds only by reading the film's first cluster
+   whole (5 MB of a 25 Mbit/s film before anything is planned), is read
+   only where the browser takes some DTS as it is (`probe.js`); elsewhere
+   the sound is converted anyway and the converter reads its own frames.
    **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
    localStorage `astra-routes`, per device, each entry for 30 days so a
    browser update gets another chance). A browser can say it decodes Dolby
@@ -365,7 +369,19 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    audio has its own SourceBuffer, so changing track refills only the audio.
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame, and a seek inside what is
-   already buffered (or just ahead of where reading is) starts nothing. Text
+   already buffered (or just ahead of where reading is) starts nothing. A
+   cluster only the dropped pipelines were reading is not read again for
+   them (`mkv-packets.js` `jumped()`): it began a download at the place
+   left, which took half the link from the new place.
+   **How much is held** (`hold.js`). The pipelines read 40 s past the
+   playhead (20 with the data saver) and the browser's buffer keeps 20 s
+   behind it (`mse.js`), and a fast film is held to bytes as well, by its
+   average bitrate: 48 MiB ahead (15 s at 25 Mbit/s, never under 10 s) and
+   24 MiB behind (7 s, never under 4). By time alone a 25 Mbit/s film filled
+   Chrome's video buffer to its own limit (about 150 MB, past which Chrome
+   drops what is behind the playhead itself), and the page held about
+   600 MB (How smoothly, below). A film under about 10 Mbit/s is held as
+   before. Text
    subtitles in MKV and MP4 are read from data already downloaded
    (`embedded-subtitles.js`) and drawn by `src/subtitles/renderer.js`;
    picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
@@ -434,15 +450,28 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      limit alone. It asks for that in bounded requests, the next part once
      playback has come within half a reach of its end, so a seek or a stop
      throws away little the connection already carried (a host that ignores
-     a range's end is read open-ended and paused instead). The block cache
+     a range's end is read open-ended and paused instead), and stops where
+     bytes already here begin (the film's end, a range remembered, a part
+     another download brought), copying them in rather than fetching them
+     again, so its block is still made whole. The block cache
      keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
-     40 s and the reach; 55 s with the saver), between 16 and 96 MiB.
+     40 s and the reach; 55 s with the saver), between 16 and 96 MiB; a film
+     whose 80 s pass 48 MiB (about 5 Mbit/s) keeps 48 MiB, or the reach and
+     4 s more when that is larger (`hold.js`): its back-seek never fitted,
+     and at 25 Mbit/s the 96 MiB held only what the browser's buffer held
+     too.
    - *Both ends at once* (`source-tail.js`). On a film's first open, as soon
      as the first answer gives the size, its last 64 KiB are asked for beside
      its start, in a request of their own: the subtitle hash needs them, and
      a short film's index (Matroska's cues, an MP4's index written at the
      back) often lies there too, so a read of
-     the end waits for those bytes instead of costing another round trip.
+     the end waits for those bytes instead of costing another round trip. A
+     long film's index is larger (a two-hour film with a key frame every
+     2 s: 106 kB): it is read from its own first byte, and that download
+     takes the tail's bytes from where they lie instead of fetching them a
+     second time. The subtitle hash takes its two chunks from the reader by
+     looking (`peek`), not reading: a read let the download at the film's
+     start read on, 24 MiB of a film resumed at 2:00.
    - *A film remembered* (`film-memory.js`). What describing a film read is
      kept in IndexedDB `astra-films`: at most 4 MB a film and 60 films, the
      least recently opened dropped first. A film is known by its size and a
@@ -611,62 +640,143 @@ unmodified builds from the same libmedia commit as the rest
 (`frontend/assets/libmedia/licenses/`). VVC, Speex and H.263 in an AVI are
 wired but were not tried: no test film could be made here.
 
-### How smoothly (measured 2026-11-10)
+### How smoothly (measured 2026-11-18, on films shaped like real ones)
 
-`scripts/astra/smooth.cjs` on a three-minute 1080p H.264 film at 8 Mbit/s
-with Dolby Digital 5.1 (converted as it plays) and a second AAC track, in
-desktop Chrome; the slowed columns have the page's thread six times slower
-and the connection limited to 20 Mbit/s, which is nearer a slow phone.
-Measured with Mediabunny 1.55.7, before the engine work of 2026-11-15; not
-measured again since.
+`scripts/astra/real.mjs` plays a film through the engine in Playwright's
+Chromium (Chrome for Testing 153: it decodes H.264 itself and converts
+Dolby and DTS sound, as the phone most likely does), served by
+`tests/fixtures/astra-host.mjs`, one fresh browser profile a run. Two films
+made for it and never committed: *heavy*, 3 minutes of 1080p H.264 at
+about 25 Mbit/s (27.8 with its sound: Dolby Digital Plus 5.1 by default,
+TrueHD 5.1, DTS 5.1 and AAC stereo) with an SRT track, 625 MB; *long*,
+2 hours of 640x360 at 300 kbit/s with Dolby Digital 5.1 and AAC, 1500
+subtitle lines, twelve chapters and a key frame every 2 s, so a cue index
+of 106 kB at its end, 506 MB. *Slowed* is the page's thread six times
+slower and one 20 Mbit/s link shared by the requests open, 40 ms a
+request; *fast* is neither (the link is the machine's own). Medians of
+three runs (two at 40 and 8 Mbit/s, five for the small film), before
+(commit `ff95b75`) and after this change in the same sitting, on a
+shared four-core machine with other measurements running, so a fast
+figure moves by 15 % from one run to the next. The default sound is
+converted to Opus here; the AAC track, passed through, gave the same
+picture of things (one line below).
 
-| | Fast machine | Slowed, 20 Mbit/s: before | after |
-|---|---|---|---|
-| First frame | 0.7 s | 5.2 s | 4.1 s |
-| Seek two minutes ahead | 0.4 s | 6.6 s | 1.8 s |
-| Seek six seconds on, inside the buffer | 0.06 s | 2.4 s | 0.05 s |
-| Seek back to the start | 0.5 s | 2.5 s | 1.1 s |
-| Frames dropped in 15 s of play, stalls | 0, 0 | 0, 0 | 0, 0 |
+| Heavy film, slowed | before | after |
+|---|---|---|
+| First picture from 0:00 | 4.3 s | 2.9 s |
+| Resuming at 2:00; opened again (remembered) | 5.2 s; 5.0 s | 2.7 s; 2.5 s |
+| Far forward (to 1:59), far back (to 0:15), last minute (2:45) | 8.7, 7.9, 4.7 s | 4.6, 4.4, 2.6 s |
+| Five seconds on (past the 1.4 s buffered: the link is slower than the film) | 6.9 s | 6.1 s |
+| 60 s of play: stalls, time stalled, frames dropped | 9, 23 s, 55 | 8, 17 s, 17 |
+| The page's thread: long tasks a minute, their total, the worst; most late | 19, 1.3 s, 152 ms; 195 ms | 1, 55 ms, 55 ms; 52 ms |
+| The page's memory at its peak (renderer PSS); JS heap and its ArrayBuffers | 374 MB; 188 MB | 256 MB; 99 MB |
+| The reader's cache; the browser's buffer behind the playhead | 97 MB; 21 s | 49 MB; 9 s |
+| The same with the AAC track: first, resume, far; memory; long tasks | 3.2, 5.4, 8.8 s; 337 MB; 19 | 2.9, 2.7, 4.5 s; 230 MB; 0 |
 
-Three things made the difference.
+| Heavy film, other links | before | after |
+|---|---|---|
+| Fast (the same within the machine's noise): first, resume, far forward | 0.76, 0.74, 1.26 s | 0.80, 0.88, 1.23 s |
+| Fast: memory peak; JS heap; browser's buffer ahead | 653 MB; 231 MB; 39 s | 494 MB; 144 MB; 14 s |
+| Fast: downloaded in the first minute, for 203 MB of film played | 355 MB | 267 MB |
+| 40 Mbit/s, thread slowed: first, resume, far | 3.4, 3.1, 5.1 s | 2.1, 2.0, 3.1 s |
+| 40 Mbit/s, thread slowed: stalls in 60 s; long tasks; most late | 5 (1.7 s); 59 (4.7 s); 461 ms | 1 (0.1 s); 5 (0.3 s); 88 ms |
+| 8 Mbit/s: first, resume, far, last minute | 6.2, 11.1, 18.8, 11.2 s | 6.2, 5.9, 10.2, 6.0 s |
+| 8 Mbit/s: 60 s of play (17 s of film): stalls, time stalled | 8, 44 s | 8, 44 s |
 
-- **A seek has the whole connection** (`http-source.js`, `jumped()`). The
-  downloads of the pipelines being dropped went on filling their read-ahead
-  and took half the connection from the place playback was waiting for; they
-  are closed and their waiting reads ended (`tests/astra-source.test.mjs`).
-- **Converted sound starts at once** (`downmix.js`). Mediabunny mixes to
-  stereo in five-second blocks, so Dolby Digital and DTS could not start
-  until five seconds of the file had been read. 48 kHz sound is now mixed
-  here a sample at a time; other rates still go through Mediabunny, which
-  also resamples (`tests/astra-downmix.test.mjs`).
-- **The picture arrives in half-second fragments** (`early.js`). Mediabunny
-  closes a video fragment only at the next key frame, so the first picture
-  waited for a second Matroska cluster. A fragment is now cut every half
-  second at a frame shown after all before it, and its first frame written
-  back as the ordinary frame it is, as chunked CMAF streams do
-  (`tests/astra-early.test.mjs`; `scripts/astra/rewrap.mjs` re-wraps a film
-  to a file for ffmpeg, which decoded every frame of nine films, HEVC, VP9
-  and AV1 among them, with the same key frames as their sources).
+| Long film (2 h, 300 kbit/s), slowed | before | after |
+|---|---|---|
+| First picture from 0:00 | 1.40 s | 1.24 s |
+| Requests to the film's end before it (the 64 KiB tail, the 106 kB index from its first byte, the tail again in part) | 3 | 2 |
+| Resuming at 1:30:00; opened again (remembered) | 1.20 s; 0.63 s | 1.28 s; 0.51 s |
+| Far forward (to 1:00:00), far back (to 0:10:00), last minute (1:59:30) | 0.74, 0.59, 0.56 s | 0.70, 0.65, 0.56 s |
+| Five seconds on, inside the buffer | 0.03 s | 0.03 s |
+| 60 s of play: stalls; memory peak (from one run to the next) | 0; 123 to 181 MB | 0; 140 to 175 MB |
+| Fast: first, resume, remembered | 0.56, 0.66, 0.26 s | 0.44, 0.37, 0.18 s |
 
-The audio decoder (1.2 MB for Dolby Digital, 1.7 MB for DTS, 0.7 MB for
-TrueHD) also downloads while the first video is read instead of before it.
+The long film was never in trouble: its times are the same within the
+machine's noise (a run's resume: 1.10 to 1.37 s before, 1.03 to 1.37
+after), with one request fewer at its end. Its figures are from the code
+as it stands; the heavy film's from the code before the last change
+(remembered bytes copied into a download's block rather than ending the
+download there), which asks for nothing more or less.
 
-What is left, and why: these figures were taken when the first frame
-waited for one whole Matroska cluster (up to 5 MB or 5 s), because
-Mediabunny (1.66 as well) reads a cluster whole before it hands out its
-first packet, and for the whole 1 MiB block of the reader that holds its
-end: on a connection of 300 kB/s, 3.2 s for the small test film (one
-block) and 10.3 s for a 3.3 Mbit/s film with 5 s clusters. Neither wait is
-there now for the picture and passed-through sound: Astra's own Matroska
-reader hands out each block as it arrives and the reader answers each read
-as its bytes come (`tests/astra-mkv-browser.test.mjs`: paced at 375 kB/s,
-a film of 2.5 MB clusters shows its first picture after well under one
-cluster, from the start and after a seek). Converted sound (Dolby Digital,
-DTS, TrueHD where they are rebuilt) still waits for its whole cluster,
-since Mediabunny decodes it, and on a first play for its decoder's
-download. Changing the audio track stops the picture for about a third of a
-second (the seek in place that flushes the old sound). None of this was
-measured on the phone itself.
+A seek or a resume on the long film costs two bounded requests of 2 MiB
+(the picture from its cue's block, the sound from the start of that
+cluster) and about 1.5 MB before its picture; the cue lookup itself is
+nothing (3,600 points, searched in memory). A small film is no worse:
+
+| Small film (1 min, 720p at 3 Mbit/s; 1.5 MB/s a connection, 40 ms a request; 5 runs) | before | after |
+|---|---|---|
+| First picture; resuming at 0:30; opened again | 329, 673, 606 ms | 334, 633, 571 ms |
+| Far seek; memory peak | 71 ms; 146 MB | 73 ms; 137 MB |
+
+What fell over, and what changed (each with a test that would catch its
+loss):
+
+- **Describing a film read its first cluster whole** (`probe.js`;
+  `tests/astra-probe-reads.test.mjs`). Mediabunny's `getMimeType()`, for a
+  report field, and the DTS track's codec string both need DTS's first
+  frame, which Mediabunny finds by reading the first cluster: 5.3 MB of the
+  heavy film, half of it before anything was planned and the rest with a
+  playback download's reach, even for a resume. Neither is asked now where
+  the browser takes no DTS as it is.
+- **A resume downloaded the film's start** (`player.js` `fileFacts`). The
+  subtitle hash read its first 64 KiB through the reader, which let the
+  download left at the start read on: 24 MiB a resume never plays, beside
+  the download it needed. It looks (`peek`) instead.
+- **A seek left a download at the place it left** (`mkv-packets.js`
+  `jumped()`; `tests/astra-mkv-packets.test.mjs`). The pipeline being
+  dropped read its cluster again once its read was refused, which started a
+  24 MiB download there that took half the link from the new place.
+- **The film was held two and three times** (`hold.js`, How a file plays;
+  `tests/astra-hold-browser.test.mjs`, `tests/astra-bytes.test.mjs`). The
+  browser's buffer sat at its own limit (39 s ahead, so Chrome dropped all
+  but 10 s behind), the cache held its last 96 MiB again, and the copies
+  made on the way waited for the garbage collector. Held to bytes, the
+  heavy film keeps 14 s ahead, 8 behind and a 48 MiB cache.
+- **Fewer copies** (`mkv-blocks.js`, `fragments.js`). Each block of
+  picture was copied twice while its cluster was read and each fragment
+  once more to join its two boxes, 3 MB a second each on the heavy film:
+  a block is now a view of the reader's own bytes and the boxes are
+  appended one after the other. Together with the smaller buffers, the
+  long tasks went from 19 a minute to 1.
+- **An index larger than the tail was fetched twice in part**
+  (`source-stream.js`, `source-blocks.js` `present()`;
+  `tests/astra-bytes.test.mjs`). The download reading the long film's cue
+  index asked again for the tail it ran into; it stops where bytes already
+  here begin and copies them in from where they lie, so its block is still
+  made whole for the subtitle scanners (stopping alone left a block with a
+  remembered range inside never whole, and its subtitles unread).
+
+What is left: on a link slower than the film (8 and 20 Mbit/s against
+27.8) it stalls, as anything must: 8 or 9 times a minute, about 2 s each
+at 20 Mbit/s and 5.5 s at 8, the element reporting `waiting` each time
+(the player shows its spinner after 400 ms of it; not looked at on screen
+here); nothing restarts or seeks meanwhile. A seek five seconds on is then
+not inside the buffer and waits for the download to reach it. The page is
+under 250 MB only while the link is slower than the film: at 40 Mbit/s it
+peaks at 380 MB, of which about 120 MB is garbage the collector had not
+taken yet (260 MB with a collection forced before each look), and on the
+fast link near 500 MB. For scale, Chrome playing the same picture from a
+plain MP4 by itself, with no Astra, peaks at 175 MB (the lab page alone:
+50 MB). On the fast machine a seek five seconds on, inside the buffer,
+takes 0.35 to 0.9 s where Chrome playing that MP4 itself takes 0.16 s: not
+explained yet, and the same before (four more runs of each, taken in turn:
+0.42 s before, 0.35 s after). This Chromium counts nearly every frame as
+dropped while `requestVideoFrameCallback` is asked for again and again
+(the browser playing a file by itself too), so the script watches frames
+only while it waits for a picture. Not measured: the phone itself,
+Chrome's video buffer limits on Android, HEVC and 4K films, a real debrid
+host, changing the sound track on the heavy film, a film with its index at
+the front.
+
+Earlier (2026-11-10, a three-minute 1080p film at 8 Mbit/s, Mediabunny
+1.55.7): a seek's downloads of the place left are closed (`jumped()`),
+Dolby Digital and DTS are mixed to stereo a sample at a time
+(`downmix.js`) and the picture arrives in half-second fragments
+(`early.js`, `scripts/astra/rewrap.mjs`); the audio decoder downloads while
+the first video is read. Changing the audio track stops the picture for
+about a third of a second (the seek in place that flushes the old sound).
 
 ### Several cores (present, switched off)
 
@@ -1088,9 +1198,11 @@ skip in a browser without it.
 | `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
 | `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
 | `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment (run only once its host is confirmed), and a report with no address, hash, key or file name; the scrubber itself. |
-| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, and waiting for a download by time rather than bytes. |
+| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
+| `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
+| `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
-| `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
+| `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
 | `astra-early.test.mjs` | Half-second fragments. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
 | `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on. |

@@ -104,6 +104,43 @@ test('while the file is described, a download stops a little past the last byte 
   source.close();
 });
 
+test('an index larger than the tail: the download that reads it stops where the tail begins, nothing is fetched twice', async () => {
+  // A two-hour film's cue index is about 100 KB at its end (scripts/astra/real.mjs, 2026-11-18): its header was read
+  // from its own byte, and the download that brought it then asked again for the tail it ran into.
+  const h = host({ pace: 1 });
+  const source = new HttpSource('https://files.example/film.mkv', { fetchFn: h.fetchFn, memory: null, connection: null });
+  source.probing = true;
+  await source.open();
+  await source.read(0, 65536);
+  await until(() => !source.tail, { timeout: 10_000, message: 'the tail arrived' });
+  const cues = SIZE - 105_000;
+  assert.ok(same(await source.read(cues, cues + 12), cues), 'the index’s header');
+  assert.ok(same(await source.read(cues + 12, SIZE), cues + 12), 'the whole index, across the tail');
+  await sleep(100);
+  const late = h.calls.filter((c) => c.from >= cues);
+  assert.deepEqual(late.map((c) => c.from), [SIZE - TAIL, cues], 'the tail, and the index from its own byte: nothing more');
+  assert.ok(late[1].to - cues < 2 * TAIL, 'which asked for little more than the margin past its header');
+  // The tail's bytes were copied into the download's block instead: it is whole from the index to the end of the file
+  // (the subtitle scanners look at whole blocks only; a remembered range inside a block is copied in the same way).
+  const last = Math.floor((SIZE - 1) / BLOCK);
+  assert.equal(source.partials.get(last)?.filled, source.blockLength(last));
+  source.close();
+});
+
+test('bytes here already inside a block (a range remembered, the tail) are copied in, not fetched again, and the block is whole', async () => {
+  const { source, calls } = await open({ pace: 1 });
+  source.learn(SIZE / (BLOCK / 8)); // a reach of 2 MiB: the download asks in parts
+  const from = 5 * BLOCK + 300_000, to = 5 * BLOCK + 400_000;
+  source.kept = [{ index: 5, bytes: Uint8Array.from({ length: to - from }, (_, i) => byteAt(from + i)), skew: 300_000, from: 300_000, filled: 400_000 }];
+  await source.read(0, 16);
+  await settle(source); // the first answer, read open-ended, is left at the reach: from here on it asks in parts
+  for (let at = 0; at < 6 * BLOCK; at += BLOCK / 2) assert.ok(same(await source.read(at, at + 16), at));
+  await until(() => source.blocks.has(5), { message: 'block 5 whole in the cache' });
+  assert.ok(same(source.blocks.get(5), 5 * BLOCK), 'with the right bytes');
+  assert.deepEqual(calls.filter((c) => c.from > 0 && c.from < to && c.to > from).map((c) => [c.from, c.to]), [], 'none asked for the bytes here');
+  source.close();
+});
+
 test('the reach follows the film’s bitrate: 10 s of it (5 with the saver), never under 2 MiB nor over the limit', async () => {
   const { source } = await open({ pace: 0 });
   assert.equal(source.reach(), 24 * BLOCK, 'before the bitrate is known: the limit');
@@ -125,7 +162,7 @@ test('the reach follows the film’s bitrate: 10 s of it (5 with the saver), nev
   source.close();
 });
 
-test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrate, between 16 and 96 MiB', async () => {
+test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrate, between 16 and 96 MiB; a fast film’s, 48 MiB', async () => {
   const { source } = await open({ pace: 0 });
   assert.equal(source.maxBlocks, 96);
   source.learn(SIZE / (BLOCK / 8)); // 1 Mbit/s: 16 MiB, the least
@@ -135,9 +172,11 @@ test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrat
   const saver = saverTuning(true);
   source.setReadAhead(saver.readAhead, saver);
   assert.equal(source.maxBlocks, 30, 'with the saver: (55 s + 5 s)');
-  source.learn(SIZE / (4 * BLOCK)); // 32 Mbit/s: the most
+  source.learn(SIZE / (4 * BLOCK)); // 32 Mbit/s: 80 s would be 320 MiB, its back-seek never whole: what reading needs (hold.js)
   source.setReadAhead(24 * BLOCK, saverTuning(false));
-  assert.equal(source.maxBlocks, 96);
+  assert.equal(source.maxBlocks, 48, 'HOLD.cache: more than the reach (24 MiB) and 4 s of the sound trailing the picture');
+  source.learn(SIZE / (16 * BLOCK)); // 128 Mbit/s: the reach and 4 s of the film, 88 MiB
+  assert.equal(source.maxBlocks, 88);
   source.close();
 });
 
