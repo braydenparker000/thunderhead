@@ -26,7 +26,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); await host?.close(); });
 
-/** clusters.mkv (30 s, about 9.6 kB a second, a key frame every 10 s) played at twice the speed to 13 s: what is buffered around the playhead. */
+/** clusters.mkv (30 s, about 9.6 kB a second, a key frame every 10 s) played at twice the speed to 13 s, then paused: what is buffered around the playhead. */
 async function played(t, held) {
   const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
   const errors = [];
@@ -43,8 +43,9 @@ async function played(t, held) {
     video.addEventListener('playing', () => { video.playbackRate = 2; }, { once: true });
     window.p.load({ url, autoplay: true });
   }, [host.url('clusters.mkv'), held]);
-  await page.waitForFunction(() => window.p.video.currentTime >= 13, null, { timeout: 60_000, polling: 100 });
-  await page.waitForTimeout(500); // the last append's eviction
+  await page.waitForFunction(() => window.p.video.currentTime >= 13, null, { timeout: 60_000, polling: 50 });
+  await page.evaluate(() => window.p.video.pause());
+  await page.waitForTimeout(800); // the last appends, each followed by its eviction
   const r = await page.evaluate(() => {
     const v = window.p.video, b = window.p.session.queues.video.buffer.buffered, t = v.currentTime;
     for (let i = 0; i < b.length; i++) if (b.start(i) <= t && b.end(i) >= t) return { t, ahead: b.end(i) - t, behind: t - b.start(i), rate: window.p.probed.source.byteRate };
@@ -60,5 +61,5 @@ test('a fast film is held to bytes: a few seconds ahead of the playhead and behi
   t.diagnostic(JSON.stringify({ free, held }));
   assert.ok(free.ahead > 14 && free.behind > 12, `by time alone the whole film stays (${JSON.stringify(free)})`);
   assert.ok(held.ahead < 9, `about 5 s read ahead, the sound at most 3 s past the picture (${held.ahead.toFixed(1)} s)`);
-  assert.ok(held.behind < 4, `about 3 s kept behind, to the key frame after (${held.behind.toFixed(1)} s)`);
+  assert.ok(held.behind < 5, `3 s kept behind, from the key frame before them (one every 10 s here) (${held.behind.toFixed(1)} s)`);
 });
