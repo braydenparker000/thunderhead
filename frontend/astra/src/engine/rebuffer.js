@@ -64,11 +64,12 @@ export class Rebuffer {
     this.placed = false; // the film has played since its last start or seek
     this.held = {count: 0, ms: 0};
     const v = session.video;
-    // ranShort: the film ran short while playing since its last seek, so Chrome keeps more decoded sound (remux-switch.js).
+    // Since the film's last seek (remux-switch.js): ranShort, it ran short while playing, so Chrome keeps more decoded
+    // sound; joined, how many times its sound was written over.
     this.on = {
       waiting: () => { if (this.placed && !session.video.seeking) session.ranShort = true; this.stalled(); },
       playing: () => { this.placed = true; },
-      seeking: () => { this.placed = false; session.ranShort = false; this.release('seek'); },
+      seeking: () => { this.placed = false; session.ranShort = false; session.joined = 0; this.release('seek'); },
     };
     for (const [type, fn] of Object.entries(this.on)) v.addEventListener(type, fn);
     this.timer = setInterval(() => this.tick(), TICK);

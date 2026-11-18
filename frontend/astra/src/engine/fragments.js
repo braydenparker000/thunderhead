@@ -9,7 +9,10 @@ export function fragmentWriter(queue, stats, kind, generation, early = null) {
   let head = [], moof = null, at = null; // at: where the fragment begins, in the file's time
   const send = bytes => { stats.appended += bytes.byteLength; queue.append(bytes, generation, at); };
   const format = new MB.Mp4OutputFormat({
-    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? (globalThis.__astraExp?.audioFrag ?? 1) : 0, // EXPERIMENT // video: every key frame, real or early (early.js), begins a fragment
+    // Video: every key frame, real or early (early.js), begins a fragment. Sound: a quarter of a second, as the sound
+    // worker writes it: the film cannot play at a new place before the sound's first fragment is in, and with 1 s ones
+    // a far seek on a 25 Mbit/s film with its AAC track took 4.5 s instead of 3.5 (page six times slower, 20 Mbit/s).
+    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 0.25 : 0,
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
     onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; early?.settle(moof); sized(output, moof); },

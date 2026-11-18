@@ -16,7 +16,7 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report; and the TorBox check (`torbox-check.js`, `torbox-panel.js`, with the report's scrubber `scrub.js`; see The playback lab, below). |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-apart.js` and `sound-worker.js` (converted sound decoded, mixed and encoded in a worker, off the page's thread), `sound-stream.js` (converted sound from Astra's own Matroska reader, on the page), `sound-write.js` (the Opus and FLAC writers both use), `sound-six.js` with `flac-frames.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `remux-switch.js` (changing the sound), `rebuffer.js` (a link slower than the film), `sound-wait.js` (a converter that does not come), `hold.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-apart.js` and `sound-worker.js` (converted sound decoded, mixed and encoded in a worker, off the page's thread), `sound-stream.js` (converted sound from Astra's own Matroska reader, on the page), `sound-write.js` (the Opus and FLAC writers both use), `sound-six.js` with `flac-frames.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `address.js` (where the film's address came from, for Stream info and the notice), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
@@ -390,9 +390,10 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    Chrome's video buffer to its own limit (about 150 MB, past which Chrome
    drops what is behind the playhead itself), and the page held about
    600 MB (How smoothly, below). A film under about 10 Mbit/s is held as
-   before. Until the film plays at its place (a start, a seek), its sound is read
-   at most 4 s past the playhead, and so the picture, which reads no more
-   than 3 s past the sound (`remux-audio.js`); then both read on. Text
+   before. Until the film plays at its place (a start, a seek), picture and
+   sound are read at most 4 s past the playhead (`remux.js` `room()`; the
+   sound alone was held so before, and the picture followed it, 3 s behind at
+   most); then both read on. Text
    subtitles in MKV and MP4 are read from data already downloaded
    (`embedded-subtitles.js`) and drawn by `src/subtitles/renderer.js`;
    picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
@@ -905,7 +906,7 @@ frames the film waited for came later: far seeks, page six times slower,
 seeks) against 2.6 s and 2.6 s before. Sound passed through as it is had
 the same trouble already (AAC: 3.1 s and 3.9 s, 2 runs). Now sound is read
 at most 4 s past the playhead until the film plays at its place
-(`remux-audio.js`), and the picture with it: 2.6 to 3.1 s for both with
+(`remux-audio.js`; since moved into `remux.js` for both), and the picture with it: 2.6 to 3.1 s for both with
 Dolby Digital Plus, 2.7 to 3.0 s for both with AAC (2 runs each). From a
 host at 40 Mbit/s, which paces the reading anyway: 2.1 s to sound and
 picture against 2.8 s before (2 runs before, 4 after), and 2.2 to 2.4 s
@@ -913,7 +914,8 @@ from 0:00 against 2.8 to 3.0 s.
 
 **Sound fragments of a quarter second.** The film cannot play at a new
 place until the sound's first MP4 fragment is in, and the page's writer
-cuts sound every second at least (`fragments.js`): the picture waited for a
+cut sound every second at least (`fragments.js`; a quarter second too since,
+for sound passed through: A slow link…, below): the picture waited for a
 second of the film to be read. The sound worker cuts every quarter second:
 from a 40 Mbit/s host, a far seek gave picture and sound back in 2.0 s
 against 2.5 s (3 runs of 8 seeks each, fast machine).
@@ -958,8 +960,8 @@ to +61 ms after three minutes in all four runs, before and after alike,
 rising by steps, where the plain mix in the same sitting went from +7 to
 +33 ms (one run): some 25 ms later than the plain mix, and rising as it
 does; with the measure's own steps (above) the size of the rise is not
-sure. Not explained and not changed here; the HRTF panners and the chain's
-own context are where to look.
+sure. Explained since: the chain's HRTF panners and limiter, 12 ms, now
+compensated (A slow link, a change of track, below).
 
 **Even loudness** changed nothing measured: fast machine, 2 runs each, the
 sound +31 to +37 ms at the start and +39 to +42 ms after a minute before,
@@ -1015,6 +1017,70 @@ Mbit/s the 15 s cap holds every wait to about 4.3 s of film, so it plays 7 s at 
 is still a poor match for such a film, and the stalls only halve. The time stalled in all is the same within the
 measure (it ends inside a stall), as it must be; the film's bytes in the page while held are the price, and the page
 peaked 8 to 12 MB higher. The first picture, a start and a seek are not held.
+
+**A change of track** (`remux-switch.js`, How a file plays). `heard.cjs --switch` on the heavy film with sound marks
+(its four tracks at their own pitches: Dolby Digital Plus 440 Hz, TrueHD 550, DTS 660, AAC 880), twelve changes
+7 s apart, every ordered pair of the four once, listening all along (the pitch every 5 ms) and watching each frame
+shown; one run each, minimum / median / most of the twelve changes:
+
+| Each change of the twelve | fast, before | fast, after | page slowed six times, before | slowed, after |
+|---|---|---|---|---|
+| The new track heard after the tap | 0.29 / 0.42 / 1.11 s | 1.03 / 1.04 / 1.08 s | 1.09 / 1.46 / 1.79 s | 1.51 / 1.82 / 2.56 s |
+| Longest silence on the way | 162 / 853 / 969 ms | 0 / 0 / 0 ms | 789 / 1163 / 1480 ms | 0 / 37 / 1213 ms |
+| Picture's longest pause | 167 / 851 / 1138 ms | 83 / 125 / 167 ms | 933 / 1266 / 1517 ms | 417 / 541 / 1283 ms |
+| The old track heard after the new | 0 to 32 ms (the listening window) | none | 5 to 27 ms | 0 to 21 ms |
+| Sound against the picture after it | +28 to +53 ms | +6 to +51 ms | +28 to +52 ms | +34 to +64 ms |
+
+TABLE-NOTE
+
+**The converter refused or late** (`sound-wait.js`; `conv.mjs`-style runs in the scratch folder: the decoder's file
+refused, or answered 8 s late, by the test browser itself; one run each):
+
+| The heavy film (DD+ by default, AAC beside it) | before | after |
+|---|---|---|
+| Refused, fast: the first picture; what plays | none in 16 s; nothing | 2.66 s; the AAC track, with "The audio converter could not be downloaded, so this plays Stereo…" |
+| Refused, page slowed six times | none in 16 s | 3.70 s, the AAC track |
+| 8 s late, fast: the first picture; then | 8.58 s, DD+ | 2.62 s with the AAC track; DD+ from 8.7 s, by itself |
+| 8 s late, slowed | 8.96 s | 3.85 s, AAC; DD+ from 7.5 s |
+| `surround.mkv` (Dolby Digital only), refused | no picture | 2.21 s without sound, and the notice; the sound comes in once a later try downloads it (the test) |
+
+**How the reading lets the page breathe** (`remux.js`). The reading loops yield every 8 ms with `scheduler.yield`, which
+runs them again ahead of other waiting work; with `setTimeout` instead the sound worker's report saw the picture after
+a seek 0.7 s sooner (2 runs). Measured here (the unpaced host, the page six times slower, a tap every 2 s while it
+plays changing a line of text, as a menu does; medians of 3):
+
+| Heavy film, slowed, unpaced host | `scheduler.yield` (as it was) | `setTimeout` | `scheduler.yield`, both kinds held to 4 s in `room()` (now) |
+|---|---|---|---|
+| First picture; resume at 2:00; opened again | 1.77, 1.67, 1.22 s | 1.88, 1.53, 1.24 s | 1.81, 1.45, 1.10 s |
+| Five seconds on; far forward, far back, last minute | 0.71; 2.43, 2.16, 1.36 s | 0.76; 2.40, 2.26, 1.37 s | 0.82; 2.14, 1.91, 1.15 s |
+| A tap to the next paint, median and worst | 16, 24 ms | 16, 32 ms | 16, 32 ms |
+| Long tasks while it plays; the 50 ms timer most late | 0; 230 ms | 0; 86 ms | 0; 97 ms |
+| Frames dropped in 40 s; memory at its peak | 21; 490 MB | 22; 503 MB | 16; 468 MB |
+
+`setTimeout` gained nothing measurable here, and a tap reached the screen in a frame or two either way (the 64 to
+360 ms the player's own measure found were on the real menus, which this does not draw: not reproduced); holding the picture's
+reading to 4 s with the sound's until the film plays at its place gained 0.2 to 0.3 s on every seek and resume.
+
+**Fragments of a quarter second** (`fragments.js`, `early.js`). Sound passed through as it is (AAC here) was written in
+fragments of a second at least, the picture in half-second ones. Medians of 3, a 40 Mbit/s host on the fast machine
+and the page six times slower on 20 Mbit/s with 40 ms a request; the sound's with the AAC track, the picture's with
+the default (converted) one:
+
+| Heavy film | sound: 1 s fragments | ¼ s (now) | picture: ½ s fragments (now) | ¼ s |
+|---|---|---|---|---|
+| Fast: first picture; far forward, far back, last minute | 1.04; 2.65, 1.00, 1.46 s | 1.01; 2.10, 0.94, 0.97 s | 0.85; 2.23, 1.13, 0.99 s | 0.98; 2.15, 0.99, 1.00 s |
+| Slowed: first picture; far forward, far back, last minute | 2.82; 4.48, 4.33, 2.48 s | 2.50; 3.48, 3.29, 1.52 s | 2.48; 3.55, 3.40, 1.61 s | 2.46; 3.43, 3.41, 1.59 s |
+
+Quarter-second sound gained up to a second on every far seek, slowed; quarter-second picture gained nothing beyond
+the noise, so the picture's fragments stay at half a second.
+
+**Headphone surround's delay.** An impulse through the chain offline: off, it comes out at once; with Headphone
+surround 12.2 ms later (the HRTF panners' convolution, 6.2 ms, and the limiter's 6 ms look-ahead, which the chain
+puts in for it); boost or night mode alone, 6 ms (the compressor's look-ahead). Against the film's frames (the
+marks, fast machine, two runs, over 100 s and two seeks), Headphone surround's sound was +46 to +61 ms (median +52),
+the plain mix +24 to +43 (+36.5) and the AAC track +35 to +50 (+39.5): 12 to 16 ms later, the chain's own delay. It
+is the browser's (Web Audio's nodes; nothing makes the video wait for them), so whole surround, which only that
+chain plays, is now written 12 ms ahead of the picture (`sound-six.js` PLACED). SYNC-AFTER
 
 ### Several cores (present, switched off)
 
@@ -1441,7 +1507,7 @@ skip in a browser without it.
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
-| `astra-early.test.mjs` | Half-second fragments. |
+| `astra-early.test.mjs` | Half-second fragments of picture, quarter-second ones of sound passed through, and each fragment's mdat made in one array of its own size. |
 | `astra-rebuffer.test.mjs` | A link slower than the film: how many seconds are made ready after a stall, the link's speed counted only while a download runs, and a session's stall held and let go with a stand-in buffer (all that was held appended, a seek letting go at once, a fast link never held). |
 | `astra-switch-browser.test.mjs` | Changing sound track without stopping the picture (no seek in place, the new pitch heard); the converter refused, met with another track that needs none and a notice, or with silence until it can be downloaded and the sound coming in then. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
@@ -1460,7 +1526,7 @@ skip in a browser without it.
 | `astra-addon-json.test.mjs` | Add-on answers over 5 MB refused, and one that never ends cut. |
 | `astra-skip.test.mjs` | The sound fingerprint and its matching, what the intro store keeps, and the skip-times lookup against invented answers. |
 | `astra-player.test.mjs` | The gesture rules, when progress may overwrite the saved place, the next episode's sources through the filters, and `player/rules.js`. |
-| `astra-enhance.test.mjs` | The sound chain's stereo mix against the engine's, dialogue steps, the picture's sizes, and the BT.2390 curve. |
+| `astra-enhance.test.mjs` | The sound chain's stereo mix against the engine's, dialogue steps, the picture's sizes, the BT.2390 curve, and whole surround written 12 ms ahead of the chain's own delay. |
 | `astra-loudness.test.mjs` | The BS.1770 measure against the standard's coefficients and EBU Tech 3341's test signals, channel weights, the gain law, and the remembered gains. |
 | `astra-software-threads.test.mjs` | How many cores libmedia may use, and that as shipped it stays on one thread. |
 | `astra-startup.test.mjs` | `index.html` preloads exactly what start-up imports. |

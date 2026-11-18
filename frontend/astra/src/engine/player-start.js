@@ -67,10 +67,10 @@ export const startMethods = {
     if (!other) return this.tell(failed ? 'The audio converter could not be downloaded, so this plays without sound until it can be.' : 'The audio converter is still downloading, so this plays without sound until it arrives.');
     const refused = () => this.tell(`The audio converter could not be downloaded, so this plays ${other.label}. Choose ${chosen?.label || 'the first track'} in Audio to try again.`);
     if (failed) refused(); else this.tell(`The audio converter is slow to download, so this plays ${other.label} until it arrives.`);
-    this.selectAudio(other.id);
+    this.selectAudio(other.id).catch(() => {});
     // Only late: the chosen track again once its converter is here, unless the viewer chose another meanwhile; or refused after all.
     const still = () => this.session === session && this.selectedAudio === other.id;
-    if (!failed && chosen) loadDecoders(codec).then(() => { if (still()) this.selectAudio(chosen.id); }, () => { if (still()) refused(); });
+    if (!failed && chosen) loadDecoders(codec).then(() => { if (still()) this.selectAudio(chosen.id).catch(() => {}); }, () => { if (still()) refused(); });
   },
 
   /** A notice for the viewer (the player shows it across the top), kept with the plan's notes for the report. */

@@ -88,3 +88,17 @@ test("each fragment's mdat comes in one array of its own size, as its moof's sam
     assert.ok(mdat.buffer.byteLength <= mdat.byteLength + 16, `made at its size (${mdat.buffer.byteLength} for ${mdat.byteLength})`);
   }
 });
+
+test('sound passed through goes in quarter-second fragments: a film cannot play at a new place before its first', async () => {
+  const sent = [], queue = { append: (bytes, generation, at) => sent.push(at) };
+  const output = fragmentWriter(queue, { appended: 0 }, 'audio', 0);
+  const source = new MB.EncodedAudioPacketSource('aac');
+  output.addAudioTrack(source);
+  await output.start();
+  const config = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, description: new Uint8Array([0x11, 0x90]) };
+  for (let i = 0; i < 94; i++) await source.add(new MB.EncodedPacket(new Uint8Array(300), 'key', i * 1024 / 48000, 1024 / 48000), i ? undefined : { decoderConfig: config });
+  await output.finalize();
+  const starts = [...new Set(sent.filter((at) => at != null))];
+  assert.ok(starts.length >= 7, `about two seconds of sound in ${starts.length} fragments`);
+  assert.ok(starts.every((at, i) => !i || at - starts[i - 1] < 0.3), starts.map((x) => x.toFixed(2)).join(' '));
+});

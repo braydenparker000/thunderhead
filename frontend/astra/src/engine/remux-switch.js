@@ -11,14 +11,16 @@
 // film has not run short since its last seek (session.ranShort, rebuffer.js), with at least the join's length and
 // half a second more buffered ahead, and sound whose timestamps change (moved earlier) never is; otherwise the buffer
 // is emptied and the film seeks in place, which also brings Chrome's store back to its size. A join whose new sound
-// came too late to follow on (a slow phone) makes the next one longer, up to SWITCH.most seconds.
+// came too late to follow on (a slow phone) makes the next one longer, up to SWITCH.most seconds. Each join moved the
+// sound against the picture by -27 to +17 ms (the tracks' own timing differs; a seek sets it right), so after
+// SWITCH.row joins in a row the next change seeks in place again: twelve joins in a row moved it 47 ms once.
 
 import {loadDecoders} from './audio-decoders.js';
 import {bufferedEnd} from './mse.js';
 import {hasCentre} from '../enhance/sound-chain.js';
-import {soundMime} from './sound-six.js';
+import {soundMime, soundShift} from './sound-six.js';
 
-export const SWITCH = {join: 1, most: 2.5, keep: true}; // keep: off, every change empties the buffer (tests compare the two)
+export const SWITCH = {join: 1, most: 2.5, row: 2, keep: true}; // keep: off, every change empties the buffer (tests compare the two)
 
 export const switchMethods = {
   /** Switches to another audio track: only the audio buffer is refilled. */
@@ -46,13 +48,13 @@ export const switchMethods = {
     const was = this.audioMime, mime = soundMime(this, choice, was); // rebuilt: whole (FLAC, sound-six.js) or stereo Opus, as it began
     const queue = this.queues.audio, v = this.video;
     const lead = () => bufferedEnd(queue.buffer, v.currentTime) - v.currentTime, ahead = this.joinLead || SWITCH.join;
-    const keep = join && SWITCH.keep && !v.seeking && !this.ranShort && lead() >= ahead + 0.5 && (mime === was || !!queue.buffer.changeType);
+    const keep = join && SWITCH.keep && !v.seeking && !this.ranShort && (this.joined || 0) < SWITCH.row && lead() >= ahead + 0.5 && (mime === was || !!queue.buffer.changeType);
     this.audioMime = mime;
     this.audio = choice;
     this.ended.audio = false;
     const generation = await queue.reset({clear: !keep, mime: !keep && mime !== was ? mime : null});
     if (this.destroyed) return;
-    queue.buffer.timestampOffset = -(this.offset + this.advance);
+    queue.buffer.timestampOffset = -soundShift(this);
     let from = Math.max(0, v.currentTime + this.advance - 0.3);
     if (keep) {
       const at = v.currentTime + ahead;
@@ -60,7 +62,7 @@ export const switchMethods = {
       if (this.destroyed || queue.generation !== generation) return;
       if (mime !== was) queue.buffer.changeType(mime); // what is buffered of the old kind stays and plays to the join
       from = at + this.advance;
-      this.stats.joins = (this.stats.joins || 0) + 1;
+      this.stats.joins = (this.stats.joins || 0) + 1; this.joined = (this.joined || 0) + 1;
       // The new sound not there when the old ran out: the next join is longer.
       const late = () => { if (queue.generation === generation && v.currentTime >= at - 0.5) this.joinLead = Math.min(SWITCH.most, ahead + 0.75); };
       v.addEventListener('waiting', late, {once: true});

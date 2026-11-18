@@ -19,17 +19,25 @@ import {switchMethods} from './remux-switch.js';
 import {StallWatch} from './stall-watch.js';
 import {Rebuffer} from './rebuffer.js';
 import {mkvPackets} from './mkv-packets.js';
-import {soundMime} from './sound-six.js';
+import {soundMime, soundShift} from './sound-six.js';
 import {aheadSeconds} from './hold.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`; a fast
 // film's are fewer, hold.js). Picture and sound read to the same place, `apart` at most, so one download serves both.
 export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
 // Reading and re-wrapping run on the page's own thread: after this many
-// milliseconds the reader lets a tap or a frame through.
+// milliseconds the reader lets a tap or a frame through (scheduler.yield: with setTimeout instead, a start, far seeks
+// and taps measured the same, 2026-11-18).
 const SLICE_MS = 8;
-const exp = () => globalThis.__astraExp || {}; // EXPERIMENT (scratch): turn 'timeout'; head seconds for both kinds
-const pageTurn = () => exp().turn !== 'timeout' && globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
+const pageTurn = () => globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise(resolve => setTimeout(resolve, 0));
+/**
+ * Until the film plays at its place (a start, a seek), neither picture nor sound is read more than HEAD seconds past
+ * the playhead. Read on to the full read-ahead at once, on a fast host the reading filled the page's thread and held
+ * back the very frames the film waited for. The sound alone was held to this before (the picture followed it, 3 s
+ * behind at most); both held here, far seeks with the page six times slower took 2.14 s instead of 2.43 and a resume
+ * 1.45 s instead of 1.67 (unpaced host, medians of 3; frontend/astra/README.md, A slow link…).
+ */
+const HEAD = 4;
 
 export {loadDecoders};
 
@@ -100,9 +108,9 @@ export class RemuxSession extends EventTarget {
     if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal, this.source);
     if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audioMime = soundMime(this, this.audio)), this.video, fatal, this.source);
     if (this.queues.video) this.queues.video.buffer.timestampOffset = -this.offset;
-    if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
+    if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -soundShift(this);
     this.video.addEventListener('seeking', this.onSeeking);
-    for (const type of ['timeupdate', 'seeking', 'playing']) this.video.addEventListener(type, this.onProgress);
+    for (const type of ['timeupdate', 'seeking', 'playing', 'canplay']) this.video.addEventListener(type, this.onProgress);
     if (startTime > 0) this.video.currentTime = startTime;
     this.watch = new StallWatch(this);
     this.rebuffer = new Rebuffer(this, () => aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate)); // on a link slower than the film
@@ -179,8 +187,9 @@ export class RemuxSession extends EventTarget {
     // far past the picture, and the picture's blocks out of the reader's cache.
     const other = kind === 'video' ? 'audio' : 'video';
     const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
-    const v = this.video, head = () => exp().head && (v.seeking || v.readyState < 3) && !this.rebuffer?.holding && this.readAt[kind] - v.currentTime > exp().head;
-    while (current() && (this.readAt[kind] - this.video.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || head() || (queue.pending() > TUNING.maxQueued && !queue.held))) {
+    // A stall held for a slow link (rebuffer.js) is not such a place: both read on to what it waits for.
+    const v = this.video, head = () => (v.seeking || v.readyState < 3) && !this.rebuffer?.holding && this.readAt[kind] - v.currentTime > HEAD;
+    while (current() && (this.readAt[kind] - v.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || head() || (queue.pending() > TUNING.maxQueued && !queue.held))) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);
@@ -247,7 +256,7 @@ export class RemuxSession extends EventTarget {
     this.watch?.stop(); this.rebuffer?.stop();
     clearTimeout(this.seekTimer);
     this.video.removeEventListener('seeking', this.onSeeking);
-    for (const type of ['timeupdate', 'seeking', 'playing']) this.video.removeEventListener(type, this.onProgress);
+    for (const type of ['timeupdate', 'seeking', 'playing', 'canplay']) this.video.removeEventListener(type, this.onProgress);
     for (const q of Object.values(this.queues)) q.generation++;
     this.onProgress();
   }

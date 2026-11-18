@@ -11,7 +11,7 @@
 // the browser never starts decoding there. The result is what chunked CMAF
 // streams are: fragments that need not begin with a key frame.
 
-const EVERY = 0.5; // seconds between cuts
+const EVERY = 0.5; // seconds between cuts (a quarter of a second measured no better, 2026-11-18)
 const NOT_SYNC = 0x00010000, DEPENDS = 0x03000000, ON_OTHERS = 0x01000000;
 
 export class EarlyCuts {
@@ -28,7 +28,7 @@ export class EarlyCuts {
     // The writer begins a fragment at a key frame only when it is shown after every frame before it: a key frame
     // that repeats an earlier time (or comes before it) begins none, so it must not be counted as one.
     if (packet.type === 'key') { if (!this.started || packet.timestamp > this.high) { this.forced.push(false); this.cut = packet.timestamp; } }
-    else if (this.started && packet.timestamp > this.high && packet.timestamp - this.cut >= (globalThis.__astraExp?.every ?? EVERY)) { // EXPERIMENT
+    else if (this.started && packet.timestamp > this.high && packet.timestamp - this.cut >= EVERY) {
       out = packet.clone({type: 'key'});
       this.forced.push(true);
       this.cut = packet.timestamp;
