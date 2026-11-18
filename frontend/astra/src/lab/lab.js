@@ -12,7 +12,7 @@ import {threadsReport} from '../engine/software-threads.js';
 import {describeInfo} from '../engine/probe.js';
 import {channelName} from '../engine/labels.js';
 import {languageName} from '../engine/languages.js';
-import {classicAddons, searchCatalogs, fetchMeta, fetchStreams} from '../addons/client.js';
+import {installedAddons, searchCatalogs, fetchMeta, fetchStreams} from '../addons/client.js';
 import {torboxPanel} from './torbox-panel.js';
 import {scrubSecrets} from './scrub.js';
 
@@ -127,7 +127,7 @@ $('copy-report').addEventListener('click', async () => {
 });
 
 // Finding something to play, through the add-ons classic Astra already has.
-const addons = classicAddons();
+const addons = installedAddons();
 $('addon-hint').textContent = `Searching with ${addons.length} add-on${addons.length === 1 ? '' : 's'} from Astra on this phone.`;
 let searchAbort = null;
 const browse = $('browse');
@@ -187,7 +187,8 @@ function openStreams(ctx) {
         return h('div', {class: 'stream-row'},
           h('button', {class: 'stream' + (playable ? '' : ' disabled'), disabled: !playable, onclick: () => openPlayer(ctx, collected, g.addon.url + '#' + i)},
             h('b', {}, (s.name || g.addon.name).replace(/\n/g, ' ')), h('span', {}, s.title + (playable ? '' : s.infoHash ? '\nTorrent: needs a debrid add-on' : '\nNot a direct link'))),
-          playable ? h('button', {class: 'chip analyse', onclick: () => play({...s, title: ctx.title})}, 'Analyse') : null);
+          playable ? h('button', {class: 'chip analyse', onclick: () => play({...s, title: ctx.title})}, 'Analyse') : null,
+          playable ? h('button', {class: 'chip analyse', onclick: () => torbox.pick(s.url)}, 'TorBox') : null);
       }),
     ]));
   };

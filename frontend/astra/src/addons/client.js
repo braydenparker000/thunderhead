@@ -130,12 +130,20 @@ export function fetchManifest(url, options) {
   return manifests.get(url);
 }
 
-/** Add-ons installed in classic Astra on this browser (read-only), enabled ones first in their order. */
-export function classicAddons(storage) {
-  try { // localStorage is read inside the try: with site data blocked, reading it throws
-    const list = JSON.parse((storage ?? globalThis.localStorage).getItem('astra.v1.addons') || 'null');
-    if (Array.isArray(list) && list.length) return list.filter(a => a && typeof a.url === 'string' && a.enabled !== false).map(a => ({url: a.url, name: a.name || 'Add-on'}));
-  } catch {}
+/**
+ * The add-ons Astra has on this phone, for the lab (read-only): the enabled ones, in their order. Astra keeps them
+ * under `astra.v2.addons` (app/store.js); a phone that only ever ran classic Astra still has `astra.v1.addons`.
+ * The lab read only the classic key until 2026-11-18, so on a phone set up in Astra itself it saw Cinemeta alone:
+ * titles were found and no add-on had a stream.
+ */
+export function installedAddons(storage) {
+  for (const key of ['astra.v2.addons', 'astra.v1.addons']) {
+    try { // localStorage is read inside the try: with site data blocked, reading it throws
+      const list = JSON.parse((storage ?? globalThis.localStorage).getItem(key) || 'null');
+      const mine = Array.isArray(list) ? list.filter(a => a && typeof a.url === 'string' && a.enabled !== false).map(a => ({url: a.url, name: a.name || 'Add-on'})) : [];
+      if (mine.length) return mine;
+    } catch {}
+  }
   return [{url: CINEMETA, name: 'Cinemeta'}];
 }
 

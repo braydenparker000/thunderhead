@@ -75,5 +75,9 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
     try { await navigator.clipboard.writeText(report); hint.textContent = 'Report copied. It holds no address, hash, key or file name.'; }
     catch { hint.textContent = 'Copy failed; long-press to select the report below.'; hint.append(Object.assign(document.createElement('pre'), {textContent: report})); }
   });
-  return {fill(address) { if (address) { field.value = address; handed = field.value.trim(); asked = false; } }};
+  return {
+    fill(address) { if (address) { field.value = address; handed = field.value.trim(); asked = false; } },
+    /** A stream the owner picked from the lab's own list: theirs like a typed one, so no second tap; brought into view. */
+    pick(address) { field.value = address; handed = ''; asked = false; button.textContent = 'TorBox check'; form.scrollIntoView?.({block: 'center'}); },
+  };
 }

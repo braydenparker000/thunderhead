@@ -144,3 +144,37 @@ test('an address typed over a handed-over one runs at the first tap', opts, asyn
   assert.equal(s.a.state, 'bad');
   assert.equal(l.asked.length, 1);
 });
+
+test('the lab lists streams from the add-ons Astra keeps (not only classic Astra\'s), and a stream\'s TorBox button fills the check as the owner\'s own pick', opts, async (t) => {
+  const ADDON = 'https://addon.example/cfg-invented';
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  t.after(() => context.close());
+  // As Astra itself stores them (app/store.js): nothing under the classic key.
+  await context.addInitScript((url) => { localStorage.setItem('astra.v2.addons', JSON.stringify([{ url, enabled: true, name: 'Invented streams' }])); }, `${ADDON}/manifest.json`);
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const json = (route, body) => route.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
+  await page.route('https://addon.example/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/manifest.json')) return json(route, { id: 'example.invented', version: '1.0.0', name: 'Invented streams', resources: ['catalog', 'meta', 'stream'], types: ['movie'], idPrefixes: ['tt'],
+      catalogs: [{ type: 'movie', id: 'top', name: 'Films', extra: [{ name: 'search' }] }] });
+    if (path.includes('/catalog/')) return json(route, { metas: [{ id: 'tt0000777', type: 'movie', name: 'An Invented Film' }] });
+    if (path.includes('/meta/')) return json(route, { meta: { id: 'tt0000777', type: 'movie', name: 'An Invented Film' } });
+    if (path.includes('/stream/')) return json(route, { streams: [{ name: 'Invented 1080p', title: 'Invented.Film.2024.1080p.mkv', url: LINK, behaviorHints: { filename: 'Invented.Film.2024.1080p.mkv', videoSize: 939230 } }] });
+    return route.fulfill({ status: 404, body: '' });
+  });
+  await page.goto(`${base}/astra/lab/`);
+  assert.match(await page.locator('#addon-hint').textContent(), /1 add-on/);
+  await page.fill('#search', 'invented');
+  await page.locator('.results .poster', { hasText: 'An Invented Film' }).click();
+  const row = page.locator('.stream-row', { hasText: 'Invented 1080p' });
+  await row.waitFor({ timeout: 15_000 });
+  if (process.env.ASTRA_SHOTS) await page.screenshot({ path: `${process.env.ASTRA_SHOTS}/lab-streams.png` });
+  const fits = await row.evaluate((el) => { const r = el.getBoundingClientRect(); return [...el.querySelectorAll('button')].every((b) => { const q = b.getBoundingClientRect(); return q.left >= r.left - 1 && q.right <= innerWidth && q.width > 30; }); });
+  assert.ok(fits, 'the stream and its two buttons fit a phone\'s width');
+  await row.getByRole('button', { name: 'TorBox', exact: true }).click();
+  assert.equal(await page.inputValue('#torbox-link'), LINK);
+  assert.equal(await page.locator('#torbox-run').textContent(), 'TorBox check', 'picked by the owner: no second tap asked');
+  assert.deepEqual(errors, []);
+});
