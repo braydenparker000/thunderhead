@@ -1,10 +1,12 @@
 // Astra's relay (ASTRA.md §4.4, §5; API.md §11.21; SECURITY.md §8.2): the owner's Worker finds a
 // film's direct address for the phone, because a web page cannot read TorBox's API or every hop of
 // an add-on's forward (CORS). It asks TorBox with the owner's key, held as the Worker secret
-// TORBOX_KEY, or follows the add-on's forward by hand, and hands back where it ends. Addresses pass
-// through in transit only, for the owner's device: never stored, never logged. Notes and reasons
-// are fixed sentences and numbers, never an address, a hash, a key or a file name. Plain data with
-// erasable types only.
+// TORBOX_KEY, and hands back the file's address, which may carry the account's token as TorBox's
+// own links do. It does not open add-on links (an add-on may tie one to the connection that asked
+// for it): following a forward is kept only behind the Worker variable ASTRA_FOLLOW "on". Addresses
+// pass through in transit only, for the owner's device: never stored, never logged. Notes and
+// reasons are fixed sentences and numbers, never an address, a hash, a key or a file name. Plain
+// data with erasable types only.
 
 export const ASTRA_LIMITS = {
   /** The add-on's link, in characters (AIOStreams' carry a base64url JSON and a sealed key). */
@@ -17,9 +19,10 @@ export const ASTRA_LIMITS = {
   follow_ms: 20_000,
   /** A 429 or 5xx from TorBox is tried once more, after this long. */
   retry_ms: 500,
-  /** The direct path's TorBox calls when nothing is retried; with retries and a TorBox link met
-   * while following, a request never makes more than `torbox_calls_max`. */
-  torbox_calls: 4,
+  /** TorBox calls when nothing is retried: a tap 3 (createtorrent, the files, requestdl), a press
+   * 3 (checkcached, the list, requestdl), a film remembered from the last half hour 1 (requestdl).
+   * With retries and exchanges, a request never makes more than `torbox_calls_max`. */
+  torbox_calls: 3,
   torbox_calls_max: 6,
   /** Requests a hop chain may take, the first included. */
   hops: 6,
@@ -72,8 +75,10 @@ export interface AstraStep {
  * page must not play the add-on's link instead, since that is how an add-on adds an uncached torrent
  * (owner ruling 2026-11-18: nothing uncached is ever added by Astra). */
 export interface AstraPlayResponse {
-  /** The film's direct address, or null when mode "ahead" could not get one without adding. */
+  /** The film's direct address; null when TorBox could not give one (then the page plays the
+   * add-on's own link itself, as before the relay) or a press could not without adding. */
   url: string | null;
+  /** 'follow' only with the Worker variable ASTRA_FOLLOW "on". */
   via: 'torbox' | 'follow' | null;
   /** Of the file, when learnt. */
   size: number | null;

@@ -2,7 +2,10 @@
 // film's direct address for Astra, for the owner's device only (agent keys get 403 from the route
 // table). POST /play tries TorBox with the owner's key (direct.ts); when TorBox says for certain the
 // film is not cached, that is the answer (503), since following the add-on's link is how an add-on
-// adds an uncached torrent; otherwise, in mode "play", it follows the add-on's forward (follow.ts).
+// adds an uncached torrent. Otherwise it answers no address and the page plays the add-on's own link
+// itself: an add-on may tie a link to the connection that asked for the stream list, so the Worker
+// opening it can get an error clip and spoil the link (the owner's phone, 2026-11-18). Following the
+// forward here (follow.ts) is kept for a later try, only with the Worker variable ASTRA_FOLLOW "on".
 // Mode "ahead" never adds to TorBox and never follows a link. GET /torbox says whether the key is
 // set and taken. Addresses, hashes, file names and the key travel only in the request body,
 // upstream calls and the answer: never a path, a query, a log line or stored row; notes and reasons
@@ -23,7 +26,7 @@ import { json } from '../../http/validate';
 import { direct, NOT_CACHED } from './direct';
 import { follow } from './follow';
 import { account } from './torbox';
-import { relayFor } from './upstream';
+import { mark, relayFor } from './upstream';
 import { NOTE, REASON } from './words';
 
 /** Optional, and `null` is the same as leaving it out. */
@@ -78,6 +81,10 @@ export const astraRoutes = new Hono<AppEnv>()
     if (body.mode === 'ahead') return answer(NONE, r.steps);
     // Not on TorBox, for certain: following the add-on would let it add an uncached torrent.
     if (found === NOT_CACHED) throw new ApiError('unavailable', { reason: REASON.notOnTorbox, steps: r.steps });
+    if (c.env.ASTRA_FOLLOW !== 'on') {
+      mark(r, 'follow', false, Date.now(), NOTE.followOff);
+      return answer(NONE, r.steps);
+    }
     const f = await follow(r, body.link);
     if (!f.ok) throw new ApiError(f.code, { reason: f.reason, steps: r.steps });
     return answer({ url: f.url, via: 'follow', size: f.size, type: f.type, readable: f.readable }, r.steps);
