@@ -94,7 +94,7 @@ test('Color space on the Export board: Display P3 files carry its profile, sRGB 
   // on the board, the row changes every file of the export together and is kept
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Export' })));
   await page.locator('#stage [role=option]', { hasText: /^\s*format\s*$/i }).first().dispatchEvent('click');   // the panel's barrel rolled to Format (an option chosen, as a screen reader does): the kinds of file, Quality, Color space
-  await page.waitForFunction(() => document.querySelector('#stage [role=listbox]')?.getAttribute('aria-label') === 'Sections: Format' && !document.querySelector('#stage.rolling'));
+  await page.waitForFunction(() => document.querySelector('#stage [role=listbox][aria-label^="Sections"]')?.getAttribute('aria-label') === 'Sections: Format' && !document.querySelector('#stage.rolling'));
   const row = page.locator('#stage button', { hasText: /color space/i }).first();
   await row.waitFor({ timeout: 20_000 });
   assert.match(await row.textContent(), /sRGB/i);
