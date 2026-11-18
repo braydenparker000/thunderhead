@@ -1,16 +1,16 @@
 {
-  "id": "2026-11-17-editor-copy-plain",
-  "date": "2026-11-17",
+  "id": "2026-11-18-editor-sections-tools",
+  "date": "2026-11-18",
   "lines": [
     {
-      "text": "The editor's sharper copy is rebuilt to be gentler on phone graphics chips; the photo looks the same.",
+      "text": "In the editor, swipe the panel up or down: it rolls like a barrel to the next section.",
       "open": "photos"
     },
     {
-      "text": "If it still resets the chip twice running on a phone, it waits a day before trying again."
+      "text": "Tools are on a dial in the bottom-right corner: hold it and move your thumb round to change tool."
     },
     {
-      "text": "Editor reports now say which step of building the sharper copy was running if something goes wrong."
+      "text": "Tap the dial to leave it open, then tap a tool. The controls row now starts at the left edge."
     }
   ]
 }

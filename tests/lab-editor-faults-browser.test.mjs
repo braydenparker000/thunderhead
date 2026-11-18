@@ -44,7 +44,7 @@ async function bringIn(page, files) {
   await chooser.setFiles(files.map((f) => ({ name: f.name, mimeType: 'image/jpeg', buffer: Buffer.from(f.bytes) })));
   await page.waitForFunction((n) => new RegExp(`Done · ${n} photos? copied`).test(document.querySelector('#stage')?.textContent ?? ''), files.length);
 }
-const settle = (page) => page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))).then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))));
+const settle = async (page) => { await page.waitForFunction(() => !document.querySelector('#stage.rolling'), null, { timeout: 20_000 }); return page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))).then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))); };   // the panel at rest too (its barrel: boards/Barrel.js)
 const tapOn = async (page, selector) => { const b = await page.locator(selector).first().boundingBox(); await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
 const go = async (page, board) => { await page.evaluate((b) => document.dispatchEvent(new CustomEvent('editor:open', { detail: b })), board); await page.waitForTimeout(100); await settle(page); };
 const ready = (page) => until(() => page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'); return p.ready && !p.busy() && !!p.whole(); }), { timeout: 120_000, message: 'the photo opens' });
@@ -175,7 +175,9 @@ test('the boards: crop and Undo, the history, the eyedropper, sizes, keys, rows 
   assert.deepEqual(await page.evaluate(async () => (await import('/lab/editor/app/session.js')).history().steps.at(-1)), { name: 'White balance', val: 'Picked' });
   await tapOn(page, '#stage [aria-label="Pick white balance from the photo"]');
   await page.waitForFunction(() => /Tap something white or grey/.test(document.querySelector('#stage')?.textContent ?? ''));
-  await tapOn(page, '#stage [aria-label="Back to the tools"]'); await tapOn(page, '#dock button[data-go="Looks"]'); await settle(page);
+  const tools = page.locator('#tooldial button[aria-label^="Tools:"]');   // the tool dial, from the keyboard: Crop, then Looks
+  await tools.press('ArrowUp'); await settle(page); await tools.press('ArrowUp'); await settle(page);
+  assert.equal(await page.evaluate(() => document.getElementById('frame').dataset.board), 'Looks');
   assert.doesNotMatch(await text(page), /Tap something white or grey/, 'the ask went with the Edit board');
   // Looks: Mine counts the owner's own looks.
   await page.evaluate(async () => { const kept = await import('/lab/editor/app/looks.js'), photo = await import('/lab/editor/app/session.js'); await kept.addMine('Mine A', photo.state()); await kept.addMine('Mine B', photo.state()); photo.changed(); });
@@ -241,11 +243,11 @@ test('the boards: crop and Undo, the history, the eyedropper, sizes, keys, rows 
     const t = document.querySelector('#stage [role=toolbar]'), before = [t.dataset.more, getComputedStyle(t).maskImage || getComputedStyle(t).webkitMaskImage];
     t.scrollLeft = t.scrollWidth; t.dispatchEvent(new Event('scroll'));
     await new Promise((r) => setTimeout(r, 200));
-    const last = [...t.querySelectorAll('button')].at(-1).getBoundingClientRect(), box = t.getBoundingClientRect(), round = document.querySelector('#stage [aria-label="Back to the tools"]').getBoundingClientRect();
+    const last = [...t.querySelectorAll('button')].at(-1).getBoundingClientRect(), box = t.getBoundingClientRect(), round = document.querySelector('#tooldial button[aria-label^="Tools:"]').getBoundingClientRect();
     return { before, after: t.dataset.more, clear: last.left >= box.left && last.right <= box.right - 2 && last.right <= round.left, mask: getComputedStyle(t).maskImage || getComputedStyle(t).webkitMaskImage };
   });
   assert.match(row.before[0], /right/); assert.match(row.before[1], /calc\(100% - 40px\)/, 'a visible fade where it runs on');
-  assert.doesNotMatch(row.after, /right/); assert.equal(row.clear, true, 'Clear all comes fully into view, clear of the round key');
+  assert.doesNotMatch(row.after, /right/); assert.equal(row.clear, true, 'Clear all comes fully into view, clear of the tool dial');
   const dialText = () => page.evaluate(() => document.querySelector('#stage [role=status][aria-label^="Heal · Size"]')?.getAttribute('aria-label'));
   const big = await dialText();
   const ring = await page.evaluate(() => { const c = [...document.querySelectorAll('#stage svg circle')][0].getBoundingClientRect(); return [c.left + c.width / 2, c.top + c.height / 2]; });

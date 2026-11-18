@@ -12,7 +12,7 @@ Reference size is 412 × 915 css px (the Galaxy A35 in Chrome). Every layout mus
 
 The bottom of every screen is **the camera's top plate**: matte black, bead-blasted aluminium. A real
 knurled **command dial** sits in a slot in it, like the X-E5's. Under the thumb, everything is metal
-and engraved. Anything that floats over the photo is **liquid glass**: the tool dock, the curve, the
+and engraved. Anything that floats over the photo is **liquid glass**: the curve, the
 grading wheels, menus, sheets. Glass over the image, metal under the thumb.
 
 1. **One value at a time, on the dial.** Every one-dimensional setting is turned on the dial. Two-
@@ -63,8 +63,8 @@ and tiles appear in place, the plate fades, the dial still turns.
 | ↳ window | plate + 10, 372 × 44, x 20 | what the dial controls |
 | ↳ dial strip | plate + 58, 412 × 150 | the dial in its slot; slot centre at plate + 112 |
 | ↳ row | plate + 166, 36 tall | the current section's items, scrolling sideways |
-| ↳ sections | plate + 206, 30 tall | the screen's sections, evenly spaced |
-| ↳ keys | bottom 22, 40 tall | machined keys left, the glass dock button right (56 × 56) |
+| ↳ sections | the panel itself | swiped up or down, it rolls like a barrel to the next section (see below) |
+| ↳ tool dial | the bottom-right corner, r 84 (open: r 160) | the tools (see below); the row runs from x 10 to its edge |
 
 Hit areas: markings are drawn 34 px tall but take **44 px** touch targets; the dial takes its full
 412 × 108 strip.
@@ -85,6 +85,24 @@ Hit areas: markings are drawn 34 px tall but take **44 px** touch targets; the d
   0–100 values from the left end. The number sits in a red-ringed box riding the fill's end. It is
   always shown: it never collapses or recentres.
 - **Index.** A 6 px red triangle on the plate above the slot's centre.
+
+
+## Sections and tools (2026-11-18)
+
+Designed with the owner on the design canvas and tried there on the phone, replacing the drum at the row's left end
+and the round tools key with its glass dock (`frontend/lab/editor/boards/Barrel.js`, `ToolDial.js`).
+
+- **Sections: the panel is a barrel.** Swiped up, the panel rolls like a barrel to the next section, down to the one
+  before: 34° a section (about ten faces round), round, so past the last comes the first. 110 css px of swipe a
+  section; past a third of one it goes on to it; a flick carries on a section or two. Both sections show as it turns.
+  A tick at each section. Sideways stays the panel's own (its dial, its row, its tiles); the curve and the grading
+  wheels keep their drags.
+- **Tools: one knurled dial in the corner.** A quarter of a dial in the bottom-right corner (r 84), its face naming
+  the tool and the section. Held, it opens to r 160 with a ring of the tools (Looks, Crop, Edit, Masks, Heal,
+  Versions) and the thumb going round the corner turns it: 18° of swing a tool, in notches that hold until well past
+  half way, the ring leaning meanwhile; moving in or out turns nothing; held still at the end of a swing, it steps on
+  every 200 ms. As it turns, the panel rolls through the tools, each named with its sections. Let go: that tool opens
+  on its own last section. A tap leaves it open to tap or turn; a tap outside shuts it. The photo dims under it.
 
 ## Screens
 
