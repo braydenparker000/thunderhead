@@ -1,16 +1,19 @@
 {
-  "id": "2026-11-17-editor-copy-plain",
-  "date": "2026-11-17",
+  "id": "2026-11-18-astra-direct",
+  "date": "2026-11-18",
   "lines": [
     {
-      "text": "The editor's sharper copy is rebuilt to be gentler on phone graphics chips; the photo looks the same.",
-      "open": "photos"
+      "text": "Astra asks your own server for a film's direct TorBox address, so it plays in Astra's full player.",
+      "open": "astra"
     },
     {
-      "text": "If it still resets the chip twice running on a phone, it waits a day before trying again."
+      "text": "For that, add your TorBox key to your server once, as a Worker secret; until then films play as before."
     },
     {
-      "text": "Editor reports now say which step of building the sharper copy was running if something goes wrong."
+      "text": "Stream info says where a film comes from, and why when Chrome's plain player is used."
+    },
+    {
+      "text": "Nothing is added to your TorBox before you tap a stream."
     }
   ]
 }

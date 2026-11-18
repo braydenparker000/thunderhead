@@ -17,11 +17,11 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report. |
 | `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-stream.js` (converted sound from Astra's own Matroska reader), `sound-six.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
-| `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
+| `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `address.js` (where the film's address came from, for Stream info and the notice), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
 | `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
-| `src/addons/` | The Stremio add-on protocol client (`client.js`), TorBox link resolution (`debrid.js`), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
+| `src/addons/` | The Stremio add-on protocol client (`client.js`), a stream's address from the owner's own server (`debrid.js`, with `worker-api.js`, the signed-in client of the Worker, and `link-facts.js`, what a link says of its file), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
 | `src/styles/` | `tokens.css` (colours, type, radii, motion and shared controls) and `app.css`. |
 | `vendor/` | Mediabunny 1.66.0 and its AC-3, DTS and TrueHD decoders, hls.js 1.6.13, dash.js 5.2.0 and JASSUB 2.5.37 (libass), copied by `node scripts/astra/vendor.mjs` from the npm packages pinned in `vendor.json`, which also holds a hash of every file (see `vendor/LICENSES.md`). |
 | `fonts/`, `icons/` | Inter (SIL OFL 1.1, `fonts/LICENSE.md`) and the app's icons. |
@@ -63,27 +63,32 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   ranked or picked for you. Long-press a stream to copy it, play it in
   another app, open it in VLC or check it in the lab (the stream goes to the
   lab in the address's fragment, which never reaches a server or a cache,
-  and the lab takes it out of the address bar once read). TorBox links from
-  add-ons are resolved to the file at the press that starts a tap (with Get
-  ready ahead on), else at the tap.
+  and the lab takes it out of the address bar once read). A stream's address
+  is asked of the owner's own server at the press that starts a tap (with
+  Get ready ahead on), else at the tap (How a stream's address is found,
+  below).
 - **Get ready ahead** (Settings › Playback, on by default; `app/ready.js`,
   `app/next-ready.js`). With it on and the data saver off, what a tap will
-  need is asked for while the list is read: when streams are listed Astra
-  opens a connection to TorBox and reads the owner's own TorBox list, once
-  per account (`addons/debrid.js` keeps it in memory ten minutes, never
-  stores it); a finger coming down on a TorBox stream starts resolving it,
-  and the tap that follows takes that answer (a press that becomes a scroll
-  or a long-press starts nothing more); and the sound converter a listed
+  need is asked for while the list is read: when streams are listed and
+  Astra is signed in, it only opens a connection to the owner's own server
+  (it asks it nothing); a finger coming down on a stream asks that server
+  for its address with mode `ahead`, which never adds anything to TorBox,
+  and the tap that follows takes that answer when it has an address, else
+  asks to play (a press that becomes a scroll or a long-press starts
+  nothing more); and the sound converter a listed
   stream's label asks for, when this phone would convert that sound, is
   fetched ahead on an unmetered connection (on a metered one only when it is
   already in the saved copy). While an episode plays, once the next-episode
   card is due (or a known outro is two minutes off), the next episode's
   streams are collected; only when the stream playing names a release group
-  and one of them has the same group is that stream resolved and its file
-  described (header and index, nothing of the picture or sound), then
-  closed. Next within ten minutes takes that list. With the switch off, or
-  the data saver on, nothing is asked of TorBox, an add-on or a film's host
-  before a tap. Either way nothing plays without a tap, and no stream is
+  and one of them has the same group is that stream's address asked ahead,
+  and only when that gives a direct address (the film is already in the
+  owner's TorBox account) is its file described (header and index, nothing
+  of the picture or sound), then closed; the add-on's own link is never
+  opened before a tap, since following it can make the add-on add the film
+  to TorBox. Next within ten minutes takes that list. With the switch off,
+  or the data saver on, nothing is asked of the server, an add-on or a
+  film's host before a tap. Either way nothing plays without a tap, and no stream is
   ranked, picked or pre-selected.
 - **What a stream card says.** Its size and, when the title's runtime is
   known, what an hour of it costs ("710 MB an hour"). Under it, one quiet
@@ -146,6 +151,51 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   you turn it on; see Skip intro below). Then OpenSubtitles on or off, and
   the remembered audio and subtitle languages with a way to forget them.
   Subtitle style is set in the player.
+
+## How a stream's address is found
+
+The owner's add-on (AIOStreams, which wraps Comet, MediaFusion and others)
+gives a forwarding link, not the film's address, and a web page can follow
+neither it nor TorBox's API, which let only TorBox's own site read them;
+TorBox's file servers do let a page read the film. So Astra asks the
+owner's own Worker (`addons/debrid.js`, `POST /v1/astra/play`), which
+holds the TorBox key as a secret, with the add-on's link and what the link
+says of the file (`addons/link-facts.js`: the torrent's hash, the file's
+index, its name and size, read from AIOStreams' own link, Comet,
+MediaFusion, Torrentio, StremThru, or one hash in the link; never asked
+of anyone). The server answers with the film's direct address, from TorBox
+itself or where the add-on's link leads, and the player reads it as any
+host. The page never calls TorBox.
+
+- **Signed in.** Astra's page reads the site's sign-in as Guitar's does
+  (`addons/worker-api.js` through `th/ported/session.js`, SECURITY.md §4.4
+  rule 4): a top-level page, or a frame whose top page is this site's own
+  (home's island), never another site's frame; it never writes or creates
+  the sign-in's database. The API's address comes from the site's
+  `/config.js`, and the page's CSP names it at deploy (`MOVED_PAGES`).
+- **At the tap** the mode is `play`: the server may add a film TorBox
+  already holds to the owner's account (never an uncached one). **Before a
+  tap** (a press, the next episode) the mode is `ahead`, which never adds
+  anything: it answers only for what is already in the account.
+- **What is kept**: each answer, in memory only (never stored, gone with
+  the page), per link, for 45 minutes (a TorBox link lives 3 hours); one
+  under way is shared, so a press and its tap ask once. An answer without
+  an address is not kept. Signed out, everything kept is forgotten, and so
+  it is when the add-ons change. The player is also given a way to ask
+  afresh (`renew`) for an address that stops working mid-film.
+- **When the server cannot help** (signed out, no answer within 30 s for a
+  tap or 6 s ahead, an error, no address), the add-on's own link plays as
+  it always did, and one plain sentence says why: the server's own reason,
+  or Astra's ("Your server took too long to answer."). Stream info's
+  **Address** line says "From TorBox directly", "Where the add-on's link
+  leads, found by your server", "Through the add-on's link", or, when
+  Chrome's own player plays it, that sentence; and when Chrome's player
+  takes over because the add-on's link cannot be read, the notice gives
+  that sentence instead of the general one (`player/address.js`).
+- **Signed out**, Astra behaves as before: nothing is asked of the server
+  and every link plays as the add-on gave it.
+- Addresses, links, hashes and file names are sent only to the owner's own
+  server, and are never stored, logged or put in a report by Astra.
 
 ## When add-ons misbehave
 
@@ -767,7 +817,7 @@ measured height, so nothing covers the title or the buttons.
   into and out of the window; those changes are not taken for the back button,
   and nor is the full screen Android drops when Chrome goes to the background.
 - A load that runs past 5 s shows how long and how much has arrived; past 10 s it says what it is
-  waiting on (the debrid service, a host that has not answered, or a slow one) and offers the other
+  waiting on (the owner's server or TorBox, a host that has not answered, or a slow one) and offers the other
   sources and another app.
 - Waiting for data shows a spinner of its own after 400 ms; the controls
   stay as they were.
@@ -792,7 +842,7 @@ measured height, so nothing covers the title or the buttons.
   everything at once: the sleep timer, Sound only, the picture filter's
   canvas, Find a line, menus, gestures, notices, full screen, the wake
   lock, picture-in-picture and the lock-screen controls; the app is
-  reachable again, where playback got to is saved, a debrid lookup or play
+  reachable again, where playback got to is saved, an address being asked for or a play
   still on its way is dropped, Skip intro's finder stops and keeps what it
   learned, and the engine lets go of the film and its connections.
 
@@ -915,8 +965,9 @@ skip in a browser without it.
 | `astra-subtitles.test.mjs` | The parsers on files as people find them, and picture subtitles with impossible sizes or out of order. |
 | `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
 | `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs, and the card's sound note against what this phone plays and what failed here. |
-| `astra-debrid.test.mjs` | TorBox's list asked once and kept in memory ten minutes per token, asked again once when a pick is not in it. |
-| `astra-tap.test.mjs` | What is fetched ahead for a list and a saver state, a press that starts a resolve the tap takes, the next episode made ready only for the same release group, and a film's tail asked for beside its start. |
+| `astra-link-facts.test.mjs` | What a link says of its file (hash, index, name, size) in every add-on shape Astra knows and the general case; two hashes; damaged input never throwing. |
+| `astra-debrid.test.mjs` | The address asked of a stand-in for the owner's server: its answers, an answer without an address, its error envelope, the 30 s and 6 s waits, signed out, answers kept 45 minutes and shared while under way, a press's address taken by the tap, renew and forgetting. |
+| `astra-tap.test.mjs` | What is done ahead for a list and a saver state (one connection to the server), a press that asks ahead and the tap that takes it, the next episode made ready only for the same release group and a direct address, and a film's tail asked for beside its start. |
 | `astra-addon-json.test.mjs` | Add-on answers over 5 MB refused, and one that never ends cut. |
 | `astra-skip.test.mjs` | The sound fingerprint and its matching, what the intro store keeps, and the skip-times lookup against invented answers. |
 | `astra-player.test.mjs` | The gesture rules, when progress may overwrite the saved place, the next episode's sources through the filters, and `player/rules.js`. |
@@ -942,7 +993,8 @@ skip in a browser without it.
 | `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped along the BT.2390 curve, read back from the canvas. |
 | `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |
 | `astra-app-play-browser.test.mjs` | The app end to end: an invented add-on, a tap on a stream, chapters, the sound tap fed, data used, the Sound tab, Find a line, another source drawn by libass, no page error. |
-| `astra-tap-browser.test.mjs` | From a tap to the first picture in the real app with Get ready ahead on, off and under the saver: the list read once, the press's resolve taken by the tap, the next episode made ready so Next asks nothing, nothing before a tap when off, nothing ever playing without one. |
+| `astra-tap-browser.test.mjs` | From a tap to the first picture in the real app, signed in against a stand-in for the owner's server, with Get ready ahead on, off and under the saver: one connection and no question when listed, the press's ahead answer taken by the tap, the next episode made ready so Next asks nothing, nothing before a tap when off, nothing ever playing without one. |
+| `astra-resolve-browser.test.mjs` | The address path in the real app: the server's address played in Astra's own mode with Stream info saying "From TorBox directly"; its error met by the add-on's link in Chrome's player with the server's reason as the notice and Stream info's line; signed out, nothing asked and the add-on's link played as before. |
 | `astra-open-browser.test.mjs` | The Thunderhead's link (`?find=…&max_mb=…`) opens Details, the size chip, nothing plays by itself. |
 
 - **Films**: `tests/fixtures/astra/` (about 3.7 MB, committed). Most are
@@ -1011,8 +1063,10 @@ decoder, no phone graphics chip, no HDR screen and no real network:
   steps down to Standard;
 - an HDR film on a real HDR screen and on a P3 screen (the tests read back
   an sRGB canvas);
-- the preconnect to TorBox and to a film's host on Android, and what Get
-  ready ahead saves before the first picture there;
+- the preconnect to the owner's server and to a film's host on Android, and
+  what Get ready ahead saves before the first picture there;
+- the address path against the real Worker, TorBox and AIOStreams (the
+  tests use a stand-in server and invented links);
 - a film remembered (`astra-films`) on a real connection: how much sooner
   it opens the second time;
 - headphone surround's cost on the phone's processor;

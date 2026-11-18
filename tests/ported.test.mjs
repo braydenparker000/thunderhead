@@ -16,8 +16,10 @@ const P = JSON.parse(await readFile(join(SITE, 'ported.json'), 'utf8'));
 // `improvement`: a change to a ported app the owner agreed to (ROADMAP P5–P8, P10), with its decisions line.
 const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'improvement'];
 /** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
- * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
-const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'] };
+ * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session;
+ * Astra (2026-11-18), its Worker client with the session, to ask for a film's address. */
+const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'],
+  'astra/src/addons/worker-api.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
  * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does). */
 const IMPROVED = {
@@ -81,7 +83,9 @@ test('each ported folder reaches only its recorded hosts and keeps its recorded 
 });
 
 test('no ported page touches the new sign-in (SECURITY.md §4.4 rule 3)', async () => {
-  const all = [...Object.values(P.folders).flatMap(f => Object.keys(f.files)), ...Object.keys(P.shared)].filter(r => /\.(js|html)$/.test(r));
+  // Every file in the ported folders, recorded or written since (a new module may not reach th/ unlisted either).
+  const folders = (await Promise.all(Object.keys(P.folders).map(listed))).flat();
+  const all = [...new Set([...folders, ...Object.keys(P.shared)])].filter(r => /\.(js|html)$/.test(r));
   for (const rel of all) {
     const text = await readFile(join(SITE, rel), 'utf8');
     const fromTh = [...text.matchAll(/['"]((?:\/|\.\.\/)+th\/[a-z/-]+\.js)['"]/g)].map((m) => m[1]);

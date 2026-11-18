@@ -8,6 +8,7 @@ import {swr, pruneCache} from './cache.js';
 import {fetchManifest, normaliseManifest} from '../addons/client.js';
 import {pushLayer, startBackStack} from './back-stack.js';
 import {play, bindPlayer} from './playing.js';
+import {forgetAnswers} from '../addons/debrid.js';
 import {fetchSubtitles, subtitleAddons} from '../addons/subtitles.js';
 import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
@@ -101,6 +102,7 @@ export class App {
    * least one has; a later answer is announced through onAddons().
    */
   reloadAddons() {
+    forgetAnswers(); // the add-ons changed (or are read afresh): addresses kept for their links are asked again
     const addons = this.addons.enabled();
     const generation = this.addonGeneration = (this.addonGeneration || 0) + 1;
     const current = () => generation === this.addonGeneration;

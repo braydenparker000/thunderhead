@@ -12,6 +12,7 @@ import {externalPlayerUrl, canOpenExternally} from './external.js';
 import {iconButton} from './view.js';
 import {subtitleModal, pickLanguage, pickSubtitleFile} from './subtitle-menu.js';
 import {viaName} from './rules.js';
+import {addressLine} from './address.js';
 
 const MODAL_LABELS = {audio: 'Audio', subtitles: 'Subtitles', info: 'Stream info', playback: 'Playback', find: 'Find a line'};
 
@@ -138,6 +139,8 @@ export class Menus {
   infoModal() {
     const p = this.p, e = p.engine, info = e.info, plan = e.plan;
     const rows = [['How it plays', {native: 'Directly in Chrome', remux: 'Unpacked by Astra', software: 'Decoded by Astra (software)', hls: 'HLS stream', dash: 'DASH stream', unsupported: 'Not playable'}[e.mode] || '—']];
+    const address = addressLine(p.stream?.resolved, e.mode); // from TorBox directly, or the add-on's link and why (address.js)
+    if (address) rows.push(['Address', address]);
     if (info?.video?.[0]) rows.push(['Video', [info.video[0].label, info.video[0].width && `${info.video[0].width}×${info.video[0].height}`, info.video[0].hdr && 'HDR'].filter(Boolean).join(' · ')]);
     const audio = e.audioOptions().find(a => a.selected);
     if (audio) rows.push(['Audio', audio.label + (audio.delivery === 'rebuilt' ? ' (converted)' : '')]);
@@ -181,7 +184,7 @@ export class Menus {
 
   /**
    * Another source, from where the film is (or was asked to start, before its
-   * first frame). The app resolves debrid links first, so it is told and
+   * first frame). The app asks its server for the address first, so it is told and
    * loads it itself (it calls preventDefault); without such a listener (the
    * lab), the player loads the address as it is.
    */

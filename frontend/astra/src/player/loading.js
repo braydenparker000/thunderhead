@@ -4,6 +4,7 @@
 
 import {h} from '../ui/dom.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
+import {addressNotice} from './address.js';
 
 export class Loading {
   constructor(p) {
@@ -46,7 +47,7 @@ export class Loading {
     p.loadingInfo.textContent = seconds < 5 ? '' : [`${Math.floor(seconds)} s`, bytes ? `${(bytes / 1e6).toFixed(1)} MB received` : ''].filter(Boolean).join(' · ');
     if (seconds * 1000 < p.constructor.SLOW_LOAD_MS || !p.loadingSlow.hidden) return;
     const status = p.loadingStatus.textContent;
-    const why = /Resolving/.test(status) ? 'The debrid service is slow to answer.'
+    const why = /Resolving/.test(status) ? 'Your server or TorBox is slow to answer.'
       : !bytes ? 'The host has not started sending the file.'
       : 'The host is sending the file slowly.';
     const others = p.sources.some(s => s.id !== p.sourceId);
@@ -61,6 +62,7 @@ export class Loading {
   /** A short message across the top for a few seconds, perhaps with one button ({label, run}); a tap anywhere on it puts it away. */
   notice(text, action = null) {
     const p = this.p;
+    text = addressNotice(p.stream?.resolved, text); // Chrome plays the add-on's link: why that link was used (address.js)
     p.noticeEl.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
     p.noticeEl.hidden = false;
     clearTimeout(this.noticeTimer);
