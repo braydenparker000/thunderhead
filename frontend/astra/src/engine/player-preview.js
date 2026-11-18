@@ -4,9 +4,10 @@
 //
 // Only a film Astra unpacks ('remux') has them: its index is in memory, so finding the key frame costs no
 // network, and the range reader's side requests (side-read.js) fetch exactly that frame without touching the
-// downloads playback reads from. Each preview costs one key frame (tens to hundreds of kB), counted in the
-// film's data; none with the data saver on or while the host is unreachable. One decoder and one small cache
-// of pictures per film (preview.js); both closed when the film closes.
+// downloads playback reads from; they come last for a connection, and give theirs up to playback when it needs
+// one (source-gate.js). Each preview costs one key frame (tens to hundreds of kB), counted in the film's data;
+// none with the data saver on or while the host is unreachable. One decoder and one small cache of pictures
+// per film (preview.js); both closed when the film closes.
 
 import * as MB from '../../vendor/mediabunny.js';
 import {PreviewCache, previewsOff, PREVIEW} from './preview.js';
@@ -46,7 +47,7 @@ export const previewMethods = {
       this.previewDecoder = d;
       return d.decode(data, signal);
     };
-    const side = signal => bounded((s, e) => this.previewsOff() ? Promise.reject(new TooLarge()) : source.sideRead(s, e, {signal}));
+    const side = signal => bounded((s, e) => this.previewsOff() ? Promise.reject(new TooLarge()) : source.sideRead(s, e, {signal, kind: 'preview'}));
     const offset = this.session?.offset || 0;
     const places = mkvPlaces(info.layout, offset);
     let cache = null;
@@ -71,7 +72,7 @@ export const previewMethods = {
     const sink = new MB.EncodedPacketSink(video.ref);
     let table = null;
     const samples = () => table ??= (async () => {
-      const get = (s, e) => source.peek(s, e) || source.sideRead(s, e);
+      const get = (s, e) => source.peek(s, e) || source.sideRead(s, e, {kind: 'preview'});
       const at = await findMoov(pos => get(pos, Math.min(source.size, pos + 16)), source.size);
       if (!at || at.end - at.start > cutoff) return null;
       return mp4Samples(await get(at.start, Math.min(source.size, at.end)), video.id);

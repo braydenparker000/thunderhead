@@ -13,6 +13,8 @@ import {describeInfo} from '../engine/probe.js';
 import {channelName} from '../engine/labels.js';
 import {languageName} from '../engine/languages.js';
 import {classicAddons, searchCatalogs, fetchMeta, fetchStreams} from '../addons/client.js';
+import {torboxPanel} from './torbox-panel.js';
+import {scrubSecrets} from './scrub.js';
 
 const $ = id => document.getElementById(id);
 function h(tag, props = {}, ...children) {
@@ -119,7 +121,7 @@ function renderPlan() {
 }
 
 $('copy-report').addEventListener('click', async () => {
-  const report = JSON.stringify(await player.report(), null, 2);
+  const report = scrubSecrets(JSON.stringify(await player.report(), null, 2), {known: [player.url].filter(Boolean)});
   try { await navigator.clipboard.writeText(report); $('copy-hint').textContent = 'Report copied. It contains no links or account details.'; }
   catch { $('copy-hint').textContent = 'Copy failed; long-press to select the report below.'; $('copy-hint').append(h('pre', {}, report)); }
 });
@@ -273,8 +275,11 @@ function takeSource(loc = location, hist = history) {
   try { hist.replaceState(hist.state, '', loc.pathname + (rest ? '?' + rest : '') + (hash ? '#' + hash : '')); } catch {}
   return out.url ? out : null;
 }
+// The TorBox check (torbox-panel.js); an address handed over in the fragment fills its field too.
+const torbox = torboxPanel({form: $('torbox-form'), field: $('torbox-link'), button: $('torbox-run'), list: $('torbox-steps'), copy: $('torbox-copy'), hint: $('torbox-hint'), stop: () => { player.reset(); screen?.close?.(); }});
+window.astraLab.torbox = torbox;
 const asked = takeSource();
-if (asked) play(asked);
+if (asked) { torbox.fill(asked.url); play(asked); }
 
 /** For tests and pasted links: the full player on one stream. */
 window.astraLab.openPlayer = (stream, meta = {title: 'Test video'}, extra = {}) => {

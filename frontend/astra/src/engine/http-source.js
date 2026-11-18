@@ -8,6 +8,8 @@
 // already fetched, so they cost no network and never pull the download along. How far downloads read
 // ahead and how much is kept follow the film's bitrate (source-tuning.js); what describing a film read is
 // remembered for the next time it opens (film-memory.js), and its end is asked for beside its start (source-tail.js).
+// Every request waits for one of three connection slots (source-gate.js: a TorBox link allows four), and an
+// address that dies while the film plays is renewed through the page's `renew` (source-renew.js).
 //
 // open() also answers the question the planner needs first: can a web page
 // read this file at all (CORS) and does the host honour ranges?
@@ -18,15 +20,18 @@ import {sideRead, fillHole} from './side-read.js';
 import {filmStore, remember, HEAD} from './film-memory.js';
 import {opened, settled} from './source-tail.js';
 import {tuning} from './source-tuning.js';
+import {gated} from './source-gate.js';
+import {stateMethods} from './source-state.js';
 
 export {BLOCK, TIMING, SourceError, parseContentRange};
 const MAX_STREAMS = 2;
 
 export class HttpSource {
-  /** @param {string} url @param {{headers?: Record<string,string>, maxBytes?: number, fetchFn?: typeof fetch, memory?: object|null, connection?: EventTarget|null}} [options] */
-  constructor(url, {headers = {}, maxBytes = 96 * BLOCK, fetchFn = (...a) => globalThis.fetch(...a), memory = filmStore(), connection = globalThis.navigator?.connection} = {}) {
+  /** @param {string} url @param {{headers?: Record<string,string>, maxBytes?: number, fetchFn?: typeof fetch, memory?: object|null, connection?: EventTarget|null, renew?: (() => Promise<string>)|null}} [options] */
+  constructor(url, {headers = {}, maxBytes = 96 * BLOCK, fetchFn = (...a) => globalThis.fetch(...a), memory = filmStore(), connection = globalThis.navigator?.connection, renew = null} = {}) {
     this.url = url;
-    this.given = url; // the address as it was handed over, before any redirect
+    this.given = url; // the address as it was handed over, before any redirect (both move to a renewed one)
+    this.renew = renew; // the page's way to a fresh address for this film (source-renew.js)
     this.headers = headers;
     this.maxBase = Math.max(8, Math.floor(maxBytes / BLOCK));
     this.maxBlocks = this.maxBase;
@@ -59,31 +64,9 @@ export class HttpSource {
     connection?.addEventListener?.('change', this.onOnline);
   }
 
-  /** Calls fn('reconnecting' | 'connected' | 'lost') when the connection to the host is lost and found again. */
-  onState(fn) { this.stateListeners.add(fn); return () => this.stateListeners.delete(fn); }
-  setState(state) {
-    if (state === this.state) return;
-    this.state = state;
-    for (const fn of this.stateListeners) fn(state);
-  }
-
-  /** Data arrived, or nothing waits for any: the failures counted so far are over. */
-  calm() {
-    this.failures = 0; this.failingSince = 0; this.progressAt = Date.now();
-    if (this.state === 'reconnecting' || this.state === 'lost') this.setState('connected');
-  }
-
-  /** The pause before a retry; it ends at once when the phone is back online or the file is closed. */
-  backOff(ms) {
-    return new Promise(resolve => {
-      const go = () => { clearTimeout(timer); this.retries.delete(go); resolve(); };
-      const timer = setTimeout(go, ms);
-      this.retries.add(go);
-    });
-  }
-
-  request(headers, signal, method = 'GET') {
-    return this.fetchFn(this.url, {method, headers: {...this.headers, ...headers}, signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
+  /** One request to the film once a connection slot is free (source-gate.js): `kind` 'play', 'side' or 'preview'. */
+  request(headers, signal, method = 'GET', kind = 'play') {
+    return gated(this, kind, signal, s => this.fetchFn(this.url, {method, headers: {...this.headers, ...headers}, signal: s, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'}));
   }
 
   /** Reading the header is over: what it needed is remembered, and a download nobody reads from within its reach ends. */
@@ -106,15 +89,8 @@ export class HttpSource {
     this.waiters.clear();
   }
 
-  // A new network (Wi-Fi to mobile data) leaves the old connections dead without a word: a download that has
-  // brought nothing for a few seconds is asked again at once, without counting a failure.
-  restartQuiet() {
-    const now = Date.now();
-    for (const s of [...this.streams]) if (!s.paused && now - s.lastAt >= TIMING.quiet) { s.restart = true; s.abort(); }
-  }
-
-  /** One bounded range request of its own (seek previews), outside the downloads and the cache. */
-  sideRead(start, end, {signal} = {}) { return sideRead(this, start, end, signal); }
+  /** One bounded range request of its own, outside the downloads and the cache; seek previews pass `kind` 'preview'. */
+  sideRead(start, end, {signal, kind = 'side'} = {}) { return sideRead(this, start, end, signal, {kind}); }
 
   /** Calls fn(blockIndex) whenever a block lands in the cache. */
   onBlock(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -287,6 +263,7 @@ export class HttpSource {
     this.connection?.removeEventListener?.('change', this.onOnline);
     for (const go of [...this.retries]) go();
     for (const s of [...this.streams]) s.abort();
+    this.gate?.close();
     for (const w of this.waiters) w.reject(new SourceError('closed', 'The file was closed.'));
     this.waiters.clear();
     this.blocks.clear();
@@ -295,4 +272,4 @@ export class HttpSource {
     this.kept = null;
   }
 }
-Object.assign(HttpSource.prototype, tuning);
+Object.assign(HttpSource.prototype, tuning, stateMethods);
