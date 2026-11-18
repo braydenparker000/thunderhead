@@ -11,7 +11,7 @@
 // the browser never starts decoding there. The result is what chunked CMAF
 // streams are: fragments that need not begin with a key frame.
 
-const EVERY = 0.5; // seconds between cuts
+const EVERY = 0.5; // seconds between cuts (a quarter of a second measured no better, 2026-11-18)
 const NOT_SYNC = 0x00010000, DEPENDS = 0x03000000, ON_OTHERS = 0x01000000;
 
 export class EarlyCuts {

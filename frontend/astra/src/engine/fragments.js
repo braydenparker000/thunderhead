@@ -6,13 +6,16 @@ import {toStereo} from './downmix.js';
 
 /** An output whose fragments go to `queue` for `generation`; video fragments may be cut early (early.js). */
 export function fragmentWriter(queue, stats, kind, generation, early = null) {
-  let head = [], moof = null;
-  const send = bytes => { stats.appended += bytes.byteLength; queue.append(bytes, generation); };
+  let head = [], moof = null, at = null; // at: where the fragment begins, in the file's time
+  const send = bytes => { stats.appended += bytes.byteLength; queue.append(bytes, generation, at); };
   const format = new MB.Mp4OutputFormat({
-    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 1 : 0, // video: every key frame, real or early (early.js), begins a fragment
+    // Video: every key frame, real or early (early.js), begins a fragment. Sound: a quarter of a second, as the sound
+    // worker writes it: the film cannot play at a new place before the sound's first fragment is in, and with 1 s ones
+    // a far seek on a 25 Mbit/s film with its AAC track took 4.5 s instead of 3.5 (page six times slower, 20 Mbit/s).
+    fastStart: 'fragmented', minimumFragmentDuration: kind === 'audio' ? 0.25 : 0,
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
-    onMoof: data => { moof = data.slice(); early?.settle(moof); },
+    onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; early?.settle(moof); },
     // The two boxes go to the buffer one after the other, as they are: joined, each fragment was copied once more
     // (3 MB a second of a 25 Mbit/s film). The writer's `data` is its own array, not one it writes into again.
     onMdat: data => { send(moof); send(data); moof = null; },

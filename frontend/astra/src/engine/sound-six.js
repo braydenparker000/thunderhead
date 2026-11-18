@@ -18,6 +18,17 @@ export {FlacFrames, codedNumber} from './flac-frames.js';
 export {wholeWriter} from './sound-write.js';
 
 export const FLAC = 'audio/mp4; codecs="flac"';
+/**
+ * Seconds the placed sound comes out later than the plain mix: the browser's HRTF panners (their convolution, 6.2 ms)
+ * and its limiter's look-ahead (6 ms), which the chain puts in its path for headphone surround (enhance/headphone.js,
+ * sound-chain.js): 12.2 ms for an impulse through the chain offline, and 12 to 16 ms later than the AAC track and the
+ * plain mix against the film's frames (frontend/astra/README.md, A slow link…). Nothing waits for Web Audio's own
+ * delay, so whole surround, which only that chain plays, is written that much earlier than the picture.
+ */
+export const PLACED = 0.012;
+
+/** Seconds the sound buffer's timestamps sit before the file's: its start, the owner's advance, the placed sound's delay. */
+export const soundShift = session => session.offset + session.advance + (session.audioMime === FLAC ? PLACED : 0);
 export const AHEAD = 15; // seconds of whole surround sound read past the playhead
 let plays = null;
 

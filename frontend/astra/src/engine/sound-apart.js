@@ -32,7 +32,7 @@ function theWorker() {
     if (m.type === 'loaded' || m.type === 'loadfail') return void loads.get(m.codec)?.settle(m);
     const pipe = pipes.get(m.id);
     if (!pipe) return;
-    if (m.type === 'bytes') { pipe.session.stats.appended += m.bytes.byteLength; pipe.session.queues.audio?.append(m.bytes, pipe.generation); }
+    if (m.type === 'bytes') { pipe.session.stats.appended += m.bytes.byteLength; pipe.session.queues.audio?.append(m.bytes, pipe.generation, m.at); }
     else if (m.type === 'tap') tapped(pipe.session, m);
     else if (m.type === 'done') pipe.done = true;
     else if (m.type === 'error') pipe.error = Object.assign(new Error(m.message), m.kind ? {kind: m.kind, detail: m.detail} : {});
@@ -117,7 +117,7 @@ export async function convertApart(session, {generation, from, sink, track, chan
       if (!live() || !await gate(p.timestamp)) return false;
       batch.push(p);
       if (p.timestamp + p.duration - batch[0].timestamp >= BATCH) flush(); else timer ||= setTimeout(flush, PAUSE);
-      while ((sent - pipe.upTo > lag || session.queues.audio.pending() > QUEUED) && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
+      while ((sent - pipe.upTo > lag || (session.queues.audio.pending() > QUEUED && !session.queues.audio.held)) && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
     }
     flush();
     w.postMessage({type: 'end', id});
