@@ -30,7 +30,10 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
    Worker-encrypted; they never appear in logs, senses, surfaces, errors, the mind's context or the repo.
    **Owner ruling 2026-11-18:** stream addresses may pass through the owner's Worker in transit, for the
    owner's signed-in device only, never stored, never logged; the TorBox API key lives in the Worker as
-   the secret `TORBOX_KEY` and never reaches a phone.
+   the secret `TORBOX_KEY`. TorBox's own file links may carry the account's token: such a link is passed
+   only to the owner's signed-in device, in the answer body, never logged or stored, exactly as every
+   add-on already hands it to the phone when it plays. The key as a bare secret (the Worker secret,
+   the `Authorization` header, a TorBox API address such as a requestdl permanent link) never leaves.
 4. **libmedia stays** (owner ruling 2026-10-28: the owner has permission, and it is Astra's software decoder for HEVC/AV1/VP9 without hardware support, 10-bit H.264 and AVI/FLV/MPEG-PS). mediabunny (MPL-2.0) stays too. libmedia is a named exception to the no-GPL rule; keep its licence files beside it.
 5. **No third-party script origins** (later step, §2 #7). The as-is port keeps loading hls.js and
    dash.js as today; vendoring them waits for the owner's yes.
@@ -202,16 +205,18 @@ How it is enforced:
    (`tests/astra-tap-browser.test.mjs`). Unchanged: nothing plays without a tap, and no stream is
    ranked, picked or pre-selected on the list.
    **Owner rulings 2026-11-18 (the relay; they replace the page's own TorBox reads of 2026-11-15):** a
-   page cannot read TorBox's API or every hop of an add-on's forward (CORS), so Astra asks the owner's
-   Worker for the film's address (`POST /v1/astra/play`, [SECURITY.md §8.2](../../engineering/SECURITY.md)):
-   TorBox directly with the key the Worker holds, else, on a tap only, by following the add-on's
-   forward. Mode "ahead" (before a tap) may read the owner's TorBox account but never adds anything
-   and never follows a link; mode "play" (the tap) may add an item TorBox already has cached
-   (`add_only_if_cached`, seeding off), never an uncached one. When TorBox says for certain the film
-   is not cached, the tap is answered so ("This film is not on TorBox yet, so Astra did not start
-   it.") and the add-on's link is not followed, since following it is how an add-on adds an uncached
-   torrent. The Worker resolves only the stream the page names: a file it cannot tell apart from the
-   others in a torrent is refused, never guessed.
+   page cannot read TorBox's API (CORS), so Astra asks the owner's Worker for the film's address
+   (`POST /v1/astra/play`, [SECURITY.md §8.2](../../engineering/SECURITY.md)), which asks TorBox with
+   the key it holds. Mode "ahead" (before a tap) may read the owner's TorBox account but never adds
+   anything; mode "play" (the tap) may add an item TorBox already has cached (`add_only_if_cached`,
+   seeding off), never an uncached one. When TorBox says for certain the film is not cached, the tap
+   is answered so ("This film is not on TorBox yet, so Astra did not start it."). The Worker resolves
+   only the stream the page names: a file it cannot tell apart from the others in a torrent is
+   refused, never guessed; the cached item a tap added for it stays in the account, which is harmless
+   and uses no slot. Without a TorBox address the Worker answers none and the page plays the add-on's
+   own link itself, as before the relay: the Worker does not open add-on links, since an add-on may tie
+   a link to the connection that asked for the stream list (the owner's phone got an add-on's error
+   clip when the Worker opened one, 2026-11-18).
    **The owner's filter chips (2026-11-11, `addons/stream-facts.js`):** a second row under the add-ons,
    for the owner who wants small files to save data: Smallest first; one size limit (under 700 MB,
    1.5 GB or 3 GB); any of the picture sizes (720p, 1080p, 4K, SD) and codecs (HEVC, AV1); Clear. They
@@ -233,9 +238,9 @@ How it is enforced:
    nothing is hidden, ranked or picked by it.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
-4. **The mind never sees streams**: the Worker keeps no stream data (since 2026-11-18 addresses pass
-   through `/v1/astra/*` in transit, for the owner's device only; agent keys get 403); senses carry
-   none (§3).
+4. **The mind never sees streams**: the Worker stores no stream data (since 2026-11-18 addresses pass
+   through `/v1/astra/*` in transit and a torrent's id and file list stay half an hour in its memory,
+   for the owner's device only; agent keys get 403); senses carry none (§3).
 
 Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-10-27).
 
@@ -249,7 +254,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 |---|---|
 | Every add-on URL | Configured add-ons carry their settings in the URL path, including debrid API keys inside resolve paths. Treat the whole URL as secret. |
 | Stream URLs | Direct links often embed tokens (`…/requestdl?token=…`). |
-| Debrid token | Account access. Since 2026-11-18 the TorBox key is the Worker secret `TORBOX_KEY` and never reaches a phone. |
+| Debrid token | Account access. Since 2026-11-18 the TorBox key is the Worker secret `TORBOX_KEY`; the phone gets only TorBox's own file links, which may carry the account's token (rule 3). |
 | OpenSubtitles hash/size | Not a secret, but not sent anywhere except the subtitle add-on. |
 
 ### 5.2 Rules
@@ -270,9 +275,11 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    files without query or fragment, and the worker's activate step deletes any entry an earlier
    version saved with one. The skip-times lookup (below) sends no add-on, stream or title name.
 6. **Owner rulings 2026-11-18 (replacing 2026-11-15's TorBox reads):** the page no longer reads TorBox
-   or holds its key. A stream's link, and the hash and file facts the page reads from it, go only to
-   the owner's Worker, in a POST body (never a path, a query or storage); the Worker keeps and logs
-   none of them, and its notes and reasons are fixed sentences. Resolved addresses stay in the page's
+   or holds its key as such (a file link it gets may carry the account's token, rule 3). A stream's
+   link, and the hash and file facts the page reads from it, go only to the owner's Worker, in a POST
+   body (never a path, a query or storage); the Worker logs and stores none of them (it remembers a
+   torrent's TorBox id and file list by hash in its own memory for half an hour, so the next ask is
+   quick), and its notes and reasons are fixed sentences. Resolved addresses stay in the page's
    memory only (`frontend/astra/README.md` says for how long). A film's header and index kept on the
    phone (IndexedDB `astra-films`) are keyed by the file's size and a SHA-256 of its first 64 KiB,
    never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
@@ -449,11 +456,11 @@ only, nothing stored or logged.
 
 | Route | What |
 |---|---|
-| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash: checkcached (not cached for certain: "play" answers 503 and follows nothing), then the item in the account ("play" adds a cached one; "ahead" only looks among the newest 100), the file (name, size or the one video; an index alone only when it names the one video; never a guess), requestdl for the phone's nearest server: at most 4 TorBox calls. Else, in "play" only, the add-on's forward followed (≤ 6 hops, 20 s); its short "not ready" video is an error saying so. No address holding the key or on TorBox's API host leaves the Worker. Taps 30 a minute, presses 60 on their own count |
+| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash. A tap: createtorrent with `add_only_if_cached` (refused as not cached: 503), the torrent's files, requestdl for the phone's nearest server: 3 TorBox calls. A press: checkcached, the account's newest 100, requestdl; it never adds. A torrent found is remembered in the Worker's memory for 30 minutes: the next ask costs requestdl alone. The file by name, size or the one video; an index alone only when it names the one video; never a guess. TorBox's file address is handed over (it may carry the account's token); one on TorBox's API is asked again, never handed over. Otherwise `url: null`, and the page plays the add-on's link; following add-on forwards here only with `ASTRA_FOLLOW` `on`. Taps 30 a minute, presses 60 on their own count |
 | `GET /v1/astra/torbox` | `{configured, ok, plan}`: whether the key is set and TorBox takes it, and the plan number |
 
 Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and
-the follow path still works.
+the page plays the add-on's own link, as before the relay.
 
 ## Open questions / tests
 

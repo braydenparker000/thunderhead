@@ -69,7 +69,7 @@ const readLine = (what, r) => r.readable
  * are the engine's (engine/probe.js, engine/plan.js) with the planner's `caps`. Resolves the steps: [{id, title,
  * state: 'run'|'ok'|'bad'|'info'|'skip', lines}], each also handed to onStep as it changes.
  */
-export async function torboxCheck(link, {api, fetchFn = (...a) => globalThis.fetch(...a), probe, plan, caps, onStep = () => {}, signal} = {}) {
+export async function torboxCheck(link, {api, fetchFn = (...a) => globalThis.fetch(...a), probe, plan, caps, onStep = () => {}, signal, facts: said = null} = {}) {
   const steps = STEPS.map(([id, title]) => ({id, title, state: 'skip', lines: []}));
   const step = id => steps.find(s => s.id === id);
   const set = (id, state, ...lines) => { Object.assign(step(id), {state, lines: lines.flat().filter(Boolean)}); onStep(step(id), steps); };
@@ -96,8 +96,10 @@ export async function torboxCheck(link, {api, fetchFn = (...a) => globalThis.fet
   // c: the Worker resolves the link.
   set('c', 'run', 'Asking the Worker for the film’s address…');
   let answer = null;
-  const hash = hashIn(link), started = now();
-  try { answer = await api('/v1/astra/play', {method: 'POST', body: {link, ...(hash ? {hash} : {}), mode: 'play'}, signal}); } catch (error) {
+  // What Astra itself would send for this stream (`said`: its torrent, file number, name and size, when the stream came
+  // from the lab's list); a pasted address has only the hash its own text shows.
+  const hash = hashIn(link), started = now(), known = Object.fromEntries(Object.entries(said || (hash ? {hash} : {})).filter(([, v]) => v != null));
+  try { answer = await api('/v1/astra/play', {method: 'POST', body: {link, ...known, mode: 'play'}, signal}); } catch (error) {
     set('c', 'bad', `${reason(error)} (${ms(now() - started)}).`, stepLines(error?.steps));
     return done(steps, facts);
   }

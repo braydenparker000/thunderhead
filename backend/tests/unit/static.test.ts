@@ -71,6 +71,7 @@ const VARS = [
   'R2_ACCOUNT_ID',
   'WORKER_ORIGIN',
   'GOOGLE_PICKER_KEY',
+  'ASTRA_FOLLOW',
 ];
 /** The one var named a key: Google's picker's browser key, public by design (it ships to every
  * browser that opens the picker) and restricted at Google to the Picker API and the site's origin. */

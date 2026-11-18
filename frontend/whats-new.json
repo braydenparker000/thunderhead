@@ -1,10 +1,19 @@
 {
-  "id": "2026-11-18-astra-lab-streams",
+  "id": "2026-11-18-astra-torbox-fix",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra's lab now lists streams from your add-ons, and each stream has a TorBox button that fills the TorBox check.",
+      "text": "Astra now gets a film's own address from TorBox: a safety check was wrongly refusing TorBox's real answers.",
       "open": "astra"
+    },
+    {
+      "text": "Your server no longer opens add-on links itself; that made some streams play an error clip instead of the film."
+    },
+    {
+      "text": "A tap asks TorBox three times, not four, and once for a film played in the last half hour."
+    },
+    {
+      "text": "In AIOStreams, add {stream.infoHash} to your formatter's description so every stream can go to TorBox directly."
     }
   ]
 }

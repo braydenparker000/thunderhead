@@ -20,7 +20,7 @@ P1's measurements and findings are historical, in
 | `src/objects/` | `base` (migrations, health), `meter` (the row meter, kept per UTC day in each object's `meter_days`), `auth`, `core` (thin RPC facades), `<class>.migrations.ts` (expand-only steps). |
 | `src/areas/auth/` | `routes`, `schema`, `flows` (setup, login, recover), `common`, `account` (token checks, `/me`, notices, sessions, password), `agents`, `reset` (state, break-glass, tickets, cron), `tokens`, `crypto`, `passwords` (rules + HIBP), `throttle`, `store` + `store-keys` (all SQL). |
 | `src/areas/ops/`, `src/areas/settings/` | Health, deep health, error inbox, perf, meter; Core settings (`owner.tz`, `min_client`). |
-| `src/areas/astra/` | Astra's relay (SECURITY.md §8.2): `POST /v1/astra/play` finds a film's direct address from TorBox with `TORBOX_KEY` (`direct`, `torbox`, `files`) or by following the add-on's forward (`follow`); `GET /v1/astra/torbox`. Nothing stored or logged; notes from fixed words (`words`). |
+| `src/areas/astra/` | Astra's relay (SECURITY.md §8.2): `POST /v1/astra/play` finds a film's direct address from TorBox with `TORBOX_KEY` (`direct`, `torbox`, `links`, `files`, `kept`: half an hour in memory); following an add-on's forward (`follow`) only with `ASTRA_FOLLOW` `on`; `GET /v1/astra/torbox`. Nothing stored or logged; notes from fixed words (`words`). |
 | `tests/unit/` | Pure rules: tokens and checksums, codes, back-off numbers, password rules, the HIBP client against a fake, source rules (no timers, env inventory, expand-only, ≤ 300 lines). |
 | `tests/integration/` | Through the real fetch handler on workerd: `route-scopes` (API.md §13 walk), setup, login and sessions, back-off, recovery, reset tickets, account and agent keys, the HTTP edge, ops, objects, scrypt timing. |
 | `tests/cost/` | Rows per endpoint against `budgets.json`; workerd's row-accounting facts. |
@@ -93,12 +93,14 @@ and statuses of API.md §6 (429 adds `retry_after` and `scope`).
 | `WORKER_DEPLOY_ENABLED` | repository variable | the owner, when the Worker is ready |
 | `TORBOX_KEY` | Worker secret (`none` until set) | the owner only, below; never an agent |
 | `SITE_ORIGINS`, `OWNER_TZ` (`UTC` fallback), `AUTH_HIBP` | `wrangler.jsonc` vars | the repo (placeholders only) |
+| `ASTRA_FOLLOW` (`off`) | `wrangler.jsonc` var | the repo: `on` lets Astra's relay follow add-on forwards (off since 2026-11-18, SECURITY.md §8.2) |
 
 ### Setting `TORBOX_KEY` (the owner, once)
 
 Astra's relay asks TorBox directly with this key (SECURITY.md §8.2). Unset (`none`, which the deploy
-writes), the direct path is skipped and Astra still plays through the add-on's forward. The key
-never goes in a file, a chat, a variable or an agent session, and never reaches a phone.
+writes), the direct path is skipped and Astra plays the add-on's own link, as before. The key
+never goes in a file, a chat, a variable or an agent session, and never reaches a phone as itself:
+the phone gets only TorBox's own file links, which may carry the account's token (SECURITY.md §8.2).
 
 1. Copy your API key from TorBox's web app (torbox.app → **Settings** → **API Key**).
 2. Either dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables

@@ -14,6 +14,8 @@ export const FILE_NAME = 'Invented.Film.2001.mkv';
 export const SITE = 'https://site.example.test';
 export const MB = 1024 * 1024;
 export const TORBOX = 'https://api.torbox.app/v1/api';
+/** An invented TorBox file server: its "tb-cdn" label is what marks one. */
+export const FILE_SERVER = 'store-039.wnam.tb-cdn.example';
 
 export interface Asked {
   url: string;
@@ -68,6 +70,7 @@ export function torbox(o: {
   nextId?: number;
   link?: string;
   cachedData?: unknown;
+  addDetail?: string;
 }): Handler {
   return (req) => {
     const u = new URL(req.url);
@@ -82,10 +85,14 @@ export function torbox(o: {
       const token = u.searchParams.get('token');
       if (token !== KEY && token !== 'permalink-token')
         return Response.json({ success: false, error: 'BAD_TOKEN' }, { status: 403 });
-      return ok(
-        o.link ??
-          `https://store-039.wnam.cdn.example/dl/${u.searchParams.get('torrent_id')}/${u.searchParams.get('file_id')}`,
-      );
+      const id = Number(u.searchParams.get('torrent_id'));
+      if (token === KEY && !o.owned.some((t) => t.id === id))
+        return Response.json({ success: false, error: 'ITEM_NOT_FOUND' }, { status: 404 });
+      const file = `https://${FILE_SERVER}/dl/${id}/${u.searchParams.get('file_id')}`;
+      // A permanent link (redirect=true) answers with its redirect, as TorBox's do.
+      if (u.searchParams.get('redirect') === 'true')
+        return new Response(null, { status: 302, headers: { Location: file } });
+      return ok(o.link ?? file);
     }
     if (req.headers.authorization !== `Bearer ${KEY}`)
       return Response.json({ success: false, error: 'NO_AUTH' }, { status: 401 });
@@ -108,7 +115,8 @@ export function torbox(o: {
       if (held && o.add === 'duplicate')
         return Response.json({ success: false, error: 'DUPLICATE_ITEM' }, { status: 400 });
       if (!held) o.owned.push({ ...t, id: o.nextId ?? 500 });
-      return ok({ torrent_id: (held ?? o.owned[o.owned.length - 1]).id, hash, auth_id: 'invented' });
+      const data = { torrent_id: (held ?? o.owned[o.owned.length - 1]).id, hash, auth_id: 'invented' };
+      return Response.json({ success: true, error: null, detail: o.addDetail ?? 'Invented.', data });
     }
     if (path === '/torrents/mylist') {
       const shape = (t: Torrent) => ({
@@ -152,7 +160,7 @@ export type PlayAnswer = AstraPlayResponse & {
 /** One request through the real app, with the given TorBox key (or none) and device token. */
 export async function relay<T = PlayAnswer>(
   token: string,
-  o: { body?: PlayBody; key?: string; path?: string; origin?: string } = {},
+  o: { body?: PlayBody; key?: string; path?: string; origin?: string; follow?: 'on' | 'off' } = {},
 ): Promise<{ status: number; body: T; text: string }> {
   const headers = new Headers({ Authorization: `Bearer ${token}`, 'CF-Connecting-IP': '192.0.2.10' });
   if (o.body) headers.set('Content-Type', 'application/json');
@@ -163,7 +171,7 @@ export async function relay<T = PlayAnswer>(
     headers,
     body: o.body ? JSON.stringify(o.body) : undefined,
   });
-  const e = { ...env, TORBOX_KEY: o.key ?? 'none' } as Env;
+  const e = { ...env, TORBOX_KEY: o.key ?? 'none', ASTRA_FOLLOW: o.follow ?? env.ASTRA_FOLLOW } as Env;
   const res = await app.fetch(request, e, createExecutionContext());
   const text = await res.text();
   return { status: res.status, body: JSON.parse(text) as T, text };

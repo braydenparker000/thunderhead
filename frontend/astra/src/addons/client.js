@@ -200,6 +200,8 @@ export function normaliseStream(s) {
     name: String(s.name || ''), title: String(s.title || s.description || ''),
     headers: hints.proxyHeaders?.request && typeof hints.proxyHeaders.request === 'object' ? hints.proxyHeaders.request : {},
     filename: hints.filename || '', size: Number(hints.videoSize) || null, videoHash: typeof hints.videoHash === 'string' ? hints.videoHash : null, bingeGroup: hints.bingeGroup || null, notWebReady: !!hints.notWebReady,
+    // The torrent, when the add-on says it beside the link (AIOStreams' streamData): for the owner's server, never shown.
+    torrent: s.streamData?.torrent && typeof s.streamData.torrent === 'object' ? {infoHash: s.streamData.torrent.infoHash, fileIdx: s.streamData.torrent.fileIdx} : null,
     subtitles: Array.isArray(s.subtitles) ? s.subtitles.filter(x => x?.url).map(x => ({url: x.url, language: x.lang || '', label: x.label || ''})) : [],
   };
 }

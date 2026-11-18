@@ -146,7 +146,28 @@ export function linkFacts(url, stream = {}) {
     if (all.size === 1) {
       facts.hash = [...all][0];
       facts.fileIndex = shape.index;
-    } else if (all.size === 0) facts.fileIndex = shape.index;
+    } else if (all.size === 0) {
+      facts.fileIndex = shape.index;
+      // The link is silent: what the add-on says of the stream beside it (textFacts, below).
+      const said = textFacts(stream);
+      if (said.hash) { facts.hash = said.hash; facts.fileIndex = said.index ?? shape.index; }
+    }
   } catch {}
   return facts;
+}
+
+const HEX_RUN = /(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/gi;
+
+/**
+ * The torrent a stream's own words name when its link does not: the add-on's stream data (AIOStreams gives
+ * `streamData.torrent` to clients it knows, kept by normaliseStream as `torrent`), else the one 40-hex run in its
+ * binge group, description and name (an AIOStreams formatter can print {stream.infoHash} there). Two different
+ * runs name nothing.
+ */
+function textFacts(stream) {
+  const given = hashOf(stream?.torrent?.infoHash);
+  if (given) return {hash: given, index: indexOf(stream.torrent.fileIdx)};
+  const found = new Set();
+  for (const text of [stream?.bingeGroup, stream?.title, stream?.name]) for (const m of String(text ?? '').matchAll(HEX_RUN)) found.add(m[0].toLowerCase());
+  return {hash: found.size === 1 ? [...found][0] : null, index: null};
 }
