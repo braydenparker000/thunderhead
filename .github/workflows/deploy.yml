@@ -1,4 +1,5 @@
-# Every push to main: job `test` runs every check once, in five parallel jobs (checks.yml). Then
+# Every push to main: job `test` runs the quick checks once, in five parallel jobs (checks.yml: all but the
+# editor's software-GPU browser tests, which Slow runs once this release is live, slow.yml). Then
 # job `api` deploys the Worker thunderhead-api when backend/, shared/ or the lockfile changed since
 # the live tag (off until WORKER_DEPLOY_ENABLED=true), smoke-checks it and runs `wrangler rollback`
 # on failure. Then job `site` publishes the site to the Azure Storage static website and checks it
@@ -86,6 +87,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       ref: ${{ inputs.ref || github.sha }}
+      files: quick
   # The Worker (OPERATIONS.md §5.1). Environment `worker` (deployable from main only) holds the
   # secrets CLOUDFLARE_API_TOKEN and TH_CI_TOKEN and the variables CLOUDFLARE_ACCOUNT_ID,
   # SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true. WORKER_URL is a

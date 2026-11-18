@@ -11,6 +11,8 @@
 // Opening it tells the board (`editor:dial`), which shuts what it had open over the panel.
 import { DCLogic } from '../dc.js';
 import { tick } from '../app/haptic.js';
+import { moved } from '../app/moved.js';
+import { info } from '../app/zoom.js';
 
 export const TOOLS = ['Looks', 'Crop', 'Edit', 'Masks', 'Heal', 'Versions'];
 const SUBS = { Looks: ['Presets', 'Mine'], Crop: ['Straighten', 'Aspect', 'Rotate', 'Geometry'], Edit: ['Light', 'Curve', 'Color', 'Mixer', 'Grading', 'Effects', 'Detail', 'Optics', 'Profile'],
@@ -29,7 +31,7 @@ export default class Component extends DCLogic {
     this.last = TOOLS.includes(this.state.tool) ? this.state.tool : 'Edit';   // the tool last shown: Export opens the dial at it
     const at = TOOLS.indexOf(this.last);
     this.sp = { p: { x: 0, v: 0, to: 0 }, a: { x: at, v: 0, to: at }, k: { x: 0, v: 0, to: 0 } };
-    this.g = null; this.raf = 0; this.h = 210;
+    this.g = null; this.raf = 0; this.h = 210; this.feel = {};
     document.addEventListener('editor:board', (e) => {
       const name = e.detail; if (TOOLS.includes(name)) this.last = name;
       if (!this.g && !this.state.sticky) { const i = TOOLS.indexOf(this.last); this.sp.a.x = this.sp.a.to = i; }   // (round the ring, the same place)
@@ -42,7 +44,7 @@ export default class Component extends DCLogic {
     if (this.raf) return;
     let last = performance.now();
     const go = (now) => {
-      const dt = Math.min(0.032, (now - last) / 1000), sp = this.sp, held = !!this.g; last = now;
+      const dt = Math.min(0.05, (now - last) / 1000), sp = this.sp, held = !!this.g; last = now;
       for (let i = 0; i < 4; i++) { this.step(sp.p, 300, 21, dt / 4); this.step(sp.a, held ? 900 : 520, held ? 40 : 28, dt / 4); this.step(sp.k, 1100, 30, dt / 4); }
       const still = Object.values(sp).every((s) => Math.abs(s.x - s.to) < 0.002 && Math.abs(s.v) < 0.01);
       if (still && !held) { for (const s of Object.values(sp)) { s.x = s.to; s.v = 0; } this.raf = 0; } else this.raf = requestAnimationFrame(go);
@@ -58,15 +60,16 @@ export default class Component extends DCLogic {
   }
   open() { this.measure(); document.dispatchEvent(new Event('editor:dial')); this.sp.p.to = 1; }
   choose(i) {
-    this.sp.a.to = i; this.setState({ sticky: false });
+    this.sp.a.to = i; this.setState({ sticky: false }); this.feel.outcome = 'chose';
     if (TOOLS[mod(i)] !== this.state.tool) document.dispatchEvent(new CustomEvent('editor:open', { detail: TOOLS[mod(i)] }));
     setTimeout(() => { this.sp.p.to = 0; this.run(); }, 170);   // it settles on the choice, then folds back into the corner
   }
-  shut() { const i = TOOLS.indexOf(this.last); this.g = null; this.sp.a.to = i + T * Math.round((this.sp.a.x - i) / T); this.sp.p.to = 0; this.setState({ sticky: false }); this.run(); }   // closed without a choice: back round to the tool that was on
+  shut() { const i = TOOLS.indexOf(this.last); this.g = null; this.feel.outcome = 'shut'; this.sp.a.to = i + T * Math.round((this.sp.a.x - i) / T); this.sp.p.to = 0; this.setState({ sticky: false }); this.run(); }   // closed without a choice: back round to the tool that was on
   /** A finger on the dial (its key at rest, or the open dial after a tap). */
   hold(e, el, sticky) {
     const i = Math.round(this.sp.a.to);
-    this.g = { el, id: e.pointerId, k: el.getBoundingClientRect().width / (sticky ? 2 * R * this.scale() : REST) || 1, x0: e.clientX, y0: e.clientY, base: i, idx: i, moved: false, sticky };
+    this.g = { el, id: e.pointerId, k: el.getBoundingClientRect().width / (sticky ? 2 * R * this.scale() : REST) || 1, x0: e.clientX, y0: e.clientY, base: i, idx: i, moved: false, sticky, way: 0 };
+    if (!sticky) { Object.assign(this.feel, { steps: 0, back: 0, outcome: 'shut' }); moved(() => !!this.g || !!this.raf || this.state.sticky, info().making, 'tools', this.feel); }   // how the turn went, for the reports (app/moved.js)
   }
   /** The thumb's slide up or down turns the dial, in notches: a tool holds until it is well past half way to the next. */
   follow(e) {
@@ -77,7 +80,7 @@ export default class Component extends DCLogic {
     while (raw - i > NOTCH) i++;
     while (i - raw > NOTCH) i--;
     this.sp.a.to = i + Math.max(-NOTCH, Math.min(NOTCH, raw - i)) * 0.3;
-    if (i !== g.idx) { g.idx = i; this.click(); }
+    if (i !== g.idx) { const way = Math.sign(i - g.idx); if (g.way && way !== g.way) this.feel.back++; g.way = way; this.feel.steps++; g.idx = i; this.click(); }
     this.run();
   }
   scale() { const s0 = REST / R; return s0 + (1 - s0) * Math.max(0, this.sp.p.x); }

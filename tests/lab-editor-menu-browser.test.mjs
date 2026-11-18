@@ -63,16 +63,17 @@ test('the panel slides: up or down a section, round, sideways the panel’s own,
   assert.equal(await section(page), 'Light');
   await page.evaluate(() => window.BUZZ.splice(0));
   // Up on the row: Curve comes up from below, both in view on the way, the photo still; one tick. Curve's panel is
-  // taller: it grows once it rests, and the photo's room gives way then.
+  // taller: it grows as it comes in, over the photo's foot, and the photo's room gives way once it has landed.
   const room = () => page.evaluate(() => Math.round(document.querySelector('#stage [data-room]').getBoundingClientRect().height));
   const room0 = await room();
   let mid = null;
-  await swipe(line(150, 885, 745), async () => { mid = await page.evaluate(() => ({ plates: document.querySelectorAll('.plate').length, turned: getComputedStyle(document.querySelector('#stage .plate')).transform !== 'none', room: Math.round(document.querySelector('#stage [data-room]').getBoundingClientRect().height) })); });
-  assert.deepEqual(mid, { plates: 2, turned: true, room: room0 }, 'halfway, the section going away is a copy, the panel itself slides, and the photo has not moved');
+  await swipe(line(150, 885, 745), async () => { mid = await page.evaluate(() => ({ copies: [...document.querySelectorAll('.barrel-copies > .plate')].filter((c) => c.style.display === 'block' && c.style.transform !== 'translateY(0.00px)').length, panel: getComputedStyle(document.querySelector('#stage .plate')).opacity, room: Math.round(document.querySelector('#stage [data-room]').getBoundingClientRect().height) })); });
+  assert.deepEqual(mid, { copies: 2, panel: '0', room: room0 }, 'halfway, both sections slide (copies of the panel, the panel itself unseen meanwhile), and the photo has not moved');
   assert.equal(await section(page), 'Curve');
   await until(async () => (await room()) < room0 - 100, { message: 'at rest the taller panel takes its room from the photo' });
   assert.deepEqual(await page.evaluate(() => window.BUZZ.splice(0)), [8], 'one tick as the section came round');
-  assert.deepEqual(await page.evaluate(() => [document.querySelectorAll('.plate').length, getComputedStyle(document.querySelector('#stage .plate')).transform]), [1, 'none'], 'at rest: one panel, in its place');
+  assert.deepEqual(await page.evaluate(() => [document.querySelectorAll('.plate').length, getComputedStyle(document.querySelector('#stage .plate')).opacity]), [1, '1'], 'at rest: one panel, shown');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('th.editor.timings') || '[]').filter((t) => t.kind === 'swipe').map((t) => [t.outcome, t.refit, t.rebuilt]).slice(-1)), [['landed', 0, 0]], 'the swipe noted for the reports: it landed, the photo neither fitted again nor made again meanwhile');
   // A drag on the curve is the curve's.
   const curve = await page.locator('#stage [data-drag][role=group]').boundingBox();
   await swipe(line(curve.x + curve.width / 2, curve.y + curve.height * 0.8, curve.y + curve.height * 0.2));
@@ -100,7 +101,7 @@ test('the panel slides: up or down a section, round, sideways the panel’s own,
   assert.equal(await section(page), 'Curve'); assert.equal(await exposure(page), before, 'the value dial did not turn');
   await page.locator('#stage [role=listbox][aria-label^="Sections"]').press('ArrowUp');
   await until(async () => (await section(page)) === 'Light' && !(await page.evaluate(() => !!document.querySelector('#stage.rolling'))), { message: 'the arrow key rolled it back' });
-  for (let k = 0; k < 2; k++) { await touch('touchStart', [[206, wy - 10]]); for (let i = 1; i <= 3; i++) await touch('touchMove', [[206, wy - 10 + i * 9]]); await touch('touchEnd', []); await page.waitForTimeout(40); }
+  for (let k = 0; k < 2; k++) { await touch('touchStart', [[206, wy - 10]]); for (let i = 1; i <= 3; i++) { await touch('touchMove', [[206, wy - 10 + i * 9]]); await page.waitForTimeout(45); } await touch('touchEnd', []); await page.waitForTimeout(40); }   // (slow: quicker, it is a flick, which goes on)
   await page.waitForFunction(() => !document.querySelector('#stage.rolling')); await page.waitForTimeout(300);
   assert.equal(await exposure(page), before, 'two swipes begun on the dial are not two taps (which put the value back)');
   assert.equal(await section(page), 'Light', 'short of a third of a section, it springs back');

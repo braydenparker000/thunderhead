@@ -1,7 +1,8 @@
 # The checks a commit must pass (TESTING.md §1.1), as six jobs at once: the site and mind suites
 # in five parts (scripts/test-part.mjs deals the files by measured time) and the Worker's suite. Called by
-# Deploy before anything goes live and by Test on every other branch, so each commit is checked
-# once, in about two minutes. `npm test` runs exactly the same checks in one go.
+# Deploy before anything goes live and by Test on every other branch with `files: quick` (all but the
+# editor's software-GPU browser tests), and by Slow after a release with `files: slow` (those only; the owner,
+# 2026-11-18: "better to go live and have a good recording and reporting pipeline"). `npm test` runs all of them in one go.
 name: Checks
 on:
   workflow_call:
@@ -14,6 +15,10 @@ on:
         description: "Test's lab scope (scripts/lab-scope.mjs): empty = every suite; else the test files of a lab-only change"
         type: string
         default: ''
+      files:
+        description: "all, quick (all but the software-GPU tests: what a merge and a release wait for) or slow (those only: after a release)"
+        type: string
+        default: all
       first_only:
         description: "Test sets this: a re-run of these checks fails (TESTING.md §1 rule 8: a failing test is fixed, never retried into green)"
         type: boolean
@@ -53,7 +58,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       # A lab-only change (TESTING.md §1, "Lab changes"): the site's parts run the lab's tests between them, the Worker's passes.
-      - if: ${{ inputs.lab == '' || matrix.part != 'worker' }}
+      - if: ${{ (inputs.lab == '' && inputs.files != 'slow') || matrix.part != 'worker' }}
         run: npm ci --ignore-scripts
       - if: ${{ matrix.part != 'worker' }}
         run: npx playwright install --with-deps --only-shell chromium
@@ -68,18 +73,21 @@ jobs:
           WORKER_URL: ''
           DRIVE_CONFIG_JSON: ''
           LAB: ${{ inputs.lab }}
+          FILES: ${{ inputs.files }}
         run: |
+          kind=(); if [[ "$FILES" == quick || "$FILES" == slow ]]; then kind=("--$FILES"); fi
+          if [[ "$FILES" == slow && "$PART" == worker ]]; then echo "the Worker's suite has no software-GPU tests"; exit 0; fi
           if [[ -n "$LAB" ]]; then
             if [[ "$PART" == worker ]]; then echo "lab-only change: the Worker's suite is not run"; exit 0; fi
             # part 1: the types, the contract and the page budgets as preflight checks them. Then the lab's tests,
             # dealt over the five parts as the whole suite is (one part could not hold the editor's in its time)
-            if [[ "$PART" == 'site 1/5' ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
+            if [[ "$PART" == 'site 1/5' && "$FILES" != slow ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
             read -ra files <<< "$LAB"
             part="${PART#site }"
-            node scripts/test-part.mjs "${part%/*}" "${part#*/}" --only "${files[@]}"
+            node scripts/test-part.mjs "${part%/*}" "${part#*/}" "${kind[@]}" --only "${files[@]}"
           elif [[ "$PART" == worker ]]; then
             npm run test:backend
           else
             part="${PART#site }"
-            node scripts/test-part.mjs "${part%/*}" "${part#*/}"
+            node scripts/test-part.mjs "${part%/*}" "${part#*/}" "${kind[@]}"
           fi
