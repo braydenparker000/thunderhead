@@ -117,7 +117,15 @@ export class HttpSource {
     signal?.addEventListener('abort', () => this.close(), {once: true});
     let response;
     try {
-      response = await ask(this, {Range: 'bytes=0-'}, signal, TIMING.open, 'timeout');
+      // A host that counts a link's connections (TorBox allows four) answers 429 while ones just let go are still
+      // closing, and 503 when it is busy: it is asked again three times (400, 800, 1600 ms apart) before the answer stands.
+      for (let again = 0; ; again++) {
+        response = await ask(this, {Range: 'bytes=0-'}, signal, TIMING.open, 'timeout');
+        if ((response.status !== 429 && response.status !== 503) || again >= 3) break;
+        response.body?.cancel().catch(() => {});
+        await this.backOff(TIMING.backoff * 2 ** again);
+        if (signal?.aborted || this.closed) throw signal?.reason ?? new SourceError('closed', 'The file was closed.');
+      }
     } catch (error) {
       if (signal?.aborted || error instanceof SourceError) throw error;
       throw new SourceError('unreadable', 'This host does not let a web page read the file, or the connection failed.', String(error?.message || error));

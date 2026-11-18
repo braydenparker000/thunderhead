@@ -3,7 +3,7 @@
 // place playback jumped to has the whole connection; the same bytes can be read again afterwards.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BLOCK, HttpSource } from '../frontend/astra/src/engine/http-source.js';
+import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-source.js';
 
 const SIZE = 40 * BLOCK;
 const byteAt = (offset) => (offset * 7 + (offset >> 20)) & 255;
@@ -89,4 +89,23 @@ test('a scanner that looks at every block as it lands does not pull the download
   await new Promise((r) => setTimeout(r, 100));
   assert.ok(!source.cachedBlocks().includes(39));
   source.close();
+});
+
+test('a host busy at the first ask (429 while a link’s connections close, 503) is asked again; one that stays busy is refused', async (t) => {
+  const pause = TIMING.backoff;
+  TIMING.backoff = 2;
+  t.after(() => { TIMING.backoff = pause; });
+  for (const status of [429, 503]) {
+    const { calls, fetchFn } = host();
+    let busy = 2;
+    const source = new HttpSource('https://files.example/film.mkv', { fetchFn: (url, init) => (busy-- > 0 ? Promise.resolve(new Response('busy', { status })) : fetchFn(url, init)) });
+    assert.equal((await source.open()).size, SIZE, `${status} twice, then the film`);
+    assert.equal(calls.length, 1);
+    source.close();
+  }
+  let asked = 0;
+  const never = new HttpSource('https://files.example/film.mkv', { fetchFn: async () => { asked++; return new Response('busy', { status: 429 }); } });
+  await assert.rejects(never.open(), (error) => error.kind === 'status' && /429/.test(error.message));
+  assert.equal(asked, 4, 'the first ask and three more');
+  never.close();
 });
