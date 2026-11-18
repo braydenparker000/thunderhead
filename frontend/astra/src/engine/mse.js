@@ -18,11 +18,14 @@ export class AppendQueue {
     this.busy = false;
     this.idleWaiters = [];
     this.generation = 0;
+    this.held = false; // fragments wait here instead of going to the buffer (rebuffer.js), until it is let go and pumped
+    this.reach = -Infinity; // where the latest fragment queued begins (the file's time), when its writer says
   }
 
-  /** Queues bytes for the current generation; older generations are dropped. */
-  append(bytes, generation) {
+  /** Queues bytes for the current generation (`at`: where their fragment begins); older generations are dropped. */
+  append(bytes, generation, at = null) {
     if (generation !== this.generation) return;
+    if (at != null && at > this.reach) this.reach = at;
     this.items.push({bytes, generation});
     this.bytes += bytes.byteLength;
     this.pump();
@@ -32,11 +35,14 @@ export class AppendQueue {
 
   idle() { return this.busy || this.items.length ? new Promise(r => this.idleWaiters.push(r)) : Promise.resolve(); }
 
+  /** Nothing appending and nothing queued: whoever waited for that hears it. */
+  settle() { if (!this.busy && !this.items.length) for (const r of this.idleWaiters.splice(0)) r(); }
+
   async pump() {
-    if (this.busy) return;
+    if (this.busy || this.held) return;
     this.busy = true;
     try {
-      while (this.items.length) {
+      while (this.items.length && !this.held) {
         const item = this.items[0];
         if (item.generation !== this.generation) { this.items.shift(); this.bytes -= item.bytes.byteLength; continue; }
         try {
@@ -57,7 +63,7 @@ export class AppendQueue {
       }
     } finally {
       this.busy = false;
-      for (const r of this.idleWaiters.splice(0)) r();
+      this.settle();
     }
   }
 
@@ -89,9 +95,11 @@ export class AppendQueue {
   /** Drops everything queued and buffered, and starts a new generation. */
   async reset({clear = true, mime = null} = {}) {
     this.generation++;
-    this.items.length = 0; this.bytes = 0;
-    if (this.busy) await this.idle();
-    try { if (this.buffer.updating) this.buffer.abort(); } catch {}
+    this.items.length = 0; this.bytes = 0; this.held = false; this.reach = -Infinity;
+    if (this.busy) await this.idle(); else this.settle();
+    // Always: a fragment's moof and mdat are appended one after the other, and a reset between the two left the buffer
+    // inside a segment, where setting its timestampOffset throws (more often with quarter-second sound fragments).
+    try { this.buffer.abort(); } catch {}
     if (clear && this.buffer.buffered.length) { try { await this.run(() => this.buffer.remove(0, Infinity)); } catch {} }
     if (mime && this.buffer.changeType) this.buffer.changeType(mime);
     return this.generation;
@@ -110,8 +118,8 @@ export class AppendQueue {
   /** Starts a new generation without clearing buffered media (used on seek). */
   async restart() {
     this.generation++;
-    this.items.length = 0; this.bytes = 0;
-    if (this.busy) await this.idle();
+    this.items.length = 0; this.bytes = 0; this.held = false; this.reach = -Infinity;
+    if (this.busy) await this.idle(); else this.settle();
     try { this.buffer.abort(); } catch {} // a fresh init segment follows
     return this.generation;
   }

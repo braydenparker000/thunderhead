@@ -1,9 +1,12 @@
 // Astra's early fragments (frontend/astra/src/engine/early.js): a video fragment is cut every half
 // second at a frame shown after all before it, handed to the writer as a key frame, and written back
-// as an ordinary frame when the fragment comes out. Packets and boxes here are invented.
+// as an ordinary frame when the fragment comes out. Packets and boxes here are invented. And sound passed through
+// written in quarter-second fragments (fragments.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EarlyCuts, demote, startsWithKey } from '../frontend/astra/src/engine/early.js';
+import { fragmentWriter } from '../frontend/astra/src/engine/fragments.js';
+import * as MB from '../frontend/astra/vendor/mediabunny.js';
 
 const packet = (timestamp, type = 'delta') => ({ timestamp, type, clone(over) { return { ...this, ...over, copy: true }; } });
 
@@ -66,4 +69,18 @@ test('demote leaves sizes, durations and offsets alone', () => {
   const before = fragment(KEY), after = demote(fragment(KEY));
   const differing = [...before].map((b, i) => (b !== after[i] ? i : -1)).filter((i) => i >= 0);
   assert.deepEqual(differing, [before.length - 28, before.length - 27], 'only the two flag bytes change');
+});
+
+test('sound passed through goes in quarter-second fragments: a film cannot play at a new place before its first', async () => {
+  const sent = [], queue = { append: (bytes, generation, at) => sent.push(at) };
+  const output = fragmentWriter(queue, { appended: 0 }, 'audio', 0);
+  const source = new MB.EncodedAudioPacketSource('aac');
+  output.addAudioTrack(source);
+  await output.start();
+  const config = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, description: new Uint8Array([0x11, 0x90]) };
+  for (let i = 0; i < 94; i++) await source.add(new MB.EncodedPacket(new Uint8Array(300), 'key', i * 1024 / 48000, 1024 / 48000), i ? undefined : { decoderConfig: config });
+  await output.finalize();
+  const starts = [...new Set(sent.filter((at) => at != null))];
+  assert.ok(starts.length >= 7, `about two seconds of sound in ${starts.length} fragments`);
+  assert.ok(starts.every((at, i) => !i || at - starts[i - 1] < 0.3), starts.map((x) => x.toFixed(2)).join(' '));
 });

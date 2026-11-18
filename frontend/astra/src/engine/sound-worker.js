@@ -14,8 +14,8 @@
 // stand-in track carries the two (the configuration as the page's track gave it).
 //
 // Messages in: load {codec}; start {id, codec, config, from, whole, channels, rate, centre, fragment}; packets {id,
-// buf, items, tap, centre}; end {id}; stop {id}. Out: loaded / loadfail {codec}; bytes {id, bytes, upTo}; progress
-// {id, upTo}; tap {id, timestamp, rate, planes}; done {id}; error {id, message, kind}.
+// buf, items, tap, centre}; end {id}; stop {id}. Out: loaded / loadfail {codec}; bytes {id, bytes, upTo, at: where the
+// fragment begins}; progress {id, upTo}; tap {id, timestamp, rate, planes}; done {id}; error {id, message, kind}.
 
 import * as MB from '../../vendor/mediabunny.js';
 import {stereoWriter, wholeWriter} from './sound-write.js';
@@ -84,7 +84,7 @@ async function start(m) {
   try {
     await load(m.codec);
     if (pipe.stopped) return;
-    const output = writer(m.fragment, bytes => post({type: 'bytes', id: m.id, bytes, upTo: pipe.upTo}, [bytes.buffer]));
+    const output = writer(m.fragment, (bytes, at) => post({type: 'bytes', id: m.id, bytes, upTo: pipe.upTo, at}, [bytes.buffer]));
     const write = m.whole ? wholeWriter(output, m.channels, m.rate) : stereoWriter(output, m.rate);
     await output.start();
     pipe.samples = new FedSink(fedTrack(m.codec, m.config), pipe.feed).samples(m.from);
@@ -107,14 +107,14 @@ async function start(m) {
 
 /** Fragmented MP4 as fragments.js writes it for the page, each init segment and fragment one buffer, cut every `fragment` s at least. */
 function writer(fragment, send) {
-  let head = [], moof = null;
+  let head = [], moof = null, at = null; // at: where the fragment begins
   const join = parts => { const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0)); let at = 0; for (const p of parts) { out.set(p, at); at += p.byteLength; } return out; };
   const format = new MB.Mp4OutputFormat({
     fastStart: 'fragmented', minimumFragmentDuration: fragment ?? 1,
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(join(head)); head = []; },
-    onMoof: data => { moof = data.slice(); },
-    onMdat: data => { send(join([moof, data])); moof = null; },
+    onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; },
+    onMdat: data => { send(join([moof, data]), at); moof = null; },
   });
   return new MB.Output({format, target: new MB.NullTarget()});
 }

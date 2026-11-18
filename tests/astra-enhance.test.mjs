@@ -1,12 +1,13 @@
 // The pure parts of Astra's sound and picture enhancements (frontend/astra/src/enhance/): the
 // stereo mix the chain does itself agrees with the engine's own, the picture's sizes, and the BT.2390
-// curve that maps an HDR film to the SDR canvas.
+// curve that maps an HDR film to the SDR canvas; and headphone surround's sound written ahead of the chain's own delay.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { stereoMatrix, centreGain, settle, isOff, makeupGain, LIMIT } from '../frontend/astra/src/enhance/sound-chain.js';
 import { shownSize, outputSize } from '../frontend/astra/src/enhance/picture.js';
 import { eetf, pq, pqNits, curve, eetfPQ } from '../frontend/astra/src/enhance/tonemap.js';
 import { toStereo } from '../frontend/astra/src/engine/downmix.js';
+import { FLAC, PLACED, soundShift } from '../frontend/astra/src/engine/sound-six.js';
 
 const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} is not ${b}`);
 
@@ -60,4 +61,10 @@ test('BT.2390 EETF: PQ round trip, unchanged below the knee, bent smoothly to th
   near(eetfPQ(1, c), c.maxLum, 1e-12);
   const d = 1e-6; near((eetfPQ(c.ks + d, c) - eetfPQ(c.ks, c)) / d, 1, 1e-3); near((eetfPQ(1, c) - eetfPQ(1 - d, c)) / d, 0, 1e-3);
   near(eetf(800, 1000, 1000), 800, 1e-6); // a screen as bright as the source: nothing to do
+});
+
+test("whole surround is written 12 ms earlier, the delay of the chain's HRTF panners and limiter; other sound is not", () => {
+  near(PLACED, 0.012);
+  near(soundShift({ offset: 1, advance: 0.25, audioMime: FLAC }), 1.262);
+  near(soundShift({ offset: 1, advance: 0.25, audioMime: 'audio/mp4; codecs="opus"' }), 1.25);
 });

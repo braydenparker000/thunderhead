@@ -3,7 +3,7 @@
 // AstraPlayer's prototype, so `this` is the player. Each takes the load's id
 // and stops after an await that finds a newer load.
 
-import {RemuxSession} from './remux.js';
+import {RemuxSession, loadDecoders} from './remux.js';
 import {SoftwareSession, softwareAudio} from './software.js';
 import {languageName} from './languages.js';
 
@@ -30,6 +30,8 @@ export const startMethods = {
     session.addEventListener('status', e => this.status(e.detail));
     session.addEventListener('error', e => this.fail(e.detail?.message || 'Playback stopped.', String(e.detail?.stack || e.detail), {decode: !e.detail?.kind, network: NETWORK_KINDS.has(e.detail?.kind)}));
     session.addEventListener('stall', e => this.record('stall', e.detail));
+    session.addEventListener('converter', e => this.converterLate(session, e.detail));
+    session.addEventListener('rebuffer', e => { if (!e.detail.holding || e.detail.first) this.record('rebuffer', e.detail); this.emit('rebuffer', e.detail); }); // a stall held for a slow link (rebuffer.js)
     session.addEventListener('audioended', () => {
       if (this.session !== session) return;
       // Sound passed through that never reached its buffer did not end: the browser did not take it (player-routes.js).
@@ -44,6 +46,38 @@ export const startMethods = {
     if (id !== this.load_) return;
     this.watchPassedSound(session); // sound the browser said it plays as it is, until it does
     if (plan.subtitle) this.selectSubtitle(plan.subtitle.id);
+  },
+
+  /**
+   * The converter the chosen sound needs is late or could not be downloaded (sound-wait.js), so silence plays in its
+   * place: another track that needs no converter plays instead when there is one (when the converter was only late,
+   * the chosen track comes back once it arrives), else the film plays on without sound until it comes. `kept`: a
+   * track chosen while playing whose converter was refused; the track playing goes on.
+   */
+  converterLate(session, {codec, failed, ready, kept}) {
+    if (this.session !== session || ready) return;
+    const chosen = this.audio.find(a => a.id === this.selectedAudio);
+    if (kept) {
+      const now = this.audio.find(a => a.option?.track === session.audio?.track);
+      this.selectedAudio = now?.id ?? this.selectedAudio;
+      this.emit('tracks');
+      return this.tell(`The audio converter could not be downloaded, so ${now?.label || 'this track'} plays on. Choose ${chosen?.label || 'the track'} again to try once more.`);
+    }
+    const lang = chosen?.language, other = this.audio.filter(a => a.supported && a.delivery === 'direct').sort((a, b) => (b.language === lang) - (a.language === lang))[0];
+    if (!other) return this.tell(failed ? 'The audio converter could not be downloaded, so this plays without sound until it can be.' : 'The audio converter is still downloading, so this plays without sound until it arrives.');
+    const refused = () => this.tell(`The audio converter could not be downloaded, so this plays ${other.label}. Choose ${chosen?.label || 'the first track'} in Audio to try again.`);
+    if (failed) refused(); else this.tell(`The audio converter is slow to download, so this plays ${other.label} until it arrives.`);
+    this.selectAudio(other.id).catch(() => {});
+    // Only late: the chosen track again once its converter is here, unless the viewer chose another meanwhile; or refused after all.
+    const still = () => this.session === session && this.selectedAudio === other.id;
+    if (!failed && chosen) loadDecoders(codec).then(() => { if (still()) this.selectAudio(chosen.id).catch(() => {}); }, () => { if (still()) refused(); });
+  },
+
+  /** A notice for the viewer (the player shows it across the top), kept with the plan's notes for the report. */
+  tell(text) {
+    this.record('notice', text);
+    if (this.plan) this.plan = {...this.plan, notes: [...(this.plan.notes || []), text]};
+    this.emit('notice', text);
   },
 
   /** A plain MP4/WebM the browser plays whole (plan.whole) whose unpacking failed before the first picture: once, it may go to Chrome as it is. */

@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-18-astra-real-films",
+  "id": "2026-11-18-astra-slow-links",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra on big films: a 25 Mbit/s film starts and seeks about twice as fast on a slow phone, and uses less memory.",
+      "text": "Astra on a slow connection: a film waits for a few seconds of itself and plays on, instead of stopping again and again.",
       "open": "astra"
     },
     {
-      "text": "Long films: slide your finger up from the seek bar to seek finely."
+      "text": "Changing the audio track no longer stops the picture, most of the time."
     },
     {
-      "text": "Dolby and DTS sound is converted away from the page's own thread, so the picture and menus stay smooth."
+      "text": "If a sound converter cannot be downloaded, the film plays on with another track or without sound, and says so."
     },
     {
-      "text": "Seek previews now show on 4K films and on slow connections."
+      "text": "Films start a little sooner, and Headphone surround is back in step with the picture."
     }
   ]
 }
