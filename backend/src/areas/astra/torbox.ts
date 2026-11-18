@@ -3,18 +3,24 @@
 // (25 s); a 429 or 5xx is tried once more after a short wait, never again; every call is counted
 // on the request and refused past `torbox_calls_max`. TorBox's description of its answers is thin,
 // so every answer is read defensively: `{success, error, detail, data}` with any of them missing.
-// TorBox's own words (`detail`) are never passed on: a step's note comes from words.ts.
+// TorBox's own words (`detail`) are read for what they say but never passed on: a step's note comes
+// from words.ts. The file's own address (requestdl) is in links.ts.
 import { ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 import { mediaType, type TorrentFile } from './files';
-import { ask, handable, publicHttps, type Relay, TimedOut, timed, timesNow, wait } from './upstream';
+import { ask, type Relay, TimedOut, timed, timesNow, wait } from './upstream';
 import { NOTE } from './words';
 
 const API = 'https://api.torbox.app/v1/api';
 const UA = 'Thunderhead-Astra/1.0 (personal app; 1 viewer)';
 
-/** A call that could not be made or answered; `note` says why in fixed words. */
+/** A call that could not be made or answered; `note` says why in fixed words. `refused`: TorBox
+ * answered and said no (a 4xx other than the key's or a busy one, or success false), as it does for
+ * a torrent id it no longer knows. */
 export class TorboxTrouble extends Error {
-  constructor(readonly note: string) {
+  constructor(
+    readonly note: string,
+    readonly refused = false,
+  ) {
     super('torbox');
     this.name = 'TorboxTrouble';
   }
@@ -26,12 +32,14 @@ interface Body {
   detail?: unknown;
   data?: unknown;
 }
-interface Answer {
+export interface Answer {
   status: number;
   body: Body;
+  /** A redirect's Location, as sent. */
+  location: string | null;
 }
 
-const record = (v: unknown): Record<string, unknown> =>
+export const record = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const AUTH_ERRORS = new Set(['BAD_TOKEN', 'AUTH_ERROR', 'NO_AUTH']);
 
@@ -76,7 +84,7 @@ export async function call(
         } catch {
           // Not JSON (an HTML error page): the status says enough.
         }
-        return { status: res.status, body: record(parsed) as Body };
+        return { status: res.status, body: record(parsed) as Body, location: res.headers.get('Location') };
       });
     } catch (e) {
       throw new TorboxTrouble(e instanceof TimedOut ? NOTE.slow : NOTE.unreachable);
@@ -87,9 +95,10 @@ export async function call(
   }
 }
 
-const must = (a: Answer): Answer => {
+export const must = (a: Answer): Answer => {
   const why = trouble(a);
-  if (why) throw new TorboxTrouble(why);
+  const no = a.status >= 400 && a.status < 500 && why !== NOTE.badKey && why !== NOTE.busy;
+  if (why) throw new TorboxTrouble(why, why === NOTE.refused || no);
   return a;
 };
 
@@ -121,12 +130,20 @@ export async function checkCached(r: Relay, key: string, hash: string) {
   return entry ? { cached: true, files: filesOf(record(entry).files) } : { cached: false, files: [] };
 }
 
-/** Adds the torrent only if TorBox already has it ready (add_only_if_cached), seeding off, no zip. */
+/** What TorBox's words said of an add: an item already in the account, a new one, or neither. */
+function said(detail: unknown): 'existing' | 'new' | null {
+  const d = String(detail ?? '');
+  if (/already|exist|duplicate/i.test(d)) return 'existing';
+  return /\b(added|created|queued)\b/i.test(d) ? 'new' : null;
+}
+
+/** Adds the torrent only if TorBox already has it ready (add_only_if_cached), seeding off, no zip.
+ * TorBox refusing it as not cached is the definite "not on TorBox yet". */
 export async function addCached(
   r: Relay,
   key: string,
   hash: string,
-): Promise<{ id: number } | { notCached: true } | { refused: string }> {
+): Promise<{ id: number; said: 'existing' | 'new' | null } | { notCached: true } | { refused: string }> {
   const form = {
     magnet: `magnet:?xt=urn:btih:${hash}`,
     add_only_if_cached: 'true',
@@ -137,7 +154,7 @@ export async function addCached(
   const a = await call(r, '/torrents/createtorrent', { key, form });
   const data = record(a.body.data);
   const id = data.torrent_id ?? data.id;
-  if (!trouble(a) && Number.isSafeInteger(id)) return { id: id as number };
+  if (!trouble(a) && Number.isSafeInteger(id)) return { id: id as number, said: said(a.body.detail) };
   if (a.body.error === 'DOWNLOAD_NOT_CACHED' || /not\s+cached/i.test(String(a.body.detail ?? '')))
     return { notCached: true };
   const why = trouble(a) ?? NOTE.refused;
@@ -162,42 +179,6 @@ export async function torrentFiles(r: Relay, key: string, id: number): Promise<T
   const { body } = must(await call(r, `/torrents/mylist?${q}`, { key }));
   const one = Array.isArray(body.data) ? body.data.map(record).find((e) => e.id === id) : record(body.data);
   return filesOf(one?.files);
-}
-
-/** The address requestdl answers with `redirect=false`: a public https address that may be handed
- * to the phone (no key in it, not TorBox's API itself), or trouble. */
-function linkOf(r: Relay, a: Answer): string {
-  const url = must(a).body.data;
-  if (typeof url !== 'string' || !publicHttps(url)) throw new TorboxTrouble(NOTE.noLink);
-  if (!handable(r, url)) throw new TorboxTrouble(NOTE.notHanded);
-  return url;
-}
-
-/** A file's download address, for the file server nearest the phone. */
-export async function fileLink(r: Relay, key: string, torrent: number, file: number): Promise<string> {
-  const q = new URLSearchParams({
-    token: key,
-    torrent_id: String(torrent),
-    file_id: String(file),
-    zip_link: 'false',
-    redirect: 'false',
-  });
-  if (r.userIp) q.set('user_ip', r.userIp);
-  return linkOf(r, await call(r, `/torrents/requestdl?${q}`));
-}
-
-/** A TorBox permanent link (…/requestdl?token=…&redirect=true) met on an add-on's forward. */
-export const isPermanentLink = (url: string) => {
-  const u = new URL(url);
-  return u.hostname === 'api.torbox.app' && /\/requestdl$/.test(u.pathname);
-};
-
-/** Asks a permanent link for its JSON instead of its redirect; its own token is the key it needs. */
-export async function permanentLink(r: Relay, url: string, until: number): Promise<string> {
-  const u = new URL(url);
-  u.searchParams.set('redirect', 'false');
-  if (r.userIp) u.searchParams.set('user_ip', r.userIp);
-  return linkOf(r, await call(r, u.href, { until }));
 }
 
 /** GET /v1/astra/torbox: whether TorBox takes the key, and the plan number it gives. */

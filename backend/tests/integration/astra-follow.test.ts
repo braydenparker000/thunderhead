@@ -3,8 +3,10 @@
 // address, size, type and readability come back; a TorBox permanent link on the way is asked for
 // its JSON with the phone's address; non-https, numeric and local hosts are refused, so are more
 // than six hops and a slow add-on; the add-on's own short "not ready" video is no film; an error at
-// the end says its status. Nothing the owner watches reaches a log line or an error body
-// (ASTRA.md §5.3: a log capture). Invented hosts, hashes, key and films.
+// the end says its status; no address on TorBox's API host is handed over. The path is off unless
+// the Worker variable ASTRA_FOLLOW is "on": every test here turns it on (astra.test.ts covers off).
+// Nothing the owner watches reaches a log line or an error body (ASTRA.md §5.3: a log capture).
+// Invented hosts, hashes, key and films.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetMinute } from '../../src/areas/astra/routes';
 import { useFetch, useTimes } from '../../src/areas/astra/upstream';
@@ -29,7 +31,7 @@ import { setupOwner } from '../helpers';
 let D = '';
 const CDN = 'https://nexus-123.latm.cdn.example/film/invented';
 const go = (body: Record<string, unknown> = {}, key?: string) =>
-  relay(D, { key, origin: SITE, body: { link: LINK, mode: 'play', ...body } });
+  relay(D, { key, origin: SITE, follow: 'on', body: { link: LINK, mode: 'play', ...body } });
 
 beforeAll(async () => {
   useFetch(stubFetch);
@@ -82,9 +84,9 @@ describe('following the add-on’s forward', () => {
     const permalink = `${TORBOX}/torrents/requestdl?token=permalink-token&torrent_id=9&file_id=2&redirect=true`;
     world.hosts.set('addon.example', forward(permalink));
     world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [] }));
-    world.hosts.set('store-039.wnam.cdn.example', film(2100 * MB));
+    world.hosts.set('store-039.wnam.tb-cdn.example', film(2100 * MB));
     const { body } = await go({}, KEY);
-    expect([body.via, body.url]).toEqual(['follow', 'https://store-039.wnam.cdn.example/dl/9/2']);
+    expect([body.via, body.url]).toEqual(['follow', 'https://store-039.wnam.tb-cdn.example/dl/9/2']);
     const asked = new URL(world.asked[1].url);
     expect([asked.searchParams.get('redirect'), asked.searchParams.get('user_ip')]).toEqual(['false', '192.0.2.10']);
     expect(world.asked[1].headers.authorization).toBeUndefined();
@@ -165,25 +167,28 @@ describe('following the add-on’s forward', () => {
     expect([slow.status, slow.body.error?.details.reason]).toEqual([502, 'The add-on took too long to answer.']);
   });
 
-  it('never hands over an address that holds the key or is TorBox’s API itself', async () => {
-    world.hosts.set('addon.example', forward(`${CDN}?t=${KEY}`));
-    world.hosts.set('nexus-123.latm.cdn.example', film(900 * MB));
-    const keyed = await go({}, KEY);
-    expect([keyed.status, keyed.body.error?.code, keyed.body.error?.details.reason]).toEqual([
+  it('never hands over an address on TorBox’s API itself', async () => {
+    world.hosts.set('addon.example', forward(`${TORBOX}/user/files/1`));
+    world.hosts.set(
+      'api.torbox.app',
+      () => new Response('x', { status: 200, headers: { 'Content-Type': 'video/mp4' } }),
+    );
+    const api = await go({}, KEY);
+    expect([api.status, api.body.error?.code, api.body.error?.details.reason]).toEqual([
       502,
       'upstream',
       'The address could not be passed on safely.',
     ]);
-    expect(keyed.text).not.toContain(KEY);
-    // A permanent link whose answer is TorBox's API again is not passed on either.
-    const permalink = `${TORBOX}/torrents/requestdl?token=permalink-token&torrent_id=9&file_id=2&redirect=true`;
-    world.hosts.set('addon.example', forward(permalink));
-    world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [], link: `${TORBOX}/torrents/other?x=1` }));
+    expect(api.text).not.toContain('api.torbox.app');
+    // A permanent link whose answer is TorBox's API again and again is not passed on either.
+    const permalink = `${TORBOX}/torrents/requestdl?token=permalink-token&torrent_id=9&file_id=2`;
+    world.hosts.set('addon.example', forward(`${permalink}&redirect=true`));
+    world.hosts.set('api.torbox.app', torbox({ cached: [], owned: [], link: permalink }));
     const looped = await go({}, KEY);
     expect([looped.status, looped.body.error?.details.reason, looped.body.error?.details.steps.at(-1)?.note]).toEqual([
       502,
       "TorBox did not give the file's address.",
-      'The address held the key or pointed at TorBox itself, so it was not passed on.',
+      'TorBox kept answering with its own API address, so nothing was passed on.',
     ]);
   });
 

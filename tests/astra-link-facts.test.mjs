@@ -81,3 +81,15 @@ test('damaged input never throws', () => {
       assert.doesNotThrow(() => linkFacts(url, stream));
   assert.deepEqual(linkFacts('not a link', { filename: FILE, size: 10 }), facts(null, null, FILE, 10), 'what the stream says is still said');
 });
+
+test("a link that names no torrent: the add-on's own stream data, else the one hash in the stream's words", () => {
+  const opaque = 'https://addon.example/cfg/playback/torbox/T-12345/1/2/Invented.Show.S01E02.mkv';
+  assert.deepEqual(linkFacts(opaque, { torrent: { infoHash: H1.toUpperCase(), fileIdx: 4 }, filename: FILE }), facts(H1, 4, FILE), 'stream data beside the link');
+  assert.deepEqual(linkFacts(opaque, { torrent: { infoHash: 'nonsense', fileIdx: 4 }, title: `Invented 1080p\n${H1}`, filename: FILE }), facts(H1, null, FILE), 'damaged stream data: the words');
+  assert.deepEqual(linkFacts(opaque, { title: `Invented 1080p · 2.1 GB\n${H1}`, filename: FILE }), facts(H1, null, FILE), 'printed in the description by a formatter');
+  assert.deepEqual(linkFacts(opaque, { bingeGroup: `addon|torbox|${H1}|1080p`, filename: FILE }).hash, H1, 'in the binge group');
+  assert.deepEqual(linkFacts(opaque, { title: H1, name: H1.toUpperCase(), filename: FILE }).hash, H1, 'the same hash twice is one');
+  assert.equal(linkFacts(opaque, { title: `${H1} ${H2}`, filename: FILE }).hash, null, 'two different hashes: none');
+  assert.equal(linkFacts(opaque, { title: `id ${H1}ab`, filename: FILE }).hash, null, 'a longer run of hex is not a hash');
+  assert.equal(linkFacts(`https://addon.example/x/playback/${H2}/torbox/0/1/1`, { title: H1 }).hash, H2, 'the link speaks first');
+});

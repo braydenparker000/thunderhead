@@ -1993,7 +1993,7 @@
       ],
       "phase": "P8",
       "status": "built",
-      "note": "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address, from TorBox with the Worker's key or by following the add-on's forward; not cached for certain: 503, nothing followed; ahead never adds or follows"
+      "note": "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on"
     },
     "GET /v1/astra/torbox": {
       "who": [
