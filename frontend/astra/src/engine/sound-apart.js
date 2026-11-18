@@ -16,7 +16,8 @@
 // 40 Mbit/s host, picture and sound came back about 0.5 s sooner after a far seek.
 export const APART = {on: true, fragment: 0.25};
 // QUEUED: bytes the worker's fragments may wait to be appended. Whole surround (576 kB a second) came back from the worker
-// faster than a slowed page appended it: up to 6.5 MB waited, beside an audio buffer the browser holds to about 12 MB.
+// faster than a slowed page appended it: up to 6.5 MB waited, beside an audio buffer the browser holds to about 12 MB;
+// so it is also kept within a second of the reading (lag).
 const LAG = 6, QUEUED = 2 << 20, BATCH = 0.25, PAUSE = 30;
 let worker = null, broken = false, ids = 0;
 const pipes = new Map(), loads = new Map();
@@ -98,6 +99,7 @@ export async function convertApart(session, {generation, from, sink, track, chan
   pipes.set(id, pipe);
   w.postMessage({type: 'start', id, codec, config, from, whole: !!whole, channels, rate: track.sampleRate, centre: session.centre ?? 1, fragment: APART.fragment});
   let batch = [], timer = 0, sent = 0, finished = false;
+  const lag = whole ? 1 : LAG; // whole surround is ten times the bytes, and cheap to write: kept close
   const flush = () => {
     clearTimeout(timer); timer = 0;
     if (!batch.length) return;
@@ -115,7 +117,7 @@ export async function convertApart(session, {generation, from, sink, track, chan
       if (!live() || !await gate(p.timestamp)) return false;
       batch.push(p);
       if (p.timestamp + p.duration - batch[0].timestamp >= BATCH) flush(); else timer ||= setTimeout(flush, PAUSE);
-      while ((sent - pipe.upTo > LAG || session.queues.audio.pending() > QUEUED) && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
+      while ((sent - pipe.upTo > lag || session.queues.audio.pending() > QUEUED) && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
     }
     flush();
     w.postMessage({type: 'end', id});
