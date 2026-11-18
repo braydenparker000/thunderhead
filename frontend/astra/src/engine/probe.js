@@ -9,6 +9,13 @@ import {languageName} from './languages.js';
 import {videoCodecName, audioCodecName} from './labels.js';
 import {adaptiveKind} from './plan.js';
 import {sniffContainer} from './software.js';
+import {mseSupports} from './capabilities.js';
+
+// DTS's codec string comes from its first frame, which Mediabunny finds by reading the film's first cluster whole: on a
+// 25 Mbit/s film, 5 MB before anything could be planned (scripts/astra/real.mjs, 2026-11-18). It only decides whether
+// the browser takes the sound as it is; where it takes no DTS at all, it is left unread (the converter reads its own).
+const DTS = ['dtsc', 'dtse', 'dtsh', 'dtsl', 'dtsx'];
+const unread = t => t.codec === 'dts' && !DTS.some(c => mseSupports(`audio/mp4; codecs="${c}"`));
 
 /**
  * Opens and describes a file. Resolves {readable: true, source, input, info}
@@ -69,7 +76,7 @@ async function describe(url, source, opened, signal, onStatus, keep) {
     const disposition = t.disposition || {};
     const base = {
       ref: t, id: t.id, number: t.number, codec: t.codec, internalCodec: t.internalCodecId,
-      codecString: await t.getCodecParameterString().catch(() => null),
+      codecString: unread(t) ? null : await t.getCodecParameterString().catch(() => null),
       language: t.languageCode === 'und' ? '' : t.languageCode, name: t.name || '',
       default: !!disposition.default, forced: !!disposition.forced, commentary: !!disposition.commentary,
       hearingImpaired: !!disposition.hearingImpaired,
@@ -80,7 +87,7 @@ async function describe(url, source, opened, signal, onStatus, keep) {
       if (fps) base.frameRate = fps;
       return {...base, type: 'video', width: t.displayWidth, height: t.displayHeight, hdr: await t.hasHighDynamicRange().catch(() => false), decoderConfig: await t.getDecoderConfig().catch(() => null)};
     }
-    return {...base, type: 'audio', channels: t.numberOfChannels, sampleRate: t.sampleRate, decoderConfig: await t.getDecoderConfig().catch(() => null)};
+    return {...base, type: 'audio', channels: t.numberOfChannels, sampleRate: t.sampleRate, decoderConfig: unread(t) ? null : await t.getDecoderConfig().catch(() => null)};
   };
   const described = await Promise.all(tracks.map(describeTrack));
   const video = described.filter(t => t.type === 'video');

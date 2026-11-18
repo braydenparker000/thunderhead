@@ -21,6 +21,20 @@ export function missing(source, start, end) {
   return Math.min(at, end);
 }
 
+/** The first byte of [start, end) that is here already (end when none is): where a download need ask no further. */
+export function present(source, start, end) {
+  for (let i = Math.floor(start / BLOCK); i * BLOCK < end; i++) {
+    const base = i * BLOCK, off = Math.max(0, start - base);
+    if (source.blocks.has(i)) return Math.max(start, base);
+    let first = Infinity;
+    for (const rec of [...source.filling, ...source.partials.values(), ...(source.kept || [])]) {
+      if (rec.index === i && rec.filled > Math.max(rec.from, off)) first = Math.min(first, Math.max(rec.from, off));
+    }
+    if (first < Infinity) return Math.min(end, base + first);
+  }
+  return end;
+}
+
 /** A record of block i that holds byte `off` of it. */
 function covering(source, i, off) {
   for (const rec of source.filling) if (rec.index === i && rec.from <= off && off < rec.filled) return rec;

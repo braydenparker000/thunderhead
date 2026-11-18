@@ -43,7 +43,11 @@ class MkvPackets {
     this.after = new Map(); // a cluster's position -> the next cluster's (null at the end)
     this.where = new WeakMap(); // packet -> {cluster, track, index}
     this.sinks = new Map(); // track id -> its sink (or null)
+    this.epoch = 0; // playback's jumps so far (jumped)
   }
+
+  /** Playback jumped elsewhere (remux.js restartAt): a cluster taken before is the dropped pipelines', never read again. */
+  jumped() { this.epoch++; }
 
   /** The sink for a probed track ({id, type, codec, ref}), or null when this reader leaves it to Mediabunny. */
   sink(track) {
@@ -82,7 +86,7 @@ class MkvPackets {
   /** The parsed cluster at `pos` holding `track`, read from `from` (a cue's relative position, its block `check`) or earlier. */
   cluster(pos, from, track, check = null) {
     const held = this.clusters.get(pos);
-    if (held && held.wanted.has(track) && held.from <= from && !held.error) { this.clusters.delete(pos); this.clusters.set(pos, held); return held; }
+    if (held && held.wanted.has(track) && held.from <= from && !held.error) { this.clusters.delete(pos); this.clusters.set(pos, held); held.epoch = this.epoch; return held; }
     return this.replace(pos, from, check);
   }
 
@@ -105,8 +109,10 @@ class MkvPackets {
         return list[i] || null;
       } catch (e) {
         // A read refused because playback moved (the range reader's jumped()) was asked for by the pipelines being
-        // dropped; a new pipeline that took the same cluster meanwhile reads it afresh (the same frames, in order).
-        if (!again || e?.kind !== 'closed') throw e;
+        // dropped; a new pipeline that took the same cluster meanwhile reads it afresh (the same frames, in order). One
+        // taken only before the jump is not: read again for a pipeline on its way out, it began a download at the place
+        // left that took half the link from the new one (a far seek on a 25 Mbit/s film at 20 Mbit/s: 8.7 s, 21 MB).
+        if (!again || e?.kind !== 'closed' || c.epoch !== this.epoch) throw e;
         const held = this.clusters.get(c.pos);
         c = c.successor ??= held && held !== c && !held.error && held.from === c.from && held.wanted.has(track) ? held : this.replace(c.pos, c.from);
       }
@@ -180,7 +186,7 @@ class MkvPackets {
 // One cluster as it is read: each wanted track's frames, handed out in the file's order once their duration is known.
 class Cluster {
   constructor(reader, pos, from, check) {
-    Object.assign(this, {reader, pos, from, wanted: new Set(reader.wanted), frames: new Map(), pending: new Map(), seen: new Map()});
+    Object.assign(this, {reader, pos, from, wanted: new Set(reader.wanted), frames: new Map(), pending: new Map(), seen: new Map(), epoch: reader.epoch});
     this.done = false; this.busy = null; this.error = null; this.dataStart = pos; this.endPos = null; this.cut = false;
     this.blocks = clusterBlocks(reader.read, pos, reader.end, this.wanted, from, check);
   }

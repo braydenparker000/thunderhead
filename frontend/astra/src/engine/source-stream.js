@@ -7,7 +7,7 @@
 // was waiting on. Read-ahead nobody waits for is reopened quietly or left. An address that has died is
 // renewed first, where the page gave a way to (source-renew.js).
 
-import {BLOCK, keepPart, takePart} from './source-blocks.js';
+import {BLOCK, keepPart, takePart, present} from './source-blocks.js';
 import {renewed, dead} from './source-renew.js';
 
 export {BLOCK};
@@ -139,7 +139,11 @@ export async function runStream(source, stream, response) {
         while (limit() - stream.at < Math.min(source.reach() / 2, source.size - stream.at) && !(stream.held && limit() > stream.at) && !signal.aborted) await new Promise(r => { stream.wake = r; });
         pause(stream, false);
         if (signal.aborted) return;
-        await open(await request(source, stream, stream.at, limit()));
+        // Bytes here already (the film's end, asked for beside its start; what another download brought) are not
+        // asked for again: the next part stops where they begin, and a download that would bring none of its own ends.
+        const to = present(source, stream.at, limit());
+        if (to <= stream.at) { stream.abort(); return; }
+        await open(await request(source, stream, stream.at, to));
       } else if (stream.at - stream.want > source.reach()) {
         // Far ahead of every reader on an open-ended answer: asked again in parts where the host allows it, else paused.
         if (source.bounded !== false) { reader.cancel().catch(() => {}); stream.end = stream.at; continue; }

@@ -2,11 +2,15 @@
 // generation number drops bytes from a pipeline that has been replaced, and a
 // full buffer is answered by evicting played media and retrying.
 
-const BEHIND = 20; // seconds of played media kept for short rewinds
+import {behindSeconds} from './hold.js';
+
+const BEHIND = 20; // seconds of played media kept for short rewinds (fewer of a fast film: hold.js)
 
 export class AppendQueue {
-  constructor(buffer, video, onFatal) {
+  /** `source`: the film's range reader, whose bitrate (once known) holds what is kept behind the playhead to bytes. */
+  constructor(buffer, video, onFatal, source = null) {
     this.buffer = buffer;
+    this.source = source;
     this.video = video;
     this.onFatal = onFatal;
     this.items = [];
@@ -40,7 +44,7 @@ export class AppendQueue {
           this.items.shift(); this.bytes -= item.bytes.byteLength;
         } catch (error) {
           if (error?.name === 'QuotaExceededError') {
-            const freed = await this.evict(BEHIND / 2);
+            const freed = await this.evict(this.behind() / 2);
             if (!freed) await new Promise(r => setTimeout(r, 1000)); // wait for playback to use some up
             continue;
           }
@@ -49,13 +53,16 @@ export class AppendQueue {
           this.onFatal?.(error);
           break;
         }
-        await this.evict(BEHIND);
+        await this.evict(this.behind());
       }
     } finally {
       this.busy = false;
       for (const r of this.idleWaiters.splice(0)) r();
     }
   }
+
+  /** Seconds of played media kept for short rewinds. */
+  behind() { return behindSeconds(BEHIND, this.source?.byteRate); }
 
   /** Runs one SourceBuffer operation and waits for it to finish. */
   run(operation) {
