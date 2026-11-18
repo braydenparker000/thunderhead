@@ -29,7 +29,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
     if (packets && SOUND.own && session.soundApart !== false && apartUsable()) {
       session.stats.ownSound = session.stats.soundApart = true;
       const whole = session.audioMime === FLAC;
-      const gate = async timestamp => await session.room('audio', timestamp, generation) && (!whole || await sixRoom(session, timestamp, live));
+      const gate = async timestamp => await session.room('audio', timestamp, generation) && await settled(session, timestamp, live) && (!whole || await sixRoom(session, timestamp, live));
       try {
         if (!await convertApart(session, {generation, from, sink: packets, track, channels: choice.track.channels, whole, gate, live})) return;
       } catch (error) {
@@ -52,7 +52,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
     await output.start();
     try {
       for await (const sample of sink.samples(from)) {
-        if (session.audio !== choice || !await session.room('audio', sample.timestamp, generation) || (write.whole && !await sixRoom(session, sample.timestamp, live))) { sample.close(); await output.cancel(); return; }
+        if (session.audio !== choice || !await session.room('audio', sample.timestamp, generation) || !await settled(session, sample.timestamp, live) || (write.whole && !await sixRoom(session, sample.timestamp, live))) { sample.close(); await output.cancel(); return; }
         session.tap?.samples(sample, session.offset);
         // An MP4's first sample can start a few milliseconds before zero, which the writer refuses.
         if (sample.timestamp >= 0) await write(sample, session.centre ?? 1);
@@ -76,7 +76,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
     await output.start();
     let first = true;
     for await (const packet of inOrder(sink, start)) {
-      if (session.audio !== choice || !await session.room('audio', packet.timestamp, generation)) { await output.cancel(); return; }
+      if (session.audio !== choice || !await session.room('audio', packet.timestamp, generation) || !await settled(session, packet.timestamp, live)) { await output.cancel(); return; }
       if (packet.timestamp < 0) continue;
       await source.add(packet, first ? {decoderConfig: choice.track.decoderConfig} : undefined);
       first = false;
@@ -85,6 +85,20 @@ export async function pumpAudio(session, generation, from, inOrder) {
   }
   await output.finalize();
   return ended(session, generation, live);
+}
+
+/**
+ * Until the film plays at its place (a start, a seek, a refill), sound is read at most HEAD seconds past the playhead,
+ * and the picture, which reads no more than a few seconds past the sound (remux.js room), with it. Read on to its full
+ * read-ahead at once, on a fast host the picture's reading filled the page's thread and held back the very frames the
+ * film waited for: on a 25 Mbit/s film with the page's thread six times slower, a far seek took about 3.2 s to show its
+ * place with the sound converted in the worker or passed through, and about 2.6 s with this (README, Converted sound).
+ */
+const HEAD = 4;
+async function settled(session, timestamp, live) {
+  const v = session.video;
+  while (live() && timestamp - session.offset - v.currentTime > HEAD && (v.seeking || v.readyState < 3)) await new Promise(resolve => setTimeout(resolve, 100));
+  return live();
 }
 
 /** The track is all written: a pending flush of the old track's sound is done, and the session may end its stream. */
