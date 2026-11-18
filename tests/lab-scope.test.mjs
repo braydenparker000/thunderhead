@@ -2,7 +2,7 @@
 // (docs/engineering/TESTING.md §1, "Lab changes"); anything else runs every suite.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ALWAYS, labPages, labTests } from '../scripts/lab-scope.mjs';
+import { ALWAYS, astraChange, astraTests, labPages, labTests } from '../scripts/lab-scope.mjs';
 
 test('only lab pages and their engine builds count as a lab change', () => {
   assert.deepEqual([...(labPages(['frontend/lab/engine/engine.js', 'engine/raw/src/lib.rs']) ?? [])], ['engine', 'editor'], 'the editor is made of the engine, so its tests run too');
@@ -27,4 +27,19 @@ test("a lab change runs the static checks and each changed page's own tests", ()
   assert.deepEqual(labTests(new Set(['engine']), sources), [...ALWAYS, 'tests/sw-browser.test.mjs'].sort());
   assert.deepEqual(labTests(new Set(['lightcraft', 'engine']), sources), [...ALWAYS, 'tests/lightcraft-lab.test.mjs', 'tests/sw-browser.test.mjs'].sort());
   assert.deepEqual(labTests(new Set(['engine']), sources, ['frontend/lab/engine/x.js', 'scripts/test-durations.json']), [...ALWAYS, 'tests/sw-browser.test.mjs', 'tests/test-part.test.mjs'].sort(), 'a changed table runs the test that reads it');
+});
+
+test("an Astra change is the film app's own files, tests and tools; it runs Astra's checks and those that read /astra/", () => {
+  assert.equal(astraChange(['frontend/astra/src/engine/probe.js', 'tests/astra-probe-reads.test.mjs', 'tests/fixtures/astra/anime.mkv', 'tests/fixtures/astra-host.mjs', 'scripts/astra/real.mjs']), true);
+  assert.equal(astraChange(['frontend/astra/README.md', 'frontend/whats-new.json', 'scripts/test-durations.json', 'frontend/ported.json', 'docs/product/apps/ASTRA.md']), true, 'what goes with it');
+  assert.equal(astraChange(['frontend/astra/src/engine/probe.js', 'backend/src/areas/astra/routes.ts']), false, 'the Worker runs every suite');
+  assert.equal(astraChange(['frontend/astra/src/engine/probe.js', 'shared/contract/astra.ts']), false, 'the contract too');
+  assert.equal(astraChange(['frontend/astra/src/engine/software.js', 'frontend/assets/libmedia/97.avplayer.js']), false, 'and the vendored decoders');
+  assert.equal(astraChange(['frontend/astra/src/main.js', 'frontend/th/ported/session.js']), false, "the shell's code is not Astra's");
+  assert.equal(astraChange(['frontend/astra/src/main.js', 'frontend/lab/editor/boot.js']), false, 'nor a lab page');
+  assert.equal(astraChange(['tests/fixtures/waits.mjs']), false, 'what every test shares is not');
+  assert.equal(astraChange([]), false, 'no change at all runs everything');
+  const sources = { 'tests/astra-plan.test.mjs': 'plan', 'tests/ported.test.mjs': "'/astra/index.html'", 'tests/sw.test.mjs': 'precache of /astra/', 'tests/photos-browser.test.mjs': "open('/settings/photos/')", 'tests/lab-editor-menu-browser.test.mjs': '/lab/editor/' };
+  assert.deepEqual(astraTests(sources), [...ALWAYS, 'tests/astra-plan.test.mjs', 'tests/ported.test.mjs', 'tests/sw.test.mjs'].sort(), "the labs' and Photos' own tests are not run");
+  assert.deepEqual(astraTests(sources, ['frontend/whats-new.json', 'scripts/test-durations.json']), [...ALWAYS, 'tests/astra-plan.test.mjs', 'tests/news-browser.test.mjs', 'tests/ported.test.mjs', 'tests/sw.test.mjs', 'tests/test-part.test.mjs'].sort(), 'a changed note or table runs the test that reads it');
 });
