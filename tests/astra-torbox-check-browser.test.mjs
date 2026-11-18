@@ -4,7 +4,8 @@
 // A run shows every step's line, the fifth connection refused, and copies a report with no address, hash, key or
 // file name; a phone signed out stops at the first step; no key in the Worker is said; an address the page may not
 // read is said so, with the browser's way to play it; and an address handed over in the fragment fills the field
-// and leaves the address bar at once. Local only: nothing here reaches the internet.
+// and leaves the address bar at once, and is checked only after a second tap once its host alone has been shown
+// (any page can link to the lab with one). Local only: nothing here reaches the internet.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -113,9 +114,33 @@ test('an address the page may not read: said so, the reads skipped, and the brow
   assert.ok(!(await l.report()).includes('nocors'));
 });
 
-test('an address handed over in the fragment fills the field and leaves the address bar at once', opts, async (t) => {
-  const film = host.url('multi.mkv');
+test('an address handed over in the fragment fills the field, leaves the address bar at once, and runs only once its host is confirmed', opts, async (t) => {
+  const film = host.link('multi.mkv', 'tok_Invented0123456789abcdefABCDEF');
   const l = await lab(t, () => ({ error: 'not signed in' }), `#src=${encodeURIComponent(film)}`);
   assert.equal(await l.page.inputValue('#torbox-link'), film);
   assert.equal(await l.page.evaluate(() => location.hash + location.search), '');
+  // The first tap only names the host: nothing is asked of the Worker, and the rest of the address is not shown.
+  await l.page.click('#torbox-run');
+  const hint = await l.page.textContent('#torbox-hint');
+  assert.match(hint, /came in the link that opened the lab.*It is on 127\.0\.0\.1\. Check it\?/);
+  for (const secret of ['tok_Invented', 'multi.mkv', '/via/']) assert.ok(!hint.includes(secret), `the hint shows ${secret}`);
+  assert.equal(await l.page.textContent('#torbox-run'), 'Check it');
+  await l.page.waitForTimeout(300);
+  assert.equal(l.asked.length, 0, 'the Worker was not asked');
+  // The second tap runs it; a third run asks nothing again.
+  await l.page.click('#torbox-run');
+  await l.page.waitForFunction(() => document.querySelector('#torbox-run').textContent === 'TorBox check' && document.querySelector('.check-step'));
+  assert.equal(l.asked.length, 1);
+  await l.page.click('#torbox-run');
+  await l.page.waitForFunction(() => document.querySelector('#torbox-run').textContent === 'TorBox check');
+  await l.page.waitForTimeout(200);
+  assert.equal(l.asked.length, 2, 'confirmed once: the next run goes at once');
+  assert.deepEqual(l.errors, []);
+});
+
+test('an address typed over a handed-over one runs at the first tap', opts, async (t) => {
+  const l = await lab(t, () => ({ error: 'not signed in' }), `#src=${encodeURIComponent(host.url('multi.mkv'))}`);
+  const s = await l.check(host.url('open.webm')); // page.fill: the owner's own input
+  assert.equal(s.a.state, 'bad');
+  assert.equal(l.asked.length, 1);
 });
