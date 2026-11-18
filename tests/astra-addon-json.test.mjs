@@ -3,7 +3,7 @@
 // there instead of filling the phone's memory. The add-on is invented; fetch is stood in for.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getJson, MAX_ANSWER } from '../frontend/astra/src/addons/client.js';
+import { getJson, MAX_ANSWER, installedAddons } from '../frontend/astra/src/addons/client.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -37,4 +37,16 @@ test('failures keep their plain words', async () => {
   await assert.rejects(getJson('https://addon.example/manifest.json'), { message: 'The add-on answered 404.', kind: 'http' });
   answer('<html>not json</html>');
   await assert.rejects(getJson('https://addon.example/manifest.json'), { message: "That page isn't an add-on manifest.", kind: 'SyntaxError' });
+});
+
+test('the lab reads the add-ons where Astra keeps them now, the classic place only when that is all there is', () => {
+  const storage = (items) => ({ getItem: (k) => items[k] ?? null });
+  const v2 = JSON.stringify([{ url: 'https://addon.example/a/manifest.json', name: 'A', enabled: true }, { url: 'https://addon.example/off/manifest.json', enabled: false }, { url: 'https://addon.example/b/manifest.json' }]);
+  const v1 = JSON.stringify([{ url: 'https://addon.example/old/manifest.json', name: 'Old' }]);
+  assert.deepEqual(installedAddons(storage({ 'astra.v2.addons': v2, 'astra.v1.addons': v1 })),
+    [{ url: 'https://addon.example/a/manifest.json', name: 'A' }, { url: 'https://addon.example/b/manifest.json', name: 'Add-on' }], 'the enabled ones, in order');
+  assert.deepEqual(installedAddons(storage({ 'astra.v1.addons': v1 })), [{ url: 'https://addon.example/old/manifest.json', name: 'Old' }]);
+  assert.equal(installedAddons(storage({ 'astra.v2.addons': '{not json', 'astra.v1.addons': v1 }))[0].name, 'Old', 'a damaged list falls through');
+  assert.equal(installedAddons(storage({}))[0].name, 'Cinemeta');
+  assert.equal(installedAddons({ getItem() { throw new Error('blocked'); } })[0].name, 'Cinemeta', 'storage that throws');
 });

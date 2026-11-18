@@ -1501,7 +1501,13 @@ merged by kind; nothing ever skips by itself, and movies get neither.
 `/astra/lab/` is the engineering page: play a link or a stream from the
 add-ons, see what the file holds and how it plays, this phone's decoders
 (the device report), and copy a playback report (run through the scrubber
-below before it reaches the clipboard).
+below before it reaches the clipboard). The add-ons are the ones Astra
+keeps on this phone (`installedAddons` in `addons/client.js`: `astra.v2.addons`,
+or classic Astra's list when that is all there is). Until 2026-11-18 the lab
+read only classic Astra's list, so on a phone set up in Astra itself it
+searched with Cinemeta alone: titles were found and no stream ever was.
+Each playable stream in the list has "Analyse" and "TorBox", which puts its
+address in the TorBox check's field as the owner's own pick.
 
 **The TorBox check** (`src/lab/torbox-check.js`, `torbox-panel.js`). A
 field for a stream's address (pasted, or handed over the way "Check

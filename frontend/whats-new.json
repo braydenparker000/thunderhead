@@ -1,19 +1,10 @@
 {
-  "id": "2026-11-18-astra-slow-links",
+  "id": "2026-11-18-astra-lab-streams",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra on a slow connection: a film waits for a few seconds of itself and plays on, instead of stopping again and again.",
+      "text": "Astra's lab now lists streams from your add-ons, and each stream has a TorBox button that fills the TorBox check.",
       "open": "astra"
-    },
-    {
-      "text": "Changing the audio track no longer stops the picture, most of the time."
-    },
-    {
-      "text": "If a sound converter cannot be downloaded, the film plays on with another track or without sound, and says so."
-    },
-    {
-      "text": "Films start a little sooner, and Headphone surround is back in step with the picture."
     }
   ]
 }
