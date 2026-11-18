@@ -32,6 +32,7 @@ export const DEFAULTS = Object.freeze({
   dolbyFix: true, // the Picture section's Dolby Vision profile 5 colour correction (enhance/dolby.js), shown only for such a film
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
   seekPreviews: true, // the picture in the seek bar's bubble (seek-preview.js); never with the data saver on
+  fineSeeks: 0, // drags that used fine seeking (timeline.js): its hint shows until it has been used three times
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 

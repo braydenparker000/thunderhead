@@ -2,17 +2,29 @@
 // (with the picture where the drag would land, seek-preview.js, and the chapter's name) while dragging, and what a screen reader hears. Dragging shares p.scrub
 // ({active, time}) with the swipe on the picture. A stream with no length (a
 // live one) shows a full bar marked Live and cannot be dragged.
+//
+// Fine seeking (rules.js fineStep): on a film long enough that a pixel of the
+// bar is more than two seconds, a finger slid up away from the bar slows the
+// drag to an eighth, then a sixty-fourth, from where it is; the bubble rises
+// above the finger and says so, and until it has been used three times the
+// bubble says "Slide up for fine seeking". Once slowed, the drag stays
+// relative to the finger until it is released, so a finger drifting back to
+// the bar never throws away the place it found.
 
 import {clock, h} from '../ui/dom.js';
 import {put} from './view.js';
-import {chapterAt} from './rules.js';
+import {chapterAt, fineStep, fineWorth} from './rules.js';
 import {chaptersOf} from './marks.js';
+import {savePrefs} from './prefs.js';
 import {SeekPreview} from './seek-preview.js';
+
+export const FINE_HINTS = 3;
 
 export class Timeline {
   constructor(p) {
     this.p = p;
     this.pointer = null;
+    this.fine = null; // {worth, anchor: {rate, x, time} | null, label, used, above} while a drag is under way
     this.preview = new SeekPreview(p);
     this.bind();
   }
@@ -21,12 +33,27 @@ export class Timeline {
     const p = this.p, tl = p.timeline;
     const length = () => { const d = p.video.duration; return Number.isFinite(d) && d > 0 ? d : 0; };
     const at = e => { const r = tl.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / (r.width || 1))) * length(); };
+    // Where the finger points: under it on the bar; slowed and relative once slid up (fine seeking).
+    const place = e => {
+      const f = this.fine, r = tl.getBoundingClientRect(), d = length();
+      f.above = r.top + r.height / 2 - e.clientY;
+      const step = f.worth ? fineStep(f.above) : {rate: 1, label: ''};
+      f.label = step.label;
+      if (step.rate === 1 && !f.anchor) return at(e);
+      if (f.anchor?.rate !== step.rate) f.anchor = {rate: step.rate, x: e.clientX, time: p.scrub.time};
+      if (step.rate < 1) f.used = true;
+      return Math.max(0, Math.min(d, f.anchor.time + (e.clientX - f.anchor.x) / (r.width || 1) * d * step.rate));
+    };
     const bubble = () => {
-      const f = p.scrub.time / (length() || 1);
-      // The chapter's name under the time, when the film has chapters.
+      const f = p.scrub.time / (length() || 1), fine = this.fine;
+      // The chapter's name under the time, when the film has chapters; then fine seeking's state or its hint.
       const chapter = chapterAt(chaptersOf(p.engine), p.scrub.time);
-      p.bubble.replaceChildren(...this.preview.nodes(), clock(p.scrub.time), chapter?.title ? h('small', {}, chapter.title) : '');
+      const note = fine?.label || (fine?.worth && (p.prefs.fineSeeks || 0) < FINE_HINTS ? 'Slide up for fine seeking' : '');
+      p.bubble.replaceChildren(...this.preview.nodes(), clock(p.scrub.time), chapter?.title ? h('small', {}, chapter.title) : '', note ? h('small', {class: 'ap-fine'}, note) : '');
       p.bubble.hidden = false;
+      const lifted = fine?.above > 16; // above the finger, not under it; the buttons in the middle make way
+      p.bubble.style.bottom = lifted ? `${Math.round(fine.above + 60)}px` : '';
+      p.timeline.classList.toggle('lifted', lifted);
       const half = Math.ceil(p.bubble.offsetWidth / 2) + 4; // a chapter's name widens it: kept inside the bar
       p.bubble.style.left = `clamp(${half}px, ${(f * 100).toFixed(2)}%, calc(100% - ${half}px))`;
     };
@@ -35,13 +62,18 @@ export class Timeline {
       this.pointer = e.pointerId;
       try { tl.setPointerCapture(e.pointerId); } catch {}
       tl.classList.add('active');
+      this.fine = {worth: fineWorth(length(), tl.getBoundingClientRect().width), anchor: null, label: '', used: false, above: 0};
       p.scrub.active = true; p.scrub.time = at(e); this.preview.start(); this.preview.moved(p.scrub.time); p.updateTime(); bubble(); p.showControls(false);
     });
-    tl.addEventListener('pointermove', e => { if (this.pointer === e.pointerId) { p.scrub.time = at(e); this.preview.moved(p.scrub.time); p.updateTime(); bubble(); } });
+    tl.addEventListener('pointermove', e => { if (this.pointer === e.pointerId) { p.scrub.time = place(e); this.preview.moved(p.scrub.time); p.updateTime(); bubble(); } });
     const end = e => {
       if (this.pointer !== e.pointerId) return;
-      try { if (e.type === 'pointerup' && p.scrub.time != null && length()) p.video.currentTime = p.scrub.time; }
-      finally { this.stop(); }
+      try {
+        if (e.type === 'pointerup' && p.scrub.time != null && length()) {
+          p.video.currentTime = p.scrub.time;
+          if (this.fine?.used) { p.prefs.fineSeeks = (p.prefs.fineSeeks || 0) + 1; savePrefs(p.prefs); }
+        }
+      } finally { this.stop(); }
       p.updateTime(); p.scheduleHide();
     };
     tl.addEventListener('pointerup', end);
@@ -56,9 +88,11 @@ export class Timeline {
   stop() {
     const p = this.p;
     this.pointer = null;
+    this.fine = null;
     this.preview.stop();
-    p.timeline.classList.remove('active');
+    p.timeline.classList.remove('active', 'lifted');
     p.bubble.hidden = true;
+    p.bubble.style.bottom = '';
     p.scrub.time = null; p.scrub.active = false;
   }
 

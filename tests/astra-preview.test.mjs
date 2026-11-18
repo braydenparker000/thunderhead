@@ -1,13 +1,15 @@
 // Seek previews' pure parts (frontend/astra/src/engine/preview.js, preview-frames.js, player-preview.js): the
 // cue lookup (time → key frame's block), the key frame's bytes read with bounded side requests and checked
-// against Mediabunny's own key packet, an MP4's key frame found from its sample table, the size cap, the cache's
-// coalescing and LRU with fake reads and a fake decoder, and the switches that turn previews off.
+// against Mediabunny's own key packet, an MP4's key frame found from its sample table, the size cap (and how it
+// follows a film's bitrate), the cache's order (a fetch under way finishes and is shown early, then the latest
+// place) and LRU with fake reads and a fake decoder, the decoder's worker, and the switches that turn previews off.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as MB from '../frontend/astra/vendor/mediabunny.js';
 import { readLayout } from '../frontend/astra/src/engine/mkv.js';
-import { cueAt, previewsOff, PreviewCache } from '../frontend/astra/src/engine/preview.js';
+import { cueAt, previewsOff, PreviewCache, frameCap, PREVIEW } from '../frontend/astra/src/engine/preview.js';
+import { previewDecoder, WorkerDecoder } from '../frontend/astra/src/engine/preview-decode.js';
 import { mkvPlaces, mkvKeyFrame, bounded, TooLarge, findMoov, mp4Samples } from '../frontend/astra/src/engine/preview-frames.js';
 import { previewMethods } from '../frontend/astra/src/engine/player-preview.js';
 
@@ -93,11 +95,11 @@ function fakes() {
   return { log, pending, locate, load };
 }
 
-test('the cache fetches only the latest place: places passed over are never fetched, a later one ends the fetch under way, older answers are null', async () => {
-  const f = fakes(), cache = new PreviewCache(f);
-  const first = cache.at(1), second = cache.at(5), third = cache.at(9);
+test('one fetch at a time: the one under way finishes and is shown early, the latest place comes next, places passed over never', async () => {
+  const f = fakes(), cache = new PreviewCache(f), early = [];
+  const first = cache.at(1), second = cache.at(5), third = cache.at(9, null, (pic) => early.push(pic.key));
   await tick();
-  assert.deepEqual(f.log.loads, [8], 'the places passed over were never fetched');
+  assert.deepEqual(f.log.loads, [8], 'the places passed over before the first fetch were never fetched');
   f.pending.get(8)();
   assert.equal(await first, null);
   assert.equal(await second, null);
@@ -112,14 +114,61 @@ test('the cache fetches only the latest place: places passed over are never fetc
   // Back to a place already fetched: no fetch at all.
   assert.equal((await cache.at(8.5)).key, 8);
   assert.deepEqual(f.log.loads, [8, 2]);
-  // A fetch under way is ended by a later place: only the latest finishes.
+  // A fetch under way is let finish while the finger moves on (a 4K key frame outlasts a finger's rest): its
+  // picture goes to the latest request as an early one, then the latest place is fetched; 14 is passed over.
   const x = cache.at(13); await tick();
-  const y = cache.at(17); await tick();
-  assert.deepEqual(f.log.loads, [8, 2, 12, 16]);
-  f.pending.get(16)();
+  const y = cache.at(15); await tick();
+  const z = cache.at(17, null, (pic) => early.push(pic.key)); await tick();
+  assert.deepEqual(f.log.loads, [8, 2, 12], 'nothing else starts while 12 loads');
+  f.pending.get(12)();
   assert.equal(await x, null);
-  assert.equal((await y).key, 16);
-  assert.ok(!f.log.finished.includes(12));
+  assert.equal(await y, null);
+  await tick();
+  assert.deepEqual(early, [12], 'the landed picture was handed over early');
+  assert.deepEqual(f.log.loads, [8, 2, 12, 16], 'then the latest place, never 14');
+  f.pending.get(16)();
+  assert.equal((await z).key, 16);
+  assert.deepEqual([...cache.pictures.keys()], [2, 8, 12, 16], 'both kept');
+});
+
+test('the largest key frame fetched follows the film’s bitrate: half a second of its data, 1.5 to 4 MB', () => {
+  const MB1 = 1 << 20;
+  assert.equal(frameCap(400e6, 40), 4 * MB1, 'a very dense film: 4 MB at most');
+  assert.equal(frameCap(506e6, 7200), 1.5 * MB1, 'a two-hour 300 kbit/s film keeps 1.5 MB');
+  assert.equal(frameCap(625e6, 180), Math.round(625e6 / 180 / 2), 'the 25 Mbit/s 1080p film: 1.7 MB');
+  assert.ok(frameCap(302e6, 40) > 3661 << 10, 'a 60 Mbit/s 4K film: its 3.6 MB first key frame is fetched');
+  for (const [size, duration] of [[0, 100], [1e9, 0], [NaN, NaN], [-1, 5]]) assert.equal(frameCap(size, duration), PREVIEW.maxFrame);
+});
+
+test('the decoder runs in a worker where one starts, on the page where none does, nowhere for a codec neither can decode', async () => {
+  const page = async () => 'page';
+  assert.equal(await previewDecoder({ codec: 'avc1.64001f' }, {}, { worker: async () => 'worker', page }), 'worker');
+  assert.equal(await previewDecoder({ codec: 'avc1.64001f' }, {}, { worker: async () => undefined, page }), 'page');
+  assert.equal(await previewDecoder({ codec: 'hvc1.2.4.L153' }, {}, { worker: async () => null, page }), null);
+  assert.equal(await previewDecoder({}, {}, { worker: async () => 'worker', page }), null, 'no codec: nothing starts');
+  // A worker that cannot start (no Worker here, as in Node) is said so, and its requests go in order, one at a time.
+  assert.equal(await WorkerDecoder.start({ codec: 'avc1.64001f' }, { width: 320, height: 180 }, () => { throw new Error('no workers'); }), undefined);
+  const sent = [], fake = { postMessage: (m) => sent.push(m), terminate() { sent.push('end'); } };
+  const d = new WorkerDecoder(fake), bitmap = (id) => ({ id, close() {} });
+  const one = d.decode(new Uint8Array([1, 2, 3]).subarray(1)), two = d.decode(new Uint8Array([4]));
+  await tick();
+  assert.deepEqual(sent.map((m) => m.id), [1], 'the second waits for the first');
+  assert.deepEqual([...sent[0].data], [2, 3], 'a view is sent as its own bytes');
+  fake.onmessage({ data: { type: 'picture', id: 1, bitmap: bitmap(1) } });
+  assert.equal((await one).id, 1);
+  await tick();
+  assert.deepEqual(sent.map((m) => m.id), [1, 2]);
+  fake.onmessage({ data: { type: 'picture', id: 2, error: 'no picture' } });
+  await assert.rejects(two, /no picture/);
+  const ended = new AbortController(), three = d.decode(new Uint8Array([5]), ended.signal);
+  await tick();
+  ended.abort();
+  assert.deepEqual(sent.at(-1), { type: 'stop' }, 'ending a request stops the worker\'s decode');
+  fake.onmessage({ data: { type: 'picture', id: 3, error: 'reset' } });
+  await assert.rejects(three);
+  d.close();
+  assert.equal(sent.at(-1), 'end');
+  await assert.rejects(d.decode(new Uint8Array([6])), /stopped/);
 });
 
 test('the cache keeps at most `keep` pictures, closes each one it drops, and closes everything when the film closes', async () => {

@@ -23,6 +23,8 @@
 .ap-preview { display: block; height: clamp(72px, 28vmin, 112px); width: auto; max-width: min(60vw, 260px); margin: 0 auto 4px; border-radius: calc(var(--r-md) - 2px); background: rgba(255,255,255,.1); object-fit: contain; transition: opacity .12s; }
 .ap-preview.empty { background: linear-gradient(100deg, rgba(255,255,255,.06) 30%, rgba(255,255,255,.14) 50%, rgba(255,255,255,.06) 70%) 0 0 / 300% 100%; }
 .ap-preview.stale { opacity: .55; }
+/* Fine seeking (timeline.js): the bubble rises above the finger, and the buttons in the middle make way for it. */
+.ap:has(.ap-timeline.lifted) .ap-center { opacity: 0; transition: opacity 120ms; }
 .ap-bubble small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 500; line-height: 16px; color: rgba(255,255,255,.78); text-align: center; }
 
 /* The Playback menu */

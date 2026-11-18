@@ -183,6 +183,36 @@ test('segments and chapters mark the seek bar; skip times arriving late update S
   assert.deepEqual(errors, []);
 });
 
+test('fine seeking on a two-hour film: a hint, slid up the drag slows from where it is, the bubble rises, released it seeks', opts, async (t) => {
+  const { page, errors } = await player(t);
+  await page.evaluate(() => { fake.length(7200); fake.plays(100); p.showControls(false); });
+  const bar = await box(page, '.ap-timeline'), y = bar.y + bar.h / 2, x = bar.x + bar.w / 2;
+  const now = () => page.evaluate(() => [p.scrub.time, [...p.bubble.querySelectorAll('small')].map((s) => s.textContent).join('|')]);
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x + 10, y);
+  const [onBar, hint] = await now();
+  assert.ok(Math.abs(onBar - 3600 - (10 / bar.w) * 7200) < 1, `on the bar 10 px is ${Math.round(onBar - 3600)} s`);
+  assert.equal(hint, 'Slide up for fine seeking');
+  await page.mouse.move(x + 10, y - 100); // straight up: no jump
+  assert.equal((await now())[0], onBar);
+  await page.mouse.move(x + 20, y - 100);
+  const [fine, label] = await now();
+  assert.ok(Math.abs(fine - onBar - (10 / bar.w) * 7200 / 8) < 0.5 && label === 'Fine seeking', `${fine - onBar} s, ${label}`);
+  const bubble = await box(page, '.ap-bubble');
+  assert.ok(bubble.y + bubble.h < y - 100, 'the bubble sits above the finger');
+  await page.waitForFunction(() => getComputedStyle(p.root.querySelector('.ap-center')).opacity === '0', null, { timeout: 2000 }); // the middle buttons make way
+  await page.mouse.move(x + 20, y); // back on the bar: the place found is kept
+  assert.equal((await now())[0], fine);
+  await page.mouse.up();
+  assert.deepEqual(await page.evaluate(() => [p.video.currentTime, p.prefs.fineSeeks, p.bubble.hidden]), [fine, 1, true]);
+  // A short film's bar is left as it was: no hint, and up is still under the finger.
+  await page.evaluate(() => { fake.length(300); });
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 10, y - 100);
+  assert.deepEqual(await now(), [((x + 10 - bar.x) / bar.w) * 300, '']);
+  await page.mouse.up();
+  assert.deepEqual(errors, []);
+});
+
 test('subtitle delay moves by 0.1 s or 1 s, reads "+1.1 s", resets, and z/x nudge it', opts, async (t) => {
   const { page } = await player(t);
   await page.evaluate(() => fake.plays(5));
@@ -213,6 +243,7 @@ test('"Find a line" filters a 1,500-line track without accents or case, draws 20
   await press(page, 'Subtitles');
   await press(page, 'Find a line');
   assert.equal(await page.evaluate(() => p.modal.getAttribute('aria-label')), 'Find a line');
+  await page.waitForFunction(() => p.modal.querySelectorAll('.ap-line').length === 200, null, { timeout: 2000 }); // the first 30 at once, the rest a frame later
   assert.deepEqual(await page.evaluate(() => [p.modal.querySelectorAll('.ap-line').length, p.modal.querySelector('.ap-find-count').textContent]), [200, '1,500 lines: showing the first 200, refine to see more']);
   await page.locator('.ap-find-input').fill('ou est la gare');
   await outlast(page, 200);
@@ -264,7 +295,9 @@ test('A–B repeat loops the part, shows two pins, and ends when the owner seeks
 
 test('paused, frame step buttons sit beside play and move one frame; a still downloads as "<title> <time>.png", or says the host forbids it', opts, async (t) => {
   const { page } = await player(t);
-  await page.evaluate(() => { fake.plays(60); fake.paused(); p.showControls(false); });
+  await page.evaluate(() => { fake.plays(60); p.showControls(false); });
+  assert.equal(await page.evaluate(() => getComputedStyle(p.root.querySelector('[aria-label="Next frame"]')).display), 'none', 'playing: no frame steps');
+  await page.evaluate(() => fake.paused());
   const next = await box(page, '[aria-label="Next frame"]'), play = await box(page, '.ap-play');
   assert.ok(next.w >= 44 && next.h >= 44 && Math.abs(next.y + next.h / 2 - (play.y + play.h / 2)) < 2 && next.x > play.x + play.w, 'beside play, finger-sized');
   await page.touchscreen.tap(next.x + next.w / 2, next.y + next.h / 2);

@@ -88,6 +88,20 @@ export function chapterTicks(chapters, duration, width, gap = 6) {
   return out;
 }
 
+/**
+ * Fine seeking on a long film's seek bar, as phone players do it: the finger slid up away from the bar slows
+ * the drag. `above` is how far above the bar's middle the finger is (px); {rate, label}, rate 1 on the bar.
+ * Worth it only where a pixel of the bar is more than FINE_FROM seconds (a two-hour film on a phone: 20 s).
+ */
+export const FINE_STEPS = [[60, 1 / 8, 'Fine seeking'], [180, 1 / 64, 'Finest seeking']];
+export const FINE_FROM = 2;
+export function fineStep(above) {
+  let step = {rate: 1, label: ''};
+  for (const [from, rate, label] of FINE_STEPS) if (above >= from) step = {rate, label};
+  return step;
+}
+export const fineWorth = (duration, width) => duration > 0 && width > 0 && duration / width > FINE_FROM;
+
 /** Lower case without accents, for matching "Éte" with "ete". */
 export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 

@@ -734,12 +734,26 @@ measured height, so nothing covers the title or the buttons.
   while repeating; dragging shows the chapter's name under the time, and,
   once the finger rests 120 ms, the picture at that place: the key frame
   nearest it, found from the index already in memory, fetched alone beside
-  the film's own download (1.5 MB at most) and decoded by one WebCodecs
-  decoder per film; 24 pictures are kept. No previews with the data saver
+  the film's own download (at most half a second of the film's own data,
+  never under 1.5 MB nor over 4 MB: a 4K film's key frames run past a
+  megabyte) and decoded by one WebCodecs decoder per film, in a worker of its
+  own, so the page's thread only receives the small picture; 24 pictures
+  are kept. One key frame is fetched at a time and a fetch under way is let
+  finish: while the latest place waits behind it, its picture shows, dimmed.
+  No previews with the data saver
   on, with no connection, for a film Astra does not unpack itself, or with
   "Seek previews" off in the Playback menu. A
   stream with no length (live) shows a full bar marked Live that cannot be
   dragged or swiped across.
+- **Fine seeking** (`timeline.js`): on a film long enough that a pixel of the
+  bar is more than 2 s (a two-hour film's bar on a phone is 20.6 s a pixel
+  upright, 9 s across), the bubble says "Slide up for fine seeking" until it
+  has been used three times. A finger slid 60 px up from the bar moves the
+  drag an eighth as fast ("Fine seeking": 2.6 s a pixel there), 180 px up a
+  sixty-fourth ("Finest seeking": 0.3 s), from where it is; the bubble rises
+  above the finger and the buttons in the middle make way. Once slowed, the
+  drag stays relative to the finger until it is released, so drifting back
+  to the bar keeps the place found. Shorter films keep the bar as it was.
 - **Frame by frame**: while paused, the buttons beside play step one frame
   back or on (the file's frame rate when known, else 24).
 - Menus: audio (Tracks and Sound tabs), subtitles (a Tracks tab with
@@ -753,7 +767,11 @@ measured height, so nothing covers the title or the buttons.
   (z and x on a keyboard move it 0.1 s); it is kept for the next episode of
   the same series and starts at 0 with another title. **Find a line**
   (subtitles menu, while a text track shows) searches every line of the
-  track, case and accents ignored, and a tap goes to a second before it.
+  track read so far (all of a file's; of a track inside the film, the lines
+  of the parts downloaded so far, which the count says), case and accents
+  ignored, and a tap goes to a second before it. The first 30 rows show at
+  once and the rest of the 200 after that frame, so a 1,500-line track opens
+  the search in half the time.
   **Second subtitle** (for learning a language): another text track at the
   top of the picture, smaller, in the first one's colours and with its
   delay; never a picture track, an HLS or DASH stream's own track, or the
@@ -889,6 +907,23 @@ measured height, so nothing covers the title or the buttons.
   still on its way is dropped, Skip intro's finder stops and keeps what it
   learned, and the engine lets go of the film and its connections.
 
+**On real films** (2026-11-18, 390×844 with touch, the page's CPU slowed six
+times, the link paced through Chrome; a two-hour 640×360 film with twelve
+chapters and a 1,500-line SRT track, a three-minute 1080p film at 25 Mbit/s
+with four audio tracks, a 4K film at 60 Mbit/s): resuming lands within
+0.02 s of the place asked; a double tap moves 10 s and a swipe 0.31 s a
+pixel; the twelve chapters show as eleven gaps and name themselves in the
+bubble. A 1080p key frame is about 330 kB (the first, 1.4 MB), a 4K one
+1.1 MB (the first, 3.6 MB, which the old 1.5 MB limit refused). Turning a
+decoded frame into the bubble's picture held the page's thread 75 ms (1080p)
+and 256 ms (4K) for each preview before it moved to the worker: a 10 s drag
+on the 1080p film at 20 Mbit/s went from 6 and 11 long tasks to 1 and 1,
+with 8 pictures instead of 7; at 8 Mbit/s, where a key frame takes longer
+than a finger rests, it showed 7 pictures (dimmed: each for a place just
+passed) instead of 0 and 1, for the same 2.5 MB. Each menu's own work is 12 to 34 ms there (Find a line on 1,500
+lines: 39 ms, was 90); a tap that takes longer waits behind the film's own
+unpacking on the page's thread.
+
 ## Skip intro
 
 The segments the Skip button offers come from two places (`src/app/skip.js`),
@@ -939,7 +974,16 @@ merged by kind; nothing ever skips by itself, and movies get neither.
   (DVD) picture subtitles in MKV (`src/subtitles/pgs.js`, `vobsub.js`); 3GPP
   timed text and WebVTT in MP4 (`src/engine/mp4.js`). They are read from data
   the video pipeline already downloaded (`embedded-subtitles.js`), block by
-  block as it arrives, so seeking works with or without a cue index.
+  block as it arrives, so seeking works with or without a cue index, and
+  nothing is downloaded for them: a text track's lines are those of the
+  parts played or read ahead (on the two-hour film, 47 of its 1,500 lines
+  after three far seeks), and a far seek's line shows 0.03 to 0.4 s after
+  its first frame. Clusters are found from the cue index and each from the
+  end of the one before; only a block no known cluster covers is searched
+  byte by byte, which cut the scan's time on the page's thread from 330 to
+  790 ms to 80 to 130 ms in 10 s of the 25 Mbit/s film (CPU slowed six
+  times). The renderer finds the lines showing by a binary search: with
+  1,500 lines it costs 0.4 ms a frame at most there.
 - **Styled subtitles (ASS/SSA) are drawn by libass** (`subtitles/libass.js`:
   JASSUB, libass in WebAssembly, drawing on its own canvas from a worker),
   so signs, typesetting, karaoke and positioned lines look as authored. For
@@ -990,7 +1034,12 @@ below before it reaches the clipboard).
 **The TorBox check** (`src/lab/torbox-check.js`, `torbox-panel.js`). A
 field for a stream's address (pasted, or handed over the way "Check
 playback in the lab" hands one: in the fragment, which the lab takes out of
-the address bar at once) and a "TorBox check" button. It first ends the
+the address bar at once) and a "TorBox check" button. Any page can link to
+the lab with an address in its fragment, and the check asks the Worker to
+play it (which may add a cached item to the owner's TorBox), so for an
+address that came that way, and was not typed or pasted, the first tap only
+names its host ("It is on example.com. Check it?") and the button reads
+"Check it"; the second runs it. It first ends the
 lab's own playback, then runs, showing each step as it goes:
 
 - (a) signed in on this phone, and (b) `GET /v1/astra/torbox`: whether the
@@ -1038,7 +1087,7 @@ skip in a browser without it.
 | `astra-source.test.mjs` | After a seek the dropped pipelines' reads end and their downloads close. |
 | `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
 | `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
-| `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment, and a report with no address, hash, key or file name; the scrubber itself. |
+| `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment (run only once its host is confirmed), and a report with no address, hash, key or file name; the scrubber itself. |
 | `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, and waiting for a download by time rather than bytes. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
@@ -1051,6 +1100,7 @@ skip in a browser without it.
 | `astra-sound-tap.test.mjs` | Skip intro's tap on sound passed through: WebCodecs asked first, one plain line and no error where it cannot decode it. |
 | `astra-subtitles.test.mjs` | The parsers on files as people find them, and picture subtitles with impossible sizes or out of order. |
 | `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
+| `astra-subtitles-scan.test.mjs` | A film's own text lines gathered as its blocks land, in order and after a jump, searching byte by byte only the blocks no known cluster covers. |
 | `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs, and the card's sound note against what this phone plays and what failed here. |
 | `astra-link-facts.test.mjs` | What a link says of its file (hash, index, name, size) in every add-on shape Astra knows and the general case; two hashes; damaged input never throwing. |
 | `astra-debrid.test.mjs` | The address asked of a stand-in for the owner's server: its answers, an answer without an address, its error envelope, the 30 s and 6 s waits, signed out, answers kept 45 minutes and shared while under way, a press's address taken by the tap, renew and forgetting. |
@@ -1070,12 +1120,12 @@ skip in a browser without it.
 | `astra-routes-browser.test.mjs` | A browser that claims Dolby Digital and then fails three ways, each met with the sound rebuilt in place and remembered; a picture's software fallback remembered; HLS levels by player size and the saver; DASH with the phone settings. |
 | `astra-adaptive-browser.test.mjs` | hls.js on a dense screen: the pixel ratio counted at most 2. |
 | `astra-player-browser.test.mjs` | The player screen at phone size with touch and a stubbed engine: resume point, picture-in-picture, holds, close, controls, live seek bar, focus, lock, full screen lost in the background. |
-| `astra-features-browser.test.mjs` | The Playback menu, remembered volume, Start over, seek-bar marks, subtitle delay, Find a line, the second subtitle, frames and stills, pinch to zoom, data used, the source line, the lab's address. |
+| `astra-features-browser.test.mjs` | The Playback menu, remembered volume, Start over, seek-bar marks, fine seeking, subtitle delay, Find a line, the second subtitle, frames and stills, pinch to zoom, data used, the source line, the lab's address. |
 | `astra-feed-browser.test.mjs` | On the real page and CSP: libass with the film's font, the second subtitle's layer, the sound tap, dialogue lift and earlier sound in the engine. |
 | `astra-libass-browser.test.mjs` | The libass layer: placement, drawing only while a line shows, the film's font, delay, destroy, and a start that fails falling back. |
 | `astra-enhance-browser.test.mjs` | Sound measured after the chain and the picture read back from the canvas, on real films. |
 | `astra-sound-browser.test.mjs` | Even loudness bringing two films 12 dB apart together while the volume stays the owner's, headphone surround placing the left surround, and the Sound tab's two switches. |
-| `astra-preview.test.mjs`, `astra-preview-browser.test.mjs` | Seek previews: the key frame chosen from a Matroska and an MP4 index, one frame's bytes fetched, the pictures kept and let go, the bubble on a drag, and none with the data saver or the switch off. |
+| `astra-preview.test.mjs`, `astra-preview-browser.test.mjs` | Seek previews: the key frame chosen from a Matroska and an MP4 index, one frame's bytes fetched within a cap that follows the bitrate, one fetch at a time let finish and shown early, the decoder's worker, the pictures kept and let go, the bubble on a drag, and none with the data saver or the switch off. |
 | `astra-dolby.test.mjs`, `astra-dolby-browser.test.mjs` | Dolby Vision profile 5: the record read from an MKV and an MP4, the colour matrices against their sources, and IPT patches drawn through the filter coming out as the colours they stand for (and wrong with the switch off). |
 | `astra-picture-browser.test.mjs` | Animation (Anime4K) drawn over a playing film, and an HDR film tone-mapped along the BT.2390 curve, read back from the canvas. |
 | `astra-wiring-browser.test.mjs` | The Sound tab, the Picture section, skip times reaching the Skip button, and the Settings › Playback rows, with the real engine. |

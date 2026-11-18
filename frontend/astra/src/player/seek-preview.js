@@ -1,9 +1,10 @@
 // The picture in the seek bar's bubble (timeline.js): the key frame where a drag would land, from the engine
 // (engine.previewAt, player-preview.js). Its box is put in the bubble as the drag begins, shaped like the film
 // and empty until a picture arrives, so the bubble never jumps; a picture is asked for once the finger rests
-// on a time for REST ms (not on every move), and dropped at release. Off with the Playback menu's "Seek
-// previews" switch (the 'seekPreviews' pref), and wherever the engine has none (the data saver, a film the
-// browser plays itself, a lost connection). The keyboard's steps show no bubble and ask for none.
+// on a time for REST ms (not on every move), and dropped at release. A picture the engine was still fetching
+// for an earlier rest is shown as it lands, dimmed (stale), while the latest is fetched. Off with the Playback
+// menu's "Seek previews" switch (the 'seekPreviews' pref), and wherever the engine has none (the data saver, a
+// film the browser plays itself, a lost connection). The keyboard's steps show no bubble and ask for none.
 
 import {h} from '../ui/dom.js';
 
@@ -45,20 +46,27 @@ export class SeekPreview {
   }
 
   async ask(time) {
-    this.controller?.abort();
+    // The request before this one is not ended here: the engine lets a fetch under way finish (preview.js).
     const c = this.controller = new AbortController(), began = performance.now();
+    const early = picture => { if (c === this.controller && !c.signal.aborted && this.on && this.draw(picture)) this.box.classList.add('stale'); };
     let picture = null;
-    try { picture = await this.p.engine.previewAt(time, {signal: c.signal}); } catch {}
-    if (c !== this.controller || c.signal.aborted || !this.on || !picture) return;
-    // Copied onto the canvas: the engine's cache may close the bitmap later.
-    try {
-      if (this.box.width !== picture.width || this.box.height !== picture.height) Object.assign(this.box, {width: picture.width, height: picture.height});
-      this.box.getContext('2d').drawImage(picture, 0, 0);
-    } catch { return; }
+    try { picture = await this.p.engine.previewAt(time, {signal: c.signal, early}); } catch {}
+    if (c !== this.controller || c.signal.aborted || !this.on || !picture || !this.draw(picture)) return;
     this.drawn = time;
     this.box.classList.remove('empty', 'stale');
     this.timing.push(Math.round(performance.now() - began + REST));
     if (this.timing.length > 20) this.timing.shift();
+  }
+
+  /** Copies a picture onto the box (the engine's cache may close the bitmap later); false when it cannot. */
+  draw(picture) {
+    try {
+      if (this.box.width !== picture.width || this.box.height !== picture.height) Object.assign(this.box, {width: picture.width, height: picture.height});
+      this.box.getContext('2d').drawImage(picture, 0, 0);
+    } catch { return false; }
+    this.drawn ??= -1;
+    this.box.classList.remove('empty');
+    return true;
   }
 
   /** Release (or a cancelled drag): nothing more is asked for and the request under way ends. */
