@@ -95,6 +95,27 @@ test('a read refused because playback moved does not stop a new pipeline that to
   assert.ok(p.timestamp > 12);
 });
 
+test('after a jump, a cluster only the dropped pipeline held is not read again for it', async () => {
+  // Read again, it began a download at the place playback left, which took half the link from the new place.
+  const bytes = film('clusters');
+  let refuse = false, after = [];
+  const reader = await open(bytes, async (s, e) => {
+    if (refuse) { refuse = false; await null; throw Object.assign(new Error('Playback moved elsewhere.'), { kind: 'closed' }); }
+    after.push(s);
+    return bytes.slice(s, Math.min(e, bytes.length));
+  });
+  const [first, second] = reader.layout.trackCues.get(1).map((c) => c.position);
+  const video = reader.sink({ id: 1, type: 'video', codec: 'avc' });
+  let last = await video.getFirstPacket();
+  while (last.timestamp < 2) last = await video.getNextPacket(last);
+  reader.jumped(); refuse = true; after = [];
+  let old = last;
+  while (old?.timestamp !== undefined) old = await video.getNextPacket(old).catch((e) => e); // what is parsed already, then a read
+  assert.equal(old?.kind, 'closed', 'the dropped pipeline’s read ends');
+  assert.deepEqual(after.filter((s) => s >= first && s < second), [], 'and its cluster is not asked for again');
+  assert.equal((await video.getKeyPacket(20)).timestamp, 20, 'the new place reads on');
+});
+
 // ---- Films built byte by byte -----------------------------------------------------------------
 
 const cat = (...parts) => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let at = 0; for (const p of parts) { out.set(p, at); at += p.length; } return out; };
@@ -204,4 +225,13 @@ test('what the reader will not guess at makes it step aside (Mediabunny then rea
   await fails([ok, [1000]], 'a cluster of 2^56 bytes', { raw: [el(0x1f43b675, el(0xe7, u(0)), SB(1, 0, 0x80, fill(10, 1))), cat(idBytes(0x1f43b675), size(2 ** 55), el(0xe7, u(1000)))] });
   // Something that is not a cluster or a known element between clusters.
   await fails([ok, [500], [1000]], 'junk between clusters', { raw: [el(0x1f43b675, el(0xe7, u(0)), SB(1, 0, 0x80, fill(10, 1))), el(0x4d80, fill(8, 1)), el(0x1f43b675, el(0xe7, u(1000)))] });
+});
+
+test('a picture’s block is handed out as a view of the bytes the range reader gave, not copied (twice) on the way', async () => {
+  // On a 25 Mbit/s film each copy was 3 MB a second for the garbage collector (scripts/astra/real.mjs, 2026-11-18).
+  const bytes = film('clusters');
+  const reader = await open(bytes, async (s, e) => bytes.subarray(s, Math.min(e, bytes.length)));
+  const sink = reader.sink({ id: 1, type: 'video', codec: 'avc' });
+  let p = await sink.getFirstPacket();
+  for (let i = 0; i < 40 && p; i++, p = await sink.getNextPacket(p)) assert.equal(p.data.buffer, bytes.buffer, `packet ${i} is a view`);
 });

@@ -13,7 +13,9 @@ export function fragmentWriter(queue, stats, kind, generation, early = null) {
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(concat(head)); head = []; },
     onMoof: data => { moof = data.slice(); early?.settle(moof); },
-    onMdat: data => { send(concat([moof, data])); moof = null; },
+    // The two boxes go to the buffer one after the other, as they are: joined, each fragment was copied once more
+    // (3 MB a second of a 25 Mbit/s film). The writer's `data` is its own array, not one it writes into again.
+    onMdat: data => { send(moof); send(data); moof = null; },
   });
   return new MB.Output({format, target: new MB.NullTarget()});
 }

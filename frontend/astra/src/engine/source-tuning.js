@@ -3,9 +3,11 @@
 // at most `readAhead` past the furthest byte read (2 MiB while the file is being described); once the probe
 // has the size and the duration, about `seconds` of the film (10, or 5 with the data saver), never under
 // 2 MiB nor over `readAhead`. The cache keeps `keepSeconds` of the film (a back-seek of 30 s plus what the
-// pipelines read ahead) and the reach, between 16 MiB and the size it was made with (96 MiB).
+// pipelines read ahead) and the reach, between 16 MiB and the size it was made with (96 MiB); a film too fast
+// for that to hold its back-seek keeps what reading needs (hold.js).
 
 import {BLOCK, PROBE_AHEAD} from './source-stream.js';
+import {cacheBytes} from './hold.js';
 
 const MIN_REACH = 2 * BLOCK, MIN_KEEP = 16 * BLOCK;
 
@@ -35,11 +37,11 @@ export const tuning = {
     return Math.floor(Math.min(this.readAhead, Math.max(MIN_REACH, this.byteRate * this.seconds)));
   },
 
-  /** The cache holds what a back-seek and the read-ahead need at the film's bitrate, 16 to 96 MiB. */
+  /** The cache holds what a back-seek and the read-ahead need at the film's bitrate, 16 to 96 MiB; a fast film's, less. */
   resize() {
     if (!this.byteRate) return;
-    const want = Math.ceil((this.byteRate * this.keepSeconds + this.reach()) / BLOCK);
-    this.maxBlocks = Math.min(this.maxBase, Math.max(MIN_KEEP / BLOCK, want));
+    const want = Math.min(this.byteRate * this.keepSeconds + this.reach(), cacheBytes(this.reach(), this.byteRate));
+    this.maxBlocks = Math.min(this.maxBase, Math.max(MIN_KEEP / BLOCK, Math.ceil(want / BLOCK)));
     while (this.blocks.size > this.maxBlocks) this.blocks.delete(this.blocks.keys().next().value);
   }
 };

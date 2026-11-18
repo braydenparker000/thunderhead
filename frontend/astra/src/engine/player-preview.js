@@ -5,13 +5,14 @@
 // Only a film Astra unpacks ('remux') has them: its index is in memory, so finding the key frame costs no
 // network, and the range reader's side requests (side-read.js) fetch exactly that frame without touching the
 // downloads playback reads from; they come last for a connection, and give theirs up to playback when it needs
-// one (source-gate.js). Each preview costs one key frame (tens to hundreds of kB), counted in the film's data;
-// none with the data saver on or while the host is unreachable. One decoder and one small cache of pictures
-// per film (preview.js); both closed when the film closes.
+// one (source-gate.js). Each preview costs one key frame (tens to hundreds of kB; a 4K film's past a megabyte,
+// so the largest fetched follows the film's bitrate, frameCap), counted in the film's data; none with the data
+// saver on or while the host is unreachable. One decoder, in a worker of its own where one starts
+// (preview-decode.js), and one small cache of pictures per film (preview.js); both closed when the film closes.
 
 import * as MB from '../../vendor/mediabunny.js';
-import {PreviewCache, previewsOff, PREVIEW} from './preview.js';
-import {FrameDecoder} from './preview-decode.js';
+import {PreviewCache, previewsOff, frameCap, PREVIEW} from './preview.js';
+import {previewDecoder} from './preview-decode.js';
 import {mkvPlaces, mkvKeyFrame, bounded, findMoov, mp4Samples, TooLarge} from './preview-frames.js';
 
 export const previewMethods = {
@@ -28,36 +29,37 @@ export const previewMethods = {
     return v?.width > 0 && v?.height > 0 ? v.width / v.height : 16 / 9;
   },
 
-  async previewAt(time, {signal} = {}) {
+  /** `early(picture)`: a picture fetched for an earlier place that lands while this one waits behind it. */
+  async previewAt(time, {signal, early} = {}) {
     if (!Number.isFinite(time) || this.previewsOff()) return null;
     const previews = this.previews ??= this.makePreviews();
-    return previews ? previews.at(time, signal) : null;
+    return previews ? previews.at(time, signal, early) : null;
   },
 
   /** The film's cache and decoder, set up on the first request: null when this film's key frames cannot be found. */
   makePreviews() {
     const source = this.probed.source, info = this.info, video = info.video[0], load = this.load_;
     const width = Math.min(PREVIEW.width, video.width || PREVIEW.width), height = Math.max(2, Math.round(width / this.previewAspect() / 2) * 2);
-    let decoder = null; // made on the first fetch: isConfigSupported is asked once
+    let decoder = null, cache = null; // the decoder is made on the first fetch: isConfigSupported is asked once
     const decode = async (data, signal) => {
-      decoder ??= FrameDecoder.create(video.decoderConfig, {width, height});
+      decoder ??= previewDecoder(video.decoderConfig, {width, height});
       const d = await decoder;
       if (!d) return null;
-      if (this.load_ !== load || signal.aborted) return null;
+      if (this.load_ !== load || this.previews !== cache) { d.close(); return null; } // closed meanwhile: nothing is left running
       this.previewDecoder = d;
-      return d.decode(data, signal);
+      return signal.aborted ? null : d.decode(data, signal);
     };
-    const side = signal => bounded((s, e) => this.previewsOff() ? Promise.reject(new TooLarge()) : source.sideRead(s, e, {signal, kind: 'preview'}));
+    const cap = frameCap(info.size, info.duration);
+    const side = signal => bounded((s, e) => this.previewsOff() ? Promise.reject(new TooLarge()) : source.sideRead(s, e, {signal, kind: 'preview'}), cap + (64 << 10));
     const offset = this.session?.offset || 0;
     const places = mkvPlaces(info.layout, offset);
-    let cache = null;
     if (places) {
       cache = new PreviewCache({locate: places.locate, load: async ({cue}, signal) => {
         const data = await mkvKeyFrame(places, cue, side(signal));
         return data ? decode(data, signal) : null;
       }});
     } else if (/mp4|quicktime|mov/i.test(info.container || '') && video.ref) {
-      cache = this.mp4Previews(source, video, offset, side, decode);
+      cache = this.mp4Previews(source, video, offset, side, decode, cap);
     }
     this.record('preview', cache ? (places ? 'cues' : 'mp4') : 'none');
     return cache;
@@ -67,7 +69,7 @@ export const previewMethods = {
    * MP4: Mediabunny names the key frame from its sample table in memory (metadataOnly reads nothing); its place
    * comes from the movie box, looked at in the reader's cache or fetched once with a side request.
    */
-  mp4Previews(source, video, offset, side, decode) {
+  mp4Previews(source, video, offset, side, decode, cap) {
     const cutoff = 4 << 20; // a movie box larger than this is not fetched for previews
     const sink = new MB.EncodedPacketSink(video.ref);
     let table = null;
@@ -84,7 +86,7 @@ export const previewMethods = {
       },
       load: async ({packet}, signal) => {
         const where = (await samples())?.sampleAt(packet.sequenceNumber);
-        if (!where || where.size !== packet.byteLength || where.size > PREVIEW.maxFrame || signal.aborted) return null;
+        if (!where || where.size !== packet.byteLength || where.size > cap || signal.aborted) return null;
         return decode(await side(signal)(where.offset, where.offset + where.size), signal);
       },
     });

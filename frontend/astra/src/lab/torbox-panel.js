@@ -1,8 +1,11 @@
 // The TorBox check on the lab page (torbox-check.js): a field for a stream's address, the "TorBox check" button,
 // each step's line as it runs, and "Copy report". The address comes pasted, or handed over in the fragment the way
 // "Check playback in the lab" hands one (lab.js reads it and takes it out of the address bar at once, then fills
-// the field). The Worker is asked through the page's own helper (addons/worker-api.js, with the owner's session,
-// for a top-level page of this site only), loaded when the check runs, as are the engine's probe and planner.
+// the field). Any page can link to the lab with an address in its fragment, and the check asks the Worker to play
+// it (which may add a cached item to the owner's TorBox), so an address that came that way and was not typed or
+// pasted here is checked only after a second tap, once the hint has named its host (the host alone).
+// The Worker is asked through the page's own helper (addons/worker-api.js, with the owner's session, for a
+// top-level page of this site only), loaded when the check runs, as are the engine's probe and planner.
 
 import {torboxCheck, checkReport, deviceLine, STEPS} from './torbox-check.js';
 
@@ -22,7 +25,8 @@ export async function checkTools() {
  * requests alone; `tools` is checkTools (tests hand their own). Returns {fill(address)} for a handed-over address.
  */
 export function torboxPanel({form, field, button, list, copy, hint, stop = () => {}, tools = checkTools}) {
-  let steps = null, link = '', running = null;
+  let steps = null, link = '', running = null, handed = '', asked = false;
+  field.addEventListener('input', () => { handed = ''; asked = false; button.textContent = 'TorBox check'; }); // typed or pasted: the owner's own
   const render = all => {
     list.hidden = false;
     list.replaceChildren(...all.map(s => {
@@ -40,6 +44,14 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
     if (running) { running.abort(); return; }
     link = field.value.trim();
     if (!/^https?:\/\//i.test(link)) { hint.textContent = 'Paste a stream’s address first.'; return; }
+    if (handed && link === handed && !asked) {
+      let host = '';
+      try { host = new URL(link).hostname; } catch {}
+      asked = true; button.textContent = 'Check it';
+      hint.textContent = `This address came in the link that opened the lab, not from you. It is on ${host || 'an unknown host'}. Check it?`;
+      return;
+    }
+    handed = ''; asked = false;
     running = new AbortController();
     button.textContent = 'Stop';
     copy.hidden = true; hint.textContent = '';
@@ -63,5 +75,5 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
     try { await navigator.clipboard.writeText(report); hint.textContent = 'Report copied. It holds no address, hash, key or file name.'; }
     catch { hint.textContent = 'Copy failed; long-press to select the report below.'; hint.append(Object.assign(document.createElement('pre'), {textContent: report})); }
   });
-  return {fill(address) { if (address) field.value = address; }};
+  return {fill(address) { if (address) { field.value = address; handed = field.value.trim(); asked = false; } }};
 }

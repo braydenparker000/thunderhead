@@ -1,16 +1,20 @@
 // The sound side of a re-wrapped film (remux.js): reads the chosen track from
 // `from` (file time) and writes it to the audio SourceBuffer, either re-wrapped
-// as it is ('direct') or decoded, mixed to stereo here (downmix.js, with the
+// as it is ('direct') or decoded, mixed to stereo (downmix.js, with the
 // centre raised for clearer dialogue) and encoded to Opus ('rebuilt'), or with
 // Headphone surround on kept whole as uncompressed FLAC (sound-six.js). The
 // sound tap (sound-tap.js) is handed what passes, when one is set.
+// Rebuilt sound read by Astra's own Matroska reader is decoded and encoded in
+// the sound worker (sound-apart.js), off the page's thread; if that cannot be
+// done, on the page from Astra's reader (sound-stream.js), and failing that,
+// read and decoded by Mediabunny.
 
 import * as MB from '../../vendor/mediabunny.js';
-import {mixable} from './downmix.js';
-import {stereoSample} from './fragments.js';
-import {loadDecoders} from './audio-decoders.js';
-import {ownSampleSink} from './sound-stream.js';
-import {FLAC, wholeWriter, sixRoom} from './sound-six.js';
+import {decodersHere} from './audio-decoders.js';
+import {ownSampleSink, SOUND} from './sound-stream.js';
+import {FLAC, sixRoom} from './sound-six.js';
+import {stereoWriter, wholeWriter} from './sound-write.js';
+import {apartUsable, convertApart} from './sound-apart.js';
 
 /**
  * Runs one audio pipeline for `session` (a RemuxSession) until it ends, is replaced (a newer generation, another
@@ -21,7 +25,24 @@ export async function pumpAudio(session, generation, from, inOrder) {
   const output = session.output('audio', generation);
   const live = () => session.audio === choice && session.queues.audio.generation === generation;
   if (choice.delivery === 'rebuilt') {
-    await loadDecoders(track.codec);
+    const packets = session.ownSound !== false ? session.sink?.(choice.track) : null;
+    if (packets && SOUND.own && session.soundApart !== false && apartUsable()) {
+      session.stats.ownSound = session.stats.soundApart = true;
+      const whole = session.audioMime === FLAC;
+      const gate = async timestamp => await session.room('audio', timestamp, generation) && await settled(session, timestamp, live) && (!whole || await sixRoom(session, timestamp, live));
+      try {
+        if (!await convertApart(session, {generation, from, sink: packets, track, channels: choice.track.channels, whole, gate, live})) return;
+      } catch (error) {
+        // The worker failed (not the reader, the host or the decoder's download): the page converts from here on.
+        if (error?.kind || error?.name === 'InputDisposedError' || !live()) throw error;
+        session.soundApart = false;
+        session.stats.soundApart = false;
+        session.stats.soundFallback = String(error?.message || error).slice(0, 120);
+        return session.serial('refill', () => session.refillAudio());
+      }
+      return ended(session, generation, live);
+    }
+    await decodersHere(track.codec);
     if (!live()) return;
     // Decoded from Astra's own Matroska reader's packets (sound-stream.js), block by block; else Mediabunny reads it.
     const own = session.ownSound !== false && ownSampleSink(track, session.sink?.(choice.track));
@@ -31,7 +52,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
     await output.start();
     try {
       for await (const sample of sink.samples(from)) {
-        if (session.audio !== choice || !await session.room('audio', sample.timestamp, generation) || (write.whole && !await sixRoom(session, sample.timestamp, live))) { sample.close(); await output.cancel(); return; }
+        if (session.audio !== choice || !await session.room('audio', sample.timestamp, generation) || !await settled(session, sample.timestamp, live) || (write.whole && !await sixRoom(session, sample.timestamp, live))) { sample.close(); await output.cancel(); return; }
         session.tap?.samples(sample, session.offset);
         // An MP4's first sample can start a few milliseconds before zero, which the writer refuses.
         if (sample.timestamp >= 0) await write(sample, session.centre ?? 1);
@@ -55,7 +76,7 @@ export async function pumpAudio(session, generation, from, inOrder) {
     await output.start();
     let first = true;
     for await (const packet of inOrder(sink, start)) {
-      if (session.audio !== choice || !await session.room('audio', packet.timestamp, generation)) { await output.cancel(); return; }
+      if (session.audio !== choice || !await session.room('audio', packet.timestamp, generation) || !await settled(session, packet.timestamp, live)) { await output.cancel(); return; }
       if (packet.timestamp < 0) continue;
       await source.add(packet, first ? {decoderConfig: choice.track.decoderConfig} : undefined);
       first = false;
@@ -63,18 +84,27 @@ export async function pumpAudio(session, generation, from, inOrder) {
     }
   }
   await output.finalize();
+  return ended(session, generation, live);
+}
+
+/**
+ * Until the film plays at its place (a start, a seek, a refill), sound is read at most HEAD seconds past the playhead,
+ * and the picture, which reads no more than a few seconds past the sound (remux.js room), with it. Read on to its full
+ * read-ahead at once, on a fast host the picture's reading filled the page's thread and held back the very frames the
+ * film waited for: on a 25 Mbit/s film with the page's thread six times slower, a far seek took about 3.2 s to show its
+ * place with the sound converted in the worker or passed through, and about 2.6 s with this (README, Converted sound).
+ */
+const HEAD = 4;
+async function settled(session, timestamp, live) {
+  const v = session.video;
+  while (live() && timestamp - session.offset - v.currentTime > HEAD && (v.seeking || v.readyState < 3)) await new Promise(resolve => setTimeout(resolve, 100));
+  return live();
+}
+
+/** The track is all written: a pending flush of the old track's sound is done, and the session may end its stream. */
+async function ended(session, generation, live) {
   if (!live()) return;
   if (session.flushAudio === generation) { await session.queues.audio.idle(); session.room('audio', session.video.currentTime, generation); }
   session.ended.audio = true;
   session.finish();
-}
-
-/**
- * Mixed to stereo here, a sample at a time (downmix.js), so the centre can be raised (setCentre) whatever the rate,
- * and encoded to Opus; sound not at 48 kHz then goes through Mediabunny's transform, which only resamples it.
- */
-function stereoWriter(output, sampleRate) {
-  const source = new MB.AudioSampleSource({codec: 'opus', bitrate: 192000, ...(mixable(sampleRate) ? {} : {transform: {numberOfChannels: 2, sampleRate: 48000}})});
-  output.addAudioTrack(source);
-  return async (sample, centre) => { const mixed = stereoSample(sample, centre); await source.add(mixed); mixed.close(); };
 }

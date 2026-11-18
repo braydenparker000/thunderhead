@@ -1,18 +1,24 @@
 // "Find a line": searching the subtitle track that shows. The engine keeps
-// every cue of the chosen track (engine.cues); typing filters them (case and
+// every cue of the chosen track it has read (engine.cues): all of a file's,
+// and of a track inside the film the lines of the parts downloaded so far
+// (embedded-subtitles.js), which the count says. Typing filters them (case and
 // accents ignored, 150 ms after the last key) and a tap goes to a second
-// before the line. At most 200 rows are drawn at a time. Subtitle text comes
-// from strangers, so it goes in as text nodes only.
+// before the line. At most 200 rows are drawn at a time: the first FIRST at
+// once, the rest after the next frame, so the search opens fast on a 1,500-line
+// track. Subtitle text comes from strangers, so it goes in as text nodes only.
 
 import {clock, h} from '../ui/dom.js';
 import {findLines} from './rules.js';
 
-export const FIND_LIMIT = 200;
+export const FIND_LIMIT = 200, FIRST = 30;
 
 export class Find {
-  constructor(p) { this.p = p; this.nodes = null; this.timer = 0; }
+  constructor(p) { this.p = p; this.nodes = null; this.timer = 0; this.drawn = 0; }
 
   cues() { const e = this.p.engine; return e.selectedSubtitle != null ? e.cues?.get(e.selectedSubtitle) || [] : []; }
+
+  /** Whether the track shown is inside the film, whose lines arrive as it is read. */
+  partial() { const e = this.p.engine; return e.textTracks?.find(t => t.id === e.selectedSubtitle)?.kind === 'embedded'; }
 
   open() {
     this.nodes = null;
@@ -36,11 +42,15 @@ export class Find {
   draw() {
     const n = this.nodes;
     if (!n) return;
-    const {rows, total} = findLines(this.cues(), n.input.value, FIND_LIMIT);
-    const lines = total === 1 ? '1 line' : `${total.toLocaleString()} lines`;
-    n.count.textContent = total > rows.length ? `${lines}: showing the first ${rows.length}, refine to see more` : n.input.value.trim() && !total ? 'No line has those words' : lines;
-    n.list.replaceChildren(...rows.map(r => h('button', {class: 'ap-line', type: 'button', onclick: () => this.go(r.start)}, h('time', {}, clock(r.start)), h('span', {}, r.text))));
+    const {rows, total} = findLines(this.cues(), n.input.value, FIND_LIMIT), sofar = this.partial() ? ' read so far' : '';
+    const lines = (total === 1 ? '1 line' : `${total.toLocaleString()} lines`) + sofar;
+    n.count.textContent = total > rows.length ? `${lines}: showing the first ${rows.length}, refine to see more` : n.input.value.trim() && !total ? `No line${sofar} has those words` : lines;
+    const row = r => h('button', {class: 'ap-line', type: 'button', onclick: () => this.go(r.start)}, h('time', {}, clock(r.start)), h('span', {}, r.text));
+    const drawn = ++this.drawn;
+    n.list.replaceChildren(...rows.slice(0, FIRST).map(row));
     n.list.scrollTop = 0;
+    const rest = () => { if (this.drawn === drawn && this.nodes === n) n.list.append(...rows.slice(FIRST).map(row)); };
+    if (rows.length > FIRST) requestAnimationFrame(() => setTimeout(rest, 0)); // after the frame that shows the first
   }
 
   go(start) {

@@ -19,9 +19,10 @@ import {StallWatch} from './stall-watch.js';
 import {mkvPackets} from './mkv-packets.js';
 import {hasCentre} from '../enhance/sound-chain.js';
 import {soundMime} from './sound-six.js';
+import {aheadSeconds} from './hold.js';
 
-// Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`). Picture
-// and sound read to the same place, `apart` at most, so one download serves both: kept apart, the gap outgrew the cache.
+// Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`; a fast
+// film's are fewer, hold.js). Picture and sound read to the same place, `apart` at most, so one download serves both.
 export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through.
@@ -94,8 +95,8 @@ export class RemuxSession extends EventTarget {
     this.offset = first > 0.05 ? first : 0;
     if (this.info.duration > 0) this.ms.duration = Math.max(0.1, this.info.duration - this.offset);
     const fatal = error => this.fail(error);
-    if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal);
-    if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audioMime = soundMime(this, this.audio)), this.video, fatal);
+    if (this.videoTrack) this.queues.video = new AppendQueue(this.ms.addSourceBuffer(videoMime(this.videoTrack)), this.video, fatal, this.source);
+    if (this.audio) this.queues.audio = new AppendQueue(this.ms.addSourceBuffer(this.audioMime = soundMime(this, this.audio)), this.video, fatal, this.source);
     if (this.queues.video) this.queues.video.buffer.timestampOffset = -this.offset;
     if (this.queues.audio) this.queues.audio.buffer.timestampOffset = -(this.offset + this.advance);
     this.video.addEventListener('seeking', this.onSeeking);
@@ -135,7 +136,7 @@ export class RemuxSession extends EventTarget {
   restartAt(time, at = time) {
     return this.serial('restart', async () => {
       this.stats.restarts++;
-      this.source?.jumped?.();
+      this.source?.jumped?.(); this.packets?.jumped(); // the dropped pipelines' reads end, and are not asked again
       await Promise.all(Object.values(this.queues).map(q => q.restart()));
       if (this.destroyed) return;
       // Media buffered beyond where reading starts belongs to an earlier place: it would only take the buffer's room.
@@ -212,7 +213,7 @@ export class RemuxSession extends EventTarget {
     // far past the picture, and the picture's blocks out of the reader's cache.
     const other = kind === 'video' ? 'audio' : 'video';
     const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
-    while (current() && (this.readAt[kind] - this.video.currentTime > (this.ahead ?? TUNING.ahead) || apart() || queue.pending() > TUNING.maxQueued)) {
+    while (current() && (this.readAt[kind] - this.video.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || queue.pending() > TUNING.maxQueued)) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);

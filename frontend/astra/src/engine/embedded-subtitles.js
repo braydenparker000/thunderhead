@@ -8,6 +8,11 @@
 // seeking (with or without a cue index) needs nothing special: the new
 // position's data arrives and its subtitles come with it. The scan gives the
 // page a turn every 8 ms, as unpacking does.
+//
+// Clusters are found from the cue index, then each from the end of the one
+// before (they follow each other in practice); only a block no known cluster
+// covers is searched byte by byte for cluster headers (on every block of a
+// 25 Mbit/s film that search was most of the scan's time on the page's thread).
 
 import {BLOCK} from './http-source.js';
 import {header, MKV_ID} from './mkv.js';
@@ -101,6 +106,7 @@ export class MkvSubtitleScanner extends BlockScanner {
     this.waiting = []; // positions not read or rejected yet, kept sorted
     this.searched = new Set();
     this.parsed = []; // sorted [start, end) of clusters already read, to drop matches inside them
+    this.next = []; // where the clusters just read end: the next ones, added after the pass
     for (const c of layout.cues || []) this.add(c.position);
     if (layout.firstCluster != null) this.add(layout.firstCluster);
     this.clustersScanned = 0;
@@ -111,8 +117,41 @@ export class MkvSubtitleScanner extends BlockScanner {
   // onBlocks(trackId, [{text, start, duration}]): set by the player for the raw blocks of styled (ASS/SSA) tracks.
 
   async process(batch) {
-    for (const i of batch) { this.discover(i); await this.breathe(); if (this.stopped) return; }
+    await this.readReady(); // known clusters first: each names the next, so most blocks need no search
+    for (const i of batch) { if (!this.covered(i)) this.discover(i); await this.breathe(); if (this.stopped) return; }
     await this.readReady();
+  }
+
+  /** Whether the block's bytes all lie in clusters already read or known (a header in the cache gives a cluster's end). */
+  covered(index) {
+    const {source} = this, to = Math.min(source.size, (index + 1) * this.blockSize);
+    let pos = index * this.blockSize;
+    while (pos < to) {
+      const end = this.parsedEnd(pos) ?? this.knownEnd(pos);
+      if (end == null || end <= pos) return false;
+      pos = end;
+    }
+    this.searched.add(index);
+    return true;
+  }
+
+  /** The end of the cluster already read that holds `pos`, or null. */
+  parsedEnd(pos) {
+    let lo = 0, hi = this.parsed.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.parsed[mid][0] <= pos) lo = mid + 1; else hi = mid; }
+    const r = this.parsed[lo - 1];
+    return r && pos < r[1] ? r[1] : null;
+  }
+
+  /** The end of a cluster known but not read yet (its header cached, its size given) that holds `pos`, or null. */
+  knownEnd(pos) {
+    let lo = 0, hi = this.waiting.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.waiting[mid] <= pos) lo = mid + 1; else hi = mid; }
+    const at = this.waiting[lo - 1], bytes = at != null && this.source.peek(at, at + 12);
+    const h = bytes && header(bytes, 0);
+    if (!h || h.id !== MKV_ID.Cluster || h.size == null) return null;
+    const end = at + h.dataStart + h.size;
+    return pos < end ? end : null;
   }
 
   /** Finds cluster headers inside a newly cached block, looking at the cache in place. */
@@ -174,11 +213,13 @@ export class MkvSubtitleScanner extends BlockScanner {
       if (found.state === 'wait') { keep.push(pos); continue; }
       if (found.state === 'drop') continue;
       this.markParsed(pos, pos + found.length);
+      if (h.size != null) this.next.push(pos + found.length); // the next cluster starts where this one ends, in practice
       this.clustersScanned++;
       await this.emit(found.blocks);
       await this.breathe();
     }
     this.waiting = keep; // nothing adds positions meanwhile: discover() runs only between passes
+    for (const pos of this.next.splice(0)) this.add(pos);
   }
 
   async emit(blocks) {

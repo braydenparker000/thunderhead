@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-18-astra-direct",
+  "id": "2026-11-18-astra-real-films",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra asks your own server for a film's direct TorBox address, so it plays in Astra's full player.",
+      "text": "Astra on big films: a 25 Mbit/s film starts and seeks about twice as fast on a slow phone, and uses less memory.",
       "open": "astra"
     },
     {
-      "text": "Add your TorBox key to your server once (a Worker secret) for the quickest route; without it, the add-on's link is used."
+      "text": "Long films: slide your finger up from the seek bar to seek finely."
     },
     {
-      "text": "Stream info says where a film comes from, and why when Chrome's plain player is used."
+      "text": "Dolby and DTS sound is converted away from the page's own thread, so the picture and menus stay smooth."
     },
     {
-      "text": "Nothing is added to your TorBox before you tap a stream."
+      "text": "Seek previews now show on 4K films and on slow connections."
     }
   ]
 }

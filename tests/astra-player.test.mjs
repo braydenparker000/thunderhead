@@ -202,6 +202,20 @@ test('chapters: the one at a time, and ticks no closer than 6 px', () => {
   assert.deepEqual(R.chapterTicks([], 600, 600), []);
 });
 
+test('fine seeking: a two-hour film’s bar on a phone is 20 s a pixel; slid up, an eighth then a sixty-fourth of that', () => {
+  assert.ok(R.fineWorth(7200, 350), 'a two-hour film across 350 px: 20.6 s a pixel');
+  assert.ok(R.fineWorth(7200, 804), 'and across a landscape bar: 9 s');
+  assert.ok(!R.fineWorth(180, 350) && !R.fineWorth(600, 350), 'a short film keeps the bar as it is');
+  assert.ok(!R.fineWorth(0, 350) && !R.fineWorth(7200, 0));
+  assert.deepEqual(R.fineStep(0), { rate: 1, label: '' });
+  assert.deepEqual(R.fineStep(-40), { rate: 1, label: '' }, 'below the bar: as on it');
+  assert.deepEqual(R.fineStep(59), { rate: 1, label: '' }, 'a finger drifting a little stays at full speed');
+  assert.deepEqual(R.fineStep(100), { rate: 1 / 8, label: 'Fine seeking' });
+  assert.deepEqual(R.fineStep(400), { rate: 1 / 64, label: 'Finest seeking' });
+  // What a pixel is worth then, on a two-hour film's 350 px bar: within a few seconds, then a third of one.
+  assert.ok((7200 / 350) * R.fineStep(100).rate < 3 && (7200 / 350) * R.fineStep(200).rate < 0.35);
+});
+
 test('finding a subtitle line ignores case and accents, keeps time order, and draws at most the limit', () => {
   const cue = (start, text) => ({ start, end: start + 2, spans: [{ text }] });
   const cues = [cue(30, 'Où est la gare ?'), cue(10, 'Bonjour'), cue(50, 'La GARE est là'), cue(70, '')];
