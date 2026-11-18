@@ -11,11 +11,23 @@ export const NOTE = {
   notCached: 'TorBox does not have this film ready.',
   notOwned: 'It is not in your TorBox account yet, and nothing is added before a tap.',
   owned: 'It was already in your TorBox account.',
+  remembered: 'Your server remembered this torrent from the last half hour.',
+  forgotten: 'TorBox no longer knew the remembered torrent, so it was asked again.',
+  saidExisting: 'TorBox said it was already in your account.',
+  saidNew: 'TorBox said it added it to your account now.',
+  saidNothing: 'TorBox did not say whether it was new to your account.',
   notCachedNow: 'TorBox no longer has it ready, and nothing uncached is ever added.',
   noFiles: 'TorBox has not listed its files yet.',
   fileUnclear: 'The file could not be told apart from the others in this torrent.',
   noLink: 'TorBox gave no address for the file.',
-  notHanded: 'The address held the key or pointed at TorBox itself, so it was not passed on.',
+  notHanded: "The address pointed at TorBox's API itself, so it was not passed on.",
+  stillApi: 'TorBox kept answering with its own API address, so nothing was passed on.',
+  linked: (fileServer: boolean, exchanges: number, token: boolean) =>
+    `The address is ${fileServer ? 'on a TorBox file server' : 'on another host, not a TorBox file server'}, ${
+      exchanges
+        ? `came after ${exchanges} ${exchanges === 1 ? 'exchange' : 'exchanges'} with TorBox`
+        : 'came straight from TorBox'
+    }, and ${token ? "carries your account's token" : 'carries no account token'}.`,
   slow: 'TorBox did not answer in time.',
   unreachable: 'TorBox could not be reached.',
   badKey: 'TorBox did not accept the key.',
@@ -26,6 +38,8 @@ export const NOTE = {
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
   noLocation: 'A redirect named no address.',
+  followOff:
+    "Astra's server does not open add-on links for the phone, since an add-on may tie a link to the connection that asked for it.",
   placeholder: 'The add-on answered with its own short video, not the film.',
   followSlow: `No answer came within ${L.follow_ms / 1000} seconds.`,
   addonUnreachable: 'The add-on could not be reached.',

@@ -109,6 +109,10 @@
     "AUTH_HIBP": "on",
     // How GET /v1/live/wait learns of a change: "ws" (a held socket to Core) or "poll" (every 3 s),
     // the fallback if measurement X1 fails (areas/feed/wait.ts).
-    "LIVE_WAIT": "ws"
+    "LIVE_WAIT": "ws",
+    // Whether Astra's relay follows an add-on's forward itself ("on") or leaves the add-on's link to
+    // the phone (anything else). Off: an add-on may tie a link to the connection that asked for it,
+    // and the Worker opening it got an error clip on the owner's phone (2026-11-18; SECURITY.md §8.2).
+    "ASTRA_FOLLOW": "off"
   }
 }

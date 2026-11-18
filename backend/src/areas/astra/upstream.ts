@@ -35,7 +35,8 @@ export interface Relay {
   /** The site's origin, sent as `Origin` on each hop so a server that echoes it answers as it
    * would the page; '' when the Worker knows none. */
   site: string;
-  /** The owner's TorBox key (TORBOX_KEY), or null when it is not set. Never leaves the Worker. */
+  /** The owner's TorBox key (TORBOX_KEY), or null when it is not set. Never leaves the Worker as
+   * itself; only TorBox's own file links, which may carry it as their token, go to the phone. */
   key: string | null;
 }
 
@@ -83,18 +84,15 @@ export async function timed<T>(ms: number, work: (signal: AbortSignal) => Promis
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** Whether an address may be handed to the phone: never one that holds the key (as it is or
- * URL-encoded), never one on TorBox's API host (its addresses carry a token). Checked on every
- * address that leaves the Worker: requestdl's answer, a permanent link's, the forward's end. */
-export function handable(r: Relay, url: string): boolean {
-  let host: string;
+/** Whether an address may be handed to the phone: never one on TorBox's API host (a requestdl
+ * permanent link is the key in another form). A TorBox file link carrying the account's token may
+ * go to the owner's own device (links.ts). Checked on every address that leaves the Worker. */
+export function handable(url: string): boolean {
   try {
-    host = new URL(url).hostname;
+    return new URL(url).hostname !== 'api.torbox.app';
   } catch {
     return false;
   }
-  if (host === 'api.torbox.app') return false;
-  return !r.key || (!url.includes(r.key) && !url.includes(encodeURIComponent(r.key)));
 }
 
 /** Whether the relay may ask this address: https, public, no user, password or port. */

@@ -1,12 +1,14 @@
 // Astra's relay, its guards (SECURITY.md §8.2): presses ("ahead") have their own count of 60 a
 // minute and past it answer no address, never a 429, so they never starve a tap; taps and GET
 // /v1/astra/torbox share 30 a minute, then 429. A press reads only the newest 100 items of the
-// account's list. No address leaves the Worker that holds the key or points at TorBox's API host.
-// Invented hosts, hashes, key and films.
+// account's list. (The hand-over of TorBox's address is in astra-links.test.ts.) Invented hosts,
+// hashes, key and films.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { forget } from '../../src/areas/astra/kept';
 import { forgetMinute } from '../../src/areas/astra/routes';
 import { useFetch, useTimes } from '../../src/areas/astra/upstream';
 import {
+  FILE_SERVER,
   film,
   forward,
   HASH,
@@ -51,6 +53,7 @@ beforeEach(() => {
   world.hosts.set('addon.example', forward('https://store-001.lon.cdn.example/f/1'));
   world.hosts.set('store-001.lon.cdn.example', film(2100 * MB));
   forgetMinute();
+  forget();
   useTimes();
 });
 afterAll(() => {
@@ -67,7 +70,7 @@ describe('the counts', () => {
       { url: null, via: null, size: null, type: null, readable: null, steps: [] },
     ]);
     const played = await tap();
-    expect([played.status, played.body.via]).toEqual([200, 'follow']);
+    expect([played.status, played.body.steps.map((x) => x.step)]).toEqual([200, ['key', 'follow']]);
   });
 
   it('taps and GET /v1/astra/torbox share 30 a minute, then 429; presses go on', async () => {
@@ -84,32 +87,17 @@ describe('the counts', () => {
 describe('a press reads only the newest of the list', () => {
   it('finds the film among the newest 100, and past them answers no address without adding', async () => {
     world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: account(99) }));
-    expect((await press(KEY)).body.url).toBe('https://store-039.wnam.cdn.example/dl/77/0');
+    expect((await press(KEY)).body.url).toBe(`https://${FILE_SERVER}/dl/77/0`);
     const list = torboxCalls().find((a) => new URL(a.url).pathname.endsWith('/mylist'));
     expect(new URL(list?.url ?? LINK).searchParams.get('limit')).toBe('100');
     world.asked = [];
+    forget();
     world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: account(100) }));
     const far = await press(KEY);
     expect([far.status, far.body.url, far.body.steps.at(-1)?.step]).toEqual([200, null, 'owned']);
     expect(torboxCalls().some((a) => a.url.endsWith('/createtorrent'))).toBe(false);
     // The tap that follows finds it through the add, which answers the existing id.
     world.asked = [];
-    expect((await tap(KEY)).body.url).toBe('https://store-039.wnam.cdn.example/dl/77/0');
-  });
-});
-
-describe('nothing that holds the key, or is TorBox’s API, is handed over', () => {
-  it('stops the direct path at requestdl’s answer and follows the add-on instead', async () => {
-    for (const link of [`https://store-039.wnam.cdn.example/dl?k=${KEY}`, 'https://api.torbox.app/v1/api/torrents/x']) {
-      world.asked = [];
-      world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: [structuredClone(FILM)], link }));
-      const { status, body, text } = await tap(KEY);
-      expect(body.steps.find((s) => s.step === 'link')).toMatchObject({
-        ok: false,
-        note: 'The address held the key or pointed at TorBox itself, so it was not passed on.',
-      });
-      expect([status, body.via, body.url]).toEqual([200, 'follow', 'https://store-001.lon.cdn.example/f/1']);
-      expect(text).not.toContain(KEY);
-    }
+    expect((await tap(KEY)).body.url).toBe(`https://${FILE_SERVER}/dl/77/0`);
   });
 });
