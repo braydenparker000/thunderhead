@@ -49,6 +49,23 @@ export function labTests(pages, sources, paths = []) {
   return [...new Set([...ALWAYS, ...own, ...paths.flatMap((p) => WITH[p] || [])])].sort();
 }
 
+/** An Astra change (owner, 2026-11-18: "get it live if there's no errors pertaining to the Astra side of things.
+ * They shouldn't affect each other."): nothing but the film app's own page files, its tests, fixtures and tools.
+ * The Worker, the shared contract and the vendored decoders are not among them: a change there runs every suite. */
+const ASTRA = [/^frontend\/astra\/./, /^tests\/astra-[^/]+\.test\.mjs$/, /^tests\/fixtures\/astra(\/.|-host\.mjs$)/, /^scripts\/astra\/./];
+/** Files that go with an Astra change, and the tests that read them. */
+export const WITH_ASTRA = /** @type {Record<string, string[]>} */ ({ ...WITH, 'frontend/whats-new.json': ['tests/news-browser.test.mjs'],
+  'frontend/ported.json': ['tests/ported.test.mjs', 'tests/ported-browser.test.mjs'], 'docs/product/apps/ASTRA.md': [] });
+/** @param {string[]} paths */
+export const astraChange = (paths) => paths.length > 0 && paths.every((p) => ASTRA.some((r) => r.test(p)) || p in WITH_ASTRA);
+/** The tests for an Astra change: ALWAYS, Astra's own, every other test that opens or reads /astra/ (the ported pages'
+ * records, the service worker's lists, the shell's checks of it), and those that read a changed file of `WITH_ASTRA`.
+ * @param {Record<string, string>} sources test file → text @param {string[]} [paths] what changed */
+export function astraTests(sources, paths = []) {
+  const own = Object.entries(sources).filter(([f, text]) => /^tests\/astra-/.test(f) || text.includes('/astra/')).map(([f]) => f);
+  return [...new Set([...ALWAYS, ...own, ...paths.flatMap((p) => WITH_ASTRA[p] || [])])].sort();
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   let out = 'all';
   try {
@@ -60,6 +77,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const sources = Object.fromEntries(files.filter((f) => !ALWAYS.includes(f)).map((f) => [f, readFileSync(`${ROOT}${f}`, 'utf8')]));
     const paths = lines.map((l) => l.slice(2)), pages = lines.every((l) => /^[AM]\t/.test(l)) ? labPages(paths, sources) : null;
     if (pages) out = `lab ${labTests(pages, sources, paths).join(' ')}`;
+    // the same word, since Test only needs the list: an Astra change runs Astra's checks and the static ones
+    else if (lines.every((l) => /^[AM]\t/.test(l)) && astraChange(paths)) out = `lab ${astraTests(sources, paths).join(' ')}`;
   } catch (err) { console.error(`lab-scope: ${err}`); }
   console.log(out);
 }
