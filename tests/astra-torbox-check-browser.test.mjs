@@ -72,7 +72,8 @@ test('a run shows every step as it goes and copies a report with no address, has
   assert.match(s.d.text, /Last 64 KiB: 206, readable/);
   assert.match(s.e.text, /Mbit\/s/);
   assert.match(s.f.text, /Four at once: 206 206 206 206\.\s+The fifth, beside them: 429\./, 'the fifth meets the link’s limit');
-  assert.match(s.g.text, /Route: remux/);
+  // The route is the browser's at hand: Astra's own unpacking where it decodes H.264, the software decoder where it does not (the CI runner).
+  assert.match(s.g.text, /Route: (remux|software)\b/);
   assert.deepEqual(l.asked.map((a) => a.path), ['/v1/astra/torbox', '/v1/astra/play']);
   assert.deepEqual(l.asked[1].body, { link: LINK, hash: HASH, mode: 'play' });
   const text = await l.report();
