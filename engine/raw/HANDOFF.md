@@ -115,6 +115,16 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | Plain passes | `proxy-hq.js`: the 17 taps each way written out with their weights (no constant array indexed as it runs), a site's colour summed by a mask (no vector indexed as it runs), the colour from each colour's own sites its own pass (`tint`); the copy the same to 2 levels of 65535 (mean 0.14), its flags the same, on the known photo | the display, jpeg and guard files |
 | A day | `gentle.js` (key `.2`: what the phones learnt of the old passes let go): a job that reset the chip twice running waits a day (`waitIn`/`wait`), and is tried again then; made whole once, it waits no more | the guard file |
 
+- **Eighth round (2026-11-18): the editor's sections and tools, as the owner designed them on the canvas.** The drum
+  at the row's left end and the round tools key with its glass dock are gone. Done:
+
+| Part | What | Proved here |
+|---|---|---|
+| Sections | `boards/Barrel.js`: a board's panel swiped up or down rolls like a barrel (34° a section, round: past the last comes the first); a third of a section goes on to it, a flick a section or two; the section going away a still copy of the panel, the panel itself the one coming; sideways stays the panel's own, the curve and the grading wheels keep their drags (`data-drag`); a listbox and the arrow keys for a keyboard | `tests/lab-editor-menu-browser.test.mjs` |
+| Tools | `boards/ToolDial.js`, mounted by `boot.js`: a knurled dial in the corner; held, the thumb going round the corner turns a ring of the tools a notch a tool (in or out turns nothing), the panel showing each tool by name; let go, that tool opens on its own last section; a tap leaves it open; the arrow keys step it | the same |
+| A cancel is no tap | `DialPlate.js`: a press the barrel took (a cancel) is not half of a double tap, which would put the value back | the same |
+
+
 
 
 - Still open: P.2 (zoom stalls: read the phone's `move` logs, now with `ran`), 1.5 (the dial's

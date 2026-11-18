@@ -43,7 +43,8 @@ async function opened(board, motion = 'no-preference') {
 test('naming a look opens the editor\'s own sheet, and the name it gives is kept', opts, async () => {
   const { context, page, errors } = await opened('Looks');
   await page.evaluate(() => { window.ASKED = 0; window.prompt = () => { window.ASKED++; return null; }; });
-  await page.getByText('MINE', { exact: true }).first().click();
+  await page.getByText('MINE', { exact: true }).first().dispatchEvent('click');   // the panel's barrel rolled to Mine (an option chosen, as a screen reader does)
+  await page.waitForFunction(() => document.querySelector('#stage [role=listbox][aria-label^="Sections"]')?.getAttribute('aria-label') === 'Sections: Mine' && !document.querySelector('#stage.rolling'));
   await page.getByRole('button', { name: 'SAVE CURRENT' }).click();
   const sheet = page.getByRole('dialog', { name: 'Name this look' });
   await sheet.waitFor();

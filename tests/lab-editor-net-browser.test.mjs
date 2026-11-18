@@ -47,7 +47,8 @@ test('at 200 % the network makes what shows, once the photo rests, and again aft
     const out = { pct: zoom.info().pct, shown: closer.style.display === 'block', size: [closer.width, closer.height], live: [live.width, live.height], mean: 0, light: 0 };
     if (out.shown) {   // the network's picture against the live view's middle, where both hold the same sensor pixels
       const a = px(closer), tmp = new OffscreenCanvas(closer.width, closer.height).getContext('2d');
-      const r = (el) => el.getBoundingClientRect(), ra = r(closer), rl = r(live);
+      // (the live view is put away under the network's picture once a frame not its own is drawn, zoom.js `onframe`: it is measured shown, where it was last laid)
+      const r = (el) => { const was = el.style.display; el.style.display = 'block'; const b = el.getBoundingClientRect(); el.style.display = was; return b; }, ra = r(closer), rl = r(live);
       tmp.drawImage(live, ((ra.left - rl.left) / rl.width) * live.width, ((ra.top - rl.top) / rl.height) * live.height, (ra.width / rl.width) * live.width, (ra.height / rl.height) * live.height, 0, 0, closer.width, closer.height);
       const b = tmp.getImageData(0, 0, closer.width, closer.height).data; let s = 0, l = 0;
       for (let i = 0; i < a.length; i += 4) for (let c = 0; c < 3; c++) { s += Math.abs(a[i + c] - b[i + c]); l += a[i + c]; }

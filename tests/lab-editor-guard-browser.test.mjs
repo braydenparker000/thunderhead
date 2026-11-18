@@ -135,7 +135,7 @@ test('the copy made again goes in smaller tiles on a phone whose chip reset maki
     g.blame('none');   // a reset just now: the copy waits out the while, and the session hears of it then
     let told = -1; k.meta.onCopy = (/** @type {Uint16Array} */ c) => { told = c.length; };
     const c = await made();
-    for (let i = 0; i < 200 && told < 0; i++) await new Promise((res) => setTimeout(res, 50));
+    for (let i = 0; i < 600 && told < 0; i++) await new Promise((res) => setTimeout(res, 50));   // the calm, then the copy (7 s on a quiet software GPU, more on a busy one): up to 30 s
     c.big?.dispose(); eng.dispose(); localStorage.removeItem('th.editor.gentle.2');
     return { usual: a.tiles, gentle: b.tiles, made: [a.at, b.at, c.at], told: told === k.proxy.length };
   });

@@ -76,7 +76,7 @@ export default class Component extends DCLogic {
       },
       up: (e) => {
         const d = this.drag; this.drag = null; if (!d) return;
-        if (d.far < 5 && e.timeStamp - d.t < 320) {   // a tap: the second of two quick ones puts the value back where it starts
+        if (e.type === 'pointerup' && d.far < 5 && e.timeStamp - d.t < 320) {   // a tap (a cancel is none: a swipe the panel's barrel took): the second of two quick ones puts the value back where it starts
           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
         } else if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) return run(d.v);
         this.props.onhold?.(false); dial(false); rest();

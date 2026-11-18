@@ -21,7 +21,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-const settle = (page) => page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))).then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))));
+const settle = async (page) => { await page.waitForFunction(() => !document.querySelector('#stage.rolling'), null, { timeout: 20_000 }); return page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))).then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))); };   // the panel at rest too (its barrel: boards/Barrel.js)
 const tapOn = async (page, selector) => { const b = await page.locator(selector).first().boundingBox(); await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
 const ready = (page) => until(() => page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'); return p.ready && !p.busy() && !!p.whole(); }), { timeout: 120_000, message: 'the photo opens' });
 const text = (page, sel = '#stage') => page.evaluate((s) => (document.querySelector(s)?.textContent || '').replace(/\s+/g, ' '), sel);

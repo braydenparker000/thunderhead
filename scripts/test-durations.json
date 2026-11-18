@@ -135,6 +135,7 @@
     "tests/lab-editor-keep-browser.test.mjs": 7900,
     "tests/lab-editor-many-browser.test.mjs": 28500,
     "tests/lab-editor-match-browser.test.mjs": 18700,
+    "tests/lab-editor-menu-browser.test.mjs": 39200,
     "tests/lab-editor-net-browser.test.mjs": 121900,
     "tests/lab-editor-offline-browser.test.mjs": 33000,
     "tests/lab-editor-recipes-browser.test.mjs": 15000,
@@ -224,6 +225,7 @@
     "tests/push-browser.test.mjs": 5900,
     "tests/quiet-logic.test.mjs": 1000,
     "tests/registries.test.mjs": 1000,
+    "tests/report-fields.test.mjs": 1000,
     "tests/routines-browser.test.mjs": 5200,
     "tests/senses-browser.test.mjs": 31400,
     "tests/senses-logic.test.mjs": 1000,
@@ -248,7 +250,6 @@
     "tests/tree-tested.test.mjs": 1800,
     "tests/verb-intents.test.mjs": 1000,
     "tests/worker-secrets.test.mjs": 1000,
-    "tests/report-fields.test.mjs": 1000,
     "tests/zone-browser.test.mjs": 4200
   }
 }

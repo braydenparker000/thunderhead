@@ -1,6 +1,6 @@
 // @ts-nocheck
 // The Looks board: the looks kept on this phone, each a small picture of the open photo wearing it, in a strip in
-// the panel under the photo. The drum has two faces. PRESETS are the `.cube` looks brought in with IMPORT: a tap
+// the panel under the photo. Its panel has two sections, swiped round on its barrel. PRESETS are the `.cube` looks brought in with IMPORT: a tap
 // puts one on, a tap on it again takes it off, and the window above the strip sets its strength. MINE are edits
 // saved as looks: a tap lays one over this photo's edit. The camera's own renderings are the Edit board's
 // Profile face. First on the Presets face is the Weekly Fuji recipes card (app/recipes.js): a tap opens the recipes,
@@ -116,7 +116,7 @@ export default class Component extends DCLogic {
       : mine.length ? 'A tap lays a look over this photo’s edit · Undo takes it back' : 'SAVE CURRENT keeps this photo’s edit as a look for other photos');
     return {
       real: !!real, demo: seen.demo, lookFilter: (!real && own?.filter) || 'none',
-      // the drum's counts: Presets, whether one is on; Mine, how many there are
+      // the sections' counts: Presets, whether one is on; Mine, how many there are
       faces: FACES.map((f) => ({ label: f, count: real ? (f === 'Presets' ? (photo.cubeOn() ? 1 : 0) : mine.length) : 0 })), faceAt: at, pickFace: (i) => set({ face: FACES[i], look: '', del: '', note: '', upTo: 8 }),
       chips, rowAria: fx ? 'Weekly Fuji recipes' : pk || `${face} actions`, tiles, stripLabel: fx ? `Weekly Fuji recipes · ${group}` : pk ? [pk, pgroups.length > 1 ? pgroup || 'Other' : ''].filter(Boolean).join(' · ') : face === 'Presets' ? 'Presets' : 'My looks', noTiles: face === 'Presets' ? '' : 'None of your own yet',
       // a long strip's pictures are made as they come near (boards/Strip.js)

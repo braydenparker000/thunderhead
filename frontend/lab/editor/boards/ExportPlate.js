@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The Export board. With a photo open it saves for real (app/save.js): size, format, quality, output sharpening,
 // metadata, location and file name are the photo's own; the watermark and Display P3 wait for their stage and say
-// so. The two files to save (Full, Small) are cards along the panel's top; the drum's faces are Size, Format,
+// so. The two files to save (Full, Small) are cards along the panel's top; the panel's sections (swiped round on its barrel) are Size, Format,
 // Output and Info; the dial sets the long edge, the quality, or steps through a choice; Save is in the header.
 // The sizes are the ones the files will have (app/shown.js `outSize`, as the Crop board says too). A JPEG's or a
 // PNG's bytes hang on what the picture holds, so no size is guessed for them; a TIFF's is exact. Before saving it

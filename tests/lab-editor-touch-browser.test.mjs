@@ -1,6 +1,6 @@
 // The new editor at /lab/editor/ under the fingers (frontend/lab/editor/app/haptic.js, fling.js, taps.js), driven by
-// real touches: the ticks the phone is asked for (the dial passing its start and reaching an end, the drum's face
-// clicking into place, Undo, an export done; none per pixel of a drag, none with the setting off or with less
+// real touches: the ticks the phone is asked for (the dial passing its start and reaching an end, a section clicking
+// into place on the panel's barrel, Undo, an export done; none per pixel of a drag, none with the setting off or with less
 // motion asked for); a zoomed photo flung glides on with only its transform changing, gives at the edge and rests
 // inside, is stopped at once by a touch, and gets its detail once it rests; a double tap still zooms; two fingers
 // tapped undo, three redo, while the end of a pinch, a tap on the controls and a finger already at work on Heal do
@@ -63,7 +63,7 @@ async function taps(cdp, points, ms = 60) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
-test('ticks: the dial past its start and at its end, the drum, Undo, an export; none with the setting off or less motion', opts, async () => {
+test('ticks: the dial past its start and at its end, the panel’s barrel, Undo, an export; none with the setting off or less motion', opts, async () => {
   const { context, page, errors, cdp } = await opened(600, 400);
   const dial = page.locator('#stage [role=slider]').first(), box = await dial.boundingBox(), y = box.y + box.height / 2;
   assert.match(await dial.getAttribute('aria-label'), /Exposure/);
@@ -86,9 +86,9 @@ test('ticks: the dial past its start and at its end, the drum, Undo, an export; 
   for (let i = 0; i < 52; i++) await dial.press('ArrowRight');
   await page.waitForTimeout(100);
   assert.deepEqual(await buzz(page), [14], 'one tick at the end of the range');
-  // The drum: a new face clicking into place.
+  // The panel's barrel: a new section clicking into place.
   await page.locator('#stage [role=listbox][aria-label^="Sections"]').press('ArrowDown'); await page.waitForTimeout(400);
-  assert.deepEqual(await buzz(page), [8], 'the drum ticked as a face clicked into place');
+  assert.deepEqual(await buzz(page), [8], 'the barrel ticked as a section clicked into place');
   // The header's Undo.
   await page.locator('#stage [aria-label="Undo"]').first().click(); await page.waitForTimeout(100);
   assert.deepEqual(await buzz(page), [14], 'Undo ticked');
