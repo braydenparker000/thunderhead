@@ -1,16 +1,16 @@
 {
-  "id": "2026-11-18-editor-sections-tools-2",
+  "id": "2026-11-18-editor-panel-slide-3",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Swiping the editor's panel is now a flat slide that follows your finger, and the photo stays still while it moves.",
+      "text": "Swiping the editor's panel is smooth now: the photo no longer jumps, and taller panels grow as they slide in.",
       "open": "photos"
     },
     {
-      "text": "A short swipe is enough, even on the curve: a swipe can start on the keys beside it."
+      "text": "Fixed a swipe sometimes being taken twice, which could skip a section or snap back."
     },
     {
-      "text": "The tool dial now slides straight up or down: a click every step, round to every tool."
+      "text": "Each swipe and tool-dial turn is now in your editor reports, so slow spots on your phone show up."
     }
   ]
 }

@@ -29,7 +29,6 @@ import { doing, hold as claim, making as loading } from '../../engine/work.js';
 import { room } from '../../engine/gpu-memory.js';
 import { level, share, went } from '../../engine/gentle.js';
 import { starfish, viewMem } from './zoom-fine.js';
-
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
 const READBACK = new URLSearchParams(location.search).has('readback'), EASE = 'transform 260ms cubic-bezier(0.2, 0.85, 0.2, 1)';
@@ -43,7 +42,6 @@ const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; b
 const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
 map.append(mapImg, box);
-
 const home = make('div', 'position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; display: none');   // the photo's own layer, under the boards
 const slot = home;
 let win = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} */ (null);   // the board's window on the photo; the photo it shows
@@ -105,12 +103,16 @@ function layout() {
     const px = (o.W / 2 - o.ox - tx) / (o.w * z), py = (o.H / 2 - o.oy - ty) / (o.h * z);
     z = Math.max(1, (z * o.w) / f.w); tx = W / 2 - f.ox - px * f.w * z; ty = H / 2 - f.oy - py * f.h * z;
   }
-  if (was !== `${f.ox},${f.oy},${f.w},${f.h}`) queueMicrotask(() => photo.events.dispatchEvent(new Event('change')));   // a board lays things over the fitted photo
+  if (was !== `${f.ox},${f.oy},${f.w},${f.h}`) refit();   // a board lays things over the fitted photo
   Object.assign(wrap.style, { left: `${f.ox}px`, top: `${f.oy}px`, width: `${f.w}px`, height: `${f.h}px` });
   Object.assign(map.style, { width: `${fw >= fh ? 96 : (96 * fw) / fh}px`, height: `${fw >= fh ? (96 * fh) / fw : 96}px` });
   z = Math.min(z, most()); hold(); apply();
 }
 const watch = new ResizeObserver(() => { layout(); rest(); });
+// The fit changed: the boards are told at once, and once more when it has stopped changing (not at every frame of a panel's growing: each redraws the board, 2026-11-18)
+let fits = 0, hides = 0, quiet = 0, owed = false; const told = () => photo.events.dispatchEvent(new Event('change'));
+function refit() { fits++; if (quiet) { owed = true; clearTimeout(quiet); } else queueMicrotask(told); quiet = setTimeout(() => { quiet = 0; if (owed) { owed = false; told(); } }, 90); }
+/** How often the fit has changed and a made detail been put away since the page opened (noted for a swipe: boards/Barrel.js). */ export const counts = () => ({ fits, hides });
 let glide = 0; const GLIDE = 'left 320ms cubic-bezier(0.2, 0.85, 0.2, 1), top 320ms cubic-bezier(0.2, 0.85, 0.2, 1), width 320ms cubic-bezier(0.2, 0.85, 0.2, 1), height 320ms cubic-bezier(0.2, 0.85, 0.2, 1)';
 /** The layer takes its window's place (in the frame's own pixels); with no window on the page it is put away. */
 function follow() {
@@ -201,7 +203,7 @@ function launch(now) {
 export function toggle() { zoomAt(z > 1.02 ? 1 : full(), f.W / 2, f.H / 2, true); settle(300); }
 
 /* Detail: the sensor's pixels, drawn once the photo rests. */
-function hide() { still.style.display = live.style.display = closer.style.display = 'none'; madeFor = -1; view?.rest(); }
+function hide() { if (madeFor >= 0) hides++; still.style.display = live.style.display = closer.style.display = 'none'; madeFor = -1; view?.rest(); }
 const rest = () => settle(120);
 /** The photo has come to rest (or will, in `ms`): tell the boards, and draw what the zoom now needs. @param {number} ms */
 function settle(ms) {
@@ -235,7 +237,7 @@ function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** 
 }
 let own = false;   // a frame the detail asked for itself
 /** A full-size view is made for the screen a part at a time (engine/full.js `region`) and left undone the moment fingers move the photo, it glides, a newer job has begun or an edit's frame waits; `took` gathers each part's time. */
-let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); performance.mark('th:part'); } });
+let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} */ took) => ({ stop: () => mine !== job || (!!g && !tool()) || gliding() || dialing() || photo.wanted(), note: (/** @type {number} */ ms) => { took.push(ms); performance.mark('th:part'); } });
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
 const sf = starfish({ closer, place, pace, parts, again: again1, drop: () => { view?.dispose(); view = null; cap = 0; }, busy: (n) => { making2 += n; } }), letFine = sf.letFine;   // Starfish's view (zoom-fine.js)
@@ -289,7 +291,7 @@ async function detail(/** @type {number} */ mine) {
 const REST = 150; let edited = -1, held = false, heldAt = 0;
 const dialing = () => held && performance.now() - heldAt < 3000;   // (a dial held still 3 s, or one taken away while it ran on, holds nothing up)
 photo.events.addEventListener('change', () => queueMicrotask(() => { const s = photo.stamp(); if (s === edited) return; edited = s; heldAt = performance.now(); if (madeFor !== s && (madeFor >= 0 || z / full() >= THIRD)) { hide(); settle(REST); } }));
-/** The dial is held or runs on (true), or has come to rest (false): boards/DialPlate.js. @param {boolean} on */
+/** The dial is held or runs on, or the panel slides (true), or it has come to rest (false): boards/DialPlate.js, boards/Barrel.js. @param {boolean} on */
 export function dial(on) { held = on; heldAt = performance.now(); if (!on && timer) settle(REST); }
 
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now

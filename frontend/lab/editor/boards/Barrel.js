@@ -1,179 +1,214 @@
 // @ts-nocheck
 // A board's sections, changed by swiping its panel (the owner, 2026-11-18). Swiped up, the panel slides up under the
 // finger, one for one, and the next section comes up from below it; down, the one before. Let go past 40 design px (or
-// a quarter of the panel, if less), or flicked, and it goes on to that section; short of that it slides back. It is
-// round: past the last section comes the first. While it slides the panel keeps its height and the photo above stays
-// still; a taller section (the curve, a grading wheel) grows once it has come to rest. The board is asked for the
-// coming section once, as the swipe sets off. A swipe sideways stays the panel's own (its dial, its row, its tiles),
-// and so does a drag on what a finger moves every way (the curve, a grading wheel: marked `data-drag`). While it slides,
-// the section going away is a still copy of the panel laid over it, and the panel itself is already the one coming.
-// A tick as each section comes in (app/haptic.js). For a keyboard and a screen reader the sections are still a list
-// (role listbox: the arrow keys slide it, an option chosen slides to it). Props: `faces` [{ label, count }], `at` (the
-// one showing), `onpick(i)`. Which section shows is told to the tool dial (boards/ToolDial.js) as `editor:section`.
+// a quarter of the section, if less), or flicked, and it goes on to that section; short of that it slides back. Round:
+// past the last section comes the first. Each section stands at its own height on the screen's foot, so a taller one
+// (the curve, a grading wheel) rises over the photo's lower edge as it comes in, and the photo takes its new room once,
+// as it lands; while the panel slides the photo's room is held as it was, to the fraction (whole pixels moved it on a
+// phone, and the photo was fitted and made again at every swipe: 2026-11-18). What slides are still copies of the
+// panel, one for each section in view, cut to its own height, inside a window cut to the panel's place; the panel
+// itself stays where it is, unseen, and is shown again as it lands, on the section it landed on. The board is asked
+// for the coming section a frame after the panel starts to move, so the panel answers the finger at once. The slide
+// keeps time on a slow phone (240 ms a whole section). A swipe sideways stays the panel's own (its dial, its row, its
+// tiles), and so does a drag on what a finger moves every way (the curve, a grading wheel: marked `data-drag`). The
+// photo's own work waits while the panel moves (zoom.js `dial`). A tick as each section comes past half way
+// (app/haptic.js), and how each swipe went is noted for the reports (app/moved.js: `swipe`). For a keyboard and a
+// screen reader the sections are a list (role listbox: the arrow keys slide it, an option chosen slides to it).
+// Props: `faces` [{ label, count }], `at`, `onpick(i)`. The section is told to the tool dial as `editor:section`, once landed.
 import { DCLogic } from '../dc.js';
 import { tick } from '../app/haptic.js';
+import { moved } from '../app/moved.js';
+import { counts, dial, info } from '../app/zoom.js';
 
-const GO = 40, LOCK = 8, FLICK = 0.45;   // design px past which a let-go goes on; before a finger's way is known; px a ms that is a flick
-const mod = (i, n) => ((i % n) + n) % n;
+const GO = 40, LOCK = 8, FLICK = 0.45, MS = 240;   // px past which a let-go goes on; px before a finger's way is known; px a ms that is a flick; ms a section
+const SHADOW = '0 -10px 24px rgba(0,0,0,0.7)';   // the panel's own, over the photo's foot
+const mod = (i, n) => ((i % n) + n) % n, ease = (t) => 1 - (1 - t) ** 3;
+let told = '';   // the section last told the tool dial
 
 export default class Component extends DCLogic {
-  constructor(props) { super(props); this.g = null; this.P = 0; this.H = 210; this.goal = null; this.raf = 0; this.face = { live: 0, copy: -1 }; this.copy = null; this.quiet = 0; this.ticked = null; }
+  constructor(props) { super(props); this.g = null; this.seg = null; this.anim = 0; this.ask = 0; this.faces = new Map(); this.live = 0; this.quiet = 0; this.near = -1; this.next = null; this.feel = {}; }
   renderVals() {
     const faces = this.props.faces || [], at = Math.max(0, Math.min(faces.length - 1, this.props.at ?? 0));
-    if (!this.g && !this.raf && !this.copy) { this.face.live = at; this.P = at; }
+    if (!this.seg) { this.live = at; this.tell(faces, at); }
     queueMicrotask(() => this.attach());
-    const now = faces[at]?.label || '';
-    if (now !== this.told) { this.told = now; document.dispatchEvent(new CustomEvent('editor:section', { detail: { label: now, faces: faces.map((f) => f.label) } })); }
     return {
-      now, faces: faces.map((f, i) => ({ label: String(f.label || '').toUpperCase(), count: f.count ? String(f.count) : '', on: String(i === at), pick: () => this.go(i) })),
-      key: (e) => { const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (!d) return; e.preventDefault(); this.roll(d); },
+      now: faces[at]?.label || '', faces: faces.map((f, i) => ({ label: String(f.label || '').toUpperCase(), count: f.count ? String(f.count) : '', on: String(i === at), pick: () => this.go(i) })),
+      key: (e) => { const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (!d) return; e.preventDefault(); this.go(mod(this.live + d, this.n()), d); },
     };
   }
   n() { return (this.props.faces || []).length; }
-  /** Takes the panel it stands in (once; again if the board drew a new one): its swipes, seen before its own controls. */
+  busy() { return !!this.g || !!this.seg; }
+  /** The section in view, to the tool dial (once it has landed: not the one a swipe is only trying). */
+  tell(faces = this.props.faces || [], at = this.live) {
+    const now = faces[at]?.label || '';
+    if (now !== told) { told = now; document.dispatchEvent(new CustomEvent('editor:section', { detail: { label: now, faces: faces.map((f) => f.label) } })); }
+  }
+  /** Takes the panel it stands in: its swipes, seen before its own controls. One owner a panel, whose touches it hears
+   * (a board that drew this list again, as a new one, on the same panel had two that both took a swipe: 2026-11-18);
+   * a new one takes over once the one before has landed. */
   attach() {
     const plate = this._host?.el?.closest?.('.plate');
     if (!plate || plate === this.plate) return;
     this.plate = plate; this.stage = plate.closest('#stage') || plate.parentElement;
-    plate.classList.add('barrel');
-    const o = { capture: true };
-    plate.addEventListener('pointerdown', (e) => this.down(e), o);
-    plate.addEventListener('pointermove', (e) => this.move(e), o);
-    plate.addEventListener('pointerup', (e) => this.up(e), o);
-    plate.addEventListener('pointercancel', (e) => this.up(e), o);
-    plate.addEventListener('click', (e) => { if (performance.now() - this.quiet < 400) { e.stopPropagation(); e.preventDefault(); } }, o);   // a swipe's end is no tap
+    const was = plate._barrel; if (was?.busy()) was.heir = this; else plate._barrel = this;
+    if (plate._heard) return;
+    plate._heard = true; plate.classList.add('barrel');
+    const o = { capture: true }, to = (f) => (e) => plate._barrel?.[f](e);
+    for (const [type, f] of [['pointerdown', 'down'], ['pointermove', 'move'], ['pointerup', 'up'], ['pointercancel', 'up'], ['click', 'tap']]) plate.addEventListener(type, to(f), o);
   }
+  tap(e) { if (performance.now() - this.quiet < 60) { e.stopPropagation(); e.preventDefault(); } }   // the swipe's own end is no tap
   down(e) {
     if (this.g || (e.button ?? 0) > 0 || this.n() < 2 || e.target.closest?.('[data-drag]')) return;
-    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }   // caught while it settles: it goes on from where it is
-    this.g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, k: this.stage.getBoundingClientRect().width / 412 || 1, way: '', from: this.P, trail: [], target: e.target };
+    const seg = this.seg;
+    this.g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, k: this.stage.getBoundingClientRect().width / 412 || 1, way: seg ? 'v' : '', start: seg ? seg.base + seg.dir * seg.s : 0, trail: [], target: e.target };
+    if (!seg) return;
+    cancelAnimationFrame(this.anim); this.anim = 0; e.stopPropagation();   // caught while it slides: it goes on from where it is
+    try { this.plate.setPointerCapture(e.pointerId); } catch { /* followed while over the panel */ }
   }
   move(e) {
     const g = this.g; if (!g || e.pointerId !== g.id || this.sending) return;
     const dx = (e.clientX - g.x0) / g.k, dy = (e.clientY - g.y0) / g.k;
     if (!g.way) {
       if (Math.hypot(dx, dy) < LOCK) { e.stopPropagation(); return; }   // held back from the panel's controls until it is known which way the finger goes
-      if (Math.abs(dy) < Math.abs(dx) * 1.2) { this.g = null; if (this.P !== Math.round(this.P)) this.settle(Math.round(this.P)); return; }   // sideways: the panel's own
-      g.way = 'v'; this.grab(e); g.from = this.P;   // (the way known, the slide counts from where the finger came down)
+      if (Math.abs(dy) < Math.abs(dx) * 1.2) { this.g = null; return; }   // sideways: the panel's own
+      g.way = 'v'; this.grab(e);
     }
     e.stopPropagation(); if (e.cancelable) e.preventDefault();
     g.trail.push([e.timeStamp, e.clientY]); while (g.trail.length > 2 && e.timeStamp - g.trail[0][0] > 100) g.trail.shift();   // the last tenth of a second, for a flick
-    this.place(g.from - (e.clientY - g.y0) / g.k / this.H);
+    this.follow(g.start - dy);
   }
   up(e) {
     const g = this.g; if (!g || e.pointerId !== g.id || this.sending) return;
     this.g = null;
-    if (g.way !== 'v') { if (this.P !== Math.round(this.P)) this.settle(Math.round(this.P)); return; }
+    const seg = this.seg; if (!seg || g.way !== 'v') return;
     e.stopPropagation(); this.quiet = performance.now();
     const [a, b] = [g.trail[0], g.trail.at(-1)], span = a && b ? b[0] - a[0] : 0;
-    const v = e.type === 'pointerup' && span > 20 && e.timeStamp - b[0] < 90 ? -(b[1] - a[1]) / g.k / span : 0;   // design px a ms, upward: how it was moving as it left
-    const P = this.P, base = Math.round(g.from) + Math.trunc(P - Math.round(g.from)), part = P - base;
-    let to = Math.abs(part) * this.H >= Math.min(GO, this.H / 4) ? base + Math.sign(part) : base;   // far enough in, it goes on; short of it, back
-    if (v > FLICK) to = Math.floor(P) + 1; else if (v < -FLICK) to = Math.ceil(P) - 1;   // a flick: on to the next one its way
-    this.settle(to);
-  }
-  /** The panel keeps its height and the photo its room while it slides; the board's own sizes come back as it rests. */
-  hold() {
-    if (this.stage.classList.contains('rolling')) return;
-    const st = this.stage.style, room = this.plate.parentElement?.querySelector('[data-room]');
-    st.setProperty('--hold-top', `${this.plate.offsetTop}px`);
-    if (room) st.setProperty('--hold-room', `${room.offsetHeight}px`);
-    this.H = this.vis(this.plate); this.stage.classList.add('rolling');
+    const v = (e.type === 'pointerup' && span > 20 && e.timeStamp - b[0] < 90 ? -(b[1] - a[1]) / g.k / span : 0) * (seg.dir || 1);   // design px a ms, the way it goes: how it was moving as it left
+    const len = this.len(seg), on = seg.dir !== 0 && (seg.s >= Math.min(GO, len / 4) || v > FLICK) && !(v < -FLICK);   // far enough in, or flicked on; flicked back, back
+    this.slide(on ? 1 : 0);
   }
   /** The swipe is the panel's: the control it began on lets go of it (a cancel, so it takes no tap), the panel holds it. */
   grab(e) {
     const t = this.g.target;
     if (t && t !== this.plate) { this.sending = true; try { t.dispatchEvent(new PointerEvent('pointercancel', { pointerId: e.pointerId, pointerType: e.pointerType, bubbles: true })); } finally { this.sending = false; } }
     try { this.plate.setPointerCapture(e.pointerId); } catch { /* still followed while it stays over the panel */ }
-    this.hold(); this.ticked = Math.round(this.P);
+    this.begin();
   }
-  /** One section on or back (the arrow keys), from where a slide already under way is going. @param {number} d */
-  roll(d) {
-    if (this.g || this.n() < 2) return;
-    this.hold(); this.settle((this.raf && this.goal !== null ? this.goal : Math.round(this.P)) + d);
+  /** A slide begins: the photo's room held to the fraction, the panel hidden behind a still copy of itself, the photo's work told to wait. */
+  begin() {
+    const room = this.plate.parentElement?.querySelector('[data-room]');
+    if (room) this.stage.style.setProperty('--hold-room', `${parseFloat(getComputedStyle(room).height)}px`);
+    this.stage.classList.add('rolling'); dial(true);   // (the panel's own easing stops where it was going, so what is copied is where it rests)
+    this.seg = { a: this.live, b: -1, dir: 0, s: 0, base: 0 }; this.from = this.live; this.near = this.live;
+    this.copy(this.live); this.draw();
+    this.c0 = counts(); Object.assign(this.feel, { steps: 0, back: 0, refit: 0, rebuilt: 0, outcome: 'returned' });
+    moved(() => this.busy(), info().making, 'swipe', this.feel);
   }
-  /** Straight to section `i` (an option chosen from the list, as a screen reader does), the short way round. */
-  go(i) {
-    const n = this.n(); if (this.g || n < 2) return;
-    const from = this.raf && this.goal !== null ? this.goal : Math.round(this.P), d = mod(i - from, n);
-    if (!d) return;
-    this.hold(); this.settle(from + (d > n / 2 ? d - n : d));
-  }
-  /** The panel stands at `P` (sections, fractional while it slides): the one or two sections in view are on the panel and
-   * its copy. Settling, it shows none past the one it settles on (`lo`..`up`): a spring's overshoot is not a section. */
-  place(P, lo = -Infinity, up = Infinity) {
-    const n = this.n(), r = Math.round(P);
-    if (r !== this.ticked) { this.ticked = r; tick('detent'); }
-    this.P = P;
-    const m = Math.floor(P);
-    this.ensure([...new Set([m, m + 1].filter((q) => q >= lo && q <= up && Math.abs(P - q) < 1).map((q) => mod(q, n)))]);
+  /** The finger has gone `t` design px up from where the swipe began (down: less than 0): the sections it passes come in. */
+  follow(t) {
+    const seg = this.seg, n = this.n();
+    for (let i = 0; i < 4; i++) {
+      const rel = t - seg.base;
+      if (rel && Math.sign(rel) !== seg.dir) { if (seg.dir) this.feel.back++; seg.dir = Math.sign(rel); seg.b = mod(seg.a + seg.dir, n); this.want(seg.b); }   // a way chosen, or turned back past where this section began
+      seg.s = Math.abs(rel);
+      const len = this.len(seg);
+      if (seg.s < len || !this.faces.has(seg.b)) break;
+      seg.base += seg.dir * len; seg.a = seg.b; seg.b = mod(seg.a + seg.dir, n); this.want(seg.b); this.feel.steps++;   // a whole section passed under the finger
+    }
     this.draw();
   }
-  /** The sections wanted in view are the panel's and the copy's: the panel copied before it is shown another. */
-  ensure(need) {
-    if (this.pending) return;   // the board has not yet drawn the last one asked of it
-    const { live, copy } = this.face, missing = need.filter((i) => i !== live && i !== copy);
-    if (!missing.length) return;
-    if (need.includes(live)) { this.snap(); this.face.copy = live; }
-    else if (!need.includes(copy)) this.drop();
-    this.pick(missing[0]);
+  /** How far the slide is from this section to the next, 0 to 1. */
+  part(seg) { return Math.min(1, seg.s / (this.len(seg) || 1)); }
+  /** The slide's length: the coming section's height going up, the going one's going down. */
+  len(seg) { const ha = this.faces.get(seg.a)?.h || 210, hb = this.faces.get(seg.b)?.h || ha; return seg.dir < 0 ? ha : hb; }
+  /** Asks the board for section `i`, a frame on (a key's or an option's: at once), unless its copy is in hand. */
+  want(i, now = false) {
+    if (this.faces.has(i)) return;
+    this.wanted = i; cancelAnimationFrame(this.ask);
+    const make = () => {
+      this.ask = 0; const w = this.wanted; if (this.faces.has(w) || !this.seg) return;
+      this.live = w; this.props.onpick?.(w);
+      queueMicrotask(() => { if (this.seg && this.live === w) { this.copy(w); this.draw(); } });   // after the board's own drawing (queued by its setState), which draws the panel whole
+    };
+    if (now) make(); else this.ask = requestAnimationFrame(make);
   }
-  pick(i) {
-    this.face.live = i; this.pending = true;
-    this.props.onpick?.(i);
-    queueMicrotask(() => { this.pending = false; if (this.plate) this.draw(); });   // after the board's own draw, queued by its setState
-  }
-  /** A still copy of the panel as it shows now, laid where it is, outside the board (which redraws its own). */
-  snap() {
-    this.drop();
-    const c = this.plate.cloneNode(true);
-    c.setAttribute('aria-hidden', 'true'); c.inert = true;
+  /** A still copy of the panel as it shows section `i`, cut to that section's height, in the window. */
+  copy(i) {
+    const p = this.plate, top = parseFloat(getComputedStyle(p).top), c = p.cloneNode(true), foot = this.foot();
+    c.setAttribute('aria-hidden', 'true'); c.inert = true; c.classList.remove('barrel');
     for (const el of c.querySelectorAll('[id]')) el.removeAttribute('id');
-    Object.assign(c.style, { top: `${this.plate.offsetTop}px`, transition: 'none', animation: 'none', pointerEvents: 'none' });
-    this.layer().appendChild(c); this.copy = c;
+    const h = Math.max(60, Math.min(340, foot - top));
+    Object.assign(c.style, { top: `${foot - h}px`, height: `${h}px`, overflow: 'hidden', boxShadow: 'none', display: 'none' });
+    this.window().appendChild(c); this.faces.get(i)?.el.remove(); this.faces.set(i, { el: c, h });
   }
-  drop() { this.copy?.remove(); this.copy = null; this.face.copy = -1; }
-  layer() {
-    if (this.lay?.isConnected) return this.lay;
-    const l = document.createElement('div'), framed = this.stage.parentElement?.id === 'frame';
-    l.setAttribute('aria-hidden', 'true');
-    l.style.cssText = `position:absolute;left:0;top:0;width:412px;height:${this.stage.clientHeight}px;pointer-events:none;overflow:clip;z-index:1`;
-    if (!framed) Object.assign(l.style, { transformOrigin: '0 0', transform: this.stage.style.transform });   // a screen of the design on its own: the stage is what is fitted to the screen
-    this.stage.after(l); this.lay = l; return l;
+  /** The foot of the board's screen, in design px (the top of the phone's own bar, where the panel is cut off). */
+  foot() { const root = this.plate.parentElement; return parseFloat(getComputedStyle(root).height) || root.clientHeight || 915; }
+  window() {
+    if (this.win?.isConnected) return this.win;
+    const w = document.createElement('div'), shade = document.createElement('div'), framed = this.stage.parentElement?.id === 'frame', foot = this.foot();
+    w.className = 'barrel-copies'; w.setAttribute('aria-hidden', 'true'); w.style.height = `${foot}px`;
+    shade.className = 'barrel-shade'; shade.setAttribute('aria-hidden', 'true'); shade.style.boxShadow = SHADOW;
+    for (const el of framed ? [] : [w, shade]) Object.assign(el.style, { transformOrigin: '0 0', transform: this.stage.style.transform });   // a screen of the design on its own: the stage is what is fitted to the screen
+    this.stage.after(shade, w); this.win = w; this.shade = shade; this.clip = ''; return w;
   }
-  vis(el) { return Math.max(60, Math.min(340, this.stage.clientHeight - el.offsetTop)); }
-  /** Where section `i` stands now: the place nearest the one in view. */
-  at(i) { const n = this.n(); return i + n * Math.round((this.P - i) / n); }
-  /** Each section in view slides by where it stands from the one in view, cut off where it rises past the panel's top. */
+  /** The sections in view where they stand, each on the screen's foot at its own height; the window's top between theirs. */
   draw() {
-    const st = this.stage.style, off = (i) => (this.at(i) - this.P) * this.H, cut = (y) => `inset(${Math.max(0, -y).toFixed(1)}px 0 0 0)`;
-    const y = off(this.face.live);
-    st.setProperty('--roll', `translateY(${y.toFixed(1)}px)`); st.setProperty('--clip', cut(y));
-    if (this.copy) { const yc = off(this.face.copy); this.copy.style.transform = `translateY(${yc.toFixed(1)}px)`; this.copy.style.clipPath = cut(yc); }
+    const seg = this.seg; if (!seg) return;
+    if (!this.plate.isConnected) { this.end(); return; }   // its board went (another tool): nothing to land on
+    const A = this.faces.get(seg.a), B = seg.dir ? this.faces.get(seg.b) : null; if (!A) return;
+    const foot = this.foot(), s = Math.min(seg.s, this.len(seg)), f = this.part(seg), up = seg.dir >= 0;
+    for (const [i, face] of this.faces) if (i !== seg.a && (!B || i !== seg.b)) face.el.style.display = 'none';
+    Object.assign(A.el.style, { display: 'block', zIndex: up ? '1' : '2', transform: `translateY(${(up ? -s : s).toFixed(2)}px)` });   // the lower of the two lies over the other (its shadow on it)
+    if (B) Object.assign(B.el.style, { display: 'block', zIndex: up ? '2' : '1', transform: `translateY(${(up ? B.h - s : s - A.h).toFixed(2)}px)` });
+    const top = foot - (A.h + ((B ? B.h : A.h) - A.h) * f), clip = `inset(${top.toFixed(2)}px 0 0 0)`;
+    if (clip !== this.clip) { this.clip = clip; this.win.style.clipPath = clip; this.shade.style.transform = `${this.win.style.transform || ''} translateY(${top.toFixed(2)}px)`.trim(); }   // (the same height both ways, as most sections are: set once)
+    const near = f >= 0.5 && B ? seg.b : seg.a;
+    if (near !== this.near) { this.near = near; tick('detent'); }
   }
-  /** Slides to `to` and comes to rest on it, without overshoot: the panel shows it, the copy goes, the sizes come back. */
-  settle(to) {
-    cancelAnimationFrame(this.raf); this.goal = to;
-    if (this.ticked === null) this.ticked = Math.round(this.P);
-    let pos = this.P, v = 0, last = performance.now();
-    const lo = Math.min(Math.floor(pos), to), up = Math.max(Math.ceil(pos), to);
+  /** Straight to section `i` (a key, or an option chosen from the list), the short way round, unless `d` says the way. */
+  go(i, d = 0) {
+    const n = this.n(); if (this.g || n < 2) return;
+    if (this.seg) { this.next = [i, d]; return; }   // once this slide has landed
+    const k = mod(i - this.live, n); if (!k) return;
+    this.begin();
+    const seg = this.seg; seg.dir = d || (k > n / 2 ? -1 : 1); seg.b = i; this.want(i, true);
+    this.slide(1);
+  }
+  /** Slides to its end (1: on to the coming section) or back (0), in a time of its own however the frames come. */
+  slide(to) {
+    const seg = this.seg; if (!seg) return;
+    cancelAnimationFrame(this.anim);
+    const p0 = this.part(seg), t0 = performance.now(), ms = Math.max(90, MS * Math.abs(to - p0));
     const step = (now) => {
-      const dt = Math.min(0.032, (now - last) / 1000); last = now;
-      for (let i = 0; i < 4; i++) { v += (-420 * (pos - to) - 41 * v) * (dt / 4); pos += v * (dt / 4); }   // critically damped: no bounce past it
-      if (Math.abs(pos - to) < 0.004 && Math.abs(v) < 0.03) { this.raf = 0; this.place(to, lo, up); this.rest(to); return; }
-      this.place(pos, lo, up); this.raf = requestAnimationFrame(step);
+      if (this.seg !== seg) return;
+      const t = Math.min(1, (now - t0) / ms), p = p0 + (to - p0) * ease(t);
+      seg.s = p * this.len(seg); this.draw();
+      if (this.seg !== seg) return;
+      if (t < 1 || (to === 1 && seg.dir && !this.faces.has(seg.b))) { this.anim = requestAnimationFrame(step); return; }   // (it waits, at the end, for the coming section's copy)
+      this.anim = 0; this.land(to === 1 && seg.dir ? seg.b : seg.a);
     };
-    this.raf = requestAnimationFrame(step);
+    this.anim = requestAnimationFrame(step);
   }
-  rest(to) {
-    const i = mod(to, this.n());
-    const done = () => {
-      if (this.g || this.raf) return;   // a finger took it again meanwhile
-      this.P = i; this.goal = null; this.ticked = null;
-      this.drop(); this.lay?.remove(); this.lay = null;
-      const st = this.stage.style; for (const p of ['--roll', '--clip', '--hold-top', '--hold-room']) st.removeProperty(p);
-      this.stage.classList.remove('rolling');   // the section's own sizes, eased (the plate's and the photo's own transitions)
-    };
-    if (this.face.live !== i) { this.pick(i); queueMicrotask(() => queueMicrotask(done)); } else done();
+  /** It has landed on section `i`: the panel, showing it, comes back in place of the copies; the photo takes its room. */
+  land(i) {
+    cancelAnimationFrame(this.anim); cancelAnimationFrame(this.ask); this.anim = this.ask = 0;
+    if (i === this.seg.b && this.seg.dir) this.feel.steps++;
+    this.feel.outcome = i === this.from ? 'returned' : 'landed';
+    if (this.live === i) { this.end(); return; }
+    this.live = i; this.props.onpick?.(i);
+    queueMicrotask(() => this.end());   // once the board has drawn the panel on it
+  }
+  end() {
+    if (!this.seg || this.g) return;   // (a finger took it again meanwhile: it goes on)
+    this.win?.remove(); this.shade?.remove(); this.win = this.shade = null; this.faces.clear(); this.seg = null;
+    // the photo's room takes the section's own at once, and the photo glides there once (zoom.js `follow`: as for another tool),
+    // not as the room eases (the photo stood still a third of a second, then glided: 2026-11-18)
+    const st = this.stage; st.classList.add('landing'); st.style.removeProperty('--hold-room'); st.classList.remove('rolling');
+    requestAnimationFrame(() => requestAnimationFrame(() => st.classList.remove('landing')));
+    dial(false);
+    const c = counts(); Object.assign(this.feel, { refit: c.fits - this.c0.fits, rebuilt: c.hides - this.c0.hides });
+    this.tell();
+    if (this.heir) { this.plate._barrel = this.heir; this.heir = null; }
+    const nx = this.next; this.next = null; if (nx) this.go(...nx);
   }
 }
