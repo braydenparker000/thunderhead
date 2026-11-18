@@ -34,7 +34,7 @@ compressed RAF), edits on a Galaxy A15 now and an A35 next, and wants Lightroom 
 | Saturation, Vibrance | `wgsl.js` `vivid()` | Colour strength about the colour's own lightness in Oklab. Vibrance moves muted colours most and spares skin's hues; a strengthened colour eases off towards the sRGB edge. Our own tuning |
 | GPU | `gpu.js` | WebGPU compute. Everything after Highlights and Shadows is baked into a 65³ rgba16f table (log2 shaper, tetrahedral lookup), re-made when the profile, Contrast, Whites, Blacks, Saturation or Vibrance changes. On the A15 a whole frame is 21 ms, 32 ms with Highlights or Shadows on |
 | Profiles | `profiles.js` | The owner's private zip (Adobe Camera Matching DCPs + RGB-table looks, extracted from Camera Raw 18.4). Kept in IndexedDB on the phone. **Never commit them or serve them from the site: the repo is public** |
-| Editor | `frontend/lab/editor/app/{store,session}.js` | OPFS for RAFs and their JPEGs, IndexedDB for records and edits. `session.js` owns the open photo, the canvas, the values and the dial maps. Boards are dc.js templates; `data-keep` marks the photo's slot |
+| Editor | `frontend/lab/editor/app/{store,session}.js` | OPFS for RAFs and their JPEGs, IndexedDB for records and edits. `session.js` owns the open photo, the canvas, the values and the dial maps. Boards are dc.js templates, each node on the page matched to the template node it came from (so a part that comes or goes leaves the rest as it was: 2026-11-18); `data-keep` marks the photo's slot |
 
 Colour check, measured: ΔE 2.6–3.3 against the owner's camera JPEGs on the matching simulation, before
 their recipe settings (highlight/shadow tone, colour) are applied.

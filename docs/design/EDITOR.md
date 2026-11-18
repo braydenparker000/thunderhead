@@ -107,7 +107,8 @@ phone in the app the same day, the first build (a 3D barrel, a dial swung round 
   the finger at once; the slide keeps time (240 ms a section, eased) however the frames come; the photo's own work
   (its detail, Starfish) waits while it moves. A tick at each section, and the tool dial names a section only once
   it has landed. Sideways stays the panel's own (its dial, its row, its tiles); the curve and the grading wheels keep
-  their drags, and the keys beside the curve act on a tap, so a swipe may begin on them. The row stands still as its
+  their drags, and the keys beside the curve act on a tap, so a swipe may begin on them. A finger on the panel as it
+  slides catches it (let go still, it goes on where it was going); a click lands it at once and is the control's. The row stands still as its
   section comes in (no rise: a copy and the panel must look the same).
 - **How it feels is reported.** Each swipe is noted by the flight recorder (`th/report/`, kind `swipe`): how long,
   the frames drawn and the worst gap, what ran in it, the sections passed and turned back, whether the photo was

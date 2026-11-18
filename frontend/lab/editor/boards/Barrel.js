@@ -58,11 +58,13 @@ export default class Component extends DCLogic {
   }
   tap(e) { if (performance.now() - this.quiet < 60) { e.stopPropagation(); e.preventDefault(); } }   // the swipe's own end is no tap
   down(e) {
-    if (this.g || (e.button ?? 0) > 0 || this.n() < 2 || e.target.closest?.('[data-drag]')) return;
+    if (this.g || (e.button ?? 0) > 0 || this.n() < 2) return;
     const seg = this.seg;
-    this.g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, k: this.stage.getBoundingClientRect().width / 412 || 1, way: seg ? 'v' : '', start: seg ? seg.base + seg.dir * seg.s : 0, trail: [], target: e.target };
+    if (seg && e.pointerType === 'mouse') { this.land(this.to === 1 && seg.dir ? seg.b : seg.a); return; }   // a click as it slides (after a key): it is there at once, and the click is the control's
+    if (!seg && e.target.closest?.('[data-drag]')) return;   // (what a finger moves every way keeps its drags; while the panel slides, a finger on it catches the slide)
+    this.g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, k: this.stage.getBoundingClientRect().width / 412 || 1, way: seg ? 'v' : '', start: seg ? seg.base + seg.dir * seg.s : 0, trail: [], target: e.target, caught: !!seg };
     if (!seg) return;
-    cancelAnimationFrame(this.anim); this.anim = 0; e.stopPropagation();   // caught while it slides: it goes on from where it is
+    cancelAnimationFrame(this.anim); this.anim = 0; e.stopPropagation();   // caught while it slides: it goes on from where it is (or, let go still, on where it was going)
     try { this.plate.setPointerCapture(e.pointerId); } catch { /* followed while over the panel */ }
   }
   move(e) {
@@ -72,6 +74,9 @@ export default class Component extends DCLogic {
       if (Math.hypot(dx, dy) < LOCK) { e.stopPropagation(); return; }   // held back from the panel's controls until it is known which way the finger goes
       if (Math.abs(dy) < Math.abs(dx) * 1.2) { this.g = null; return; }   // sideways: the panel's own
       g.way = 'v'; this.grab(e);
+    } else if (g.caught && !g.moved) {
+      if (Math.hypot(dx, dy) < LOCK) { e.stopPropagation(); return; }
+      g.moved = true;
     }
     e.stopPropagation(); if (e.cancelable) e.preventDefault();
     g.trail.push([e.timeStamp, e.clientY]); while (g.trail.length > 2 && e.timeStamp - g.trail[0][0] > 100) g.trail.shift();   // the last tenth of a second, for a flick
@@ -82,6 +87,7 @@ export default class Component extends DCLogic {
     this.g = null;
     const seg = this.seg; if (!seg || g.way !== 'v') return;
     e.stopPropagation(); this.quiet = performance.now();
+    if (g.caught && !g.moved) { this.slide(this.to); return; }   // a tap on it as it slides: it goes on as it was (a tap on what is still sliding is no tap)
     const [a, b] = [g.trail[0], g.trail.at(-1)], span = a && b ? b[0] - a[0] : 0;
     const v = (e.type === 'pointerup' && span > 20 && e.timeStamp - b[0] < 90 ? -(b[1] - a[1]) / g.k / span : 0) * (seg.dir || 1);   // design px a ms, the way it goes: how it was moving as it left
     const len = this.len(seg), on = seg.dir !== 0 && (seg.s >= Math.min(GO, len / 4) || v > FLICK) && !(v < -FLICK);   // far enough in, or flicked on; flicked back, back
@@ -177,7 +183,7 @@ export default class Component extends DCLogic {
   /** Slides to its end (1: on to the coming section) or back (0), in a time of its own however the frames come. */
   slide(to) {
     const seg = this.seg; if (!seg) return;
-    cancelAnimationFrame(this.anim);
+    cancelAnimationFrame(this.anim); this.to = to;
     const p0 = this.part(seg), t0 = performance.now(), ms = Math.max(90, MS * Math.abs(to - p0));
     const step = (now) => {
       if (this.seg !== seg) return;
