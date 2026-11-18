@@ -91,7 +91,7 @@
 </template>
 <template data-dc="Barrel">
 <div role="listbox" aria-label="Sections: {{now}}" aria-orientation="vertical" tabindex="0" onKeyDown="{{key}}" style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; outline: none">
-  <sc-for list="{{faces}}" as="f" hint-placeholder-count="9"><span role="option" aria-selected="{{f.on}}">{{f.label}}<sup>{{f.count}}</sup></span></sc-for>
+  <sc-for list="{{faces}}" as="f" hint-placeholder-count="9"><span role="option" aria-selected="{{f.on}}" onClick="{{f.pick}}">{{f.label}}<sup>{{f.count}}</sup></span></sc-for>
 </div>
 </template>
 <template data-dc="Row">

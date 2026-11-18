@@ -7,7 +7,7 @@
 // finger moves every way (the curve, a grading wheel: marked `data-drag`). While it rolls, the section going away is a
 // still copy of the panel laid over it and the panel itself is already the one coming: both turn on the one barrel, as
 // in the design. The drum stood at the row's left end; the row starts there now. For a keyboard and a screen reader
-// the sections are still a list (role listbox; the arrow keys roll it). Props: `faces` [{ label, count }], `at` (the
+// the sections are still a list (role listbox: the arrow keys roll it, an option chosen rolls to it). Props: `faces` [{ label, count }], `at` (the
 // one showing), `onpick(i)`. Which section shows is told to the tool dial (boards/ToolDial.js) as `editor:section`.
 import { DCLogic } from '../dc.js';
 import { tick } from '../app/haptic.js';
@@ -24,7 +24,7 @@ export default class Component extends DCLogic {
     const now = faces[at]?.label || '';
     if (now !== this.told) { this.told = now; document.dispatchEvent(new CustomEvent('editor:section', { detail: { label: now, faces: faces.map((f) => f.label) } })); }
     return {
-      now, faces: faces.map((f, i) => ({ label: String(f.label || '').toUpperCase(), count: f.count ? String(f.count) : '', on: String(i === at) })),
+      now, faces: faces.map((f, i) => ({ label: String(f.label || '').toUpperCase(), count: f.count ? String(f.count) : '', on: String(i === at), pick: () => this.go(i) })),
       key: (e) => { const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (!d) return; e.preventDefault(); this.roll(d); },
     };
   }
@@ -81,6 +81,13 @@ export default class Component extends DCLogic {
     if (this.g || this.n() < 2) return;
     this.stage.classList.add('rolling');
     this.settle((this.raf && this.goal !== null ? this.goal : Math.round(this.P)) + d, true);
+  }
+  /** Straight to section `i` (an option chosen from the list, as a screen reader does), the short way round. */
+  go(i) {
+    const n = this.n(); if (this.g || n < 2) return;
+    const from = this.raf && this.goal !== null ? this.goal : Math.round(this.P), d = mod(i - from, n);
+    if (!d) return;
+    this.stage.classList.add('rolling'); this.settle(from + (d > n / 2 ? d - n : d), true);
   }
   /** The barrel stands at `P` (sections round it, fractional while it turns): the one or two sections it shows are on
    * the panel and its copy, turned to where they stand. Settling, it shows none past the one it settles on (`lo`..`up`):
