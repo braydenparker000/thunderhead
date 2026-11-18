@@ -108,6 +108,14 @@ test('the panel slides: up or down a section, round, sideways the panel’s own,
   // Sideways on the wheel: the value dial turns, the section stays.
   await swipe(Array.from({ length: 13 }, (_, i) => [120 + i * 8, wy]));
   assert.notEqual(await exposure(page), before, 'sideways turned the value'); assert.equal(await section(page), 'Light');
+  // A finger tapped on it while a key slides it: it goes on where it was going. A click: it is there at once, the click the control's.
+  const rolling = () => page.evaluate(() => !!document.querySelector('#stage.rolling'));
+  await page.locator('#stage [role=listbox][aria-label^="Sections"]').press('ArrowDown');
+  await touch('touchStart', [[60, 722]]); await touch('touchEnd', []);
+  await until(async () => (await section(page)) === 'Curve' && !(await rolling()), { message: 'a tap as it slid let it go on to Curve' });
+  await page.locator('#stage [role=listbox][aria-label^="Sections"]').press('ArrowUp');
+  await page.mouse.click(60, 722);
+  assert.equal(await rolling(), false, 'a click as it slid landed it at once'); assert.equal(await section(page), 'Light');
   assert.deepEqual(errors, []);
   await context.close();
 });
