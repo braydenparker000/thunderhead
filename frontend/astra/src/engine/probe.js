@@ -13,7 +13,8 @@ import {mseSupports} from './capabilities.js';
 
 // DTS's codec string comes from its first frame, which Mediabunny finds by reading the film's first cluster whole: on a
 // 25 Mbit/s film, 5 MB before anything could be planned (scripts/astra/real.mjs, 2026-11-18). It only decides whether
-// the browser takes the sound as it is; where it takes no DTS at all, it is left unread (the converter reads its own).
+// the browser takes the sound as it is; where it takes no DTS at all, it is left unread (the converter reads its own),
+// and the film's MIME type is put together from the codec strings read (mimeOf) rather than asked of Mediabunny.
 const DTS = ['dtsc', 'dtse', 'dtsh', 'dtsl', 'dtsx'];
 const unread = t => t.codec === 'dts' && !DTS.some(c => mseSupports(`audio/mp4; codecs="${c}"`));
 
@@ -125,9 +126,19 @@ async function describe(url, source, opened, signal, onStatus, keep) {
   source.doneProbing();
   return {
     readable: true, source, input,
-    info: {container: format.name || container, mime: await input.getMimeType().catch(() => ''), size: source.size, duration, video, audio, subtitles, layout, hiddenVideo, chapters},
+    info: {container: format.name || container, mime: mimeOf(format, described), size: source.size, duration, video, audio, subtitles, layout, hiddenVideo, chapters},
   };
 }
+
+/**
+ * The film's MIME type with its codecs, for the report, from what describing read. Mediabunny's getMimeType() asks every
+ * track for its decoder setup, which for DTS means its first frame: the first cluster read whole, 5 MB of a 25 Mbit/s
+ * film, after describing was over and with a playback download's reach (scripts/astra/real.mjs, 2026-11-18).
+ */
+const mimeOf = (format, tracks) => {
+  const codecs = tracks.map(t => t.codecString).filter(Boolean);
+  return (format.mimeType || '') + (codecs.length ? `; codecs="${codecs.join(', ')}"` : '');
+};
 
 /** A frame rate fit to show and to step by (23.976, 25, 59.94), or undefined when there is none worth the name. */
 export const frameRate = fps => Number.isFinite(fps) && fps >= 1 && fps <= 1000 ? Math.round(fps * 1000) / 1000 : undefined;

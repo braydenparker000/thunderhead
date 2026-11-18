@@ -346,7 +346,11 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    and other codecs no browser decoder exists for); a file with
    only unplayable audio can be played without sound when the viewer asks.
    Dolby Vision profiles are read from the MKV header and explained
-   (profile 5 has no standard picture underneath).
+   (profile 5 has no standard picture underneath). A DTS track's codec
+   string, which Mediabunny finds only by reading the film's first cluster
+   whole (5 MB of a 25 Mbit/s film before anything is planned), is read
+   only where the browser takes some DTS as it is (`probe.js`); elsewhere
+   the sound is converted anyway and the converter reads its own frames.
    **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
    localStorage `astra-routes`, per device, each entry for 30 days so a
    browser update gets another chance). A browser can say it decodes Dolby
@@ -365,7 +369,19 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    audio has its own SourceBuffer, so changing track refills only the audio.
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame, and a seek inside what is
-   already buffered (or just ahead of where reading is) starts nothing. Text
+   already buffered (or just ahead of where reading is) starts nothing. A
+   cluster only the dropped pipelines were reading is not read again for
+   them (`mkv-packets.js` `jumped()`): it began a download at the place
+   left, which took half the link from the new place.
+   **How much is held** (`hold.js`). The pipelines read 40 s past the
+   playhead (20 with the data saver) and the browser's buffer keeps 20 s
+   behind it (`mse.js`), and a fast film is held to bytes as well, by its
+   average bitrate: 48 MiB ahead (15 s at 25 Mbit/s, never under 10 s) and
+   24 MiB behind (7 s, never under 4). By time alone a 25 Mbit/s film filled
+   Chrome's video buffer to its own limit (about 150 MB, past which Chrome
+   drops what is behind the playhead itself), and the page held about
+   600 MB (How smoothly, below). A film under about 10 Mbit/s is held as
+   before. Text
    subtitles in MKV and MP4 are read from data already downloaded
    (`embedded-subtitles.js`) and drawn by `src/subtitles/renderer.js`;
    picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
@@ -434,15 +450,27 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      limit alone. It asks for that in bounded requests, the next part once
      playback has come within half a reach of its end, so a seek or a stop
      throws away little the connection already carried (a host that ignores
-     a range's end is read open-ended and paused instead). The block cache
+     a range's end is read open-ended and paused instead), and stops where
+     bytes already here begin (the film's end, a part another download
+     brought) rather than fetch them again. The block cache
      keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
-     40 s and the reach; 55 s with the saver), between 16 and 96 MiB.
+     40 s and the reach; 55 s with the saver), between 16 and 96 MiB; a film
+     whose 80 s pass 48 MiB (about 5 Mbit/s) keeps 48 MiB, or the reach and
+     4 s more when that is larger (`hold.js`): its back-seek never fitted,
+     and at 25 Mbit/s the 96 MiB held only what the browser's buffer held
+     too.
    - *Both ends at once* (`source-tail.js`). On a film's first open, as soon
      as the first answer gives the size, its last 64 KiB are asked for beside
      its start, in a request of their own: the subtitle hash needs them, and
      a short film's index (Matroska's cues, an MP4's index written at the
      back) often lies there too, so a read of
-     the end waits for those bytes instead of costing another round trip.
+     the end waits for those bytes instead of costing another round trip. A
+     long film's index is larger (a two-hour film with a key frame every
+     2 s: 106 kB): it is read from its own first byte, and that download
+     stops where the tail begins instead of fetching the tail a second
+     time. The subtitle hash takes its two chunks from the reader by
+     looking (`peek`), not reading: a read let the download at the film's
+     start read on, 24 MiB of a film resumed at 2:00.
    - *A film remembered* (`film-memory.js`). What describing a film read is
      kept in IndexedDB `astra-films`: at most 4 MB a film and 60 films, the
      least recently opened dropped first. A film is known by its size and a
