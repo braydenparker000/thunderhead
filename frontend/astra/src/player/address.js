@@ -19,3 +19,14 @@ export function addressNotice(resolved, text) {
   if (resolved?.via !== 'addon' || !resolved.reason || !UNREADABLE.test(String(text))) return text;
   return `${resolved.reason} So Chrome plays the add-on’s link as it is: no audio track choice and no built-in subtitles.`;
 }
+
+/**
+ * "Try again": with a fresh address first when the stream's can be renewed (a TorBox link lives three hours, and
+ * one that died before the film opened is not renewed by the engine), else the same address as before.
+ */
+export async function tryAgain(p) {
+  const stream = p.stream, at = p.resumePoint();
+  p.errorCard.hidden = true; p.loader.show(true);
+  const url = typeof stream?.renew === 'function' ? await stream.renew().catch(() => null) : null;
+  if (p.stream === stream && p.isOpen) p.load(url ? {...stream, url} : stream, at);
+}

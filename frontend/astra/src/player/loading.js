@@ -4,7 +4,7 @@
 
 import {h} from '../ui/dom.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
-import {addressNotice} from './address.js';
+import {addressNotice, tryAgain} from './address.js';
 
 export class Loading {
   constructor(p) {
@@ -98,7 +98,7 @@ export class Loading {
         external ? h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
         plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,
         others ? h('button', {class: 'ap-chip' + (primary === 'sources' ? ' primary' : ''), type: 'button', onclick: () => { p.errorCard.hidden = true; p.openPanel('sources'); }}, 'Choose another source') : null,
-        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => p.load(p.stream, p.resumePoint())}, 'Try again') : null,
+        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => tryAgain(p)}, 'Try again') : null,
         report,
         h('button', {class: 'ap-chip', type: 'button', onclick: () => p.close('user')}, 'Close')));
     p.errorCard.hidden = false;

@@ -104,7 +104,9 @@ async function resolveAndLoad(app, stream, startTime, ticket) {
   if (app.playing) app.playing.answer = {via, steps, reason};
   // TorBox's file servers need none of the headers an add-on asks for its own link (a custom one would cost a preflight).
   const headers = via === 'torbox' ? {} : stream.headers;
-  app.player.load({...stream, url: answer.url || stream.url, headers, resolved: {via, reason}}, startTime, {renew: () => renewStream(stream).then(r => r.url)});
+  // Only a direct address is a renewal: the add-on's own link, which the page cannot read, would not help the engine.
+  const renew = () => renewStream(stream).then(r => { if (r.via === 'addon' || !r.url) throw new Error('no direct address'); return r.url; });
+  app.player.load({...stream, url: answer.url || stream.url, headers, resolved: {via, reason}, renew}, startTime);
 }
 
 export function bindPlayer(app) {

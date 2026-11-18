@@ -7,7 +7,7 @@
       "open": "astra"
     },
     {
-      "text": "For that, add your TorBox key to your server once, as a Worker secret; until then films play as before."
+      "text": "Add your TorBox key to your server once (a Worker secret) for the quickest route; without it, the add-on's link is used."
     },
     {
       "text": "Stream info says where a film comes from, and why when Chrome's plain player is used."

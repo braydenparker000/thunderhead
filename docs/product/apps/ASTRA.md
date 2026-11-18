@@ -255,7 +255,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    call add-ons).
 2. **Never** in: senses, surfaces, verbs, the Ledger, `POST /v1/ops/errors` payloads, Worker logs,
    GitHub (code, tests, fixtures, Actions logs), or the mind's briefing.
-3. **Scrubber** (one function, `scrubSecrets(text)`, used by error reports and the lab report): replaces
+3. **Scrubber** (one function, `scrubSecrets(text)`; as built 2026-11-18 it is `frontend/astra/src/lab/scrub.js`, used by the lab's reports, while error reports use `frontend/ui/scrub.js`): replaces
    every `https?://` URL with `<host>/…` and every query value named `token`, `apikey`, `api_key`, `key`
    with `***`, and any 32+ character hex or base64url run with `***`. Check: unit tests with fixture
    add-on URLs (invented hosts).
