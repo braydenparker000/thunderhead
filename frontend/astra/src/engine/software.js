@@ -52,7 +52,7 @@ export function loadLibmedia() {
       clearTimeout(timer);
       script.onload = script.onerror = null;
       if (ok && globalThis.AVPlayer) resolve(globalThis.AVPlayer);
-      else { script.remove(); library = null; reject(Error('The software decoder could not be downloaded.')); }
+      else { script.remove(); library = null; reject(own('The software decoder could not be downloaded.')); }
     };
     const timer = setTimeout(() => done(false), 30000);
     script.src = new URL('avplayer.js', BASE).href;
@@ -100,6 +100,14 @@ function stopLibmedia(AVPlayer, engine) {
   return stopping;
 }
 const closed = () => Object.assign(new Error('The software decoder was closed.'), {kind: 'closed'});
+/** One of Astra's own reasons, told to the viewer as it is. */
+const own = (message, more = {}) => Object.assign(Error(message), {own: true}, more);
+/**
+ * libmedia's own words ("[packages/avplayer/src/AVPlayer.ts][line 1858] [fatal]: open stream failed, ret: -2097152,
+ * taskId: …") reached the screen. They stay with the error as `raw`, for the log and the report; the viewer is told a
+ * plain sentence (player-start.js words it by why the film came here).
+ */
+export const plainly = error => error?.kind === 'closed' || error?.own ? error : own('Astra\'s software decoder could not read this file.', {raw: String(error?.message || error)});
 export class SoftwareSession extends EventTarget {
   /**
    * @param {HTMLVideoElement} video
@@ -127,7 +135,11 @@ export class SoftwareSession extends EventTarget {
   /** Runs engine calls one after another, as libmedia expects. */
   serial(fn) { this.queue = this.queue.then(() => this.destroyed ? null : fn()).catch(e => this.fail(e)); return this.queue; }
 
-  async start(startTime = 0, {autoplay = true} = {}) {
+  async start(startTime = 0, options = {}) {
+    try { return await this.run(startTime, options); } catch (error) { throw plainly(error); }
+  }
+
+  async run(startTime = 0, {autoplay = true} = {}) {
     this.emit('status', 'Loading the software decoder…');
     const AVPlayer = this.AVPlayer = await loadLibmedia();
     await stopping; // an earlier session's threads finish stopping first
@@ -147,8 +159,8 @@ export class SoftwareSession extends EventTarget {
     const streams = engine.getStreams(), kind = s => String(s.mediaType).toLowerCase();
     // In an FLV file libmedia calls Sorenson Spark H.263, which its H.263 decoder does not decode.
     const decodable = s => !!wasmUrl('decoder', Number(s.codecparProxy?.codecId)) && !(ext === 'flv' && Number(s.codecparProxy?.codecId) === 4);
-    if (!streams.some(s => kind(s) === 'video')) throw Error('The software decoder found no video in this file.');
-    if (!streams.some(s => kind(s) === 'video' && decodable(s))) throw Object.assign(Error('Astra has no decoder for the video in this file.'), {external: true});
+    if (!streams.some(s => kind(s) === 'video')) throw own('The software decoder found no video in this file.');
+    if (!streams.some(s => kind(s) === 'video' && decodable(s))) throw own('Astra has no decoder for the video in this file.', {external: true});
     /** True when the file has sound and none of it can be decoded. */
     this.silent = streams.some(s => kind(s) === 'audio') && !streams.some(s => kind(s) === 'audio' && decodable(s));
     this.duration = Number(engine.getDuration()) / 1000;
@@ -163,11 +175,11 @@ export class SoftwareSession extends EventTarget {
     this.dispatch('durationchange');
     // One deadline for the whole start: some files never produce a picture.
     let timer = 0;
-    const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 20000); });
+    const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(own('The software decoder could not show a picture from this file.')), 20000); });
     const step = promise => Promise.race([promise, failed, deadline, this.gone]);
     const firstFrame = new Promise(resolve => engine.on('firstVideoRendered', resolve));
     // Sound that runs on for seconds with no picture means the picture will not come.
-    const soundOnly = new Promise((_, reject) => engine.on('firstAudioRendered', () => setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 6000)));
+    const soundOnly = new Promise((_, reject) => engine.on('firstAudioRendered', () => setTimeout(() => reject(own('The software decoder could not show a picture from this file.')), 6000)));
     soundOnly.catch(() => {});
     this.mutedBefore = this.video.muted;
     try {

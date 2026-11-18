@@ -506,6 +506,13 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    place (it goes back to each element named there that it has not met).
    An HEVC 10-bit film started in 1.0 s instead of 2.0, and 1.3 s instead
    of 14.0 with an 8 MB font (Fonts attached, below).
+   When libmedia cannot open or start a film, its own words ("[packages/avplayer/src/AVPlayer.ts][line 1858]
+   [fatal]: open stream failed, ret: …") no longer reach the screen: the viewer reads one plain sentence by why the
+   film came to the software decoder ("This phone's browser cannot decode this film's picture, and Astra's software
+   decoder could not read the file either.", or after a failed start in the browser "This phone could not decode
+   this film's picture, and…", else "Astra's software decoder could not read this file."), with the error card's
+   choices (another source, another app), and libmedia's words stay in the engine's log for the report
+   (`software.js` `plainly`, `player-start.js`).
 5. **Reading the file** (`http-source.js` with `source-stream.js`,
    `source-blocks.js`, `source-tuning.js`, `side-read.js`, `source-tail.js`,
    `film-memory.js`). Playback's reads pull one download along (two at
@@ -1667,6 +1674,7 @@ skip in a browser without it.
 | `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
 | `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
 | `astra-attachments.test.mjs` | A film with 8 MiB of fonts attached is described from its start, its end and its first cluster; the download at the start stops where the fonts begin, the one past them reads on; the fonts read later in requests that end with the element; a Void header the length of the element's own. |
+| `astra-software-words-browser.test.mjs` | A film the software decoder cannot open (libmedia stood in for by one whose load fails as it did on a phone): one plain sentence on screen, libmedia's own words in the log. |
 | `astra-probe-limit.test.mjs` | A DTS track none of whose blocks is near the start (dts.mkv renumbered) is left unread once describing reaches its limit, converted, and given its header's setup; the limit's reads, counted and refused. |
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |

@@ -162,8 +162,8 @@ export class AstraPlayer extends EventTarget {
     } catch (error) {
       if (id !== this.load_) return;
       this.routeSoftwareFailed();
-      this.record('error', {message: reason, detail: String(error?.message || error)});
-      this.emit('error', {message: reason, detail: String(error?.message || error), plan: this.plan});
+      this.record('error', {message: reason, detail: String(error?.raw || error?.message || error)});
+      this.emit('error', {message: error?.raw ? error.message : reason, detail: String(error?.raw || error?.message || error), plan: this.plan});
     }
   }
 
@@ -217,7 +217,7 @@ export class AstraPlayer extends EventTarget {
       return this.plan;
     } catch (error) {
       if (id !== this.load_ || signal.aborted) return;
-      this.fail(error?.message || 'Playback could not start.', String(error?.stack || error));
+      this.fail(error?.message || 'Playback could not start.', String(error?.raw || error?.stack || error)); // libmedia's own words: the log's
     }
   }
 
