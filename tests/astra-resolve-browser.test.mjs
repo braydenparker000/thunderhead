@@ -135,6 +135,10 @@ test('the server answers an address on the film host: the tap plays it in Astraâ
   assert.deepEqual(server.asked.map((r) => [r.auth, r.body.mode]), [[`Bearer ${TOKEN}`, 'ahead']]);
   assert.deepEqual(server.asked[0].body, { link: LINK, mode: 'ahead', hash: HASH, fileIndex: 0, fileName: FILM, fileSize: 400_000 });
   assert.equal(await a.addressLine('resolve-torbox'), 'From TorBox directly');
+  // The stream carries its own renewal down to the engine's reader: asked, it asks the server afresh, to play.
+  const renewal = await a.page.evaluate(async () => { const p = window.astra.player; return { reader: typeof p.engine.source?.renew, url: await p.stream.renew() }; });
+  assert.deepEqual(renewal, { reader: 'function', url: DIRECT });
+  assert.deepEqual(server.asked.map((r) => r.body.mode), ['ahead', 'play'], 'a renewal is a fresh ask, never the kept answer');
   assert.deepEqual(a.seen.elsewhere, []);
   assert.deepEqual(a.errors, []);
 });
