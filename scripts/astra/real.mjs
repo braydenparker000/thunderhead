@@ -11,7 +11,7 @@
 // the JS heap with its ArrayBuffer backing stores (DevTools protocol, Runtime.getHeapUsage); never the Network domain,
 // which would keep copies of the film. The link is paced at the host: --mbit shares that many Mbit/s between the
 // requests open at the time (one link), --conn paces each connection alone (bytes/s); --delay ms a request.
-// Options: --runs 3 --cpu 1 --mbit 0 --conn 0 --delay 0 --audio default|aac --resume 120 --play 60
+// Options: --runs 3 --cpu 1 --mbit 0 --conn 0 --delay 0 --audio default|aac --subs <language> --resume 120 --play 60
 //          --far 120 --back 15 --last 165 --skip resume,warm,seeks --out results.json --before '<js run in the page first>'
 //          --gc (a garbage collection forced before each look at memory: what is still held)
 //          --taps (a tap every 2 s while it plays, which changes a line of text as a menu would: how long from the tap to
@@ -28,7 +28,7 @@ import { astraHost } from '../../tests/fixtures/astra-host.mjs';
 const args = process.argv.slice(2), film = resolve(args[0] || '');
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
 const O = { runs: +opt('runs', 3), cpu: +opt('cpu', 1), mbit: +opt('mbit', 0), conn: +opt('conn', 0), delay: +opt('delay', 0), audio: opt('audio', 'default'),
-  resume: +opt('resume', 120), play: +opt('play', 60), far: opt('far'), back: opt('back'), last: opt('last'), skip: new Set(String(opt('skip', '')).split(',')), out: opt('out'), before: opt('before'), gc: args.includes('--gc'), taps: args.includes('--taps') };
+  subs: opt('subs', ''), resume: +opt('resume', 120), play: +opt('play', 60), far: opt('far'), back: opt('back'), last: opt('last'), skip: new Set(String(opt('skip', '')).split(',')), out: opt('out'), before: opt('before'), gc: args.includes('--gc'), taps: args.includes('--taps') };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const median = (xs) => { const v = xs.filter((x) => typeof x === 'number' && Number.isFinite(x)).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
 
@@ -129,10 +129,10 @@ async function setup(browser, base) {
 
 /** Loads the film at `from` and waits for a picture there: {ms, bytes, requests, ranges} at that moment. */
 async function open(page, url, from, audioId) {
-  await page.evaluate(([url, from, audioId]) => {
+  await page.evaluate(([url, from, audioId, subs]) => {
     const M = window.__m; M.loadAt = performance.now(); M.target = from; M.frames.length = 0; M.arm();
-    window.p.load({ url, startTime: from, autoplay: true, prefs: audioId ? { audioId } : {} });
-  }, [url, from, audioId]);
+    window.p.load({ url, startTime: from, autoplay: true, prefs: { ...(audioId ? { audioId } : {}), ...(subs ? { subtitleLanguage: subs } : {}) } });
+  }, [url, from, audioId, O.subs]);
   return picture(page, 60_000, 'loadAt');
 }
 

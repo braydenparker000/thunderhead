@@ -16,7 +16,7 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
 | `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report; and the TorBox check (`torbox-check.js`, `torbox-panel.js`, with the report's scrubber `scrub.js`; see The playback lab, below). |
-| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js`; the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `remux-switch.js` (changing the sound), `rebuffer.js` (a link slower than the film), `sound-wait.js` (a converter that does not come), `hold.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-apart.js` and `sound-worker.js` (converted sound decoded, mixed and encoded in a worker, off the page's thread), `sound-stream.js` (converted sound from Astra's own Matroska reader, on the page), `sound-write.js` (the Opus and FLAC writers both use), `sound-six.js` with `flac-frames.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
+| `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js` with `probe-limit.js` (describing bounded); the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mkv-hide.js` (fonts and tags Void to Mediabunny), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `remux-switch.js` (changing the sound), `rebuffer.js` (a link slower than the film), `sound-wait.js` (a converter that does not come), `hold.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-apart.js` and `sound-worker.js` (converted sound decoded, mixed and encoded in a worker, off the page's thread), `sound-stream.js` (converted sound from Astra's own Matroska reader, on the page), `sound-write.js` (the Opus and FLAC writers both use), `sound-six.js` with `flac-frames.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-loader.js` (how libmedia reads the film), `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `address.js` (where the film's address came from, for Stream info and the notice), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
@@ -353,6 +353,17 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    whole (5 MB of a 25 Mbit/s film before anything is planned), is read
    only where the browser takes some DTS as it is (`probe.js`); elsewhere
    the sound is converted anyway and the converter reads its own frames.
+   The fonts a Matroska film carries for its styled subtitles (nearly every
+   anime release: megabytes, before the first cluster) and its tags are
+   Void to Mediabunny, which read both whole (`mkv-hide.js`; Fonts attached,
+   below). Describing the tracks is bounded (`probe-limit.js`): the first
+   cluster is read freely, and past it 3 s and 2 MiB in all; a track not
+   described by then is left unread and the plan is made from what is known
+   (A description that runs long, below). The engine's log (the report's)
+   times the start: `timing` entries when the file is open, when its index
+   is in, for each track that took over 200 ms to describe, at the plan, at
+   the first fragment appended and at the first picture, each with the ms
+   since `load()`, the bytes and the requests so far.
    **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
    localStorage `astra-routes`, per device, each entry for 30 days so a
    browser update gets another chance). A browser can say it decodes Dolby
@@ -487,6 +498,21 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    decoder) is met first with a fresh pipeline at the same place, with
    fragments only at key frames, then with the software decoder there. A file whose picture has no decoder stops
    with that reason at once; one whose sound has none plays with a notice.
+   libmedia reads the film through `software-loader.js`: what has arrived
+   as it arrives (at least 64 KiB; it asked for 1 MiB at a time and had
+   nothing until all of it had come), and a Matroska film's fonts and tags
+   as Void elements of zeros it never fetches (it steps over a Void by
+   reading through it), its seek head naming the Info element in their
+   place (it goes back to each element named there that it has not met).
+   An HEVC 10-bit film started in 1.0 s instead of 2.0, and 1.3 s instead
+   of 14.0 with an 8 MB font (Fonts attached, below).
+   When libmedia cannot open or start a film, its own words ("[packages/avplayer/src/AVPlayer.ts][line 1858]
+   [fatal]: open stream failed, ret: …") no longer reach the screen: the viewer reads one plain sentence by why the
+   film came to the software decoder ("This phone's browser cannot decode this film's picture, and Astra's software
+   decoder could not read the file either.", or after a failed start in the browser "This phone could not decode
+   this film's picture, and…", else "Astra's software decoder could not read this file."), with the error card's
+   choices (another source, another app), and libmedia's words stay in the engine's log for the report
+   (`software.js` `plainly`, `player-start.js`).
 5. **Reading the file** (`http-source.js` with `source-stream.js`,
    `source-blocks.js`, `source-tuning.js`, `side-read.js`, `source-tail.js`,
    `film-memory.js`). Playback's reads pull one download along (two at
@@ -496,7 +522,10 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    - *While a film is described*, only what is asked for is fetched: a
      download stops 64 KiB past the last byte asked of it (and never runs
      more than 2 MiB ahead), since where playback starts is not known yet;
-     resuming halfway then closes the connection at the start.
+     resuming halfway then closes the connection at the start. Where what
+     follows is passed over by its size (fonts attached, a Void), it stops
+     at once. A download begun past such a part asks, as the first one
+     does, for those 2 MiB, so a film from 0:00 plays on from it.
    - *Read-ahead by bitrate* (`source-tuning.js`). Once the size and the
      length give the film's bitrate, a download runs about 10 s of the film
      past the furthest byte read (5 s with the data saver), never under
@@ -1140,6 +1169,81 @@ for any sound (6 ms) and are not compensated.
 Its sound passed through now comes in quarter-second fragments, which is the 85 ms its start and resume gained (with
 everything else of this round and the old fragments: 337, 620 and 562 ms).
 
+### Fonts attached (measured 2026-11-18)
+
+A Matroska film that carries the fonts of its styled subtitles started only after Astra had downloaded every
+font: Mediabunny walks the top-level elements before the first cluster and reads the Attachments element (and the
+Tags) whole. On a real anime episode from the owner's add-on the engine sat 9.8 s in "Reading what is inside…";
+the phone took 10 to 25 s to start such films. Now (`mkv-hide.js`, `probe.js`) Mediabunny is handed both elements
+as Void elements of the same length, which it steps over by their size; the download at the film's start stops
+where the fonts begin, and the header past them is asked for in a request of its own that reads on into the first
+cluster, so a film from 0:00 plays on from it. The fonts are read only when a styled track is shown, once the first
+picture is up, in requests of their own that end with the element (`mkv-attachments.js` `sideReader`,
+`player-libass.js`): the track's text shows at once in Astra's own renderer, and libass draws it with the film's
+fonts when they land. A block before the first cluster that holds only fonts is not fetched for the subtitle
+scanners (`side-read.js`).
+
+Films made from one 2-minute 1.5 Mbit/s film (H.264, AAC, an ASS track) that differ only in what lies before the
+first cluster (`scripts/astra/real.mjs --mbit 5.4 --delay 110`, a fresh profile a run, medians of 3 to 5 runs; the first
+picture and the MB downloaded by then):
+
+| Before the first cluster | From 0:00, before | after | Resumed at 1:00, before | after |
+|---|---|---|---|---|
+| Nothing more | 0.29 s, 0.2 MB | 0.28 s, 0.2 MB | 0.80 s, 0.5 MB | 0.77 s, 0.5 MB |
+| An 8 MB font attached | 12.2 s, 7.8 MB | 0.45 s, 0.3 MB | 12.3 s, 7.9 MB | 0.48 s, 0.4 MB |
+| 4 MB of tags | 6.3 s, 4.0 MB | 0.45 s, 0.3 MB | 6.8 s, 4.3 MB | 0.85 s, 0.6 MB |
+| An 8 MB Void | 0.67 s, 0.4 MB | 0.46 s, 0.3 MB | 0.85 s, 0.6 MB | 0.86 s, 0.6 MB |
+| The cue index, then an 8 MB Void | 0.67 s, 0.4 MB | 0.45 s, 0.3 MB | 0.85 s, 0.6 MB | 0.85 s, 0.6 MB |
+| 1 MB of chapters (47,000) | 1.98 s, 1.3 MB | 1.91 s, 1.2 MB | 2.48 s, 1.5 MB | 2.48 s, 1.6 MB |
+| The font after the clusters | 0.29 s, 0.3 MB | 0.29 s, 0.3 MB | 1.04 s, 0.6 MB | 0.95 s, 0.7 MB |
+
+The software decoder (libmedia, for a picture the browser cannot decode: HEVC 10-bit on the owner's phone, which sat
+60 s and 16 MB in "Reading the file…" for a 79 MB film) read the fonts through too, and waited for a whole MiB before
+it had a byte (`software-loader.js`). The same two films with their picture as HEVC 10-bit (libx265, 1.3 Mbit/s; the
+test browser has no HEVC decoder, so they go to libmedia), the same link, 3 runs: the first picture decoded, the MB by
+then, and the time in "Reading the file…":
+
+| HEVC 10-bit | Before | After |
+|---|---|---|
+| Without the font | 2.03 s, 1.3 MB, 1.58 s | 1.05 s, 0.6 MB, 0.60 s |
+| With the 8 MB font | 13.96 s, 8.9 MB, 1.69 s (after 12 s in "Reading what is inside…") | 1.26 s, 0.8 MB, 0.83 s |
+
+libmedia's own analysis was not what held it: its `maxProbeDuration` at 1 s instead of 3 changed nothing (1.58 and
+1.59 s) and is not set. The sound is heard as before through libmedia's own audio graph (`heard.cjs`: 441 Hz at the same
+level, before and after), and the AVI, 3GP and Windows Media films of `astra-formats-browser.test.mjs` still show a
+moving picture at their pitches.
+
+The 0.17 s left between a film with fonts and one without is the request past them (110 ms) and the link it shares
+with the film's end. Chapters are still read whole before the plan (the chapter list is offered before playback);
+a real film's are a few kB. With the styled track chosen from the start (the 8 MB font): first picture 12.2 s
+before, 0.46 s after, no stall in the first 20 s; the font, read through the reader's downloads before, had begun
+one that read on past it into the film playback was reading already (2 MB of the film twice).
+
+### A description that runs long (measured 2026-11-18)
+
+On the owner's phone one film (HEVC 10-bit, an AAC track whose name claims FLAC, 79 MB, 93 s) spent 91 s in "Reading
+what is inside…" and read 21 MB before any plan. What a few codecs need to be described comes from their first packet
+(DTS's codec string; the setup of VP9, of AV1 and of an H.264 or HEVC track whose header carries none), which Mediabunny
+finds by reading clusters whole from the film's start until one holds a block of that track. A film made to show it:
+two minutes of 640×360 H.264 at 3 Mbit/s with AAC and a DTS 5.1 track that begins a minute in, on a browser that says
+it takes DTS as it is (Media Source told so), 5.4 Mbit/s and 110 ms a request, 3 runs:
+
+| | "Reading what is inside…" | First picture | MB by then |
+|---|---|---|---|
+| Before | 35.7 s | 35.9 s | 23 |
+| After (`probe-limit.js`) | 3.1 s | 3.3 s | 2.1 |
+| The same film where the browser takes no DTS (nothing of DTS is read) | 0.13 s | 1.0 s | 0.6 |
+
+The first cluster is read freely (a start from 0:00 reads it anyway, and nearly every first packet is in it). Past it,
+all the tracks together get 3 s from the first read there and 2 MiB not already here: a few seconds and a couple of
+MiB on a slow link, and on a fast one the bytes end it sooner. Mediabunny's reads serve every track looking at once, so
+the limit is one for all; each track not described by then is left as an unread one (no codec string, no decoder
+setup, `limited` in the report), the reads still waiting are let go and a download begun past the first cluster for
+them alone stops. DTS so left is converted (as where the browser takes no DTS as it is), the converter given what
+the track's header holds (Mediabunny would otherwise answer it with the refused read): the film then plays its DTS
+track from 1:05, converted in the worker. A small film is no worse (the 2-minute film of Fonts attached, 5 runs: first
+picture 282 and 284 ms, resumed at 1:00 773 and 770 ms).
+
 ### Several cores (present, switched off)
 
 The code for using more than one core is in place and off: `ISOLATE =
@@ -1461,8 +1565,9 @@ merged by kind; nothing ever skips by itself, and movies get neither.
   so signs, typesetting, karaoke and positioned lines look as authored. For
   a film's own track the fonts attached to the film are read
   (`engine/mkv-attachments.js`: fonts only, bounded in number and size,
-  read a header at a time so cover pictures and the film around them are
-  not downloaded); Liberation Sans is the fallback, and the phone's own
+  once the first picture is up, in requests of their own that end with the
+  attachments, so cover pictures past a 1 MiB window and the film around
+  them are not downloaded); Liberation Sans is the fallback, and the phone's own
   fonts and online font services are never asked. An .ass file from an
   add-on or the phone is drawn the same way. JASSUB (2.4 to 2.5 MB) is
   fetched when a styled track is first chosen; a frame is asked of it only
@@ -1568,6 +1673,9 @@ skip in a browser without it.
 | `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment (run only once its host is confirmed), and a report with no address, hash, key or file name; the scrubber itself. |
 | `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
 | `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
+| `astra-attachments.test.mjs` | A film with 8 MiB of fonts attached is described from its start, its end and its first cluster; the download at the start stops where the fonts begin, the one past them reads on; the fonts read later in requests that end with the element; a Void header the length of the element's own. |
+| `astra-software-words-browser.test.mjs` | A film the software decoder cannot open (libmedia stood in for by one whose load fails as it did on a phone): one plain sentence on screen, libmedia's own words in the log. |
+| `astra-probe-limit.test.mjs` | A DTS track none of whose blocks is near the start (dts.mkv renumbered) is left unread once describing reaches its limit, converted, and given its header's setup; the limit's reads, counted and refused. |
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |

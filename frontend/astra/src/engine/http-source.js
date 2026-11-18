@@ -55,6 +55,7 @@ export class HttpSource {
     this.byteRate = 0; // the film's average bytes a second (learn)
     this.probing = false;
     this.probeReads = []; // what describing the file read, to be remembered (film-memory.js)
+    this.skips = []; // [from, to): what describing passes over by its size (a Matroska film's fonts, mkv-hide.js), never read on into while describing
     this.memory = memory; this.kept = null; this.recall = null;
     // Back online, or on another network: waiting retries go now, and a download gone quiet is asked again.
     this.retries = new Set();
@@ -66,6 +67,7 @@ export class HttpSource {
 
   /** One request to the film once a connection slot is free (source-gate.js): `kind` 'play', 'side' or 'preview'. */
   request(headers, signal, method = 'GET', kind = 'play') {
+    this.requests = (this.requests || 0) + 1; // for the engine's own log (player-report.js mark)
     return gated(this, kind, signal, s => this.fetchFn(this.url, {method, headers: {...this.headers, ...headers}, signal: s, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'}));
   }
 
@@ -87,6 +89,13 @@ export class HttpSource {
     const moved = new SourceError('closed', 'Playback moved elsewhere.');
     for (const w of this.waiters) w.reject(moved);
     this.waiters.clear();
+  }
+
+  /** Reads describing gave up on (probe-limit.js) end, and a download past `after` that only they wanted stops. */
+  letGo(ranges, after = 0) {
+    const gone = new SourceError('closed', 'Describing gave up on this read.');
+    for (const w of [...this.waiters]) if (ranges.some(([s, e]) => w.start === s && w.end === e)) { this.waiters.delete(w); w.reject(gone); }
+    for (const s of [...this.streams]) if (s.held && s.at > after && !this.servingWaiter(s)) s.abort();
   }
 
   /** One bounded range request of its own, outside the downloads and the cache; seek previews pass `kind` 'preview'. */

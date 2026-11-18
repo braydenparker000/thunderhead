@@ -48,6 +48,7 @@ export class AppendQueue {
         try {
           await this.run(() => this.buffer.appendBuffer(item.bytes));
           this.items.shift(); this.bytes -= item.bytes.byteLength;
+          if (this.onFirst && this.buffer.buffered.length) { this.onFirst(); this.onFirst = null; } // the first fragment is in (player-report.js mark)
         } catch (error) {
           if (error?.name === 'QuotaExceededError') {
             const freed = await this.evict(this.behind() / 2);
