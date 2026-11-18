@@ -1,6 +1,6 @@
 // @ts-nocheck
 // The Looks board: the looks kept on this phone, each a small picture of the open photo wearing it, in a strip in
-// the panel under the photo. Its panel has two sections, swiped round on its barrel. PRESETS are the `.cube` looks brought in with IMPORT: a tap
+// the panel under the photo. Its panel has two sections, swiped up or down. PRESETS are the `.cube` looks brought in with IMPORT: a tap
 // puts one on, a tap on it again takes it off, and the window above the strip sets its strength. MINE are edits
 // saved as looks: a tap lays one over this photo's edit. The camera's own renderings are the Edit board's
 // Profile face. First on the Presets face is the Weekly Fuji recipes card (app/recipes.js): a tap opens the recipes,

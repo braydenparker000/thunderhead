@@ -20,10 +20,11 @@ header button:active{opacity:0.6}
 #frame{background:#000}
 /* a board coming in: the photo stays where it is (its own layer, app/zoom.js) and only the panel rises */
 #stage.enter .plate{animation:rise 300ms cubic-bezier(0.2,0.85,0.2,1) backwards}@keyframes rise{from{opacity:0.4;transform:translateY(28px)}to{opacity:1;transform:none}}@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-/* the panel rolls like a barrel to the next section (boards/Barrel.js): the turn is set on the stage while a finger swipes it, the section going away a still copy laid over it; a swipe up or down is the barrel's, sideways the panel's own */
-#stage .plate.barrel{transform:var(--roll,none);transform-origin:50% var(--roll-y,105px);touch-action:pan-x}
+/* a swipe up or down slides the panel to the next section (boards/Barrel.js): its slide and where it is cut off are set on the stage while it moves, the section going away a still copy laid over it; meanwhile the panel keeps its place and the photo its room (data-room), and both ease to the section's own once it rests; sideways stays the panel's own */
+#stage .plate.barrel{transform:var(--roll,none);clip-path:var(--clip,none);touch-action:pan-x}
 #stage.rolling .plate{transition:none!important}
-.plate.barrel::after{content:'';position:absolute;inset:0;background:#000;opacity:var(--dim,0);pointer-events:none}
+#stage.rolling .plate.barrel{top:var(--hold-top)!important}
+#stage.rolling [data-room]{height:var(--hold-room)!important;transition:none!important}
 .plate.barrel .hscroll{touch-action:pan-x}
 #stage .plate.barrel:has([role=listbox]:focus-visible){outline:2px solid rgba(232,32,42,0.9);outline-offset:-3px}
 /* the tool dial in the corner (boards/ToolDial.js): over the board, only its own parts take a finger */
@@ -35,7 +36,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
 .fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
 @keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
-/* a section's adjustments rise into place as it comes round on the panel's barrel (boards/Barrel.js): one name a section, so the animation runs again at each */
+/* a section's adjustments rise into place as it slides in on the panel (boards/Barrel.js): one name a section, so the animation runs again at each */
 @keyframes pop0{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop1{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop3{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop4{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop5{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop6{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop7{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop8{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop9{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
 .key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}

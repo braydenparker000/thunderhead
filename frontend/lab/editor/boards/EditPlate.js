@@ -1,6 +1,6 @@
 // @ts-nocheck
 // The Edit board. The photo fills the screen above a short panel: the value's window, the dial that turns it, and
-// one row of the adjustments. Swiped up or down, the panel rolls like a barrel to the next section (Light, Curve,
+// one row of the adjustments. Swiped up or down, the panel slides to the next section (Light, Curve,
 // Color, Mixer, Grading, Effects, Detail, Optics, Profile: boards/Barrel.js) and the section's adjustments rise into
 // the row. The curve and the grading wheels are in the panel too, never over the photo: the panel
 // grows for them and the photo's room gives way. The dial turns the chosen one, runs on when flicked, and two taps on it put the value
@@ -81,7 +81,8 @@ export default class Component extends DCLogic {
     const mode = face === 'Curve' ? 'curve' : face === 'Grading' && ZONES.includes(S.zone) ? 'wheel' : face === 'Profile' ? 'tiles' : 'dial', plateH = mode === 'curve' ? 340 : mode === 'wheel' ? 262 : 210;
     const cp = photo.curve()?.[S.chan] || [[0, 0], [1, 1]], ci = Math.min(photo.picked.i, cp.length - 1), inner = ci > 0 && ci < cp.length - 1;
     const lift = (by) => real && photo.setCurve(S.chan, (photo.curve()?.[S.chan] || [[0, 0], [1, 1]]).map((q, j, all) => (j === Math.min(photo.picked.i, all.length - 1) ? [q[0], Math.max(0, Math.min(1, q[1] + by / 255))] : q)));
-    const hold = (by) => () => { lift(by); clearTimeout(this.rep); clearInterval(this.rep); this.rep = setTimeout(() => { this.rep = setInterval(() => lift(by), 60); }, 380); };   // a press steps once; held, it keeps stepping
+    const hold = (by) => () => { clearTimeout(this.rep); clearInterval(this.rep); this.held = false; this.rep = setTimeout(() => { this.held = true; lift(by); this.rep = setInterval(() => lift(by), 60); }, 380); };   // held, it keeps stepping;
+    const tap = (by) => () => { if (!this.held) lift(by); this.held = false; };   // a tap steps once, on its click: a swipe begun on the key is the panel's, and steps nothing
     return {
       faces: FACES.map((f) => ({ label: f, count: counts[f] || 0 })), faceAt: at, pickFace: (i) => { photo.pickWhite(false); set({ face: FACES[i], wbMenu: false }); this._host?.el.querySelector('[role=toolbar]')?.scrollTo({ left: 0 }); },   // a new face's row starts from its beginning
       chips, rowAria: `${face} adjustments`, dialLabel, unit,
@@ -92,7 +93,7 @@ export default class Component extends DCLogic {
       plateTop: 915 - plateH, photoH: 915 - plateH - 56, rowTop: plateH - 58,
       isDial: mode === 'dial', isCurve: mode === 'curve', isWheel: mode === 'wheel', isTiles: mode === 'tiles', tiles,
       noTiles: real?.plain ? 'A JPEG has no camera profiles: its colours are already the camera’s own' : real ? 'No profiles on this phone yet: load them on the engine page' : '', dialLeft: !!real && !!ctl && photo.upward(ctl), chan: S.chan, zone: S.zone, pickZone: (z) => set({ zone: z }),
-      curveIn: Math.round(cp[ci][0] * 255), curveOut: Math.round(cp[ci][1] * 255), nudgeUp: hold(1), nudgeDown: hold(-1), nudgeStop: () => { clearTimeout(this.rep); clearInterval(this.rep); },
+      curveIn: Math.round(cp[ci][0] * 255), curveOut: Math.round(cp[ci][1] * 255), nudgeUp: hold(1), nudgeDown: hold(-1), nudgeUpTap: tap(1), nudgeDownTap: tap(-1), nudgeStop: () => { clearTimeout(this.rep); clearInterval(this.rep); },
       removePoint: () => { if (real && inner) { photo.setCurve(S.chan, cp.filter((_, j) => j !== ci)); photo.picked.i = Math.max(0, ci - 1); } }, removeInk: inner ? '#dedbd4' : '#5d6166',
       wbMenu: S.wbMenu && face === 'Color',
       wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === wbNow), bg: name === wbNow ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => { if (real) photo.setWb(name); set({ wb: name, wbMenu: false }); } })),

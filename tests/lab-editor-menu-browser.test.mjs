@@ -1,9 +1,9 @@
 // The editor's sections and tools (the owner's design, 2026-11-18), under real touches: a board's panel swiped up or
-// down rolls like a barrel to the next section or the one before (boards/Barrel.js), both sections turning on it as it
-// goes, while a swipe sideways stays the panel's own (its value dial turns) and the curve keeps its own drags; a swipe
+// down slides to the next section or the one before (boards/Barrel.js), both sections in view as it goes, while a
+// swipe sideways stays the panel's own (its value dial turns) and the curve keeps its own drags; a swipe
 // that began on the value dial takes no tap from it. The tool dial in the corner (boards/ToolDial.js), held and turned
-// round the corner, a notch a tool, opens the tool it is let go on (movement in or out turns nothing); tapped, it stays
-// open to tap a tool; a tap outside shuts it; the keys step it; the Library has none. The photos are JPEGs drawn by the
+// held and slid up or down, a notch a tool and round the ring, opens the tool it is let go on (sideways turns nothing);
+// tapped, it stays open to tap a tool; a tap outside shuts it; the keys step it; the Library has none. The photos are JPEGs drawn by the
 // test, on a software GPU; the vibration is a stub that keeps what it is asked.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -58,29 +58,41 @@ const section = (page) => page.evaluate(() => document.querySelector('#stage [ro
 const board = (page) => page.evaluate(() => document.getElementById('frame').dataset.board);
 const exposure = (page) => page.evaluate(async () => (await import('/lab/editor/app/session.js')).text('Exposure'));
 
-test('the panel rolls like a barrel: up or down a section, sideways the panel’s own, the curve its own', opts, async () => {
+test('the panel slides: up or down a section, round, sideways the panel’s own, the curve its own', opts, async () => {
   const { context, page, errors, touch, swipe } = await opened();
   assert.equal(await section(page), 'Light');
   await page.evaluate(() => window.BUZZ.splice(0));
-  // Up on the row: Curve comes up from below, the two sections turning on one barrel on the way; one tick.
+  // Up on the row: Curve comes up from below, both in view on the way, the photo still; one tick. Curve's panel is
+  // taller: it grows once it rests, and the photo's room gives way then.
+  const room = () => page.evaluate(() => Math.round(document.querySelector('#stage [data-room]').getBoundingClientRect().height));
+  const room0 = await room();
   let mid = null;
-  await swipe(line(150, 885, 745), async () => { mid = await page.evaluate(() => ({ plates: document.querySelectorAll('.plate').length, turned: getComputedStyle(document.querySelector('#stage .plate')).transform !== 'none' })); });
-  assert.deepEqual(mid, { plates: 2, turned: true }, 'halfway, the section going away is a copy and the panel itself turns');
+  await swipe(line(150, 885, 745), async () => { mid = await page.evaluate(() => ({ plates: document.querySelectorAll('.plate').length, turned: getComputedStyle(document.querySelector('#stage .plate')).transform !== 'none', room: Math.round(document.querySelector('#stage [data-room]').getBoundingClientRect().height) })); });
+  assert.deepEqual(mid, { plates: 2, turned: true, room: room0 }, 'halfway, the section going away is a copy, the panel itself slides, and the photo has not moved');
   assert.equal(await section(page), 'Curve');
+  await until(async () => (await room()) < room0 - 100, { message: 'at rest the taller panel takes its room from the photo' });
   assert.deepEqual(await page.evaluate(() => window.BUZZ.splice(0)), [8], 'one tick as the section came round');
-  assert.deepEqual(await page.evaluate(() => [document.querySelectorAll('.plate').length, getComputedStyle(document.querySelector('#stage .plate')).transform]), [1, 'none'], 'at rest: one panel, square on');
+  assert.deepEqual(await page.evaluate(() => [document.querySelectorAll('.plate').length, getComputedStyle(document.querySelector('#stage .plate')).transform]), [1, 'none'], 'at rest: one panel, in its place');
   // A drag on the curve is the curve's.
   const curve = await page.locator('#stage [data-drag][role=group]').boundingBox();
   await swipe(line(curve.x + curve.width / 2, curve.y + curve.height * 0.8, curve.y + curve.height * 0.2));
   assert.equal(await section(page), 'Curve', 'the curve kept its drag');
-  // Down on the row: back to Light. Down again: round to Profile, the last (the barrel is round), and up to Light.
+  // Down from the key beside the curve: back to Light, the curve's point not lifted. Up on the row to Curve again,
+  // and down on the row under it: a short swipe there is enough.
+  const pts = () => page.evaluate(async () => JSON.stringify((await import('/lab/editor/app/session.js')).curve()));
+  const was = await pts(), key = await page.locator('#stage [aria-label="Lift the point"]').boundingBox();
+  await swipe(line(key.x + key.width / 2, key.y + 10, key.y + 100));
+  assert.equal(await section(page), 'Light', 'a swipe that began on the key is the panel\'s');
+  assert.equal(await pts(), was, 'and lifted nothing');
+  await swipe(line(150, 885, 745)); assert.equal(await section(page), 'Curve');
   await swipe(line(150, 862, 912));
   assert.equal(await section(page), 'Light', 'a short swipe on the row under the curve is enough');
+  // Down again: round to Profile, the last, and up to Light.
   await swipe(line(150, 790, 912));
   assert.equal(await section(page), 'Profile', 'before the first section, the last');
   await swipe(line(150, 900, 780));
   assert.equal(await section(page), 'Light');
-  // Begun on the value dial, a swipe up is the barrel's: the value stays; twice quickly down there is no double tap.
+  // Begun on the value dial, a swipe up is the panel's: the value stays; twice quickly down there is no double tap.
   await page.evaluate(async () => { const p = await import('/lab/editor/app/session.js'); p.turn('Exposure', 0.5); await p.draw(); });
   const before = await exposure(page);
   const wheel = await page.locator('#stage [role=slider]').first().boundingBox(), wy = wheel.y + wheel.height / 2;
@@ -99,22 +111,28 @@ test('the panel rolls like a barrel: up or down a section, sideways the panel’
   await context.close();
 });
 
-test('the tool dial: held and turned round the corner, tapped open, shut by a tap outside, the keys', opts, async () => {
+test('the tool dial: held and slid up or down a notch a tool, round the ring, tapped open, shut by a tap outside, the keys', opts, async () => {
   const { context, page, errors, touch, swipe } = await opened();
   const rest = page.locator('#tooldial button[aria-label^="Tools:"]');
   assert.match(await rest.getAttribute('aria-label'), /^Tools: Edit, Light\./);
-  // Held and turned one notch toward the top: the panel shows the tools rolling by, and Masks opens when let go.
-  const arc = (from, to, r = 60, n = 12) => Array.from({ length: n + 1 }, (_, i) => { const d = ((from + ((to - from) * i) / n) * Math.PI) / 180; return [412 + r * Math.cos(d), 915 + r * Math.sin(d)]; });
+  // Held and slid up a notch: the panel shows the tools going by, and Masks opens when let go.
+  const slide = (dx, dy, n = 12) => Array.from({ length: n + 1 }, (_, i) => [384 + (dx * i) / n, 887 + (dy * i) / n]);
   let seen = '';
   await page.evaluate(() => window.BUZZ.splice(0));
-  await swipe(arc(222, 246), async () => { seen = await page.evaluate(() => document.querySelector('#tooldial [aria-hidden=true] [style*="preserve-3d"]')?.textContent || ''); });
-  assert.match(seen, /EDIT|MASKS/, 'the panel rolls through the tools, by name');
+  await swipe(slide(0, -50), async () => { seen = await page.evaluate(() => document.querySelector('#tooldial [aria-hidden=true] [style*="preserve-3d"]')?.textContent || ''); });
+  assert.match(seen, /EDIT|MASKS/, 'the panel shows the tools going by, by name');
   assert.equal(await board(page), 'Masks');
   assert.ok((await page.evaluate(() => window.BUZZ.splice(0))).length >= 2, 'a tick on taking it and at the notch');
   await page.evaluate(() => history.back()); await until(async () => (await board(page)) === 'Edit', { message: 'back goes to the tool before' });
-  // Straight out from the corner: in or out turns nothing.
-  await swipe(Array.from({ length: 13 }, (_, i) => [412 - (30 + i * 9) * 0.7071, 915 - (30 + i * 9) * 0.7071]));
-  assert.equal(await board(page), 'Edit', 'moving out turned nothing');
+  // A short slide down: the one before. Then up five, from Crop: round the ring, past Versions, to Looks.
+  await swipe(slide(0, 28, 6));
+  assert.equal(await board(page), 'Crop', 'a little down is the tool before');
+  await swipe(slide(0, -200, 24));
+  assert.equal(await board(page), 'Looks', 'round the ring');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' }))); await until(async () => (await board(page)) === 'Edit', { message: 'back on Edit' });
+  // Sideways turns nothing.
+  await swipe(slide(-120, 0));
+  assert.equal(await board(page), 'Edit', 'sideways turned nothing');
   // A tap: it stays open, a tap on a name opens that tool; tapped again and shut by a tap above, nothing changes.
   await touch('touchStart', [[384, 887]]); await page.waitForTimeout(60); await touch('touchEnd', []);
   await page.waitForSelector('#tooldial [role=group][aria-hidden=false]');

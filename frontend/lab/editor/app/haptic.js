@@ -1,6 +1,6 @@
 // @ts-check
 // A small tick under the finger (docs/design/EDITOR.md): the dial passing its start or reaching an end, a section or a tool
-// clicking into place on the panel's barrel or the tool dial, Undo and Redo, an export done. Kept rare on purpose: never one per pixel of a drag, and
+// sliding in on the panel or a tool clicking past on the tool dial, Undo and Redo, an export done. Kept rare on purpose: never one per pixel of a drag, and
 // never more than one every 40 ms. Off with the owner's setting (Settings › Photos › Editor › Haptics), when the
 // phone asks for less motion, and where the browser has no vibration (it then does nothing, and never throws).
 import { prefOn } from '/th/pref.js';

@@ -1,19 +1,16 @@
 {
-  "id": "2026-11-18-astra-slow-links",
+  "id": "2026-11-18-editor-sections-tools-2",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra on a slow connection: a film waits for a few seconds of itself and plays on, instead of stopping again and again.",
-      "open": "astra"
+      "text": "Swiping the editor's panel is now a flat slide that follows your finger, and the photo stays still while it moves.",
+      "open": "photos"
     },
     {
-      "text": "Changing the audio track no longer stops the picture, most of the time."
+      "text": "A short swipe is enough, even on the curve: a swipe can start on the keys beside it."
     },
     {
-      "text": "If a sound converter cannot be downloaded, the film plays on with another track or without sound, and says so."
-    },
-    {
-      "text": "Films start a little sooner, and Headphone surround is back in step with the picture."
+      "text": "The tool dial now slides straight up or down: a click every step, round to every tool."
     }
   ]
 }

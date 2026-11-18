@@ -116,13 +116,16 @@ built, [ROADMAP.md](ROADMAP.md) what was agreed before the audit.
 | A day | `gentle.js` (key `.2`: what the phones learnt of the old passes let go): a job that reset the chip twice running waits a day (`waitIn`/`wait`), and is tried again then; made whole once, it waits no more | the guard file |
 
 - **Eighth round (2026-11-18): the editor's sections and tools, as the owner designed them on the canvas.** The drum
-  at the row's left end and the round tools key with its glass dock are gone. Done:
+  at the row's left end and the round tools key with its glass dock are gone. The first build (a 3D barrel, a dial
+  swung round the corner) was tried on the phone and found to stutter, push the photo about, be all but unswipeable
+  on the curve and hard to aim; the owner chose a flat slide and a dial slid straight up or down. Done:
 
 | Part | What | Proved here |
 |---|---|---|
-| Sections | `boards/Barrel.js`: a board's panel swiped up or down rolls like a barrel (34° a section, round: past the last comes the first); a third of a section goes on to it, a flick a section or two; the section going away a still copy of the panel, the panel itself the one coming; sideways stays the panel's own, the curve and the grading wheels keep their drags (`data-drag`); a listbox and the arrow keys for a keyboard | `tests/lab-editor-menu-browser.test.mjs` |
-| Tools | `boards/ToolDial.js`, mounted by `boot.js`: a knurled dial in the corner; held, the thumb going round the corner turns a ring of the tools a notch a tool (in or out turns nothing), the panel showing each tool by name; let go, that tool opens on its own last section; a tap leaves it open; the arrow keys step it | the same |
-| A cancel is no tap | `DialPlate.js`: a press the barrel took (a cancel) is not half of a double tap, which would put the value back | the same |
+| Sections | `boards/Barrel.js`: a board's panel swiped up or down slides to the next section one for one with the finger, round (past the last comes the first); past 40 px (a quarter of the panel, if less) or a flick it goes on; the panel holds its place and the photo its room (`data-room`) while it slides, both easing to the section's own at rest; the board asked for the coming section once, as the swipe sets off; the section going away a still copy; sideways and the curve's and grading wheels' drags stay theirs (`data-drag`); the keys beside the curve step on a tap, so a swipe may begin on them; a listbox and the arrow keys | `tests/lab-editor-menu-browser.test.mjs` |
+| Tools | `boards/ToolDial.js`, mounted by `boot.js`: a knurled dial in the corner; held, the thumb sliding up or down turns a ring of the tools a click every 40 px (24 down for the one before), round, in notches; the panel naming each tool as it goes by; let go, that tool opens on its own last section; a tap leaves it open; the arrow keys step it | the same |
+| A cancel is no tap | `DialPlate.js`: a press the panel took (a cancel) is not half of a double tap, which would put the value back | the same |
+| Tests found hidden | the network at 200 % (`lab-editor-net-browser`) had been skipped in CI (its sample RAF is fetched in another part) and measured a layer the zoom had put away: it measures it shown now | `tests/lab-editor-net-browser.test.mjs` |
 
 
 

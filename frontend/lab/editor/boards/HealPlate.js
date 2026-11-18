@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The Heal board. With a photo open (app/session.js) the spots are the photo's own (app/heal.js, engine/heal.js):
 // a tap retouches a spot from a source the engine picks nearby, the dashed circle is that source and can be
-// dragged, and the photo itself shows the result. The panel's barrel (a swipe up or down) chooses the tool (Heal, Clone, Remove); the dial sets
+// dragged, and the photo itself shows the result. A swipe up or down on the panel chooses the tool (Heal, Clone, Remove); the dial sets
 // the chosen spot's size, feather and opacity (and the next one's), and shows the chosen spot's own. In the app with no
 // photo open it shows none (app/shown.js); a screen of the design on its own plays a sample.
 import { DCLogic } from '../dc.js';
