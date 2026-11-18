@@ -2,7 +2,9 @@
 // whole while describing the film, so an 8 MB font held the first picture 12.2 s on a 5.4 Mbit/s link with 110 ms a
 // request (0.29 s without it; scripts/astra/real.mjs, 2026-11-18). Now Mediabunny is shown that element as Void
 // (mkv-hide.js), the download at the film's start stops where the fonts begin, and the fonts are read only when a
-// styled track is shown, in requests of their own that end with the element (mkv-attachments.js sideReader). The film
+// styled track is shown, in requests of their own that end with the element (mkv-attachments.js sideReader). The
+// software decoder (libmedia, which steps over a Void by reading through it) gets the fonts as zeros it never fetches,
+// and what has arrived as it arrives (software-loader.js): an HEVC 10-bit film went from 14.0 s to 1.3 s. The film
 // is anime.mkv (scripts/astra/fixtures.sh) with 8 MiB of made-up font added to its attachments here, its seek head and
 // cue index moved to match.
 import { test } from 'node:test';
@@ -12,6 +14,7 @@ import { probe } from '../frontend/astra/src/engine/probe.js';
 import { header, MKV_ID as ID } from '../frontend/astra/src/engine/mkv.js';
 import { voidHeader } from '../frontend/astra/src/engine/mkv-hide.js';
 import { readFonts, sideReader } from '../frontend/astra/src/engine/mkv-attachments.js';
+import { sourceLoader } from '../frontend/astra/src/engine/software-loader.js';
 
 const BIG = 8 << 20;
 const cat = (...parts) => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let at = 0; for (const p of parts) { out.set(p, at); at += p.length; } return out; };
@@ -106,4 +109,23 @@ test('a Void header of the same length as the element\'s own, for every length o
     assert.equal(at, length, `the last Void's header ends where the element's did (${length} bytes)`);
     assert.equal(last.size, size, 'and says the same size');
   }
+});
+
+test('libmedia is handed the fonts as a Void of zeros it never fetches, its seek head naming Info for them, and what is here as it comes', async () => {
+  const top = kids(film, header(film, header(film, 0).dataStart + header(film, 0).size).dataStart, film.length);
+  const asked = [], att = top.find((k) => k.id === ID.Attachments), cluster = top.find((k) => k.id === ID.Cluster).at;
+  const source = { size: film.length, read: async (s, e) => { asked.push([s, e]); return film.subarray(s, e); }, cachedUntil: (s) => s };
+  const loader = sourceLoader({ IOLoader: { CustomIOLoader: class {} } }, source, 'mkv');
+  const buffer = new Uint8Array(1 << 20), seen = new Uint8Array(film.length);
+  let at = 0, first = 0;
+  for (let n; at < cluster + 4096 && (n = await loader.read(buffer)) > 0; at += n) { seen.set(buffer.subarray(0, n), at); first ||= n; }
+  assert.equal(first, 64 << 10, 'the first read is what may have arrived (64 KiB), not a whole MiB');
+  const h = header(seen, att.at);
+  assert.equal(h.id, 0xec, 'the attachments read as a Void');
+  assert.equal(h.dataStart + h.size, att.body[1], 'of the same length');
+  assert.ok(seen.subarray(att.body[0] + 64, att.body[1]).every((b) => b === 0), 'whose body is zeros');
+  assert.ok(!asked.some(([s, e]) => s < att.body[1] - 4096 && e > att.body[0] + 4096), `nothing of it was asked for (${JSON.stringify(asked.slice(0, 6))})`);
+  const pattern = (bytes) => Buffer.from(bytes.subarray(0, 300)).indexOf(Buffer.from([0x53, 0xab, 0x84, 0x19, 0x41, 0xa4, 0x69]));
+  assert.ok(pattern(film) > 0 && pattern(seen) < 0, 'the seek head names the Info element in its place');
+  assert.deepEqual([...seen.subarray(cluster, cluster + 4096)], [...film.subarray(cluster, cluster + 4096)], 'the first cluster is the film\'s own');
 });

@@ -17,6 +17,9 @@
 // subtitle renderer use the element exactly as they do for other modes.
 
 import {prepareThreads} from './software-threads.js';
+import {sourceLoader, fixAviTags, fixMkvLayers} from './software-loader.js';
+
+export {fixAviTags, fixMkvLayers};
 const BASE = new URL('../../../assets/libmedia/', import.meta.url);
 // libmedia codec ids -> its decoder builds.
 const WASM = {
@@ -25,8 +28,6 @@ const WASM = {
   86018: 'aac', 86019: 'ac3', 86056: 'eac3', 86020: 'dca', 86017: 'mp3', 86076: 'opus', 86028: 'flac', 86021: 'vorbis',
   86023: 'wma', 86024: 'wma', 86052: 'wma', 86053: 'wma', 86054: 'wma', 86051: 'speex',
 };
-const IO_END = -1048576; // libmedia's end-of-stream for custom loaders
-const READ_CHUNK = 1 << 20;
 
 /** Video codecs (Mediabunny names) this path can decode. */
 export const SOFTWARE_VIDEO = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1']);
@@ -85,34 +86,6 @@ export function sniffContainer(b) {
 /** Containers libmedia has no reader for, by the name a person knows. */
 export const UNREADABLE = {asf: 'Windows Media (WMV, ASF)', rm: 'RealMedia'};
 
-// libmedia matches an AVI's codec tag by exact case; files also carry these in lower case.
-const AVI_TAGS = new Set(['XVID', 'DIVX', 'DX50', 'DIV3', 'DIV4', 'MP43', 'MP42', 'MJPG', 'WMV1', 'WMV2', 'WMV3', 'FMP4', 'H264']);
-/** Writes a video stream's codec tags in the case libmedia knows, in the bytes of an AVI's header. */
-export function fixAviTags(bytes) {
-  const tag = at => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
-  const upper = at => { const t = tag(at).toUpperCase(); if (t !== tag(at) && AVI_TAGS.has(t)) for (let i = 0; i < 4; i++) bytes[at + i] = t.charCodeAt(i); };
-  for (let i = 0; i + 64 < bytes.length && i < 65536; i++) {
-    if (tag(i) !== 'strh' || tag(i + 8) !== 'vids') continue;
-    upper(i + 12); // fccHandler
-    for (let k = i + 16; k < i + 200 && k + 28 < bytes.length; k++) if (tag(k) === 'strf') { upper(k + 24); break; } // biCompression
-  }
-  return bytes;
-}
-
-/** How far into a Matroska file its track list is looked for (it is at the start unless the file was written oddly). */
-const MKV_HEAD = 4 << 20;
-/** Names MPEG Layer I and II sound as Layer III in the bytes of a Matroska file's track list ("A_MPEG/L2" to
- * "A_MPEG/L3": the same length). libmedia opens its MP3 build only for a track it reads as Layer III, and that
- * build decodes all three layers, each frame saying which it is. A name split across two reads is missed, and
- * the film then plays without sound, as it did. */
-export function fixMkvLayers(bytes) {
-  const NAME = [0x41, 0x5f, 0x4d, 0x50, 0x45, 0x47, 0x2f, 0x4c]; // "A_MPEG/L"
-  for (let i = bytes.indexOf(0x41); i >= 0 && i + 8 < bytes.length; i = bytes.indexOf(0x41, i + 1)) {
-    if (NAME.every((c, k) => bytes[i + k] === c) && (bytes[i + 8] === 0x31 || bytes[i + 8] === 0x32)) bytes[i + 8] = 0x33;
-  }
-  return bytes;
-}
-
 // libmedia's threads and AudioContext are shared by every player and outlive each: once the last is destroyed they are stopped (the context closed); a new start waits for that.
 let stopping = Promise.resolve();
 function stopLibmedia(AVPlayer, engine) {
@@ -127,28 +100,6 @@ function stopLibmedia(AVPlayer, engine) {
   return stopping;
 }
 const closed = () => Object.assign(new Error('The software decoder was closed.'), {kind: 'closed'});
-/** A libmedia reader over Astra's HttpSource. */
-function sourceLoader(AVPlayer, source, ext = '') {
-  return new class extends AVPlayer.IOLoader.CustomIOLoader {
-    constructor() { super(); this.pos = 0; this.stopped = false; }
-    get ext() { return ext; }
-    get name() { return 'Astra'; }
-    get flags() { return 1; } // seekable
-    async open() { this.stopped = false; return 0; }
-    async read(buffer) {
-      if (this.stopped || this.pos >= source.size) return IO_END;
-      const n = Math.min(buffer.length, source.size - this.pos, READ_CHUNK);
-      const bytes = await source.read(this.pos, this.pos + n);
-      buffer.set(ext === 'avi' && this.pos < 65536 ? fixAviTags(bytes.slice()) : ext === 'mkv' && this.pos < MKV_HEAD ? fixMkvLayers(bytes.slice()) : bytes);
-      this.pos += bytes.length;
-      return bytes.length;
-    }
-    async seek(pos) { const p = Number(pos); if (!Number.isSafeInteger(p) || p < 0) return -1; this.pos = p; return 0; }
-    async size() { return BigInt(source.size); }
-    async stop() { this.stopped = true; }
-  }();
-}
-
 export class SoftwareSession extends EventTarget {
   /**
    * @param {HTMLVideoElement} video
