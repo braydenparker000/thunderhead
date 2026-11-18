@@ -4,7 +4,8 @@
 // same read-ahead as before (session.room, and for whole surround sixRoom, through `gate`), posted in batches of a
 // quarter second (or after 30 ms, when reading pauses) as one buffer handed over; what comes back is appended to the
 // audio buffer as it is. The worker is kept at most LAG seconds of sound behind the reading, so a phone too slow to
-// convert in time holds the reading back rather than piling packets up there.
+// convert in time holds the reading back rather than piling packets up there, and the same when what it sent back
+// waits to be appended (QUEUED).
 //
 // A worker that cannot start or fails (and a conversion it cannot do) is answered by the caller with the page's own
 // way (remux-audio.js); a decoder that cannot be downloaded fails as {kind: 'network'}, as it does on the page.
@@ -14,7 +15,9 @@
 // of a second rather than the second the page's writer uses (fragments.js): measured on a 25 Mbit/s film from a
 // 40 Mbit/s host, picture and sound came back about 0.5 s sooner after a far seek.
 export const APART = {on: true, fragment: 0.25};
-const LAG = 6, BATCH = 0.25, PAUSE = 30;
+// QUEUED: bytes the worker's fragments may wait to be appended. Whole surround (576 kB a second) came back from the worker
+// faster than a slowed page appended it: up to 6.5 MB waited, beside an audio buffer the browser holds to about 12 MB.
+const LAG = 6, QUEUED = 2 << 20, BATCH = 0.25, PAUSE = 30;
 let worker = null, broken = false, ids = 0;
 const pipes = new Map(), loads = new Map();
 
@@ -112,7 +115,7 @@ export async function convertApart(session, {generation, from, sink, track, chan
       if (!live() || !await gate(p.timestamp)) return false;
       batch.push(p);
       if (p.timestamp + p.duration - batch[0].timestamp >= BATCH) flush(); else timer ||= setTimeout(flush, PAUSE);
-      while (sent - pipe.upTo > LAG && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
+      while ((sent - pipe.upTo > LAG || session.queues.audio.pending() > QUEUED) && !pipe.error && !pipe.done) { await nap(250); if (!live() || !await gate(p.timestamp)) return false; }
     }
     flush();
     w.postMessage({type: 'end', id});
