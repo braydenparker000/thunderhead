@@ -28,6 +28,9 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
    reach storage (§5).
 3. **Add-on URLs, stream URLs and the debrid token are secrets.** On the server they are stored only
    Worker-encrypted; they never appear in logs, senses, surfaces, errors, the mind's context or the repo.
+   **Owner ruling 2026-11-18:** stream addresses may pass through the owner's Worker in transit, for the
+   owner's signed-in device only, never stored, never logged; the TorBox API key lives in the Worker as
+   the secret `TORBOX_KEY` and never reaches a phone.
 4. **libmedia stays** (owner ruling 2026-10-28: the owner has permission, and it is Astra's software decoder for HEVC/AV1/VP9 without hardware support, 10-bit H.264 and AVI/FLV/MPEG-PS). mediabunny (MPL-2.0) stays too. libmedia is a named exception to the no-GPL rule; keep its licence files beside it.
 5. **No third-party script origins** (later step, §2 #7). The as-is port keeps loading hls.js and
    dash.js as today; vendoring them waits for the owner's yes.
@@ -36,6 +39,12 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
 6. **The old backup format (`backup/1`) is the migration format.** The owner's Astra data arrives on
    the new site through it, checked and all-or-nothing, as Astra's own restore already does.
 7. **Nothing plays without a tap**, including anything the mind arranged.
+8. **Owner rulings 2026-11-18 (the relay, §4.4):** on the owner's tap, Astra (through the Worker) may
+   add an item TorBox already has cached to the owner's TorBox account (`add_only_if_cached`); nothing
+   is added before a tap, and nothing uncached is ever added by Astra. Astra's page moves onto the
+   site's sign-in the way Guitar did (SECURITY.md §4.4 rule 4). Rule 3's ruling of the same day lets
+   addresses through the Worker. Still in force: nothing plays without a tap; Astra never ranks, picks
+   or pre-selects a stream.
 
 ---
 
@@ -183,15 +192,23 @@ How it is enforced:
    stays and gains a test: `StreamsScreen` renders, waits 10 s, and asserts no player was created and no
    debrid request was made.
    **Owner ruling 2026-11-15 ("Get ready ahead"):** with Settings › Playback › "Get ready ahead" on (the
-   default) and the data saver off, Streams reads the owner's own TorBox list once per account when
-   streams are listed and opens a connection to TorBox, and a finger coming down on a TorBox stream
-   starts resolving that stream, whose answer the tap then takes (`app/ready.js`); a sound converter a
+   default) and the data saver off, Streams opens a connection to the Worker when streams are listed,
+   and a finger coming down on a stream starts resolving it through the Worker in mode "ahead" (below),
+   whose answer the tap then takes (`app/ready.js`); a sound converter a
    listed label needs may be fetched ahead on an unmetered connection; and while an episode plays, the
    next episode's streams are collected and, only for a stream of the release group playing now (the
    rule Next already follows), resolved and described, never played (`app/next-ready.js`). With the
-   switch off or the saver on, no TorBox, add-on or film-host request is made before a tap
+   switch off or the saver on, no relay, add-on or film-host request is made before a tap
    (`tests/astra-tap-browser.test.mjs`). Unchanged: nothing plays without a tap, and no stream is
    ranked, picked or pre-selected on the list.
+   **Owner rulings 2026-11-18 (the relay; they replace the page's own TorBox reads of 2026-11-15):** a
+   page cannot read TorBox's API or every hop of an add-on's forward (CORS), so Astra asks the owner's
+   Worker for the film's address (`POST /v1/astra/play`, [SECURITY.md §8.2](../../engineering/SECURITY.md)):
+   TorBox directly with the key the Worker holds, else, on a tap only, by following the add-on's
+   forward. Mode "ahead" (before a tap) may read the owner's TorBox account but never adds anything
+   and never follows a link; mode "play" (the tap) may add an item TorBox already has cached
+   (`add_only_if_cached`, seeding off), never an uncached one. The Worker resolves only the stream the
+   page names: a file it cannot tell apart from the others in a torrent is refused, never guessed.
    **The owner's filter chips (2026-11-11, `addons/stream-facts.js`):** a second row under the add-ons,
    for the owner who wants small files to save data: Smallest first; one size limit (under 700 MB,
    1.5 GB or 3 GB); any of the picture sizes (720p, 1080p, 4K, SD) and codecs (HEVC, AV1); Clear. They
@@ -213,7 +230,9 @@ How it is enforced:
    nothing is hidden, ranked or picked by it.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
-4. **The mind never sees streams**: the Worker holds no stream data; senses carry none (§3).
+4. **The mind never sees streams**: the Worker keeps no stream data (since 2026-11-18 addresses pass
+   through `/v1/astra/*` in transit, for the owner's device only; agent keys get 403); senses carry
+   none (§3).
 
 Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-10-27).
 
@@ -227,7 +246,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 |---|---|
 | Every add-on URL | Configured add-ons carry their settings in the URL path, including debrid API keys inside resolve paths. Treat the whole URL as secret. |
 | Stream URLs | Direct links often embed tokens (`…/requestdl?token=…`). |
-| Debrid token | Account access. |
+| Debrid token | Account access. Since 2026-11-18 the TorBox key is the Worker secret `TORBOX_KEY` and never reaches a phone. |
 | OpenSubtitles hash/size | Not a secret, but not sent anywhere except the subtitle add-on. |
 
 ### 5.2 Rules
@@ -247,9 +266,11 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    saved copy never keys a cache by a query: pages are saved by address alone, the page reports its
    files without query or fragment, and the worker's activate step deletes any entry an earlier
    version saved with one. The skip-times lookup (below) sends no add-on, stream or title name.
-6. **As built (owner ruling 2026-11-15):** what "Get ready ahead" (§4.4) reads stays in the page's
-   memory only: the owner's TorBox list and resolved addresses for ten minutes, keyed by the token in
-   memory, never written to storage or sent anywhere but TorBox. A film's header and index kept on the
+6. **Owner rulings 2026-11-18 (replacing 2026-11-15's TorBox reads):** the page no longer reads TorBox
+   or holds its key. A stream's link, and the hash and file facts the page reads from it, go only to
+   the owner's Worker, in a POST body (never a path, a query or storage); the Worker keeps and logs
+   none of them, and its notes and reasons are fixed sentences. Resolved addresses stay in the page's
+   memory only (`frontend/astra/README.md` says for how long). A film's header and index kept on the
    phone (IndexedDB `astra-films`) are keyed by the file's size and a SHA-256 of its first 64 KiB,
    never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
    codec names only.
@@ -264,7 +285,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 - `GET /v1/astra/backup` returns the decrypted JSON **only to a signed-in owner device token**; agent
   tokens (the mind, Muse) get 403. Check: API test with each token role.
 - The Worker never logs request or response bodies for `/v1/astra/*`. Check: a log-capture test asserts
-  no body text appears.
+  no body text appears (built with the relay: `backend/tests/integration/astra-follow.test.ts`).
 
 ---
 
@@ -417,6 +438,19 @@ how each behaves is in `frontend/astra/README.md`.
 | HDR seen from the film's own frame on routes with no container facts (HLS, DASH, the browser's own player) | `enhance/picture.js` (`see`) |
 | More files for the software decoder: H.264 in AVI, H.263 in 3GP, Windows Media sound in MKV (three recorded patches to libmedia's readers) | `engine/software.js`, `frontend/assets/libmedia/` (`licenses/libmedia-modifications.txt`) |
 | Dolby Vision profile 5: colours corrected in the picture filter, without the per-frame reshaping (switch in the Picture section, on by default) | `enhance/dolby.js`, `tonemap.js`, `engine/mp4.js`, `player/picture-menu.js` |
+
+## The relay, as built (2026-11-18)
+
+`backend/src/areas/astra/`, shapes in `shared/contract/astra.ts`, rules in SECURITY.md §8.2; device
+only, nothing stored or logged.
+
+| Route | What |
+|---|---|
+| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash: checkcached, then the item in the account ("play" adds a cached one; "ahead" only looks), the file (index, name, size or the one video; never a guess), requestdl for the phone's nearest server: at most 4 TorBox calls. Else, in "play" only, the add-on's forward followed (≤ 6 hops, 20 s); its short "not ready" video is an error saying so |
+| `GET /v1/astra/torbox` | `{configured, ok, plan}`: whether the key is set and TorBox takes it, and the plan number |
+
+Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and
+the follow path still works.
 
 ## Open questions / tests
 

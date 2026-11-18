@@ -39,7 +39,7 @@ const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Reco
 /** Every secret name (SECURITY.md §11) and var (OPERATIONS.md §2) the Worker reads. P2 adds the
  * mind-chat trigger (SETUP.md K) and the live-wait mode (X1), P3 the mind-night trigger (L1), P4
  * the reflex's, P5 the media signing key (N1), its account (from the deploy) and the Music object, P8 the Web
- * Push key (made by the deploy). */
+ * Push key (made by the deploy), Astra's relay the owner's TorBox key (SECURITY.md §8.2). */
 const SECRETS = [
   'AUTH_PEPPER',
   'IP_HASH_KEY',
@@ -57,6 +57,7 @@ const SECRETS = [
   'VAPID_PRIVATE_JWK',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
+  'TORBOX_KEY',
 ];
 const VARS = [
   'SITE_ORIGINS',

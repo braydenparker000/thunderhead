@@ -1,5 +1,6 @@
 // The error envelope and every stable error code of API.md §6. Types only. Clients branch on
 // `code`, never on `message`; COPY.md maps codes to the owner's words.
+import type { AstraStep } from './astra.ts';
 import type { PermitRefusal } from './permits.ts';
 
 export type ErrorCode =
@@ -119,6 +120,8 @@ export type ErrorDetails =
       /** The speech setting that refused (422 `speech_budget`) and what it has spent today. */
       speech?: string;
       spent?: { lines: number; cards: number };
+      /** Astra's relay (astra.ts): what the Worker tried before it gave up. */
+      steps?: AstraStep[];
     };
 
 export interface ErrorBody {

@@ -242,6 +242,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/workshop` | D | P9 | built | the files sent for the workshop, newest first, and how much room they take |
 | `PUT /v1/workshop/:id/parts/:n` | D | P9 | built | ?bytes=<the whole file>; one piece, bytes: 8 MiB but the last; TH-File-Name, TH-Sha256 of the piece |
 | `DELETE /v1/workshop/:id` | D | P9 | built | removes a file, every piece |
+| `POST /v1/astra/play` | D | P8 | built | {link, hash?, fileIndex?, fileName?, fileSize?, mode play\|ahead}: a film's direct address, from TorBox with the Worker's key or by following the add-on's forward; ahead never adds or follows |
+| `GET /v1/astra/torbox` | D | P8 | built | whether the TorBox key is set and accepted, and the plan number |
 
 ## Verbs
 

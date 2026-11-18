@@ -20,6 +20,7 @@ P1's measurements and findings are historical, in
 | `src/objects/` | `base` (migrations, health), `meter` (the row meter, kept per UTC day in each object's `meter_days`), `auth`, `core` (thin RPC facades), `<class>.migrations.ts` (expand-only steps). |
 | `src/areas/auth/` | `routes`, `schema`, `flows` (setup, login, recover), `common`, `account` (token checks, `/me`, notices, sessions, password), `agents`, `reset` (state, break-glass, tickets, cron), `tokens`, `crypto`, `passwords` (rules + HIBP), `throttle`, `store` + `store-keys` (all SQL). |
 | `src/areas/ops/`, `src/areas/settings/` | Health, deep health, error inbox, perf, meter; Core settings (`owner.tz`, `min_client`). |
+| `src/areas/astra/` | Astra's relay (SECURITY.md §8.2): `POST /v1/astra/play` finds a film's direct address from TorBox with `TORBOX_KEY` (`direct`, `torbox`, `files`) or by following the add-on's forward (`follow`); `GET /v1/astra/torbox`. Nothing stored or logged; notes from fixed words (`words`). |
 | `tests/unit/` | Pure rules: tokens and checksums, codes, back-off numbers, password rules, the HIBP client against a fake, source rules (no timers, env inventory, expand-only, ≤ 300 lines). |
 | `tests/integration/` | Through the real fetch handler on workerd: `route-scopes` (API.md §13 walk), setup, login and sessions, back-off, recovery, reset tickets, account and agent keys, the HTTP edge, ops, objects, scrypt timing. |
 | `tests/cost/` | Rows per endpoint against `budgets.json`; workerd's row-accounting facts. |
@@ -90,7 +91,25 @@ and statuses of API.md §6 (429 adds `retry_after` and `scope`).
 | `CLOUDFLARE_API_TOKEN`, `TH_CI_TOKEN` | GitHub environment `worker` | the owner (SETUP.md §G, §I) |
 | `CLOUDFLARE_ACCOUNT_ID`, `WORKER_URL`, `SITE_ORIGINS`, `WORKER_BOOTSTRAP` | `worker` variables | the owner; `WORKER_BOOTSTRAP` only for the first deploy |
 | `WORKER_DEPLOY_ENABLED` | repository variable | the owner, when the Worker is ready |
+| `TORBOX_KEY` | Worker secret (`none` until set) | the owner only, below; never an agent |
 | `SITE_ORIGINS`, `OWNER_TZ` (`UTC` fallback), `AUTH_HIBP` | `wrangler.jsonc` vars | the repo (placeholders only) |
+
+### Setting `TORBOX_KEY` (the owner, once)
+
+Astra's relay asks TorBox directly with this key (SECURITY.md §8.2). Unset (`none`, which the deploy
+writes), the direct path is skipped and Astra still plays through the add-on's forward. The key
+never goes in a file, a chat, a variable or an agent session, and never reaches a phone.
+
+1. Copy your API key from TorBox's web app (torbox.app → **Settings** → **API Key**).
+2. Either dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables
+   and Secrets** → `TORBOX_KEY` → **Edit** → paste → **Save**; or, on your own computer signed in to
+   Cloudflare, in `backend/`: `npx wrangler secret put TORBOX_KEY` and paste at the prompt.
+   (The first deploy with the relay adds it as `none`; before that, **Add** → **Secret**, same name.)
+3. Check: the next TorBox film says "From TorBox directly" in Astra's Stream info
+   (`GET /v1/astra/torbox` answers `configured: true, ok: true`).
+
+To change it (a new key in TorBox, or a leak): make a new key in TorBox's settings, repeat step 2.
+To turn the direct path off, set it to `none`; never delete it (it is in `secrets.required`).
 
 ## Deploy (not yet run)
 

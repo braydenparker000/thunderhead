@@ -8,7 +8,7 @@ import { plan, requiredSecrets } from '../scripts/worker-secrets.mjs';
 
 const required = requiredSecrets(readFileSync(new URL('../backend/wrangler.jsonc', import.meta.url), 'utf8'));
 
-test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers, the media signing key and the upload tools’ keys (P5)', () => {
+test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers, the media signing key and the upload tools’ keys (P5), Photos’ client (P9) and Astra’s TorBox key', () => {
   assert.deepEqual(required, [
     'AUTH_PEPPER',
     'IP_HASH_KEY',
@@ -26,6 +26,7 @@ test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) a
     'VAPID_PRIVATE_JWK',
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
+    'TORBOX_KEY',
   ]);
 });
 
@@ -68,6 +69,7 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
     GOOGLE_CLIENT_ID: 'none',
     GOOGLE_CLIENT_SECRET: 'none',
+    TORBOX_KEY: 'none',
   });
   // The first P3 deploy onto a P2 Worker whose mind-chat trigger is set: only the night pair is
   // added, as `none`, and the chat pair is left as the owner set it.
@@ -82,6 +84,7 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
     GOOGLE_CLIENT_ID: 'none',
     GOOGLE_CLIENT_SECRET: 'none',
+    TORBOX_KEY: 'none',
   });
   // The first P4 stage D deploy onto a P3 Worker: the reflex pair (and the later signing key).
   const p3 = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
@@ -93,6 +96,7 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
     GOOGLE_CLIENT_ID: 'none',
     GOOGLE_CLIENT_SECRET: 'none',
+    TORBOX_KEY: 'none',
   });
   // The first P5 step 2 deploy onto a P4 Worker: only the signing key, as `none` until SETUP.md N1.
   const p4 = [...p3, ...['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'].map((name) => ({ name }))];
@@ -102,15 +106,24 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
     GOOGLE_CLIENT_ID: 'none',
     GOOGLE_CLIENT_SECRET: 'none',
+    TORBOX_KEY: 'none',
   });
   // The first P5 step 3 deploy onto step 2: only the upload tools' keys, `none` until SETUP.md N4.
   const p5 = [...p4, ...['R2_SIGN_ACCESS_KEY_ID', 'R2_SIGN_SECRET'].map((name) => ({ name }))];
-  assert.deepEqual(planned(p5), { MUSIC_UPLOAD_PUBLIC_KEYS: 'none', GOOGLE_CLIENT_ID: 'none', GOOGLE_CLIENT_SECRET: 'none' });
+  assert.deepEqual(planned(p5), {
+    MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
+    GOOGLE_CLIENT_ID: 'none',
+    GOOGLE_CLIENT_SECRET: 'none',
+    TORBOX_KEY: 'none',
+  });
   // The first P8 deploy onto P7: only the Web Push key, made then (checked in `planned`).
   const p8 = [...p5, { name: 'MUSIC_UPLOAD_PUBLIC_KEYS' }];
   // The first Photos deploy (P9): its OAuth client, `none` until SETUP.md, Photos.
-  assert.deepEqual(planned(p8), { GOOGLE_CLIENT_ID: 'none', GOOGLE_CLIENT_SECRET: 'none' });
-  const all = [...p8, { name: 'GOOGLE_CLIENT_ID' }, { name: 'GOOGLE_CLIENT_SECRET' }];
+  assert.deepEqual(planned(p8), { GOOGLE_CLIENT_ID: 'none', GOOGLE_CLIENT_SECRET: 'none', TORBOX_KEY: 'none' });
+  // The first Astra relay deploy: the TorBox key, `none` until the owner sets it (backend/README.md).
+  const p9 = [...p8, { name: 'GOOGLE_CLIENT_ID' }, { name: 'GOOGLE_CLIENT_SECRET' }];
+  assert.deepEqual(planned(p9), { TORBOX_KEY: 'none' });
+  const all = [...p9, { name: 'TORBOX_KEY' }];
   assert.deepEqual(planned(all), {});
   assert.deepEqual(planned([...all, { name: 'VAPID_PRIVATE_JWK' }]), {});
   assert.throws(() => plan(required, { bootstrap: false, live: live.slice(1) }), /AUTH_PEPPER/);
