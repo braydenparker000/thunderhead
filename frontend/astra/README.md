@@ -451,8 +451,9 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      playback has come within half a reach of its end, so a seek or a stop
      throws away little the connection already carried (a host that ignores
      a range's end is read open-ended and paused instead), and stops where
-     bytes already here begin (the film's end, a part another download
-     brought) rather than fetch them again. The block cache
+     bytes already here begin (the film's end, a range remembered, a part
+     another download brought), copying them in rather than fetching them
+     again, so its block is still made whole. The block cache
      keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
      40 s and the reach; 55 s with the saver), between 16 and 96 MiB; a film
      whose 80 s pass 48 MiB (about 5 Mbit/s) keeps 48 MiB, or the reach and
@@ -467,8 +468,8 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      the end waits for those bytes instead of costing another round trip. A
      long film's index is larger (a two-hour film with a key frame every
      2 s: 106 kB): it is read from its own first byte, and that download
-     stops where the tail begins instead of fetching the tail a second
-     time. The subtitle hash takes its two chunks from the reader by
+     takes the tail's bytes from where they lie instead of fetching them a
+     second time. The subtitle hash takes its two chunks from the reader by
      looking (`peek`), not reading: a read let the download at the film's
      start read on, 24 MiB of a film resumed at 2:00.
    - *A film remembered* (`film-memory.js`). What describing a film read is
@@ -684,13 +685,20 @@ picture of things (one line below).
 
 | Long film (2 h, 300 kbit/s), slowed | before | after |
 |---|---|---|
-| First picture from 0:00 | 1.40 s | 1.12 s |
+| First picture from 0:00 | 1.40 s | 1.24 s |
 | Requests to the film's end before it (the 64 KiB tail, the 106 kB index from its first byte, the tail again in part) | 3 | 2 |
-| Resuming at 1:30:00; opened again (remembered) | 1.20 s; 0.63 s | 1.08 s; 0.49 s |
-| Far forward (to 1:00:00), far back (to 0:10:00), last minute (1:59:30) | 0.74, 0.59, 0.56 s | 0.66, 0.62, 0.52 s |
+| Resuming at 1:30:00; opened again (remembered) | 1.20 s; 0.63 s | 1.28 s; 0.51 s |
+| Far forward (to 1:00:00), far back (to 0:10:00), last minute (1:59:30) | 0.74, 0.59, 0.56 s | 0.70, 0.65, 0.56 s |
 | Five seconds on, inside the buffer | 0.03 s | 0.03 s |
-| 60 s of play: stalls; memory peak | 0; 135 MB | 0; 151 MB |
+| 60 s of play: stalls; memory peak (from one run to the next) | 0; 123 to 181 MB | 0; 140 to 175 MB |
 | Fast: first, resume, remembered | 0.56, 0.66, 0.26 s | 0.44, 0.37, 0.18 s |
+
+The long film was never in trouble: its times are the same within the
+machine's noise (a run's resume: 1.10 to 1.37 s before, 1.03 to 1.37
+after), with one request fewer at its end. Its figures are from the code
+as it stands; the heavy film's from the code before the last change
+(remembered bytes copied into a download's block rather than ending the
+download there), which asks for nothing more or less.
 
 A seek or a resume on the long film costs two bounded requests of 2 MiB
 (the picture from its cue's block, the sound from the start of that
@@ -736,7 +744,9 @@ loss):
   (`source-stream.js`, `source-blocks.js` `present()`;
   `tests/astra-bytes.test.mjs`). The download reading the long film's cue
   index asked again for the tail it ran into; it stops where bytes already
-  here begin.
+  here begin and copies them in from where they lie, so its block is still
+  made whole for the subtitle scanners (stopping alone left a block with a
+  remembered range inside never whole, and its subtitles unread).
 
 What is left: on a link slower than the film (8 and 20 Mbit/s against
 27.8) it stalls, as anything must: 8 or 9 times a minute, about 2 s each
