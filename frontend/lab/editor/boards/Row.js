@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The row along the panel's foot, from its left end to the tool dial: a section's adjustments. Each marking is
-// engraved, paint-filled when chosen with a red bar under it, and rises into place when its section comes round on the
-// panel's barrel (boards/Barrel.js). It only shows what it is given.
+// engraved, paint-filled when chosen with a red bar under it, and rises into place when its section slides in on the
+// panel (boards/Barrel.js). It only shows what it is given.
 // Props: `chips` [{ name, value, on, entry, aria, pad, swatch, dropper, pick }] (`entry`: a key that does something,
 // boxed; `swatch`: a colour's dot; `dropper`: the picker's glyph), `label`, `seed` (a new one: they rise again), `wide`.
 // Each is at least 44 wide and (by its hit box, editor.css `.hit`) 44 tall. Where the row runs on past an edge the

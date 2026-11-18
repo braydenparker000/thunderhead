@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The Crop board. With a photo open it is real: the photo shows uncropped under the frame, turned and tilted, and
 // what the board sets is the photo's crop (engine/crop.js), which the engine draws from the same numbers. The
-// panel has four sections, swiped round on its barrel (Straighten, Aspect, Rotate, Geometry); the dial turns the angle or a perspective setting.
+// panel has four sections, swiped up or down (Straighten, Aspect, Rotate, Geometry: boards/Barrel.js); the dial turns the angle or a perspective setting.
 // The frame always fills the stage and the photo sits under it: a finger inside the frame moves the photo, two
 // fingers zoom it, and the frame's corners and sides pull it to another shape, after which the view settles so
 // the frame fills the stage again. The stage is whatever room the screen leaves above the panel. A crop set from

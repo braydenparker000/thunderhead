@@ -90,19 +90,23 @@ Hit areas: markings are drawn 34 px tall but take **44 px** touch targets; the d
 ## Sections and tools (2026-11-18)
 
 Designed with the owner on the design canvas and tried there on the phone, replacing the drum at the row's left end
-and the round tools key with its glass dock (`frontend/lab/editor/boards/Barrel.js`, `ToolDial.js`).
+and the round tools key with its glass dock (`frontend/lab/editor/boards/Barrel.js`, `ToolDial.js`). Tried on the
+phone in the app the same day, the first build (a 3D barrel, a dial swung round the corner) was made flat and straight.
 
-- **Sections: the panel is a barrel.** Swiped up, the panel rolls like a barrel to the next section, down to the one
-  before: 34° a section (about ten faces round), round, so past the last comes the first. 110 css px of swipe a
-  section; past a third of one it goes on to it; a flick carries on a section or two. Both sections show as it turns.
-  A tick at each section. Sideways stays the panel's own (its dial, its row, its tiles); the curve and the grading
-  wheels keep their drags.
+- **Sections: swipe the panel.** Swiped up, the panel slides up under the finger, one for one, and the next section
+  comes up from below; down, the one before. Let go past 40 css px (a quarter of the panel, if that is less) or
+  flicked, it goes on; short of it, back. Round: past the last section comes the first. The panel keeps its height
+  and the photo stays still while it slides; a taller section (the curve, a grading wheel) grows once it rests. The
+  board is asked for the coming section once, as the swipe sets off. A tick at each section. Sideways stays the
+  panel's own (its dial, its row, its tiles); the curve and the grading wheels keep their drags, and the keys beside
+  the curve act on a tap, so a swipe may begin on them.
 - **Tools: one knurled dial in the corner.** A quarter of a dial in the bottom-right corner (r 84), its face naming
   the tool and the section. Held, it opens to r 160 with a ring of the tools (Looks, Crop, Edit, Masks, Heal,
-  Versions) and the thumb going round the corner turns it: 18° of swing a tool, in notches that hold until well past
-  half way, the ring leaning meanwhile; moving in or out turns nothing; held still at the end of a swing, it steps on
-  every 200 ms. As it turns, the panel rolls through the tools, each named with its sections. Let go: that tool opens
-  on its own last section. A tap leaves it open to tap or turn; a tap outside shuts it. The photo dims under it.
+  Versions), and the thumb sliding straight up or down turns it: a click every 40 css px, up the next tool, down
+  (24 px is enough: there is little room under the thumb) the one before, in notches that hold until well past half
+  way. The ring goes round, so every tool is reached sliding up. Sideways turns nothing. As it turns, the panel slides
+  through the tools, each named with its sections. Let go: that tool opens on its own last section. A tap leaves it
+  open to tap a tool or slide it; a tap outside shuts it. The photo dims under it.
 
 ## Screens
 

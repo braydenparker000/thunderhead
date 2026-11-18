@@ -1,19 +1,16 @@
 {
-  "id": "2026-11-18-astra-torbox-fix",
+  "id": "2026-11-18-editor-sections-tools-2",
   "date": "2026-11-18",
   "lines": [
     {
-      "text": "Astra now gets a film's own address from TorBox: a safety check was wrongly refusing TorBox's real answers.",
-      "open": "astra"
+      "text": "Swiping the editor's panel is now a flat slide that follows your finger, and the photo stays still while it moves.",
+      "open": "photos"
     },
     {
-      "text": "Your server no longer opens add-on links itself; that made some streams play an error clip instead of the film."
+      "text": "A short swipe is enough, even on the curve: a swipe can start on the keys beside it."
     },
     {
-      "text": "A tap asks TorBox three times, not four, and once for a film played in the last half hour."
-    },
-    {
-      "text": "In AIOStreams, add {stream.infoHash} to your formatter's description so every stream can go to TorBox directly."
+      "text": "The tool dial now slides straight up or down: a click every step, round to every tool."
     }
   ]
 }

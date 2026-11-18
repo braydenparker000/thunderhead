@@ -2,7 +2,7 @@
 // The Masks board. With a photo open (app/session.js) the masks are the photo's own (app/masks.js,
 // engine/local.js): linear and radial gradients laid on the picture with a finger, ranges of colour or brightness
 // picked with a tap, and brush masks painted on it (Size, Feather and Flow are the brush's, Erase rubs out). The
-// panel holds the masks in a row along its top, the dial that turns the chosen mask's own adjustments, and the barrel (a swipe up or down)
+// panel holds the masks in a row along its top, the dial that turns the chosen mask's own adjustments, and its sections (a swipe up or down)
 // with its row (Mask, Light, Color, Effects); the engine lays the mask over the picture in red. Without a photo it
 // shows none in the app (app/shown.js) and plays a sample on a screen of the design on its own. Not built yet, so
 // not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
