@@ -1,12 +1,13 @@
 // Between a tap and the first picture (frontend/astra/src/app/ready.js, next-ready.js, addons/debrid.js,
-// engine/source-tail.js): what is fetched ahead for a list of streams and a saver state, the press that
-// starts a resolve the tap then takes (on a fake clock), the next episode made ready only for the same
-// release group, and the film's tail asked for beside its start. TorBox, add-ons and hosts are stand-ins.
+// engine/source-tail.js): what is done ahead for a list of streams and a saver state (only a connection to
+// the owner's server), the press that asks the server ahead and the tap that takes its answer (on a fake
+// clock), the next episode made ready only for the same release group and only from a direct address, and the
+// film's tail asked for beside its start. The server, add-ons and hosts are stand-ins.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readyWork, soundOf, saverNow, ReadyAhead } from '../frontend/astra/src/app/ready.js';
 import { NextReady, nextDueSoon, KEEP } from '../frontend/astra/src/app/next-ready.js';
-import { forgetLists, resolveDebrid } from '../frontend/astra/src/addons/debrid.js';
+import { forgetAnswers, resolveStream } from '../frontend/astra/src/addons/debrid.js';
 import { HttpSource } from '../frontend/astra/src/engine/http-source.js';
 import { TAIL } from '../frontend/astra/src/engine/source-tail.js';
 
@@ -32,38 +33,36 @@ function host({ pace = 2, size = 64 << 20 } = {}) {
 }
 
 const HASH = (n) => n.toString(16).padStart(40, '0');
-const torrentio = (token, n) => ({ name: 'TB 1080p', title: `Film ${n}.mkv`, url: `https://torrentio.strem.fun/resolve/torbox/${token}/${HASH(n)}/Film%20${n}.mkv/0/Film%20${n}.mkv` });
-const direct = { name: 'TB', title: 'x', url: 'https://api.torbox.app/v1/api/torrents/requestdl?token=tok-d&torrent_id=3&file_id=1' };
+const torrentio = (n) => ({ name: 'TB 1080p', title: `Film ${n}.mkv`, url: `https://addon.example/resolve/torbox/invented-key/${HASH(n)}/null/0/Film%20${n}.mkv` });
 const plain = (title = 'Film 1080p AAC') => ({ name: 'Host', title, url: 'https://cdn.example/film.mp4' });
+const local = { name: 'Local', title: 'x', url: 'http://127.0.0.1:9/film.mkv' };
 const off = { saveData: false, type: 'wifi' };
 
-/** A TorBox stand-in: counts list pages and download-link requests. */
-function torbox() {
-  const calls = { list: 0, link: 0 };
-  const fetchFn = async (url) => {
-    const u = new URL(url), answer = (data) => ({ ok: true, json: async () => ({ success: true, data }) });
-    if (u.pathname.endsWith('/torrents/mylist')) { calls.list++; return answer([1, 2, 3].map((n) => ({ id: n, hash: HASH(n), files: [{ id: 7, short_name: `Film ${n}.mkv` }] }))); }
-    if (u.pathname.endsWith('/torrents/requestdl')) { calls.link++; return answer(`https://cdn.example/${u.searchParams.get('torrent_id')}/7`); }
-    throw Error('unexpected request');
+/** The owner's server's stand-in: counts asks by mode; ahead answers an address only for what is "in the account". */
+function server(owned = () => true) {
+  const calls = { ahead: 0, play: 0 };
+  const fetchFn = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls[body.mode]++;
+    const url2 = body.mode === 'play' || owned(body) ? `https://cdn.example/${body.hash.slice(-1)}/7` : null;
+    return new Response(JSON.stringify({ url: url2, via: url2 ? 'torbox' : null, steps: [] }), { status: 200 });
   };
-  return { calls, fetchFn };
+  const resolve = (stream, o = {}) => resolveStream(stream, { ...o, fetchFn, read: async () => ({ api: 'https://api.example', token: 'invented-session' }) });
+  return { calls, resolve };
 }
 const flush = () => new Promise((r) => setTimeout(r, 5));
 
-beforeEach(() => forgetLists());
+beforeEach(() => forgetAnswers());
 
-test('what is fetched ahead for a list: one list per TorBox account, a connection, the converters labels ask for; nothing with the saver on or the switch off', () => {
-  const list = [torrentio('tok-a', 1), torrentio('tok-a', 2), torrentio('tok-b', 1), direct, plain('Film DDP5.1 x264')];
+test('what is done ahead for a list: a connection to the server when a link could be asked about, the converters labels ask for; nothing with the saver on or the switch off', () => {
+  const list = [torrentio(1), torrentio(2), plain('Film DDP5.1 x264')];
   const work = readyWork(list, { connection: off });
-  assert.equal(work.preconnect, true);
-  assert.deepEqual(work.lists, [list[0].url, list[2].url], 'one read per account; a direct link needs none');
-  assert.deepEqual(work.sounds, ['eac3']);
-  assert.equal(work.metered, false);
+  assert.deepEqual(work, { preconnect: true, sounds: ['eac3'], metered: false });
   assert.equal(readyWork(list, { connection: { type: 'cellular' } }).metered, true);
-  const none = { preconnect: false, lists: [], sounds: [], metered: false };
+  const none = { preconnect: false, sounds: [], metered: false };
   assert.deepEqual(readyWork(list, { saver: true }), none, 'the data saver: nothing');
   assert.deepEqual(readyWork(list, { ahead: false }), none, 'the switch off: nothing');
-  assert.deepEqual(readyWork([plain()], { connection: off }), none, 'nothing listed needs anything');
+  assert.deepEqual(readyWork([local], { connection: off }), none, 'a local player’s link: nothing to ask the server');
   assert.deepEqual(['Film TrueHD Atmos 7.1', 'DTS-HD MA', 'DD+ 5.1', 'DD5.1 x264', 'Dolby Digital', 'AAC 2.0', 'ADDED'].map((t) => soundOf({ title: t })), ['truehd', 'dts', 'eac3', 'ac3', 'ac3', null, null]);
 });
 
@@ -74,43 +73,51 @@ test('the saver as the player would put it: the setting first, then the connecti
   assert.equal(saverNow({ dataSaver: 'auto' }, off), false);
 });
 
-test('the Streams screen reads each account’s list once, and a tap then needs one request; with the switch off or the saver on, none', async () => {
-  const tb = torbox(), app = { settings: {} };
-  const ready = new ReadyAhead(app, { fetchFn: tb.fetchFn, prefs: () => ({ dataSaver: 'never' }), connection: off, doc: null });
-  const list = [torrentio('tok-a', 1), torrentio('tok-a', 2)];
+test('listing opens one connection to the server, signed in, and asks it nothing; with the switch off or the saver on, not even that', async () => {
+  const doc = { head: { links: [], querySelector() { return null; }, append(l) { this.links.push(l.href); } }, createElement: () => ({}) };
+  const sv = server();
+  const ready = new ReadyAhead({ settings: {} }, { resolve: sv.resolve, origin: async () => 'https://api.example', prefs: () => ({ dataSaver: 'never' }), connection: off, doc });
+  const list = [torrentio(1), torrentio(2)];
   ready.listed(list); ready.listed(list); ready.listed(list); // drawn again as add-ons answer
   await flush();
-  assert.equal(tb.calls.list, 1, 'the list was read once');
-  assert.equal(await resolveDebrid(list[1].url, { fetchFn: tb.fetchFn }), 'https://cdn.example/2/7');
-  assert.deepEqual(tb.calls, { list: 1, link: 1 }, 'the tap asked only for the file’s link');
-  forgetLists();
+  assert.deepEqual(doc.head.links, ['https://api.example'], 'one connection, to the server only');
+  assert.deepEqual(sv.calls, { ahead: 0, play: 0 }, 'nothing asked before a press');
+  const out = new ReadyAhead({ settings: {} }, { resolve: sv.resolve, origin: async () => '', prefs: () => ({ dataSaver: 'never' }), connection: off, doc });
+  out.listed(list);
+  await flush();
+  assert.equal(doc.head.links.length, 1, 'signed out: no connection');
   for (const [settings, prefs] of [[{ readyAhead: false }, { dataSaver: 'never' }], [{}, { dataSaver: 'always' }]]) {
-    const quiet = torbox(), r = new ReadyAhead({ settings }, { fetchFn: quiet.fetchFn, prefs: () => prefs, connection: off, doc: null });
+    const quiet = server(), r = new ReadyAhead({ settings }, { resolve: quiet.resolve, origin: async () => 'https://api.example', prefs: () => prefs, connection: off, doc: null });
     r.listed(list);
     assert.equal(r.pressed(list[0]), null, 'a press starts nothing');
     await flush();
-    assert.deepEqual(quiet.calls, { list: 0, link: 0 });
+    assert.deepEqual(quiet.calls, { ahead: 0, play: 0 });
   }
 });
 
-test('a press starts the resolve, the tap takes it; the answer is kept ten minutes and then asked afresh', async (t) => {
+test('a press asks ahead and the tap takes its address; one not in the account yet is asked to play at the tap; kept 45 minutes', async (t) => {
   let now = 1_000_000;
   t.mock.method(Date, 'now', () => now);
-  const tb = torbox(), ready = new ReadyAhead({ settings: {} }, { fetchFn: tb.fetchFn, prefs: () => ({ dataSaver: 'never' }), connection: off, doc: null });
-  const s = torrentio('tok-a', 3);
+  const sv = server((body) => body.hash !== HASH(9));
+  const ready = new ReadyAhead({ settings: {} }, { resolve: sv.resolve, origin: async () => '', prefs: () => ({ dataSaver: 'never' }), connection: off, doc: null });
+  const s = torrentio(3);
   const pressed = ready.pressed(s);
-  assert.ok(pressed, 'a finger came down: the resolve is under way');
-  const tapped = resolveDebrid(s.url, { fetchFn: tb.fetchFn }); // the tap, while the answer is still on its way
-  assert.equal(await tapped, 'https://cdn.example/3/7');
-  assert.equal(await pressed, await tapped);
-  assert.deepEqual(tb.calls, { list: 1, link: 1 }, 'asked once');
-  assert.equal(ready.pressed(plain()), null, 'an address that needs no resolving: nothing');
-  now += 9 * 60e3;
-  await resolveDebrid(s.url, { fetchFn: tb.fetchFn });
-  assert.equal(tb.calls.link, 1, 'within ten minutes: from memory');
+  assert.ok(pressed, 'a finger came down: the ask is under way');
+  const tapped = await sv.resolve(s, { mode: 'play' }); // the tap, while the answer is still on its way
+  assert.equal(tapped.url, 'https://cdn.example/3/7');
+  assert.equal(await pressed, tapped);
+  assert.deepEqual(sv.calls, { ahead: 1, play: 0 }, 'asked once, ahead');
+  assert.equal(ready.pressed(local), null, 'a local player’s link: nothing');
+  const fresh = torrentio(9);
+  assert.equal((await ready.pressed(fresh)).via, 'addon', 'not in the account: no address ahead, nothing added');
+  assert.equal((await sv.resolve(fresh, { mode: 'play' })).url, 'https://cdn.example/9/7');
+  assert.deepEqual(sv.calls, { ahead: 2, play: 1 }, 'the tap asked to play');
+  now += 44 * 60e3;
+  await sv.resolve(s, { mode: 'play' });
+  assert.equal(sv.calls.play, 1, 'within 45 minutes: from memory');
   now += 2 * 60e3;
-  await resolveDebrid(s.url, { fetchFn: tb.fetchFn });
-  assert.deepEqual(tb.calls, { list: 2, link: 2 }, 'after ten minutes: asked again');
+  await sv.resolve(s, { mode: 'play' });
+  assert.equal(sv.calls.play, 2, 'after 45 minutes: asked again');
 });
 
 test('the next episode is made ready when its card is due or a known outro is near', () => {
@@ -130,16 +137,19 @@ function fakeApp(group, streams, settings = {}) {
 }
 const src = (id, group) => ({ id, stream: { url: `https://cdn.example/${id}.mkv`, bingeGroup: group } });
 
-test('the next episode: collected, and described only for the same release group; Next within ten minutes takes the list; nothing with the switch off or the saver on', async () => {
+test('the next episode: collected, and described only for the same release group and a direct address; Next within ten minutes takes the list; nothing with the switch off or the saver on', async () => {
   let now = 0;
   const probed = [];
   const probe = async (url, { onSource }) => { probed.push(url); const s = { bytesFetched: 70_000, close() {} }; onSource(s); return { readable: true, source: s }; };
-  const resolve = async (url) => url;
+  const asked = [];
+  // The server's answer ahead: a direct address for b (in the account), none for c (it would need adding).
+  const resolve = async (stream, o) => { asked.push([stream.url, o.mode]); return /\/c\.mkv$/.test(stream.url) ? { url: stream.url, via: 'addon' } : { url: stream.url.replace('cdn.example', 'files.example'), via: 'torbox' }; };
   const list = [src('a', 'other'), src('b', 'grp')];
   const f = fakeApp('grp', list);
   const nr = new NextReady(f.app, { probe, resolve, saver: () => false, now: () => now });
   const job = await nr.prepare();
-  assert.deepEqual(probed, ['https://cdn.example/b.mkv'], 'the same release group’s file is described, nothing else');
+  assert.deepEqual(probed, ['https://files.example/b.mkv'], 'the same release group’s file is described from its direct address, nothing else');
+  assert.deepEqual(asked, [['https://cdn.example/b.mkv', 'ahead']], 'asked ahead: nothing is added');
   assert.equal(job.described, true);
   assert.equal(nr.spent, 70_000, 'what describing cost is counted');
   await nr.prepare();
@@ -158,6 +168,11 @@ test('the next episode: collected, and described only for the same release group
   await lone.prepare();
   assert.deepEqual(probed, []);
   assert.equal(lone.take(g.next, 'grp'), null);
+  // No direct address ahead (not in the account yet): the add-on's link is never opened before a tap.
+  const c = fakeApp('grp', [src('c', 'grp')]), unowned = new NextReady(c.app, { probe, resolve, saver: () => false });
+  probed.length = 0;
+  const cjob = await unowned.prepare();
+  assert.deepEqual([probed, cjob.described, cjob.all.length], [[], false, 1], 'collected, not described');
   // The switch off, or the saver on: not even the add-ons are asked.
   for (const [settings, saver] of [[{ readyAhead: false }, false], [{}, true]]) {
     const h = fakeApp('grp', list, settings), quiet = new NextReady(h.app, { probe, resolve, saver: () => saver });

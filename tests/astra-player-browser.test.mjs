@@ -89,7 +89,7 @@ test('a source chosen before the first frame starts where the first was asked to
   await press(page, 'Sources');
   await press(page, 'Two');
   assert.equal((await page.evaluate(() => window.loads))[1].startTime, 600, 'not 0:00: the video clock had not started');
-  // The app's way: it resolves the address (debrid) and loads; the player only says what was picked and from where.
+  // The app's way: it asks its server for the address and loads; the player only says what was picked and from where.
   const told = await page.evaluate(() => new Promise((resolve) => {
     p.addEventListener('source', (e) => { e.preventDefault(); resolve({ id: e.detail.source.id, startTime: e.detail.startTime, loads: window.loads.length }); }, { once: true });
     p.menus.openPanel('sources');

@@ -1,6 +1,7 @@
 // The play path, from the owner's tap on a stream to the player playing it:
-// the player opens at once (full screen needs the tap), TorBox links are
-// resolved to the file, then it loads. Another source or episode picked in
+// the player opens at once (full screen needs the tap), the owner's server is
+// asked for the film's direct address (addons/debrid.js; the add-on's own link
+// when it cannot help), then it loads. Another source or episode picked in
 // the player comes back through here, so it is resolved the same way.
 //
 // Every play has a ticket (app.playTicket): a later tap, a close or another
@@ -9,7 +10,7 @@
 // a player the owner closed). Nothing plays that the owner did not pick.
 
 import {episodeCode, aired} from './content.js';
-import {resolveDebrid} from '../addons/debrid.js';
+import {resolveStream, renewStream} from '../addons/debrid.js';
 import {filtersFrom, shown} from '../addons/stream-facts.js';
 import {sizeFrom} from '../screens/streams.js';
 import {h} from '../ui/dom.js';
@@ -91,9 +92,19 @@ function playNow(app, {meta, video = null, source, sources, hiddenSources = [], 
   resolveAndLoad(app, source.stream, startTime, ticket);
 }
 
+/**
+ * Asks for the address (a press or the next episode's preparation may have asked already) and loads it.
+ * The answer's how and why stay on app.playing and with the stream for Stream info (player/address.js);
+ * `renew` asks afresh when the address stops working mid-film (a TorBox link lives three hours).
+ */
 async function resolveAndLoad(app, stream, startTime, ticket) {
-  const url = await resolveDebrid(stream.url).catch(() => stream.url);
-  if (ticket === app.playTicket && app.player.isOpen) app.player.load({...stream, url}, startTime);
+  const answer = await resolveStream(stream, {mode: 'play'}).catch(() => ({url: stream.url, via: 'addon', steps: [], reason: null}));
+  if (ticket !== app.playTicket || !app.player.isOpen) return;
+  const {via, steps, reason} = answer;
+  if (app.playing) app.playing.answer = {via, steps, reason};
+  // TorBox's file servers need none of the headers an add-on asks for its own link (a custom one would cost a preflight).
+  const headers = via === 'torbox' ? {} : stream.headers;
+  app.player.load({...stream, url: answer.url || stream.url, headers, resolved: {via, reason}}, startTime, {renew: () => renewStream(stream).then(r => r.url)});
 }
 
 export function bindPlayer(app) {
@@ -118,14 +129,14 @@ export function bindPlayer(app) {
   });
   player.addEventListener('episode', e => switchEpisode(app, e.detail.episode.video));
   player.addEventListener('next', () => { if (app.playing?.next) switchEpisode(app, app.playing.next); });
-  // Another source from the player's panel: resolved here (TorBox), from where the film was.
+  // Another source from the player's panel: resolved here (the owner's server), from where the film was.
   player.addEventListener('source', e => {
     const p = app.playing;
     if (!p) return;
     e.preventDefault();
     const {source, startTime} = e.detail, ticket = ++app.playTicket;
     app.nextReady?.stop(); // made ready for the release group playing before
-    Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}});
+    Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}, answer: null});
     app.skip.episode(skipEpisode(p.meta, p.video)); // the same episode keeps its finder; one picked from a new episode's list starts
     player.defer(source.stream, startTime);
     resolveAndLoad(app, source.stream, startTime, ticket);

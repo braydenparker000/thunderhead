@@ -1,16 +1,18 @@
 // The next episode made ready before Next is tapped. While an episode plays and the next one exists, once the
 // next-episode card is due (or the outro is two minutes off), the next episode's streams are quietly collected
 // as the player's episode switch collects them (playing.js switchEpisode). Only when the very rule that switch
-// uses would continue on its own (a stream of the release group playing now) is that stream's address resolved
-// and the file described through the engine's probe (its header and index: the film is then remembered,
-// film-memory.js), then closed: not one byte of picture or sound past what describing needs. Nothing plays and
-// nothing is chosen that the owner's earlier pick of a release would not choose. A tap on Next within ten
-// minutes takes the collected list; the address and the description come from memory.
+// uses would continue on its own (a stream of the release group playing now) is that stream's address asked of
+// the owner's server with mode 'ahead' (addons/debrid.js: never adds anything to TorBox), and only when that
+// gives a direct address is the file described through the engine's probe (its header and index: the film is
+// then remembered, film-memory.js), then closed: not one byte of picture or sound past what describing needs.
+// The add-on's own link is never opened before a tap (following it can make the add-on add the film to TorBox).
+// Nothing plays and nothing is chosen that the owner's earlier pick of a release would not choose. A tap on Next
+// within ten minutes takes the collected list; the address (kept 45 minutes) and the description come from memory.
 //
 // None of it happens with Settings › Playback › "Get ready ahead" off or the data saver on; closing the player,
 // another source, or leaving the episode ends it.
 
-import {resolveDebrid} from '../addons/debrid.js';
+import {resolveStream} from '../addons/debrid.js';
 import {aheadSetting, saverNow} from './ready.js';
 import {aired} from './content.js';
 
@@ -27,7 +29,7 @@ export function nextDueSoon(time, duration, {cardDue = false, segments = []} = {
 
 export class NextReady {
   /** @param {object} app @param {{probe?: Function, resolve?: Function, saver?: () => boolean, now?: () => number}} [options] */
-  constructor(app, {probe = null, resolve = resolveDebrid, saver = () => saverNow(), now = () => Date.now()} = {}) {
+  constructor(app, {probe = null, resolve = resolveStream, saver = () => saverNow(), now = () => Date.now()} = {}) {
     Object.assign(this, {app, probeFn: probe, resolve, saver, now});
     this.job = null;
     this.spent = 0; // bytes preparing has cost on this visit (said in the stream info's log, and in tests)
@@ -59,12 +61,12 @@ export class NextReady {
       const same = group && all.find(s => s.stream.bingeGroup === group);
       if (!same) return null; // tried: not asked again for this episode
       job.all = all;
-      const url = await this.resolve(same.stream.url);
-      if (!live()) return job;
+      const answer = await this.resolve(same.stream, {mode: 'ahead', signal: job.abort.signal});
+      if (!live() || !answer?.url || answer.via === 'addon') return job; // described at the tap, once it may be played
       const probe = this.probeFn || (await import('../engine/probe.js')).probe;
       let source = null;
       try {
-        const probed = await probe(url, {signal: job.abort.signal, onSource: s => { source = s; }});
+        const probed = await probe(answer.url, {signal: job.abort.signal, onSource: s => { source = s; }});
         probed.input?.dispose?.(); probed.source?.close?.();
         job.described = !!probed.readable;
       } finally {
