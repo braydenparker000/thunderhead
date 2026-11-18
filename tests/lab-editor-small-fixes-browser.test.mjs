@@ -63,18 +63,18 @@ test('naming a look opens the editor\'s own sheet, and the name it gives is kept
   await context.close();
 });
 
-test('with less motion asked for, rows and tiles appear in place and the plate fades; otherwise they move', opts, async () => {
+test('with less motion asked for, the plate fades in; otherwise it rises, and its row stands still either way', opts, async () => {
   const seen = {};
   for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
     const { context, page, errors } = await opened('Edit', motion);
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' })));
-    seen[motion] = await page.evaluate(() => ({ fly: [...new Set([...document.querySelectorAll('#stage .fly')].map((e) => getComputedStyle(e).animationName))], plate: getComputedStyle(document.querySelector('#stage .plate')).animationName }));
+    seen[motion] = await page.evaluate(() => ({ row: [...new Set([...document.querySelectorAll('#stage .plate button.eng')].map((e) => getComputedStyle(e).animationName))], plate: getComputedStyle(document.querySelector('#stage .plate')).animationName }));
     assert.deepEqual(errors, []);
     await context.close();
   }
-  assert.ok(seen['no-preference'].fly.some((n) => n !== 'none'), 'the rows fly in as a rule');
-  assert.deepEqual(seen.reduce.fly, ['none'], 'with less motion they appear in place');
-  assert.equal(seen.reduce.plate, 'fade', 'and the plate fades');
+  assert.equal(seen['no-preference'].plate, 'rise', 'the plate rises as a rule');
+  assert.equal(seen.reduce.plate, 'fade', 'with less motion it fades');
+  for (const m of Object.values(seen)) assert.deepEqual(m.row, ['none'], 'the row stands still (a copy of the panel slides between sections, and must look the same: boards/Barrel.js)');
 });
 
 test('a decode that fails inside the decoder\'s thread sends the next request to a new thread, which works', opts, async () => {

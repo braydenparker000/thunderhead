@@ -110,7 +110,7 @@ export default class Component extends DCLogic {
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
       faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),
-      chips, rowAria: `${S.group} options`, rowSeed: gi + S.sel * 4, dialLeft: true,
+      chips, rowAria: `${S.group} options`, dialLeft: true,
       saveLabel: W ? `SAVING · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run, saveBg: on.length && !W ? '#2468d8' : '#3a3c3f',
     };
   }

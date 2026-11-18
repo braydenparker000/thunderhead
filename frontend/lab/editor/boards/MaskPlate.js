@@ -129,7 +129,7 @@ export default class Component extends DCLogic {
       dialTurn: (d) => setVal(adj, fromDial(d)), dialReset: () => setVal(adj, uni[adj] ?? 0), dialHold: (on) => set({ turning: on }),
       faces: groups.map((g) => ({ label: g, count: g === 'Mask' ? 0 : rows[g].filter((a) => Math.abs(m.vals[a] || 0) > 0.004).length })), faceAt: gi,
       pickFace: (i) => set({ group: groups[i], adj: rows[groups[i]].find(turns) || 'Amount' }),
-      chips, rowAria: `${S.group} options`, rowSeed: gi + (S.group === 'Mask' ? masks.length : 0),
+      chips, rowAria: `${S.group} options`,
       overlayOn: String(S.overlay), overlayDot: S.overlay ? '#e8202a' : '#4f5357', overlayGlow: S.overlay ? '0 0 6px rgba(232,32,42,0.7)' : 'none', toggleOverlay: () => set({ overlay: !S.overlay }),
     };
   }

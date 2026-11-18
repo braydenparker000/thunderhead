@@ -20,12 +20,12 @@ header button:active{opacity:0.6}
 #frame{background:#000}
 /* a board coming in: the photo stays where it is (its own layer, app/zoom.js) and only the panel rises */
 #stage.enter .plate{animation:rise 300ms cubic-bezier(0.2,0.85,0.2,1) backwards}@keyframes rise{from{opacity:0.4;transform:translateY(28px)}to{opacity:1;transform:none}}@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-/* a swipe up or down slides the panel to the next section (boards/Barrel.js): its slide and where it is cut off are set on the stage while it moves, the section going away a still copy laid over it; meanwhile the panel keeps its place and the photo its room (data-room), and both ease to the section's own once it rests; sideways stays the panel's own */
-#stage .plate.barrel{transform:var(--roll,none);clip-path:var(--clip,none);touch-action:pan-x}
-#stage.rolling .plate{transition:none!important}
-#stage.rolling .plate.barrel{top:var(--hold-top)!important}
-#stage.rolling [data-room]{height:var(--hold-room)!important;transition:none!important}
-.plate.barrel .hscroll{touch-action:pan-x}
+/* a swipe up or down slides the panel to the next section (boards/Barrel.js): still copies of it slide, each cut to its section's height, in a window cut to the panel's place (.barrel-copies, after the stage), the shade under it casting the panel's shadow; meanwhile the panel itself keeps its place, unseen, and the photo its room (data-room, held to the fraction), and both take the section's own at once as it lands (.landing: the photo glides there once); a section's row stands still on it (no rise: a copy and the panel must look the same); sideways stays the panel's own */
+#stage .plate.barrel{touch-action:pan-x}.plate.barrel .hscroll{touch-action:pan-x}
+#stage.rolling .plate{transition:none!important}#stage.rolling .plate.barrel{opacity:0}
+#stage.rolling [data-room]{height:var(--hold-room)!important;transition:none!important}#stage.landing [data-room]{transition:none!important}
+.barrel-copies{position:absolute;left:0;top:0;width:412px;overflow:clip;pointer-events:none;z-index:1;background:#232525}.barrel-copies>.plate{will-change:transform;contain:strict}.barrel-copies *{animation:none!important;transition:none!important}
+.barrel-shade{position:absolute;left:0;top:0;width:412px;height:340px;pointer-events:none;z-index:1}
 #stage .plate.barrel:has([role=listbox]:focus-visible){outline:2px solid rgba(232,32,42,0.9);outline-offset:-3px}
 /* the tool dial in the corner (boards/ToolDial.js): over the board, only its own parts take a finger */
 #tooldial{position:absolute;inset:0;z-index:10;pointer-events:none}
@@ -34,10 +34,6 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
 .lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
 .hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
-.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
-@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
-/* a section's adjustments rise into place as it slides in on the panel (boards/Barrel.js): one name a section, so the animation runs again at each */
-@keyframes pop0{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop1{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop3{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop4{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop5{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop6{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop7{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop8{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes pop9{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
 .key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
 .wheelp{background-image:url(/lab/editor/assets/dial-strip.webp);background-size:412px 1800px;background-repeat:no-repeat}
@@ -48,8 +44,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 html,#frame{touch-action:pan-x pan-y}
 /* a small key's room for a finger: at least 44 × 44 without changing how it looks (--hit: how far past its edges, as inset takes it) */
 .hit{position:relative}.hit::before{content:'';position:absolute;inset:var(--hit,-6px 0)}
-/* less motion (EDITOR.md): rows and tiles appear in place, the plate fades, the dial still turns (AUDIT.md 8.11) */
-@media (prefers-reduced-motion:reduce){.fly,[role=dialog]{animation:none!important}#stage.enter .plate{animation:fade 200ms ease both}@keyframes fade{from{opacity:0}to{opacity:1}}button,.zl,#stage [style*="cubic-bezier"]{transition:none!important}}
+/* less motion (EDITOR.md): the plate fades in, dialogs appear in place, the dial still turns (AUDIT.md 8.11) */
+@media (prefers-reduced-motion:reduce){[role=dialog]{animation:none!important}#stage.enter .plate{animation:fade 200ms ease both}@keyframes fade{from{opacity:0}to{opacity:1}}button,.zl,#stage [style*="cubic-bezier"]{transition:none!important}}
 /* zoom.js's sharper layers fade in over the softer picture rather than popping; from 200 % a sensor pixel shows as a crisp square, below it smoothly (as GIMP and Gwenview do) */
 .zl{transition:opacity 180ms ease-out}@starting-style{.zl{opacity:0}}[data-px] .zl{image-rendering:pixelated}
 /* where the keyboard's focus is (AUDIT.md 8.13): a ring for keys only, never for a touch, over the dials' own outline: none */

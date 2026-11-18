@@ -1,5 +1,6 @@
-# Tests every push to a branch other than main, with the same checks Deploy runs (checks.yml). main
-# is tested by Deploy before anything goes live.
+# Tests every push to a branch other than main, with the same checks Deploy runs (checks.yml): the quick ones, all
+# but the editor's software-GPU browser tests, which run after a release instead (slow.yml). main is tested by
+# Deploy before anything goes live.
 name: Test
 on:
   push:
@@ -36,6 +37,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       lab: ${{ needs.scope.result == 'success' && needs.scope.outputs.lab || '' }}
+      files: quick
       first_only: true
   # The mind's weekly improvement (EVALS.md §7, RA-P9-02): its evals line must match the Worker's
   # record, no suite may drop, and it may not change an eval and the mind together.

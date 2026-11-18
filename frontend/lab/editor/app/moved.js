@@ -22,8 +22,10 @@ let run = 0, wasBusy = false;
 /** A gesture has begun (or goes on): frames are watched until `active` says it is over. A finger that comes down
  * again while one is watched (a glide caught, a second finger) is part of the same. @param {() => boolean} active
  * fingers still move the photo, or it glides @param {boolean} busy the GPU was making a full-size view when a finger came down
- * @param {'move' | 'turn'} [kind] `turn`: the dial is being turned (boards/DialPlate.js), and what is watched is how the page kept up while it was
- * @param {Record<string, number>} [more] noted with it (a turn: how far the photo is zoomed in, per cent) */
+ * @param {'move' | 'turn' | 'swipe' | 'tools'} [kind] `turn`: the dial is being turned (boards/DialPlate.js), `swipe`: the panel slid
+ * between sections (boards/Barrel.js), `tools`: the tool dial is held (boards/ToolDial.js); what is watched is how the page kept up
+ * @param {Record<string, number | string>} [more] noted with it, as it is when the gesture is over (a turn: how far the photo is zoomed
+ * in, per cent; a swipe: the sections passed, the photo fitted again and its detail put away meanwhile, how it ended) */
 export function moved(active, busy, kind = 'move', more = {}) {
   wasBusy ||= busy;
   if (run) return;

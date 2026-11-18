@@ -5,7 +5,9 @@
 // to the part with the least time so far, so the parts take about as long and share the slow files; a
 // file the table doesn't know yet counts by its size at the table's own rate. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
 // part the files that draw on the software GPU (`heavy`) run after the others, one at a time.
-// Usage: node scripts/test-part.mjs <k> <n>   (part k of n, from 1)
+// Usage: node scripts/test-part.mjs <k> <n> [--quick | --slow] [--only <files>]   (part k of n, from 1)
+//        --quick: all but the software-GPU files (what a merge and a release wait for); --slow: those only (run after a
+//        release: .github/workflows/slow.yml; the owner, 2026-11-18: "better to go live and have a good recording and reporting pipeline")
 //        node scripts/test-part.mjs --measure (runs every file once and rewrites the table)
 // As a test reporter (--measure passes it to node --test), it writes each file's time to its destination.
 import { spawn, spawnSync } from 'node:child_process';
@@ -67,6 +69,8 @@ export function deal(files, n) {
  * core busy for minutes, and a test beside one has waited past its own limits (a page's 15 s wait, twice in CI).
  * A part runs these after its other files, one at a time. @param {string} file */
 export const heavy = (file) => /^tests\/lab-.*-browser\.test\.mjs$/.test(file);
+/** The files of a kind: `quick` all but the heavy ones, `slow` the heavy ones, anything else all. @param {string[]} files @param {string} [kind] */
+export const only = (files, kind) => (kind === 'quick' ? files.filter((f) => !heavy(f)) : kind === 'slow' ? files.filter(heavy) : files);
 
 /** The reporter for --measure: each file's top-level tests' time, plus its start-up (the gap between
  * the runner starting the file and its first test), as { file: ms }. @param {AsyncIterable<any>} source */
@@ -123,15 +127,16 @@ if (isMain && process.argv[2] === '--measure') {
   process.exit(run.status ?? 1);
 } else if (isMain) {
   // `--only <files>`: a lab change's tests (scripts/lab-scope.mjs), dealt over the parts like the whole suite
-  const args = process.argv.slice(2), at = args.indexOf('--only'), only = at < 0 ? null : new Set(args.slice(at + 1));
+  const args = process.argv.slice(2), at = args.indexOf('--only'), named = at < 0 ? null : new Set(args.slice(at + 1));
+  const kind = args.includes('--quick') ? 'quick' : args.includes('--slow') ? 'slow' : 'all';
   const [k, n] = args.slice(0, 2).map(Number);
   if (!(Number.isInteger(n) && n >= 1 && Number.isInteger(k) && k >= 1 && k <= n)) {
-    console.error('usage: node scripts/test-part.mjs <k> <n> [--only <test files>]  |  node scripts/test-part.mjs --measure');
+    console.error('usage: node scripts/test-part.mjs <k> <n> [--quick | --slow] [--only <test files>]  |  node scripts/test-part.mjs --measure');
     process.exit(2);
   }
-  const all = testFiles().filter((f) => !only || only.has(f));
+  const all = only(testFiles().filter((f) => !named || named.has(f)), kind);
   const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
-  console.log(`part ${k} of ${n}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
+  console.log(`part ${k} of ${n}${kind === 'all' ? '' : ` (${kind})`}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
   // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
   const first = await run(light), second = await run(slow, ['--test-concurrency=1']);
   process.exit(first || second);

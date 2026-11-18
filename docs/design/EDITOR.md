@@ -95,11 +95,25 @@ phone in the app the same day, the first build (a 3D barrel, a dial swung round 
 
 - **Sections: swipe the panel.** Swiped up, the panel slides up under the finger, one for one, and the next section
   comes up from below; down, the one before. Let go past 40 css px (a quarter of the panel, if that is less) or
-  flicked, it goes on; short of it, back. Round: past the last section comes the first. The panel keeps its height
-  and the photo stays still while it slides; a taller section (the curve, a grading wheel) grows once it rests. The
-  board is asked for the coming section once, as the swipe sets off. A tick at each section. Sideways stays the
-  panel's own (its dial, its row, its tiles); the curve and the grading wheels keep their drags, and the keys beside
-  the curve act on a tap, so a swipe may begin on them.
+  flicked, it goes on; short of it, back. Round: past the last section comes the first. Each section stands at its
+  own height on the screen's foot, so a taller one (the curve, a grading wheel) rises over the photo's foot as it
+  comes in; the photo's room is held as it was, to the fraction, while it slides, and takes the new one at once as
+  it lands, the photo gliding there once as for another tool. What slides are still copies of the panel, each cut to
+  its section's height, in a window cut to the panel's place; the panel itself waits unseen and shows again as it
+  lands (rebuilt after the owner's "a ton of glitches", 2026-11-18: the panel's height was held in whole pixels, so
+  on the phone the photo was fitted and its detail made again at every swipe; a copy of the whole panel covered the
+  coming section; a frame-stepped spring ran slow on a slow phone; the board, drawing a section anew, left a second
+  swipe-taker on the panel). The board is asked for the coming section a frame after the panel moves, so it answers
+  the finger at once; the slide keeps time (240 ms a section, eased) however the frames come; the photo's own work
+  (its detail, Starfish) waits while it moves. A tick at each section, and the tool dial names a section only once
+  it has landed. Sideways stays the panel's own (its dial, its row, its tiles); the curve and the grading wheels keep
+  their drags, and the keys beside the curve act on a tap, so a swipe may begin on them. The row stands still as its
+  section comes in (no rise: a copy and the panel must look the same).
+- **How it feels is reported.** Each swipe is noted by the flight recorder (`th/report/`, kind `swipe`): how long,
+  the frames drawn and the worst gap, what ran in it, the sections passed and turned back, whether the photo was
+  fitted again or its detail put away meanwhile (`refit`, `rebuilt`: both should be 0), and how it ended (`landed`,
+  `returned`); each hold of the tool dial likewise (kind `tools`: notches, turns back, `chose` or `shut`). Read with
+  `node scripts/reports.mjs`: the phone's numbers, not the software GPU's, say whether it is smooth.
 - **Tools: one knurled dial in the corner.** A quarter of a dial in the bottom-right corner (r 84), its face naming
   the tool and the section. Held, it opens to r 160 with a ring of the tools (Looks, Crop, Edit, Masks, Heal,
   Versions), and the thumb sliding straight up or down turns it: a click every 40 css px, up the next tool, down

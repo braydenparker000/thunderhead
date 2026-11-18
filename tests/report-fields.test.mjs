@@ -16,6 +16,7 @@ test('an event keeps its known fields only, and names the ones it dropped', () =
   assert.deepEqual(F.clean({ kind: 'gpu', vendor: 'arm', arch: 'valhall' }).ok, { kind: 'gpu', vendor: 'arm', arch: 'valhall' });
   assert.deepEqual(F.clean({ kind: 'mark', x: 0.123456, y: 0.5, zoom: 2.25, a: 'classic', b: 'network', picked: 'network' }).ok, { kind: 'mark', x: 0.1235, y: 0.5, zoom: 2.25, a: 'classic', b: 'network', picked: 'network' });
   assert.deepEqual(F.clean({ kind: 'move', ms: 900, ran: 'tile copy long' }).ok, { kind: 'move', ms: 900, ran: 'tile copy long' });
+  assert.deepEqual(F.clean({ kind: 'swipe', ms: 412.2, frames: 25, worst: 33, steps: 1, back: 0, refit: 0, rebuilt: 0, outcome: 'landed' }).ok, { kind: 'swipe', ms: 412, frames: 25, worst: 33, steps: 1, back: 0, refit: 0, rebuilt: 0, outcome: 'landed' });
   // words are fixed: anything else is dropped, never kept as written
   assert.deepEqual(F.clean({ kind: 'lost', ms: 0, job: '<script>', ran: 'tile; rm', model: '../../etc' }), { ok: { kind: 'lost', ms: 0 }, dropped: ['job', 'ran', 'model'] });
   assert.equal(F.clean({ kind: 'spy', ms: 1 }).ok, null, 'an unknown kind is no event');

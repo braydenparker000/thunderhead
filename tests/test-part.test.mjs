@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { QUIET, deal, durations, heavy, run, testFiles, weights } from '../scripts/test-part.mjs';
+import { QUIET, deal, durations, heavy, only, run, testFiles, weights } from '../scripts/test-part.mjs';
 
 /** The site parts in .github/workflows/checks.yml: "site k/n" in its matrix. */
 const PARTS = Number(/part: \[site 1\/(\d+)/.exec(readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'))?.[1]);
@@ -90,3 +90,14 @@ test('a run that reports nothing for long enough is ended, and says the last tes
   assert.ok(QUIET >= 4 * 60_000 && QUIET <= 6 * 60_000, 'longer than any one test on CI, well under the job\'s limit');
 });
 
+
+test('quick and slow: every file in exactly one, the software-GPU files the slow ones, and the workflows run them so', () => {
+  const files = testFiles(), quick = only(files, 'quick'), slow = only(files, 'slow');
+  assert.deepEqual([...quick, ...slow].sort(), files); assert.equal(new Set([...quick, ...slow]).size, files.length);
+  assert.ok(slow.length >= 15 && slow.every(heavy) && !quick.some(heavy));
+  const yml = (f) => readFileSync(new URL(`../.github/workflows/${f}`, import.meta.url), 'utf8');
+  assert.match(yml('ci.yml'), /uses: \.\/\.github\/workflows\/checks\.yml\n    with:\n(?:      .*\n)*      files: quick\n/, 'a branch waits for the quick checks');
+  assert.match(yml('deploy.yml'), /uses: \.\/\.github\/workflows\/checks\.yml\n    with:\n(?:      .*\n)*      files: quick\n/, 'and so does a release');
+  assert.match(yml('slow.yml'), /workflows: \[Deploy\]/, 'the slow ones run once it is live');
+  assert.match(yml('slow.yml'), /files: slow\n/);
+});

@@ -1,0 +1,31 @@
+# The editor's software-GPU browser tests (scripts/test-part.mjs `heavy`), run once a release is live rather than
+# before it (the owner, 2026-11-18: "honestly better to go live and have a good recording and reporting pipeline").
+# A merge and a release wait only for the quick checks (ci.yml, deploy.yml); these take most of CI's time and test
+# what the flight recorder and the owner's own use see first on the phone. A failure here is fixed next, or the
+# release rolled back (OPERATIONS.md §3.2): it is a red mark on the live commit, never retried into green (TESTING.md
+# §1 rule 8). Run workflow runs them on any commit of main.
+name: Slow
+run-name: Slow ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+on:
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit to test (empty = tip of main)
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: slow-tests
+  cancel-in-progress: true
+jobs:
+  slow:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+      files: slow
