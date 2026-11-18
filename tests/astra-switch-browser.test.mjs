@@ -12,6 +12,7 @@ import { astraHost } from './fixtures/astra-host.mjs';
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (synthetic films)', timeout: 90_000 };
 let site, host, browser, base, h264 = false;
+const near = (hz, want) => Math.abs(hz - want) < 12; // the analyser's bins are 5.9 Hz apart
 
 before(async () => {
   if (live) return;
@@ -68,7 +69,8 @@ test('another sound track: the old one plays on for a second, then the new one, 
   const { page, errors, at } = await player(t);
   await page.evaluate((url) => window.p.load({ url, autoplay: true }), host.url('multi.mkv'));
   await at(3);
-  assert.equal(await page.evaluate(() => window.pitch()), 440, 'English, at 440 Hz');
+  const english = await page.evaluate(() => window.pitch());
+  assert.ok(near(english, 440), `English, at 440 Hz (${english})`);
   const before = await page.evaluate(() => { window.seen.seeks = 0; window.seen.frames.length = 0; window.p.selectAudio(window.p.audioOptions()[1].id); return window.p.video.currentTime; });
   await at(before + 2.5);
   const r = await page.evaluate(async () => {
@@ -76,7 +78,7 @@ test('another sound track: the old one plays on for a second, then the new one, 
     return { hz: await window.pitch(), seeks: window.seen.seeks, pause: Math.round(pause), joins: window.p.session.stats.joins };
   });
   t.diagnostic(JSON.stringify(r));
-  assert.equal(r.hz, 880, 'Japanese, at 880 Hz');
+  assert.ok(near(r.hz, 880), `Japanese, at 880 Hz (${r.hz})`);
   assert.equal(r.joins, 1, 'written over the old sound from a second on');
   assert.equal(r.seeks, 0, 'no seek in place to let go of the old sound');
   assert.ok(r.pause < 400, `the picture kept going (longest pause ${r.pause} ms; a frame every 83 ms)`);
@@ -91,7 +93,7 @@ test('the converter refused: the film plays another track that needs none, and s
   const r = await page.evaluate(async () => ({ hz: await window.pitch(), notices: window.seen.notices, errors: window.seen.errors, selected: window.p.audioOptions().find((a) => a.selected)?.label, offered: window.p.audioOptions().map((a) => a.supported) }));
   t.diagnostic(JSON.stringify(r));
   assert.deepEqual(r.errors, [], 'no stop');
-  assert.equal(r.hz, 440, 'the AAC track, passed through as it is');
+  assert.ok(near(r.hz, 440), `the AAC track, passed through as it is (${r.hz} Hz)`);
   assert.match(r.selected, /Stereo/);
   assert.ok(r.notices.some((n) => /converter could not be downloaded, so this plays Stereo/.test(n)), r.notices.join(' | '));
   assert.deepEqual(r.offered, [true, true], 'the converted track stays in the menu, to try again');
@@ -116,7 +118,7 @@ test('the converter refused and no other track: the film plays on without sound,
   assert.deepEqual(quiet.errors, [], 'no stop');
   assert.equal(quiet.hz, 0, 'silence meanwhile');
   assert.ok(quiet.notices.some((n) => /without sound until it can be/.test(n)), quiet.notices.join(' | '));
-  assert.equal(r.hz, 660, 'the Dolby Digital track, converted, once its converter came');
+  assert.ok(near(r.hz, 660), `the Dolby Digital track, converted, once its converter came (${r.hz} Hz)`);
   assert.ok(r.pause < 400, `the picture kept going as the sound came in (longest pause ${r.pause} ms)`);
   assert.deepEqual([errors, r.errors], [[], []]);
 });

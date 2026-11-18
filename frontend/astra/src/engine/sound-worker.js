@@ -14,12 +14,11 @@
 // stand-in track carries the two (the configuration as the page's track gave it).
 //
 // Messages in: load {codec}; start {id, codec, config, from, whole, channels, rate, centre, fragment}; packets {id,
-// buf, items, tap, centre}; end {id}; stop {id}. Out: loaded / loadfail {codec}; bytes {id, bytes, upTo}; progress
-// {id, upTo}; tap {id, timestamp, rate, planes}; done {id}; error {id, message, kind}. A fragment's bytes carry `at`, where it begins.
+// buf, items, tap, centre}; end {id}; stop {id}. Out: loaded / loadfail {codec}; bytes {id, bytes, upTo, at: where the
+// fragment begins}; progress {id, upTo}; tap {id, timestamp, rate, planes}; done {id}; error {id, message, kind}.
 
 import * as MB from '../../vendor/mediabunny.js';
 import {stereoWriter, wholeWriter} from './sound-write.js';
-import {sized} from './fragments.js';
 
 const FILES = {ac3: ['mediabunny-ac3.js', 'registerAc3Decoder'], dts: ['mediabunny-dts.js', 'registerDtsDecoder'], truehd: ['mediabunny-truehd.js', 'registerTrueHdDecoder']};
 const family = codec => codec === 'dts' ? 'dts' : codec === 'truehd' ? 'truehd' : codec === 'ac3' || codec === 'eac3' ? 'ac3' : null;
@@ -114,11 +113,10 @@ function writer(fragment, send) {
     fastStart: 'fragmented', minimumFragmentDuration: fragment ?? 1,
     onFtyp: data => { head.push(data.slice()); },
     onMoov: data => { head.push(data.slice()); send(join(head)); head = []; },
-    onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; sized(output, moof); }, // the mdat's array made at its size
+    onMoof: (data, position, timestamp) => { moof = data.slice(); at = timestamp; },
     onMdat: data => { send(join([moof, data]), at); moof = null; },
   });
-  const output = new MB.Output({format, target: new MB.NullTarget()});
-  return output;
+  return new MB.Output({format, target: new MB.NullTarget()});
 }
 
 /** Decoded sound the page's sound tap asked for (sound-tap.js), sent back as planes. */

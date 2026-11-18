@@ -97,7 +97,9 @@ export class AppendQueue {
     this.generation++;
     this.items.length = 0; this.bytes = 0; this.held = false; this.reach = -Infinity;
     if (this.busy) await this.idle(); else this.settle();
-    try { if (this.buffer.updating) this.buffer.abort(); } catch {}
+    // Always: a fragment's moof and mdat are appended one after the other, and a reset between the two left the buffer
+    // inside a segment, where setting its timestampOffset throws (more often with quarter-second sound fragments).
+    try { this.buffer.abort(); } catch {}
     if (clear && this.buffer.buffered.length) { try { await this.run(() => this.buffer.remove(0, Infinity)); } catch {} }
     if (mime && this.buffer.changeType) this.buffer.changeType(mime);
     return this.generation;

@@ -24,7 +24,7 @@ export class Loading {
     const p = this.p;
     if (!this.waitEl) {
       // Placed by its own style, as the spinner's box (player.css .ap-buffering) has room for the ring only.
-      this.waitEl = h('p', {class: 'ap-wait', role: 'status', hidden: true, style: {position: 'absolute', top: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '80vw', margin: '0', textAlign: 'center', fontSize: '13px', lineHeight: '18px', color: 'rgba(255,255,255,.9)', textShadow: '0 1px 3px rgba(0,0,0,.8)', fontVariantNumeric: 'tabular-nums'}});
+      this.waitEl = h('p', {class: 'ap-wait', hidden: true, style: {position: 'absolute', top: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '80vw', margin: '0', textAlign: 'center', fontSize: '13px', lineHeight: '18px', color: 'rgba(255,255,255,.9)', textShadow: '0 1px 3px rgba(0,0,0,.8)', fontVariantNumeric: 'tabular-nums'}});
       p.spinner.parentElement?.append(this.waitEl);
     }
     const show = holding && left != null && left > 2;

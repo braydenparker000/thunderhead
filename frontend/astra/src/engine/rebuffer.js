@@ -62,7 +62,6 @@ export class Rebuffer {
     this.resumedAt = -Infinity;
     this.holding = null; // {since, need}
     this.placed = false; // the film has played since its last start or seek
-    this.held = {count: 0, ms: 0};
     const v = session.video;
     // Since the film's last seek (remux-switch.js): ranShort, it ran short while playing, so Chrome keeps more decoded
     // sound; joined, how many times its sound was written over.
@@ -122,7 +121,6 @@ export class Rebuffer {
     if (!h) return;
     this.holding = null;
     if (why === 'ready') this.resumedAt = performance.now();
-    this.held.count++; this.held.ms += performance.now() - h.since;
     for (const q of Object.values(this.session.queues)) { q.held = false; q.pump(); }
     this.session.emit('rebuffer', {holding: false, why, need: h.need, waited: Math.round(performance.now() - h.since)});
   }

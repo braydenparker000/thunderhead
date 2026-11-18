@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 3 MB in
+# Makes the small films the browser checks play (tests/fixtures/astra/, committed: about 4 MB in
 # all). Each is a moving test picture with a clock and a sine tone per sound track, so a check can
 # tell by pitch which track is heard. Needs ffmpeg. Usage: bash scripts/astra/fixtures.sh [film…]
 # (names such as anime.mkv make only those films; x264 builds differ, so remaking all churns them).

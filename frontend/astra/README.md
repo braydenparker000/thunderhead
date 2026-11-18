@@ -372,10 +372,15 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    (`remux-switch.js`): another track, or the same one mixed again for the
    dialogue lift, is written over the old sound from a second past the
    playhead, so the old sound plays to there, the new one from there, and the
-   picture does not stop. With less than 1.5 s of sound buffered ahead, or
-   the sound moved in time (Sound › earlier), the buffer is emptied and the
-   film seeks in place, which stops the picture briefly, as every change did
-   before (A slow link, a change of track, below).
+   picture does not stop. The buffer is emptied and the film seeks in place,
+   which stops the picture briefly, as every change did before, when less
+   than the join and half a second is buffered ahead, when the sound moves in
+   time (Sound › earlier), after two changes written over in a row (each moved
+   the sound against the picture by up to 27 ms; a seek sets it right), and
+   when the film ran short since its last seek (Chrome then keeps up to 3 s of
+   decoded sound, and the old track went on that long). A change whose new
+   sound came late makes the next join longer, up to 2.5 s (A slow link, a
+   change of track, below).
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame, and a seek inside what is
    already buffered (or just ahead of where reading is) starts nothing. A
@@ -807,7 +812,8 @@ not inside the buffer and waits for the download to reach it. The page is
 under 250 MB only while the link is slower than the film: at 40 Mbit/s it
 peaks at 380 MB, of which about 120 MB is garbage the collector had not
 taken yet (260 MB with a collection forced before each look), and on the
-fast link near 500 MB. For scale, Chrome playing the same picture from a
+fast link near 500 MB (what holds it, and what was tried: A slow link,
+below, Memory on a fast link). For scale, Chrome playing the same picture from a
 plain MP4 by itself, with no Astra, peaks at 175 MB (the lab page alone:
 50 MB). On the fast machine a seek five seconds on, inside the buffer,
 takes 0.35 to 0.9 s where Chrome playing that MP4 itself takes 0.16 s: not
@@ -1025,16 +1031,28 @@ shown; one run each, minimum / median / most of the twelve changes:
 
 | Each change of the twelve | fast, before | fast, after | page slowed six times, before | slowed, after |
 |---|---|---|---|---|
-| The new track heard after the tap | 0.29 / 0.42 / 1.11 s | 1.03 / 1.04 / 1.08 s | 1.09 / 1.46 / 1.79 s | 1.51 / 1.82 / 2.56 s |
-| Longest silence on the way | 162 / 853 / 969 ms | 0 / 0 / 0 ms | 789 / 1163 / 1480 ms | 0 / 37 / 1213 ms |
-| Picture's longest pause | 167 / 851 / 1138 ms | 83 / 125 / 167 ms | 933 / 1266 / 1517 ms | 417 / 541 / 1283 ms |
-| The old track heard after the new | 0 to 32 ms (the listening window) | none | 5 to 27 ms | 0 to 21 ms |
-| Sound against the picture after it | +28 to +53 ms | +6 to +51 ms | +28 to +52 ms | +34 to +64 ms |
+| Written over the old sound (no seek in place) | 0 | 8 (8 in a second run too) | 0 | 5 |
+| The new track heard after the tap | 0.29 / 0.42 / 1.11 s | 0.48 / 1.07 / 1.81 s | 1.09 / 1.46 / 1.79 s | 1.58 / 1.81 / 3.07 s |
+| Longest silence on the way | 162 / 853 / 969 ms | 0 / 0 / 963 ms | 789 / 1163 / 1480 ms | 0 / 423 / 1741 ms |
+| Picture's longest pause | 167 / 851 / 1138 ms | 83 / 125 / 1109 ms | 933 / 1266 / 1517 ms | 367 / 733 / 2771 ms |
+| The old track heard after the new | 0 to 32 ms (the listening window) | 0 to 21 ms | 5 to 27 ms | 0 to 21 ms |
+| Sound against the picture after it | +28 to +53 ms | +13 to +55 ms | +28 to +52 ms | +23 to +59 ms |
 
-TABLE-NOTE
+The new track now comes a second after the tap by design (the old one plays to the join), where before it came
+sooner but through a silence of up to a second with the picture stopped. A change written over the old sound left
+no silence and no old sound after it on any of the twelve pairs, passed
+through to converted and back included (`changeType` keeps what is buffered of the other kind and Chrome's decoder
+follows on); the picture's longest pause was 83 to 167 ms, against 50 to 83 ms with no change at all. Two things
+make the others seek in place. Written over every time (twelve in a row, three runs), the sound moved against the
+picture by -27 to +17 ms a change (the tracks' own timing differs, and a seek sets it right), 47 ms in all once; so
+after two in a row the third seeks. And on the slowed page a change written over at a second ahead came 0.4 to 0.8 s
+late, the sound ran short, and from then on Chrome kept up to 3 s of decoded sound: the old track went on for 3 s
+and the sound drifted 80 ms late over twelve changes (heard 3.1 s after the tap); now a change after the film ran
+short seeks in place (which brings Chrome's store back), and a late one makes the next join longer (1.75, then 2.5 s).
+With no change at all, the same measure gave +19 to +25 ms for Dolby Digital Plus.
 
-**The converter refused or late** (`sound-wait.js`; `conv.mjs`-style runs in the scratch folder: the decoder's file
-refused, or answered 8 s late, by the test browser itself; one run each):
+**The converter refused or late** (`sound-wait.js`; the decoder's file refused, or answered 8 s late, by the test
+browser itself, the film from the tests' host; one run each):
 
 | The heavy film (DD+ by default, AAC beside it) | before | after |
 |---|---|---|
@@ -1072,7 +1090,30 @@ the default (converted) one:
 | Slowed: first picture; far forward, far back, last minute | 2.82; 4.48, 4.33, 2.48 s | 2.50; 3.48, 3.29, 1.52 s | 2.48; 3.55, 3.40, 1.61 s | 2.46; 3.43, 3.41, 1.59 s |
 
 Quarter-second sound gained up to a second on every far seek, slowed; quarter-second picture gained nothing beyond
-the noise, so the picture's fragments stay at half a second.
+the noise, so the picture's fragments stay at half a second. With four times as many sound fragments, a refill that
+came between a fragment's two boxes (each moof and mdat is appended on its own) left the buffer inside a segment,
+and setting its timestampOffset threw (`astra-sound-stream-browser.test.mjs` failed two runs in three); a reset now
+always starts the buffer's parser afresh (`mse.js`), which only a reset during an append did before.
+
+**Memory on a fast link.** Every array of 64 KiB or more the page's scripts made while the heavy film played 37 s on
+the fast link, counted by where it was made (a counter wrapped around `Uint8Array`, `ArrayBuffer` and `slice`): 285
+MiB in Mediabunny's writer, which collects each box it hands over in an array that starts at 1 KiB and doubles, copied
+each time; 121 MiB in the reader's blocks (the film's bytes, once); 15 MiB answering reads from blocks still filling;
+and, made by the browser, the download's own chunks (121 MiB). Making each mdat's array at its size, read from the
+moof before it, cut the writer's 285 MiB to 114, but the page's memory did not move (fast: 461 MB at its peak and
+405 at the median before, 480 and 405 after; slowed: 311 and 305 MB; medians of 3): the collector keeps up, and most
+of the page is outside its heap. So it was not kept. What the page holds, fast: the JS heap with its arrays 75 to 125
+MB, of which the reader's cache is 49 MB; the browser's buffer, 14 s ahead and 8 behind (about 75 MB at this
+bitrate); converted sound's worker and its decoder about 50 MB (the same film with its AAC track peaked 240 MB where
+Dolby Digital Plus peaked 289, ten seconds in); the rest is Chrome's own (the lab page alone 50 MB, Chrome playing
+the same picture from a plain MP4 by itself 175 MB). Holding less (the reader's cache 32 MiB, which with the reach
+it needs at this bitrate is 39, and 16 MiB kept behind the playhead, 5.8 s instead of 8) took the fast link's peak
+from 529 to 514 MB, inside the runs' own spread (504 to 544), and gave up a third of what a seek back finds at once:
+not kept either. So the aim of 350 MB on a fast link and 280 slowed is not met (fast 529 MB at its peak this sitting,
+536 before this round; slowed 331 and 312, the 19 MB more being film held through a stall, A slow link above). Most
+of it is Chrome's: its buffer at the bytes Astra holds (75 MB), its decoders and frames, and the page itself; Astra's
+own floor is the reader's cache (the reach and 4 s of film, 38 MiB at this bitrate), the JS heap around it (about 30
+MB) and the converted sound's worker (about 50 MB, none with sound passed through).
 
 **Headphone surround's delay.** An impulse through the chain offline: off, it comes out at once; with Headphone
 surround 12.2 ms later (the HRTF panners' convolution, 6.2 ms, and the limiter's 6 ms look-ahead, which the chain
@@ -1080,7 +1121,24 @@ puts in for it); boost or night mode alone, 6 ms (the compressor's look-ahead). 
 marks, fast machine, two runs, over 100 s and two seeks), Headphone surround's sound was +46 to +61 ms (median +52),
 the plain mix +24 to +43 (+36.5) and the AAC track +35 to +50 (+39.5): 12 to 16 ms later, the chain's own delay. It
 is the browser's (Web Audio's nodes; nothing makes the video wait for them), so whole surround, which only that
-chain plays, is now written 12 ms ahead of the picture (`sound-six.js` PLACED). SYNC-AFTER
+chain plays, is now written 12 ms ahead of the picture (`sound-six.js` PLACED). After (two runs): +21 to +47 ms
+(median +39.5) against the plain mix's +24 to +48 (+38.5) in the same sitting. On the two-hour film (Dolby Digital
+5.1 placed, from 1:00:00, then six seeks between 5:00 and 1:56:40): +49 at the start and +49 a minute on, +33 to +48
+after the seeks, against its AAC track's +21 to +48: nothing drifts with the place in the film or over a minute. The
+earlier figure of +60 after three minutes, rising from +31, went with the plain mix rising too (+7 to +33): the
+measure's own steps, not the sound's. Boost, night mode, the dialogue lift and even loudness put the same limiter in
+for any sound (6 ms) and are not compensated.
+
+**A small film is no slower** (the one of How smoothly: 1 min of 720p at 3 Mbit/s with AAC, 1.5 MB/s a connection,
+40 ms a request; medians of 5, the same sitting):
+
+| Small film | before | after |
+|---|---|---|
+| First picture; resuming at 0:30; opened again | 326, 628, 554 ms | 240, 542, 467 ms |
+| Far forward, far back, last 15 s; memory at its peak | 112, 76, 87 ms; 160 MB | 107, 84, 81 ms; 164 MB |
+
+Its sound passed through now comes in quarter-second fragments, which is the 85 ms its start and resume gained (with
+everything else of this round and the old fragments: 337, 620 and 562 ms).
 
 ### Several cores (present, switched off)
 
@@ -1507,7 +1565,7 @@ skip in a browser without it.
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
-| `astra-early.test.mjs` | Half-second fragments of picture, quarter-second ones of sound passed through, and each fragment's mdat made in one array of its own size. |
+| `astra-early.test.mjs` | Half-second fragments of picture, and quarter-second ones of sound passed through. |
 | `astra-rebuffer.test.mjs` | A link slower than the film: how many seconds are made ready after a stall, the link's speed counted only while a download runs, and a session's stall held and let go with a stand-in buffer (all that was held appended, a seek letting go at once, a fast link never held). |
 | `astra-switch-browser.test.mjs` | Changing sound track without stopping the picture (no seek in place, the new pitch heard); the converter refused, met with another track that needs none and a notice, or with silence until it can be downloaded and the sound coming in then. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
@@ -1552,7 +1610,7 @@ skip in a browser without it.
 | `astra-resolve-browser.test.mjs` | The address path in the real app: the server's address played in Astra's own mode with Stream info saying "From TorBox directly"; its error met by the add-on's link in Chrome's player with the server's reason as the notice and Stream info's line; signed out, nothing asked and the add-on's link played as before. |
 | `astra-open-browser.test.mjs` | The Thunderhead's link (`?find=…&max_mb=…`) opens Details, the size chip, nothing plays by itself. |
 
-- **Films**: `tests/fixtures/astra/` (about 3.7 MB, committed). Most are
+- **Films**: `tests/fixtures/astra/` (about 4.2 MB, committed). Most are
   made by `bash scripts/astra/fixtures.sh [film…]` (needs ffmpeg; name
   films to remake only those, since x264 builds differ). Each is a moving
   test picture with a clock and a sine tone per sound track at its own
