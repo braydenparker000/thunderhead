@@ -43,23 +43,27 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); await host?.close(); await made?.close(); if (dir) rmSync(dir, { recursive: true, force: true }); });
 
-/** A page of the real site holding one engine player on a muted video (`window.p`); `own: false` reads rebuilt sound with Mediabunny. */
-async function player(t, own = true) {
+/**
+ * A page of the real site holding one engine player on a muted video (`window.p`); `own: false` reads rebuilt sound with
+ * Mediabunny; `apart: false` converts it on the page's thread rather than in the sound worker (sound-apart.js).
+ */
+async function player(t, own = true, apart = true) {
   host.reset(); made?.reset();
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(() => page.close());
   await page.goto(`${base}/astra/lab/`);
-  await page.evaluate(async (own) => {
+  await page.evaluate(async ([own, apart]) => {
     (await import('/astra/src/engine/sound-stream.js')).SOUND.own = own;
+    (await import('/astra/src/engine/sound-apart.js')).APART.on = apart;
     const { AstraPlayer } = await import('/astra/src/engine/player.js');
     const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true });
     document.body.append(video);
     window.p = new AstraPlayer(video, document.createElement('div'));
     window.seen = [];
     window.p.addEventListener('error', (e) => window.seen.push(e.detail.message));
-  }, own);
+  }, [own, apart]);
   const load = (url, o = {}) => page.evaluate(([url, o]) => { window.p.load({ url, autoplay: true, ...o }); }, [url, o]);
   const at = (time, timeout = 30_000) => page.waitForFunction((time) => { const v = window.p.video; return v.videoWidth > 0 && v.readyState >= 2 && !v.seeking && v.currentTime >= time; }, time, { timeout, polling: 40 });
   const state = () => page.evaluate(() => ({ stats: window.p.session?.stats, audio: window.p.audioOptions(), t: window.p.video.currentTime, errors: window.seen }));
@@ -182,7 +186,7 @@ test('paced at 375 kB/s, a film of 2.5 MB clusters with Dolby Digital has pictur
 
 test('something unexpected on this path mid-film: Mediabunny\'s sink reads the sound from there, and it is heard', opts, async (t) => {
   if (!h264) return t.skip('this browser has no H.264 decoder');
-  const p = await player(t);
+  const p = await player(t, true, false); // the page's own conversion, which the surprise is put into
   await p.page.evaluate(async () => {
     const { PacketsFrom } = await import('/astra/src/engine/sound-stream.js');
     const packets = PacketsFrom.prototype.packets;
@@ -200,6 +204,50 @@ test('something unexpected on this path mid-film: Mediabunny\'s sink reads the s
   assert.match(s.stats.soundFallback, /invented surprise/);
   assert.equal(s.stats.ownSound, false, 'Mediabunny reads it now');
   assert.deepEqual([s.errors, p.errors], [[], []]);
+});
+
+test('converted sound is decoded and encoded in the sound worker, none of it on the page; a worker that fails hands it to the page', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  // Counted on the page: every AudioEncoder made there, whether the TrueHD decoder package was loaded there, and the
+  // sound buffered after each append (the first fragments are a quarter second: the picture waits for them after a seek).
+  const spy = () => {
+    const Real = window.AudioEncoder; window.encoders = 0; window.AudioEncoder = class extends Real { constructor(...a) { super(...a); window.encoders++; } };
+    const append = SourceBuffer.prototype.appendBuffer;
+    window.spans = [];
+    SourceBuffer.prototype.appendBuffer = function (data) {
+      this.addEventListener('updateend', () => { if (this === window.p.session?.queues.audio?.buffer && this.buffered.length) window.spans.push(this.buffered.end(0) - this.buffered.start(0)); }, { once: true });
+      return append.call(this, data);
+    };
+  };
+  const p = await player(t);
+  await p.page.evaluate(spy);
+  await p.load(host.url('truehd.mkv'));
+  await p.at(1);
+  const pitch = await heard(p.page);
+  const page = await p.page.evaluate(() => ({ encoders: window.encoders, truehd: !!globalThis[Symbol.for('@mediabunny/truehd loaded')] }));
+  const first = await p.page.evaluate(() => window.spans[0]);
+  let s = await p.state();
+  assert.ok(near(pitch, 770), `TrueHD's 770 Hz tone is heard (loudest: ${pitch} Hz)`);
+  assert.equal(s.stats.soundApart, true, 'converted in the worker');
+  assert.deepEqual(page, { encoders: 0, truehd: false }, 'no encoder made and no decoder loaded on the page');
+  assert.ok(first > 0 && first < 0.5, `the first fragment holds a quarter second or so (${first?.toFixed(3)} s)`);
+  assert.deepEqual([s.errors, p.errors], [[], []]);
+  // The worker breaks mid-film (a batch it cannot read): the page converts the sound from there, from Astra's reader.
+  const q = await player(t);
+  await q.page.evaluate(() => {
+    const post = Worker.prototype.postMessage;
+    let n = 0;
+    Worker.prototype.postMessage = function (m, transfer) { if (m?.type === 'packets' && ++n === 15) m = { ...m, items: [[0, -1, 0, 0, 1, 0]] }; return post.call(this, m, transfer); };
+  });
+  await q.load(host.url('surround.mkv'));
+  await q.page.waitForFunction(() => window.p.session?.stats.soundFallback, null, { timeout: 20_000 });
+  await q.at(6);
+  const again = await heard(q.page);
+  s = await q.state();
+  assert.ok(near(again, 660), `heard on (loudest: ${again} Hz)`);
+  assert.equal(s.stats.soundApart, false);
+  assert.equal(s.stats.ownSound, true, 'still read by Astra’s reader');
+  assert.deepEqual([s.errors, q.errors], [[], []]);
 });
 
 test('with Headphone surround on, rebuilt 5.1 reaches the page whole (FLAC) and is placed; off, it is stereo Opus again', opts, async (t) => {
