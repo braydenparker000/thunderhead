@@ -367,7 +367,10 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    audio has its own SourceBuffer, so changing track refills only the audio.
    Fragments carry absolute timestamps, so a seek outside the buffer starts
    fresh pipelines at the nearest key frame, and a seek inside what is
-   already buffered (or just ahead of where reading is) starts nothing. Text
+   already buffered (or just ahead of where reading is) starts nothing.
+   Until the film plays at its place (a start, a seek), its sound is read
+   at most 4 s past the playhead, and so the picture, which reads no more
+   than 3 s past the sound (`remux-audio.js`); then both read on. Text
    subtitles in MKV and MP4 are read from data already downloaded
    (`embedded-subtitles.js`) and drawn by `src/subtitles/renderer.js`;
    picture subtitles (PGS, VobSub) are decoded only while chosen. Files whose
@@ -668,6 +671,169 @@ cluster, from the start and after a seek). Converted sound is read the
 same way now (`sound-stream.js`, `sound-apart.js`); what it costs on a real
 film, and what a change of track costs, are in the next section. None of
 this was measured on the phone itself.
+
+### Converted sound on a real film (measured 2026-11-18)
+
+Films made with ffmpeg for this only (never committed): a 3-minute 1080p24
+H.264 film at about 25 Mbit/s (noise in the picture) with four sound tracks,
+Dolby Digital Plus 5.1 (640 kbit/s), Dolby TrueHD 5.1, DTS 5.1 (1.5 Mbit/s)
+and AAC stereo, each a tone at its own pitch; the same film with marks (each
+tone 26 dB louder for the first 50 ms of every second, the picture copied
+untouched); and a two-hour 360p film with Dolby Digital 5.1 and AAC, a key
+frame every 2 s, marked the same way. Played by the engine from the tests'
+file host in the tests' headless Chromium 153, on a 4-core machine other
+measurements shared (single figures move by up to a second: the counts of
+runs are given). "Slowed" is the page's thread made six times slower through
+DevTools; DevTools cannot slow a worker ("only supported for pages"), so
+there the workers ran at full speed and the phone's cost of them is not
+measured. Sync is the moment each mark is heard (a recorder on the page's
+sound) against the film's clock from the frames shown
+(requestVideoFrameCallback), compared with the AAC track, which the browser
+plays itself (+16 to +43 ms by this measure, from one sitting to the next:
+the reference).
+
+**Where the work ran.** The decoders' WebAssembly already ran in a worker
+of their own (Mediabunny's packages start one). Everything around it ran on
+the page's thread: Mediabunny's sample reader fed a packet at a time
+(TrueHD: 1,200 a second), the mix to stereo, each AudioData built, the Opus
+encoder's calls and its output, the MP4 writer, and on a film's first
+converted sound the decoder's 0.7 to 1.7 MB of JavaScript. Opus itself is
+encoded in the browser's own threads. Now only the reading stays on the
+page; the rest runs in the sound worker (`sound-apart.js`,
+`sound-worker.js`), which the packets reach in quarter-second batches as one
+buffer handed over (not copied again) and which hands back each MP4
+fragment. Thread time for each second of film, fast machine, from a trace
+(before: medians of 3 runs; after: the range of 4 runs, 2 for DTS):
+
+| Sound | Page before | Page after | Sound worker | Decoder's worker | Opus |
+|---|---|---|---|---|---|
+| Dolby Digital Plus 5.1 | 75 ms | 48 to 63 ms | 18 to 23 ms | 9 to 12 ms | about 11 ms |
+| Dolby TrueHD 5.1 | 165 ms | 42 to 64 ms | 47 to 70 ms | 19 to 33 ms | about 20 ms |
+| DTS 5.1 | 85 ms | 54 to 60 ms | 25 to 27 ms | 18 to 23 ms | about 10 ms |
+| AAC, passed through | 55 ms | 55 ms | | | |
+
+So the page's thread now spends on a converted film what it spends on one
+whose sound passes through (the reading, the picture, the MP4 writer). The
+worker holds about 20 to 28 MB of JavaScript heap (a second copy of
+Mediabunny and the decoder), while the page's heap with TrueHD playing went
+from 19 to 27 MB to 13 to 18 MB (7 MB with AAC).
+
+Slowed six times, one run each (the "before" runs while the machine was
+busier, so their long tasks and waits are not a fair match; the seeks are
+compared fairly below):
+
+| Slowed six times | DD+ before | after | TrueHD before | after | DTS before | after |
+|---|---|---|---|---|---|---|
+| Converted sound ready ahead, least and median | 9.7, 39 s | 9.9, 40 s | 0.7, 22 s | 10.2, 40 s | 2.1, 39 s | 9.8, 40 s |
+| Long tasks a minute while playing (their time) | 2.9 (0.17 s) | 2.2 (0.12 s) | 7.1 (0.44 s) | 6.1 (0.39 s) | 25 (1.7 s) | 2.5 (0.14 s) |
+| First sound from 0:00 | 1.9 s | 2.1 s | 2.9 s | 2.5 s | 3.1 s | 2.7 s |
+| Picture stopped by a change of track | 2.7 s | 1.1 s | 0.9 s | 1.0 s | 1.4 s | 0.65 s |
+
+TrueHD converted on the slowed page kept 22 s ahead at the median and once
+0.7 s (a second run: 9 s and 1.3 s): close to running dry. In the worker
+every track keeps its full 40 s. In no run, before or after, did the sound
+run short under the picture (less than 0.3 s of sound ahead while the
+picture had a second); the waits seen while playing had both buffers full
+(the machine's own load). Four times slower (TrueHD, one run each, the
+"before" one beside other work): least ready ahead 3.2 s before, 9.5 s
+after; long tasks 6.8 and 2.5 a minute; picture stopped by a change of
+track 1.5 s and 0.6 s.
+
+**Reading after a seek.** Converted on the page, the sound held the
+picture's reading back (the picture reads no more than 3 s past the sound),
+by accident. Freed of that, on a host faster than the film (the tests' host
+here, or fast Wi-Fi to a debrid server) the picture read on to its 40 s
+read-ahead straight after a seek and filled the page's thread, and the
+frames the film waited for came later: far seeks, page six times slower,
+3.2 s to the sound and 3.8 s to the picture (Dolby Digital Plus, 4 runs of 8
+seeks) against 2.6 s and 2.6 s before. Sound passed through as it is had
+the same trouble already (AAC: 3.1 s and 3.9 s, 2 runs). Now sound is read
+at most 4 s past the playhead until the film plays at its place
+(`remux-audio.js`), and the picture with it: 2.6 to 3.1 s for both with
+Dolby Digital Plus, 2.7 to 3.0 s for both with AAC (2 runs each). From a
+host at 40 Mbit/s, which paces the reading anyway: 2.1 s to sound and
+picture against 2.8 s before (2 runs before, 4 after), and 2.2 to 2.4 s
+from 0:00 against 2.8 to 3.0 s.
+
+**Sound fragments of a quarter second.** The film cannot play at a new
+place until the sound's first MP4 fragment is in, and the page's writer
+cuts sound every second at least (`fragments.js`): the picture waited for a
+second of the film to be read. The sound worker cuts every quarter second:
+from a 40 Mbit/s host, a far seek gave picture and sound back in 2.0 s
+against 2.5 s (3 runs of 8 seeks each, fast machine).
+
+**Sync.** No converted track's sound was more than 20 ms from where the AAC
+track's is (medians of a stretch), before or after, and none drifted. In
+one sitting, fast machine, 2 runs each, at the start / after a minute /
+after seeks: the AAC track +40 to +43 / +41 to +54 /
++28 to +46 ms; Dolby Digital Plus +31 to +36 / +13 to +33 / +24 to +40
+before and +41 to +45 / +31 to +42 / +13 to +49 after; DTS +38 to +50 /
++49 to +51 / +26 to +60 before and +44 to +54 / +45 to +56 / +20 to +57
+after. Over three minutes, slowed or not, the measure stepped by 10 to 25 ms
+at times, either way and for the AAC track too; the sound as written does
+not: every fragment the worker wrote began exactly where the one before
+ended (about 2,300 joins a run, Dolby Digital Plus and DTS, not one sample
+of gap or overlap).
+
+**Changing track** stops the picture: the audio buffer is emptied and the
+film seeks in place once the new sound covers the playhead (`remux.js`).
+On the real film, Dolby Digital Plus to TrueHD: 0.9 to 1.2 s of no new
+frame on a fast machine, 1.8 to 2.7 s slowed; the first time a film needs a
+decoder on the page, its download and compiling were in that wait too (AAC
+to Dolby Digital Plus, slowed: 3.2 s); the decoder now loads in the worker.
+Writing the new sound over the old from a second ahead, without emptying the
+buffer or seeking (tried in a copy of `remux.js`, not here: it is not this
+work's file), stopped the picture 0.1 to 0.4 s fast and 0.45 to 0.6 s
+slowed (2 runs each), and the tests that change track passed with it.
+
+**Headphone surround** keeps Dolby Digital Plus 5.1 whole as FLAC: 576 kB
+a second, read 15 s ahead (`sound-six.js`). Slowed six times, the audio
+buffer held up to 21.7 s, about 12.5 MB, which is at the browser's limit
+for an audio buffer (about 12 MB on a computer): it dropped what had played
+by itself and refused no append, before or after. Ready ahead, least and
+median: 6.0 and 14.3 s before, 9.9 and 14.6 s after. Out of the worker the
+fragments came faster than the slowed page appended them (up to 6.5 MB
+waiting); whole surround is now kept within a second of the reading and at
+most 2 MB waits (2.7 MB seen). Far seeks: 2.2 s before, 2.5 s after (one
+run each). The placed sound measured +31 to +33 ms at the start and +59
+to +61 ms after three minutes in all four runs, before and after alike,
+rising by steps, where the plain mix in the same sitting went from +7 to
++33 ms (one run): some 25 ms later than the plain mix, and rising as it
+does; with the measure's own steps (above) the size of the rise is not
+sure. Not explained and not changed here; the HRTF panners and the chain's
+own context are where to look.
+
+**Even loudness** changed nothing measured: fast machine, 2 runs each, the
+sound +31 to +37 ms at the start and +39 to +42 ms after a minute before,
++33 to +37 and +38 to +44 after (AAC alone, that sitting: +40 to +43);
+slowed six times, long tasks 5 and 7 a minute, seeks 2.4 s, before and
+after (one run each).
+
+**The two-hour film** (Dolby Digital 5.1 converted, fast machine, one run
+each): at 1:00:00 the sound was +28 ms before and +31 to +34 ms after,
+against +37 ms for its AAC track; after ten seeks across the two hours,
++26 to +47 ms before and +24 to +39 ms after, against +32 to +45 ms: no
+drift with the place in the film. Its seeks: 0.3 to 1.4 s to sound after
+(0.3 to 2.2 s before).
+
+**The converter's download.** Refused: the film stops with "The audio
+converter could not be downloaded." about 3 s after it is planned (three
+tries), before and after. Held back 8 s: the first picture waits for it
+(9.2 s from the tap before, 11.8 s after, one run each on a busy machine;
+the first picture always waits for the sound's first fragment). Playing on
+with another track or without sound, with a plain notice, is the player's
+part and is not done (`player-start.js`). In the app the decoder is usually
+fetched ahead, when the list of streams shows converted sound.
+
+Not changed, measured: Opus at complexity 5 or with 60 ms frames instead of
+the browser's defaults (no difference beyond the noise in the browser
+threads' time, 2 runs each). Considered and not tried: FLAC instead of
+Opus for stereo (no encoder, but eight times the bytes in an audio buffer
+the browser holds to about 12 MB). Converted sound still runs 40 s ahead
+as the picture does, so a far seek throws away up to 40 s of conversion
+(in the worker now). Not
+measured: any of this on the phone; the workers' cost on its slower cores;
+a decoder that fails mid-film in the worker beyond the test's.
 
 ### Several cores (present, switched off)
 
@@ -1045,7 +1211,7 @@ skip in a browser without it.
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), and stepping aside for what it will not guess at. |
 | `astra-early.test.mjs` | Half-second fragments. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
-| `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on; TrueHD converted in the sound worker with no encoder made and no decoder loaded on the page, and the page taking the sound over when the worker fails mid-film. |
+| `astra-sound-stream.test.mjs`, `astra-sound-stream-browser.test.mjs` | Converted sound from Astra's own Matroska reader: the same samples as Mediabunny's sink (Dolby Digital, TrueHD, DTS), heard after seeks and track changes, picture and sound after well under one cluster on a slow host; surround kept whole (FLAC) with Headphone surround on; TrueHD converted in the sound worker with no encoder made and no decoder loaded on the page and its first fragment a quarter second, and the page taking the sound over when the worker fails mid-film. |
 | `astra-chapters.test.mjs` | Chapters from Matroska and MP4, in order and bounded. |
 | `astra-datasaver.test.mjs` | When the data saver is on and what it changes, on a download already running, and the player handing the film's length to the reader. |
 | `astra-feed.test.mjs` | A film's attached fonts (bounded), which files libass can draw, the second track moved to the top, the sound tap's bookkeeping. |
@@ -1165,6 +1331,8 @@ decoder, no phone graphics chip, no HDR screen and no real network:
 - a film remembered (`astra-films`) on a real connection: how much sooner
   it opens the second time;
 - headphone surround's cost on the phone's processor;
+- converted sound (Dolby Digital Plus, TrueHD, DTS) on the phone: the sound
+  worker's and decoder's time on its cores, which DevTools could not slow;
 - a real network change (Wi-Fi to mobile data) while a film plays;
 - TorBox itself: what its file servers do with a fifth connection to a
   link, whether a renewed link plays on after a real link's three hours,
