@@ -664,12 +664,10 @@ there now for the picture and passed-through sound: Astra's own Matroska
 reader hands out each block as it arrives and the reader answers each read
 as its bytes come (`tests/astra-mkv-browser.test.mjs`: paced at 375 kB/s,
 a film of 2.5 MB clusters shows its first picture after well under one
-cluster, from the start and after a seek). Converted sound (Dolby Digital,
-DTS, TrueHD where they are rebuilt) still waits for its whole cluster,
-since Mediabunny decodes it, and on a first play for its decoder's
-download. Changing the audio track stops the picture for about a third of a
-second (the seek in place that flushes the old sound). None of this was
-measured on the phone itself.
+cluster, from the start and after a seek). Converted sound is read the
+same way now (`sound-stream.js`, `sound-apart.js`); what it costs on a real
+film, and what a change of track costs, are in the next section. None of
+this was measured on the phone itself.
 
 ### Several cores (present, switched off)
 
