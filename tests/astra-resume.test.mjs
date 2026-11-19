@@ -81,3 +81,10 @@ test('the same stream is found again, never another', () => {
   assert.equal(sameStream(noHash, [sameFile]), sameFile, 'else the same group and file name');
   assert.equal(sameStream(noHash, [s('https://addon.example/play/x', { filename: 'Invented.mkv' })]), null);
 });
+
+test('a remembered link at its longest still travels between phones: the sync\'s own limit is not shorter', async () => {
+  const { MAX_STRING, bounded } = await import('../frontend/astra/src/app/sync-read.js');
+  const { LINK_MAX } = await import('../frontend/astra/src/app/remembered.js');
+  assert.ok(MAX_STRING >= LINK_MAX);
+  assert.equal(bounded({ 'movie:tt1': { stream: { link: 'https://addon.example/' + 'a'.repeat(LINK_MAX - 22) } } }), true);
+});

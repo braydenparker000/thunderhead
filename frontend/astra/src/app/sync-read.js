@@ -18,7 +18,7 @@ export const ENTRY_KEYS = ['progress', 'watched', 'library'];
  * own day (shared/contract/astra.ts `ahead_ms`), so a stamp made here passes its check with this clock hours fast. */
 export const AHEAD = 12 * 3600e3;
 export const MAX_DEPTH = 6;
-export const MAX_STRING = 2048;
+export const MAX_STRING = 4096; // a remembered stream's link may be this long (app/remembered.js LINK_MAX): a longer string would drop all progress
 export const MAX_SETTING = 4096;
 const MAX_URL = 4096, MAX_NAME = 200, MAX_RECENT = 10, MAX_QUERY = 200;
 const KNOWN_SETTINGS = new Set(['posterWidth', 'posterRadius', 'hero', 'showCatalogType', 'recentSearches', 'openSubtitles', 'hiddenRows',
