@@ -113,7 +113,8 @@ export class Controls {
     if (this.locked) return;
     const was = this.visible;
     this.visible = true;
-    if (!was) { p.updateTime(); if (p.root.classList.contains('opening')) this.paint(); else this.paintNext(); }
+    // Also when a move asked for did not happen (the player closed before its frame): the state is drawn again.
+    if (!was || !p.root.classList.contains('controls')) { p.updateTime(); if (p.root.classList.contains('opening')) this.paint(); else this.paintNext(); }
     if (!p.pauseOverlay.hidden) { ghost(p.pauseOverlay, {name: 'pause-overlay:out'}); p.pauseOverlay.hidden = true; }
     p.markers.skipHiddenByTimer = false;
     if (autoHide) this.scheduleHide(); else clearTimeout(this.hideTimer); // an earlier timer must not hide what should stay

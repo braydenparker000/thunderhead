@@ -21,8 +21,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); });
 
-async function lab(t) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+async function lab(t, viewport = { width: 390, height: 844 }) {
+  const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true });
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];
@@ -129,4 +129,26 @@ test('a toast is held unseen while the page is busy and rises once it is free; a
   assert.ok(got.toastIn);
   assert.deepEqual(got.presses, [false, true], 'released: not cut; cancelled (a scroll took over): cut');
   assert.deepEqual(errors, []);
+});
+
+test('the Sources panel as the player\'s first view, with Off and Reduced motion and docked sideways, has every row', opts, async (t) => {
+  for (const [motion, viewport] of [['off', { width: 844, height: 390 }], ['reduced', { width: 390, height: 844 }], ['off', { width: 390, height: 844 }]]) {
+    const { page, errors } = await lab(t, viewport);
+    await page.evaluate(async (motion) => {
+      (await import('/astra/src/ui/motion.js')).setMotionChoice(motion);
+      await import('/astra/src/screens/stream-card.js');
+      const { PlayerScreen } = await import('/astra/src/player/player-screen.js');
+      const p = (window.p = new PlayerScreen());
+      p.engine.load = async () => {};
+      const sources = Array.from({ length: 30 }, (_, i) => ({ id: 's' + i, label: 'Example · ' + i, stream: { url: `https://cdn.example/${i}.mkv`, name: 'Example', title: `Invented.Film.2019.360p.WEB-DL.x264-GRP${i}` } }));
+      p.open({ stream: null, meta: { title: 'Invented film' }, sources }); // nothing loading: the owner picks (app/playing.js pickIn)
+    }, motion);
+    // Read the cards themselves, all of them: the first screenful at once, the rest once the panel is up.
+    await until(() => page.evaluate(() => !p.panel.hidden && p.panel.querySelectorAll('.ap-source-slot .stream-card').length === 30), { message: `every row (${motion}, ${viewport.width}×${viewport.height})` });
+    assert.equal(await page.evaluate(() => p.panel.querySelector('.ap-sheet').classList.contains('docked')), viewport.width > viewport.height);
+    // Closed and opened again with the same list: kept, every row still there.
+    await page.evaluate(async () => { p.menus.dismiss(); await new Promise((r) => setTimeout(r, 400)); p.menus.openPanel('sources'); });
+    await until(() => page.evaluate(() => !p.panel.hidden && p.panel.querySelectorAll('.ap-source-slot .stream-card').length === 30), { message: 'kept' });
+    assert.deepEqual(errors, []);
+  }
 });

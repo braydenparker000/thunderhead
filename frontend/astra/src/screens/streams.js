@@ -179,7 +179,7 @@ export class StreamsScreen {
 
   /** Every playable stream as the player lists them (made once per drawing: a tap reads it in its own frame). */
   sources() {
-    if (this.listed?.at === this.drawnAt) return this.listed.list;
+    if (this.listed && this.listed.at === this.drawnAt) return this.listed.list; // a headless screen (collect) has none: made each time
     const list = this.allSources();
     if (this.drawnAt != null) this.listed = {at: this.drawnAt, list};
     return list;
