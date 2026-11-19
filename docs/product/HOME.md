@@ -475,14 +475,20 @@ pages, with no island). Track names and artwork stay on this phone.
   44 px hit areas sit between the times (Podcasts shows 15 s back and 30 s on). Tap the artwork or
   title to open the app. Tap outside, swipe up, press Escape, or leave it untouched for six seconds
   to collapse it.
-- **The morph:** width and height spring on `springs.island` scaled to `--d-base`; the width
-  squishes out by 4% before settling. The artwork is one node, the shared element: it travels and
-  scales from the lobe to its expanded place by transform only, on the same spring (its corner
-  radius is set each frame in its own unscaled pixels, so it reads 7 px small and 16 px large). The
-  compact title and bars fade out by 40% of the shape; the expanded details fade in from 40%. The
-  progress line rises and thickens from 2 to 3 px by `scaleY`. Collapse is the same path in
-  reverse. Play or pause pulses the capsule to 1.03 and back on `springs.pop`. Nothing inside the
-  capsule uses `backdrop-filter`.
+- **The morph** (remade 2026-11-19; `th/island/shape.js`, `capsule.js`, `hand.js`): capsule, expanded
+  card and the app's full screen are one shape, a continuous-corner outline drawn as a clip on a
+  fixed box, so no layout is animated. It moves on `springs.island` from wherever it is: about 4%
+  past its size when growing, never past it when shrinking. The app zooms out of the island and back
+  into it. Leaving content blurs and shrinks while the new content comes into focus, so text never
+  stretches; the artwork is one node that travels from the lobe to the card and on to Music's cover.
+  Nothing inside the capsule uses `backdrop-filter`.
+- **Under the finger:** the app dragged down shrinks towards the island and the capsule dragged up
+  or down follows; letting go completes or springs back by distance and speed. A sideways swipe on
+  the capsule follows the finger with a rubber band and skips; the new title and art slide in from
+  that side with a small nudge of the pill. Play or pause breathes at once and the bars settle to a
+  line. Press, long-press expand and skip each give a haptic tick (Settings → Haptics).
+- **Named for the feel report** (`ui/feel/log.js`): `island:expand`, `collapse`, `open-app`,
+  `close-app`, `back`, `skip`, `pause`, `press`, `alert`, `art`.
 - **Artwork:** it comes from the app: Music's track art (fetched through its worker, which signs the
   bucket link), Podcasts' media-session artwork or, before an episode plays, its player's episode or
   show image. It is fetched inside the app's window, under its CSP, only once the capsule shows,
@@ -505,8 +511,9 @@ pages, with no island). Track names and artwork stay on this phone.
   (`island.clear`) takes away only that line; and it goes when its app leaves the island: opened full
   screen, or another app taking the capsule. Nothing playing in the island answers `not_playing`.
   Kept in memory on this phone, so a reload drops it; the speech setting at Silent holds it back.
-- **Reduced motion:** shape changes snap; content fades over 150 ms. No title scroll, pulse or moving
-  bars.
+- **Reduced motion:** shape changes are 150 ms cross-fades with no following of the finger (thresholds
+  only). No title scroll, pulse or moving bars. Motion Off (Settings → Appearance) lands everything
+  at once.
 - **Sleep timer:** when set, a moon and the remaining minutes sit at the expanded capsule's top
   right, level with the app glyph. Tap it to cancel, with Undo. Set it with “sleep timer 20 minutes” or “play until I fall
   asleep” (30 minutes). Music uses its own timer, which waits while paused; Podcasts uses the

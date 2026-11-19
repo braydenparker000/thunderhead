@@ -1,13 +1,18 @@
 {
-  "id": "2026-11-19-astra-what-froze",
+  "id": "2026-11-19-main-pages-feel",
   "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra: the stream list shows its first cards sooner, and the player's code loads in small pieces before you tap.",
-      "open": "astra"
+      "text": "The island now moves as one shape: it grows, shrinks and follows your finger, and songs slide in."
     },
     {
-      "text": "The feel report (Settings › About) now ends with \"what froze\": the code behind each long freeze on your phone."
+      "text": "Apps open from the ring in one movement, Back returns to home at once, and a theme change cross-fades."
+    },
+    {
+      "text": "Cards fold, menu groups open and Settings slides without stutter."
+    },
+    {
+      "text": "Settings gains search, Motion Off, Reset this page, and a feel report under About."
     }
   ]
 }
