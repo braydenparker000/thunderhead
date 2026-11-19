@@ -23,6 +23,7 @@
 import {BACKUP_KEYS} from './store.js';
 import {CINEMETA} from '../addons/client.js';
 import {ENTRY_KEYS, SYNC_TAG, ahead, entryTime, isObject, size, withTime} from './sync-read.js';
+import {mergeAddons} from './sync-addons.js';
 
 export {ENTRY_KEYS, SYNC_TAG, entryTime, readCopy} from './sync-read.js';
 export const GONE_MS = 60 * 864e5;
@@ -56,7 +57,6 @@ export function isEmpty(key, value) {
 
 /** A first merge of a whole key: both put together. */
 function union(key, theirs, mine) {
-  if (key === 'addons') return [...theirs, ...mine.filter(a => !theirs.some(t => t.url === a.url))];
   if (key === 'recentSearches') {
     const seen = new Set();
     return [...mine, ...theirs].filter(q => !seen.has(q.toLowerCase()) && seen.add(q.toLowerCase())).slice(0, MAX_RECENT);
@@ -115,12 +115,17 @@ export function mergeCopies({mine, theirs, first = false, playing = null, now = 
   let differs = false;
   for (const k of BACKUP_KEYS) {
     const entries = ENTRY_KEYS.includes(k), m = mine[k], t = theirs[k];
-    const merged = entries ? mergeEntries(k, m, t, now) : mergeWhole(k, m, t, first, now);
+    let merged = entries ? mergeEntries(k, m, t, now)
+      : k !== 'addons' ? mergeWhole(k, m, t, first, now)
+      : first && t && isEmpty(k, m?.value) ? t : mergeAddons(m, t, {now, gone: GONE_MS}); // a first merge with defaults: the server's
     if (!merged) continue;
-    keys[k] = entries ? {at: merged.at, value: merged.value, gone: merged.gone} : {at: merged.at, value: merged.value};
+    // The same as the server's: keep its times, so a stamp here that changed nothing never wins later.
+    if (t && k === 'addons' && same(merged.value, t.value) && same(merged.gone, t.gone) && same(merged.times, t.times)) merged = t;
+    keys[k] = entries ? {at: merged.at, value: merged.value, gone: merged.gone}
+      : k === 'addons' ? {at: merged.at, value: merged.value, times: merged.times ?? {}, gone: merged.gone ?? {}} : {at: merged.at, value: merged.value};
     const here = k === 'progress' && playing ? keepPlaying(merged.value, m?.value, playing) : merged.value;
     if (!same(here, m?.value ?? (entries ? {} : undefined))) apply[k] = here;
-    if (!t || !same(merged.value, t.value) || (entries && !same(merged.gone, t.gone))) differs = true;
+    if (!t || !same(keys[k].value, t.value) || ((entries || k === 'addons') && !same(keys[k].gone, t.gone)) || (k === 'addons' && !same(keys[k].times, t.times))) differs = true;
   }
   return {copy: {astra: SYNC_TAG, keys}, apply, differs};
 }

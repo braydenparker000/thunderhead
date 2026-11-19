@@ -60,11 +60,12 @@ export function checkedPut(raw: unknown, now = Date.now()): AstraBackupPut {
   for (const [k, v] of Object.entries(copy.keys)) {
     if (!(B.keys as readonly string[]).includes(k)) throw bad('copy.keys', 'only the known keys');
     const at = isPlain(v) ? v.at : null;
-    if (!isPlain(v) || !only(v, ['at', 'value', 'gone']) || !('value' in v))
-      throw bad(`copy.keys.${k}`, 'at, value and gone only');
+    if (!isPlain(v) || !only(v, ['at', 'value', 'gone', 'times']) || !('value' in v))
+      throw bad(`copy.keys.${k}`, 'at, value, gone and times only');
     if (typeof at !== 'number' || !Number.isFinite(at) || at < 0 || at > now + B.ahead_ms)
       throw bad(`copy.keys.${k}.at`, 'a time in ms, at most a day ahead');
     if ('gone' in v && !isPlain(v.gone)) throw bad(`copy.keys.${k}.gone`, 'an object');
+    if ('times' in v && !isPlain(v.times)) throw bad(`copy.keys.${k}.times`, 'an object');
   }
   return { base, copy: copy as unknown as AstraCopy };
 }

@@ -146,11 +146,13 @@ export const ASTRA_BACKUP = {
 export type AstraBackupKey = (typeof ASTRA_BACKUP.keys)[number];
 
 /** One key of a copy: when it last changed on a phone (ms), the value as the phone's store holds it,
- * and, for progress, watched and library, removed entries with when they were removed (60 days). */
+ * and, for progress, watched, library and add-ons, removed entries with when they were removed (60 days);
+ * for add-ons also when each address was had (`times`). Add-ons' are keyed by a fingerprint of the address. */
 export interface AstraCopyKey {
   at: number;
   value: unknown;
   gone?: Record<string, number>;
+  times?: Record<string, number>;
 }
 export interface AstraCopy {
   astra: typeof ASTRA_BACKUP.tag;

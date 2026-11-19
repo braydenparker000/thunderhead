@@ -28,14 +28,14 @@ test('two phones, every key: entries of both survive, whole keys go to the newer
   const b = { addons: [addon(1), addon(3)], library: lib('tt02', T + 5), progress: prog(film('tt20', T + 2 * MIN)), watched: { 'movie:tt21': T + 9 }, settings: { posterWidth: 140 }, recentSearches: ['second'] };
   const r = mergeCopies({ mine: side(a, { addons: T + 10 * MIN, settings: T - MIN, recentSearches: T + MIN }), theirs: server(b, { addons: T, settings: T, recentSearches: T }), now: T + 20 * MIN });
   const k = r.copy.keys;
-  assert.deepEqual(k.addons.value, a.addons, 'this phone changed its add-ons last');
+  assert.deepEqual(k.addons.value, [...a.addons, addon(3)], 'this phone changed its add-ons last: its own in its order, then the other’s');
   assert.deepEqual(k.settings.value, b.settings, 'the other phone changed settings last');
   assert.deepEqual(k.recentSearches.value, ['first']);
   assert.deepEqual(Object.keys(k.library.value).sort(), ['movie:tt01', 'movie:tt02']);
   assert.deepEqual(Object.keys(k.progress.value).sort(), ['movie:tt20|tt20', 'series:tt10|tt10:1:3'], 'an episode here and a film there both survive');
   assert.deepEqual(Object.keys(k.watched.value).sort(), ['movie:tt21', 'series:tt10|tt10:1:2']);
   assert.equal(r.copy.astra, 'sync/1');
-  assert.deepEqual(Object.keys(r.apply).sort(), ['library', 'progress', 'settings', 'watched'], 'only what changes here is written');
+  assert.deepEqual(Object.keys(r.apply).sort(), ['addons', 'library', 'progress', 'settings', 'watched'], 'only what changes here is written');
   assert.equal(r.differs, true);
   // The same entry on both: the later save of it wins, whichever side.
   const later = mergeCopies({ mine: side({ progress: prog(film('tt30', T, 100)) }), theirs: server({ progress: prog(film('tt30', T + 1, 900)) }), now: T });
@@ -79,7 +79,7 @@ test('a first merge puts both together and loses nothing; a new phone takes the 
   assert.deepEqual(r.copy.keys.settings.value, { posterWidth: 140, hiddenRows: ['b', 'a'], hero: false });
   assert.deepEqual(r.copy.keys.recentSearches.value, ['Mine', 'both', 'theirs']);
   assert.deepEqual(Object.keys(r.copy.keys.library.value).sort(), ['movie:tt01', 'movie:tt02']);
-  assert.ok(r.copy.keys.addons.at > T, 'stamped as changed at the first merge');
+  assert.ok(r.copy.keys.settings.at > T, 'stamped as changed at the first merge');
   // Nothing but defaults here (Cinemeta alone, nothing else saved): the server's, as it is.
   const fresh = mergeCopies({ mine: side({ addons: [{ url: CINEMETA, enabled: true, name: 'Cinemeta' }] }), theirs, first: true, now: T });
   assert.deepEqual(fresh.apply.addons, theirs.addons.value);
@@ -230,4 +230,35 @@ test('a copy cannot bloat or wedge a phone: add-ons cut to their fields, deep va
   assert.deepEqual(deep.keys.settings.value, {}, 'the deep unknown setting is dropped');
   assert.doesNotThrow(() => mergeCopies({ mine: { settings: { at: 0, value: { x: nest(3000) }, gone: {} } }, theirs: deep.keys, now: 2 }));
   assert.doesNotThrow(() => same({ x: nest(5000) }, { x: nest(5000) }));
+});
+
+// The security read's add-on probes: a removed add-on (perhaps because its key leaked) must not come back from a
+// phone that still had it. Add-ons merge address by address; each address carries when it was had (re-)added, a
+// removal is a tombstone, and an address comes back only when added again after its removal.
+test('a removed add-on stays removed: after an offline change elsewhere, on a first merge, with the switch off and on', async () => {
+  const { addressKey } = await import('../frontend/astra/src/app/sync-addons.js');
+  const kept = { url: 'https://addon.example/invented-ok/manifest.json', enabled: true, name: 'Kept' };
+  const removed = { url: 'https://addon.example/invented-leaked-key/manifest.json', enabled: true, name: 'Removed' };
+  const fp = addressKey(removed.url);
+  assert.match(fp, /^[0-9a-f]{16}$/);
+  assert.ok(!fp.includes('leaked'), 'a tombstone names a fingerprint, never the address');
+  // Phone A removed it at T: the server's copy has the tombstone.
+  const theirs = readCopy({ astra: 'sync/1', keys: { addons: { at: T, value: [kept], gone: { [fp]: T } } } }, T + 2 * MIN).keys;
+  // Phone B, offline, switched `kept` off at T + 1 min (its list is the newer): the removal still holds.
+  const b = { addons: { at: T + MIN, value: [{ ...kept, enabled: false }, removed], times: {}, gone: {} } };
+  const r = mergeCopies({ mine: b, theirs, now: T + 2 * MIN });
+  assert.deepEqual(r.copy.keys.addons.value, [{ ...kept, enabled: false }]);
+  assert.deepEqual(r.apply.addons, [{ ...kept, enabled: false }]);
+  assert.deepEqual(r.copy.keys.addons.gone, { [fp]: T });
+  // A first merge (B joining, or its switch turned off and on): a union, minus the removed address.
+  assert.deepEqual(mergeCopies({ mine: b, theirs, first: true, now: T + 2 * MIN }).copy.keys.addons.value.map((a) => a.name), ['Kept']);
+  // Added again on B after the removal: it comes back, everywhere.
+  const again = { addons: { at: T + 3 * MIN, value: [kept, removed], times: { [fp]: T + 3 * MIN }, gone: {} } };
+  const back = mergeCopies({ mine: again, theirs, now: T + 3 * MIN });
+  assert.deepEqual([back.copy.keys.addons.value.map((a) => a.name), back.copy.keys.addons.gone], [['Kept', 'Removed'], {}]);
+  // Addresses only the other side has are added after the newer side's own, in its order.
+  const extra = { url: 'https://addon2.example/x/manifest.json', enabled: true, name: 'Extra' };
+  const both = mergeCopies({ mine: { addons: { at: T + 4 * MIN, value: [removed, kept], times: { [fp]: T + 3 * MIN }, gone: {} } },
+    theirs: readCopy({ astra: 'sync/1', keys: { addons: { at: T + MIN, value: [kept, extra] } } }, T).keys, now: T + 4 * MIN });
+  assert.deepEqual(both.copy.keys.addons.value.map((a) => a.name), ['Removed', 'Kept', 'Extra']);
 });

@@ -159,6 +159,10 @@ describe('the outer shape', () => {
       422,
       'validation',
     ]);
+    // Add-ons carry when each address was had (`times`, an object), as the phones merge them address by address.
+    expect(
+      await refused({ base: null, copy: { astra: 'sync/1', keys: { addons: { at: 1, value, times: [1] } } } }),
+    ).toEqual([422, 'validation']);
     // A time past a day from the Worker's clock (the security read's far-future probe): it would win every merge.
     const far = (at: number) => ({ base: null, copy: { astra: 'sync/1', keys: { addons: { at, value } } } });
     expect(await refused(far(9e15))).toEqual([422, 'validation']);
@@ -177,7 +181,11 @@ describe('the outer shape', () => {
     // What a key holds is not read: any JSON value is kept as it came.
     const odd = {
       astra: 'sync/1',
-      keys: { settings: { at: 5, value: [1, 'two', null] }, library: { at: 6, value: {}, gone: { 'movie:tt1': 9 } } },
+      keys: {
+        settings: { at: 5, value: [1, 'two', null] },
+        library: { at: 6, value: {}, gone: { 'movie:tt1': 9 } },
+        addons: { at: 7, value: [], times: { '0123456789abcdef': 3 }, gone: {} },
+      },
     };
     expect((await backup('PUT', D, { base: null, copy: odd })).status).toBe(200);
     expect((await backup<Kept>('GET', D)).body.copy).toEqual(odd);

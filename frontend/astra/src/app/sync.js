@@ -20,6 +20,7 @@
 import {BACKUP_KEYS, PREFIX} from './store.js';
 import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies, readCopy} from './sync-merge.js';
 import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
+import {addressesOf} from './sync-addons.js';
 import {hideFromSenses} from './sync-senses.js';
 import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
 
@@ -59,7 +60,7 @@ export function startSync(app, deps = {}) {
 
   /** What this phone holds of a key now: its stored text and, for entry keys, each entry's time. */
   function snapshot(k) {
-    const entries = new Map();
+    const entries = k === 'addons' ? addressesOf(store.get(k, [])) : new Map();
     if (ENTRY_KEYS.includes(k)) for (const [id, e] of Object.entries(store.get(k, {}))) entries.set(id, entryTime(k, e));
     snap[k] = {raw: store.raw(PREFIX + k), entries};
   }
@@ -75,12 +76,12 @@ export function startSync(app, deps = {}) {
       const was = snap[k];
       if (was && store.raw(PREFIX + k) === was.raw) continue;
       snapshot(k);
-      if (rec.off) continue;
-      any = true;
+      // Stamped with the switch off too (nothing is sent): turned on again, removals and additions made meanwhile count.
       stampChange(rec, k, was, snap[k], now);
+      if (!rec.off) any = true;
     }
+    keep(any ? {...rec, owed: true} : rec);
     if (!any) return;
-    keep({...rec, owed: true});
     changes++;
     schedule(Math.max(SAVE_AFTER, retry ? RETRY[retry - 1] : 0));
   }
@@ -100,7 +101,7 @@ export function startSync(app, deps = {}) {
   /** This phone's side for a merge: each key as stored (undefined when nothing is saved), with the record's stamps. */
   function mine(rec) {
     const out = {};
-    for (const k of BACKUP_KEYS) out[k] = {at: rec.at[k] ?? 0, value: store.get(k, undefined), gone: rec.gone[k] ?? {}};
+    for (const k of BACKUP_KEYS) out[k] = {at: rec.at[k] ?? 0, value: store.get(k, undefined), gone: rec.gone[k] ?? {}, ...(k === 'addons' ? {times: rec.added} : {})};
     return out;
   }
 
@@ -138,7 +139,7 @@ export function startSync(app, deps = {}) {
       if (!apply(merged.apply, side.progress.value)) { problem = 'full'; return; }
       const mark = changes;
       rec = record();
-      for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; }
+      for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; if (v.times) rec.added = v.times; }
       Object.assign(rec, {joined: true, version: server.version, fetchedAt: now, owed: merged.differs});
       keep(rec);
       if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
@@ -230,7 +231,8 @@ export function startSync(app, deps = {}) {
     setOn(on) {
       if (on === !record().off) return;
       d.cancel(timer);
-      keep(on ? fresh() : {...record(), off: true});
+      // On again: a first merge (both put together), its stamps and tombstones kept so removals still hold.
+      keep({...record(), off: !on, ...(on ? {joined: false, version: null} : {})});
       problem = '';
       changed();
       if (on) { for (const k of BACKUP_KEYS) snapshot(k); exchange(); }
@@ -242,7 +244,7 @@ export function startSync(app, deps = {}) {
         return {ok: false, message: error?.message || 'Your server could not be reached.'};
       }
       d.cancel(timer);
-      keep({...fresh(), off: true});
+      keep({...record(), off: true, joined: false, version: null, savedAt: null, fetchedAt: null, owed: false});
       changed();
       return {ok: true};
     },

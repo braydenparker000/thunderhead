@@ -99,7 +99,8 @@ export function readCopy(copy, now = Date.now()) {
     if (clean === undefined || (size(value) && !size(clean))) continue;
     const entries = ENTRY_KEYS.includes(k);
     if (entries) clean = Object.fromEntries(Object.entries(clean).map(([id, x]) => [id, withTime(k, x, now)]));
-    keys[k] = {at: ahead(e.at, now), value: clean, gone: entries ? timesOf(e.gone, now) : {}};
+    keys[k] = {at: ahead(e.at, now), value: clean, gone: entries || k === 'addons' ? timesOf(e.gone, now) : {}};
+    if (k === 'addons') keys[k].times = timesOf(e.times, now);
   }
   return {keys};
 }

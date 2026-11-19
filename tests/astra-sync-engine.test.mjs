@@ -266,3 +266,31 @@ test('a hostile copy does not fill the phone’s storage', async () => {
   const a = await phone(w, { data: { addons: [ADDON] } });
   assert.deepEqual(a.read('settings'), { hero: false });
 });
+
+test('a removed add-on does not come back from a phone that changed its list offline, nor from one switched off and on', async () => {
+  const w = worker();
+  const OTHER = { url: 'https://addon.example/invented-leaked-key/manifest.json', enabled: true, name: 'Leaked' };
+  const a = await phone(w, { data: { addons: [ADDON, OTHER] } });
+  const b = await phone(w, { offset: MIN });
+  const c = await phone(w, { offset: MIN });
+  assert.deepEqual([b.read('addons'), c.read('addons')], [[ADDON, OTHER], [ADDON, OTHER]]);
+  c.sync.setOn(false); // C stops keeping in step before the removal
+  // A removes the add-on whose key leaked; B, offline meanwhile, switches the other one off.
+  a.store.set('addons', [ADDON]);
+  await a.advance(SAVE_AFTER);
+  w.down = 503;
+  b.store.set('addons', [{ ...ADDON, enabled: false }, OTHER]);
+  await b.advance(SAVE_AFTER);
+  w.down = 0;
+  await b.advance(SAVE_AFTER);
+  assert.deepEqual([b.read('addons'), w.kept.copy.keys.addons.value], [[{ ...ADDON, enabled: false }], [{ ...ADDON, enabled: false }]]);
+  // C turns its switch on again: what it has and the server's are put together, minus the removed address.
+  c.sync.setOn(true);
+  await settle();
+  assert.deepEqual([c.read('addons'), w.kept.copy.keys.addons.value.map((x) => x.name)], [[{ ...ADDON, enabled: false }], ['Invented']]);
+  // Added again after the removal (here on A): it comes back, everywhere.
+  a.store.set('addons', [{ ...ADDON, enabled: false }, OTHER]);
+  await a.advance(SAVE_AFTER);
+  await c.sync.syncNow();
+  assert.deepEqual(c.read('addons').map((x) => x.name), ['Invented', 'Leaked']);
+});
