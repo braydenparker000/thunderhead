@@ -58,7 +58,9 @@ export class SettingsScreen {
         navRow('extension', 'Add-ons', `${addons.filter(a => a.enabled !== false).length} active of ${addons.length}`, () => this.open('Add-ons', p => this.addons(p))),
         navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p)))),
       group('Content',
-        switchRow('Recent searches', 'Keep the last 10 searches on this device', app.settings.recentSearches !== false, v => app.saveSettings({recentSearches: v}), 'search')),
+        // Off removes the searches kept, everywhere: an empty list is a change like any other (app/sync.js).
+        switchRow('Recent searches', 'Keep your last 10 searches, on every phone you keep the same', app.settings.recentSearches !== false,
+          v => { app.saveSettings({recentSearches: v}); if (!v) app.store.set('recentSearches', []); }, 'search')),
       group('Data',
         navRow('backup', 'Your data', 'Back up, restore, clear', () => this.open('Your data', p => this.data(p)))),
       group('About',

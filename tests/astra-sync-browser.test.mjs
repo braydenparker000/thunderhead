@@ -151,6 +151,18 @@ test('phone A’s add-on, saved title and film reach phone B; B’s removal reac
   await a.page.waitForFunction(() => !JSON.parse(localStorage.getItem('astra.sync.v1')).owed);
   assert.deepEqual(asked(before).map((c) => c.method), ['PUT']);
   assert.equal(worker.kept.copy.keys.settings.value.hero, false);
+  // Recent searches off on A: the searches kept go, on every phone, as a removal; B stops keeping new ones.
+  await a.page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); window.astra.store.set('recentSearches', ['invented film']); });
+  await a.page.evaluate(() => window.astra.sync.syncNow());
+  assert.deepEqual(worker.kept.copy.keys.recentSearches.value, ['invented film']);
+  await a.page.evaluate(() => window.astra.back()); // off Your data, back on Settings
+  await a.page.waitForFunction(() => !document.querySelector('.screen-stack .screen-layer'));
+  await a.page.locator('.set-row', { hasText: 'Recent searches' }).click();
+  assert.match(await a.page.locator('.set-row', { hasText: 'Recent searches' }).textContent(), /on every phone you keep the same/);
+  await a.page.evaluate(() => window.astra.sync.syncNow());
+  assert.deepEqual([worker.kept.copy.keys.recentSearches.value, worker.kept.copy.keys.settings.value.recentSearches], [[], false]);
+  await b.page.evaluate(() => window.astra.sync.syncNow());
+  assert.deepEqual([await b.saved('recentSearches'), (await b.saved('settings')).recentSearches], [[], false]);
   // Opened again with nothing changed anywhere: it names the version it holds and nothing more travels.
   const n = worker.calls.length;
   await a.page.reload();
