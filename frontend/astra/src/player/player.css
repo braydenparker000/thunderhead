@@ -1,11 +1,16 @@
-/* Astra player screen. Measurements follow Nuvio's phone player (dp = CSS px). */
+/* Astra player screen. Its motion follows FEEL.md: only transform and opacity move, through feel.js.
+   The root has no background of its own: opening, the loading layer dims the app behind it (passage.js),
+   and the stage (the video, black) covers it once the first picture is in. */
 html.ap-open, html.ap-open body { overflow: hidden; }
 .ap {
-  position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; overflow: hidden;
+  position: fixed; inset: 0; z-index: 1000; background: transparent; color: #fff; overflow: hidden;
   touch-action: none; user-select: none; -webkit-user-select: none; font-family: var(--font);
   --ap-accent: var(--accent, #f5f5f5);
 }
 .ap:focus { outline: none; }
+.ap.opening .ap-stage { opacity: 0; } /* the picture waits for its first frame, then cross-fades in */
+.ap.opening :is(.ap-controls, .ap-skip, .ap-next, .ap-notice.edge, .ap-wait) { opacity: 0; } /* under the dimming layer, nothing shows through; they come with the picture */
+.ap.leaving, .ap.leaving * { pointer-events: none !important; }
 .ap-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .ap-video[data-aspect="fill"] { object-fit: fill; }
 .ap-video[data-aspect="zoom"] { object-fit: cover; }
@@ -20,7 +25,7 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap.subs-below .astra-subs { overflow: visible; }
 .ap.subs-below .astra-subs-zone.bottom { bottom: auto; top: calc(100% + 14px); }
 .ap.subs-below.controls .astra-subs-zone.bottom { transform: none; }
-.ap.portrait .ap-center { transform: translate(-50%, -50%); gap: 48px; }
+.ap.portrait .ap-center { top: 50%; gap: 48px; }
 .ap.portrait .ap-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ap.portrait .ap-shade-top { height: 120px; }
 /* Picture-in-picture from the player: the video lives on in the floating window. */
@@ -30,11 +35,17 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-stage { position: absolute; inset: 0; transform-origin: 50% 50%; }
 .ap-icon-btn.ap-frame { display: none; } /* frame steps show only while paused (player-extras.css); .ap-icon-btn's grid must not win */
 
-/* Controls */
-.ap-controls { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 200ms var(--ease); }
-.ap.controls .ap-controls { opacity: 1; }
+/* Controls: groups that come and go (controls.js paint, feel.js restyle animates between these two states):
+   the top bar from the top edge, the transport from the centre, the bar from the bottom; shades fade. */
+.ap-controls { position: absolute; inset: 0; pointer-events: none; }
+.ap-controls > * { opacity: 0; }
+.ap-top, .ap-top-mid { transform: translateY(-8px); }
+.ap-center { transform: scale(0.94); }
+.ap-bottom { transform: translateY(8px); }
+.ap.controls:not(.overlay) .ap-controls > * { opacity: 1; transform: none; }
 .ap.controls .ap-controls > * > * { pointer-events: auto; }
-.ap.overlay .ap-controls, .ap.overlay .ap-skip, .ap.overlay .ap-next { opacity: 0; pointer-events: none; }
+.ap.overlay .ap-skip, .ap.overlay .ap-next { opacity: 0; pointer-events: none; }
+.ap:has(> .ap-error:not([hidden])) :is(.ap-skip, .ap-next, .ap-wait) { opacity: 0; pointer-events: none; } /* the card is the one thing to answer */
 .ap.overlay .ap-controls > * > * { pointer-events: none; }
 .ap-shade-top { position: absolute; inset: 0 0 auto; height: 160px; background: linear-gradient(rgba(0,0,0,.7), transparent); pointer-events: none !important; }
 .ap-shade-bottom { position: absolute; inset: auto 0 0; height: 260px; background: linear-gradient(transparent, rgba(0,0,0,.8)); pointer-events: none !important; }
@@ -43,45 +54,54 @@ html.ap-open, html.ap-open body { overflow: hidden; }
   display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: var(--r-full);
   background: transparent; color: #fff; transition: transform var(--t-fast) var(--ease), background var(--t-fast);
 }
-.ap-icon-btn:active { transform: scale(0.9); background: rgba(255,255,255,.12); }
+.ap-icon-btn:active { transform: scale(0.9); background: rgba(255,255,255,.12); transition-duration: var(--t-press); }
 .ap-icon-btn .icon { fill: currentColor; }
 .ap-icon-btn .icon text { fill: currentColor; font-family: var(--font); }
 .ap-icon-btn.on { position: relative; color: var(--ap-accent); }
 .ap-icon-btn.on::after { content: ''; position: absolute; left: 50%; bottom: 7px; width: 14px; height: 2px; margin-left: -7px; border-radius: 1px; background: currentColor; } /* "on" must show: the accent is white like the icon */
-.ap-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -62%); display: flex; align-items: center; gap: 56px; }
+/* A line across the middle (a little above it sideways, clear of the bar); the buttons centre on it. */
+.ap-center { position: absolute; left: 0; right: 0; top: calc(50% - 8px); height: 0; display: flex; align-items: center; justify-content: center; gap: 56px; }
 .ap-side { width: 54px; height: 54px; }
 .ap-side .icon { width: 34px; height: 34px; }
 .ap-play-wrap { display: grid; place-items: center; width: 60px; height: 60px; }
 .ap-play { width: 60px; height: 60px; }
 .ap-play .icon { width: 34px; height: 34px; }
-/* The buffering spinner has a layer of its own, where the play button sits, shown with or without the controls. */
-.ap-buffering { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -62%); display: grid; place-items: center; width: 60px; height: 60px; pointer-events: none; }
-.ap.portrait .ap-buffering { transform: translate(-50%, -50%); }
-.ap-spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.2); border-top-color: var(--ap-accent); animation: ap-spin 1s linear infinite; }
-@keyframes ap-spin { to { transform: rotate(360deg); } }
+/* Waiting mid-film: a thin moving line at the bar (the bottom edge without the controls, on the seek bar with
+   them), and words above it after 2 s. Never a spinner over the picture. */
+.ap-wait { position: absolute; left: 0; right: 0; bottom: 0; height: 0; pointer-events: none; }
+.ap-wait-line { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 3px); height: 2px; overflow: hidden; background: rgba(255,255,255,.14); }
+.ap-wait-line i { position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, var(--ap-accent), transparent); animation: ap-wait-run 1.1s cubic-bezier(.4, 0, .2, 1) infinite; }
+@keyframes ap-wait-run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.ap.controls:not(.overlay) .ap-wait-line { opacity: 0; } /* the seek bar's own line takes over (.ap-track::after) */
+.ap-wait-words { position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 16px); width: max-content; max-width: min(80vw, 520px); margin: 0; transform: translateX(-50%); padding: var(--s-1) var(--s-3); border-radius: var(--r-full); background: rgba(0,0,0,.55); font: var(--type-caption); text-align: center; font-variant-numeric: tabular-nums; }
+.ap.controls:not(.overlay) .ap-wait-words { bottom: calc(var(--ap-bottom-h, 166px) + var(--s-2)); }
+.ap:has(.ap-wait:not([hidden])) .ap-track::after { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); animation: ap-wait-run 1.1s cubic-bezier(.4, 0, .2, 1) infinite; }
 .ap-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 max(20px, env(safe-area-inset-right, 0px)) max(8px, var(--safe-bottom)) max(20px, env(safe-area-inset-left, 0px)); }
 .ap-meta { padding-bottom: 6px; pointer-events: none !important; }
-.ap-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ap-episode-line { margin: 0; font-size: 14px; line-height: 20px; color: rgba(255,255,255,.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-sub-line { display: flex; gap: var(--s-2); min-height: 16px; min-width: 0; }
+.ap-sub-line > * { min-width: 0; }
+.ap-title { margin: 0; font-size: calc(18px * var(--text-scale, 1)); line-height: 24px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-episode-line { margin: 0; font-size: calc(14px * var(--text-scale, 1)); line-height: 20px; color: rgba(255,255,255,.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-episode-line:empty, .ap-release:empty, .ap-via:empty { display: none; }
-.ap-release { margin: 0; font-size: 12px; line-height: 16px; color: rgba(255,255,255,.68); }
-.ap-via { margin: 2px 0 0; font-size: 12px; line-height: 16px; color: rgba(255,255,255,.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-release { flex: none; margin: 0; font-size: calc(12px * var(--text-scale, 1)); line-height: 16px; color: rgba(255,255,255,.68); }
+.ap-via { margin: 0; font-size: calc(12px * var(--text-scale, 1)); line-height: 16px; color: rgba(255,255,255,.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-via.off { visibility: hidden; }
 
-/* Timeline: no thumb; the track thickens while touched. */
+/* Timeline: a touch grows the thumb and thickens the track, both by a transform, in the frame of the touch. */
 .ap-timeline { position: relative; height: 48px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-.ap-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; transition: height 180ms var(--ease); }
-.ap-timeline.active .ap-track { height: 10px; transition-duration: 140ms; }
+.ap-track { position: relative; width: 100%; height: 10px; border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; transform: scaleY(0.6); transition: transform var(--t-fast) var(--spring-snappy); }
+.ap-timeline.active .ap-track { transform: none; }
 /* The thumb rides a full-width rail moved with a transform (no layout per frame); the dot is its left end. */
 .ap-thumb { position: absolute; left: 0; right: 0; top: 50%; height: 0; pointer-events: none; }
-.ap-thumb::before { content: ''; position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); transition: transform 140ms var(--ease); }
-.ap-timeline.active .ap-thumb::before { transform: scale(1.3); }
+.ap-thumb::before { content: ''; position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); transition: transform var(--t-normal) var(--spring-snappy); }
+.ap-timeline.active .ap-thumb::before { transform: scale(1.6); transition-duration: var(--t-fast); }
 /* A live stream: the bar is full and cannot be dragged; the time says Live. */
 .ap-timeline.live { cursor: default; }
 .ap-timeline.live .ap-thumb { display: none; }
-.ap-bubble { position: absolute; bottom: 40px; transform: translateX(-50%); padding: 6px 10px; border-radius: var(--r-md); background: rgba(20,20,20,.92); color: #fff; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+/* Placed by a transform in px (timeline.js), following the finger on the spring, kept inside the screen. */
+.ap-bubble { position: absolute; left: 0; bottom: 40px; padding: 6px 10px; border-radius: var(--r-md); background: rgba(20,20,20,.92); color: #fff; font: var(--type-headline); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; animation: ap-fade var(--t-press) var(--ease); }
 /* Swiping to seek: the preview takes the middle, so the buttons there step aside. */
-.ap.seeking .ap-center { opacity: 0; transition: opacity 120ms; }
+.ap.seeking .ap-center .ap-icon-btn { opacity: 0; transition: opacity var(--t-fade, 120ms); }
 .ap-buffered, .ap-played { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); border-radius: inherit; }
 .ap-buffered { background: color-mix(in srgb, var(--ap-accent) 35%, transparent); }
 .ap-played { background: linear-gradient(90deg, color-mix(in srgb, var(--ap-accent) 80%, #fff), var(--ap-accent)); }
@@ -92,69 +112,107 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-actions { display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .ap-actions > * { flex: none; }
 .ap-actions::-webkit-scrollbar { display: none; }
-.ap-text-btn { flex: none; height: 48px; padding: 0 12px; border: 0; border-radius: var(--r-full); background: transparent; color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.ap-text-btn { flex: none; height: 48px; padding: 0 12px; border: 0; border-radius: var(--r-full); background: transparent; color: #fff; font-size: calc(14px * var(--text-scale, 1)); font-weight: 600; white-space: nowrap; }
 .ap-text-btn:active { background: rgba(255,255,255,.12); }
 .ap-more { flex: none; }
-.ap-time { flex: none; height: 48px; padding: 0 4px; border: 0; background: transparent; color: #fff; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ap-time { flex: none; height: 48px; padding: 0 4px; border: 0; background: transparent; color: #fff; font-size: calc(14px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; }
 
-/* Feedback */
-.ap-feedback { position: absolute; left: 50%; top: calc(40px + var(--safe-top)); transform: translateX(-50%); padding: 6px 14px; border-radius: var(--r-full); background: rgba(0,0,0,.55); font-size: 16px; font-weight: 700; opacity: 0; transition: opacity 180ms; pointer-events: none; white-space: nowrap; }
-.ap-feedback.show { opacity: 1; }
+/* Feedback: a word in a chip at the top, fading in place (it has no origin: 120 ms at most). */
+.ap-feedback { position: absolute; left: 50%; top: calc(40px + var(--safe-top)); display: flex; align-items: center; gap: var(--s-2); padding: 6px 14px; border-radius: var(--r-full); background: rgba(0,0,0,.55); font: var(--type-headline); font-weight: 700; opacity: 0; transform: translate(-50%, -6px); transition: opacity 120ms var(--ease), transform var(--t-fast) var(--spring-snappy); pointer-events: none; white-space: nowrap; }
+.ap-feedback.show { opacity: 1; transform: translate(-50%, 0); }
 .ap-feedback.left { left: 22%; } .ap-feedback.right { left: 78%; }
-.ap-seek-preview { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
-.ap-seek-preview b { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Hold for speed: the speed, and two arrows that breathe while it runs. */
+.ap-feedback.hold { padding: var(--s-2) var(--s-4); background: rgba(20,20,20,.78); border: 1px solid var(--hairline); }
+.ap-hold-arrows { display: flex; font-size: calc(13px * var(--text-scale, 1)); letter-spacing: -2px; }
+.ap-hold-arrows i { font-style: normal; animation: ap-breathe 900ms ease-in-out infinite; }
+.ap-hold-arrows i + i { animation-delay: 150ms; }
+@keyframes ap-breathe { 50% { opacity: .35; } }
+.ap-seek-preview { position: absolute; left: 50%; top: 50%; margin: -40px 0 0 -100px; width: 200px; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.ap-seek-preview b { font: var(--type-display); font-variant-numeric: tabular-nums; }
 .ap-seek-preview .fwd { color: #6ee7a8; font-weight: 700; } .ap-seek-preview .back { color: #ff9a76; font-weight: 700; }
-.ap-level { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: var(--r-full); background: rgba(0,0,0,.45); pointer-events: none; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.7); } /* shaded: it sits on the picture, which may be white */
+/* The brightness and volume gauges (gauges.js): a pill that fills from the bottom, its icon inside, the value above. */
+.ap-level { position: absolute; top: 50%; margin-top: -96px; display: flex; flex-direction: column; align-items: center; gap: var(--s-2); pointer-events: none; }
 .ap-level.left { left: max(32px, env(safe-area-inset-left, 0px)); } .ap-level.right { right: max(32px, env(safe-area-inset-right, 0px)); }
+.ap-level-value { font: var(--type-caption); font-weight: 600; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.ap-level-track { position: relative; width: 44px; height: 160px; border-radius: 22px; background: rgba(20,20,20,.62); border: 1px solid var(--hairline); overflow: hidden; }
+.ap.portrait .ap-level-track { height: 176px; }
+.ap-level-track i { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); background: rgba(255,255,255,.92); }
+.ap-level-mark { position: absolute; left: 10px; right: 10px; bottom: 66.7%; height: 2px; border-radius: 1px; background: rgba(255,255,255,.5); mix-blend-mode: normal; } /* where 100 % is: brightness goes to 150 % */
+.ap-level-icon { position: absolute; left: 0; right: 0; bottom: 10px; display: grid; place-items: center; }
 .ap-level .icon { fill: #fff; }
-.ap-level-track { position: relative; width: 6px; height: min(25vh, 104px); border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; }
-.ap-level-track i { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); background: var(--ap-accent); border-radius: inherit; }
+.ap-level.lit .icon { fill: #111; } /* the fill has reached the icon */
+/* The double tap: a ripple from the tapped side, a wave from each tap, the seconds adding up. */
+.ap-ripple { position: absolute; top: 0; bottom: 0; width: 42%; overflow: hidden; pointer-events: none; background: rgba(255,255,255,.07); }
+.ap-ripple.left { left: 0; border-radius: 0 50% 50% 0 / 0 50% 50% 0; }
+.ap-ripple.right { right: 0; border-radius: 50% 0 0 50% / 50% 0 0 50%; }
+.ap-ripple-waves { position: absolute; inset: 0; }
+.ap-wave { position: absolute; width: 320px; height: 320px; border-radius: 50%; background: rgba(255,255,255,.28); transform: translate(-50%, -50%); }
+.ap-ripple-label { position: absolute; top: 50%; left: 0; right: 0; margin-top: -24px; display: flex; flex-direction: column; align-items: center; gap: var(--s-1); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.ap-ripple-arrows { font-size: calc(14px * var(--text-scale, 1)); letter-spacing: 2px; opacity: .85; }
+.ap-ripple-label b { font: var(--type-headline); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* Loading */
+/* The loading layer: the title's backdrop under a dark wash, its logo, the status. Opening, it fades in over the app
+   (the screen dims, passage.js); the first picture cross-fades in as it leaves. The app's veil (.ap-veil) is a copy
+   of it shown while the player itself loads. */
 .ap-loading { position: absolute; inset: 0; display: grid; place-items: center; background: #000; z-index: 5; }
+.ap-veil { position: fixed; z-index: 1500; }
+.ap-loading.parting .ap-loading-foot, .ap-loading.parting .ap-loading-close { opacity: 0; }
 .ap-loading-art { position: absolute; inset: 0; background: center / cover no-repeat; }
 .ap-loading-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.3), rgba(0,0,0,.6) 40%, rgba(0,0,0,.8) 70%, rgba(0,0,0,.9)); }
-.ap-loading-logo { position: relative; display: grid; place-items: center; max-width: min(320px, 60vw); opacity: 0; animation: ap-logo-in 700ms 400ms var(--ease) forwards, ap-pulse 2s 1100ms ease-in-out infinite; }
+.ap-loading-logo { position: relative; display: grid; place-items: center; max-width: min(320px, 60vw); }
+.ap-loading-logo img { animation: ap-pulse 2.4s 600ms ease-in-out infinite; } /* it breathes while the film is found: no spinner */
 .ap-loading-logo img { max-width: 100%; max-height: 180px; object-fit: contain; }
-.ap-loading-logo span { font-size: 28px; font-weight: 800; text-align: center; }
+.ap-loading-logo span { font: var(--type-display); text-align: center; }
 .ap-loading-foot { position: absolute; left: 16px; right: 16px; bottom: calc(14% + var(--safe-bottom)); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
-.ap-loading-status { margin: 0; color: rgba(255,255,255,.75); font-size: 14px; }
-.ap-loading-info { margin: 0; min-height: 16px; color: rgba(255,255,255,.55); font-size: 12px; font-variant-numeric: tabular-nums; }
-.ap-loading-slow { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 420px; margin-top: 8px; color: rgba(255,255,255,.85); font-size: 14px; line-height: 20px; }
+.ap-loading-status { margin: 0; color: rgba(255,255,255,.8); font: var(--type-body); }
+.ap-loading-info { margin: 0; min-height: 18px; color: rgba(255,255,255,.55); font: var(--type-caption); font-variant-numeric: tabular-nums; }
+.ap-loading-slow { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); max-width: 420px; margin-top: var(--s-2); color: rgba(255,255,255,.85); font: var(--type-body); }
 .ap-loading-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .ap-loading-close { position: absolute; top: max(8px, var(--safe-top)); right: max(12px, env(safe-area-inset-right, 0px)); width: 44px; height: 44px; }
-@keyframes ap-logo-in { to { opacity: 1; } }
-@keyframes ap-pulse { 50% { transform: scale(1.04); } }
+@keyframes ap-pulse { 50% { transform: scale(1.03); } }
 
 /* Pause overlay */
-.ap-pause { position: absolute; inset: 0; display: flex; align-items: center; background: linear-gradient(90deg, rgba(0,0,0,.85), rgba(0,0,0,.45) 60%, transparent); animation: ap-fade 220ms var(--ease); pointer-events: none; }
+.ap-pause { position: absolute; inset: 0; display: flex; align-items: center; background: linear-gradient(90deg, rgba(0,0,0,.85), rgba(0,0,0,.45) 60%, transparent); animation: ap-fade var(--t-normal) var(--ease); pointer-events: none; }
 .ap-pause-text { max-width: min(520px, 55%); padding-left: max(40px, env(safe-area-inset-left, 0px)); }
-.ap-pause-kicker { margin: 0 0 10px; color: rgba(255,255,255,.7); font-size: 14px; }
+.ap-pause-kicker { margin: 0 0 10px; color: rgba(255,255,255,.7); font-size: calc(14px * var(--text-scale, 1)); }
 .ap-pause img { max-width: 280px; max-height: 110px; object-fit: contain; display: block; }
-.ap-pause h3 { margin: 0; font-size: 32px; line-height: 36px; font-weight: 800; }
-.ap-pause-episode { margin: 10px 0 0; font-size: 16px; font-weight: 600; }
-.ap-pause-description { margin: 8px 0 0; color: rgba(255,255,255,.8); font-size: 14px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ap-pause h3 { margin: 0; font-size: calc(32px * var(--text-scale, 1)); line-height: 36px; font-weight: 800; }
+.ap-pause-episode { margin: 10px 0 0; font-size: calc(16px * var(--text-scale, 1)); font-weight: 600; }
+.ap-pause-description { margin: 8px 0 0; color: rgba(255,255,255,.8); font-size: calc(14px * var(--text-scale, 1)); line-height: 20px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 @keyframes ap-fade { from { opacity: 0; } }
 
-/* Skip and next episode */
-.ap-skip { position: absolute; left: max(20px, env(safe-area-inset-left, 0px)); bottom: calc(40px + var(--safe-bottom)); transition: bottom var(--t-normal) var(--ease); display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: 0; border-radius: var(--r-xl); background: rgba(30,30,30,.85); color: #fff; font-size: 14px; font-weight: 600; overflow: hidden; animation: ap-pop 300ms var(--ease); }
+/* Skip, the next episode and the sleep notice sit at the bar's edge, rise from it as they appear (markers.js) and ride up
+   above the bar with the controls, by a transform (controls.js moves them with the groups). */
+.ap-skip { position: absolute; left: max(20px, env(safe-area-inset-left, 0px)); bottom: calc(40px + var(--safe-bottom)); display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 18px; border: 1px solid var(--hairline); border-radius: var(--r-xl); background: rgba(30,30,30,.88); color: #fff; font: var(--type-body); font-weight: 600; overflow: hidden; }
 .ap-skip .icon { fill: #fff; }
 .ap-skip i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--ap-accent); transform-origin: left; transform: scaleX(0); }
-@keyframes ap-pop { from { opacity: 0; transform: scale(.8); } }
-.ap-next { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(40px + var(--safe-bottom)); transition: bottom var(--t-normal) var(--ease); display: flex; align-items: center; gap: 10px; max-width: 292px; padding: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: var(--r-xl); background: rgba(25,25,25,.89); animation: ap-slide-in 260ms var(--ease); touch-action: pan-y; }
+.ap-next { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(40px + var(--safe-bottom)); display: flex; align-items: center; gap: var(--s-3); max-width: 320px; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-2); border: 1px solid var(--hairline); border-radius: var(--r-xl); background: rgba(25,25,25,.92); touch-action: pan-y; }
 .ap-next img, .ap-next-thumb { flex: none; width: 78px; height: 44px; border-radius: 9px; object-fit: cover; background: #333; }
 .ap-next-text { min-width: 0; display: flex; flex-direction: column; }
-.ap-next-text small { font-size: 10px; color: rgba(255,255,255,.7); }
-.ap-next-text b { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ap-next-text span { font-size: 11px; color: rgba(255,255,255,.6); }
-.ap-next-play { flex: none; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-full); background: var(--ap-accent); color: var(--on-accent, #111); font-weight: 700; font-size: 13px; }
+.ap-next-text small { font: var(--type-overline); letter-spacing: var(--track-overline); text-transform: uppercase; color: rgba(255,255,255,.7); }
+.ap-next-text b { font: var(--type-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-next-text span { font: var(--type-caption); color: rgba(255,255,255,.6); }
+/* Play, round, with the countdown ring around it (markers.js ring: two halves turned by transforms). */
+.ap-next-play { position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: 0 var(--s-1); padding: 0; border: 0; border-radius: 50%; background: var(--ap-accent); color: var(--on-accent, #111); }
 .ap-next-play .icon { fill: currentColor; }
+.ap-next-play:disabled { opacity: .5; }
+.ap-ring { position: absolute; inset: -5px; pointer-events: none; }
+.ap-ring[hidden] { display: none; }
+.ap-ring-track { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.18); }
+.ap-ring-half { position: absolute; top: 0; bottom: 0; width: 50%; overflow: hidden; }
+.ap-ring-half.r { left: 50%; } .ap-ring-half.l { left: 0; }
+.ap-ring-rotor { position: absolute; top: 0; width: 200%; height: 100%; transform: rotate(0deg); }
+.ap-ring-half.r .ap-ring-rotor { left: -100%; } .ap-ring-half.l .ap-ring-rotor { left: 0; }
+.ap-ring-arc { position: absolute; top: 0; bottom: 0; width: 50%; overflow: hidden; }
+.ap-ring-half.r .ap-ring-arc { left: 0; } .ap-ring-half.l .ap-ring-arc { left: 50%; }
+.ap-ring-arc::before { content: ''; position: absolute; top: 0; bottom: 0; width: 200%; border-radius: 50%; border: 2px solid #fff; }
+.ap-ring-half.r .ap-ring-arc::before { left: 0; } .ap-ring-half.l .ap-ring-arc::before { right: 0; }
 .ap-next-close { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: rgba(255,255,255,.7); }
 .ap-next-close .icon { fill: currentColor; }
-@keyframes ap-slide-in { from { opacity: 0; transform: translateX(40px); } }
 
-/* Above the title block while the controls show */
-.ap.controls .ap-skip, .ap.controls .ap-next { bottom: calc(var(--ap-bottom-h, 166px) + 10px); }
+/* Above the title block while the controls show: moved by a transform (the lift is measured: --ap-bottom-h). */
+.ap.controls .ap-skip, .ap.controls .ap-next, .ap.controls .ap-notice.edge { transform: translateY(calc(40px - var(--ap-bottom-h, 166px) - 10px)); }
 /* The next-episode card: finger-sized buttons; in portrait it spans the width. */
 .ap.portrait .ap-next { left: 16px; right: 16px; max-width: none; }
 .ap-next button { min-height: 44px; min-width: 44px; }
@@ -167,106 +225,37 @@ html.ap-open, html.ap-open body { overflow: hidden; }
 .ap-lock.show .ap-unlock, .ap-lock.show .ap-lock-track, .ap-unlock:focus-visible { opacity: 1; }
 .ap-lock.show .ap-unlock, .ap-unlock:focus-visible { pointer-events: auto; }
 .ap-unlock span { padding: 3px 10px; border-radius: var(--r-full); background: rgba(0,0,0,.52); text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-.ap-unlock { pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: #fff; font-size: 14px; }
+.ap-unlock { pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: #fff; font-size: calc(14px * var(--text-scale, 1)); }
 .ap-unlock .icon { box-sizing: content-box; padding: 22px; border-radius: 50%; background: rgba(0,0,0,.52); border: 1px solid rgba(255,255,255,.3); fill: #fff; }
 .ap-lock-track { position: absolute; left: 20px; right: 20px; bottom: calc(24px + var(--safe-bottom)); height: 4px; border-radius: 99px; background: rgba(255,255,255,.3); overflow: hidden; }
 .ap-lock-track div { height: 100%; background: var(--ap-accent); transform-origin: left; transform: scaleX(0); }
 
 /* Sound off: a chip in the corner, with or without the controls; a tap turns the sound back on. */
-.ap-muted { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: #fff; font-size: 13px; font-weight: 600; }
+.ap-muted { position: absolute; z-index: 7; top: max(12px, var(--safe-top)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 12px; border: 0; border-radius: var(--r-full); background: rgba(20,20,20,.78); color: #fff; font-size: calc(13px * var(--text-scale, 1)); font-weight: 600; }
 .ap-muted .icon { fill: currentColor; }
 .ap.locked .ap-muted, .ap.overlay .ap-muted, .ap.mini .ap-muted { display: none; }
 
-/* Error */
-.ap-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; width: min(440px, calc(100% - 32px)); padding: 20px; border-radius: var(--r-xxl); background: rgba(26,26,26,.96); text-align: center; }
-.ap-error h3 { margin: 0 0 6px; font-size: 18px; }
-.ap-error p { margin: 0 0 16px; color: var(--text-2); font-size: 14px; line-height: 20px; }
-.ap-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.ap-chip { min-height: 44px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: rgba(255,255,255,.12); color: #fff; font-size: 14px; font-weight: 600; }
+/* Error: a card on the type scale, rising into place; its actions are buttons, the first filled. */
+.ap-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; padding: var(--s-6); border: 1px solid var(--hairline); border-radius: var(--r-xxl); background: var(--surface-2, #222); text-align: center; }
+.ap-error h3 { margin: 0 0 var(--s-2); font: var(--type-title); }
+.ap-error p { margin: 0 0 var(--s-4); color: var(--text-2); font: var(--type-body); }
+.ap-error-actions { display: flex; flex-direction: column; gap: var(--s-2); }
+.ap-error-quiet { display: flex; justify-content: center; gap: var(--s-2); margin-top: var(--s-1); }
+.ap-btn { min-height: 48px; padding: 0 var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: rgba(255,255,255,.08); color: #fff; font: var(--type-body); font-weight: 600; }
+.ap-btn.primary { border-color: transparent; background: var(--ap-accent); color: var(--on-accent, #111); }
+.ap-btn.quiet { min-height: 44px; border-color: transparent; background: transparent; color: rgba(255,255,255,.72); }
+.ap-btn:disabled { opacity: .45; }
+.ap-chip { min-height: 44px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: rgba(255,255,255,.12); color: #fff; font-size: calc(14px * var(--text-scale, 1)); font-weight: 600; }
 .ap-chip.primary, .ap-chip.on { background: var(--ap-accent); color: var(--on-accent, #111); }
 .ap-chip.ghost { background: transparent; color: rgba(255,255,255,.75); }
 
-/* Modals: full-screen, left-weighted gradient (Nuvio) */
-.ap-modal, .ap-panel { position: absolute; inset: 0; z-index: 9; animation: ap-fade 250ms var(--ease); }
-.ap-modal-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.88), rgba(0,0,0,.34)); }
-.ap-modal-body { position: absolute; inset: 0; padding: max(20px, var(--safe-top)) max(64px, env(safe-area-inset-right, 0px)) max(20px, var(--safe-bottom)) max(36px, env(safe-area-inset-left, 0px)); overflow: auto; pointer-events: none; }
-.ap-modal-body > * { pointer-events: auto; }
-.ap-modal-body h3 { margin: 4px 0 16px; font-size: 22px; font-weight: 700; }
-.ap-modal-scrim.solid { background: rgba(10,10,10,.92); }
-.ap-style-group { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.ap-modal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 4px 56px 16px 0; }
-.ap-modal-head h3 { margin: 0; }
-.ap-tabs { display: flex; gap: 4px; padding: 3px; border-radius: var(--r-full); background: rgba(255,255,255,.08); }
-.ap-tab { min-height: 44px; min-width: 76px; padding: 0 16px; border: 0; border-radius: var(--r-full); background: none; color: rgba(255,255,255,.72); font-size: 14px; font-weight: 600; }
-.ap-tab.on { background: rgba(255,255,255,.18); color: #fff; }
-.ap-modal-close { position: absolute; top: max(8px, var(--safe-top)); right: max(12px, env(safe-area-inset-right, 0px)); }
-.ap-rails { display: flex; gap: 16px; align-items: flex-start; }
-.ap-rail { max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: none; }
-.ap-rail { display: flex; flex-direction: column; gap: 6px; }
-.ap-rail.languages { flex: 0 1 190px; } .ap-rail.tracks { flex: 1 1 260px; } .ap-rail.style { flex: 0 1 820px; flex-direction: row; flex-wrap: wrap; gap: 12px 40px; } .ap-rail.wide { width: min(444px, 100%); }
-.ap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px; border: 0; border-radius: var(--r-lg); background: transparent; color: #fff; text-align: left; font-size: 15px; }
-.ap-row:active { background: rgba(255,255,255,.08); }
-.ap-row.current { background: rgba(255,255,255,.1); }
-.ap-row.selected { background: rgba(255,255,255,.16); }
-.ap-row:disabled { opacity: .45; }
-.ap-row .icon { flex: none; fill: var(--ap-accent); }
-.ap-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ap-row small { color: rgba(255,255,255,.6); font-size: 12px; }
-.ap-row.file { justify-content: flex-start; color: rgba(255,255,255,.85); }
-.ap-row.file b { font-weight: 500; }
-.ap-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.ap-tags em { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.14); color: rgba(255,255,255,.85); }
-.ap-tags em.good { background: rgba(76,175,80,.28); color: #c8f2ca; }
-.ap-file { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.6); font-size: 12px; }
-.ap-empty { color: rgba(255,255,255,.7); font-size: 14px; line-height: 20px; }
-.ap-empty.small { font-size: 12px; margin-top: 8px; }
-.ap-step { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
-.ap-step > div { display: flex; align-items: center; gap: 6px; }
-.ap-step b { min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
-.ap-step .ap-chip { min-width: 44px; padding: 0 12px; }
-.ap-toggles { display: flex; gap: 8px; }
-.ap-label { color: rgba(255,255,255,.65); font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
-.ap-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-.ap-swatch { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
-.ap-swatch.bg { border-radius: 8px; }
-.ap-swatch.on { border-color: var(--ap-accent); box-shadow: 0 0 0 2px rgba(0,0,0,.6) inset; }
-.ap-info { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; max-width: 640px; font-size: 14px; }
-.ap-info dt { color: rgba(255,255,255,.6); }
-.ap-info dd { margin: 0; overflow-wrap: anywhere; }
-
-/* Side panels: sources and episodes slide in from the right */
-.ap-panel-body { position: absolute; top: 0; right: 0; bottom: 0; width: min(520px, 100%); padding: max(16px, var(--safe-top)) max(16px, env(safe-area-inset-right, 0px)) max(16px, var(--safe-bottom)) 16px; background: rgba(22,22,22,.97); border-radius: 16px 0 0 16px; overflow: auto; animation: ap-panel-in 250ms var(--ease); }
-.ap-panel-body h3 { margin: 6px 0 14px; font-size: 20px; }
-@keyframes ap-panel-in { from { transform: translateX(100%); } }
-.ap-panel-list { display: flex; flex-direction: column; gap: 10px; }
-.ap-panel-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 0; color: rgba(255,255,255,.7); font-size: 13px; }
-.ap-source { display: block; width: 100%; padding: 14px; border: 1px solid transparent; border-radius: var(--r-lg); background: rgba(255,255,255,.05); color: #fff; text-align: left; }
-.ap-source.current { border-color: var(--ap-accent); }
-.ap-source b { display: block; font-size: 14px; line-height: 20px; }
-.ap-source span { display: block; color: rgba(255,255,255,.6); font-size: 12px; line-height: 18px; white-space: pre-line; }
-.ap-seasons { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: none; }
-.ap-episode { display: flex; align-items: center; gap: 12px; padding: 6px; border: 1px solid transparent; border-radius: var(--r-lg); background: rgba(255,255,255,.05); color: #fff; text-align: left; }
-.ap-episode.current { border-color: var(--ap-accent); }
-.ap-episode img, .ap-episode-thumb { flex: none; width: 120px; height: 68px; border-radius: 8px; object-fit: cover; background: #333; }
-.ap-episode span { display: flex; flex-direction: column; min-width: 0; }
-.ap-episode small { color: rgba(255,255,255,.6); font-size: 12px; }
-.ap-episode b { font-size: 14px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
 /* A short notice across the top (software decoding, Dolby Vision colours, no sound). */
-.ap-notice { position: absolute; z-index: 8; top: calc(64px + var(--safe-top)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); padding: 10px 14px; border-radius: 14px; background: rgba(20,20,20,.88); color: #fff; font-size: 13px; line-height: 18px; text-align: center; }
-.ap-error-hint { color: rgba(255,255,255,.7); font-size: 13px; margin-top: -4px; }
+.ap-notice { position: absolute; z-index: 8; top: calc(64px + var(--safe-top)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); padding: 10px 14px; border-radius: 14px; background: rgba(20,20,20,.88); color: #fff; font-size: calc(13px * var(--text-scale, 1)); line-height: 18px; text-align: center; }
+.ap-error-hint { color: rgba(255,255,255,.7); font-size: calc(13px * var(--text-scale, 1)); margin-top: -4px; }
 
-/* Portrait: menus stack and cover the picture fully; the side panels are full width. */
-@media (orientation: portrait) {
-  .ap-rails { flex-wrap: wrap; }
-  .ap-rail { max-height: none; }
-  .ap-rail.languages, .ap-rail.tracks, .ap-rail.style { flex-basis: 100%; }
-  .ap-modal-body { padding-left: 16px; padding-right: 16px; }
-  .ap-modal-scrim { background: rgba(10,10,10,.94); }
-  .ap-modal-scrim.preview { background: rgba(10,10,10,.8); } /* subtitle changes show on the picture */
-  .ap-rail.tracks:not(:empty) { padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .ap-loading-logo { animation: none; opacity: 1; }
-  .ap .ap-spinner { animation: ap-spin 3s linear infinite !important; } /* a slow turn still says "loading"; a frozen ring looks like a hang */
+  .ap-loading-logo img, .ap-hold-arrows i { animation: none; }
 }
+/* Upright, the picture is a band across the middle: the ripple keeps to its height, its count above the transport. */
+.ap.portrait .ap-ripple { top: 22%; bottom: 22%; }
+.ap.portrait .ap-ripple-label { margin-top: -96px; }

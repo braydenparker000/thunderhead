@@ -86,7 +86,11 @@ const press = (page, label) => page.evaluate((label) => {
   if (!b) throw new Error('No button ' + label);
   b.click();
 }, label);
-const box = (page, selector) => page.evaluate((s) => { const r = p.root.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }, selector);
+// Measured once the controls have come in (they arrive as groups, moving: player/controls.js), the endless ones aside.
+const box = (page, selector) => page.evaluate(async (s) => {
+  await Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {})));
+  const r = p.root.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height };
+}, selector);
 
 test('Speed opens the Playback menu; the chosen speed is shown, saved, put back on the next film, and hold returns to it', opts, async (t) => {
   const { page, touch, errors } = await player(t);

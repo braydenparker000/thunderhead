@@ -3,6 +3,7 @@
 
 import {savePrefs} from './prefs.js';
 import {nudgeDelay, delayText} from './subtitle-menu.js';
+import {seekStep, stepLabel} from './gestures.js';
 
 /** Handles a key press for the open player `p`. */
 export function key(p, e) {
@@ -13,8 +14,11 @@ export function key(p, e) {
   // Space and Enter on a focused button or the seek bar press that, not play/pause.
   if ((k === ' ' || k === 'Enter') && e.target.closest?.('button, [role="slider"]')) return;
   if (k === ' ' || k === 'k') { e.preventDefault(); p.togglePlay(); }
-  else if (k === 'ArrowLeft' || k === 'j') { e.preventDefault(); p.seekBy(-10); p.flash('−10s', {kind: 'left'}); }
-  else if (k === 'ArrowRight' || k === 'l') { e.preventDefault(); p.seekBy(10); p.flash('+10s', {kind: 'right'}); }
+  else if (k === 'ArrowLeft' || k === 'j' || k === 'ArrowRight' || k === 'l') { // the double tap's step (Settings › Player)
+    e.preventDefault();
+    const by = (k === 'ArrowLeft' || k === 'j' ? -1 : 1) * seekStep(p.prefs);
+    p.seekBy(by); p.flash(stepLabel(by), {kind: by < 0 ? 'left' : 'right'});
+  }
   else if (k === 'ArrowUp' || k === 'ArrowDown') {
     e.preventDefault();
     p.video.volume = Math.max(0, Math.min(1, p.video.volume + (k === 'ArrowUp' ? 0.05 : -0.05)));

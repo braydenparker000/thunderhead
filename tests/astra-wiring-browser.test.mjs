@@ -212,7 +212,8 @@ test('segments found by sound reach the Skip button, even mid-segment; Skip wait
   assert.deepEqual(after, { time: 190, saved: 190, shown: false }, 'the skip lands at the intro\'s end and that is the saved place');
   // A later answer with other times for the same kind does not offer it again.
   await page.evaluate(() => { finder.o.onSegments([{ type: 'intro', start: 100, end: 200 }]); fake.at(192); });
-  assert.equal(await page.locator('.ap-skip').isVisible(), false, 'an intro already skipped stays skipped');
+  // (the button's copy fading out where it was, aria-hidden, is not the button)
+  assert.equal(await page.locator('.ap-skip:not([aria-hidden])').isVisible(), false, 'an intro already skipped stays skipped');
   await page.evaluate(() => skip.stop());
   assert.deepEqual(await page.evaluate(() => ({ closed: finder.closed, tap: taps.at(-1) })), { closed: true, tap: null }, 'leaving the episode closes the finder and clears the tap');
   assert.equal(requests.length, 0, 'with the lookup off, nothing is asked of AniSkip');

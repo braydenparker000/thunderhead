@@ -14,6 +14,7 @@ import {PREVIEWS} from './settings-preview.js';
 import '../settings/general.js';
 import '../settings/appearance.js';
 import '../settings/motion.js';
+import '../settings/player.js'; // the player's own rows: they are needed only here (the player reads its prefs itself)
 
 /** What some areas draw under their rows (or instead of them). */
 const EXTRAS = {addons: addonsPage, data: dataPage, about: aboutPage, home: homeRows, playback: languages};

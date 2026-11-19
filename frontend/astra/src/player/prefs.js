@@ -33,6 +33,16 @@ export const DEFAULTS = Object.freeze({
   dataSaver: 'auto', // reading ahead on mobile data: auto | always | never (engine.setDataSaver)
   seekPreviews: true, // the picture in the seek bar's bubble (seek-preview.js); never with the data saver on
   fineSeeks: 0, // drags that used fine seeking (timeline.js): its hint shows until it has been used three times
+  // How the player looks and answers (settings/player.js has each one's row and words).
+  gestureDoubleTap: true, gestureSwipeSeek: true, gestureBrightness: true, gestureVolume: true, gestureHold: true, gesturePinch: true,
+  seekStep: 10, // the double tap's seconds, and the transport's ± buttons: 5 | 10 | 15 | 30
+  controlsHideAfter: 3, // seconds; 0 = never
+  controlsHidePaused: false, // the controls hide while paused too
+  timeShows: 'total', // beside the bar: elapsed / total | elapsed / remaining
+  seekSnap: true, // a seek drag settles on chapter and skip marks
+  topPip: true, topSpeed: false, topSleep: false, topLock: true, topRotate: true, // the top bar's buttons
+  nextCountdown: 10, // the next-episode card's ring, seconds: 0 | 5 | 10 | 15
+  menuDock: 'auto', // menus held sideways: auto (docked to the right on a wide screen) | bottom
 });
 export const ORIENTATIONS = [['auto', 'Follow phone'], ['landscape', 'Landscape'], ['portrait', 'Portrait']];
 

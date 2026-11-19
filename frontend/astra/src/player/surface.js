@@ -2,14 +2,22 @@
 // seek, hold to play faster, swipe across to seek, swipe up or down for
 // brightness (left) and volume (right), pinch to zoom and, zoomed, drag to
 // move the picture (zoom.js). Which of these a finger is doing is
-// decided by gestures.js (Gesture); this file does what it decides.
+// decided by gestures.js (Gesture); this file does what it decides, and
+// gauges.js draws its answer (the ripple, the gauges, the seek readout).
+// Each gesture has its own switch in Settings › Player (prefs gestureDoubleTap,
+// gestureSwipeSeek, gestureBrightness, gestureVolume, gestureHold,
+// gesturePinch), under the one that turns them all off (gestures).
 
-import {clock, haptic} from '../ui/dom.js';
+import {clock, h} from '../ui/dom.js';
 import * as G from './gestures.js';
-import {FEEDBACK_MS} from './controls.js';
 import {put} from './view.js';
 import {savePrefs} from './prefs.js';
 import {Zoom} from './zoom.js';
+import {Gauges} from './gauges.js';
+import {tick} from './feel.js';
+
+/** Whether a gesture is on: all of them (gestures), and its own switch. */
+export const allowed = (prefs, own) => prefs.gestures !== false && prefs[own] !== false;
 
 const coarse = () => matchMedia('(pointer: coarse)').matches;
 
@@ -18,6 +26,7 @@ export class Surface {
     this.p = p;
     this.g = new G.Gesture();
     this.zoom = new Zoom(p);
+    this.gauges = new Gauges(p);
     this.holding = false;
     this.holdBase = 1;
     this.brightness = 1;
@@ -25,7 +34,6 @@ export class Surface {
     this.streak = null; // a run of double-tap seeks on one side
     this.tapTimer = 0;
     this.holdTimer = 0;
-    this.levelTimers = {}; // per bar: hiding it a moment after the swipe
     this.drag = null; // where a seek or level drag started from
     this.bind();
   }
@@ -35,8 +43,10 @@ export class Surface {
     const at = e => { const r = s.getBoundingClientRect(); return {id: e.pointerId, x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height}; };
     s.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
-      const free = p.prefs.gestures && !p.ctl.locked;
-      const started = this.g.down({...at(e), gestures: free, canHold: !p.ctl.locked && !p.video.paused, zoom: free, zoomed: this.zoom.zoomed});
+      if (!this.g.active) this.downY = at(e).y; // where a tap lands, for the ripple's wave
+      const free = p.prefs.gestures && !p.ctl.locked, on = own => allowed(p.prefs, own);
+      const allow = {seek: on('gestureSwipeSeek'), brightness: on('gestureBrightness'), volume: on('gestureVolume')};
+      const started = this.g.down({...at(e), gestures: free, canHold: !p.ctl.locked && !p.video.paused && on('gestureHold'), zoom: free && on('gesturePinch'), zoomed: this.zoom.zoomed, allow});
       if (!started) return; // a finger too late to pinch: the first one's gesture goes on
       try { s.setPointerCapture(e.pointerId); } catch {}
       if (started.pinch) { clearTimeout(this.holdTimer); this.zoom.startPinch(); return; }
@@ -77,22 +87,23 @@ export class Surface {
       else if (a.kind === 'pinch') this.zoom.endPinch();
       else if (a.kind === 'pan') this.zoom.endPan();
       else this.endLevel(a.kind);
-    } else if (a.type === 'tap' && !p.ctl.locked) this.tapAt(a.x, a.w);
+    } else if (a.type === 'tap' && !p.ctl.locked) this.tapAt(a.x, a.w, this.downY);
   }
 
   /** A tap: on a side, perhaps the first of a double tap. */
-  tapAt(x, w) {
-    const p = this.p, zone = G.zoneOf(x, w), now = performance.now(), gestures = p.prefs.gestures;
-    const step = zone === 'left' ? -G.SEEK_STEP : G.SEEK_STEP;
+  tapAt(x, w, y = 0) {
+    const p = this.p, zone = G.zoneOf(x, w), now = performance.now(), gestures = allowed(p.prefs, 'gestureDoubleTap');
+    const step = (zone === 'left' ? -1 : 1) * G.seekStep(p.prefs);
+    const r = p.surface.getBoundingClientRect(), seek = total => { p.seekBy(step); this.gauges.seek(zone, total, r.left + x, r.top + y); tick('select'); };
     if (gestures && zone !== 'center' && this.streak?.zone === zone && now - this.streak.t < G.STREAK_MS) {
       this.streak.t = now; this.streak.total += step;
-      p.seekBy(step); p.flash(G.deltaLabel(this.streak.total), {kind: zone}); haptic(8);
+      seek(this.streak.total);
       return;
     }
     if (gestures && zone !== 'center' && this.lastTap?.zone === zone && now - this.lastTap.t < G.DOUBLE_TAP_MS) {
       clearTimeout(this.tapTimer); this.lastTap = null;
       this.streak = {zone, t: now, total: step};
-      p.seekBy(step); p.flash(G.deltaLabel(step), {kind: zone}); haptic(8);
+      seek(step);
       return;
     }
     this.streak = null;
@@ -116,9 +127,10 @@ export class Surface {
     this.holding = true;
     this.holdBase = p.prefs.speed || p.video.playbackRate; // the chosen speed, which the lift goes back to
     p.video.playbackRate = p.prefs.holdSpeed;
-    p.feedback.textContent = `${p.prefs.holdSpeed}x ▸▸`;
+    p.feedback.replaceChildren(h('b', {}, `${p.prefs.holdSpeed}×`), h('span', {class: 'ap-hold-arrows', 'aria-hidden': 'true'}, h('i', {}, '▸'), h('i', {}, '▸')));
+    clearTimeout(p.ctl.feedbackTimer);
     p.feedback.className = 'ap-feedback show hold';
-    haptic(15);
+    tick('lift');
   }
 
   /** Back to the speed the viewer chose. */
@@ -133,9 +145,8 @@ export class Surface {
   startDrag(kind) {
     const p = this.p;
     if (kind === 'seek') { this.drag = {from: p.video.currentTime}; p.scrub.active = true; p.root.classList.add('seeking'); p.showControls(false); return; }
-    clearTimeout(this.levelTimers[kind]); // a second swipe soon after the first keeps its bar
     this.drag = {level: kind === 'volume' ? (p.video.muted ? 0 : p.video.volume) : this.brightness};
-    p.levelBars[kind].hidden = false;
+    this.gauges.level(kind, this.drag.level, kind === 'brightness' ? 1.5 : 1);
   }
 
   dragSeek(dx) {
@@ -147,7 +158,7 @@ export class Surface {
     b.textContent = clock(target);
     span.textContent = G.deltaLabel(target - from);
     span.className = target >= from ? 'fwd' : 'back';
-    p.seekPreview.hidden = false;
+    this.gauges.preview(true);
     p.updateTime();
   }
 
@@ -157,7 +168,7 @@ export class Surface {
     finally {
       p.scrub.time = null; p.scrub.active = false; this.drag = null;
       p.root.classList.remove('seeking');
-      p.seekPreview.hidden = true;
+      this.gauges.preview(false);
     }
     p.updateTime(); p.scheduleHide();
   }
@@ -168,9 +179,7 @@ export class Surface {
     const value = G.dragLevel(this.drag.level, dy, p.surface.clientHeight || 1, max);
     if (kind === 'volume') { p.video.volume = value; p.video.muted = value === 0; }
     else this.setBrightness(value);
-    const bar = p.levelBars[kind];
-    bar.querySelector('span').textContent = Math.round(value * 100) + '%';
-    bar.querySelector('i').style.transform = `scaleY(${value / max})`;
+    this.gauges.level(kind, value, max);
   }
 
   /** The level is kept for the next film (prefs.js). */
@@ -179,8 +188,7 @@ export class Surface {
     this.drag = null;
     if (kind === 'volume') p.prefs.volume = p.video.muted ? 0 : p.video.volume; else p.prefs.brightness = this.brightness;
     savePrefs(p.prefs);
-    clearTimeout(this.levelTimers[kind]);
-    this.levelTimers[kind] = setTimeout(() => { this.p.levelBars[kind].hidden = true; }, FEEDBACK_MS);
+    this.gauges.levelDone(kind);
   }
 
   /**
@@ -209,6 +217,6 @@ export class Surface {
   close() {
     this.abort();
     clearTimeout(this.tapTimer); this.lastTap = null; this.streak = null;
-    for (const [kind, timer] of Object.entries(this.levelTimers)) { clearTimeout(timer); this.p.levelBars[kind].hidden = true; }
+    this.gauges.close();
   }
 }

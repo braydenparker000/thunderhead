@@ -5,6 +5,10 @@
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
+import {level} from '../ui/motion.js';
+import {savePrefs} from './prefs.js';
+import {seekStep} from './gestures.js';
+import {WAITING} from './loading.js';
 
 const drawn = new WeakMap();
 /**
@@ -22,6 +26,16 @@ export function put(el, key, value) {
 
 export const iconButton = (name, label, onclick, extra = {}) => h('button', {class: 'ap-icon-btn', type: 'button', 'aria-label': label, title: label, onclick, ...extra}, icon(name, {text: extra.iconText}));
 
+// The sleep timer's button (the icon set has no moon): a crescent, drawn here.
+const moon = () => {
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), path = document.createElementNS(NS, 'path');
+  for (const [k, v] of [['viewBox', '0 0 24 24'], ['width', '24'], ['height', '24'], ['aria-hidden', 'true'], ['class', 'icon']]) svg.setAttribute(k, v);
+  path.setAttribute('d', 'M14.5 3a8.5 8.5 0 1 0 6.4 14.1A7 7 0 0 1 14.5 3z');
+  svg.append(path);
+  return svg;
+};
+const seekLabel = (sign, s) => `${sign < 0 ? 'Back' : 'Forward'} ${s} seconds`;
+
 /** Builds the player under p.parent (hidden) and returns its elements by name. */
 export function build(p) {
   const r = {};
@@ -38,10 +52,7 @@ export function build(p) {
   // Feedback
   r.feedback = h('div', {class: 'ap-feedback', 'aria-live': 'polite'});
   r.seekPreview = h('div', {class: 'ap-seek-preview', hidden: true}, h('b'), h('span'));
-  r.levelBars = {
-    brightness: h('div', {class: 'ap-level left', hidden: true}, h('span'), h('div', {class: 'ap-level-track'}, h('i')), icon('brightness', {size: 20})),
-    volume: h('div', {class: 'ap-level right', hidden: true}, h('span'), h('div', {class: 'ap-level-track'}, h('i')), icon('volume', {size: 20})),
-  };
+  // The brightness and volume gauges and the double tap's ripples are gauges.js's.
 
   // Loading
   r.loadingArt = h('div', {class: 'ap-loading-art'});
@@ -65,9 +76,12 @@ export function build(p) {
   r.bubble = h('div', {class: 'ap-bubble', 'aria-hidden': 'true', hidden: true});
   r.timeline = h('div', {class: 'ap-timeline', role: 'slider', tabindex: 0, 'aria-label': 'Seek', 'aria-valuemin': 0},
     r.track = h('div', {class: 'ap-track'}, r.buffered, r.played, r.marks = h('div', {class: 'ap-marks', 'aria-hidden': 'true'})), r.thumb, r.bubble);
-  r.timeEl = h('button', {class: 'ap-time', type: 'button', onclick: () => { p.remaining = !p.remaining; p.updateTime(); }});
+  // Elapsed and the length, or elapsed and what is left: a tap switches, and is remembered (Settings › Player › Time shows).
+  r.timeEl = h('button', {class: 'ap-time', type: 'button', onclick: () => { p.prefs.timeShows = p.prefs.timeShows === 'remaining' ? 'total' : 'remaining'; savePrefs(p.prefs); p.updateTime(); }});
   r.playBtn = iconButton('play', 'Play', () => p.togglePlay(), {class: 'ap-icon-btn ap-play'});
-  r.spinner = h('div', {class: 'ap-spinner', hidden: true, role: 'progressbar', 'aria-label': 'Loading'});
+  // Waiting for data mid-film (controls.js setBuffering): a thin moving line at the bar, words after a while.
+  r.waitWords = h('p', {class: 'ap-wait-words', role: 'status', hidden: true}, WAITING);
+  r.waitBox = h('div', {class: 'ap-wait', hidden: true}, r.waitWords, h('div', {class: 'ap-wait-line', role: 'progressbar', 'aria-label': 'Loading'}, h('i')));
   r.speedBtn = h('button', {class: 'ap-text-btn', type: 'button', 'aria-haspopup': 'dialog', onclick: () => p.menus.openModal('playback')}, 'Speed 1x');
   r.sleepEl = h('p', {class: 'ap-sleep-left', hidden: true}); // the sleep timer's time left, quietly
   r.actions = h('div', {class: 'ap-actions'});
@@ -82,22 +96,26 @@ export function build(p) {
     info: iconButton('info', 'Stream info', () => p.menus.openModal('info')),
   };
   r.pipBtn = iconButton('pip', 'Picture in picture', () => p.system.togglePip());
+  // The top bar's optional buttons (Settings › Player › Top bar): the speed and the sleep timer open the Playback menu.
+  r.topSpeedBtn = h('button', {class: 'ap-icon-btn ap-top-speed', type: 'button', 'aria-label': 'Playback speed', 'aria-haspopup': 'dialog', onclick: () => p.menus.openModal('playback')}, '1×');
+  r.topSleepBtn = h('button', {class: 'ap-icon-btn', type: 'button', 'aria-label': 'Sleep timer', title: 'Sleep timer', 'aria-haspopup': 'dialog', onclick: () => p.menus.openModal('playback')}, moon());
   r.rotateBtn = iconButton('rotate', 'Rotate', () => p.system.rotate());
-  const more = r.moreBtn = iconButton('chevronRight', 'More', () => r.actions.scrollBy({left: 200, behavior: 'smooth'}), {class: 'ap-icon-btn ap-more'});
+  const more = r.moreBtn = iconButton('chevronRight', 'More', () => r.actions.scrollBy({left: 200, behavior: level() === 'full' ? 'smooth' : 'auto'}), {class: 'ap-icon-btn ap-more'});
   r.actions.addEventListener('scroll', () => more.hidden = r.actions.scrollLeft + r.actions.clientWidth >= r.actions.scrollWidth - 4, {passive: true});
   r.lockBtn = iconButton('lock', 'Lock controls', () => p.ctl.setLocked(true));
   r.controls = h('div', {class: 'ap-controls'},
     h('div', {class: 'ap-shade-top'}), h('div', {class: 'ap-shade-bottom'}),
-    h('div', {class: 'ap-top'}, r.pipBtn, r.rotateBtn, r.lockBtn, iconButton('back', 'Close player', () => p.close('user'))),
+    h('div', {class: 'ap-top'}, r.pipBtn, r.topSpeedBtn, r.topSleepBtn, r.rotateBtn, r.lockBtn, iconButton('back', 'Close player', () => p.close('user'))),
     h('div', {class: 'ap-top-mid'}, r.sleepEl),
     h('div', {class: 'ap-center'},
-      iconButton('replay', 'Back 10 seconds', () => p.seekBy(-10), {class: 'ap-icon-btn ap-side', iconText: '10'}),
+      r.backBtn = iconButton('replay', seekLabel(-1, 10), () => p.seekBy(-seekStep(p.prefs)), {class: 'ap-icon-btn ap-side', iconText: '10'}),
       iconButton('chevronLeft', 'Previous frame', () => p.extras.frames.step(-1), {class: 'ap-icon-btn ap-frame'}),
       h('div', {class: 'ap-play-wrap'}, r.playBtn),
       iconButton('chevronRight', 'Next frame', () => p.extras.frames.step(1), {class: 'ap-icon-btn ap-frame'}),
-      iconButton('forward', 'Forward 10 seconds', () => p.seekBy(10), {class: 'ap-icon-btn ap-side', iconText: '10'})),
+      r.forwardBtn = iconButton('forward', seekLabel(1, 10), () => p.seekBy(seekStep(p.prefs)), {class: 'ap-icon-btn ap-side', iconText: '10'})),
     r.bottomEl = h('div', {class: 'ap-bottom'},
-      h('div', {class: 'ap-meta'}, r.titleEl, r.episodeEl, r.releaseEl, r.viaEl),
+      // The release and the add-on share one line that always keeps its room: text arriving later moves nothing.
+      h('div', {class: 'ap-meta'}, r.titleEl, r.episodeEl, h('div', {class: 'ap-sub-line'}, r.releaseEl, r.viaEl)),
       r.timeline,
       h('div', {class: 'ap-bar'}, h('div', {class: 'ap-actions-wrap'}, r.actions, more), r.timeEl)));
 
@@ -119,8 +137,8 @@ export function build(p) {
   r.surface = h('div', {class: 'ap-surface'});
   r.soundCover = h('div', {class: 'ap-sound-only', hidden: true}); // the picture covered (sound-only.js)
   r.root = h('div', {class: 'ap', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Player', hidden: true, tabindex: -1},
-    r.stage, r.subs2El, subs, r.surface, r.soundCover, r.pauseOverlay, r.feedback, r.seekPreview, r.levelBars.brightness, r.levelBars.volume,
-    r.controls, h('div', {class: 'ap-buffering'}, r.spinner), r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
+    r.stage, r.subs2El, subs, r.surface, r.soundCover, r.pauseOverlay, r.feedback, r.seekPreview,
+    r.controls, r.waitBox, r.skipBtn, r.nextCard, r.lockOverlay, r.mutedChip, r.noticeEl, r.loading, r.errorCard, r.panel, r.modal);
   p.parent.append(r.root);
   return r;
 }
@@ -137,9 +155,38 @@ export function renderMeta(p) {
   p.actionButtons.episodes.hidden = !series;
   p.actionButtons.sources.hidden = !p.sources.length;
   p.actionButtons.next.hidden = !p.options.next;
-  p.pipBtn.hidden = !document.pictureInPictureEnabled;
+  applyLook(p);
   p.actions.replaceChildren(...Object.values(p.actionButtons).filter(b => !b.hidden));
   requestAnimationFrame(() => { p.moreBtn.hidden = p.actions.scrollWidth <= p.actions.clientWidth + 4; });
+}
+
+/**
+ * What the owner's player settings change on screen, drawn again when one changes (settings/player.js):
+ * the top bar's buttons, the ±seconds of the transport (the double tap's step), the clock.
+ */
+export function applyLook(p) {
+  const o = p.prefs;
+  p.pipBtn.hidden = !document.pictureInPictureEnabled || o.topPip === false;
+  p.topSpeedBtn.hidden = !o.topSpeed;
+  p.topSleepBtn.hidden = !o.topSleep;
+  p.rotateBtn.hidden = o.topRotate === false;
+  p.lockBtn.hidden = o.topLock === false;
+  const s = seekStep(o);
+  for (const [btn, sign, name] of [[p.backBtn, -1, 'replay'], [p.forwardBtn, 1, 'forward']]) {
+    if (btn.dataset.step === String(s)) continue;
+    btn.dataset.step = String(s);
+    btn.setAttribute('aria-label', seekLabel(sign, s)); btn.title = seekLabel(sign, s);
+    btn.replaceChildren(icon(name, {text: String(s)}));
+  }
+  speedText(p);
+  if (p.isOpen) p.updateTime();
+}
+
+/** The speed on its buttons (the bar's "Speed 1x" and the top bar's "1×"); while held for speed, the speed chosen. */
+export function speedText(p) {
+  const s = p.touch?.holding ? p.touch.holdBase : p.video.playbackRate || 1;
+  p.speedBtn.textContent = `Speed ${s}x`;
+  p.topSpeedBtn.textContent = `${s}×`;
 }
 
 /**

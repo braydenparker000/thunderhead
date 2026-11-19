@@ -21,16 +21,16 @@
 
 import {AstraPlayer} from '../engine/player.js';
 import {baseLanguage} from '../engine/languages.js';
-import {clock} from '../ui/dom.js';
 import {loadPrefs, savePrefs, subtitleStyle, ASPECTS, ASPECT_LABELS} from './prefs.js';
 import {externalPlayerUrl} from './external.js';
 import {build, renderMeta, layout} from './view.js';
 import {Controls} from './controls.js';
 import {Menus} from './menus.js';
 import {Surface} from './surface.js';
-import {Timeline} from './timeline.js';
+import {Timeline, timeText} from './timeline.js';
 import {Markers} from './markers.js';
 import {Loading} from './loading.js';
+import {Passage} from './passage.js';
 import {System} from './system.js';
 import {key} from './keys.js';
 import {bindVideo} from './video-events.js';
@@ -61,6 +61,7 @@ export class PlayerScreen extends EventTarget {
     this.menus = new Menus(this);
     this.markers = new Markers(this);
     this.loader = new Loading(this);
+    this.passage = new Passage(this); // how it opens and leaves (passage.js)
     const resized = new ResizeObserver(() => this.layout());
     resized.observe(this.root);
     resized.observe(this.bottomEl); // a two-line title or the Via line changes how much room the subtitles need
@@ -110,7 +111,6 @@ export class PlayerScreen extends EventTarget {
     this.extras.opened(o);
     this.mutedChip.hidden = !(this.video.muted || this.video.volume === 0);
     this.firstFrame = false;
-    this.remaining = false;
     this.lastProgress = 0;
     this.loadedFrom = o.startTime || 0;
     this.playedTo = 0;
@@ -122,6 +122,7 @@ export class PlayerScreen extends EventTarget {
       addEventListener('keydown', this.onKey);
       document.addEventListener('visibilitychange', this.onVisibility);
       this.root.focus({preventScroll: true});
+      this.passage.enter(o.origin); // the tapped card presses in, the screen dims over the backdrop
     }
     renderMeta(this);
     this.markers.renderNext();
@@ -219,13 +220,13 @@ export class PlayerScreen extends EventTarget {
     const time = this.firstFrame ? this.video.currentTime : 0, duration = Number.isFinite(this.video.duration) ? this.video.duration : 0;
     removeEventListener('keydown', this.onKey);
     document.removeEventListener('visibilitychange', this.onVisibility);
+    if (!this.video.paused) this.video.pause(); // silent at once; the picture stays while it fades
     this.popLayer?.(); this.popLayer = null; // also pops an open modal's or panel's entry
     this.extras.close();
     for (const part of this.parts) part.close();
     this.emit('progress', {time, duration, final: true});
     this.emit('close', {time, duration, reason});
-    this.engine.reset();
-    this.root.hidden = true;
+    this.passage.exit(() => this.engine.reset()); // the picture fades to the backdrop, the dim lifts, then the engine lets go
   }
 
   // ——— What the other parts and the app call ———
@@ -250,8 +251,7 @@ export class PlayerScreen extends EventTarget {
     this.markers.updateSkip(t);
     this.markers.updateNext(t, d);
     if (!this.ctl.showing) return;
-    const known = Number.isFinite(d) && d > 0;
-    const text = d === Infinity ? 'Live' : !known ? clock(t) : this.remaining ? '−' + clock(d - t) : `${clock(t)} / ${clock(d)}`;
+    const text = timeText(t, d, this.prefs.timeShows === 'remaining');
     if (this.timeEl.textContent !== text) this.timeEl.textContent = text;
     this.seekbar.update(t, d);
   }

@@ -8,6 +8,7 @@
 import {h} from '../ui/dom.js';
 import {savePrefs, SPEEDS} from './prefs.js';
 import {normalSpeed, SLEEP_CHOICES} from './rules.js';
+import {speedText as drawSpeed} from './view.js';
 
 const SLEEP_LABELS = {0: 'Off', 15: '15 min', 30: '30 min', 45: '45 min', 60: '60 min', episode: 'End of episode'};
 const speedText = s => `${s}x`;
@@ -28,7 +29,7 @@ export class Playback {
       v.defaultPlaybackRate = s;
       if (!p.touch.holding && v.playbackRate !== s) v.playbackRate = s;
     } catch {}
-    p.speedBtn.textContent = `Speed ${p.touch.holding ? s : v.playbackRate}x`;
+    drawSpeed(p);
   }
 
   setSpeed(s) {

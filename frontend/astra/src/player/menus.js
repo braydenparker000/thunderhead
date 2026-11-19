@@ -1,7 +1,9 @@
 // The player's menus: audio, subtitles (subtitle-menu.js), stream info,
-// Playback (playback.js) and the subtitle search (find.js) as full-screen
-// modals; sources and episodes as side panels. One is open at a time; each is
-// a history entry, so back closes it before the player.
+// Playback (playback.js) and the subtitle search (find.js) in the modal layer;
+// sources and episodes in the panel layer. Both are the same sheet
+// (menu-sheet.js): from the bottom, or docked to the right edge held
+// sideways. One is open at a time; each is a history entry, so back closes it
+// before the player.
 
 import {baseLanguage} from '../engine/languages.js';
 import {pushLayer} from '../app/back-stack.js';
@@ -13,6 +15,7 @@ import {iconButton} from './view.js';
 import {subtitleModal, pickLanguage, pickSubtitleFile} from './subtitle-menu.js';
 import {viaName} from './rules.js';
 import {addressLine} from './address.js';
+import {MenuSheet} from './menu-sheet.js';
 
 const MODAL_LABELS = {audio: 'Audio', subtitles: 'Subtitles', info: 'Stream info', playback: 'Playback', find: 'Find a line'};
 
@@ -24,6 +27,9 @@ export class Menus {
     this.returnFocus = null;
     this.subtitleSearch = false;
     this.bodies = {}; // more modals by name: () => their content (extras.js)
+    const sheet = (el, bodyClass) => new MenuSheet(p, el, {bodyClass, onDismiss: () => this.dismiss(), closeButton: iconButton('close', 'Close', () => this.dismiss(), {class: 'ap-icon-btn ap-modal-close'})});
+    this.modalSheet = sheet(p.modal, 'ap-modal-body');
+    this.panelSheet = sheet(p.panel, 'ap-panel-body');
     this.reset();
   }
 
@@ -51,9 +57,9 @@ export class Menus {
     this.modalName = name;
     this.modalClose = pushLayer('player-modal', () => { this.modalClose = null; this.dismiss(); });
     this.renderModal();
-    p.modal.hidden = false;
+    this.modalSheet.open();
     p.modal.setAttribute('aria-label', MODAL_LABELS[name] || name);
-    p.root.classList.add('overlay');
+    p.ctl.paint(() => p.root.classList.add('overlay'));
     p.showControls(false);
     this.focusOverlay(p.modal);
   }
@@ -65,12 +71,13 @@ export class Menus {
     this.panelName = name;
     this.panelClose = pushLayer('player-panel', () => { this.panelClose = null; this.dismiss(); });
     this.renderPanel();
-    p.panel.hidden = false;
+    this.panelSheet.open();
     p.panel.setAttribute('aria-label', name === 'sources' ? 'Sources' : 'Episodes');
-    p.root.classList.add('overlay');
+    p.ctl.paint(() => p.root.classList.add('overlay'));
     p.showControls(false);
-    // The current source or episode is in view, not a screen or two down the list.
-    p.panel.querySelector('.current')?.scrollIntoView({block: 'center'});
+    // The current source or episode is in view, not a screen or two down the list (the sheet's own scroll only).
+    const body = this.panelSheet.body, cur = body.querySelector('.current');
+    if (cur && cur.offsetTop + cur.offsetHeight > body.clientHeight) body.scrollTop = Math.max(0, cur.offsetTop - (body.clientHeight - cur.offsetHeight) / 2);
     this.focusOverlay(p.panel);
   }
 
@@ -84,11 +91,11 @@ export class Menus {
   dismiss(silent = false) {
     const p = this.p;
     const wasOpen = !!this.open;
-    if (this.modalName) { this.modalName = null; p.modal.hidden = true; this.modalClose?.(); this.modalClose = null; }
-    if (this.panelName) { this.panelName = null; p.panel.hidden = true; this.panelClose?.(); this.panelClose = null; }
+    if (this.modalName) { this.modalName = null; this.modalSheet.close(); this.modalClose?.(); this.modalClose = null; }
+    if (this.panelName) { this.panelName = null; this.panelSheet.close(); this.panelClose?.(); this.panelClose = null; }
     if (wasOpen && this.returnFocus?.isConnected) this.returnFocus.focus({preventScroll: true});
     this.returnFocus = null;
-    p.root.classList.remove('overlay');
+    if (p.root.classList.contains('overlay')) p.ctl.paint(() => p.root.classList.remove('overlay'));
     if (!silent) p.scheduleHide();
   }
 
@@ -104,19 +111,17 @@ export class Menus {
 
   renderModal() {
     const p = this.p, name = this.modalName;
-    const close = iconButton('close', 'Close', () => this.dismiss(), {class: 'ap-icon-btn ap-modal-close'});
     let body;
     if (name === 'audio') body = this.audioModal();
     else if (name === 'subtitles') body = this.subtitleModal();
     else if (this.bodies[name]) body = this.bodies[name]();
     else body = this.infoModal();
-    // Redrawn after every tap: the lists stay where they were scrolled, and keyboard focus stays on its button.
-    const kept = p.modal.hidden ? [] : [...p.modal.querySelectorAll('.ap-modal-body, .ap-rail')].map(el => ['.' + [...el.classList].join('.'), el.scrollTop]);
+    // Redrawn after every tap: the lists stay where they were scrolled (the sheet's body keeps its own), and keyboard focus stays on its button.
+    const kept = p.modal.hidden ? [] : [...p.modal.querySelectorAll('.ap-rail')].map(el => ['.' + [...el.classList].join('.'), el.scrollTop]);
     const key = el => el.getAttribute('aria-label') || el.textContent;
     const focused = p.modal.contains(document.activeElement) && document.activeElement.matches('button') ? key(document.activeElement) : null;
-    // Picking tracks hides the picture; styling leaves it showing, so the change can be seen. The wide menus (Playback, the search) are solid too.
-    const scrim = 'ap-modal-scrim' + (name === 'playback' || name === 'find' || (name === 'audio' && this.audioTab === 'sound') ? ' solid' : name !== 'subtitles' ? '' : this.subTab === 'style' ? ' preview' : ' solid');
-    p.modal.replaceChildren(h('div', {class: scrim, onclick: () => this.dismiss()}), h('div', {class: 'ap-modal-body ' + name}, close, body));
+    // Styling the subtitles leaves the picture showing (a light scrim, a lower sheet), so the change can be seen.
+    this.modalSheet.render(name, body, name === 'subtitles' && this.subTab === 'style' ? 'preview' : '');
     for (const [selector, top] of kept) { const el = p.modal.querySelector(selector); if (el) el.scrollTop = top; }
     if (focused != null) [...p.modal.querySelectorAll('button')].find(b => key(b) === focused)?.focus({preventScroll: true});
   }
@@ -178,8 +183,7 @@ export class Menus {
         }, i.thumbnail ? h('img', {src: i.thumbnail, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer'}) : h('div', {class: 'ap-episode-thumb'}),
         h('span', {}, h('small', {}, `E${i.episode}`), h('b', {}, i.title || 'Episode ' + i.episode))))) ];
     }
-    p.panel.replaceChildren(h('div', {class: 'ap-modal-scrim', onclick: () => this.dismiss()}),
-      h('div', {class: 'ap-panel-body'}, iconButton('close', 'Close', () => this.dismiss(), {class: 'ap-icon-btn ap-modal-close'}), body));
+    this.panelSheet.render(name, body);
   }
 
   /**
@@ -212,5 +216,5 @@ export class Menus {
   }
 
   /** The player closed. */
-  close() { this.dismiss(true); }
+  close() { this.dismiss(true); this.modalSheet.hide(); this.panelSheet.hide(); }
 }
