@@ -36,6 +36,7 @@ import {key} from './keys.js';
 import {bindVideo} from './video-events.js';
 import {Extras} from './extras.js';
 import {viaName} from './rules.js';
+import {withoutHash} from '../addons/stream-text.js';
 
 export class PlayerScreen extends EventTarget {
   /** How long a load runs before the loading screen offers other sources. */
@@ -175,7 +176,7 @@ export class PlayerScreen extends EventTarget {
     this.playedTo = 0;
     this.loader.show(true);
     this.errorCard.hidden = true;
-    this.viaEl.textContent = stream.name ? 'Via ' + viaName(stream.name) : ''; // the add-on's name once
+    this.viaEl.textContent = stream.name ? 'Via ' + viaName(withoutHash(stream.name)) : ''; // the add-on's name once
     const prefs = {languages: [...new Set([this.prefs.audioLanguage, ...((navigator.languages || []).map(baseLanguage))].filter(Boolean))], subtitleLanguage: this.prefs.subtitleLanguage || null, allowSilent};
     this.extras.loading();
     this.engine.load({url: stream.url, renew: stream.renew || null, headers: stream.headers || {}, startTime, autoplay: true, prefs, subtitles: stream.subtitles || []});

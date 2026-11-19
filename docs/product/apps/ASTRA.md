@@ -231,11 +231,17 @@ How it is enforced:
    on (the group the owner already picked, as Stremio does); otherwise the player opens the episode's
    sources, through the owner's filters (those hidden are counted and can be shown), and loads nothing
    until a tap. The earlier fallback that played the first source when no group matched is gone.
-   **"Plays on this phone" (2026-11-15, `addons/device-facts.js`):** each playable stream card says, on
-   one quiet line, "Plays directly" or "Needs the software decoder (uses more battery)", from its
-   label and the browser's own answer (`navigator.mediaCapabilities.decodingInfo`: smooth and
-   power-efficient), and "Sound converted on the phone" for Dolby Digital or DTS. It informs only:
-   nothing is hidden, ranked or picked by it.
+   **"Plays on this phone" (2026-11-15, `addons/device-facts.js`; one note since 2026-11-19,
+   `addons/stream-note.js`):** a playable stream card carries at most one quiet line, the most
+   important of: "10-bit HEVC: this phone decodes it in software (slow, more battery)" where the
+   browser has no efficient decoder for it; a note that a stream with no hash from its source may open
+   in Chrome's plain player (signed in, a TorBox key not known to be missing, and the link is not a
+   plain file address); "Needs the software decoder (uses more battery)" for any other picture the
+   browser does not decode itself. A stream the phone plays itself carries no note. The facts come
+   from the card's label and the browser's own answer (`navigator.mediaCapabilities.decodingInfo`:
+   smooth and power-efficient). A 40-character hash in an add-on's text is not shown
+   (`addons/stream-text.js`); Astra still reads it. All of it informs only: nothing is hidden, ranked,
+   dimmed or picked by it.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
 4. **The mind never sees streams**: the Worker stores no stream data (since 2026-11-18 addresses pass
