@@ -114,7 +114,7 @@ test("the owner's phone: no hash on any card, one note a card, the add-on's orde
   assert.deepEqual(list.map((c) => c.res), ['4K', '1080p', '1080p', '720p']);
   assert.deepEqual(list.map((c) => c.size), ['14 GB', '2.1 GB', '1.9 GB', '900 MB'], "in the add-on's own order");
   assert.match(list[0].text, /HDR10/);
-  assert.match(list[0].text, /Ready on TB/);
+  assert.match(list[0].text, /Ready on TB/, 'the service named for screen readers');
   // Settings › Streams › Add-on text: the add-on's own words again, the hash cut out of its line cleanly.
   await page.evaluate(() => window.astra.saveSetting('streamCard', 'addon'));
   await page.waitForFunction(() => !document.querySelector('.screen.streams .stream-card.designed') && document.querySelectorAll('.screen.streams .stream-card').length === 4);

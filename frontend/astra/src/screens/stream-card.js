@@ -49,7 +49,7 @@ const languageWords = list => (list.length > 2 ? `${list.slice(0, 2).join(', ')}
 function designedLines(s, f, st, minutes) {
   const picture = f.picture.some(p => p === 'DV' || p.startsWith('HDR')) ? f.picture.filter(p => p !== '10-bit') : f.picture;
   const sound = [f.sound.codec, f.sound.channels, f.sound.atmos ? 'Atmos' : ''].filter(Boolean).join(' ');
-  const ready = st.ready && f.ready !== null ? h('span', {class: 'sc-ready' + (f.ready ? ' on' : '')}, f.ready ? `Ready${f.service ? ' on ' + f.service : ''}` : 'Not ready') : null;
+  const ready = st.ready && f.ready !== null ? h('span', {class: 'sc-ready' + (f.ready ? ' on' : '')}, f.ready ? 'Ready' : 'Not ready', f.service ? h('span', {class: 'visually-hidden'}, ` on ${f.service}`) : null) : null;
   const top = h('span', {class: 'sc-top'}, h('b', {class: 'sc-res'}, f.resLabel),
     ...(st.badges ? [...picture.map(p => h('span', {class: 'sc-badge'}, p)), f.codec ? h('span', {class: 'sc-tech'}, f.codec) : null, sound ? h('span', {class: 'sc-tech'}, sound) : null] : []), ready);
   const [head, tail] = splitMiddle(f.release);
