@@ -61,11 +61,16 @@ test('the feel log: names are cleaned, runs are timed, and the report is plain n
   const list = feelEntries();
   assert.deepEqual(list.map((e) => [e.name, e.interrupted]), [['test:sync', false], ['test:async', true]]);
   const text = reportText([{ name: 'push:details', ms: 330, frames: 20, worstGap: 18, interrupted: false }, { name: 'push:details', ms: 350, frames: 21, worstGap: 40, interrupted: true }],
-    { motion: 'full (system)', haptics: 'subtle' });
-  assert.match(text, /^Astra feel report\nmotion full-system- · haptics subtle\n2 transitions\n/);
+    { motion: 'full (system)', haptics: 'subtle' }, { hz: 90, ms: 11.1 });
+  assert.match(text, /^Astra feel report · screen 90 Hz \(median frame 11\.1 ms over a quiet second\)\nmotion full-system- · haptics subtle\n2 transitions\n/);
   assert.match(text, /^push:details\s+2\s+330\s+350\s+60\s+40\s+1$/m);
   assert.match(text, /^push:details 350 21 40 cut$/m);
   assert.doesNotMatch(text, /https?:/);
+  // A press ends at its release: it is in the table only when it went badly; the screen not measured yet says so.
+  const press = (worstGap) => ({ name: 'press', ms: 60, frames: 5, worstGap, interrupted: false });
+  assert.doesNotMatch(reportText([press(20), press(44)]), /^press {20,}/m);
+  assert.match(reportText([press(20), press(51)]), /^press {20,}2\s/m);
+  assert.match(reportText([]), /^Astra feel report · screen not measured yet\n/);
 });
 
 test('the registry: rows by area, a search over every row, values checked, kept where they live', () => {
