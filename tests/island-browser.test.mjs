@@ -265,6 +265,11 @@ const rect = (page, selector) => page.locator(selector).evaluate(e => {
   const r=e.getBoundingClientRect(),s=getComputedStyle(e);
   return {x:r.x,y:r.y,width:r.width,height:r.height,radius:parseFloat(s.borderRadius),opacity:Number(s.opacity),background:s.backgroundColor};
 });
+// The island is one fixed box whose clip is its shape (th/island/shape.js): its outline on the page, and that of a
+// clip-path's path (read from an SVG path's box).
+const shape = page => page.evaluate(() => import('/th/island/shape.js').then(m => { const [x,y,width,height,radius] = m.box(); return {x,y,width,height,radius}; }));
+const pathBox = (page, clip) => page.evaluate(clip => { const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'), path=document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d', clip.match(/path\(["'](.*)["']\)/)[1]); svg.append(path); document.body.append(svg); const b=path.getBBox(); svg.remove(); return {x:b.x,y:b.y,width:b.width,height:b.height}; }, clip);
 const near = (actual, expected, label) => assert.ok(Math.abs(actual-expected)<=1, `${label}: ${actual}, expected ${expected} ±1`);
 async function readyOpen(page, id) {
   return page.evaluate(async id => {
@@ -288,11 +293,13 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     const cold=await readyOpen(page,'music');
     await settle(page);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.collapse('test')));
-    const compact=await rect(page,'.th-island');
+    const compact=await shape(page);
     near(compact.height,36,'compact height'); near(compact.radius,18,'compact radius');
     assert.ok(compact.width>=124 && compact.width<=234,'compact width bounds');
     near(compact.x+compact.width/2,195,'centered'); near(compact.y,10,'safe-area position');
-    assert.equal(compact.background,'rgb(0, 0, 0)');
+    // Black inside a faint hairline: the fill is the shape less 1 px.
+    assert.equal(await page.locator('.th-island .fill').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(0, 0, 0)');
+    assert.match(await page.locator('.th-island').evaluate(e=>e.style.clipPath),/^path\(/,'a continuous-corner outline, not a rounded box');
     // Without art the compact lobe is the 22 px app-colour dot: the artwork node itself.
     const lobe=await page.locator('.th-island .art').evaluate(e=>({width:e.getBoundingClientRect().width,radius:parseFloat(getComputedStyle(e).borderRadius)*e.getBoundingClientRect().width/72,background:getComputedStyle(e).backgroundColor,images:e.closest('.th-island').querySelectorAll('img').length}));
     near(lobe.width,22,'app dot'); near(lobe.radius,11,'round dot'); assert.equal(lobe.background,'rgb(47, 125, 246)'); assert.equal(lobe.images,0,'no second image');
@@ -304,16 +311,20 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     const expansion=await page.evaluate(async()=>{
       const m=await import('/th/island/island.js'),start=performance.now(),samples=[];
       let running=true;
-      const sample=()=>{const e=document.querySelector('.th-island'),r=e.getBoundingClientRect(),a=e.querySelector('.art'),s=getComputedStyle(a);samples.push({at:performance.now()-start,width:r.width,height:r.height,opacity:Number(getComputedStyle(e.querySelector('.details')).opacity),compact:Number(getComputedStyle(e.querySelector('.compact')).opacity),box:[a.offsetLeft,a.offsetTop,a.offsetWidth,a.offsetHeight].join(),moved:s.transform!=='none'});if(running)requestAnimationFrame(sample);};
+      const box=(await import('/th/island/shape.js')).box;
+      const sample=()=>{const e=document.querySelector('.th-island'),[,,width,height]=box(),a=e.querySelector('.art'),s=getComputedStyle(a);samples.push({at:performance.now()-start,width,height,layout:[e.offsetWidth,e.offsetHeight].join(),opacity:Number(getComputedStyle(e.querySelector('.details')).opacity),compact:Number(getComputedStyle(e.querySelector('.compact')).opacity),box:[a.offsetLeft,a.offsetTop,a.offsetWidth,a.offsetHeight].join(),moved:s.transform!=='none'});if(running)requestAnimationFrame(sample);};
       requestAnimationFrame(sample); await m.wide(true); running=false;
       return {ms:performance.now()-start,max:Math.max(...samples.map(s=>s.width)),samples};
     });
-    const expanded=await rect(page,'.th-island');
+    const expanded=await shape(page);
     near(expanded.width,360,'expanded width'); near(expanded.height,180,'expanded height'); near(expanded.radius,28,'expanded radius');
-    assert.ok(expansion.max>360*1.025 && expansion.max<=360*1.041,`4% width squish: ${expansion.max}`);
-    // The bars and title hand off to the controls at 40% of the shape (36 + 144 × .4 = 93.6 px).
-    assert.ok(expansion.samples.filter(s=>s.height<93).every(s=>s.opacity===0),'details wait for 40%');
-    assert.ok(expansion.samples.filter(s=>s.height>94.5).every(s=>s.compact===0),'compact content is gone by 40%');
+    // Growing goes a little past its size on the spring and settles (about 4% of the way); nothing is laid out.
+    assert.ok(expansion.max>361 && expansion.max<=360+.045*(360-compact.width),`a little past, then back: ${expansion.max}`);
+    assert.deepEqual([...new Set(expansion.samples.map(s=>s.layout))],['390,200'],'the box never changes size');
+    // The bars and title melt away by 45% of the shape (36 + 144 × .45 = 100.8 px); the details arrive from 30% (79.2 px).
+    assert.ok(expansion.samples.filter(s=>s.height<79).every(s=>s.opacity===0),'details wait for 30%');
+    assert.ok(expansion.samples.filter(s=>s.height>101.5).every(s=>s.compact===0),'compact content is gone by 45%');
+    assert.ok(expansion.samples.some(s=>s.compact>0&&s.compact<1&&s.opacity>0),'the two cross-fade');
     assert.ok(expansion.samples.some(s=>s.compact>0&&s.compact<1),'compact content fades rather than cuts');
     assert.equal(await page.evaluate(()=>capsule===document.querySelector('.th-island')),true,'same element');
     // One artwork node: its layout box never changes; it travels and scales by transform only.
@@ -323,9 +334,9 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     const art=await rect(page,'.th-island .art');
     near(art.x-expanded.x,16,'artwork left'); near(art.y-expanded.y,38,'artwork top'); near(art.radius,16,'artwork corners');
     // Under the progress line: elapsed and remaining in tabular numerals; a coloured app glyph at top left.
-    const detail=await page.locator('.th-island').evaluate(e=>{const q=s=>e.querySelector(s),line=q('.progress').getBoundingClientRect(),el=q('.elapsed').getBoundingClientRect(),g=q('.glyph').getBoundingClientRect(),top=e.getBoundingClientRect();
+    const detail=await page.locator('.th-island').evaluate((e,top)=>{const q=s=>e.querySelector(s),line=q('.progress').getBoundingClientRect(),el=q('.elapsed').getBoundingClientRect(),g=q('.glyph').getBoundingClientRect();
       return {under:el.top>=line.bottom,numerals:getComputedStyle(q('.elapsed')).fontVariantNumeric+'/'+getComputedStyle(q('.left')).fontVariantNumeric,elapsed:q('.elapsed').textContent,glyph:[g.x-top.x,g.y-top.y,g.width],color:getComputedStyle(q('.glyph')).color,
-        backdrop:[e,...e.querySelectorAll('*')].filter(n=>!['none',''].includes(getComputedStyle(n).backdropFilter??'none')).length};});
+        backdrop:[e,...e.querySelectorAll('*')].filter(n=>!['none',''].includes(getComputedStyle(n).backdropFilter??'none')).length};},expanded);
     assert.deepEqual({...detail,glyph:detail.glyph.map(Math.round)},{under:true,numerals:'tabular-nums/tabular-nums',elapsed:'0:00',glyph:[18,14,16],color:'rgb(47, 125, 246)',backdrop:0});
     for(const button of await page.locator('.controls button').all()){const r=await button.boundingBox();near(r.width,44,'control width');near(r.height,44,'control height');}
     near((await rect(page,'.art')).width,72,'artwork'); near((await rect(page,'.progress')).height,3,'expanded progress');
@@ -341,19 +352,17 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     assert.equal(origin.launch,false);
     assert.equal(origin.marker,true,'the launch marker belongs to the capsule reveal');
     assert.equal(origin.interactive,'auto','a ready frame can receive input during the morph');
-    const [edges,round]=origin.clip.split('round');
-    const n=edges.match(/[\d.]+/g).map(Number);
-    const values=[n[0],n[1]??n[0],n[2]??n[0],n[3]??n[1]??n[0],parseFloat(round)];
-    [expanded.y,390-expanded.x-expanded.width,844-expanded.y-expanded.height,expanded.x,expanded.radius].forEach((v,i)=>near(values[i],v,'clip origin'));
+    const from=await pathBox(page,origin.clip);
+    for(const k of ['x','y','width','height']) near(from[k],expanded[k],`clip origin ${k}`);
     await settle(page);
     assert.equal(await page.locator('.th-island').isVisible(),false);
     await page.goBack(); await settle(page);
     assert.equal(await page.locator('.th-island').isVisible(),true,'capsule returns on shrink');
-    near((await rect(page,'.th-island')).width,360,'reverse ends at original expanded shape');
+    near((await shape(page)).width,360,'reverse ends at original expanded shape');
     // Pointer interaction restarts the six-second timer; timeout collapses at rest.
     await page.waitForFunction(()=>document.querySelector('.th-island').dataset.state==='compact',null,{timeout:8000});
     await settle(page);
-    near((await rect(page,'.th-island')).height,36,'idle collapse');
+    near((await shape(page)).height,36,'idle collapse');
     // A home line about this app raises a bounded alert; the gold line lasts with the note.
     const alertStart=await page.evaluate(()=>{
       const note=document.createElement('div');note.className='note';note.id='island-note';note.textContent='Music has a new mix.';document.querySelector('#talk').append(note);
@@ -363,14 +372,14 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
       return start;
     });
     await page.waitForSelector('.th-island.alert-flash'); await settle(page);
-    near((await rect(page,'.th-island')).width,compact.width+24,'alert widening');
+    near((await shape(page)).width,compact.width+24,'alert widening');
     near((await rect(page,'.alert-dot')).width,16,'alert dot');
     await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('alert-flash'));
     await settle(page);
     const alertMs=await page.evaluate(start=>performance.now()-start,alertStart);
     // The dot holds 1.2 s by design, then the width springs back; the settle lands near 1.7 s on a loaded runner.
     timing(alertMs<2000,`alert returns within 2 s: ${alertMs}`);
-    near((await rect(page,'.th-island')).width,compact.width,'alert returns');
+    near((await shape(page)).width,compact.width,'alert returns');
     assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('alert')),true,'gold persists for the line life');
     // The gold line fades in over --d-base (300 ms): partway through at 100 ms, whole by 450 ms; never a pop.
     const gold=await page.evaluate(()=>window.gold);
@@ -378,15 +387,15 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     timing(gold.some(([,o])=>o>.05&&o<.95),'gold passes through the middle');
     timing(gold.filter(([at])=>at>450).every(([,o])=>o===1),'gold line arrives');
     await page.locator('#island-note').click(); await settle(page);
-    near((await rect(page,'.th-island')).height,180,'home line expands the capsule');
+    near((await shape(page)).height,180,'home line expands the capsule');
     await page.mouse.click(10,400); await settle(page);
-    near((await rect(page,'.th-island')).height,36,'outside collapses');
+    near((await shape(page)).height,36,'outside collapses');
     await page.evaluate(()=>document.querySelector('#island-note').remove());
     await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('alert'));
     await page.locator('.compact').click();await settle(page);
-    const box=await page.locator('.th-island').boundingBox();
+    const box=await shape(page);
     await page.mouse.move(box.x+box.width-10,box.y+90);await page.mouse.down();await page.mouse.move(box.x+box.width-10,box.y+40,{steps:5});await page.mouse.up();await settle(page);
-    near((await rect(page,'.th-island')).height,36,'swipe up collapses');
+    near((await shape(page)).height,36,'swipe up collapses');
     const warm=await readyOpen(page,'music');await settle(page);
     // 1,500 ms is the phone's target (HOME.md §12); a loaded CI runner lands near it, so the test's ceiling is 3 s against regressions.
     timing(cold.ms<3000,`local cold ready: ${cold.ms}`);timing(warm.ms<300,`local second ready: ${warm.ms}`);
@@ -418,7 +427,7 @@ test('signed-in idle warms Music then Podcasts; frames stay hidden, inert and al
     t.diagnostic(JSON.stringify({surface:'music',idleFirstMs:musicFirst.ms,device:'Chromium 390x844, not an A15'}));
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     await page.locator('.compact').click();await settle(page);
-    near((await rect(page,'.th-island')).height,180,'switching apps keeps compact controls operable');
+    near((await shape(page)).height,180,'switching apps keeps compact controls operable');
     assert.equal(await page.evaluate(()=>retained.every((w,i)=>w===document.querySelectorAll('iframe.th-app')[i].contentWindow)),true,'same contexts after closing and switching');
     t.diagnostic(JSON.stringify({surface:'podcasts',idleFirstMs:podFirst.ms,secondMs:podSecond.ms,device:'Chromium 390x844, not an A15'}));
   }finally{await context.close();}
@@ -444,10 +453,10 @@ test('reduced motion snaps shape and fades content; cold Podcasts opens under it
     const page=await signedIn(context);await page.goto(`${base}/`);
     const cold=await readyOpen(page,'podcasts');await settle(page);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.collapse('test')));
-    const snap=await page.evaluate(async()=>{const m=await import('/th/island/island.js');const start=performance.now();const done=m.wide(true),r=document.querySelector('.th-island').getBoundingClientRect();const initial=getComputedStyle(document.querySelector('.details')).opacity;await done;return{width:r.width,height:r.height,initial,ms:performance.now()-start,opacity:getComputedStyle(document.querySelector('.details')).opacity};});
+    const snap=await page.evaluate(async()=>{const m=await import('/th/island/island.js'),box=(await import('/th/island/shape.js')).box;const start=performance.now();const done=m.wide(true),[,,width,height]=box(),r={width,height};const initial=getComputedStyle(document.querySelector('.details')).opacity;await done;return{width:r.width,height:r.height,initial,ms:performance.now()-start,opacity:getComputedStyle(document.querySelector('.details')).opacity};});
     near(snap.width,360,'reduced expanded width');near(snap.height,180,'reduced expanded height');assert.equal(snap.initial,'0');assert.equal(snap.opacity,'1');timing(snap.ms>=140 && snap.ms<300,`150 ms content fade: ${snap.ms}`);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.wide(false)));
-    near((await rect(page,'.th-island')).height,36,'reduced compact height');
+    near((await shape(page)).height,36,'reduced compact height');
     timing(cold.ms<1500,`cold Podcasts local: ${cold.ms}`);
     t.diagnostic(JSON.stringify({surface:'podcasts',coldMs:cold.ms,reducedFadeMs:snap.ms,device:'Chromium 390x844, not an A15'}));
   }finally{await context.close();}
@@ -464,7 +473,7 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
       const shell=document.querySelector('.th-app-shell'),cover=shell.querySelector('.th-app-wait');
       return {hidden:shell.classList.contains('parked'),waiting:!cover.hidden,dots:cover.querySelectorAll('i').length,color:getComputedStyle(cover).backgroundColor,clip:shell.style.clipPath};
     });
-    assert.equal(opening.hidden,false);assert.equal(opening.waiting,true);assert.equal(opening.dots,3);assert.equal(opening.color,'rgb(47, 125, 246)');assert.match(opening.clip,/round 18px/);
+    assert.equal(opening.hidden,false);assert.equal(opening.waiting,true);assert.equal(opening.dots,3);assert.equal(opening.color,'rgb(47, 125, 246)');near((await pathBox(page,opening.clip)).height,36,'grows from the compact capsule');
     await page.waitForSelector('iframe[data-ready=true]',{state:'attached'});await settle(page);
     // Reverse before either endpoint: no destroyed frame or invisible final capsule.
     await page.evaluate(async()=>{const m=await import('/th/island/island.js');void m.collapse('reverse');await new Promise(requestAnimationFrame);void m.expand('reverse');await new Promise(requestAnimationFrame);await m.collapse('reverse');await m.whenResting();});
@@ -472,7 +481,7 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
     assert.equal(await page.locator('iframe.th-app').evaluate(f=>f.inert),true);
     await page.locator('.compact').click();await settle(page);
     await page.evaluate(async()=>{const m=await import('/th/island/island.js');void m.wide(false);await new Promise(requestAnimationFrame);await m.wide(true);});
-    near((await rect(page,'.th-island')).height,180,'reversed expansion rests');
+    near((await shape(page)).height,180,'reversed expansion rests');
     // Real decoded audio, invented silence: no stub of paused, play(), or the island's media lookup.
     const wav=Buffer.alloc(44+8000*2*60);
     wav.write('RIFF',0);wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
@@ -491,8 +500,8 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
     assert.equal(await page.locator('.th-island').getAttribute('data-app'),'music','still-playing engine comes back');
     // The artwork fills the compact lobe: 24 px with 7 px corners, drawn from the track's own art.
     await page.waitForSelector('.th-island .art.has-art');await settle(page);
-    const lobe=await page.locator('.th-island .art').evaluate(e=>{const r=e.getBoundingClientRect(),c=e.querySelector('canvas');return {x:r.x-e.parentElement.getBoundingClientRect().x,width:r.width,radius:parseFloat(getComputedStyle(e).borderRadius)*r.width/72,pixel:[...c.getContext('2d').getImageData(72,72,1,1).data]};});
-    near(lobe.x,6,'artwork lobe left');near(lobe.width,24,'artwork lobe');near(lobe.radius,7,'artwork lobe corners');assert.deepEqual(lobe.pixel,[0,128,128,255],'the track art is drawn');
+    const lobe=await page.locator('.th-island .art').evaluate(e=>{const r=e.getBoundingClientRect(),c=e.querySelector('canvas');return {x:r.x,width:r.width,radius:parseFloat(getComputedStyle(e).borderRadius)*r.width/72,pixel:[...c.getContext('2d').getImageData(72,72,1,1).data]};});
+    near(lobe.x,(await shape(page)).x+6,'artwork lobe left');near(lobe.width,24,'artwork lobe');near(lobe.radius,7,'artwork lobe corners');assert.deepEqual(lobe.pixel,[0,128,128,255],'the track art is drawn');
     assert.equal(await page.locator('.th-island .tt').textContent(),'Test tone');
     assert.match(await page.locator('.compact').getAttribute('aria-label'),/Test tone, Test artist/);
     assert.match(await page.locator('.heading').getAttribute('aria-label'),/Test tone, Test artist/);
@@ -531,15 +540,15 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
       const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'island-title',title:'An invented title, a little too long'}];p.index=0;});
     await page.waitForFunction(()=>window.__shownAt>0);
     const shown=await page.evaluate(()=>window.__shownAt);await settle(page);
-    near((await rect(page,'.th-island')).width,234,'60% of the viewport');
+    near((await shape(page)).width,234,'60% of the viewport');
     assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('long')),true,'the long title is masked');
     // Two seconds at rest, then one pass to its end at 40 px/s (25 ms a pixel, 16 px past the end).
     const pass=await page.evaluate(()=>new Promise(resolve=>{const t=document.querySelector('.title');
       const look=()=>{const a=t.getAnimations()[0];if(a)resolve({at:performance.now(),duration:a.effect.getTiming().duration,distance:t.scrollWidth-t.parentElement.clientWidth+16,scrolling:t.closest('.th-island').classList.contains('scrolling')});else requestAnimationFrame(look);};look();}));
     assert.ok(pass.at-shown>=1900,`waits two seconds at rest: ${pass.at-shown}`);
     near(pass.duration,pass.distance*25,'40 px/s');assert.equal(pass.scrolling,true);
-    near((await rect(page,'.th-island')).height,36,'the pass keeps compact');
-    // A touch stops it and brings the title back; a hold alone neither scrolls nor expands.
+    near((await shape(page)).height,36,'the pass keeps compact');
+    // A touch stops it and brings the title back; held, the capsule expands (with a tap back), and letting go is no tap.
     const box=await page.locator('.compact').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+18);await page.mouse.down();
     await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('scrolling'));
     // The title snaps back on its own short animation (island.js marquee()): wait for it to finish.
@@ -548,13 +557,13 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     await outlast(page,600);
     assert.equal(await page.locator('.title').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).e),0,'the title is back at its start');
     assert.equal(await page.locator('.title').evaluate(e=>e.getAnimations().length),0,'nothing scrolls while touched');
-    await page.mouse.up();
-    const state=await page.locator('.th-island').getAttribute('data-state');assert.equal(state,'compact');
-    await page.locator('.compact').click();await settle(page);
+    await page.mouse.up();await settle(page);
+    const state=await page.locator('.th-island').getAttribute('data-state');assert.equal(state,'expanded');
+    near((await shape(page)).height,180,'a long press expands');
     await page.mouse.move(355,75);await page.mouse.down();
     // A negative read: it outlasts the island's 6 s idle close (island.js touch()), which a held touch suspends.
     await outlast(page,6200);
-    near((await rect(page,'.th-island')).height,180,'a held touch keeps the expanded capsule open');
+    near((await shape(page)).height,180,'a held touch keeps the expanded capsule open');
     await page.mouse.up();
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.wide(false)));
     await page.evaluate(()=>{let dock=document.querySelector('#decision');if(!dock){dock=document.createElement('div');dock.id='decision';document.body.append(dock);}const card=document.createElement('div');card.className='card';card.textContent='A decision is waiting.';dock.append(card);document.dispatchEvent(new Event('th:decisions'));});
