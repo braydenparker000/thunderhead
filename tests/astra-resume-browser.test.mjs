@@ -120,7 +120,7 @@ test('played from the list, then Home: a tap on the card plays the same stream f
   server.answer = plays;
   const a = await app(t);
   await a.page.evaluate((meta) => window.astra.openStreams(meta), META);
-  await a.page.locator('.screen.streams .stream-card', { hasText: 'Invented VP9' }).click();
+  await a.page.locator('.screen.streams .stream-card', { hasText: 'AIO 360p' }).click(); // the add-on's name line, kept on a designed card
   await playingAt(a.page, 4);
   await a.page.evaluate(() => window.astra.player.close());
   const entry = await saved(a.page);

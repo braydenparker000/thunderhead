@@ -110,7 +110,8 @@ async function app(t, { signedIn = true, addonReadable = true } = {}) {
   await page.waitForFunction(() => window.astra?.openStreams);
   await page.evaluate((meta) => window.astra.openStreams(meta), META);
   await page.waitForSelector('.screen.streams .stream-card');
-  const tap = () => page.locator('.screen.streams .stream-card', { hasText: 'Invented VP9' }).click();
+  // The add-on's own name line: a designed card keeps it for screen readers.
+  const tap = () => page.locator('.screen.streams .stream-card', { hasText: 'AIO 360p' }).click();
   /** Stream info's line for the address, read from the menu itself. */
   const addressLine = async (shot = '') => {
     await page.evaluate(() => document.querySelector('.ap [aria-label="Stream info"]').click());
