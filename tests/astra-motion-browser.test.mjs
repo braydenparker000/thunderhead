@@ -75,6 +75,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     out.travelCancel = { result: await t2.finished, copies: document.querySelectorAll('body > [aria-hidden="true"][style*="fixed"]').length, a: $('#a').style.visibility, b: $('#b').style.visibility };
     // A pushed screen: #over comes in, #under recedes and stays so; Back brings it forward.
     const p = M.push($('#over'), $('#under'), { name: 'test:push' });
+    out.pushOpaque = getComputedStyle($('#over')).opacity; // from its first frame: it only moves
     await new Promise((r) => setTimeout(r, 80));
     out.pushMid = getComputedStyle($('#over')).transform !== 'none';
     out.push = await p.finished;
@@ -117,6 +118,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
   assert.deepEqual(r.travelEnd, { copyGone: true, a: '', b: '', started: 1, left: '0px', top: '0px', width: '390px', height: '300px', transform: 'none' });
   assert.deepEqual(r.travelCancel, { result: { cancelled: true }, copies: 0, a: '', b: '' });
   assert.ok(r.pushMid, 'the pushed screen is still moving at 80 ms');
+  assert.equal(r.pushOpaque, '1', 'a pushed screen never blends with the one under it');
   assert.deepEqual(r.push, { cancelled: false });
   assert.equal(r.pushEnd.over, 'none');
   assert.match(r.pushEnd.under, /^matrix\(0\.98, 0, 0, 0\.98/);

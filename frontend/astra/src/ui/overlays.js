@@ -6,6 +6,7 @@ import {h} from './dom.js';
 import {icon} from './icons.js';
 import {pushLayer} from '../app/back-stack.js';
 import {enter, exit, fadeTo, rise, press, stop, sheet as sheetMotion, T} from './motion.js';
+import {SPRINGS, samples} from './spring.js';
 
 // Pointers currently down anywhere, so a menu opened by a long press can ignore the release of that
 // same press.
@@ -36,6 +37,14 @@ function armAfterRelease(layer) {
     for (const type of types) removeEventListener(type, onUp, true);
   };
   for (const type of types) addEventListener(type, onUp, true);
+}
+
+/** When a move of `distance` px on the lively spring over `duration` ms is within `px` of rest for good. */
+export function nearRest(distance, duration, px = 4) {
+  const v = samples(SPRINGS.lively);
+  let last = 0;
+  v.forEach((x, i) => { if (Math.abs(1 - x) * distance > px) last = i; });
+  return Math.min(v.length - 1, last + 1) / (v.length - 1) * duration;
 }
 
 /**
@@ -70,9 +79,12 @@ export function liftMenu(source, title, subtitle, actions) {
   document.body.append(layer);
   armAfterRelease(layer);
   fadeTo(blur, 1, {duration: T.normal, name: 'lift:blur'});
+  // The poster rises first; its menu grows once the poster is within 4 px of rest, 60 ms before at most.
+  const travelled = Math.hypot(rect.left - tx, rect.top - ty) + Math.max(Math.abs(targetW - rect.width), Math.abs(targetH - rect.height));
+  const after = Math.max(0, nearRest(travelled, T.lively) - 60);
   enter(art, {from: fromCard, spring: 'lively', duration: T.lively, fade: false, name: 'lift:open'});
-  enter(menu, {from: 'scale(0.62)', spring: 'lively', duration: T.lively, name: 'lift:menu'});
-  rise([text, ...items], {name: 'lift:items'});
+  enter(menu, {from: 'scale(0.62)', spring: 'lively', duration: T.sheet, delay: after, name: 'lift:menu'});
+  rise([text, ...items], {name: 'lift:items', delay: after});
   const pop = pushLayer('lift', () => close(true));
   function close(fromBack = false) {
     if (!layer.isConnected || layer.classList.contains('closing')) return false;

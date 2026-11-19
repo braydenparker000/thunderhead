@@ -51,3 +51,14 @@ test('the accent: every swatch reads on the page; a dark custom colour is lighte
   assert.equal(onColour('#3a0ca3'), '#ffffff');
   assert.equal(Math.round(contrast('#000000', '#ffffff')), 21);
 });
+
+test('what start-up applies (settings/look.js) agrees with the rows: same place, same default, same values', async () => {
+  const { LOOK, lookSetting } = await import('../frontend/astra/src/settings/look.js');
+  for (const [id, [where, def, ok]] of Object.entries(LOOK)) {
+    const r = row(id);
+    assert.deepEqual([r.where, r.default], [where, def], id);
+    if (Array.isArray(r.options)) for (const [v] of r.options) assert.ok(ok(v), `${id}: ${v}`);
+  }
+  const app = { settings: { accent: '#123456', navStyle: 'sideways' }, store: { get: () => ({ motion: 'off' }) } };
+  assert.deepEqual([lookSetting(app, 'accent'), lookSetting(app, 'navStyle'), lookSetting(app, 'motion'), lookSetting(app, 'haptics')], ['#123456', 'floating', 'off', 'subtle']);
+});

@@ -35,3 +35,9 @@ test('the player, the engine and the vendored libraries are not part of start-up
   const heavy = startup('src/main.js').filter((f) => /^src\/(engine\/(?!languages\.js)|enhance\/|subtitles\/(?!charset\.js))|^vendor\//.test(f) || /^src\/player\/(?!prefs\.js|external\.js)/.test(f));
   assert.deepEqual(heavy, []);
 });
+
+test('Search, Settings and the settings rows load on their first visit, not at start-up', () => {
+  const late = startup('src/main.js').filter((f) => /^src\/screens\/(search|settings)/.test(f) || /^src\/settings\/(general|appearance|motion|rows)\.js$/.test(f));
+  assert.deepEqual(late, []);
+  assert.ok(startup('src/main.js').includes('src/settings/look.js'), 'what applies a stored look runs at start');
+});

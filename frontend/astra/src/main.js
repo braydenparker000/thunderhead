@@ -2,20 +2,22 @@
 
 import {App} from './app/app.js';
 import {HomeScreen} from './screens/home.js';
-import {SearchScreen} from './screens/search.js';
 import {LibraryScreen} from './screens/library.js';
-import {SettingsScreen} from './screens/settings.js';
 import {DetailsScreen} from './screens/details.js';
 import {StreamsScreen} from './screens/streams.js';
 import {CatalogScreen} from './screens/catalog.js';
 import {toast} from './ui/components.js';
 import {showRecovery} from './app/recovery.js';
+import {lazyTab} from './app/lazy-screen.js';
 
 const root = document.getElementById('app');
 let app = null;
 try {
   app = new App(root, {
-    home: HomeScreen, search: SearchScreen, library: LibraryScreen, settings: SettingsScreen,
+    home: HomeScreen, library: LibraryScreen,
+    // Loaded on their first visit, to keep start-up light (app/lazy-screen.js).
+    search: lazyTab(() => import('./screens/search.js').then(m => m.SearchScreen), 'Search', ['search-page', 'sticky-head']),
+    settings: lazyTab(() => import('./screens/settings.js').then(m => m.SettingsScreen), 'Settings', ['settings']),
     details: DetailsScreen, streams: StreamsScreen, catalog: CatalogScreen,
   });
   window.astra = app;

@@ -14,10 +14,10 @@ import {h} from '../ui/dom.js';
 import {navIcon} from '../ui/nav-icons.js';
 import {toast} from '../ui/components.js';
 import {watchOnline} from './offline.js';
-import {readSetting, writeSetting, applyAll} from '../settings/registry.js';
-import '../settings/general.js';
-import '../settings/appearance.js';
-import '../settings/motion.js';
+import {readSetting, writeSetting, applyAll, row} from '../settings/registry.js';
+// Only what applies a stored look runs at start; the rows themselves load with the Settings screen.
+import {applyLook, lookSetting} from '../settings/look.js';
+import {screenFor} from './lazy-screen.js';
 import {push as pushMotion, pop as popMotion, swap, press, tick} from '../ui/motion.js';
 
 const TABS = [
@@ -42,7 +42,8 @@ export class App {
     this.watched = new Watched(this.store);
     this.progress = new Progress(this.store);
     this.settings = {...SETTINGS, ...this.store.get('settings', {})};
-    applyAll(this); // the registry's rows (settings/registry.js) take effect before anything is drawn
+    applyLook(this); // the accent, colours, sizes, nav and motion level, before anything is drawn
+    applyAll(this); // and any row already defined (settings/registry.js)
     this.manifests = new Map();
     this.unreachable = new Map(); // enabled add-ons whose manifest could not be loaded: url -> the error
     this.addonListeners = new Set();
@@ -63,7 +64,7 @@ export class App {
     // Another Astra window (the installed app and a tab) changed add-ons or settings: follow it.
     this.addons.onChange(() => { this.reloadAddons(); this.screens.home?.load(); });
     this.store.watch('settings', () => this.reloadSettings());
-    this.store.watch('device', () => applyAll(this));
+    this.store.watch('device', () => { applyLook(this); applyAll(this); });
   }
 
   /**
@@ -87,7 +88,7 @@ export class App {
   }
 
   /** A setting from the registry (settings/registry.js), and saving one: it is applied at once. */
-  setting(id) { return readSetting(this, id); }
+  setting(id) { return row(id) ? readSetting(this, id) : lookSetting(this, id); }
   saveSetting(id, value) { return writeSetting(this, id, value); }
 
   /** Saves a change on top of the settings stored now, so another window's are kept. */
@@ -102,6 +103,7 @@ export class App {
     for (const k of Object.keys(this.settings)) delete this.settings[k]; // in place: pages hold this object
     Object.assign(this.settings, SETTINGS, this.store.get('settings', {}));
     this.applySettings();
+    applyLook(this);
     applyAll(this);
     if (rows(this.settings) !== before) this.screens.home?.load();
   }
@@ -176,7 +178,7 @@ export class App {
     if (this.tab === id) { if (fromTap) this.screens[id]?.reselect?.(); return; }
     if (fromTap) tick('select');
     const first = !this.screens[id];
-    if (first) this.screens[id] = new this.screenTypes[id](this, this.views[id]);
+    if (first) this.screens[id] = screenFor(this, id); // Search and Settings load on their first visit
     const previous = this.tab;
     // Hidden tabs stay laid out (content-visibility), so coming back is a repaint, not a rebuild. Only
     // the new tab takes touches at once; the old one fades (ui/motion.js swap) and is then hidden.

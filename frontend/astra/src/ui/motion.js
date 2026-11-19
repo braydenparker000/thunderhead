@@ -86,7 +86,7 @@ export function travel(from, to, {name = 'travel', radius = null, onStart = null
 
 /**
  * A pushed screen (FEEL.md "Any other pushed screen"): `inEl` comes from --d-push (8% to the right)
- * with --spring-smooth over --t-screen, turning opaque within 90 ms, while `outEl` recedes (scale .98,
+ * with --spring-smooth over --t-screen, opaque from its first frame, while `outEl` recedes (scale .98,
  * 8% dimmer) and stays so until pop(). Reduced: `inEl` fades in over 120 ms. Off: at once.
  */
 export function push(inEl, outEl, {name = 'push'} = {}) {
@@ -94,10 +94,8 @@ export function push(inEl, outEl, {name = 'push'} = {}) {
     const lv = level();
     if (lv === 'off') { stop(inEl); return instant(); }
     if (lv === 'reduced') { stop(inEl); return handle([go(inEl, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})]); }
-    const anims = [
-      go(inEl, {transform: 'none'}, {from: {transform: 'translateX(8%)'}, duration: T.screen, easing: spring('smooth')}),
-      go(inEl, {opacity: 1}, {from: {opacity: 0}, duration: 90, easing: 'linear', join: true}),
-    ];
+    // Opaque from its first frame: it only moves (a fade would show both screens blended); the fade is Reduced's.
+    const anims = [go(inEl, {transform: 'none'}, {from: {transform: 'translateX(8%)'}, duration: T.screen, easing: spring('smooth')})];
     if (outEl) anims.push(go(outEl, {transform: 'scale(0.98)', opacity: 0.92}, {duration: T.screen, easing: spring('smooth'), keep: true}));
     return handle(anims);
   });
@@ -128,9 +126,9 @@ export function pop(inEl, outEl, {name = 'pop'} = {}) {
 /**
  * Content rising into place (FEEL.md: --d-rise, in up to 4 groups 30 ms apart). `els` is a list of
  * elements, or of lists of elements (one list a group); more than 4 are split into 4 groups in order.
- * Reduced: all fade in over 120 ms. Off: nothing moves.
+ * `delay` (ms) holds them hidden first, at Full only. Reduced: all fade in over 120 ms. Off: nothing moves.
  */
-export function rise(els, {name = 'rise'} = {}) {
+export function rise(els, {name = 'rise', delay = 0} = {}) {
   return timed(name, () => {
     const lv = level(), list = [...(els || [])].filter(Boolean);
     if (lv === 'off' || !list.length) return instant();
@@ -139,8 +137,8 @@ export function rise(els, {name = 'rise'} = {}) {
     groups.forEach((group, i) => {
       for (const el of group) {
         if (lv === 'reduced') { anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})); continue; }
-        anims.push(go(el, {transform: 'none'}, {from: {transform: 'translateY(12px)'}, duration: T.normal, easing: spring('smooth'), delay: i * 30}));
-        anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.normal, delay: i * 30, join: true}));
+        anims.push(go(el, {transform: 'none'}, {from: {transform: 'translateY(12px)'}, duration: T.normal, easing: spring('smooth'), delay: delay + i * 30}));
+        anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.normal, delay: delay + i * 30, join: true}));
       }
     });
     return handle(anims);
@@ -172,16 +170,17 @@ export function swap(inEl, outEl, {name = 'tab', onOut = null} = {}) {
 /**
  * Something appearing in place (a dialog, a toast, a menu, the lifted poster): from `from` (a
  * transform) to `to` on the spring named (`smooth`, `snappy`, `lively`), fading in over --t-fast
- * unless `fade` is false. Reduced: a 120 ms fade. Off: at once.
+ * unless `fade` is false; `delay` (ms, Full only) holds it at its start first. Reduced: a 120 ms fade.
+ * Off: at once.
  */
-export function enter(el, {from = 'scale(0.96)', to = 'none', spring: curve = 'smooth', duration = T.normal, fade = true, name = 'enter'} = {}) {
+export function enter(el, {from = 'scale(0.96)', to = 'none', spring: curve = 'smooth', duration = T.normal, fade = true, delay = 0, name = 'enter'} = {}) {
   return timed(name, () => {
     const lv = level();
     stop(el);
     if (lv === 'off') return instant();
     if (lv === 'reduced') return handle([go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})]);
-    const anims = [go(el, {transform: to}, {from: {transform: from}, duration, easing: spring(curve)})];
-    if (fade) anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fast, join: true}));
+    const anims = [go(el, {transform: to}, {from: {transform: from}, duration, delay, easing: spring(curve)})];
+    if (fade) anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fast, delay, join: true}));
     return handle(anims);
   });
 }

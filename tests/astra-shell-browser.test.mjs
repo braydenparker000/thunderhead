@@ -63,6 +63,7 @@ test('sheet, dialog, toast and lift: in, at rest, closed midway, gone', opts, as
     const lift = C.liftMenu(src, 'Invented', '2001', [{ label: 'Save', run() {} }]);
     await wait(80);
     out.liftMoving = t('.lift-art') !== 'none';
+    out.menuWaits = getComputedStyle(document.querySelector('.lift-menu')).opacity === '0'; // the poster rises first
     await wait(700);
     out.liftRest = [t('.lift-art'), getComputedStyle(document.querySelector('.lift-blur')).opacity];
     lift();
@@ -71,7 +72,7 @@ test('sheet, dialog, toast and lift: in, at rest, closed midway, gone', opts, as
     out.toastLeft = !document.querySelector('.toast.show');
     return out;
   });
-  assert.deepEqual(r, { toastMoving: true, sheetMoving: true, sheetGone: true, dialogFrom: r.dialogFrom, dialogRest: ['none', '1'], dialogGone: true, liftMoving: true, liftRest: ['none', '1'], liftGone: true, toastLeft: true });
+  assert.deepEqual(r, { toastMoving: true, sheetMoving: true, sheetGone: true, dialogFrom: r.dialogFrom, dialogRest: ['none', '1'], dialogGone: true, liftMoving: true, menuWaits: true, liftRest: ['none', '1'], liftGone: true, toastLeft: true });
   assert.ok(r.dialogFrom >= 0.96 && r.dialogFrom < 1, `the dialog grows from .96 (${r.dialogFrom})`);
   assert.deepEqual(errors, []);
   await context.close();

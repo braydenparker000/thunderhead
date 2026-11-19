@@ -10,6 +10,10 @@ import {navRow, group, registryRow} from '../settings/rows.js';
 import {areas, rows, find, resetArea} from '../settings/registry.js';
 import {addonsPage, dataPage, aboutPage, homeRows, languages} from './settings-pages.js';
 import {PREVIEWS} from './settings-preview.js';
+// The rows Astra had before, Appearance's and Motion's: defined when Settings first opens.
+import '../settings/general.js';
+import '../settings/appearance.js';
+import '../settings/motion.js';
 
 /** What some areas draw under their rows (or instead of them). */
 const EXTRAS = {addons: addonsPage, data: dataPage, about: aboutPage, home: homeRows, playback: languages};
@@ -52,6 +56,8 @@ export class SettingsScreen {
   reselect() { this.view.scrollTo({top: 0}); }
 
   open(title, render) { this.app.push(new Page(this.app, title, render)); }
+  /** Add-ons' page body (Home's "Open add-ons" opens it with this). */
+  addons(page) { return addonsPage(this.app, page); }
   openArea(area) { this.open(area.title, page => this.areaPage(area, page)); }
 
   /** An area's page: its preview, its rows, what it draws besides, and "Reset this page". */
