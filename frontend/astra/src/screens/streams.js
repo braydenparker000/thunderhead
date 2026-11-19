@@ -5,23 +5,20 @@
 
 import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
-import {image, longPress, sheet, toast, emptyCard} from '../ui/components.js';
+import {image, emptyCard} from '../ui/components.js';
 import {fetchStreams, supports} from '../addons/client.js';
-import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, bytesOf, filtersFrom, minutesOf, perHour, shown} from '../addons/stream-facts.js';
-import {playsMark, soundNote} from '../addons/device-facts.js';
+import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, bytesOf, filtersFrom, shown} from '../addons/stream-facts.js';
+import {withoutHash} from '../addons/stream-text.js';
 import {episodeCode, videoTitle} from '../app/content.js';
-import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
+import {sizeFrom, streamCard} from './stream-card.js';
+
+export {sizeFrom};
 
 /** Gives each stream of a group a key that stays the same however the list is filtered. */
 const keyed = g => ({...g, streams: g.streams ? g.streams.map((s, i) => ({...s, key: `${g.addon.url}#${i}`})) : g.streams});
 
-const NEEDS_DEBRID = 'Torrents need a debrid add-on such as TorBox.';
 /** A placeholder stream card while an add-on is asked (Nuvio's: two bars on a card). */
 const skeletonStream = () => h('div', {class: 'stream-skeleton', 'aria-hidden': 'true'}, h('i', {class: 'skeleton'}), h('i', {class: 'skeleton'}));
-const sizeLabel = n => !n ? '' : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB' : Math.round(n / 1e6) + ' MB';
-
-/** A best-effort size from the stream's own number or text ("💾 4.2 GB", "1,400 MB"), as "1.4 GB". */
-export function sizeFrom(stream) { return sizeLabel(bytesOf(stream)); }
 
 /** A source's name: the add-on's, then the stream's, once only when the stream's already starts with it ("Example 1080p", not "Example Example 1080p"). */
 export function sourceName(addon, stream, between = ' ') {
@@ -158,7 +155,7 @@ export class StreamsScreen {
   sources() {
     return [...this.groups.values()].filter(g => g.streams).sort((a, b) => a.order - b.order)
       .flatMap(g => g.streams.filter(s => s.url).map(s => ({id: s.key, addonUrl: g.addon.url,
-        label: sourceName(g.addon.name, s.name, ' · '), detail: [s.title, sizeFrom(s)].filter(Boolean).join('\n'),
+        label: sourceName(g.addon.name, withoutHash(s.name), ' · '), detail: [withoutHash(s.title).trim(), sizeFrom(s)].filter(Boolean).join('\n'), // shown: no hash
         stream: {...s, name: sourceName(g.addon.name, s.name)}})));
   }
 
@@ -264,36 +261,8 @@ export class StreamsScreen {
       sec.limit = limit;
       sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]
         : g.streams === null ? [skeletonStream(), skeletonStream()]
-        : this.visible(g).map(([s, i]) => this.card(g, s, i))));
+        : this.visible(g).map(([s]) => streamCard(this, g, s))));
     }
     return sec;
-  }
-
-  card(group, s, i) {
-    const playable = !!s.url;
-    const size = s.size ? sizeFrom(s) : ''; // a size already in the description is not repeated
-    // What an hour of it costs in data, when the title's runtime is known.
-    const hourly = perHour(bytesOf(s), minutesOf(this.video?.runtime || this.meta.runtime));
-    const card = h('button', {class: 'stream-card' + (playable ? '' : ' disabled'), type: 'button', 'aria-disabled': String(!playable), onpointerdown: () => this.ahead?.pressed(s),
-      onclick: () => {
-        if (!playable && s.externalUrl && /^https?:/i.test(s.externalUrl)) { window.open(s.externalUrl, '_blank', 'noopener'); return; }
-        if (!playable) { toast(s.infoHash ? NEEDS_DEBRID : 'This source has no playable link.'); return; }
-        // The sources as they are now (more add-ons may have answered since this card was drawn).
-        const sources = this.sources(), source = sources.find(x => x.id === s.key);
-        if (!source) return;
-        this.app.play({meta: this.meta, video: this.video, source, sources, startTime: this.startTime});
-      }},
-      h('b', {class: 'stream-name'}, (s.name || group.addon.name).replace(/\s*\n\s*/g, ' ')),
-      s.title ? h('span', {class: 'stream-desc'}, s.title) : null,
-      h('span', {class: 'stream-badges'}, size ? h('em', {}, size) : null, hourly ? h('em', {}, hourly) : null, !playable && s.infoHash ? h('em', {class: 'muted'}, 'Torrent') : null,
-        playable && soundNote(s) ? h('em', {class: 'sound'}, soundNote(s)) : null),
-      playable ? playsMark(s) : null); // how it will most likely play here (addons/device-facts.js); informs only
-    if (playable) longPress(card, () => sheet(s.name?.replace(/\s+/g, ' ') || group.addon.name, [
-      {label: 'Copy stream link', icon: 'copy', run: () => navigator.clipboard.writeText(s.url).then(() => toast('Link copied'), () => toast('Copy failed'))},
-      canOpenExternally() ? {label: 'Play in another app', icon: 'play', run: () => { const url = externalPlayerUrl(s.url, {title: this.meta.name || ''}); if (url) location.href = url; }} : null,
-      {label: 'Open in VLC', icon: 'play', run: () => { location.href = `intent:${s.url}#Intent;package=org.videolan.vlc;type=video/*;S.title=${encodeURIComponent(this.meta.name || '')};end`; }},
-      {label: 'Check playback in the lab', icon: 'info', run: () => { /* a fragment never reaches a server or a cache key, and the lab drops it from the address */ location.href = `lab/#src=${encodeURIComponent(s.url)}`; }},
-    ].filter(Boolean), {subtitle: group.addon.name}));
-    return card;
   }
 }

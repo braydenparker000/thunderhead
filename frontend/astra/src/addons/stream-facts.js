@@ -7,6 +7,8 @@
 // so megabytes an hour is size over runtime. HEVC and AV1 files are about half the size of H.264
 // ones at the same quality, which is why they have chips of their own.
 
+import {dropHashes} from './stream-text.js';
+
 /** @typedef {{bytes: number | null, res: '4k' | '1080' | '720' | 'sd' | null, codec: 'hevc' | 'av1' | 'vp9' | 'h264' | null}} Facts */
 /** @typedef {{small: boolean, maxMb: number, res: string[], codec: string[]}} Filters */
 
@@ -17,7 +19,8 @@ export const CODEC_CHIPS = [['hevc', 'HEVC'], ['av1', 'AV1']];
 /** @type {Filters} */
 export const NO_FILTERS = Object.freeze({small: false, maxMb: 0, res: [], codec: []});
 
-const text = s => [s.name, s.title, s.filename].filter(Boolean).join(' ');
+// What a stream says of itself, without the torrent's hash (whose digits and letters are no words).
+export const text = s => dropHashes([s.name, s.title, s.filename].filter(Boolean).join(' '));
 // A word on its own: `\b` does not split "1080p_x265", so the edges are any non-letter, non-digit.
 const word = (t, re, end = '(?![a-z0-9])') => new RegExp(`(?<![a-z0-9])(?:${re})${end}`, 'i').test(t);
 // A size as written: "1.4 GB", "1,400 MB", "1.400,5 MB", "1 400 MB", "700MiB", "2.1 TB".

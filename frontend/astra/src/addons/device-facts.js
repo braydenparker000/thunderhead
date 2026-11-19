@@ -7,7 +7,7 @@
 // in software too, so it cannot tell the battery-heavy route apart; this asks decodingInfo instead.
 
 import {h} from '../ui/dom.js';
-import {playFactsOf} from './stream-facts.js';
+import {playFactsOf, text} from './stream-facts.js';
 
 export const DIRECT = 'Plays directly';
 export const SOFTWARE = 'Needs the software decoder (uses more battery)';
@@ -73,7 +73,7 @@ function passFailedHere(codec, now = Date.now()) {
  */
 export function soundNote(stream, {mse = mseSays, passFailed = passFailedHere} = {}) {
   if (!playFactsOf(stream).sound) return '';
-  const t = [stream?.name, stream?.title, stream?.filename].filter(Boolean).join(' '); // as stream-facts.js reads it
+  const t = text(stream ?? {}); // as stream-facts.js reads it
   const named = PASSED.filter(([, re]) => re.test(t));
   const plays = named.length > 0 && named.every(([codec, , cs]) => !passFailed(codec) && mse(`audio/mp4; codecs="${cs}"`));
   return plays ? '' : SOUND;
