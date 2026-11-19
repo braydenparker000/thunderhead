@@ -140,6 +140,8 @@ export const ASTRA_BACKUP = {
   per_minute: 30,
   /** Earlier copies kept by hand: the copy as it stood at the start of each of the last 7 UTC days it changed. */
   days: 7,
+  /** No time in a copy may be later than this far ahead of the reader's clock (a key's `at`: of the Worker's). */
+  ahead_ms: 86_400_000,
 } as const;
 export type AstraBackupKey = (typeof ASTRA_BACKUP.keys)[number];
 

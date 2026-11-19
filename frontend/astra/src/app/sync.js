@@ -19,10 +19,11 @@
 
 import {BACKUP_KEYS, PREFIX} from './store.js';
 import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies, readCopy} from './sync-merge.js';
+import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
 import {hideFromSenses} from './sync-senses.js';
 import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
 
-export const RECORD = 'astra.sync.v1';
+export {RECORD};
 export const PATH = '/v1/astra/backup';
 export const SAVE_AFTER = 60_000;
 export const AWAY = 5 * 60_000;
@@ -32,17 +33,7 @@ const RETRY = [60_000, 120_000, 300_000, 600_000, 1_800_000];
 const TRIES = 3;
 
 const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);
-const times = v => isObject(v) ? Object.fromEntries(Object.entries(v).filter(([, t]) => typeof t === 'number' && Number.isFinite(t))) : {};
 const bytes = text => new TextEncoder().encode(text).length;
-const fresh = () => ({off: false, joined: false, at: {}, gone: {}, version: null, savedAt: null, fetchedAt: null, owed: false});
-
-/** The record as stored, checked field by field (a damaged one starts afresh). */
-export function recordOf(v) {
-  if (!isObject(v)) return fresh();
-  const stamp = x => typeof x === 'number' && Number.isFinite(x) ? x : null;
-  return {off: v.off === true, joined: v.joined === true, at: times(v.at), gone: Object.fromEntries(ENTRY_KEYS.map(k => [k, times(v.gone?.[k])])),
-    version: typeof v.version === 'string' ? v.version : null, savedAt: stamp(v.savedAt), fetchedAt: stamp(v.fetchedAt), owed: v.owed === true};
-}
 
 /**
  * Starts keeping this phone in step for `app` (its store, and what it is playing). `deps` replace the
@@ -86,10 +77,7 @@ export function startSync(app, deps = {}) {
       snapshot(k);
       if (rec.off) continue;
       any = true;
-      // Later than this phone last saw for the key, so a change made after seeing another phone's wins.
-      rec.at[k] = Math.max(now, (rec.at[k] ?? 0) + 1);
-      if (was && ENTRY_KEYS.includes(k))
-        for (const [id, t] of was.entries) if (!snap[k].entries.has(id)) rec.gone[k][id] = Math.max(now, t + 1);
+      stampChange(rec, k, was, snap[k], now);
     }
     if (!any) return;
     keep({...rec, owed: true});
@@ -133,7 +121,7 @@ export function startSync(app, deps = {}) {
   /** The Worker's answer to GET, checked: {version, copy} with copy readCopy's (null: nothing usable). */
   function kept(a) {
     if (!isObject(a) || !('copy' in a) || (a.version !== null && typeof a.version !== 'string')) throw Object.assign(Error('unreadable'), {code: 'unreadable'});
-    return {version: a.version, copy: a.version === null ? null : readCopy(a.copy)};
+    return {version: a.version, copy: a.version === null ? null : readCopy(a.copy, d.now())};
   }
 
   /** Fetch, merge, write here, save there when the merge changed the copy; up to three times on a conflict. */

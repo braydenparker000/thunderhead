@@ -7,7 +7,7 @@
 // never changes the phone; removing the copy. Invented add-ons, titles, token and times.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStorage, Library, PREFIX } from '../frontend/astra/src/app/store.js';
+import { createStorage, Library, Progress, PREFIX } from '../frontend/astra/src/app/store.js';
 import { startSync, RECORD, SAVE_AFTER } from '../frontend/astra/src/app/sync.js';
 import { api } from '../frontend/astra/src/addons/worker-api.js';
 
@@ -235,4 +235,27 @@ test('the session ends: in step, nothing of the copy stays or is written back; a
   const off = await phone(worker(), { data: { addons: [ADDON] }, record: { joined: true, off: true } });
   off.channel.dispatchEvent(new MessageEvent('message', { data: 'signed_out' }));
   assert.equal(off.store.set('settings', { hero: false }), true, 'switched off, the data is the phone’s own');
+});
+
+test('a far-future copy: taken in a day ahead at most; removing it leaves a tombstone that ends; watching later stays', async () => {
+  const DAY = 864e5, FUTURE = 9e15;
+  const w = worker();
+  w.kept = { version: 'v0', saved_at: null, copy: { astra: 'sync/1', keys: { progress: { at: FUTURE, value: { 'movie:tt1|tt1': film('tt1', FUTURE) } } } } };
+  const a = await phone(w, { data: { addons: [ADDON] } });
+  assert.equal(a.read('progress')['movie:tt1|tt1'].updated, T + DAY, 'taken in, a day ahead at most');
+  assert.ok(a.record().at.progress <= T + DAY, 'the key’s time too');
+  a.store.remove('progress'); // Clear Continue Watching
+  await a.advance(SAVE_AFTER);
+  assert.ok(w.kept.copy.keys.progress.gone['movie:tt1|tt1'] <= a.t + DAY, 'its tombstone ends like any other');
+  await a.advance(400 * DAY);
+  const p = new Progress(a.store, () => a.t);
+  p.save({ type: 'movie', id: 'tt1', videoId: 'tt1', time: 1200, duration: 6000, meta: { id: 'tt1', type: 'movie', name: 'Invented' } });
+  p.flush(true);
+  await a.advance(SAVE_AFTER);
+  assert.equal(a.read('progress')['movie:tt1|tt1'].time, 1200, 'the watching stays on this phone');
+  assert.equal(w.kept.copy.keys.progress.value['movie:tt1|tt1'].time, 1200, 'and on the server');
+  // A record poisoned by an earlier far-future stamp: the next change is stamped a day ahead at most.
+  const b = await phone(worker(), { data: { addons: [ADDON] }, record: { joined: true, at: { addons: FUTURE } } });
+  b.store.set('addons', []);
+  assert.ok(b.record().at.addons <= b.t + DAY);
 });

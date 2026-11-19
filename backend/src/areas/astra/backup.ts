@@ -47,8 +47,9 @@ const only = (o: Record<string, unknown>, names: readonly string[]) => Object.ke
 /** A shape failure: the path names only fields this contract knows, the issue a rule. */
 const bad = (path: string, issue: string) => new ApiError('validation', [{ path, issue }]);
 
-/** The PUT body's outer shape, checked without reading any key's value or removed entries. */
-export function checkedPut(raw: unknown): AstraBackupPut {
+/** The PUT body's outer shape, checked without reading any key's value or removed entries. An `at` past a day
+ * from the Worker's own clock is refused: a far-future time would win every merge on every phone. */
+export function checkedPut(raw: unknown, now = Date.now()): AstraBackupPut {
   if (!isPlain(raw) || !only(raw, ['base', 'copy'])) throw bad('', 'an object with base and copy only');
   const { base, copy } = raw;
   if (base !== null && (typeof base !== 'string' || base.length < 1 || base.length > 64))
@@ -61,7 +62,8 @@ export function checkedPut(raw: unknown): AstraBackupPut {
     const at = isPlain(v) ? v.at : null;
     if (!isPlain(v) || !only(v, ['at', 'value', 'gone']) || !('value' in v))
       throw bad(`copy.keys.${k}`, 'at, value and gone only');
-    if (typeof at !== 'number' || !Number.isFinite(at) || at < 0) throw bad(`copy.keys.${k}.at`, 'a time in ms');
+    if (typeof at !== 'number' || !Number.isFinite(at) || at < 0 || at > now + B.ahead_ms)
+      throw bad(`copy.keys.${k}.at`, 'a time in ms, at most a day ahead');
     if ('gone' in v && !isPlain(v.gone)) throw bad(`copy.keys.${k}.gone`, 'an object');
   }
   return { base, copy: copy as unknown as AstraCopy };

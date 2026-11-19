@@ -159,6 +159,10 @@ describe('the outer shape', () => {
       422,
       'validation',
     ]);
+    // A time past a day from the Worker's clock (the security read's far-future probe): it would win every merge.
+    const far = (at: number) => ({ base: null, copy: { astra: 'sync/1', keys: { addons: { at, value } } } });
+    expect(await refused(far(9e15))).toEqual([422, 'validation']);
+    expect(await refused(far(Date.now() + 864e5 + 60_000))).toEqual([422, 'validation']);
     expect(await refused({ base: null, copy: { astra: 'sync/1', keys: { addons: { at: 1 } } } })).toEqual([
       422,
       'validation',

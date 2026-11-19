@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mergeCopies, readCopy, same, GONE_MS } from '../frontend/astra/src/app/sync-merge.js';
 import { hideFromSenses, spotsOf } from '../frontend/astra/src/app/sync-senses.js';
+import { stampAfter } from '../frontend/astra/src/app/sync-record.js';
 import { changes } from '../frontend/th/senses/watch.js';
 import { CINEMETA } from '../frontend/astra/src/addons/client.js';
 
@@ -174,4 +175,39 @@ test('merged progress is invisible to the senses reader; this phone’s own watc
   const empty = new Map();
   hideFromSenses(here, r.apply.progress, { getItem: (k) => empty.get(k) ?? null, setItem: (k, v) => empty.set(k, v) });
   assert.equal(empty.size, 0);
+});
+
+// The security read's far-future probes (2026-11-19): a time read from a copy, or stamped here, is never taken as later
+// than a day from now, so an entry saved "in the year 287,000" cannot win every merge or leave a tombstone that never ends.
+const DAY = 864e5, FUTURE = 9e15;
+test('far-future times are taken as a day from now at most: entries, tombstones, stamps', () => {
+  const read = readCopy({ astra: 'sync/1', keys: {
+    progress: { at: FUTURE, value: prog(film('tt01', FUTURE, 30)), gone: { 'movie:tt02|tt02': FUTURE } },
+    library: { at: T, value: lib('tt03', FUTURE) },
+    watched: { at: T, value: { 'movie:tt04': FUTURE } },
+  } }, T).keys;
+  assert.deepEqual([read.progress.at, read.progress.value['movie:tt01|tt01'].updated, read.progress.gone['movie:tt02|tt02']], [T + DAY, T + DAY, T + DAY]);
+  assert.deepEqual([read.library.value['movie:tt03'].added, read.watched.value['movie:tt04']], [T + DAY, T + DAY]);
+  // This phone's own far-future entry (its clock was far ahead) is brought back too, and written back healed.
+  const own = mergeCopies({ mine: side({ progress: prog(film('tt05', FUTURE)) }), theirs: {}, now: T });
+  assert.equal(own.copy.keys.progress.value['movie:tt05|tt05'].updated, T + DAY);
+  assert.equal(own.apply.progress['movie:tt05|tt05'].updated, T + DAY);
+});
+
+test('a far-future entry loses to real watching after a day, and its removal does not delete later watching for ever', () => {
+  const hostile = readCopy({ astra: 'sync/1', keys: { progress: { at: T, value: prog(film('tt01', FUTURE, 30)) } } }, T).keys;
+  const dayOn = T + DAY + MIN;
+  const r = mergeCopies({ mine: side({ progress: prog(film('tt01', dayOn, 3000)) }), theirs: hostile, now: dayOn });
+  assert.equal(r.copy.keys.progress.value['movie:tt01|tt01'].time, 3000, 'the real save wins once the day is past');
+  // Removed (its tombstone at most a day ahead), then watched again 400 days later: the watching stays.
+  const later = T + 400 * DAY;
+  const back = mergeCopies({ mine: side({ progress: prog(film('tt01', later, 1200)) }, {}, { progress: { 'movie:tt01|tt01': T + DAY + 1 } }), theirs: {}, now: later });
+  assert.equal(back.copy.keys.progress.value['movie:tt01|tt01'].time, 1200);
+  // Whole keys: a far-future `at` is taken as a day ahead, and a change made here after seeing it still wins, since
+  // its stamp follows the time this phone saw (sync-record.js stampAfter), itself never past a day ahead.
+  const theirs = readCopy({ astra: 'sync/1', keys: { settings: { at: FUTURE, value: { hero: false } } } }, later).keys;
+  const stamp = stampAfter(theirs.settings.at, later + MIN);
+  assert.ok(stamp <= later + MIN + DAY);
+  const whole = mergeCopies({ mine: side({ settings: { hero: true } }, { settings: stamp }), theirs, now: later + MIN });
+  assert.deepEqual(whole.copy.keys.settings.value, { hero: true });
 });
