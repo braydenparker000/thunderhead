@@ -3,6 +3,8 @@
 import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {posterCard} from '../ui/components.js';
+import {posterPlaceholder} from '../ui/poster.js';
+import {press, rise} from '../ui/motion.js';
 import {fetchCatalog} from '../app/content.js';
 import {posterContext} from './home.js';
 
@@ -17,21 +19,27 @@ export class CatalogScreen {
     this.footer = h('div', {class: 'grid-footer'});
     this.el = h('div', {class: 'screen catalog'},
       // Nuvio's catalog header: back, then the title and its add-on stacked under it; it stays while the grid scrolls.
-      h('header', {class: 'catalog-head'}, h('button', {class: 'round-btn small', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back', {size: 24})),
+      h('header', {class: 'catalog-head'}, press(h('button', {class: 'round-btn small', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back', {size: 24}))),
         h('h1', {}, entry.title), entry.addonName ? h('p', {}, entry.addonName) : null),
       this.grid, this.footer);
     this.ctx = posterContext(app);
-    this.grid.append(...Array.from({length: 9}, () => h('div', {class: 'skeleton skeleton-tile'})));
+    // Placeholders in the cards' own shape, so the first page lands without moving anything.
+    this.grid.append(...Array.from({length: 9}, posterPlaceholder));
     this.observer = new IntersectionObserver(([e]) => { if (e.isIntersecting) this.more(); }, {root: this.el, rootMargin: '600px'});
     this.add(entry.items || []);
+    this.opened = true;
     if (!this.items.length) this.more(); else this.observer.observe(this.footer);
   }
 
   add(items) {
     const fresh = items.filter(m => !this.seen.has(m.id) && this.seen.add(m.id));
-    if (!this.items.length) this.grid.replaceChildren();
+    const first = !this.items.length;
+    if (first) this.grid.replaceChildren();
     this.items.push(...fresh);
-    this.grid.append(...fresh.map(m => posterCard(m, this.ctx)));
+    const cards = fresh.map(m => posterCard(m, this.ctx));
+    this.grid.append(...cards);
+    // A first page that arrives after the screen opened rises in where its placeholders stood.
+    if (first && cards.length && this.opened) rise([cards.slice(0, 3), cards.slice(3, 6), cards.slice(6, 9)], {name: 'rise:catalog'});
     return fresh.length;
   }
 
