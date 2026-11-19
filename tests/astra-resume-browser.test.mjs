@@ -175,14 +175,17 @@ test('the remembered stream is gone (not on TorBox, no longer listed): the sourc
     : [503, { error: { code: 'unavailable', message: 'Fixed.', details: { reason: 'This film is not on TorBox yet, so Astra did not start it.', steps: [] }, request_id: 'r1' } }]);
   const a = await app(t, { progress: remembered(OTHER) });
   await a.card().click();
-  await a.page.waitForFunction(() => { const p = window.astra.player; return p?.isOpen && !p.panel.hidden && p.menus.panelName === 'sources'; }, null, { timeout: 20_000 });
-  const r = await a.page.evaluate(() => { const p = window.astra.player; return { line: p.loadingStatus.textContent, stream: p.stream, url: p.engine.url ?? null, paused: p.video.paused, rows: [...p.panel.querySelectorAll('.ap-source b')].map((b) => b.textContent), error: !p.errorCard.hidden }; });
+  // The panel's cards are drawn once it has landed (the sheet rises first, its rows after): wait for them.
+  await a.page.waitForFunction(() => { const p = window.astra.player; return p?.isOpen && !p.panel.hidden && p.menus.panelName === 'sources' && p.panel.querySelector('.ap-source-slot .stream-card, .ap-source'); }, null, { timeout: 20_000 });
+  const r = await a.page.evaluate(() => { const p = window.astra.player; return { line: p.loadingStatus.textContent, stream: p.stream, url: p.engine.url ?? null, paused: p.video.paused, rows: [...p.panel.querySelectorAll('.ap-source-slot .stream-card')].map((c) => c.textContent), error: !p.errorCard.hidden }; });
   if (process.env.ASTRA_SHOTS) await a.page.screenshot({ path: `${process.env.ASTRA_SHOTS}/resume-gone.png` });
   assert.equal(r.line, GONE_LINE);
   assert.equal(r.stream, null, 'nothing loading');
   assert.equal(r.error, false);
   assert.ok(r.paused);
-  assert.deepEqual(r.rows, ['Example · AIO 360p'], 'the streams offered now, for the owner to pick; none picked for them');
+  // The panel draws each source as the stream list's own card (player/menus.js with screens/stream-card.js).
+  assert.equal(r.rows.length, 1, 'the one stream offered now, for the owner to pick; none picked for them');
+  assert.match(r.rows[0], /360p/);
   assert.equal(server.asked.find((b) => b.mode === 'play')?.hash, OTHER, 'the remembered torrent was asked for');
   assert.equal(server.asked.filter((b) => b.mode === 'play').length, 1, 'and nothing else');
   assert.deepEqual(a.errors, []);
