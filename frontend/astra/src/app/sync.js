@@ -60,7 +60,8 @@ export function startSync(app, deps = {}) {
 
   const record = () => { try { return recordOf(JSON.parse(d.storage?.getItem(RECORD) || 'null')); } catch { return fresh(); } };
   const keep = rec => { try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
-  const changed = () => { for (const fn of listeners) fn(); };
+  // A copy: a listener may stop and start listening again as it runs (Settings redraws itself).
+  const changed = () => { for (const fn of [...listeners]) fn(); };
   const schedule = ms => { d.cancel(timer); timer = d.later(() => exchange('timer'), ms); };
 
   /** What this phone holds of a key now: its stored text and, for entry keys, each entry's time. */
