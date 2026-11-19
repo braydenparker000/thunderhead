@@ -91,33 +91,41 @@ export function travel(from, to, {name = 'travel', radius = null, onStart = null
   {
     const {copy, pictures} = copyOf(source);
     Object.assign(copy.style, {position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px', margin: '0', zIndex: '5000',
-      pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'hidden', willChange: 'transform, clip-path'});
+      pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'visible', opacity: '0.01', willChange: 'transform, clip-path'});
     document.body.append(copy);
     hide(to);
     // The copy has `to`'s size; at the start it is scaled evenly to cover `from` and cut to its shape.
-    const s = Math.max(a.width / b.width, a.height / b.height);
-    const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
-    const ix = Math.max(0, (b.width - a.width / s) / 2), iy = Math.max(0, (b.height - a.height / s) / 2);
     const [r0, r1] = Array.isArray(radius) ? radius : radius != null ? [radius, radius] : [radiusOf(from), radiusOf(to)];
+    const end = {transform: 'none', clipPath: `inset(0px 0px round ${r1}px)`};
+    const startAt = a => {
+      const s = Math.max(a.width / b.width, a.height / b.height);
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      const ix = Math.max(0, (b.width - a.width / s) / 2), iy = Math.max(0, (b.height - a.height / s) / 2);
+      return {transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${r0 / s}px)`};
+    };
     // Held at its start (over `from`, the same picture) until it has painted there; then it moves.
-    const anim = go(copy, {transform: 'none', clipPath: `inset(0px 0px round ${r1}px)`},
-      {from: {transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${r0 / s}px)`}, duration: T.travel, easing: spring('smooth'), keep: true});
+    const anim = go(copy, end, {from: startAt(a), duration: T.travel, easing: spring('smooth'), keep: true});
     anim.pause();
     let state = 'waiting', resolve;
     const finished = new Promise(r => { resolve = r; });
-    // Unseen until its pictures are decoded (it never covers the card with an empty tile), then shown over the
-    // card for a frame, and only then is the card hidden and the copy let go.
-    decoded(pictures).then(() => { if (state === 'waiting') copy.style.visibility = 'visible'; return frames(2); }).then(() => {
+    // All but transparent until its pictures are decoded and it has been drawn with them (never an empty tile
+    // over the card, nor a picture without the words a hero draws over it); then, in one frame, the copy shows,
+    // the card hides and the copy lets go.
+    decoded(pictures).then(() => frames(2)).then(() => {
       if (state !== 'waiting') return;
       state = 'flying';
       replaces?.remove();
+      // From where `from` is now: a card still springing back from its press, a lifted card on its way home.
+      const now = isElement(from) && from.isConnected ? rectOf(from) : null;
+      if (now?.width && now.height) anim.effect.setKeyframes([startAt(now), end]);
+      copy.style.opacity = '';
       hide(from);
       anim.play();
       // Timed in the feel log from here: the frames of the flight itself, not the wait before it.
       timed(name, () => ({finished: anim.finished.then(() => ({cancelled: false}), () => ({cancelled: true}))}));
       onStart?.();
     });
-    const end = (cancelled, keep = false) => {
+    const finish = (cancelled, keep = false) => {
       if (state === 'done') return null;
       state = 'done';
       replaces?.remove();
@@ -134,8 +142,8 @@ export function travel(from, to, {name = 'travel', radius = null, onStart = null
       painted(isElement(to) ? [...(to.tagName === 'IMG' ? [to] : to.querySelectorAll('img'))].filter(img => img.src) : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
       return null;
     };
-    anim.finished.then(() => end(false), () => end(true));
-    return {finished, cancel: ({keep = false} = {}) => end(true, keep)};
+    anim.finished.then(() => finish(false), () => finish(true));
+    return {finished, cancel: ({keep = false} = {}) => finish(true, keep)};
   }
 }
 

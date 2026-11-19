@@ -18,6 +18,16 @@ export function openDetails(app, m, from = null) {
 
 const risen = new Set(); // rows that have made their first appearance this visit
 
+/**
+ * The lifted copy of a card's picture while its long-press menu closes (ui/overlays.js liftMenu): "Go to
+ * details" flies the picture from there, the one on screen, not a second one from the card under it.
+ */
+function liftedArt(card) {
+  const art = [...document.querySelectorAll('body > .lift .lift-art')].at(-1);
+  if (art) art.dataset.item = card.dataset.item; // Back finds the card by this title (screens/details-motion.js)
+  return art || null;
+}
+
 /** Long-press actions shared by every poster. */
 export function posterMenu(app) {
   return m => [
@@ -249,7 +259,7 @@ export class HomeScreen {
     if (tint) setTint(card, tint);
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [
       playsDirectly(e) ? {label: 'Choose another stream', icon: 'sources', run: () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0, {list: true})} : null,
-      {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, card.querySelector('.cw-art'))},
+      {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, liftedArt(card) || card.querySelector('.cw-art'))},
       e.kind === 'resume' ? {label: 'Start from beginning', icon: 'replay', run: () => this.resume(e, m, card, 0)} : null,
       {label: 'Remove', icon: 'close', destructive: true, run: () => { this.app.progress.remove(e.type, e.id); toast('Removed from Continue Watching'); }},
     ].filter(Boolean)));

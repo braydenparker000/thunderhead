@@ -38,7 +38,6 @@ function fly(from, to, name, {radius = null, then = null, different = false} = {
   const onStart = () => {
     then?.();
     if (!mine?.copy || !fades) return;
-    if (mask && mask !== 'none') { mine.copy.style.maskImage = mask; mine.copy.style.webkitMaskImage = mask; }
     // Its last 100 ms: the backdrop itself is shown under it (the same picture, all but in place) and the copy
     // fades, so Details' poster and title, drawn over the backdrop, are never under the travelling copy.
     go(mine.copy, {opacity: 0}, {duration: 100, delay: T.travel - 100, easing: EASE, keep: true, join: true});
@@ -49,6 +48,7 @@ function fly(from, to, name, {radius = null, then = null, different = false} = {
   const t = travel(from, to, {name, radius, onStart, replaces});
   const last = document.body.lastElementChild;
   mine = flight = {travel: t, copy: last !== before && last !== replaces ? last : null};
+  if (mine.copy && mask && mask !== 'none') { mine.copy.style.maskImage = mask; mine.copy.style.webkitMaskImage = mask; }
   t.finished.then(() => { if (flight === mine) flight = null; });
   return t;
 }
@@ -91,6 +91,8 @@ export function enter(screen, from) {
   const start = () => {
     if (!fadeIn.playState || fadeIn.playState === 'idle') return; // cancelled before it began
     timed('fade:details', () => { fadeIn.play(); return handle([fadeIn]); });
+    // Flown from a long-press menu's lifted card (screens/home.js), the rest of that card goes with its picture.
+    if (from.classList.contains('lift-art')) from.style.visibility = 'hidden';
     if (lv === 'full') rise(screen.riseGroups(), {name: 'rise:details'});
   };
   const {to, same} = landing(screen, from);
