@@ -206,6 +206,10 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 .hero-content { position: absolute; left: 0; right: 0; bottom: 20px; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 16px 24px; text-align: center; }
 .hero-logo { width: 62%; aspect-ratio: 2.6; padding: 0; border: 0; background: none; }
 .hero-logo-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+/* A logo too dark for the art behind it, lifted to light; one that could not be measured, a soft light rim that a
+   light logo absorbs into its own edges and that outlines a dark one (screens/logo.js). */
+img.logo-lift { filter: invert(1) hue-rotate(180deg) drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
 .hero-title { padding: 0; border: 0; background: none; color: var(--text); font-size: 34px; line-height: 38px; font-weight: 900; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .hero-meta { display: flex; align-items: center; gap: 8px; margin: 12px 0 14px; font-size: 14px; font-weight: 600; color: var(--text); }
 .hero-meta .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .7; }
@@ -375,9 +379,9 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 .stream-badges { display: flex; gap: 6px; }
 .stream-badges:empty { display: none; }
 .stream-badges em { font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); background: var(--card); color: var(--text-2); }
-/* How a stream will most likely play here (addons/device-facts.js): one quiet line whose room is
-   held before the browser answers, and never wraps, so nothing moves when the words arrive. */
-.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* How a stream will play here (addons/stream-note.js): one quiet note, drawn with its card (what it
+   needs is known first), so it may wrap and nothing moves under a finger. */
+.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; }
 .stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--warning); }
 .stream-badges:has(.sound) { flex-wrap: wrap; }
 .stream-footer { margin: 12px var(--gutter); color: var(--muted); font-size: 13px; text-align: center; }

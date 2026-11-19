@@ -7,6 +7,8 @@
 // so megabytes an hour is size over runtime. HEVC and AV1 files are about half the size of H.264
 // ones at the same quality, which is why they have chips of their own.
 
+import {dropHashes} from './stream-text.js';
+
 /** @typedef {{bytes: number | null, res: '4k' | '1080' | '720' | 'sd' | null, codec: 'hevc' | 'av1' | 'vp9' | 'h264' | null}} Facts */
 /** @typedef {{small: boolean, maxMb: number, res: string[], codec: string[]}} Filters */
 
@@ -17,7 +19,8 @@ export const CODEC_CHIPS = [['hevc', 'HEVC'], ['av1', 'AV1']];
 /** @type {Filters} */
 export const NO_FILTERS = Object.freeze({small: false, maxMb: 0, res: [], codec: []});
 
-const text = s => [s.name, s.title, s.filename].filter(Boolean).join(' ');
+// What a stream says of itself, without the torrent's hash (whose digits and letters are no words).
+export const text = s => dropHashes([s.name, s.title, s.filename].filter(Boolean).join(' '));
 // A word on its own: `\b` does not split "1080p_x265", so the edges are any non-letter, non-digit.
 const word = (t, re, end = '(?![a-z0-9])') => new RegExp(`(?<![a-z0-9])(?:${re})${end}`, 'i').test(t);
 // A size as written: "1.4 GB", "1,400 MB", "1.400,5 MB", "1 400 MB", "700MiB", "2.1 TB".
@@ -50,8 +53,20 @@ function pictureText(t) {
     (_, w, ht) => ` ${({3840: 2160, 4096: 2160, 1920: 1080, 1280: 720})[w] || ht}p `);
 }
 
-/** @returns {Facts} */
-export function factsOf(stream) {
+/** A reading kept with its stream (a listed stream is never changed, and a long list is read again at every
+ * filter change). */
+const kept = read => {
+  const known = new WeakMap();
+  return stream => {
+    if (!stream || typeof stream !== 'object') return read(stream);
+    let v = known.get(stream);
+    if (!v) known.set(stream, v = Object.freeze(read(stream)));
+    return v;
+  };
+};
+
+/** @type {(stream: object) => Facts} */
+export const factsOf = kept(stream => {
   const t = text(stream), p = pictureText(t), w = re => word(p, re), c = re => word(t, re, '(?![a-z])');
   // An explicit 2160, 1080 or 720 wins over the words UHD and 4K ("UHD BluRay 1080p" is 1080p).
   const res = w('2160p?') ? '4k' : w('1080[pi]?') ? '1080' : w('720p?') ? '720' : w('4k|uhd') ? '4k' : w('fhd') ? '1080'
@@ -59,18 +74,18 @@ export function factsOf(stream) {
   // Codec names may run into a bit depth ("HEVC10bit"), so only a letter ends them.
   const codec = c('x265|h[ ._-]?265|hevc') ? 'hevc' : c('av1') ? 'av1' : c('vp0?9') ? 'vp9' : c('x264|h[ ._-]?264|avc1?') ? 'h264' : null;
   return {bytes: bytesOf(stream), res, codec};
-}
+});
 
 /** What the label says about how the file plays here: its picture as factsOf reads it, whether it
  * is 10-bit or HDR (which needs a Main10 decoder), its container, and whether its sound is one Astra
  * converts on the phone (Dolby Digital and DTS; AAC, Opus, MP3 and FLAC play as they are). */
-export function playFactsOf(stream) {
+export const playFactsOf = kept(stream => {
   const t = text(stream), w = (re, end) => word(t, re, end);
   const sound = w('dts|e-?ac-?3|ac-?3|ddp?', '(?![a-z])') && !w('aac|opus|mp3|flac', '(?![a-z])');
   return {...factsOf(stream), tenBit: /(?<!\d)10[ ._-]?bits?(?![a-z])|(?<![a-z0-9])(hi10p?|main ?10)(?![a-z0-9])/i.test(t),
     hdr: w('hdr|dolby[ ._-]?vision|dv|dovi|hlg', '(?![a-z])'),
     container: w('mkv') ? 'mkv' : w('mp4|m4v') ? 'mp4' : w('webm') ? 'webm' : null, sound};
-}
+});
 
 /** The filters as stored, made safe: unknown values dropped. @param {any} v @returns {Filters} */
 export function filtersFrom(v) {

@@ -46,8 +46,21 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 - Page headers stay at the top while their page scrolls (Library, Settings
   and its pages, View all, and Streams' add-on chips).
 - **Home**: a hero of up to eight titles with art that turns every 8 s (or
-  by swipe), Continue Watching, then one row per add-on catalog that needs no
-  search text. Long-press any poster to save it or mark it watched.
+  by swipe; `hero.js`), Continue Watching, then one row per add-on catalog
+  that needs no search text. Long-press any poster to save it or mark it
+  watched.
+- **A logo that can be read** (`screens/logo.js`; Home's hero and the
+  Streams header). A title's logo is asked for with CORS and, as it
+  arrives, drawn to a 48-pixel canvas to measure its own lightness: a dark
+  wordmark of little colour (black, dark grey, dark navy) is lifted to
+  light with a filter (`invert(1) hue-rotate(180deg)`), a dark coloured one
+  gives way to the title in text, as when there is no logo, and anything
+  else (light, bright, or drawn on its own opaque box) is left exactly as
+  it was. A host that refuses CORS fails that request; the logo is asked
+  again plainly, that host is not asked with CORS again in the visit, and
+  the logo, which cannot be measured, gets a soft 1px light rim that a
+  light logo absorbs into its own edges and that outlines a dark one. The
+  hero's parallax and reduced motion are untouched.
 - **Details**: Play says what it will do (Play, Resume, Play S1 E2,
   Upcoming). Series open on the season of the next unwatched episode. The
   page draws at once from the card that was tapped (its art, title and, when
@@ -60,7 +73,14 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   its place with placeholder cards while it is asked and is filled in place,
   so cards already on screen never move to a new element under the finger.
   Continue Watching opens Streams at once from what was saved. Nothing is
-  ranked or picked for you. Long-press a stream to copy it, play it in
+  ranked or picked for you. A long list (an add-on can send 300 streams)
+  is drawn ten cards at once, then at most eight a frame, each slice laid
+  out in its own frame and only ever appended, so a card under a finger
+  never moves (`stream-card.js`; measured at 390×844 on a CPU slowed 4× and
+  6×: the longest frame on opening went from 400-660 ms to 80-160 ms, a
+  filter chip's from 370-770 ms to 55-115 ms, and scrolling keeps 238-242
+  of 242 frames; `content-visibility` was tried and left out, as it cost
+  8-12 % of frames while scrolling). Long-press a stream to copy it, play it in
   another app, open it in VLC or check it in the lab (the stream goes to the
   lab in the address's fragment, which never reaches a server or a cache,
   and the lab takes it out of the address bar once read). A stream's address
@@ -90,22 +110,39 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   or the data saver on, nothing is asked of the server, an add-on or a
   film's host before a tap. Either way nothing plays without a tap, and no stream is
   ranked, picked or pre-selected.
-- **What a stream card says.** Its size and, when the title's runtime is
-  known, what an hour of it costs ("710 MB an hour"). Under it, one quiet
-  line on how it will most likely play on this phone (`device-facts.js`):
-  "Plays directly", or "Needs the software decoder (uses more battery)" with
-  a dot. It is read from the label (codec, picture size, 10-bit or HDR) and
+- **What a stream card says.** The add-on's own words, without the
+  torrent's hash (`stream-text.js`): the owner's add-on writes it into its
+  text so Astra can reach TorBox directly, and a line that only gives it
+  (with or without an emoji or a label such as "Hash:" or "btih:") is
+  dropped, a hash inside a longer line is cut out with its label, brackets
+  and one of two separators, and nothing else changes; a 40-hex run inside
+  a longer hex string is no hash and stays. Astra still reads the hash from
+  the stream itself (`link-facts.js`), and a stream's facts are read
+  without it. Its size and, when the title's runtime is
+  known, what an hour of it costs ("710 MB an hour"). Under it, at most one
+  quiet note on how it will play on this phone (`stream-note.js`), the most
+  important of: "10-bit HEVC: this phone decodes it in software (slow, more
+  battery)" (the label says 10-bit, Hi10, Main 10, HDR or Dolby Vision with
+  HEVC, and the browser has no hardware decoder for it); "No hash from this
+  source: may open in Chrome's plain player" (signed in, the owner's server
+  has not said it lacks a TorBox key, and the link carries no hash and is
+  not a plain file address such as a CDN's MKV or an HLS playlist; the key
+  is learnt from the server's own steps when a press asks ahead, nothing is
+  asked for it); and "Needs the software decoder (uses more battery)" for
+  any other codec this phone decodes only in software. Nothing when all is
+  well. The decoding is read from the label (codec, picture size, 10-bit or HDR) and
   the browser's own answer to whether it decodes that smoothly and
   power-efficiently (`navigator.mediaCapabilities.decodingInfo`, asked once
-  per codec and size a visit), never from the browser's name. An MP4 that
+  per codec and size a visit; `device-facts.js`), never from the browser's name. An MP4 that
   names no codec is asked as H.264; an MKV or WebM that names none says
-  nothing; without an answer from the browser only 8-bit H.264 is said to
-  play directly. A second note, "Sound converted on the phone", shows when
+  nothing; without an answer from the browser nothing is guessed. A card is
+  drawn once what its note needs is known (the browser's answers and the
+  sign-in, at most 300 ms; the add-on's placeholders stay till then), so a
+  note never arrives under a finger. A second note, "Sound converted on the phone", shows when
   the label names Dolby Digital or DTS and no AAC, Opus, MP3 or FLAC, unless
   every sound it names is one this phone's browser says it plays as it is
-  and has not failed to here (How a file plays, below). The
-  line's room is held before the answer arrives, so nothing moves under a
-  finger. Both inform only: nothing is hidden, ranked or picked by them.
+  and has not failed to here (How a file plays, below). Both inform only:
+  nothing is reordered, dimmed, hidden, ranked or picked by them.
 - **The owner's filter chips** (a second row under the add-ons'; the
   reading is in `stream-facts.js`): Smallest first, one size limit (under
   700 MB, 1.5 GB or 3 GB), any of 720p, 1080p, 4K and SD, any of HEVC and
@@ -1761,6 +1798,10 @@ skip in a browser without it.
 | `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
 | `astra-subtitles-scan.test.mjs` | A film's own text lines gathered as its blocks land, in order and after a jump, searching byte by byte only the blocks no known cluster covers. |
 | `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs, and the card's sound note against what this phone plays and what failed here. |
+| `astra-streams-text.test.mjs` | The torrent's hash taken out of what a card shows (a line that only gives it, one inside a longer line, upper case, "btih:", hex that is not a hash), still read from the stream, and never read as a word. |
+| `astra-streams-note.test.mjs` | The card's one note for each kind of stream with three device reports (the owner's phone, a browser that decodes everything, an older phone), the hashless note's conditions, and the wait for its facts. |
+| `astra-streams-browser.test.mjs` | Streams at 390×844, signed in: no hash on a card while a press still sends it, the notes on the owner's phone and on a browser that decodes everything, the add-on's order kept, and 300 streams drawn ten at once then eight a frame, each answering a press. |
+| `astra-logo-browser.test.mjs` | Logos measured from their pixels, and on Home's hero and the Streams header: a black and a grey wordmark lifted, a deep red one as text, white and red ones as they are, one whose host refuses CORS shown with a rim after one plain retry. |
 | `astra-link-facts.test.mjs` | What a link says of its file (hash, index, name, size) in every add-on shape Astra knows and the general case; two hashes; damaged input never throwing. |
 | `astra-debrid.test.mjs` | The address asked of a stand-in for the owner's server: its answers, an answer without an address, its error envelope, the 30 s and 6 s waits, signed out, answers kept 45 minutes and shared while under way, a press's address taken by the tap, renew and forgetting. |
 | `astra-tap.test.mjs` | What is done ahead for a list and a saver state (one connection to the server), a press that asks ahead and the tap that takes it, the next episode made ready only for the same release group and a direct address, and a film's tail asked for beside its start. |
