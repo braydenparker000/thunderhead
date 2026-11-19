@@ -9,6 +9,7 @@
 // now, never a stale copy of the rest.
 
 import {CINEMETA} from '../addons/client.js';
+import {rememberedStream} from './remembered.js';
 
 export const PREFIX = 'astra.v2.';
 export const MAX_PROGRESS = 300;
@@ -43,6 +44,8 @@ function progressEntry(e) {
     updated: num(e.updated) ?? 0, completed: e.completed === true, meta: compactMeta(e.meta) || {id, type, name: ''}};
   if ('next' in e) out.next = isObject(e.next) && e.next.videoId != null ? {videoId: String(e.next.videoId), season: num(e.next.season), episode: num(e.next.episode),
     title: typeof e.next.title === 'string' ? e.next.title : undefined, thumbnail: typeof e.next.thumbnail === 'string' ? e.next.thumbnail : undefined} : null;
+  const stream = rememberedStream(e.stream, out.completed); // the stream that played (app/remembered.js); damaged: dropped, the entry stays
+  if (stream) out.stream = stream;
   return [`${type}:${id}|${videoId}`, out];
 }
 
@@ -349,11 +352,13 @@ export class Progress {
   get(type, id, videoId) { return this.entries[this.key(type, id, videoId)] || null; }
 
   /** Saves a position. Returns the entry, or null when not tracked. */
-  save({type, id, videoId, season = null, episode = null, time, duration, meta, next = null}) {
+  save({type, id, videoId, season = null, episode = null, time, duration, meta, next = null, stream = null}) {
     if (!(duration >= MIN_DURATION) || !(time >= 1)) return null;
     const key = this.key(type, id, videoId);
     const completed = time / duration >= COMPLETE;
     const entry = {type, id, videoId: videoId || id, season, episode, time: Math.min(time, duration), duration, updated: this.now(), completed, meta: compactMeta(meta) || this.entries[key]?.meta, next: next || this.entries[key]?.next || null};
+    const remembered = rememberedStream(stream, completed);
+    if (remembered) entry.stream = remembered;
     this.entries[key] = entry;
     this.pending.set(key, {entry, at: entry.updated});
     trimProgress(this.entries);

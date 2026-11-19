@@ -5,6 +5,7 @@ import {icon} from '../ui/icons.js';
 import {posterCard, setWatchedBadge, image, longPress, liftMenu, skeletonRow, emptyCard, toast, mountTonight} from '../ui/components.js';
 import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/content.js';
 import {Hero} from './hero.js';
+import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
 
 /** Long-press actions shared by every poster. */
 export function posterMenu(app) {
@@ -183,20 +184,17 @@ export class HomeScreen {
   }
 
   /**
-   * Opens a Continue Watching entry's streams once its metadata is in. One at
-   * a time: a second tap while it loads does nothing, and if the viewer moved
-   * on meanwhile (another tab, another screen) the streams are not pushed.
+   * A Continue Watching entry's tap (app/resume.js): the stream it remembers plays at once from `startTime`, a
+   * Next Up continues the release group watched; without either, or with `list` (the long press's "Choose another
+   * stream"), its streams open at once, from what was saved with it, the full details (the episode list the
+   * player's next episode needs) arriving behind the screen. A second tap while it opens does nothing.
    */
-  /**
-   * Opens a Continue Watching entry's streams at once, from what was saved
-   * with it; the full details (the episode list the player's next episode
-   * needs) arrive behind the screen. A second tap while it opens does nothing.
-   */
-  resume(e, m, card, startTime) {
+  resume(e, m, card, startTime, {list = false} = {}) {
     if (this.resuming) return;
     this.resuming = true;
     setTimeout(() => { this.resuming = false; }, 600);
-    const video = e.videoId && e.videoId !== m.id ? {id: e.videoId, season: e.season, episode: e.episode, title: e.title || '', thumbnail: e.thumbnail} : null;
+    if (!list && (e.kind === 'next' ? continueNext(this.app, e, m) : resumeRemembered(this.app, e, m, startTime))) return;
+    const video = videoOf(e, m);
     const screen = this.app.openStreams(m, video, {startTime});
     this.app.meta(m).then(meta => screen.updateMeta?.(meta), () => {}); // without the add-ons the saved card still plays: streams are asked by id
   }
@@ -207,12 +205,13 @@ export class HomeScreen {
     const status = e.kind === 'next' ? 'Next Up' : e.duration ? timeLeft(e.duration - e.time) : '';
     const art = e.thumbnail || m.background || m.poster;
     const open = () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0);
-    const card = h('button', {class: 'cw-card', type: 'button', onclick: open, 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
+    const card = h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => pressCard(this.app, e), 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
       h('div', {class: 'cw-art'}, image(art, '', 'cw-img'), h('div', {class: 'cw-shade'}),
         status ? h('span', {class: 'cw-chip'}, status) : null,
         h('div', {class: 'cw-text'}, code ? h('small', {}, code) : null, h('b', {}, m.name || ''), e.title ? h('span', {}, e.title) : null),
         e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null));
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [
+      playsDirectly(e) ? {label: 'Choose another stream', icon: 'sources', run: () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0, {list: true})} : null,
       {label: 'Go to details', icon: 'info', run: () => this.app.openTitle(m)},
       e.kind === 'resume' ? {label: 'Start from beginning', icon: 'replay', run: () => this.resume(e, m, card, 0)} : null,
       {label: 'Remove', icon: 'close', destructive: true, run: () => { this.app.progress.remove(e.type, e.id); toast('Removed from Continue Watching'); }},
