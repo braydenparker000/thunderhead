@@ -20,7 +20,7 @@ import {
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { present } from '../../lib/secrets';
-import { headBackup, readBackup, removeBackup, writeBackup } from './backup-store';
+import { headBackup, type Pepper, readBackup, removeBackup, writeBackup } from './backup-store';
 
 let minute = { start: 0, n: 0 };
 /** For tests: a fresh minute. */
@@ -35,12 +35,14 @@ function cap(now = Date.now()): void {
   throw new ApiError('rate_limited', { reason: 'too_many' }, { retry_after, scope: 'account' });
 }
 
-/** The bucket and the pepper the seal's key comes from, or 503 unavailable. */
-function placeOf(env: Env): { vault: R2Bucket; pepper: string } {
+/** The bucket and the peppers the seal's key comes from, newest first, or 503 unavailable. Today there is one,
+ * AUTH_PEPPER; a rotation adds AUTH_PEPPER_V2 (SECURITY.md §14.6), which then goes first here (and is declared in
+ * wrangler.jsonc and the static test's inventory), and the copy is re-sealed under it at its next save. */
+function placeOf(env: Env): { vault: R2Bucket; peppers: Pepper[] } {
   const vault = (env as { VAULT?: R2Bucket }).VAULT;
   const pepper = present(env.AUTH_PEPPER);
   if (!vault || !pepper) throw new ApiError('unavailable', { reason: 'no_bucket' });
-  return { vault, pepper };
+  return { vault, peppers: [{ name: 'AUTH_PEPPER', value: pepper }] };
 }
 
 const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -104,7 +106,7 @@ export function envelope(version: string, saved_at: string, copy: Uint8Array | n
 export const backupRoutes = new Hono<AppEnv>()
   .get('/astra/backup', guard('GET /v1/astra/backup'), async (c) => {
     cap();
-    const { vault, pepper } = placeOf(c.env);
+    const { vault, peppers } = placeOf(c.env);
     const known = versionIn(c.req.query('known'), 'known');
     c.header('Cache-Control', 'no-store');
     // The phone holds that version already: answered from the object's head, nothing read or opened.
@@ -112,18 +114,18 @@ export const backupRoutes = new Hono<AppEnv>()
       const head = await headBackup(vault);
       if (head?.version === known) return c.json({ ...head, same: true } satisfies AstraBackupResponse);
     }
-    const kept = await readBackup(vault, pepper);
+    const kept = await readBackup(vault, peppers);
     if (!kept) return c.json({ version: null, saved_at: null, copy: null } satisfies AstraBackupResponse);
     return c.body(envelope(kept.version, kept.saved_at, kept.bytes), 200, { 'Content-Type': 'application/json' });
   })
   .put('/astra/backup', guard('PUT /v1/astra/backup'), async (c) => {
     cap();
-    const { vault, pepper } = placeOf(c.env);
+    const { vault, peppers } = placeOf(c.env);
     const base = versionIn(c.req.query('base'), 'base');
     // The app's body limit refused a larger one already (by its length); counted again here, as sent.
     const bytes = new Uint8Array(await c.req.arrayBuffer());
     checkedCopy(bytes);
-    const saved = await writeBackup(vault, pepper, base, bytes, Date.now());
+    const saved = await writeBackup(vault, peppers, base, bytes, Date.now());
     if (saved === 'conflict') throw new ApiError('conflict', { reason: 'stale_base' });
     c.header('Cache-Control', 'no-store');
     return c.json(saved satisfies AstraBackupSaved);

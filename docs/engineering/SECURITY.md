@@ -566,6 +566,8 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 | `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
 
+Rotating `AUTH_PEPPER` (§14.6) re-seals Astra's copy (ASTRA.md §5.3) at its next save, under the newest pepper, and that save removes the copy's daily copies, which were sealed under the old one: once the object's `seal` metadata names the new pepper, the old pepper opens nothing kept. A phone's next change saves it; **Sync now** in Astra's Settings › Your data does it at once.
+
 ### 14.7 A stranger used up the free quota
 Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdog fires at 70% of the daily 100k Worker requests before 18:00 UTC.
 1. Nothing is lost; quotas reset at 00:00 UTC. The shell keeps working from cache; the outbox holds messages.
@@ -607,7 +609,7 @@ Sections once marked as proposals that are not built and not in PLAN.md; their f
 
 - **§6.4 Fallback: client-side KDF ("server relief").** scrypt on the phone and only a keyed hash on the server, with the same verifier, picked by `AUTH_KDF_WHERE`.
   Not needed: X3 passed on 2026-10-29 (decisions.md), so scrypt runs in the `Auth` object.
-- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper.
+- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper. Astra's copy is opened with the newest pepper, then the older, and sealed with the newest (`placeOf` in `backend/src/areas/astra/backup.ts` takes `AUTH_PEPPER_V2` first once it is declared); drop the old pepper after the copy's next save (§14.5).
   Not built (the Worker has one pepper; `pepper_v` is stored for the day it does) and not in PLAN.md.
 - **§14.10 Start the account over (last resort, ask-first).** A one-shot migration, gated on a fingerprint the owner makes and a 24 h wait, clears `Auth` only.
   Not built and not in PLAN.md; the reset ticket is the built way back in.

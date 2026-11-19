@@ -13,6 +13,7 @@ import { ADDON, ADDON_SECRET, backup, copyOf, put, realStore } from '../astra-ba
 import { setupOwner } from '../helpers';
 
 const PEPPER = 'test-pepper-not-a-real-secret-0123456789';
+const ONE = [{ name: 'AUTH_PEPPER', value: PEPPER }];
 const DAY = 86_400_000;
 const T0 = Date.parse('2026-11-01T09:00:00Z');
 let D = '';
@@ -42,8 +43,8 @@ describe('what the bucket holds', () => {
     const store = realStore({ progress: 40, library: 10, watched: 20 });
     await put(D, copyOf(store));
     // A second save on a later day keeps a daily copy too: it is checked the same way.
-    const kept = await readBackup(env.VAULT, PEPPER);
-    await writeBackup(env.VAULT, PEPPER, kept?.version ?? null, bytesOfCopy(copyOf(store)), Date.now() + 2 * DAY);
+    const kept = await readBackup(env.VAULT, ONE);
+    await writeBackup(env.VAULT, ONE, kept?.version ?? null, bytesOfCopy(copyOf(store)), Date.now() + 2 * DAY);
     const objects = (await env.VAULT.list({ prefix: 'astra/', include: ['customMetadata', 'httpMetadata'] })).objects;
     expect(objects.map((o) => o.key.replace(/\d{4}-\d\d-\d\d/, 'DAY')).sort()).toEqual([
       BACKUP_NAME,
@@ -60,7 +61,7 @@ describe('what the bucket holds', () => {
       'tt100',
     ];
     for (const o of objects) {
-      expect(Object.keys(o.customMetadata ?? {}).sort()).toEqual(['saved_at', 'version']);
+      expect(Object.keys(o.customMetadata ?? {}).sort()).toEqual(['saved_at', 'seal', 'version']);
       expect(o.httpMetadata?.contentType).toBe('application/octet-stream');
       const bytes = await bytesOf(o.key);
       for (const s of secrets) expect(contains(bytes, s), `${o.key} holds ${s}`).toBe(false);
@@ -71,9 +72,9 @@ describe('what the bucket holds', () => {
 
   it('two saves of the same copy are different bytes (a fresh nonce each time)', async () => {
     const text = bytesOfCopy(copyOf({ settings: { hero: true } }));
-    const a = await writeBackup(env.VAULT, PEPPER, null, text, Date.now());
+    const a = await writeBackup(env.VAULT, ONE, null, text, Date.now());
     const first = await bytesOf(BACKUP_NAME);
-    await writeBackup(env.VAULT, PEPPER, a === 'conflict' ? null : a.version, text, Date.now());
+    await writeBackup(env.VAULT, ONE, a === 'conflict' ? null : a.version, text, Date.now());
     const second = await bytesOf(BACKUP_NAME);
     expect(first.subarray(1, 13)).not.toEqual(second.subarray(1, 13));
   });
@@ -108,13 +109,46 @@ describe('a tampered copy is refused', () => {
   });
 });
 
+describe('a rotation of the pepper (SECURITY.md §14.5, §14.6)', () => {
+  const OLD = { name: 'AUTH_PEPPER', value: PEPPER };
+  const NEW = { name: 'AUTH_PEPPER_V2', value: 'test-pepper-v2-not-a-real-secret-012345' };
+  it('opens with the newest then the older, seals with the newest, and the daily copies of the old one go', async () => {
+    const day = (n: number) => T0 + n * DAY;
+    const text = (n: number) => bytesOfCopy(copyOf({ recentSearches: [`day ${n}`] }));
+    let saved = await writeBackup(env.VAULT, [OLD], null, text(0), day(0));
+    if (saved === 'conflict') throw new Error('conflict');
+    saved = await writeBackup(env.VAULT, [OLD], saved.version, text(1), day(1));
+    if (saved === 'conflict') throw new Error('conflict');
+    expect((await env.VAULT.list({ prefix: BACKUP_DAYS })).objects.length).toBe(1);
+    expect((await env.VAULT.head(BACKUP_NAME))?.customMetadata?.seal).toBe('AUTH_PEPPER');
+    // AUTH_PEPPER_V2 added beside it: the copy still opens, through the older pepper.
+    const kept = await readBackup(env.VAULT, [NEW, OLD]);
+    expect(new TextDecoder().decode(kept?.bytes ?? new Uint8Array())).toBe(new TextDecoder().decode(text(1)));
+    // The next save seals under the newest, and the daily copies sealed under the old one are removed with it.
+    const next = await writeBackup(env.VAULT, [NEW, OLD], kept?.version ?? null, text(2), day(2));
+    if (next === 'conflict') throw new Error('conflict');
+    expect((await env.VAULT.head(BACKUP_NAME))?.customMetadata?.seal).toBe('AUTH_PEPPER_V2');
+    expect((await env.VAULT.list({ prefix: BACKUP_DAYS })).objects).toEqual([]);
+    expect((await readBackup(env.VAULT, [NEW]))?.bytes, 'the old pepper can go now').not.toBeNull();
+    expect((await readBackup(env.VAULT, [OLD]))?.bytes).toBeNull();
+    // From then on the daily copies are sealed under the newest.
+    const after = await writeBackup(env.VAULT, [NEW, OLD], next.version, text(3), day(3));
+    expect(after).not.toBe('conflict');
+    expect(
+      (await env.VAULT.list({ prefix: BACKUP_DAYS, include: ['customMetadata'] })).objects.map(
+        (o) => o.customMetadata?.seal,
+      ),
+    ).toEqual(['AUTH_PEPPER_V2']);
+  });
+});
+
 describe('the daily copies', () => {
   it('the copy as it stood at the start of each of the last 7 days it changed; one opens again when put back', async () => {
     let version: string | null = null;
     const save = async (day: number, n: number) => {
       const r = await writeBackup(
         env.VAULT,
-        PEPPER,
+        ONE,
         version,
         bytesOfCopy(copyOf({ recentSearches: [`day ${n}`] })),
         T0 + day * DAY,
