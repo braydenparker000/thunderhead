@@ -29,6 +29,8 @@ function fly(from, to, name, radius = null) {
   const t = travel(from, to, {name, radius});
   const last = document.body.lastElementChild;
   const mine = flight = {travel: t, copy: last !== before ? last : null};
+  // A copy of a picture that faded in when it arrived would fade in again: it is already here.
+  if (mine.copy) for (const img of [mine.copy, ...mine.copy.querySelectorAll('img')]) img.classList.remove('loaded');
   // Landing on Details' backdrop, the copy fades into the page as the backdrop does, so the title under it shows through.
   const mask = to instanceof Element ? getComputedStyle(to).maskImage : 'none';
   if (mine.copy && mask && mask !== 'none') { mine.copy.style.maskImage = mask; mine.copy.style.webkitMaskImage = mask; }
