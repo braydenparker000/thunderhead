@@ -211,3 +211,23 @@ test('a far-future entry loses to real watching after a day, and its removal doe
   const whole = mergeCopies({ mine: side({ settings: { hero: true } }, { settings: stamp }), theirs, now: later + MIN });
   assert.deepEqual(whole.copy.keys.settings.value, { hero: true });
 });
+
+// The security read's bloat and depth probes: a hostile or damaged copy must not bloat or wedge a phone.
+test('a copy cannot bloat or wedge a phone: add-ons cut to their fields, deep values, big unknown settings, long searches', () => {
+  const nest = (d) => { let v = 0; for (let i = 0; i < d; i++) v = [v]; return v; };
+  const read = readCopy({ astra: 'sync/1', keys: {
+    addons: { at: T, value: [{ ...addon(1), extra: 'x'.repeat(10_000), manifest: { deep: true } }, { url: `https://addon.example/${'p'.repeat(5000)}`, name: 'Long' }] },
+    settings: { at: T, value: { hero: false, junk: 'x'.repeat(1_900_000), small: 'kept', hiddenRows: ['a'] } },
+    recentSearches: { at: T, value: ['one', 'x'.repeat(201), ...Array.from({ length: 20 }, (_, i) => `q${i}`)] },
+    library: { at: T, value: { 'movie:tt1': { ...meta('tt1'), added: T, genres: nest(3000) } } },
+  } }, T).keys;
+  assert.deepEqual(read.addons.value, [{ url: addon(1).url, enabled: true, name: 'Add-on 1' }], 'only url, enabled and name; an address past 4,096 characters is no add-on');
+  assert.deepEqual(read.settings.value, { hero: false, small: 'kept', hiddenRows: ['a'] }, 'an unknown setting larger than 4 KB is dropped');
+  assert.deepEqual(read.recentSearches.value, ['one', ...Array.from({ length: 9 }, (_, i) => `q${i}`)]);
+  assert.equal(read.library, undefined, 'a value nested deeper than the bound is as if not kept');
+  // 3,000 levels on both sides once threw RangeError in the merge (every phone wedged): no longer.
+  const deep = readCopy({ astra: 'sync/1', keys: { settings: { at: 1, value: { x: nest(3000) } } } }, 2);
+  assert.deepEqual(deep.keys.settings.value, {}, 'the deep unknown setting is dropped');
+  assert.doesNotThrow(() => mergeCopies({ mine: { settings: { at: 0, value: { x: nest(3000) }, gone: {} } }, theirs: deep.keys, now: 2 }));
+  assert.doesNotThrow(() => same({ x: nest(5000) }, { x: nest(5000) }));
+});

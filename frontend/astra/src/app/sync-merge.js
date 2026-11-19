@@ -28,13 +28,23 @@ export {ENTRY_KEYS, SYNC_TAG, entryTime, readCopy} from './sync-read.js';
 export const GONE_MS = 60 * 864e5;
 const MAX_RECENT = 10;
 
-/** Equal as data, whatever the order of an object's fields. */
+/** Equal as data, whatever the order of an object's fields. Walked with a list, never by recursion, so no value
+ * (this phone's own included) can be deep enough to stop it. */
 export function same(a, b) {
-  if (a === b) return true;
-  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((x, i) => same(x, b[i]));
-  if (!isObject(a) || !isObject(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every(k => Object.hasOwn(b, k) && same(a[k], b[k]));
+  const pairs = [[a, b]];
+  while (pairs.length) {
+    const [x, y] = pairs.pop();
+    if (x === y) continue;
+    if (Array.isArray(x)) {
+      if (!Array.isArray(y) || x.length !== y.length) return false;
+      for (let i = 0; i < x.length; i++) pairs.push([x[i], y[i]]);
+    } else if (isObject(x) && isObject(y)) {
+      const keys = Object.keys(x);
+      if (keys.length !== Object.keys(y).length) return false;
+      for (const k of keys) { if (!Object.hasOwn(y, k)) return false; pairs.push([x[k], y[k]]); }
+    } else return false;
+  }
+  return true;
 }
 
 /** Nothing but what a fresh Astra starts with (Cinemeta alone, or nothing saved). */

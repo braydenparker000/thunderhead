@@ -259,3 +259,10 @@ test('a far-future copy: taken in a day ahead at most; removing it leaves a tomb
   b.store.set('addons', []);
   assert.ok(b.record().at.addons <= b.t + DAY);
 });
+
+test('a hostile copy does not fill the phone’s storage', async () => {
+  const w = worker();
+  w.kept = { version: 'v0', saved_at: null, copy: { astra: 'sync/1', keys: { settings: { at: T, value: { hero: false, junk: 'x'.repeat(1_900_000) } } } } };
+  const a = await phone(w, { data: { addons: [ADDON] } });
+  assert.deepEqual(a.read('settings'), { hero: false });
+});

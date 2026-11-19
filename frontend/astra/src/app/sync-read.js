@@ -2,7 +2,10 @@
 // of the owner's phones through their Worker, but a phone must survive a damaged or hostile one, so:
 //  - every value passes the store's own sanitisers, all or nothing per key (as a restore does);
 //  - no time is taken as later than a day from now (`AHEAD`): an entry, a tombstone or a key's `at` from a
-//    clock far ahead would otherwise win every merge, and a tombstone for it would never end.
+//    clock far ahead would otherwise win every merge, and a tombstone for it would never end;
+//  - nothing may bloat or wedge it: a value nested deeper than `MAX_DEPTH` or holding a string longer than
+//    `MAX_STRING` is as if not kept (the merge's own walks stay shallow), an unknown setting larger than
+//    `MAX_SETTING` is dropped, add-ons keep only the fields Astra uses, recent searches are 10 of 200 characters.
 
 import {BACKUP_KEYS, SANITISE} from './store.js';
 
@@ -11,6 +14,12 @@ export const SYNC_TAG = 'sync/1';
 export const ENTRY_KEYS = ['progress', 'watched', 'library'];
 /** How far ahead of this phone's clock any time may be: phones' clocks may differ, not by more. */
 export const AHEAD = 864e5;
+export const MAX_DEPTH = 6;
+export const MAX_STRING = 2048;
+export const MAX_SETTING = 4096;
+const MAX_URL = 4096, MAX_NAME = 200, MAX_RECENT = 10, MAX_QUERY = 200;
+const KNOWN_SETTINGS = new Set(['posterWidth', 'posterRadius', 'hero', 'showCatalogType', 'recentSearches', 'openSubtitles', 'hiddenRows',
+  'readyAhead', 'findIntros', 'skipLookup']);
 
 export const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);
 const time = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
@@ -39,6 +48,40 @@ export function timesOf(v, now) {
   return out;
 }
 
+/** Whether a value is at most `MAX_DEPTH` deep with no string past `MAX_STRING`: walked with a list, never
+ * by recursion, and given up as soon as either bound is passed. */
+export function bounded(value) {
+  const stack = [[value, 0]];
+  while (stack.length) {
+    const [v, depth] = stack.pop();
+    if (typeof v === 'string') { if (v.length > MAX_STRING) return false; continue; }
+    if (v === null || typeof v !== 'object') continue;
+    if (depth >= MAX_DEPTH) return false;
+    for (const x of Array.isArray(v) ? v : Object.values(v)) stack.push([x, depth + 1]);
+  }
+  return true;
+}
+
+/** What a key's value may hold before the store's sanitiser sees it (null: the key is as if not kept). */
+function shaped(key, value) {
+  // Add-ons: only the fields Astra uses, each of a fixed kind, so nothing else of them is walked or kept.
+  if (key === 'addons' && Array.isArray(value))
+    return value.filter(a => typeof a?.url === 'string' && a.url.length <= MAX_URL)
+      .map(a => ({url: a.url, enabled: a.enabled !== false, name: typeof a.name === 'string' ? a.name.slice(0, MAX_NAME) : 'Add-on'}));
+  if (key === 'settings' && isObject(value)) {
+    // Settings Astra does not know are kept, as on the phone that wrote them, unless they are large.
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (!KNOWN_SETTINGS.has(k) && (!bounded(v) || JSON.stringify(v).length > MAX_SETTING)) continue;
+      out[k] = v;
+    }
+    value = out;
+  }
+  if (!bounded(value)) return null;
+  if (key === 'recentSearches' && Array.isArray(value)) return value.filter(q => typeof q === 'string' && q.length <= MAX_QUERY).slice(0, MAX_RECENT);
+  return value;
+}
+
 /**
  * A copy from the server, checked: {keys: {key: {at, value, gone}}} with damaged keys left out, null when it is
  * no copy at all, or 'newer' when a newer Astra wrote it (then nothing is merged or saved).
@@ -50,8 +93,10 @@ export function readCopy(copy, now = Date.now()) {
   for (const k of BACKUP_KEYS) {
     const e = copy.keys[k];
     if (!isObject(e) || time(e.at) == null) continue;
-    let clean = SANITISE[k](e.value);
-    if (clean === undefined || (size(e.value) && !size(clean))) continue;
+    const value = shaped(k, e.value);
+    if (value === null) continue;
+    let clean = SANITISE[k](value);
+    if (clean === undefined || (size(value) && !size(clean))) continue;
     const entries = ENTRY_KEYS.includes(k);
     if (entries) clean = Object.fromEntries(Object.entries(clean).map(([id, x]) => [id, withTime(k, x, now)]));
     keys[k] = {at: ahead(e.at, now), value: clean, gone: entries ? timesOf(e.gone, now) : {}};
