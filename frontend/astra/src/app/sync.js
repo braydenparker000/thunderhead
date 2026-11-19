@@ -20,7 +20,8 @@
 import {BACKUP_KEYS, PREFIX} from './store.js';
 import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies, readCopy} from './sync-merge.js';
 import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
-import {addressesOf} from './sync-addons.js';
+import {addressesOf, arrivedLine} from './sync-addons.js';
+import {CINEMETA} from '../addons/client.js';
 import {hideFromSenses} from './sync-senses.js';
 import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
 
@@ -142,7 +143,11 @@ export function startSync(app, deps = {}) {
       for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; if (v.times) rec.added = v.times; }
       Object.assign(rec, {joined: true, version: server.version, fetchedAt: now, owed: merged.differs});
       keep(rec);
-      if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
+      // An add-on this phone did not have is never taken in silently (anyone with a session of the owner's could
+      // have put it in the copy): said once, by name and host. Else, a first merge with data on both sides says so.
+      const arrived = 'addons' in merged.apply ? arrivedLine(side.addons.value, merged.apply.addons, CINEMETA) : '';
+      if (arrived) d.toast?.(arrived);
+      else if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
         d.toast?.('Astra on this phone and on your other phones were put together. Nothing was lost.');
       if (!merged.differs) { problem = ''; return; }
       const body = {base: server.version, copy: merged.copy};

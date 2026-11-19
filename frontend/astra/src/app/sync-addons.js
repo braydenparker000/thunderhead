@@ -54,3 +54,14 @@ export function stampAddons(rec, before, after, stamp) {
 
 /** The fingerprints of a list of add-ons. */
 export const addressesOf = list => new Set((Array.isArray(list) ? list : []).filter(a => isObject(a) && typeof a.url === 'string').map(a => addressKey(a.url)));
+
+/** One line for add-ons a merge brought that this phone did not have (`before`: its list, or nothing saved):
+ * by name and host, or a count and the hosts. Empty when none came. Cinemeta, which a fresh Astra has, is no news. */
+export function arrivedLine(before, after, cinemeta) {
+  const had = new Set((before ?? [{url: cinemeta}]).map(a => a.url));
+  const came = (after ?? []).filter(a => !had.has(a.url));
+  const host = a => { try { return new URL(a.url).host; } catch { return '?'; } };
+  if (!came.length) return '';
+  if (came.length === 1) return `Added from your other phones: ${came[0].name} (${host(came[0])})`;
+  return `Added from your other phones: ${came.length} add-ons (${[...new Set(came.map(host))].join(', ')})`;
+}

@@ -533,6 +533,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 1. Owner: Settings → Sign-in & devices → **Sign out** that device (or **Sign out everywhere**). Effective ≤60 s.
 2. Check the device list and the ledger for actions in the window.
 3. If the device is still in hand, sign in again.
+4. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.2 An agent key leaked (`thm_`, `ths_`, `thc_`)
 1. Owner: Settings → Agents → **Revoke** the key. Effective ≤60 s.
@@ -544,6 +545,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 2. Settings → Sign-in & devices: confirm only this device remains.
 3. Make a new recovery code if the code may have been seen too.
 4. Review Settings → Agents for keys made recently (`agent_key_created` notices).
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.4 The phone is lost or stolen
 1. From any browser: sign in at `/signin/` → Settings → Sign-in & devices → **Sign out** the lost phone (or **Sign out everywhere else**).
@@ -551,6 +553,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 3. The phone wipes its private data the next time it reaches the API (or on the `signout` push once Web Push exists). Use Android's own Find My Device erase if needed.
    Astra's saved data, add-on addresses among it, goes with it when the phone kept Astra in step with the server (ASTRA.md §5.3): the shell's wipe removes it, and Astra removes it itself when the Worker answers 401. A phone that never joined, or had the switch off, keeps it until erased.
 4. Agent keys are not on the phone; leave them.
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.5 A repository or Worker secret leaked
 | Leaked | Do |

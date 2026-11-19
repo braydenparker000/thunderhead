@@ -294,3 +294,25 @@ test('a removed add-on does not come back from a phone that changed its list off
   await c.sync.syncNow();
   assert.deepEqual(c.read('addons').map((x) => x.name), ['Invented', 'Leaked']);
 });
+
+// The security read's plant probe: anyone holding a device session can write the copy, so an add-on that arrives
+// from elsewhere is said once, by name and host, never silently (a new phone's first merge included).
+test('an add-on this phone did not have is said once, by name and host', async () => {
+  const w = worker();
+  const a = await phone(w, { data: { addons: [ADDON] } });
+  const planted = { url: 'https://tracker.example/invented/manifest.json', enabled: true, name: 'Cinemeta' };
+  w.kept = { version: 'v9', saved_at: null, copy: { astra: 'sync/1', keys: { ...w.kept.copy.keys, addons: { at: T + 10 * MIN, value: [ADDON, planted] } } } };
+  a.toasts.length = 0;
+  await a.page('hidden');
+  await a.advance(6 * MIN);
+  await a.page('visible');
+  assert.deepEqual(a.read('addons').map((x) => x.url), [ADDON.url, planted.url]);
+  assert.deepEqual(a.toasts, ['Added from your other phones: Cinemeta (tracker.example)']);
+  await a.sync.syncNow();
+  assert.equal(a.toasts.length, 1, 'once');
+  // A new phone's first merge: every add-on it gets is named, by count and hosts when there are several.
+  const two = worker();
+  two.kept = { version: 'v1', saved_at: null, copy: { astra: 'sync/1', keys: { addons: { at: T, value: [ADDON, { url: 'https://addon2.example/x/manifest.json', enabled: true, name: 'Two' }] } } } };
+  const b = await phone(two);
+  assert.deepEqual(b.toasts, ['Added from your other phones: 2 add-ons (addon.example, addon2.example)']);
+});
