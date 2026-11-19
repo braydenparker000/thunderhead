@@ -11,7 +11,7 @@
 .ghead .gl{flex:1}
 .ghead .chev{transform:rotate(90deg);transition:transform var(--d-base) var(--settle)}
 .cg.closed .chev{transform:none}
-.gbody{display:grid;grid-template-rows:1fr;transition:grid-template-rows var(--d-base) var(--settle)}
+.gbody{display:grid;grid-template-rows:1fr}
 .cg.closed .gbody{grid-template-rows:0fr}
 .gin{min-height:0;overflow:hidden}
 .cg.closed .gin{visibility:hidden;border-width:0}
@@ -40,4 +40,4 @@
 .past button::before{content:"";position:absolute;inset:-6px -4px}
 .pastlog .turn{animation:none}
 .talk .hit,.mrow.hit{border-radius:var(--r-row);background:color-mix(in srgb,var(--accent-text) 14%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-text) 14%,transparent)}
-@media(prefers-reduced-motion:reduce){.gbody,.chev{transition:none}}
+@media(prefers-reduced-motion:reduce){.chev{transition:none}}

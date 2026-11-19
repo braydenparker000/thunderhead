@@ -119,6 +119,31 @@ test('one card docked above the ask bar, with the gold edge; Yes folds it and th
   }
 });
 
+test('a folding card gives its room at once and the conversation slides on a transform, never on layout', opts, async () => {
+  const { page, context, errors } = await open({ proposals: [proposal()] });
+  await page.waitForSelector('#decision .card.armed');
+  const seen = page.evaluate(() => new Promise((resolve) => {
+    new MutationObserver((_, watch) => {
+      const card = document.querySelector('#decision .card.gone');
+      if (!card) return;
+      watch.disconnect();
+      // A frame later (apps/home/fold.js has run in the same task's microtasks).
+      requestAnimationFrame(() => resolve({
+        dock: getComputedStyle(document.documentElement).getPropertyValue('--dock-h').trim(),
+        own: card.getAnimations().map((a) => a.animationName).sort(),
+        slid: [...document.querySelectorAll('#convo > *')].some((e) => e.getAnimations().some((a) => a.effect.getKeyframes().some((k) => /translateY/.test(k.transform ?? '')))),
+        layout: getComputedStyle(card).transitionProperty,
+      }));
+    }).observe(document.querySelector('#decision'), { subtree: true, attributes: true });
+  }));
+  await page.click('#decision .yes');
+  const got = await seen;
+  assert.deepEqual({ ...got, layout: /height|margin|padding/.test(got.layout) }, { dock: '0px', own: ['dockcut', 'fade'], slid: true, layout: false });
+  await page.waitForSelector('#decision .card', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('a card held for quiet hours stays away; one that arrives while open rises', opts, async () => {
   const held = proposal({ show_from: Date.now() + 3_600_000 });
   const { page, context, errors, api } = await open({ proposals: [held] });
