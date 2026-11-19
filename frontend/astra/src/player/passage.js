@@ -27,6 +27,7 @@ export class Passage {
   enter(origin) {
     const p = this.p;
     this.finish(); // a leave still under way ends now (its engine reset included)
+    p.root.hidden = false;
     this.origin = isElement(origin) && origin.isConnected ? origin : null;
     if (this.origin) holdIn(this.origin, {name: 'press:origin'});
     p.root.classList.add('opening'); // the picture waits for its first frame
