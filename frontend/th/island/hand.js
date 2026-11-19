@@ -37,7 +37,7 @@ export function grip(b) {
     } else if (motionReduced()) { if (g.axis === 'y' && Math.abs(dy) > 30) { g = null; void wide(dy > 0); } }
     // Its bottom edge under the finger (36 to 180 px); title and art 1:1 sideways.
     else if (g.axis === 'y') shape.set(rubber(g.p + dy / 144, 0, 1, .12));
-    else for (const n of strip()) n.style.translate = `${rubber(dx, -40, 40, 30)}px 0`;
+    else for (const n of strip()) n.style.translate = `${rubber(dx, -24, 24, 24)}px 0`;
   });
   const end = (/** @type {PointerEvent} */ e) => {
     if (!st.touching) return;

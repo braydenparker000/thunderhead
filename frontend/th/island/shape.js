@@ -38,7 +38,7 @@ let cov = null;
 export const shape = animator(paint, { unit: 'opacity' });
 export const alertWidth = animator(paint);
 export const artOn = animator(paint, { unit: 'scalar' });
-/** Scale in thousandths (a press, a breath) and a sideways nudge in px (a skip). */
+/** Scale in thousandths (press, breath); a nudge in px (skip). */
 export const pulse = animator(v => { if (st.island) st.island.style.scale = v ? String(1 + v / 1000) : ''; });
 export const nudge = animator(v => { if (st.island) st.island.style.translate = v ? `${v}px 0` : ''; });
 /** An impulse on springs.pop peaking at `peak`. @param {ReturnType<typeof animator>} a @param {number} peak @param {string} name */
@@ -107,7 +107,7 @@ export function aim(to, from, speed, name = to ? 'island:close-app' : 'island:op
 export function surface(l, C, p) {
   const s = l.shell.style, f = l.frame.style, is = st.island, k = C[2] / innerWidth;
   if (motionReduced()) { s.clipPath = f.transform = f.opacity = ''; s.opacity = String(1 - clamp(p)); if (is) is.style.opacity = String(clamp(p)); return; }
-  // 0 at the island, 1 at the full screen, by size.
+  // 0 at the island, 1 full screen.
   const u = clamp((C[2] + C[3] - isle[2] - isle[3]) / (innerWidth + innerHeight - isle[2] - isle[3])), o = clamp((u - .08) / .5), e = clamp(1 - u / .5), full = u > .999;
   s.opacity = '';
   s.clipPath = full ? '' : outline(C);
@@ -126,9 +126,9 @@ export function surface(l, C, p) {
   line.style.opacity = String(e);
   art.style.opacity = String(e);
   if (cov && art.classList.contains('has-art')) {
-    const S = mix(z, k * cov[2] / 72, u);
-    art.style.transform = `translate(${mix(x, C[0] + k * cov[0], u)}px,${mix(y, C[1] + k * cov[1] - top, u)}px) scale(${S})`;
-    art.style.borderRadius = `${mix(r, k * cov[3], u) / S}px`;
+    const v = clamp(u * 2.5), S = mix(z, k * cov[2] / 72, v);
+    art.style.transform = `translate(${C[0] + mix(x - isle[0], k * cov[0], v)}px,${C[1] - top + mix(y, k * cov[1], v)}px) scale(${S})`;
+    art.style.borderRadius = `${mix(r, k * cov[3], v) / S}px`;
     art.style.opacity = String(1 - o);
   }
 }
