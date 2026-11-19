@@ -29,17 +29,18 @@ const pressed = new WeakSet();
 export function press(el, {scale = 0.97, name = 'press'} = {}) {
   if (!el || pressed.has(el)) return el;
   pressed.add(el);
-  let down = false, released = false;
+  let down = false, current = null;
   el.addEventListener('pointerdown', e => {
     if (e.button !== 0 || level() === 'off') return;
-    down = true; released = false;
+    down = true;
     // A release during the press-in is how a press ends, not a cut; a cancel (a scroll took over) is.
-    timed(name, () => go(el, {transform: `scale(${scale})`}, {duration: T.press, easing: EASE, keep: true}).finished.then(() => ({cancelled: false}), () => ({cancelled: !released})));
+    const one = current = {released: false};
+    timed(name, () => go(el, {transform: `scale(${scale})`}, {duration: T.press, easing: EASE, keep: true}).finished.then(() => ({cancelled: false}), () => ({cancelled: !one.released})));
   });
   const up = e => {
     if (!down) return;
     down = false;
-    released = e?.type === 'pointerup';
+    if (current) current.released = e?.type === 'pointerup';
     const lv = level();
     if (lv === 'off') { stop(el); return; }
     go(el, {transform: 'none'}, {duration: T.normal, easing: lv === 'full' ? spring('snappy') : EASE});
