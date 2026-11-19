@@ -8,6 +8,7 @@ import {decodeSubtitleBytes} from '../engine/player.js';
 import {languageName, baseLanguage} from '../engine/languages.js';
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
+import {level} from '../ui/motion.js';
 import {savePrefs, subtitleStyle, DEFAULTS, SUBTITLE_COLORS, SUBTITLE_COLOR_NAMES, SUBTITLE_BACKGROUNDS} from './prefs.js';
 
 /** Whether the engine can show a second track (the menu's row is offered only then). */
@@ -28,7 +29,8 @@ export function pickLanguage(m, code) {
   m.subLang = code;
   m.renderModal();
   // Stacked in portrait, the tracks are under the languages: bring them up.
-  if (p.root.classList.contains('portrait')) p.modal.querySelector('.ap-rail.tracks')?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  const body = p.modal.querySelector('.ap-modal-body'), rail = body?.querySelector('.ap-rail.tracks');
+  if (p.root.classList.contains('portrait') && rail) body.scrollTo({top: rail.offsetTop - 8, behavior: level() === 'full' ? 'smooth' : 'auto'});
 }
 
 export function subtitleModal(m) {

@@ -43,7 +43,7 @@ export class Sleep {
     this.clear();
     if (!p.video.paused) p.video.pause(); // the pause saves the place
     else p.emitProgress(true);
-    p.notice('Sleep timer: paused');
+    p.loader.notice('Sleep timer: paused', null, {edge: true}); // at the bar's edge, rising from it
   }
 
   /** What is left, in the Playback menu and quietly at the top of the controls. */

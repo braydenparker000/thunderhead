@@ -4,14 +4,31 @@
 // time near the end: while the next-episode card shows, the outro's Skip
 // button does not (the card's Play is the way on; skipping the credits would
 // only land where the card already is).
+//
+// Both rise from the bar's edge with the spring when they appear, and ride up
+// above the bar with the controls (player.css, by a transform). The card's
+// play button carries a ring that fills over the "Next episode card" setting
+// (5, 10 or 15 s; off): like Skip's line, it is how long the offer stays
+// without the controls before it tucks away until they show again. It never
+// plays anything by itself: only a tap on Play does.
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
 import {put} from './view.js';
+import {appear, ghost, go, level, stop} from './feel.js';
 
 const SKIP_LABELS = {intro: 'Skip Intro', recap: 'Skip Recap', outro: 'Skip Outro', credits: 'Skip to post-credits'};
-// Called on every timeupdate: the page is only written when something changes.
-const show = (el, on) => { if (el.hidden === on) el.hidden = !on; };
+const NEXT_STEPS = [0, 5, 10, 15];
+/** The next card's time on screen without the controls, in seconds (the setting; 0 is "stays"). */
+export const nextCountdown = prefs => NEXT_STEPS.includes(prefs?.nextCountdown) ? prefs.nextCountdown : 10;
+// Called on every timeupdate: the page is only written when something changes. Appearing, it rises from the bar's edge.
+const show = (el, on) => {
+  if (el.hidden !== on) return false;
+  if (!on) ghost(el, {name: 'edge:out', offset: 'translateY(8px)'});
+  el.hidden = !on;
+  if (on) appear(el, {name: 'edge:in', offset: 'translateY(16px) scale(0.96)'});
+  return true;
+};
 
 export class Markers {
   constructor(p) {
@@ -62,7 +79,7 @@ export class Markers {
     if (!seg) return;
     this.skipped.add(seg.type);
     p.video.currentTime = Math.min(seg.end, (p.video.duration || seg.end) - 0.5);
-    p.skipBtn.hidden = true;
+    show(p.skipBtn, false);
     p.emitProgress(true); // the saved place is where the skip landed, not where it started
   }
 
@@ -74,11 +91,20 @@ export class Markers {
       n.thumbnail ? h('img', {src: n.thumbnail, alt: '', referrerpolicy: 'no-referrer'}) : h('div', {class: 'ap-next-thumb'}),
       h('div', {class: 'ap-next-text'}, h('small', {}, 'Next Episode'), h('b', {}, n.label + (n.title ? ' • ' + n.title : '')),
         n.status || n.hasAired === false ? h('span', {}, n.status || 'Not out yet') : null),
-      h('button', {class: 'ap-next-play', type: 'button', 'aria-label': `Play ${n.label}${n.title ? ', ' + n.title : ''}`, onclick: () => this.playNext(), disabled: n.hasAired === false}, icon('play', {size: 16}), 'Play'),
-      h('button', {class: 'ap-next-close', type: 'button', 'aria-label': 'Dismiss', onclick: () => { this.nextDismissed = true; card.hidden = true; }}, icon('close', {size: 16})));
+      h('button', {class: 'ap-next-play', type: 'button', 'aria-label': `Play ${n.label}${n.title ? ', ' + n.title : ''}`, onclick: () => this.playNext(), disabled: n.hasAired === false},
+        this.ring = ring(), icon('play', {size: 18})),
+      h('button', {class: 'ap-next-close', type: 'button', 'aria-label': 'Dismiss', onclick: () => this.dismissNext()}, icon('close', {size: 16})));
     let startX = null;
     card.onpointerdown = e => { startX = e.clientX; };
-    card.onpointerup = e => { if (startX != null && e.clientX - startX >= 60) { this.nextDismissed = true; card.hidden = true; } startX = null; };
+    card.onpointerup = e => { if (startX != null && e.clientX - startX >= 60) this.dismissNext('translateX(48px)'); startX = null; };
+    this.nextShownAt = null;
+  }
+
+  /** The card put away by its close button or a swipe right (a copy leaves the way it was sent). */
+  dismissNext(offset = 'translateY(8px)') {
+    const card = this.p.nextCard;
+    this.nextDismissed = true;
+    if (!card.hidden) { ghost(card, {name: 'next:dismiss', offset}); card.hidden = true; }
   }
 
   /** Whether the next-episode card is offered at t: from the outro (when it runs to the end) or the last 1 %. */
@@ -92,7 +118,31 @@ export class Markers {
     return !(t < at || credits);
   }
 
-  updateNext(t, d) { show(this.p.nextCard, this.nextDue(t, d)); }
+  /**
+   * The card shows while it is due; with a countdown, it tucks away once it has been up that long
+   * without the controls, and comes back with them (as Skip does).
+   */
+  updateNext(t, d) {
+    const p = this.p, due = this.nextDue(t, d), secs = nextCountdown(p.prefs);
+    if (!due) { this.nextShownAt = null; show(p.nextCard, false); return; }
+    if (this.nextShownAt == null) { this.nextShownAt = performance.now(); this.runRing(secs); }
+    const tucked = secs > 0 && performance.now() - this.nextShownAt > secs * 1000 && !p.ctl.visible;
+    show(p.nextCard, !tucked);
+  }
+
+  /** The ring fills over `secs` (two halves, each turned by a transform); none when off. */
+  runRing(secs) {
+    const r = this.ring;
+    if (!r) return;
+    r.hidden = !secs;
+    const [right, left] = r.querySelectorAll('.ap-ring-rotor');
+    for (const el of [right, left]) stop(el);
+    if (!secs) return;
+    if (level() === 'off') { for (const el of [right, left]) go(el, {transform: 'rotate(180deg)'}, {from: {transform: 'rotate(180deg)'}, duration: 0, keep: true}); return; }
+    const half = secs * 500;
+    go(right, {transform: 'rotate(180deg)'}, {from: {transform: 'rotate(0deg)'}, duration: half, easing: 'linear', keep: true});
+    go(left, {transform: 'rotate(180deg)'}, {from: {transform: 'rotate(0deg)'}, duration: half, delay: half, easing: 'linear', keep: true});
+  }
 
   playNext() {
     const p = this.p, n = p.options.next;
@@ -100,5 +150,11 @@ export class Markers {
     p.emit('next', {time: p.video.currentTime});
   }
 
-  close() { show(this.p.skipBtn, false); show(this.p.nextCard, false); this.skipSegmentShown = null; }
+  close() { this.p.skipBtn.hidden = true; this.p.nextCard.hidden = true; this.skipSegmentShown = null; this.nextShownAt = null; }
+}
+
+/** The countdown ring: a right and a left half, each a half circle turned into view (only transforms move). */
+function ring() {
+  const half = side => h('span', {class: 'ap-ring-half ' + side}, h('span', {class: 'ap-ring-rotor'}, h('span', {class: 'ap-ring-arc'})));
+  return h('span', {class: 'ap-ring', 'aria-hidden': 'true'}, h('span', {class: 'ap-ring-track'}), half('r'), half('l'));
 }

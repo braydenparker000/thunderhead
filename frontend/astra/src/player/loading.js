@@ -1,12 +1,20 @@
 // What the player says while it waits or after it stops: the loading screen
 // (how long, how much has arrived, and a way out when it drags on), how long a
-// wait for a slow link has left, under the spinner, the error card with what
-// can help, and the short notice across the top.
+// wait for a slow link has left, in the words over the waiting line, the error
+// card with what can help, and the short notice across the top (or, for the
+// sleep timer, at the bar's edge). Each comes from somewhere: the loading
+// layer fades (passage.js makes the opening's dim), the error card rises into
+// place, a notice drops from the top edge or rises from the bar's edge.
 
 import {h} from '../ui/dom.js';
+import {T, appear, arrive, leave, ghost} from './feel.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
 import {addressNotice, tryAgain} from './address.js';
 import {copyFromPlayer} from './playback-report.js';
+
+export const WAITING = 'Waiting for the film…';
+/** The error card's actions with the filled (primary) one first, where the eye and the thumb land. */
+const lead = (...els) => els.filter(Boolean).sort((a, b) => Number(b.classList?.contains('primary') ?? 0) - Number(a.classList?.contains('primary') ?? 0));
 
 export class Loading {
   constructor(p) {
@@ -23,19 +31,19 @@ export class Loading {
    */
   waitFor({holding, left}) {
     const p = this.p;
-    if (!this.waitEl) {
-      // Placed by its own style, as the spinner's box (player.css .ap-buffering) has room for the ring only.
-      this.waitEl = h('p', {class: 'ap-wait', hidden: true, style: {position: 'absolute', top: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '80vw', margin: '0', textAlign: 'center', fontSize: '13px', lineHeight: '18px', color: 'rgba(255,255,255,.9)', textShadow: '0 1px 3px rgba(0,0,0,.8)', fontVariantNumeric: 'tabular-nums'}});
-      p.spinner.parentElement?.append(this.waitEl);
-    }
-    const show = holding && left != null && left > 2;
-    if (show) this.waitEl.replaceChildren('The connection is slower than this film.', h('br'), `Playing again in ${Math.ceil(left)} s`);
-    this.waitEl.hidden = !show;
+    const slow = holding && left != null && left > 2;
+    const words = slow ? `The connection is slower than this film. Playing again in ${Math.ceil(left)} s` : WAITING;
+    if (p.waitWords.textContent !== words) p.waitWords.textContent = words;
   }
 
+  /**
+   * The loading layer on or off. Off, it fades as the picture (or the error card) shows through
+   * (passage.js reveal); while the player is closing it is left to passage.js.
+   */
   show(on) {
     const p = this.p;
-    p.loading.hidden = !on;
+    if (on) arrive(p.loading, {name: 'player:loading'});
+    else if (p.isOpen) { leave(p.loading, {name: 'player:loaded', ms: 180}); p.passage.reveal(); }
     if (!on) { clearInterval(this.timer); this.timer = 0; this.since = null; p.loadingSlow.hidden = true; p.loadingInfo.textContent = ''; return; }
     p.loadingStatus.textContent = 'Finding the stream…';
     // A load that takes a while says how long and how much has arrived, then offers a way out.
@@ -49,10 +57,10 @@ export class Loading {
    */
   waitForPick() {
     const p = this.p;
-    this.show(false);
-    p.loading.hidden = false;
+    clearInterval(this.timer); this.timer = 0; this.since = null; p.loadingInfo.textContent = '';
+    arrive(p.loading);
     p.loadingStatus.textContent = 'Choose a source for this episode.';
-    p.loadingSlow.replaceChildren(h('div', {class: 'ap-loading-actions'}, h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openPanel('sources')}, 'Sources')));
+    p.loadingSlow.replaceChildren(h('div', {class: 'ap-loading-actions'}, h('button', {class: 'ap-btn primary', type: 'button', onclick: () => p.openPanel('sources')}, 'Sources')));
     p.loadingSlow.hidden = false;
   }
 
@@ -74,19 +82,35 @@ export class Loading {
     const external = canOpenExternally() && externalPlayerUrl(p.stream?.url);
     p.loadingSlow.replaceChildren(h('span', {}, `This is taking a while. ${why}`),
       others || external ? h('div', {class: 'ap-loading-actions'},
-        others ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.openPanel('sources')}, 'Other sources') : null,
-        external ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null) : null);
+        others ? h('button', {class: 'ap-btn', type: 'button', onclick: () => p.openPanel('sources')}, 'Other sources') : null,
+        external ? h('button', {class: 'ap-btn', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null) : null);
     p.loadingSlow.hidden = false;
+    appear(p.loadingSlow, {name: 'player:slow', offset: 'translateY(8px)', ms: T.normal});
   }
 
-  /** A short message across the top for a few seconds, perhaps with one button ({label, run}); a tap anywhere on it puts it away. */
-  notice(text, action = null) {
-    const p = this.p;
+  /**
+   * A short message for a few seconds, perhaps with one button ({label, run}); a tap anywhere on it
+   * puts it away. Across the top, dropping from the top edge; `edge` (the sleep timer): at the bar's
+   * edge, rising from it with the spring.
+   */
+  notice(text, action = null, {edge = false} = {}) {
+    const p = this.p, n = p.noticeEl;
     text = addressNotice(p.stream?.resolved, text); // Chrome plays the add-on's link: why that link was used (address.js)
-    p.noticeEl.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
-    p.noticeEl.hidden = false;
+    const fresh = n.hidden || n.classList.contains('edge') !== edge;
+    n.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
+    n.classList.toggle('edge', edge);
+    n.hidden = false;
+    if (fresh) appear(n, edge ? {name: 'notice:edge', offset: 'translateY(16px)'} : {name: 'notice:in', offset: 'translateY(-8px)', ms: T.normal, curve: 'snappy'});
     clearTimeout(this.noticeTimer);
-    this.noticeTimer = setTimeout(() => { p.noticeEl.hidden = true; }, 7000);
+    this.noticeTimer = setTimeout(() => this.dropNotice(), 7000);
+  }
+
+  /** The notice goes back where it came from (a copy fades; the notice itself is gone at once). */
+  dropNotice() {
+    const n = this.p.noticeEl;
+    if (n.hidden) return;
+    ghost(n, {name: 'notice:out', offset: n.classList.contains('edge') ? 'translateY(8px)' : 'translateY(-8px)'});
+    n.hidden = true;
   }
 
   /** The host connection lost and found again: playback goes on from the buffer meanwhile, so this is a notice, not an error. */
@@ -94,7 +118,7 @@ export class Loading {
     const p = this.p;
     if (state === 'reconnecting') { this.notice('Reconnecting…'); clearTimeout(this.noticeTimer); }
     else if (state === 'connected' && !p.noticeEl.hidden) this.notice('Connected again');
-    else if (state === 'lost') p.noticeEl.hidden = true;
+    else if (state === 'lost') this.dropNotice();
   }
 
   showError(message, plan = null, {network = false} = {}) {
@@ -102,7 +126,7 @@ export class Loading {
     this.show(false);
     p.noticeEl.hidden = true;
     // The playback report in plain words (playback-report.js): no address, hash, key, token or file name in it.
-    const report = h('button', {class: 'ap-chip', type: 'button', onclick: async () => { report.textContent = await copyFromPlayer(p) ? 'Report copied' : 'Copy failed'; }}, 'Copy report');
+    const report = h('button', {class: 'ap-btn quiet', type: 'button', onclick: async () => { report.textContent = await copyFromPlayer(p) ? 'Report copied' : 'Copy failed'; }}, 'Copy report');
     // What can help depends on why it stopped: a lost connection is tried again
     // (from where it stopped), a dead link needs another source, and only a file
     // the browser cannot play is worth another app.
@@ -113,14 +137,15 @@ export class Loading {
     p.errorCard.replaceChildren(
       h('h3', {}, gone ? 'This link no longer works' : connection ? 'Lost the connection' : plan?.mode === 'unsupported' ? 'Can’t play this here' : 'Playback stopped'), h('p', {}, message),
       external ? h('p', {class: 'ap-error-hint'}, 'Another app on your phone, such as VLC, can play it.') : '', // '' and not null: replaceChildren would write the word
-      h('div', {class: 'ap-error-actions'},
-        external ? h('button', {class: 'ap-chip primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
-        plan?.silent ? h('button', {class: 'ap-chip', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,
-        others ? h('button', {class: 'ap-chip' + (primary === 'sources' ? ' primary' : ''), type: 'button', onclick: () => { p.errorCard.hidden = true; p.openPanel('sources'); }}, 'Choose another source') : null,
-        retry ? h('button', {class: 'ap-chip' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => tryAgain(p)}, 'Try again') : null,
-        report,
-        h('button', {class: 'ap-chip', type: 'button', onclick: () => p.close('user')}, 'Close')));
+      h('div', {class: 'ap-error-actions'}, ...lead(
+        external ? h('button', {class: 'ap-btn primary', type: 'button', onclick: () => p.openExternally()}, 'Play in another app') : null,
+        plan?.silent ? h('button', {class: 'ap-btn', type: 'button', onclick: () => p.load(p.stream, p.resumePoint(), {allowSilent: true})}, 'Play without sound') : null,
+        others ? h('button', {class: 'ap-btn' + (primary === 'sources' ? ' primary' : ''), type: 'button', onclick: () => { p.errorCard.hidden = true; p.openPanel('sources'); }}, 'Choose another source') : null,
+        retry ? h('button', {class: 'ap-btn' + (primary === 'retry' ? ' primary' : ''), type: 'button', onclick: () => tryAgain(p)}, 'Try again') : null,
+        h('div', {class: 'ap-error-quiet'}, report, h('button', {class: 'ap-btn quiet', type: 'button', onclick: () => p.close('user')}, 'Close')))));
+    const fresh = p.errorCard.hidden;
     p.errorCard.hidden = false;
+    if (fresh) appear(p.errorCard, {name: 'error:in', offset: 'translateY(12px) scale(0.98)'});
     p.showControls(false);
   }
 
@@ -128,7 +153,7 @@ export class Loading {
   close() {
     const p = this.p;
     this.show(false);
-    if (this.waitEl) this.waitEl.hidden = true;
+    p.waitWords.textContent = WAITING;
     clearTimeout(this.noticeTimer);
     p.noticeEl.hidden = true;
     p.errorCard.hidden = true;
