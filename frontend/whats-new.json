@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-18-astra-fonts-start",
-  "date": "2026-11-18",
+  "id": "2026-11-19-astra-finished",
+  "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra: films with subtitle fonts attached (most anime) no longer download all the fonts before the first picture.",
+      "text": "Astra: tap a Continue Watching card and it plays the stream you last picked, from where you stopped. Hold it for others.",
       "open": "astra"
     },
     {
-      "text": "On a slow connection that was 10 seconds or more of waiting. The fonts now load beside the film."
+      "text": "Astra now stays the same on every phone you sign in on: add-ons, library, progress and settings follow you."
     },
     {
-      "text": "Working out what is inside a file has a time limit, so an odd file cannot hold a film for a minute and a half."
+      "text": "Stream cards hide the long hash line and say before you tap when a stream will play poorly on this phone."
     },
     {
-      "text": "When this phone cannot play a film at all, Astra says so in a plain sentence."
+      "text": "Films start sooner after a tap and hold less memory. Stream info has Copy playback report for a slow start."
     }
   ]
 }
