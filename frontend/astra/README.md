@@ -262,16 +262,21 @@ host. The page never calls TorBox.
   found (`via`, each step's time and the server's own, from
   `debrid.js answerFor`, looked up by the stream's own link or the address
   played, never another film's), the server group, the link's speed, the
-  stalls so far, and the log (a kind it does not know is a plain line). A
-  film that never opened says so, with why. Nothing the file or an add-on
-  named is printed: a track is its language code, codec, channels and kind
-  (inside the file, from an add-on, from this phone), never its label or
-  title; a track chosen, fonts by their count, an error without its detail.
-  Every name the engine holds from the file (track names and labels, chapter
-  titles, font names, subtitle names) is taken out of any engine sentence
-  carrying it, a sentence that is not plain English words and numbers is
-  `[text]`, and each line goes through the scrubber below whole, before it
-  is cut to 240 characters.
+  stalls so far, the chapter count, and the log as the engine wrote it (a
+  kind it does not know is a plain line). A film that never opened says so,
+  with why. **Owner ruling 2026-11-19: it keeps out only links, hashes,
+  tokens and keys**, so the file's own words stay: each sound's title,
+  language, codec, channels and how it plays and why (a title that claims
+  FLAC over an AAC track shows), each subtitle's title, language and kind
+  (inside the file, from an add-on, from this phone: a file picked from the
+  phone shows its name), the plan's reason and notes, an error's detail in
+  the engine's and libmedia's own words, why a sound was passed through,
+  font names, and which track was chosen (its number and title). Every line
+  is scrubbed whole, then cut to 300 characters: every web address in any
+  form, magnet, hash, token and key goes, and so do the stream's own
+  address, its host and its file's name wherever they appear
+  (`scrubSecrets` with `names: false`). The lab's TorBox check keeps the
+  stricter scrubbing (`names: true`: file and release names go too).
 
 ## When add-ons misbehave
 
