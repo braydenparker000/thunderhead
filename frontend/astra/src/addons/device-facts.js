@@ -1,12 +1,12 @@
 // How a stream will most likely play on this phone, said on its card before the owner taps: from
 // the label (addons/stream-facts.js) and the browser's own answer to "can you decode this smoothly
 // and power-efficiently?" (navigator.mediaCapabilities.decodingInfo), never from the browser's name.
-// It informs only: nothing is hidden, ranked or picked by it.
+// It informs only: nothing is hidden, ranked or picked by it. The card's one note is chosen from this
+// and from the stream's link in addons/stream-note.js.
 //
 // engine/capabilities.js asks MediaSource.isTypeSupported, which says yes to a codec Chrome decodes
 // in software too, so it cannot tell the battery-heavy route apart; this asks decodingInfo instead.
 
-import {h} from '../ui/dom.js';
 import {playFactsOf, text} from './stream-facts.js';
 
 export const DIRECT = 'Plays directly';
@@ -28,7 +28,7 @@ const SIZES = {'4k': [3840, 2160, 20e6], 1080: [1920, 1080, 8e6], 720: [1280, 72
  * names no codec but an MP4 file is asked as H.264, the codec of nearly every MP4 on the web; an MKV
  * or WebM file that names none may hold anything, so nothing is said. HDR and Dolby Vision mean
  * 10-bit for HEVC, AV1 and VP9; 10-bit H.264 is only what the label calls so (Hi10P).
- * @returns {{key: string, config: MediaDecodingConfiguration, plain: boolean} | null}
+ * @returns {{key: string, config: MediaDecodingConfiguration, plain: boolean, codec: string, ten: boolean} | null}
  */
 export function questionOf(stream) {
   const f = playFactsOf(stream), codec = f.codec ?? (f.container === 'mp4' ? 'h264' : null);
@@ -36,7 +36,7 @@ export function questionOf(stream) {
   const ten = f.tenBit || (f.hdr && codec !== 'h264');
   const [width, height, bitrate] = SIZES[f.res ?? '1080'];
   const contentType = `video/mp4; codecs="${CODECS[codec][ten ? 1 : 0]}"`;
-  return {key: `${contentType} ${width}x${height}`, plain: codec === 'h264' && !ten,
+  return {key: `${contentType} ${width}x${height}`, plain: codec === 'h264' && !ten, codec, ten,
     config: {type: 'media-source', video: {contentType, width, height, bitrate, framerate: 24}}};
 }
 
@@ -96,17 +96,8 @@ export function ask(question) {
   return got.promise;
 }
 
-/**
- * The card's line, or null when the label cannot tell. Its room is reserved before the answer
- * arrives (one line, never wrapping), so the card and those under it do not move under a finger.
- */
-export function playsMark(stream) {
-  const q = questionOf(stream);
-  if (!q) return null;
-  const el = h('span', {class: 'stream-plays'});
-  const put = a => { const words = wordsFor(q, a); el.textContent = words; el.classList.toggle('heavy', words === SOFTWARE); };
-  const known = answers.get(q.key);
-  if (known?.done) put(known.value);
-  else ask(q).then(put);
-  return el;
+/** The browser's answer to a question when it is already known (null: it cannot answer), else undefined. */
+export function answerNow(question) {
+  const got = answers.get(question.key);
+  return got?.done ? got.value : undefined;
 }

@@ -7,10 +7,11 @@ import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {image, emptyCard} from '../ui/components.js';
 import {fetchStreams, supports} from '../addons/client.js';
-import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, bytesOf, filtersFrom, shown} from '../addons/stream-facts.js';
+import {CODEC_CHIPS, RES_CHIPS, SIZE_CHIPS, NO_FILTERS, anyFilter, factsOf, filtersFrom, shown} from '../addons/stream-facts.js';
 import {withoutHash} from '../addons/stream-text.js';
 import {episodeCode, videoTitle} from '../app/content.js';
-import {sizeFrom, streamCard} from './stream-card.js';
+import {Notes} from '../addons/stream-note.js';
+import {drawInSlices, sizeFrom, streamCard} from './stream-card.js';
 
 export {sizeFrom};
 
@@ -27,7 +28,7 @@ export function sourceName(addon, stream, between = ' ') {
 }
 
 /** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */
-const overLimit = (s, mb) => !!mb && (bytesOf(s) ?? 0) > mb * 1e6;
+const overLimit = (s, mb) => !!mb && (factsOf(s).bytes ?? 0) > mb * 1e6;
 
 export class StreamsScreen {
   constructor(app, meta, video = null, {startTime = 0, headless = false} = {}) {
@@ -47,6 +48,7 @@ export class StreamsScreen {
     this.chips = h('div', {class: 'filter-chips', role: 'tablist'});
     this.facts = h('div', {class: 'filter-chips facts', role: 'group', 'aria-label': 'Filters'});
     this.list = h('div', {class: 'stream-list', 'aria-live': 'polite'});
+    this.notes = new Notes(this.list); // what each card's note needs: signed in, the browser's answers
     this.footer = h('p', {class: 'stream-footer'});
     this.el.append(...[this.hero(), h('button', {class: 'float-back solid', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back')),
       startTime > 30 ? h('div', {class: 'resume-pill'}, icon('replay', {size: 16}), `Resume from ${clock(startTime)}`) : null,
@@ -257,11 +259,14 @@ export class StreamsScreen {
     const shows = g.error ? g.error : g.streams === null ? 'asking' : g.streams;
     const limit = `${this.app.maxMb || 0}|${JSON.stringify(this.f)}`;
     if (sec.shows !== shows || sec.limit !== limit) {
-      sec.shows = shows;
-      sec.limit = limit;
-      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]
-        : g.streams === null ? [skeletonStream(), skeletonStream()]
-        : this.visible(g).map(([s]) => streamCard(this, g, s))));
+      const list = Array.isArray(shows) ? this.visible(g).map(([s]) => s) : null;
+      // The cards wait (placeholders, or the cards before) until their notes are known, so none arrives under a finger.
+      const wait = list && this.notes.pending(list);
+      if (wait) { if (sec.waiting !== wait) { sec.waiting = wait; wait.then(() => this.destroyed || this.render()); } return sec; }
+      Object.assign(sec, {shows, limit, drawn: (sec.drawn || 0) + 1});
+      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)] : g.streams === null ? [skeletonStream(), skeletonStream()] : []));
+      const drawn = sec.drawn;
+      if (list) drawInSlices(sec.body, list, s => streamCard(this, g, s), () => !this.destroyed && sec.drawn === drawn);
     }
     return sec;
   }
