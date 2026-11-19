@@ -12,8 +12,8 @@ import {withoutHash} from '../addons/stream-text.js';
 import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
 
 const NEEDS_DEBRID = 'Torrents need a debrid add-on such as TorBox.';
-/** Cards drawn at once (more than a screenful), then how long each later slice may take. */
-export const FIRST = 10, SLICE_MS = 6;
+/** Cards drawn at once (more than a screenful), then at most SLICE cards or SLICE_MS of work a frame. */
+export const FIRST = 10, SLICE = 8, SLICE_MS = 4;
 const sizeLabel = n => !n ? '' : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB' : Math.round(n / 1e6) + ' MB';
 
 /** A best-effort size from the stream's own number or text ("💾 4.2 GB", "1,400 MB"), as "1.4 GB". */
@@ -52,17 +52,19 @@ export function streamCard(screen, group, s) {
 }
 
 /**
- * Draws `items` into `body` in their order: the first FIRST at once, the rest SLICE_MS' worth at a time between
- * frames (300 cards at once held a slowed phone for half a second). Only ever appends, so a card under a finger
- * is never replaced or moved; `alive()` turns false when the body is drawn again, which ends the work left.
+ * Draws `items` into `body` in their order: the first FIRST at once, then one slice a frame, each laid out in its
+ * own frame (300 cards at once held a slowed phone for half a second; a card costs more to lay out than to make,
+ * so a slice is counted in cards as well as in time). Only ever appends, so a card under a finger is never
+ * replaced or moved; `alive()` turns false when the body is drawn again, which ends the work left.
  */
 export function drawInSlices(body, items, make, alive) {
   let i = 0;
-  const slice = budget => {
-    const end = performance.now() + budget, part = document.createDocumentFragment();
-    while (i < items.length && (i < FIRST || performance.now() < end)) part.append(make(items[i++]));
+  const slice = (count, budget) => {
+    const first = i, stop = Math.min(items.length, i + count), end = performance.now() + budget, part = document.createDocumentFragment();
+    while (i < stop && (i === first || performance.now() < end)) part.append(make(items[i++]));
     body.append(part);
-    if (i < items.length) setTimeout(() => { if (alive()) slice(SLICE_MS); }, 0);
+    // The next slice after this one has been drawn: a task posted from a frame's callback runs after that frame.
+    if (i < items.length) requestAnimationFrame(() => setTimeout(() => { if (alive()) slice(SLICE, SLICE_MS); }, 0));
   };
-  slice(0);
+  slice(FIRST, Infinity);
 }

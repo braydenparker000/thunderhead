@@ -62,6 +62,10 @@ async function app(t, { report, streams = STREAMS }) {
     const report = ${report};
     const mc = navigator.mediaCapabilities;
     mc.decodingInfo = async (c) => report(c.video.contentType);
+    // How many cards each frame showed (the list is drawn in slices).
+    const counts = window.cardsByFrame = [];
+    const look = () => { const n = document.querySelectorAll('.screen.streams .stream-card').length; if (n !== counts.at(-1)) counts.push(n); requestAnimationFrame(look); };
+    requestAnimationFrame(look);
   })()`);
   const json = (route, v) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(v) });
   await context.route((url) => !/^(http:\/\/127\.0\.0\.1|https:\/\/addon\.example\/)/.test(url.href), (route) => route.abort());
@@ -127,6 +131,11 @@ test('300 streams: the first cards at once, the rest in slices, in order, each a
   const { page, errors } = await app(t, { report: EVERYTHING, streams: many });
   const names = await page.$$eval('.screen.streams .stream-card .stream-name', (els) => els.map((el) => el.textContent));
   assert.deepEqual(names, many.map((s) => s.name));
+  // Ten at once, then at most eight a frame, never one taken away.
+  const counts = (await page.evaluate(() => window.cardsByFrame)).filter((n) => n > 0);
+  assert.equal(counts[0], 10, counts.join(' '));
+  assert.equal(counts.at(-1), 300);
+  for (let i = 1; i < counts.length; i++) assert.ok(counts[i] > counts[i - 1] && counts[i] - counts[i - 1] <= 8, counts.join(' '));
   // The last card was drawn in a later slice; a press on it asks ahead as on the first.
   const last = page.locator('.screen.streams .stream-card').last();
   await last.scrollIntoViewIfNeeded();
