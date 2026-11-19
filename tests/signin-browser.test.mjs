@@ -278,6 +278,28 @@ test('a revoked session wipes this device and says why on /signin/', opts, async
   await page.close();
 });
 
+// Astra's saved data follows the sign-in once it is kept in step with the owner's server (its sync record says this
+// phone joined and the switch is on): then a sign-out removes it, add-on addresses (secrets) and all, since the server
+// holds the copy; a phone that never joined, or turned the switch off, keeps it as before. Device facts stay.
+test('a sign-out removes Astra’s data when it is kept in step with the server, and only then', opts, async () => {
+  const revoked = { me: () => [401, { error: { code: 'session_revoked', message: 'x', request_id: 't', details: { reason: 'signed_out_elsewhere' } } }] };
+  for (const record of [{ joined: true, off: false }, { joined: true, off: true }, { joined: false }, null]) {
+    const { page } = await open('/no-such-page', { session: true, mock: revoked });
+    await page.evaluate((r) => {
+      localStorage.setItem('astra.v2.addons', JSON.stringify([{ url: 'https://addon.example/invented-key-0011/manifest.json', enabled: true, name: 'Invented' }]));
+      localStorage.setItem('astra.v2.player', '{"volume":1}');
+      localStorage.setItem('astra-routes', '{}');
+      if (r) localStorage.setItem('astra.sync.v1', JSON.stringify(r));
+    }, record);
+    await page.goto(`${base}/`);
+    await page.waitForURL(u => u.pathname === '/signin/');
+    const left = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('astra')).sort());
+    const all = ['astra-routes', 'astra.v2.addons', 'astra.v2.player', ...(record ? ['astra.sync.v1'] : [])].sort();
+    assert.deepEqual(left, record?.joined && !record.off ? ['astra-routes'] : all, JSON.stringify(record));
+    await page.close();
+  }
+});
+
 test('Account: change password keeps the password manager in the loop', opts, async () => {
   const { page, errors, api } = await open('/settings/password/', { session: true });
   await page.waitForSelector('#password');

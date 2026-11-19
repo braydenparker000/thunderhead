@@ -64,6 +64,20 @@ export const pending = {
   clear: () => auth.del('pending_signout'),
 };
 
+/** Astra's sync record (frontend/astra/src/app/sync.js, ASTRA.md §5.3). */
+const ASTRA_SYNC = 'astra.sync.v1';
+/** Whether Astra's saved data (`astra.v2.*`, add-on addresses among it, which are secrets) is kept in step
+ * with the owner's server: this phone joined and its switch is on. Then the server holds the copy and a
+ * signed-out phone keeps none of it; otherwise it is Astra's own local data, kept as before. */
+function astraInStep() {
+  try {
+    const r = JSON.parse(localStorage.getItem(ASTRA_SYNC) || 'null');
+    return r?.joined === true && r.off !== true;
+  } catch {
+    return false;
+  }
+}
+
 /** Removes every private thing this device holds; app code and `th.ui.` choices stay (§11.3). */
 export async function wipe() {
   // 1. Audio, capture and Media Session belong to the apps; they listen for `signed_out` below.
@@ -88,9 +102,11 @@ export async function wipe() {
     for await (const name of /** @type {any} */ (root).keys()) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
   } catch {}
-  // 6. Personal localStorage keys.
+  // 6. Personal localStorage keys, and Astra's saved data when it is a copy of the owner's server's.
   try {
-    for (const key of Object.keys(localStorage)) if (key.startsWith('th.p.')) localStorage.removeItem(key);
+    const astra = astraInStep();
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith('th.p.') || (astra && (key.startsWith('astra.v2.') || key === ASTRA_SYNC))) localStorage.removeItem(key);
   } catch {}
   // 7. Other tabs and the service worker.
   try {

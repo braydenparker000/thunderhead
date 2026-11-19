@@ -549,6 +549,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 1. From any browser: sign in at `/signin/` → Settings → Sign-in & devices → **Sign out** the lost phone (or **Sign out everywhere else**).
 2. If the password isn't available: `/recover/` with the recovery code; that signs out everything.
 3. The phone wipes its private data the next time it reaches the API (or on the `signout` push once Web Push exists). Use Android's own Find My Device erase if needed.
+   Astra's saved data, add-on addresses among it, goes with it when the phone kept Astra in step with the server (ASTRA.md §5.3): the shell's wipe removes it, and Astra removes it itself when the Worker answers 401. A phone that never joined, or had the switch off, keeps it until erased.
 4. Agent keys are not on the phone; leave them.
 
 ### 14.5 A repository or Worker secret leaked

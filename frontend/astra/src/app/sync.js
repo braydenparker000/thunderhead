@@ -52,14 +52,16 @@ export function startSync(app, deps = {}) {
   const d = {api: workerApi, session: workerSession, now: () => Date.now(), win: globalThis, doc: globalThis.document, toast: null,
     storage: (() => { try { return globalThis.localStorage; } catch { return null; } })(),
     later: (fn, ms) => setTimeout(fn, ms), cancel: id => clearTimeout(id), idle: fn => globalThis.requestIdleCallback ? requestIdleCallback(fn, {timeout: 4000}) : setTimeout(fn, 1500),
-    fetch: (...a) => globalThis.fetch(...a), ...deps};
+    fetch: (...a) => globalThis.fetch(...a), channel: () => new BroadcastChannel('th-auth'), ...deps};
   // As another window's write is heard (store.js createStorage), so every open screen follows.
   d.announce ??= key => d.win?.dispatchEvent?.(new StorageEvent('storage', {key: PREFIX + key, storageArea: d.storage}));
   const store = app.store, listeners = new Set(), snap = {};
   let signedIn = null, working = null, problem = '', timer = 0, retry = 0, hiddenAt = 0, changes = 0, applying = false;
+  /** This phone's data is a copy of the server's (joined, switch on): what a sign-out must not leave behind. */
+  let inStep = false;
 
   const record = () => { try { return recordOf(JSON.parse(d.storage?.getItem(RECORD) || 'null')); } catch { return fresh(); } };
-  const keep = rec => { try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
+  const keep = rec => { inStep = rec.joined && !rec.off; try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
   // A copy: a listener may stop and start listening again as it runs (Settings redraws itself).
   const changed = () => { for (const fn of [...listeners]) fn(); };
   const schedule = ms => { d.cancel(timer); timer = d.later(() => exchange('timer'), ms); };
@@ -168,13 +170,29 @@ export function startSync(app, deps = {}) {
     }
   }
 
+  /**
+   * The session ended. Signed out on this phone, th/session.js wipe() has already removed Astra's data when it
+   * was in step with the server (and says so on its channel); a 401 from the Worker means the server ended the
+   * session (signed out from another device), so the same is done here. Either way, when in step, nothing this
+   * page still holds is written back (the store is frozen until the page is opened again).
+   */
+  function signedOut(byServer) {
+    signedIn = false;
+    d.cancel(timer);
+    if (inStep) {
+      if (byServer) try { for (const k of store.keys()) d.storage.removeItem(PREFIX + k); d.storage.removeItem(RECORD); } catch {}
+      store.freeze();
+    }
+    changed();
+  }
+
   /** One exchange at a time; a failure is quiet and tried again later, each wait longer. */
   function exchange() {
     if (!signedIn || record().off) return Promise.resolve();
     if (working) return working;
     d.cancel(timer);
     working = run().then(() => { retry = 0; }, error => {
-      if (error?.code === 'signed-out' || error?.status === 401) { signedIn = false; return; }
+      if (error?.code === 'signed-out' || error?.status === 401) { signedOut(error?.status === 401); return; }
       problem = 'unreached';
       schedule(RETRY[Math.min(retry++, RETRY.length - 1)]);
     }).finally(() => { working = null; changed(); });
@@ -202,6 +220,8 @@ export function startSync(app, deps = {}) {
     signedIn = !!(await d.session().catch(() => null));
     changed();
     if (!signedIn) return; // signed out: nothing is hooked and nothing is sent
+    inStep = record().joined && !record().off;
+    try { d.channel()?.addEventListener('message', e => { if (e.data === 'signed_out') signedOut(false); }); } catch {}
     for (const k of BACKUP_KEYS) snapshot(k);
     hearWrites();
     d.doc?.addEventListener?.('visibilitychange', () => {
@@ -231,8 +251,7 @@ export function startSync(app, deps = {}) {
     /** Deletes the copy on the server, with its daily copies; this phone stops keeping one. */
     async removeCopy() {
       try { await d.api(PATH, {method: 'DELETE'}); } catch (error) {
-        // api() reads a JSON answer; the Worker's 204 has none, which is the success it says it is.
-        if (error?.status !== 204) return {ok: false, message: error?.message || 'Your server could not be reached.'};
+        return {ok: false, message: error?.message || 'Your server could not be reached.'};
       }
       d.cancel(timer);
       keep({...fresh(), off: true});

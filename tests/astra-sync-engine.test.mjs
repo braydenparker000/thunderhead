@@ -46,7 +46,7 @@ async function phone(w, { data = {}, signedIn = true, offset = 0, record = null 
   if (record) area.setItem(RECORD, JSON.stringify(record));
   const win = new EventTarget();
   const store = createStorage(area, { events: win });
-  const p = { area, store, t: T + offset, queue: [], toasts: [], doc: Object.assign(new EventTarget(), { visibilityState: 'visible' }), set: store.set };
+  const p = { area, store, t: T + offset, queue: [], toasts: [], doc: Object.assign(new EventTarget(), { visibilityState: 'visible' }), set: store.set, channel: new EventTarget() };
   p.library = new Library(store);
   p.app = { store, playing: null };
   const later = (fn, ms) => { const id = Symbol('timer'); p.queue.push({ id, at: p.t + ms, fn }); return id; };
@@ -58,7 +58,7 @@ async function phone(w, { data = {}, signedIn = true, offset = 0, record = null 
   const session = async () => (signedIn ? { api: 'https://api.example.test', token: 'invented-session-token' } : null);
   p.sync = startSync(p.app, {
     api: (path, o = {}) => api(path, { ...o, read: session, fetchFn: o.fetchFn ?? w.fetch }), session, storage: area, now: () => p.t,
-    later, cancel, idle: (fn) => fn(), win, doc: p.doc, toast: (t) => p.toasts.push(t), fetch: w.fetch,
+    later, cancel, idle: (fn) => fn(), win, doc: p.doc, toast: (t) => p.toasts.push(t), fetch: w.fetch, channel: () => p.channel,
     // Node has no StorageEvent: the same event's shape, which the store's own listener reads.
     announce: (k) => win.dispatchEvent(Object.assign(new Event('storage'), { key: PREFIX + k, storageArea: area })),
   });
@@ -212,4 +212,27 @@ test('removing the copy on the server: a DELETE, then this phone stops keeping o
   await settle();
   assert.deepEqual(w.methods(), ['DELETE', 'GET', 'PUT']);
   assert.deepEqual(Object.keys(w.kept.copy.keys).sort(), ['addons', 'library']);
+});
+
+test('the session ends: in step, nothing of the copy stays or is written back; a phone that never joined keeps its own', async () => {
+  // The server ends the session (signed out from another device): this phone's copy goes, as th/session.js wipe() does.
+  const w = worker();
+  const a = await phone(w, { data: { addons: [ADDON], library: { 'movie:tt01': { id: 'tt01', type: 'movie', name: 'Invented', added: T } }, player: { volume: 1 } } });
+  assert.equal(a.record().joined, true);
+  w.down = 401;
+  await a.sync.syncNow();
+  assert.deepEqual([a.area.length, a.sync.state().signedIn], [0, false], 'every astra.v2 key and the record are gone');
+  assert.equal(a.store.set('addons', [ADDON]), false, 'and nothing this page holds is written back');
+  // Never joined (its first exchange was refused): its data is its own and stays.
+  const w2 = worker();
+  w2.down = 401;
+  const b = await phone(w2, { data: { addons: [ADDON] } });
+  assert.deepEqual([b.read('addons'), b.store.set('settings', { hero: false })], [[ADDON], true]);
+  // Signed out in another tab: th/session.js has removed the data and says so on its channel; this page stops writing.
+  const c = await phone(worker(), { data: { addons: [ADDON] } });
+  c.channel.dispatchEvent(new MessageEvent('message', { data: 'signed_out' }));
+  assert.equal(c.store.set('settings', { hero: false }), false);
+  const off = await phone(worker(), { data: { addons: [ADDON] }, record: { joined: true, off: true } });
+  off.channel.dispatchEvent(new MessageEvent('message', { data: 'signed_out' }));
+  assert.equal(off.store.set('settings', { hero: false }), true, 'switched off, the data is the phone’s own');
 });

@@ -151,6 +151,24 @@ test('phone A’s add-on, saved title and film reach phone B; B’s removal reac
   for (const p of [a, b]) { assert.deepEqual(p.elsewhere, []); assert.deepEqual(p.errors, []); }
 });
 
+test('signed out after keeping in step: the copy leaves the phone, and Astra opens with Cinemeta alone', opts, async (t) => {
+  worker.kept = null;
+  const a = await phone(t, { saved: { addons: [{ url: ADDON, enabled: true, name: 'Example' }], library: { 'movie:tt0000501': { ...META, added: Date.now() } } } });
+  await a.idle();
+  // The shell's sign-out (th/session.js), as Settings › Sign out runs it.
+  await a.page.evaluate(() => import('/th/session.js').then((m) => m.wipe()));
+  assert.equal(await a.page.evaluate(() => window.astra.store.set('settings', { hero: false })), false, 'the open page writes nothing back');
+  assert.deepEqual(await a.page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('astra.v2.') || k === 'astra.sync.v1')), []);
+  const before = worker.calls.length;
+  await a.page.reload();
+  await a.page.waitForFunction(() => window.astra?.sync);
+  await a.page.evaluate(() => window.astra.sync.ready);
+  const shown = await a.page.evaluate(() => ({ addons: window.astra.addons.list.map((x) => x.name), saved: window.astra.library.list().length }));
+  assert.deepEqual(shown, { addons: ['Cinemeta'], saved: 0 });
+  assert.deepEqual(asked(before), [], 'and, signed out, asks nothing');
+  assert.deepEqual(a.errors, []);
+});
+
 test('signed out: the server is never asked, and Your data says how to keep phones in step', opts, async (t) => {
   worker.calls = [];
   const out = await phone(t, { signedIn: false, saved: { addons: [{ url: ADDON, enabled: true, name: 'Example' }] } });
