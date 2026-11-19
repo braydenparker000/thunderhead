@@ -60,3 +60,4 @@
 /* Files for the workshop (workshop.js): the pick button and the bar of the file being sent. */
 .spage .sform:has(#workshop-pick){margin:12px 16px}
 #workshop-bar{display:block;width:calc(100% - 32px);height:6px;margin:12px 16px;accent-color:var(--accent-fill)}
+.ssearch{margin-bottom:14px}

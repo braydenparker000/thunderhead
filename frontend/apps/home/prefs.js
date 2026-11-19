@@ -26,8 +26,20 @@ export function apply() {
 
 apply();
 document.addEventListener('th:setting', (e) => {
-  if (/^chat\./.test(/** @type {CustomEvent} */ (e).detail?.key ?? '')) apply();
+  const key = /** @type {CustomEvent} */ (e).detail?.key ?? '';
+  if (/^chat\./.test(key)) apply();
+  if (key === 'appearance.motion') level();
 });
+
+// How much moves, said once on <html> for whoever asks (`data-motion-level`: full, reduced or off):
+// the owner's Motion, or the phone's own reduced motion when it is System.
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+function level() {
+  const own = document.documentElement.dataset.reducedMotion;
+  document.documentElement.dataset.motionLevel = own === 'off' ? 'off' : own === 'always' || (own !== 'never' && calm.matches) ? 'reduced' : 'full';
+}
+level();
+calm.addEventListener('change', level);
 // The date is today's when the app comes back the next morning.
 document.addEventListener('visibilitychange', () => { if (!document.hidden) apply(); });
 // Keyboard on open: home itself only, never a page opened over it or a framed copy.

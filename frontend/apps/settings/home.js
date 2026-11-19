@@ -93,7 +93,10 @@ export function settingsHome(body, open, focus) {
     toast(updateLine('checking'));
     toast(updateLine((await checkForUpdate()) || waiting() ? 'waiting' : 'current'));
   });
-  body.append(el('h2', { class: 'group-title', text: 'Appearance' }), appearance(), group('Yours', rows), group('About', [update]));
+  // Search (search.js, loaded on the first focus): any setting by a word of its name or of its line.
+  const find = el('input', { class: 'field', type: 'search', placeholder: 'Search settings', 'aria-label': 'Search settings', autocomplete: 'off', enterkeyhint: 'search' });
+  find.addEventListener('focus', () => void import('./search.js').then((m) => m.attach(find, body)), { once: true });
+  body.append(el('div', { class: 'field-box ssearch' }, [icon('magnifying-glass'), find]), el('h2', { class: 'group-title', text: 'Appearance' }), appearance(), group('Yours', rows), group('About', [update]));
   const target = focus ? /** @type {HTMLElement | null} */ (body.querySelector(`#set-${focus}, [data-page="${focus}"]`)) : null;
   if (target)
     requestAnimationFrame(() => {

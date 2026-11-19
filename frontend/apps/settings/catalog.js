@@ -15,7 +15,7 @@ import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { el } from '/th/ui.js';
-import { choice, group, icon, picker, row, sheet } from './components.js';
+import { choice, confirmSheet, group, icon, picker, row, sheet } from './components.js';
 import { SETTING_GROUPS, SETTINGS } from './catalog-data.js';
 
 /** @typedef {import('../../../shared/contract/settings.ts').SettingSpec} Spec */
@@ -99,7 +99,7 @@ applyPhone();
 const announce = (s, value) => document.dispatchEvent(new CustomEvent('th:setting', { detail: { key: s.key, value, scope: s.scope } }));
 
 /** @param {Spec} s @param {Value} value */
-function setPhone(s, value) {
+export function setPhone(s, value) {
   try {
     if (same(value, s.default)) localStorage.removeItem(PREFIX + s.key);
     else localStorage.setItem(PREFIX + s.key, typeof value === 'object' ? JSON.stringify(value) : String(value));
@@ -375,6 +375,13 @@ export async function renderGroup(body, name, opts = {}) {
     const note = section && g.notes?.[section];
     if (note) parts.push(el('p', { class: 'shelp', text: note }));
   }
+  // Reset this page: every setting on it back to how it came, after asking; no other page's.
+  const reset = row({ title: 'Reset this page', icon: 'arrow-counter-clockwise', onClick: async () => {
+    if (!(await confirmSheet({ title: 'Reset this page?', body: 'Every setting on this page goes back to how it came.', action: 'Reset', keep: 'Cancel', danger: false }))) return;
+    for (const s of specs) if (!same(value(s), s.default)) { save(s, s.default); redraw(s); }
+  } });
+  reset.dataset.act = 'reset';
+  parts.push(el('div', { class: 'group' }, [reset]));
   const host = el('div', { class: 'scatalog', 'data-group': name }, parts);
   body.append(...(opts.before ?? []), el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);
 
