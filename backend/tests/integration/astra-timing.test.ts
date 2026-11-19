@@ -33,7 +33,7 @@ let timeline: { path: string; from: number; to: number }[] = [];
 let t0 = 0;
 
 /** The stub TorBox, answering each call after its delay (an aborted call stops waiting). */
-function slowTorbox(o: Parameters<typeof torbox>[0]) {
+function slowTorbox(o: Parameters<typeof torbox>[0], change?: (path: string) => Response | null) {
   const inner = torbox(o);
   return async (req: Parameters<ReturnType<typeof torbox>>[0], signal?: AbortSignal) => {
     const path = new URL(req.url).pathname.replace('/v1/api', '');
@@ -46,7 +46,7 @@ function slowTorbox(o: Parameters<typeof torbox>[0]) {
       });
     });
     timeline.push({ path, from, to: Date.now() - t0 });
-    return inner(req, signal);
+    return change?.(path) ?? inner(req, signal);
   };
 }
 
@@ -129,5 +129,22 @@ describe('how long a tap waits, with realistic TorBox delays', () => {
     report.push(
       `  in the account: press ${press.ms} ms (the tap takes its address), tap after it ${again.ms} ms, tap with no press ${cold.ms} ms (${cold.calls})`,
     );
+  });
+
+  it('the longest tap: the new id never listed, the film found by its hash under another id', async () => {
+    const added = { success: true, detail: 'Invented.', data: { torrent_id: 600, hash: HASH } };
+    world.hosts.set(
+      'api.torbox.app',
+      slowTorbox({ cached: [FILM], owned: [structuredClone(FILM)] }, (path) =>
+        path === '/torrents/createtorrent' ? Response.json(added) : null,
+      ),
+    );
+    const tap = await timedAsk('play');
+    expect(tap.body.url).toBe(url(77));
+    expect(tap.calls.length).toBe(7);
+    // checkcached beside the add 1000, the listing 350, the wait 400, the listing 350, the list 350, requestdl 400.
+    expect(tap.ms).toBeGreaterThanOrEqual(2850);
+    expect(tap.ms).toBeLessThan(2850 + 400);
+    report.push(`  the longest tap (never listed, found by hash under another id): ${tap.ms} ms (${tap.calls})`);
   });
 });

@@ -22,9 +22,13 @@ export const ASTRA_LIMITS = {
   /** TorBox calls when nothing is retried: a tap 3 after a press found it ready (createtorrent, then
    * requestdl beside the files), 4 without one (checkcached beside createtorrent), a press 3
    * (checkcached beside the list, requestdl), a film remembered from the last half hour 1
-   * (requestdl). With retries and exchanges, a request never makes more than `torbox_calls_max`. */
+   * (requestdl). The longest tap, when TorBox does not list a torrent just added: 7 (checkcached,
+   * createtorrent, requestdl for the file's place, the listing, the listing again, the account's
+   * list by the hash, requestdl by the id found); the cap leaves room for that last requestdl's two
+   * exchanges and one retry. With retries and exchanges, a request never makes more than
+   * `torbox_calls_max`. */
   torbox_calls: 4,
-  torbox_calls_max: 8,
+  torbox_calls_max: 10,
   /** Requests a hop chain may take, the first included. */
   hops: 6,
   /** Taps ("play") and GET /v1/astra/torbox one isolate takes a minute, then 429; presses
