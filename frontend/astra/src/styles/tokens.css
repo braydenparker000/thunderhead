@@ -53,16 +53,20 @@
   --t-lively: 420ms;
   /* Distances: content rising into place, a pushed screen, the screen left behind (scaled and dimmed). */
   --d-rise: 12px; --d-push: 8%; --d-recede: scale(0.98); --d-recede-dim: 0.08;
-  /* Type (Inter) as font shorthands; an overline is also uppercase with --track-overline. */
-  --type-display: 700 34px/40px var(--font);
-  --type-title: 700 22px/28px var(--font);
-  --type-headline: 600 17px/24px var(--font);
-  --type-body: 400 15px/22px var(--font);
-  --type-caption: 400 13px/18px var(--font);
-  --type-overline: 600 11px/14px var(--font);
+  /* Type (Inter) as font shorthands, scaled by Settings › Appearance › Text size (--text-scale);
+     an overline is also uppercase with --track-overline. */
+  --text-scale: 1;
+  --type-display: 700 calc(34px * var(--text-scale))/calc(40px * var(--text-scale)) var(--font);
+  --type-title: 700 calc(22px * var(--text-scale))/calc(28px * var(--text-scale)) var(--font);
+  --type-headline: 600 calc(17px * var(--text-scale))/calc(24px * var(--text-scale)) var(--font);
+  --type-body: 400 calc(15px * var(--text-scale))/calc(22px * var(--text-scale)) var(--font);
+  --type-caption: 400 calc(13px * var(--text-scale))/calc(18px * var(--text-scale)) var(--font);
+  --type-overline: 600 calc(11px * var(--text-scale))/calc(14px * var(--text-scale)) var(--font);
   --track-overline: 0.06em;
-  /* Space: a 4 px grid, and no other gaps. */
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-6: 24px; --s-8: 32px; --s-12: 48px;
+  /* Space: a 4 px grid (3 px when compact), and no other gaps. */
+  --density: 1; /* Settings › Appearance › Density: compact is 0.75 */
+  --s-1: calc(4px * var(--density)); --s-2: calc(8px * var(--density)); --s-3: calc(12px * var(--density)); --s-4: calc(16px * var(--density));
+  --s-6: calc(24px * var(--density)); --s-8: calc(32px * var(--density)); --s-12: calc(48px * var(--density));
   /* Surfaces, each a solid colour with a hairline (not a blur): cards, sheets and menus, the lifted thing. */
   --surface-1: var(--surface); --surface-2: var(--card); --surface-3: var(--raised);
   --hairline: rgba(255, 255, 255, 0.08);
@@ -73,7 +77,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0; background: var(--bg); color: var(--text); font: 400 15px/22px var(--font);
+  margin: 0; background: var(--bg); color: var(--text); font: var(--type-body);
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
 }
 button, input, select, textarea { font: inherit; color: inherit; }

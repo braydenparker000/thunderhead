@@ -1,34 +1,50 @@
-// Settings: grouped rows (Nuvio's layout), each opening a page.
+// Settings, drawn from the settings registry (settings/registry.js): a search over every row, then
+// one page per area. Rows other areas define (settings/browse.js, streams.js, player.js) appear on
+// their area's page by themselves; an area with no rows yet is not listed.
 
 import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
-import {confirm, image, posterCard, toast, emptyCard} from '../ui/components.js';
-import {normaliseManifestUrl, fetchManifest} from '../addons/client.js';
-import {homeCatalogs} from '../app/content.js';
-import {loadPrefs, savePrefs, ORIENTATIONS} from '../player/prefs.js';
-import {languageName} from '../engine/languages.js';
-import {BACKUP_KEYS, restoreBackup} from '../app/store.js';
-import {navRow, switchRow, choiceRow, group, areaGroup} from '../settings/rows.js';
+import {confirm, toast} from '../ui/components.js';
+import {press} from '../ui/motion.js';
+import {navRow, group, registryRow} from '../settings/rows.js';
+import {areas, rows, find, resetArea} from '../settings/registry.js';
+import {addonsPage, dataPage, aboutPage, homeRows, languages} from './settings-pages.js';
+import {PREVIEWS} from './settings-preview.js';
 
-const languageLabel = code => code ? languageName(code) || code : '';
+/** What some areas draw under their rows (or instead of them). */
+const EXTRAS = {addons: addonsPage, data: dataPage, about: aboutPage, home: homeRows, playback: languages};
+/** The main list's groups: every other area goes under General. */
+const SECTIONS = [['Sources', ['addons']], ['Data', ['data']], ['About', ['about']]];
 
 class Page {
   constructor(app, title, render) {
     this.app = app;
     this.body = h('div', {class: 'set-page-body'});
-    this.el = h('div', {class: 'screen settings-page'}, h('header', {class: 'sub-head'}, h('button', {class: 'icon-btn', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back')), h('h1', {}, title)), this.body);
+    const back = press(h('button', {class: 'icon-btn', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back')));
+    this.el = h('div', {class: 'screen settings-page'}, h('header', {class: 'sub-head'}, back, h('h1', {}, title)), this.body);
     this.renderFn = render;
     this.render();
   }
   render() { this.body.replaceChildren(...[this.renderFn(this)].flat().filter(Boolean)); }
-  destroy() { this.off?.(); } // a page that listens (Add-ons) stops when closed
+  destroy() { this.off?.(); } // a page that listens (Add-ons, Your data) stops when closed
+}
+
+/** An area's rows, in groups by their `group` (or one group under the area's title). */
+function rowGroups(app, area, page) {
+  const byGroup = new Map();
+  for (const r of rows(area.id)) { const g = r.group || area.title; if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push(registryRow(app, r, page)); }
+  return [...byGroup].map(([label, list]) => group(label, ...list));
 }
 
 export class SettingsScreen {
   constructor(app, view) {
     this.app = app;
     this.view = view;
-    this.body = h('div', {class: 'settings'});
+    this.query = '';
+    this.input = h('input', {class: 'search-input settings-search', type: 'search', placeholder: 'Search settings', 'aria-label': 'Search settings', autocomplete: 'off', enterkeyhint: 'search',
+      oninput: e => { this.query = e.target.value; this.render(); }});
+    this.list = h('div', {class: 'settings-list'});
+    this.body = h('div', {class: 'settings'}, h('h1', {class: 'page-title'}, 'Settings'), h('div', {class: 'search-box settings-search-box'}, this.input), this.list);
     view.append(this.body);
     this.render();
   }
@@ -36,218 +52,49 @@ export class SettingsScreen {
   reselect() { this.view.scrollTo({top: 0}); }
 
   open(title, render) { this.app.push(new Page(this.app, title, render)); }
+  openArea(area) { this.open(area.title, page => this.areaPage(area, page)); }
+
+  /** An area's page: its preview, its rows, what it draws besides, and "Reset this page". */
+  areaPage(area, page) {
+    const app = this.app, list = rows(area.id).filter(r => r.kind !== 'action');
+    const reset = () => confirm(`Reset ${area.title}?`, {message: 'Every setting on this page goes back to how Astra comes. Nothing else changes.', action: 'Reset',
+      run: () => { resetArea(app, area.id); page.render(); toast(`${area.title} reset`); }});
+    // A page that is more than rows (Your data) shows its own part first; rows lead elsewhere.
+    const parts = [rowGroups(app, area, page), [EXTRAS[area.id]?.(app, page)].flat()];
+    if (area.custom) parts.reverse();
+    return [PREVIEWS[area.id]?.(app), ...parts.flat(),
+      list.length ? press(h('button', {class: 'set-reset', type: 'button', onclick: reset}, 'Reset this page')) : null];
+  }
+
+  detail(area) {
+    if (area.id !== 'addons') return area.detail;
+    const list = this.app.addons.list;
+    return `${list.filter(a => a.enabled !== false).length} active of ${list.length}`;
+  }
 
   render() {
-    const app = this.app;
-    const addons = app.addons.list;
-    this.body.replaceChildren(h('h1', {class: 'page-title'}, 'Settings'),
-      group('General',
-        navRow('palette', 'Appearance', 'Poster size and corners', () => this.open('Appearance', p => this.appearance(p))),
-        navRow('home', 'Home', 'Hero, rows and their order', () => this.open('Home', p => this.homeLayout(p))),
-        navRow('extension', 'Add-ons', `${addons.filter(a => a.enabled !== false).length} active of ${addons.length}`, () => this.open('Add-ons', p => this.addons(p))),
-        navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p))),
-        // Drawn from the settings registry (settings/motion.js): the example the other areas follow.
-        navRow('aspect', 'Motion and touch', 'Animation and haptics', () => this.open('Motion and touch', p => areaGroup(this.app, 'motion', 'Motion and touch', p)))),
-      group('Content',
-        // Off removes the searches kept, everywhere: an empty list is a change like any other (app/sync.js).
-        switchRow('Recent searches', 'Keep your last 10 searches, on every phone you keep the same', app.settings.recentSearches !== false,
-          v => { app.saveSettings({recentSearches: v}); if (!v) app.store.set('recentSearches', []); }, 'search')),
-      group('Data',
-        navRow('backup', 'Your data', 'Back up, restore, clear', () => this.open('Your data', p => this.data(p)))),
-      group('About',
-        navRow('info', 'Playback lab', 'See how a file plays on this phone', () => { location.href = 'lab/'; })),
-      h('p', {class: 'about'}, 'Astra · new · built on the Stremio add-on protocol. Signed in, your own server keeps a sealed copy so your phones match (Your data); otherwise everything stays on this device.'));
+    const q = this.query.trim();
+    this.list.replaceChildren(...(q ? this.results(q) : this.sections()));
   }
 
-  appearance(page) {
-    const s = this.app.settings, save = patch => { this.app.saveSettings(patch); page.render(); this.app.screens.home?.repaintBadges(); };
-    return [
-      group('Posters',
-        choiceRow('Width', [[104, 'Compact'], [112, 'Dense'], [120, 'Standard'], [126, 'Balanced'], [134, 'Comfort'], [140, 'Large']], s.posterWidth, v => save({posterWidth: v})),
-        choiceRow('Corners', [[0, 'Sharp'], [4, 'Subtle'], [8, 'Classic'], [12, 'Rounded'], [16, 'Pill']], s.posterRadius, v => save({posterRadius: v}))),
-      this.preview(),
-    ];
+  sections() {
+    const all = areas(), placed = new Set(SECTIONS.flatMap(([, ids]) => ids));
+    const row = a => press(navRow(a.icon, a.title, this.detail(a), () => this.openArea(a)));
+    return [group('General', ...all.filter(a => !placed.has(a.id)).map(row)),
+      ...SECTIONS.map(([label, ids]) => { const list = all.filter(a => ids.includes(a.id)); return list.length ? group(label, ...list.map(row)) : null; })].filter(Boolean);
   }
 
-  /** A Home row as it will look: the first row's real posters, or placeholders before Home has any. */
-  preview() {
-    const items = this.app.screens.home?.previewItems?.().slice(0, 8) || [];
-    const cards = items.length ? items.map(m => posterCard(m, {onOpen() {}}))
-      : ['A', 'B', 'C'].map(t => h('div', {class: 'poster-card'}, h('div', {class: 'poster-art skeleton'}), h('span', {class: 'poster-title'}, 'Title ' + t), h('span', {class: 'poster-year'}, '2026')));
-    for (const card of cards) { card.tabIndex = -1; card.setAttribute('aria-hidden', 'true'); }
-    return h('div', {class: 'preview-row'}, h('div', {class: 'row-scroll'}, ...cards));
-  }
-
-  homeLayout(page) {
-    const s = this.app.settings;
-    const entries = homeCatalogs(this.app.enabledAddons(), this.app.manifests);
-    const hidden = new Set(s.hiddenRows || []);
-    const save = patch => { this.app.saveSettings(patch); page.render(); this.app.screens.home?.load(); };
-    return [
-      group('Home',
-        switchRow('Show hero', 'The large rotating banner at the top', s.hero !== false, v => save({hero: v})),
-        switchRow('Show catalog type', 'Adds “- Movie” or “- Series” to row titles', s.showCatalogType !== false, v => save({showCatalogType: v}))),
-      group('Rows', ...(entries.length ? entries.map(e => switchRow(e.title, e.addonName, !hidden.has(e.key), on => { on ? hidden.delete(e.key) : hidden.add(e.key); save({hiddenRows: [...hidden]}); })) : [h('p', {class: 'set-note'}, 'No catalogs yet. Add an add-on first.')])),
-    ];
-  }
-
-  addons(page) {
-    const app = this.app;
-    const list = app.addons.list;
-    // The list is redrawn in place, never the whole page, so the address field keeps what is typed.
-    const heading = h('h2', {class: 'section-label'});
-    const listSlot = h('div');
-    const renderList = () => {
-      heading.textContent = `Installed (${list.length})`;
-      listSlot.replaceChildren(list.length ? h('div', {class: 'addon-list'}, ...list.map(card)) : emptyCard('No add-ons', 'Install one above. Cinemeta gives catalogs and details; stream add-ons give sources.'));
-    };
-    // Cards say Loading… until the add-ons are reloaded, then Active or why not; late answers redraw too.
-    const changed = () => { app.addons.save(); const ready = app.reloadAddons(); renderList(); ready.then(renderList); app.screens.home?.load(); };
-    page.off?.();
-    page.off = app.onAddons(renderList);
-
-    const input = h('input', {class: 'field', type: 'url', placeholder: 'Add-on URL', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Add-on URL'});
-    const button = h('button', {class: 'btn primary', type: 'submit'}, 'Install');
-    const status = h('p', {class: 'set-note', role: 'status'});
-    const sameAddress = (stored, url) => { try { return normaliseManifestUrl(stored) === url; } catch { return stored === url; } };
-    const already = url => list.find(a => sameAddress(a.url, url));
-    let installing = false;
-    const install = async () => {
-      if (installing) return; // a second tap or Enter while checking
-      let url;
-      try { url = normaliseManifestUrl(input.value); } catch (e) { status.textContent = e.message; return; }
-      if (already(url)) { status.textContent = `${already(url).name || 'That add-on'} is already installed.`; return; }
-      installing = true;
-      button.disabled = true;
-      status.textContent = 'Checking…';
-      let manifest;
-      try {
-        manifest = await fetchManifest(url);
-        if (!manifest.id || !manifest.name || !manifest.resources.length) throw Error("That page isn't an add-on manifest.");
-      } catch (e) { status.textContent = e.message || "Couldn't reach that add-on."; return; } finally { installing = false; button.disabled = false; }
-      // Checked again after the wait: it may have been installed meanwhile.
-      if (already(url)) { status.textContent = `${already(url).name || 'That add-on'} is already installed.`; return; }
-      const done = text => { input.value = ''; status.textContent = ''; toast(text); changed(); };
-      // The same add-on from another address (usually another configuration): Stremio keeps one per id, so offer to replace it.
-      const twin = list.find(a => app.manifests.get(a.url)?.id === manifest.id);
-      if (twin) {
-        status.textContent = `${manifest.name} is already installed from another address.`;
-        confirm(`Replace ${twin.name || manifest.name}?`, {message: 'It is installed from another address, perhaps with other settings. Replacing keeps its place in the list.', action: 'Replace',
-          run: () => { if (!list.includes(twin) || already(url)) return; Object.assign(twin, {url, name: manifest.name, enabled: true}); done(`${manifest.name} replaced`); }});
-        return;
-      }
-      list.push({url, enabled: true, name: manifest.name});
-      done(`${manifest.name} installed`);
-    };
-    // A form, so Enter on the keyboard installs too; the browser's URL check is off (it would refuse "host/path").
-    const form = h('form', {class: 'install-row', novalidate: true, onsubmit: e => { e.preventDefault(); install(); }}, input, button);
-
-    const card = (a, i) => {
-      const manifest = app.manifests.get(a.url);
-      const error = a.enabled !== false && !manifest ? app.unreachable.get(a.url) : null;
-      const state = a.enabled === false ? 'Disabled' : manifest ? 'Active' : error ? "Couldn't load" : 'Loading…';
-      const configurable = manifest?.behaviorHints?.configurable || manifest?.behaviorHints?.configurationRequired;
-      const resources = (manifest?.resources || []).map(r => typeof r === 'string' ? r : r.name);
-      const name = manifest?.name || a.name || 'Add-on';
-      // A logo that is missing or fails to load becomes the add-on's initial on the tile.
-      const action = (iconName, label, cls, run, disabled = false) => h('button', {class: 'icon-btn ' + cls, type: 'button', 'aria-label': label, disabled, onclick: run}, icon(iconName, {size: 22}));
-      return h('div', {class: 'addon-card'},
-        h('div', {class: 'addon-top'}, image(manifest?.logo, '', 'addon-logo', {label: name.trim()[0]?.toUpperCase() || '?'}),
-          h('div', {class: 'addon-name'}, h('b', {}, name), h('small', {class: error ? 'addon-state failed' : 'addon-state'}, [manifest?.version && 'v' + manifest.version, state].filter(Boolean).join(' · '))),
-          h('label', {class: 'switch'}, h('input', {type: 'checkbox', role: 'switch', checked: a.enabled !== false, 'aria-label': 'Enable ' + a.name, onchange: e => { a.enabled = e.target.checked; changed(); }}), h('i'))),
-        error ? h('p', {class: 'addon-error'}, error.message || "Couldn't reach it.") : null,
-        manifest?.description ? h('p', {class: 'addon-desc'}, manifest.description) : null,
-        resources.length ? h('p', {class: 'addon-res'}, resources.join(' · ') + (manifest?.catalogs?.length ? ` · ${manifest.catalogs.length} catalogs` : '')) : null,
-        // Nuvio's row of icon actions, right-aligned; each says what it does to a screen reader.
-        h('div', {class: 'addon-actions'},
-          action('arrowUp', 'Move up', 'move', () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; changed(); }, i === 0),
-          action('arrowDown', 'Move down', 'move', () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; changed(); }, i === list.length - 1),
-          error ? action('refresh', 'Retry ' + a.name, 'retry', () => { const ready = app.reloadAddons(); renderList(); ready.then(renderList); }) : null,
-          configurable ? action('settings', 'Configure ' + a.name, 'configure', () => open(a.url.replace(/manifest\.json$/, 'configure'), '_blank', 'noopener')) : null,
-          action('delete', 'Remove ' + a.name, 'danger', () => confirm(`Remove ${a.name}?`, {message: 'Its catalogs, streams and subtitles leave Astra. You can install it again from its address.', action: 'Remove', destructive: true,
-            run: () => { list.splice(list.indexOf(a), 1); changed(); toast(`${a.name} removed`); }}))));
-    };
-    renderList();
-    return [group('Install', h('div', {class: 'set-row column'}, form, status)), heading, listSlot];
-  }
-
-  playback(page) {
-    const p = loadPrefs();
-    const save = patch => { Object.assign(p, patch); savePrefs(p); if (this.app.player) Object.assign(this.app.player.prefs, patch); page.render(); };
-    return [
-      group('Player',
-        switchRow('Touch gestures', 'Double tap to seek, swipe for seek, brightness and volume, hold for speed', p.gestures, v => save({gestures: v})),
-        choiceRow('Hold speed', [[1.25, '1.25x'], [1.5, '1.5x'], [2, '2x'], [3, '3x']], p.holdSpeed, v => save({holdSpeed: v})),
-        switchRow('Pause overlay', 'Show the title and story after 5 s paused', p.pauseOverlay, v => save({pauseOverlay: v})),
-        choiceRow('Picture size', [['fit', 'Fit'], ['fill', 'Fill'], ['zoom', 'Zoom']], p.aspect, v => save({aspect: v})),
-        choiceRow('Rotation', ORIENTATIONS, p.orientation, v => save({orientation: v})),
-        switchRow('Picture-in-picture', 'Keep watching in a small window when you leave Astra, where Chrome allows it. The player’s top bar has a button for it too.', p.autoPip, v => save({autoPip: v})),
-        choiceRow('Save mobile data', [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']], p.dataSaver, v => save({dataSaver: v}), 'On mobile data Astra reads less far ahead of the film.'),
-        // An Astra setting (it travels in a backup); off, nothing is asked of your server or a film's host until a tap (app/ready.js).
-        switchRow('Get ready ahead', 'As your finger touches a stream, asks your own server for its address (it asks TorBox; nothing is added to TorBox before you tap), and prepares the next episode, so films start sooner. Uses a little data.', this.app.settings.readyAhead !== false, v => { this.app.saveSettings({readyAhead: v}); page.render(); })),
-      // Both are Astra settings, so they travel in a backup; the lookup is only ever turned on here, by the owner.
-      group('Skip intro',
-        switchRow('Find intros by sound', 'Works out a series’ opening and ending on this phone by comparing episodes. Nothing is sent anywhere.', this.app.settings.findIntros !== false, v => { this.app.saveSettings({findIntros: v}); page.render(); }),
-        switchRow('Look up anime skip times', 'Asks AniSkip for an episode’s opening and ending. Sends the show’s public id, the episode number and the file’s length to api.aniskip.com and api.ani.zip; nothing else.', this.app.settings.skipLookup === true, v => { this.app.saveSettings({skipLookup: v}); page.render(); })),
-      group('Subtitles',
-        switchRow('OpenSubtitles', 'Also look for subtitles on OpenSubtitles, Stremio’s subtitle add-on, as well as your installed add-ons', this.app.settings.openSubtitles !== false, v => { this.app.saveSettings({openSubtitles: v}); page.render(); })),
-      group('Languages',
-        h('p', {class: 'set-note'}, `Audio: ${languageLabel(p.audioLanguage) || 'your phone’s language'} · Subtitles: ${languageLabel(p.subtitleLanguage) || 'off'}. Astra remembers what you pick in the player and shows subtitles in that language by itself.`),
-        h('button', {class: 'set-row', type: 'button', onclick: () => save({audioLanguage: '', subtitleLanguage: ''})}, h('span', {class: 'set-text'}, h('b', {}, 'Forget my language choices')))),
-      h('p', {class: 'set-note'}, 'Subtitle size, colour, background and position are set from the subtitles menu while watching.'),
-    ];
-  }
-
-  /** This phone and the owner's others (app/sync.js): the switch, when it last saved and fetched, Sync now, and removing the server's copy. */
-  phones(page) {
-    const app = this.app, sync = app.sync, s = sync?.state();
-    if (!s || s.signedIn === null) { app.syncReady?.then(() => sync?.ready).then(() => page.render()); return group('This phone and your others', h('p', {class: 'set-note'}, 'Checking your sign-in…')); }
-    if (!s.signedIn) return group('This phone and your others', h('p', {class: 'set-note'}, 'Sign in on the Thunderhead to keep your phones in step.'));
-    page.off?.();
-    page.off = sync.onChange(() => page.render());
-    const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
-    const said = {unreached: 'Your server could not be reached last time; Astra tries again by itself.', newer: 'A newer Astra saved the copy on your server: update Astra on this phone.',
-      'too-big': 'What this phone holds is larger than your server keeps (1 MB), so your other phones do not get its changes.', full: 'This phone’s storage is full, so nothing was brought in.'}[s.problem];
-    const remove = () => confirm('Remove the copy on your server?', {message: 'Your server forgets Astra’s add-ons, library, progress and settings, and its daily copies. This phone stops keeping one; turn it off on your other phones too, or they save theirs again. Nothing on this phone changes.',
-      action: 'Remove', destructive: true, run: async () => { const r = await sync.removeCopy(); toast(r.ok ? 'The copy on your server is removed' : r.message); page.render(); }});
-    return group('This phone and your others',
-      switchRow('Keep Astra the same on every phone I sign in on', s.on ? `Saved ${ago(s.savedAt)} · fetched ${ago(s.fetchedAt)}` : 'Turned on, what this phone has and the copy on your server are put together: nothing is lost.', s.on, v => sync.setOn(v)),
-      said && s.on ? h('p', {class: 'set-note'}, said) : null,
-      s.on ? h('button', {class: 'set-row', type: 'button', disabled: s.working, onclick: () => sync.syncNow()}, h('span', {class: 'set-text'}, h('b', {}, s.working ? 'Syncing…' : 'Sync now'))) : null,
-      h('button', {class: 'set-row danger', type: 'button', onclick: remove}, h('span', {class: 'set-text'}, h('b', {}, 'Remove the copy on my server'))));
-  }
-
-  data(page) {
-    const app = this.app;
-    const exportData = () => {
-      const blob = new Blob([JSON.stringify({astra: 'backup/1', at: new Date().toISOString(), data: Object.fromEntries(BACKUP_KEYS.map(k => [k, app.store.get(k, null)]))}, null, 1)], {type: 'application/json'});
-      const a = h('a', {href: URL.createObjectURL(blob), download: `astra-backup-${new Date().toISOString().slice(0, 10)}.json`});
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    };
-    // Restore and copy-again freeze storage before reloading, so nothing this window still holds is saved over them.
-    const file = h('input', {type: 'file', accept: 'application/json,.json', hidden: true, onchange: async e => {
-      const chosen = e.target.files[0];
-      e.target.value = ''; // the same file can be chosen again
-      if (!chosen) return;
-      const text = await chosen.text().catch(() => null);
-      if (text == null) { toast('That file could not be read.'); return; }
-      const result = restoreBackup(app.store, text);
-      if (!result.ok) { toast(result.message); return; }
-      toast(`${result.message} Reloading…`);
-      setTimeout(() => location.reload(), 1200);
-    }});
-    const copyAgain = () => { for (const k of ['imported', 'addons', 'library', 'progress']) app.store.remove(k); app.store.freeze(); location.reload(); };
-    return [
-      this.phones(page),
-      group('Backup',
-        h('button', {class: 'set-row', type: 'button', onclick: exportData}, h('span', {class: 'set-text'}, h('b', {}, 'Export a backup'), h('small', {}, 'Add-ons, library, progress and settings as a file'))),
-        h('button', {class: 'set-row', type: 'button', onclick: () => file.click()}, h('span', {class: 'set-text'}, h('b', {}, 'Restore from a backup'), h('small', {}, 'Replaces what is on this device'))), file),
-      group('Clear',
-        h('button', {class: 'set-row danger', type: 'button', onclick: () => confirm('Clear Continue Watching?', {message: 'Every title leaves Continue Watching, and where you stopped is forgotten.', action: 'Clear', destructive: true,
-          run: () => { app.progress.clear(); toast('Continue Watching cleared'); }})}, h('span', {class: 'set-text'}, h('b', {}, 'Clear Continue Watching'))),
-        h('button', {class: 'set-row', type: 'button', onclick: () => confirm('Copy again from classic Astra?', {message: 'Replaces the add-ons, library and progress this Astra has with what classic Astra has now.', action: 'Copy again', destructive: true, run: copyAgain})},
-          h('span', {class: 'set-text'}, h('b', {}, 'Copy again from classic Astra')))),
-    ];
+  /** Every row whose title or detail matches, working in place, under its area; and the pages whose name matches. */
+  results(q) {
+    const page = {render: () => this.render()};
+    const words = q.toLowerCase().split(/\s+/);
+    const pages = areas().filter(a => words.every(w => `${a.title} ${a.detail}`.toLowerCase().includes(w)));
+    const found = find(q).filter(r => r.kind !== 'action');
+    const byArea = new Map();
+    for (const r of found) { if (!byArea.has(r.area)) byArea.set(r.area, []); byArea.get(r.area).push(registryRow(this.app, r, page)); }
+    const title = id => areas().find(a => a.id === id)?.title || id;
+    const out = [...(pages.length ? [group('Pages', ...pages.map(a => press(navRow(a.icon, a.title, this.detail(a), () => this.openArea(a)))))] : []),
+      ...[...byArea].map(([id, list]) => group(title(id), ...list))];
+    return out.length ? out : [h('p', {class: 'set-note settings-none'}, `No setting matches “${q}”.`)];
   }
 }

@@ -186,7 +186,7 @@ test('Settings › Playback: "Get ready ahead" is on by default and persists, in
   const a = await app(t, { settings: {} });
   const playback = async () => {
     await a.page.locator('.nav-item[data-tab="settings"]').click();
-    await a.page.locator('.settings .set-row', { hasText: 'Gestures, skip intro' }).click();
+    await a.page.locator('.settings .set-row', { hasText: 'Getting ready, skip intro' }).click();
     await a.page.waitForSelector('.settings-page');
   };
   await playback();

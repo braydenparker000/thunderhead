@@ -34,7 +34,8 @@ try {
 const launch = document.getElementById('launch');
 const done = () => { if (!launch.isConnected) return; launch.classList.add('gone'); setTimeout(() => launch.remove(), 250); };
 if (app) {
-  const home = app.views.home, drawn = () => home.querySelector('.hero, .row, .state-card');
+  // The tab Astra opens on (Settings › Appearance), usually Home; a tab other than Home is drawn at once.
+  const home = app.views[app.tab], drawn = () => app.tab !== 'home' || home.querySelector('.hero, .row, .state-card');
   if (drawn()) requestAnimationFrame(done);
   else new MutationObserver((_, observer) => { if (drawn()) { observer.disconnect(); done(); } }).observe(home, {childList: true, subtree: true});
   setTimeout(done, 5000);

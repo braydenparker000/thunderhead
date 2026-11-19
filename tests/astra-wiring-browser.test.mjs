@@ -247,7 +247,7 @@ test('Settings › Playback: the skip switches and the data saver persist, and t
   const playback = async () => {
     await page.waitForFunction(() => window.astra?.navButtons);
     await page.locator('.nav-item[data-tab="settings"]').click();
-    await page.locator('.settings .set-row', { hasText: 'Gestures, skip intro' }).click();
+    await page.locator('.settings .set-row', { hasText: 'Getting ready, skip intro' }).click();
     await page.waitForSelector('.settings-page');
   };
   await playback();

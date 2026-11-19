@@ -155,10 +155,9 @@ test('phone A’s add-on, saved title and film reach phone B; B’s removal reac
   await a.page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); window.astra.store.set('recentSearches', ['invented film']); });
   await a.page.evaluate(() => window.astra.sync.syncNow());
   assert.deepEqual(worker.kept.copy.keys.recentSearches.value, ['invented film']);
-  await a.page.evaluate(() => window.astra.back()); // off Your data, back on Settings
-  await a.page.waitForFunction(() => !document.querySelector('.screen-stack .screen-layer'));
-  await a.page.locator('.set-row', { hasText: 'Recent searches' }).click();
-  assert.match(await a.page.locator('.set-row', { hasText: 'Recent searches' }).textContent(), /on every phone you keep the same/);
+  // The switch is on Your data's page (Settings, drawn from the registry).
+  await a.page.locator('.settings-page .set-row', { hasText: 'Recent searches' }).click();
+  assert.match(await a.page.locator('.settings-page .set-row', { hasText: 'Recent searches' }).textContent(), /on every phone you keep the same/);
   await a.page.evaluate(() => window.astra.sync.syncNow());
   assert.deepEqual([worker.kept.copy.keys.recentSearches.value, worker.kept.copy.keys.settings.value.recentSearches], [[], false]);
   await b.page.evaluate(() => window.astra.sync.syncNow());

@@ -25,6 +25,26 @@ export function define(list) {
   }
 }
 
+// Areas: how an area's page is titled and where it sits in Settings. An area that rows name but no
+// one describes still gets a page, titled from its id, after the described ones.
+const areaInfo = new Map();
+/**
+ * Describes an area: {id, title, icon, detail, order, preview(app) → element, extra(app, page) →
+ * elements below its rows, custom: true for a page that shows without rows (Add-ons, Your data)}.
+ */
+export function defineArea(info) {
+  if (!info?.id || !info.title) throw Error('an area needs an id and a title');
+  areaInfo.set(info.id, Object.freeze({order: 100, icon: 'settings', detail: '', ...info}));
+}
+/** Every area to list: described ones that have rows (or are custom pages), then any other area rows name. */
+export function areas() {
+  const named = new Set([...all.values()].map(r => r.area));
+  const known = [...areaInfo.values()].filter(a => a.custom || named.has(a.id));
+  const unknown = [...named].filter(id => !areaInfo.has(id)).map(id => ({id, title: id[0].toUpperCase() + id.slice(1).replace(/-/g, ' '), icon: 'settings', detail: '', order: 1000}));
+  return [...known, ...unknown].sort((a, b) => a.order - b.order);
+}
+export const areaOf = id => areaInfo.get(id) || areas().find(a => a.id === id);
+
 /** The rows of an area, in the order they were defined. */
 export const rows = area => [...all.values()].filter(r => r.area === area);
 /** One row by id (undefined when there is none). */
@@ -91,4 +111,9 @@ export function writeSetting(app, id, value) {
 /** Runs every row's apply with its value now (at start, and when another window changed them). */
 export function applyAll(app) {
   for (const r of all.values()) if (r.apply && r.kind !== 'action') r.apply(readSetting(app, r.id), app);
+}
+
+/** Puts every row of an area back to its default ("Reset this page"). */
+export function resetArea(app, area) {
+  for (const r of rows(area)) if (r.kind !== 'action' && readSetting(app, r.id) !== r.default) writeSetting(app, r.id, r.default);
 }

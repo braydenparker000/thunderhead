@@ -14,6 +14,8 @@ import {h} from '../ui/dom.js';
 import {navIcon} from '../ui/nav-icons.js';
 import {toast} from '../ui/components.js';
 import {readSetting, writeSetting, applyAll} from '../settings/registry.js';
+import '../settings/general.js';
+import '../settings/appearance.js';
 import '../settings/motion.js';
 import {push as pushMotion, pop as popMotion, swap, press, tick} from '../ui/motion.js';
 
@@ -158,7 +160,7 @@ export class App {
   }
 
   start() {
-    this.selectTab('home');
+    this.selectTab(this.setting('startTab')); // Settings › Appearance › Open Astra on
     // The same Astra on every phone the owner signs in on (sync.js): loaded once Home is under way, its first ask waits
     // for an idle moment; signed out it sends nothing.
     this.syncReady = import('./sync.js').then(m => { this.sync = m.startSync(this, {toast}); }).catch(() => {});
