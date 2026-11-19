@@ -71,7 +71,7 @@ export function readAstraFormat(stream) {
   const seeders = v.seed != null && /^\d+$/.test(v.seed) ? Number(v.seed) : null;
   return {
     exact: true,
-    res: res && RES[res] ? res : null, resLabel: res ? RES[res] || null : null,
+    res: res && RES[res] ? res : null, resLabel: res ? RES[res] || null : null, quality: null, runtime: null, bitrate: null, title: '',
     source: SOURCE[one(v.src)] || null,
     picture,
     codec: CODEC[one(v.enc)] || null,

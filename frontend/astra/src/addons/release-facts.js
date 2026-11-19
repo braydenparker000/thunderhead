@@ -36,6 +36,14 @@ export const LANGUAGES = [['en', 'English', 'english|eng', 'GB US AU'], ['it', '
   ['pl', 'Polish', 'polish|pol', 'PL'], ['nl', 'Dutch', 'dutch|nld', 'NL'], ['sv', 'Swedish', 'swedish|swe', 'SE'], ['tr', 'Turkish', 'turkish|tur', 'TR'],
   ['ar', 'Arabic', 'arabic|ara', 'SA AE EG'], ['hi', 'Hindi', 'hindi|hin', 'IN'], ['ja', 'Japanese', 'japanese|jpn', 'JP'], ['ko', 'Korean', 'korean|kor', 'KR'],
   ['zh', 'Chinese', 'chinese|mandarin|cantonese', 'CN TW HK'], ['multi', 'Multi', 'multi|multi-?audio|dual[ ._-]?audio', '']];
+// A quality word an add-on gives where it has no resolution ("💩 Low Quality", "💿 HD", "🎥 CAM"): shown as the
+// add-on's own word, never as a resolution. "4K", "UHD" and "FHD" are resolutions (RESOLUTIONS, above).
+export const QUALITY_WORDS = [['Low quality', 'low[ ._-]?quality|lq'], ['CAM', 'cam|cam-?rip|hd-?cam|hd-?ts|telesync|hd-?tc'], ['Screener', 'scr|screener'], ['HD', 'hd'], ['SD', 'sd']];
+// Running time as add-ons write it: "⏱️ 2h:10m:37s", "2h 10m", "1:58:00", "130 min". Bitrate: "751 Kbps", "4.2 Mb/s".
+const RUNTIME = /(?<![\d:])(\d{1,2})\s*h[\s:]*(\d{1,2})\s*m(?:in)?(?:[\s:]*\d{1,2}\s*s)?|⏱️?\s*(\d{1,2}):(\d{2}):\d{2}(?!\d)|(?<![\d.])(\d{2,3})\s?min(?:utes)?(?![a-z])/iu;
+const BITRATE = /(?<![\d.,])(\d+(?:[.,]\d+)?)\s?([km])(?:bps|b\/s|bit\/s)(?![a-z])/i;
+// A line that names the film ("🎬 Some Film French", "📁 Some.Film.mkv"): its words after the emoji.
+const TITLE_LINE = /^\s*(?:🎬|📁|📄|🎞️?)\s*(.+)$/mu;
 const PICTURE = [['DV', 'dv|dovi|dolby[ ._-]?vision'], ['HDR10+', 'hdr10(?:\\+|plus|p)'], ['HDR10', 'hdr10'], ['HDR', 'hdr'], ['HLG', 'hlg']];
 const TEN_BIT = /(?<!\d)10[ ._-]?bits?(?![a-z])|(?<![a-z0-9])(hi10p?|main ?10)(?![a-z0-9])/i;
 const SERVICES = {rd: 'RD', ad: 'AD', pm: 'PM', dl: 'DL', tb: 'TB', ed: 'ED', oc: 'OC', pkp: 'PKP', en: 'EN', st: 'ST', sn: 'SN', nd: 'ND'};
@@ -110,7 +118,8 @@ function languagesOf(raw) {
 const known = new WeakMap();
 /**
  * What a stream says, as one frozen object: {exact, res, resLabel, source, picture[], codec, sound: {codec,
- * channels, atmos}, languages[], bytes, group, indexer, via, service, ready, seeders, kind, release, hash}.
+ * channels, atmos}, languages[], bytes, group, indexer, via, service, ready, seeders, kind, release, hash, quality, runtime
+ * (minutes), bitrate (bits a second), title}.
  * Read once per stream (a long list is drawn again at every filter change).
  */
 export function releaseFacts(stream) {
@@ -128,9 +137,12 @@ function guess(stream) {
   if (TEN_BIT.test(t)) picture.push('10-bit');
   const ch = CHANNELS.exec(p.replace(/(?<![a-z0-9])(?:19|20)\d{2}(?![a-z0-9])/gi, ' '));
   const release = releaseName(stream);
-  const seeds = SEEDERS.exec(raw);
+  const seeds = SEEDERS.exec(raw), run = RUNTIME.exec(raw), rate = BITRATE.exec(raw), named = TITLE_LINE.exec(withoutHash(stream.title || ''));
   return {
-    exact: false, res, resLabel: res ? RES_LABEL[res] || res : null,
+    exact: false, res, resLabel: res ? RES_LABEL[res] || res : null, quality: res ? null : first(t, QUALITY_WORDS),
+    runtime: run ? (run[1] ? Number(run[1]) * 60 + Number(run[2]) : run[3] ? Number(run[3]) * 60 + Number(run[4]) : Number(run[5])) || null : null,
+    bitrate: rate ? Math.round(Number(rate[1].replace(',', '.')) * (rate[2].toLowerCase() === 'm' ? 1e6 : 1e3)) || null : null,
+    title: named ? cleanLine(named[1]) : '',
     source: first(t, SOURCES), picture, codec: first(t, CODECS),
     sound: {codec: first(t, SOUNDS), channels: ch ? (ch[3] ? {2: '2.0', 6: '5.1', 8: '7.1'}[ch[3]] || null : `${ch[1]}.${ch[2]}`) : null, atmos: test(t, 'atmos')},
     languages: languagesOf(raw), bytes: bytesOf(stream),
@@ -140,14 +152,16 @@ function guess(stream) {
   };
 }
 
+/** How many facts were found, of any kind: what the designed card has to say. */
+export const factCount = f => (f ? [f.res || f.quality, f.release || f.title, f.bytes, f.sound.codec || f.sound.channels, f.source, f.codec, f.picture.length,
+  f.runtime, f.bitrate, f.ready !== null, f.indexer, f.group, f.seeders != null, f.languages.length].filter(Boolean).length : 0);
+
 /**
- * Whether enough was found for a designed card: the resolution and at least two more of source, picture,
- * codec, sound, size and the release's own name. Otherwise the add-on's own text is shown, as it wrote it.
+ * Whether enough was found for a designed card: three facts of any kind (with or without a resolution), or two
+ * when one is the badge (a resolution or the add-on's quality word), so one list reads as one list. Only a
+ * stream whose words say almost nothing keeps the add-on's own text.
  */
-export function designedEnough(f) {
-  if (!f?.res) return false;
-  return [f.source, f.picture.length, f.codec, f.sound.codec, f.bytes, f.release].filter(Boolean).length >= 2;
-}
+export const designedEnough = f => factCount(f) >= 3 || (factCount(f) >= 2 && !!(f.res || f.quality));
 
 /** A release name cut for a middle ellipsis: [head, tail], the tail (its last characters) always shown whole. */
 export function splitMiddle(name, tail = 14) {

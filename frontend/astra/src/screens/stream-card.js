@@ -43,6 +43,8 @@ export function cardStyle(app) {
 
 const dot = () => h('i', {class: 'sc-dot', 'aria-hidden': 'true'}, '·');
 const joined = parts => parts.filter(Boolean).flatMap((p, i) => (i ? [dot(), p] : [p]));
+const runtimeWords = m => (!m ? '' : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
+const bitrateWords = b => (!b ? '' : b >= 1e6 ? `${(b / 1e6).toFixed(1)} Mbps` : `${Math.round(b / 1e3)} kbps`);
 const languageWords = list => (list.length > 2 ? `${list.slice(0, 2).join(', ')} +${list.length - 2}` : list.join(', '));
 
 /** The designed lines for a stream's facts `f`, as the style `st` asks. */
@@ -50,14 +52,16 @@ function designedLines(s, f, st, minutes) {
   const picture = f.picture.some(p => p === 'DV' || p.startsWith('HDR')) ? f.picture.filter(p => p !== '10-bit') : f.picture;
   const sound = [f.sound.codec, f.sound.channels, f.sound.atmos ? 'Atmos' : ''].filter(Boolean).join(' ');
   const ready = st.ready && f.ready !== null ? h('span', {class: 'sc-ready' + (f.ready ? ' on' : '')}, f.ready ? 'Ready' : 'Not ready', f.service ? h('span', {class: 'visually-hidden'}, ` on ${f.service}`) : null) : null;
-  const top = h('span', {class: 'sc-top'}, h('b', {class: 'sc-res'}, f.resLabel),
-    ...(st.badges ? [...picture.map(p => h('span', {class: 'sc-badge'}, p)), f.codec ? h('span', {class: 'sc-tech'}, f.codec) : null, sound ? h('span', {class: 'sc-tech'}, sound) : null] : []), ready);
-  const [head, tail] = splitMiddle(f.release);
-  const name = st.release && f.release ? h('span', {class: 'sc-name'}, h('span', {class: 'sc-head'}, head), tail ? h('span', {class: 'sc-tail'}, tail) : null) : null;
-  const hourly = perHour(f.bytes, minutes);
+  // A real resolution is the solid badge; a quality word the add-on gave instead ("Low quality", "HD") is a quiet outline.
+  const badge = f.resLabel ? h('b', {class: 'sc-res'}, f.resLabel) : f.quality ? h('b', {class: 'sc-quality'}, f.quality) : null;
+  const parts = [badge, ...(st.badges ? [...picture.map(p => h('span', {class: 'sc-badge'}, p)), f.codec ? h('span', {class: 'sc-tech'}, f.codec) : null, sound ? h('span', {class: 'sc-tech'}, sound) : null] : []), ready].filter(Boolean);
+  const top = parts.length ? h('span', {class: 'sc-top'}, ...parts) : null;
+  const shownAs = f.release || f.title, [head, tail] = splitMiddle(shownAs);
+  const name = st.release && shownAs ? h('span', {class: 'sc-name'}, h('span', {class: 'sc-head'}, head), tail ? h('span', {class: 'sc-tail'}, tail) : null) : null;
+  const hourly = perHour(f.bytes, minutes || f.runtime);
   const seeds = f.seeders != null && (f.ready !== true || f.kind === 'p2p') ? `${f.seeders} seed${f.seeders === 1 ? '' : 's'}` : '';
-  const facts = st.details ? joined([sizeLabel(f.bytes), hourly, f.source, f.group, f.via, f.indexer, seeds, languageWords(f.languages),
-    !s.url && s.infoHash ? 'Torrent' : '']) : [];
+  const facts = st.details ? joined([sizeLabel(f.bytes), hourly, f.source !== f.quality ? f.source : '', runtimeWords(f.runtime), bitrateWords(f.bitrate), f.group, f.via, f.indexer, seeds,
+    languageWords(f.languages), !s.url && s.infoHash ? 'Torrent' : '']) : [];
   // The sound converted on the phone is said on a line of its own, above the note on how the picture plays.
   return [top, name, facts.length ? h('span', {class: 'sc-facts'}, ...facts) : null, s.url && soundNote(s) ? h('span', {class: 'sc-sound sound'}, soundNote(s)) : null];
 }

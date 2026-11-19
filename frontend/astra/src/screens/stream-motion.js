@@ -24,15 +24,18 @@ export function riseCards(cards, scroller, name = 'rise:streams') {
 }
 
 /**
- * Keeps `el` still on screen while the screen it is on is pushed in from 8% (or pops back there): the same
- * spring and duration in the opposite direction, so the two cancel and the backdrop and logo Details had stay
- * where they were. Only under Full motion (Reduced and Off do not slide).
+ * Placeholders handing over to the cards that replace them: put back, out of the flow, where they were (the
+ * cards take their place at once), they fade out over 120 ms while the cards rise in, so the surface never dips.
  */
-export function stayPut(el, leaving = false, name = leaving ? 'hold:streams-pop' : 'hold:streams-push') {
-  if (!el || level() !== 'full') return null;
-  return timed(name, () => handle([leaving
-    ? go(el, {transform: 'translateX(-8%)'}, {from: {transform: 'none'}, duration: T.screen, easing: spring('smooth'), keep: true})
-    : go(el, {transform: 'none'}, {from: {transform: 'translateX(-8%)'}, duration: T.screen, easing: spring('smooth')})]));
+export const placesOf = els => els.map(el => ({el, top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight}));
+/** `at` is placesOf(the placeholders), read before they left the body. */
+export function handOver(at, body) {
+  if (!at.length || level() === 'off') return;
+  for (const {el, top, left, width, height} of at) {
+    Object.assign(el.style, {position: 'absolute', top: top + 'px', left: left + 'px', width: width + 'px', height: height + 'px', margin: '0'});
+    body.prepend(el);
+  }
+  timed('fade:streams-placeholders', () => handle(at.map(({el}) => { const a = go(el, {opacity: 0}, {duration: T.fade, easing: EASE, keep: true}); a.finished.then(() => el.remove(), () => el.remove()); return a; })));
 }
 
 /** A chip's fill springing in when it is chosen, and fading out when it is not (--spring-snappy, a control's few px). */
