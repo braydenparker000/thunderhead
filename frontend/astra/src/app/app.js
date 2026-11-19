@@ -220,7 +220,7 @@ export class App {
     this.stack.push({screen, layer});
     this.root.classList.add('has-screen');
     this.setCovered(true);
-    pushMotion(layer, under, {name: 'push:' + screenName(screen)}); // it comes from 8% right, the one under recedes
+    if (!screen.enter?.(layer, under)) pushMotion(layer, under, {name: 'push:' + screenName(screen)}); // from 8% right, unless it moves itself
     const entry = this.stack[this.stack.length - 1];
     entry.pop = pushLayer('screen', () => this.removeScreen(entry));
     screen.onShow?.(true);
@@ -240,7 +240,7 @@ export class App {
       e.layer.classList.add('out');
       // Only the top one is seen leaving (Back is push in reverse); any under it go at once.
       if (n < removed.length - 1) e.layer.remove();
-      else popMotion(under, e.layer, {name: 'pop:' + screenName(e.screen)}).finished.then(() => e.layer.remove());
+      else (e.screen.leave?.(under, e.layer) || popMotion(under, e.layer, {name: 'pop:' + screenName(e.screen)})).finished.then(() => e.layer.remove());
     });
     this.root.classList.toggle('has-screen', this.stack.length > 0);
     this.setCovered(this.stack.length > 0 || !!this.player?.isOpen);

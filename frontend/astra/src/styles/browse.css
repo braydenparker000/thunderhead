@@ -157,6 +157,7 @@ img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2
 .play-btn { position: relative; isolation: isolate; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: var(--s-2); height: 52px; padding: 0 var(--s-6); border: 0; border-radius: var(--r-full); overflow: hidden; background: var(--accent); color: var(--on-accent); font: var(--type-headline); -webkit-touch-callout: none; }
 .play-btn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--tint); opacity: 0; transition: opacity var(--t-normal) var(--ease); }
 .tinted .play-btn::before { opacity: 1; }
+.tinted .play-btn { color: var(--on-tint, var(--on-accent)); }
 .play-btn .icon { fill: currentColor; }
 .play-btn:disabled { opacity: .5; }
 .play-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -186,7 +187,7 @@ img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2
 .cast-role { color: var(--muted); }
 .season-chips { gap: var(--s-2); margin-bottom: var(--s-3); }
 .season-chips .chip { flex: none; scroll-snap-align: start; min-height: 40px; padding: 0 var(--s-4); background: var(--surface-1); color: var(--text-2); font: var(--type-body); font-weight: 600; }
-.season-chips .chip[aria-pressed="true"] { background: var(--tint); color: var(--on-accent); }
+.season-chips .chip[aria-pressed="true"] { background: var(--tint); color: var(--on-tint, var(--on-accent)); }
 .episode-row { gap: var(--s-3); }
 .episode-card { flex: none; width: min(296px, 78vw); padding: 0; border: 0; background: none; color: #fff; text-align: left; scroll-snap-align: start; -webkit-touch-callout: none; }
 .episode-art { position: relative; aspect-ratio: 296 / 184; border-radius: var(--poster-r); overflow: hidden; }

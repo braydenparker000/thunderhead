@@ -87,6 +87,14 @@ export function tintFrom(vivid, ink = '#111111') {
   return fromHsl(0.94);
 }
 
+/** The text colour that reads on a tint at 4.5:1 (dark for every tint tintFrom makes, light for any other). */
+export const onTint = t => (contrast(t, '#111111') >= 4.5 ? '#111111' : '#ffffff');
+/** Sets a title's tint on `el` (--tint and --on-tint together), or takes both away with null. */
+export function setTint(el, t) {
+  if (t) { el.style.setProperty('--tint', t); el.style.setProperty('--on-tint', onTint(t)); }
+  else { el.style.removeProperty('--tint'); el.style.removeProperty('--on-tint'); }
+}
+
 /** What is remembered of a picture, or null. */
 export const artEntry = src => (src && load().get(src)) || null;
 

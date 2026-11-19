@@ -1,6 +1,6 @@
 // Astra's browse screens in a real Chromium at phone size, with an invented add-on and pictures: a poster
-// travels into Details and lands where Details' poster is, and Back sends it home to its card; Back in
-// mid-flight leaves nothing behind (no copy, every picture shown); Settings › Browse changes what it says
+// travels into Details and lands where Details' poster is, and Back sends it home to its card (or, with the
+// card off screen, Details fades and drops); Back in mid-flight leaves nothing behind (no copy, every picture shown); Settings › Browse changes what it says
 // at once (poster titles, spoiler blur); Library's layout change moves the posters and leaves none moved;
 // the hero settles where it was sent, even when sent again mid-settle.
 import { test, before, after } from 'node:test';
@@ -68,7 +68,7 @@ test('a poster travels into Details and home again; Back mid-flight leaves nothi
   }, card);
   assert.deepEqual(landed, { shown: 'visible', src: landed.cardSrc, cardSrc: landed.cardSrc, card: 'visible' }, 'the same picture lands; both shown');
   const log = await page.evaluate(async () => (await import('/astra/src/ui/feel-log.js')).feelEntries().map((e) => e.name));
-  assert.ok(log.includes('travel:poster-details') && log.includes('rise:details'), log.join());
+  assert.ok(log.includes('travel:poster-details') && log.includes('rise:details') && !log.includes('push:details'), log.join());
   // Back: the picture goes home to its card.
   await page.evaluate(() => window.astra.back());
   assert.equal(await page.evaluate(COPIES), 1, 'it flies home');
@@ -81,6 +81,15 @@ test('a poster travels into Details and home again; Back mid-flight leaves nothi
   }
   await page.waitForFunction(() => !document.querySelector('.screen-layer') && !document.querySelectorAll('body > [aria-hidden="true"][style*="fixed"]').length);
   assert.equal(await page.locator(card).evaluate((el) => getComputedStyle(el).visibility), 'visible');
+  // Back with the card off screen (its row scrolled on): Details fades and drops, it is not the shell's slide.
+  await page.locator(card).click();
+  await page.waitForFunction(() => !document.querySelectorAll('body > [aria-hidden="true"][style*="fixed"]').length && document.querySelector('.screen.details'));
+  await page.evaluate((card) => { document.querySelector(card).closest('.row-scroll').scrollLeft = 5000; }, card);
+  await page.evaluate(() => window.astra.back());
+  assert.equal(await page.evaluate(COPIES), 0, 'nothing flies');
+  await page.waitForFunction(() => !document.querySelector('.screen-layer'));
+  const out = await page.evaluate(async () => (await import('/astra/src/ui/feel-log.js')).feelEntries().map((e) => e.name).slice(-3));
+  assert.ok(out.includes('drop:details') && !out.includes('pop:details'), out.join());
   // The hero's button: its backdrop travels to Details' backdrop.
   await page.evaluate(() => window.astra.screens.home.view.scrollTo(0, 0));
   await page.locator('.hero-slide[aria-hidden="false"] .hero-cta').click();

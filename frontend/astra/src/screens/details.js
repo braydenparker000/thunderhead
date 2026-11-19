@@ -8,7 +8,7 @@ import {icon} from '../ui/icons.js';
 import {image, longPress, toast} from '../ui/components.js';
 import {artBox} from '../ui/poster.js';
 import {press, rise} from '../ui/motion.js';
-import {readTint} from '../ui/art.js';
+import {readTint, setTint} from '../ui/art.js';
 import {logoImage} from './logo.js';
 import {cast, episodes, facts, moreLike} from './details-parts.js';
 import {enter, leave} from './details-motion.js';
@@ -72,21 +72,21 @@ export class DetailsScreen {
     this.tint();
   }
 
-  destroy() { this.destroyed = true; leave(this); for (const off of this.offs) off(); }
-  onShow(first) {
-    if (first) enter(this, this.from);
-    else if (this.meta) this.renderActions();
-  }
+  destroy() { this.destroyed = true; for (const off of this.offs) off(); }
+  onShow(first) { if (!first && this.meta) this.renderActions(); }
+  /** The shell's hooks (app/app.js): opened out of a picture, Details moves itself in and out (screens/details-motion.js). */
+  enter() { const moving = enter(this, this.from); this.moved = !!moving; return moving; }
+  leave(under, layer) { return this.moved ? leave(this, layer) : null; }
   /** A Browse setting changed (Colour from artwork, Hide spoilers): what it changes is redrawn. */
   settingChanged() { if (this.destroyed) return; this.tint(); this.redrawEpisodes(); }
 
   /** The title's colour on this page (--tint): known at once when its poster was seen, else read and faded in. */
   tint() {
     const m = this.meta || this.item, on = this.app.setting('tint');
-    const set = t => { this.el.style.setProperty('--tint', t); this.el.classList.add('tinted'); };
+    const set = t => { setTint(this.el, t); this.el.classList.add('tinted'); };
     const now = on ? this.app.tintOf?.(m) : null;
     if (now) return set(now);
-    if (!on) { this.el.style.removeProperty('--tint'); this.el.classList.remove('tinted'); return; }
+    if (!on) { setTint(this.el, null); this.el.classList.remove('tinted'); return; }
     readTint(m).then(t => { if (t && !this.destroyed && this.app.setting('tint')) set(t); });
   }
 

@@ -3,11 +3,12 @@
 // to Details' backdrop; Details itself (its black and its backdrop) fades in under it over 220 ms and its
 // text rises in groups. Back sends the picture home to its card when the card is still on screen. One
 // flight at a time: a new one (a second tap, Back mid-flight) takes over from where the picture is.
-// The shell pushes every screen with a slide (app/app.js push); a Details opened from a picture takes
-// that over at once (it is cancelled before its first frame) and moves by itself instead.
+// The shell pushes and pops every other screen with a slide (app/app.js); a Details opened from a picture
+// moves itself both ways (the shell asks `screen.enter` and `screen.leave` first). Back with the card off
+// screen: Details fades and drops 12 px.
 
 import {travel, rise, level, T, timed} from '../ui/motion.js';
-import {go, stop, handle, instant} from '../ui/motion-core.js';
+import {go, handle, instant, spring, EASE} from '../ui/motion-core.js';
 
 let flight = null; // {travel, copy}
 
@@ -33,7 +34,14 @@ function fly(from, to, name, radius = null) {
   if (mine.copy) for (const img of [mine.copy, ...mine.copy.querySelectorAll('img')]) img.classList.remove('loaded');
   // Landing on Details' backdrop, the copy fades into the page as the backdrop does, so the title under it shows through.
   const mask = to instanceof Element ? getComputedStyle(to).maskImage : 'none';
-  if (mine.copy && mask && mask !== 'none') { mine.copy.style.maskImage = mask; mine.copy.style.webkitMaskImage = mask; }
+  if (mine.copy && mask && mask !== 'none') {
+    mine.copy.style.maskImage = mask; mine.copy.style.webkitMaskImage = mask;
+    // Its last 100 ms: the backdrop itself is shown under it (the same picture, all but in place) and the copy
+    // fades, so Details' poster and title, drawn over the backdrop, are never under the travelling copy.
+    go(mine.copy, {opacity: 0}, {duration: 100, delay: T.travel - 100, easing: EASE, keep: true, join: true});
+    const early = setTimeout(() => { if (flight === mine) to.style.visibility = 'visible'; }, T.travel - 100);
+    t.finished.then(() => clearTimeout(early));
+  }
   t.finished.then(() => { if (flight === mine) flight = null; });
   return t;
 }
@@ -48,36 +56,45 @@ export function landing(screen, from) {
 }
 
 /**
- * Details opening out of `from` (a card's picture box, or the hero's backdrop), on the layer the shell
- * has just pushed. Without `from`, the shell's own slide stays.
+ * Details opening out of `from` (a card's picture box, or the hero's backdrop), on the layer the shell has
+ * just pushed. Null when there is no picture on screen to open from: the shell slides Details in.
  */
 export function enter(screen, from) {
   const layer = screen.el.parentElement;
-  if (!from || !layer || !onScreen(from)) return instant();
-  stop(layer); // the shell's slide, before its first frame
-  const {to, same} = landing(screen, from);
+  if (!from || !layer || !onScreen(from)) return null;
+  screen.origin = from;
   const lv = level();
   if (lv === 'off') return instant();
   const fade = timed('fade:details', () => handle([go(layer, {opacity: 1}, {from: {opacity: 0}, duration: lv === 'full' ? T.normal : T.fade})]));
+  const {to, same} = landing(screen, from);
   // A different picture (a still to a backdrop): Details' own copy flies from the card's place. A Continue
   // Watching card flies its picture alone, without the words and the progress line drawn over it.
   const bare = from.classList.contains('cw-art') && from.querySelector('img');
   const radius = bare ? [parseFloat(getComputedStyle(from).borderTopLeftRadius) || 0, 0] : null;
   const t = fly(same ? bare || from : from.getBoundingClientRect(), to, 'travel:poster-details', radius);
   if (lv === 'full') rise(screen.riseGroups(), {name: 'rise:details'});
-  screen.origin = from;
-  return {finished: Promise.all([t.finished, fade.finished]).then(([a, b]) => ({cancelled: a.cancelled || b.cancelled})), cancel: () => { t.cancel(); fade.cancel(); }};
+  return both(t, fade);
 }
 
-/** Back: the picture goes home to its card when the card is on screen (the shell fades Details away). */
-export function leave(screen) {
-  const from = screen.origin;
-  if (!from || !onScreen(from) || level() === 'off') { flight?.travel.cancel(); return instant(); }
-  const {to: at, same} = landing(screen, from);
-  if (!at) return instant();
+const both = (a, b) => ({finished: Promise.all([a.finished, b.finished]).then(([x, y]) => ({cancelled: x.cancelled || y.cancelled})), cancel: () => { a.cancel(); b.cancel(); }});
+
+/**
+ * Back from a Details that opened itself (`layer` is its layer; the shell removes it when this is done): the
+ * picture goes home to its card while Details fades, or, with the card off screen, Details fades and drops 12 px.
+ */
+export function leave(screen, layer) {
+  const from = screen.origin, lv = level();
+  if (lv === 'off') { flight?.travel.cancel(); return instant(); }
+  const at = from && onScreen(from) ? landing(screen, from) : null;
+  if (!at?.to) {
+    flight?.travel.cancel();
+    return timed('drop:details', () => handle(lv === 'full'
+      ? [go(layer, {transform: 'translateY(12px)'}, {duration: T.screen, easing: spring('smooth'), keep: true}), go(layer, {opacity: 0}, {duration: T.normal, easing: EASE, keep: true, join: true})]
+      : [go(layer, {opacity: 0}, {duration: T.fade, easing: EASE, keep: true})]));
+  }
   // The same picture flies itself; a different one (a backdrop going home to a still) flies as the card's copy.
-  const r = at.getBoundingClientRect();
-  const t = fly(same ? at : {left: r.left, top: r.top, width: r.width, height: r.height}, from, 'travel:details-poster');
-  if (!same) at.style.visibility = 'hidden';
-  return t;
+  const r = at.to.getBoundingClientRect();
+  const t = fly(at.same ? at.to : {left: r.left, top: r.top, width: r.width, height: r.height}, from, 'travel:details-poster');
+  if (!at.same) at.to.style.visibility = 'hidden';
+  return both(t, timed('fade:details-out', () => handle([go(layer, {opacity: 0}, {duration: lv === 'full' ? T.normal : T.fade, easing: EASE, keep: true})])));
 }

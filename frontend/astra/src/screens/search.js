@@ -5,7 +5,11 @@ import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {posterCard, skeletonRow, emptyCard} from '../ui/components.js';
 import {posterPlaceholder} from '../ui/poster.js';
-import {press, rise, tick} from '../ui/motion.js';
+import {press, rise, tick, level, T, timed} from '../ui/motion.js';
+import {go, handle, instant, EASE} from '../ui/motion-core.js';
+
+/** What replaces what is shown (Discover, results, placeholders) fades in over 120 ms: never a cut. */
+const fadeIn = el => timed('fade:search', () => (level() === 'off' ? instant() : handle([go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fade, easing: EASE})])));
 import {filterSheet} from './filter-sheet.js';
 import {getJson, resourceUrl, fetchManifest} from '../addons/client.js';
 import {posterContext, rowHeader, rowScroll, openDetails} from './home.js';
@@ -106,12 +110,14 @@ export class SearchScreen {
     this.abort?.abort();
     this.query = q;
     this.searchFailed = false;
+    if (this.discover.hidden !== !!q) fadeIn(q ? this.results : this.discover);
     this.discover.hidden = !!q;
     if (submit) this.remember(q);
     if (!q) { this.results.replaceChildren(); return; }
     if (q.length < 2) { this.results.replaceChildren(h('p', {class: 'search-hint'}, 'Keep typing: search starts at two letters.')); return; }
     const abort = this.abort = new AbortController(), {signal} = abort;
     const loading = h('div', {class: 'search-loading', 'aria-hidden': 'true'}, skeletonRow(6), skeletonRow(6));
+    if (!this.results.querySelector(':scope > .search-loading')) fadeIn(loading);
     this.results.replaceChildren(loading);
     await this.app.ready;
     if (signal.aborted) return;
@@ -169,6 +175,7 @@ export class SearchScreen {
       this.results.replaceChildren(emptyCard("Couldn't search", navigator.onLine === false ? 'This phone is offline. Check your connection and try again.' : 'Your add-ons did not answer. Check your connection and try again.',
         {label: 'Retry', run: () => this.run(this.input.value)}, {icon: 'refresh'}));
     } else this.results.replaceChildren(emptyCard('No results', `Nothing matched “${q}”. Check the spelling or try fewer words.`, {label: 'Clear search', run: () => this.clearQuery()}, {icon: 'search'}));
+    if (this.results.firstElementChild) fadeIn(this.results.firstElementChild); // the empty state takes the placeholders' place by fading
   }
 
   /** Re-runs a failed search and refreshes Discover when the add-ons change (a late manifest, an edit, back online). */
