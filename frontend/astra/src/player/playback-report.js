@@ -8,6 +8,7 @@
 // serverGroup() and deviceLine() live here so the player need not load the lab (lab/scrub.js passes them on).
 
 import {deviceReport, surroundWords} from '../engine/capabilities.js';
+import {channelName} from '../engine/labels.js';
 
 /** How an address was found (addons/debrid.js answerFor), loaded only when asked: the player and the lab must not
  * depend on the Worker's helper to start (the app has it loaded already; the lab may not have it at all). */
@@ -142,23 +143,62 @@ export function resolverLines(answer, opened = true) {
     ...(answer.steps || []).map(s => `    ${s.step} ${s.ok ? '✓' : '✗'} ${ms(+s.ms || 0)}${s.note ? `: ${s.note}` : ''}`)];
 }
 
+// A track is said by its language code, codec, channels and kind: never its label or title (a file's or an add-on's
+// own words: a release name, a commentary's name, a subtitle file's name).
+const lang = v => (typeof v === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i.test(v) ? v : 'und');
+const codec = v => (typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9 .+-]{0,23}$/.test(v) ? v : 'unknown codec');
+const KIND = {embedded: 'inside the file', stream: 'from the stream', external: 'from an add-on'};
+
 /** The tracks: the picture, each sound (the one playing marked), the subtitles. */
 function trackLines(e) {
-  const v = e.info?.video?.[0];
-  const audio = typeof e.audioOptions === 'function' ? e.audioOptions() : [];
-  const subs = typeof e.subtitleOptions === 'function' ? e.subtitleOptions() : [];
-  const sub = subs.find(s => s.selected);
+  const v = e.info?.video?.[0], known = e.info?.audio || [];
+  const sel = (e.audio || []).find(a => a.id === e.selectedAudio);
+  // Astra's own pipeline names the probe's track; the software decoder's and the browser's own list them in order.
+  const playing = sel?.option?.track?.id ?? (/^(sw|native):/.test(String(sel?.id)) ? known[e.audio.indexOf(sel)]?.id : sel?.id);
+  const sounds = known.length ? known.map(t => [lang(t.language), codec(t.label), t.channels && channelName(t.channels), t.commentary && 'commentary'].filter(Boolean).join(', ')
+    + (t.id === playing ? ` (playing)${sel?.delivery === 'rebuilt' ? ', converted on this phone' : ''}` : ''))
+    : (typeof e.audioOptions === 'function' ? e.audioOptions() : []).map(a => lang(a.language) + (a.selected ? ' (playing)' : ''));
+  const subs = (typeof e.subtitleOptions === 'function' ? e.subtitleOptions() : []).map(s => `${lang(s.language)} ${s.kind === 'external' && s.source === 'This phone' ? 'from this phone' : KIND[s.kind] || 'from elsewhere'}${s.image ? ', pictures' : ''}${s.forced ? ', forced' : ''}${s.selected ? ' (shown)' : ''}`);
   return ['Tracks:',
-    `    picture: ${v ? [v.label || v.codec, v.width && `${v.width}×${v.height}`, v.hdr && 'HDR'].filter(Boolean).join(' ') : 'not read'}`,
-    ...audio.map(a => `    sound: ${a.label}${a.selected ? ' (playing)' : ''}${a.delivery === 'rebuilt' ? ', converted on this phone' : ''}${a.supported ? '' : `, not playable here${a.reason ? `: ${a.reason}` : ''}`}`),
-    `    subtitles: ${sub ? `${sub.label} (shown)` : 'off'}, ${subs.length} in all`];
+    `    picture: ${v ? [codec(v.label || v.codec), v.width && `${v.width}×${v.height}`, v.hdr && 'HDR'].filter(Boolean).join(' ') : 'not read'}`,
+    ...sounds.map(x => `    sound: ${x}`), `    subtitles: ${subs.join('; ') || 'none'}`];
+}
+
+/** What came from the file or the add-on that the engine holds: track names and labels, chapter titles, font names,
+ * subtitle names. Never printed: taken out wherever an engine sentence carries one. Longest first. */
+export function fileWords(e) {
+  const words = [];
+  for (const t of [...(e.info?.video || []), ...(e.info?.audio || []), ...(e.info?.subtitles || [])]) words.push(t.name, t.title);
+  for (const t of [...(e.audio || []), ...(e.textTracks || [])]) words.push(t.label, t.name);
+  for (const o of [...(e.audioOptions?.() || []), ...(e.subtitleOptions?.() || [])]) words.push(o.label, o.name);
+  for (const c of e.chapters || []) words.push(c.title);
+  for (const l of e.log || []) if (l.kind === 'fonts' && Array.isArray(l.detail)) words.push(...l.detail.map(f => String(f).replace(/ \(\d+ bytes\)$/, '')));
+  return [...new Set(words.filter(w => typeof w === 'string' && w.length >= 4))].sort((a, b) => b.length - a.length);
+}
+
+/** An engine sentence as it may be printed: plain English words and numbers, else [text] (a name in another script,
+ * a symbol a file name carries). The file's own words are taken out before (fileWords), and the scrubber after. */
+export const words = v => (typeof v === 'string' && v.length <= 300 && /^[A-Za-z0-9\s.,;:'’‘“”()%+×\-–—…!?/·→[\]]*$/.test(v) ? v : '[text]');
+/** Only numbers, yes-no and plain words of an object; nested ones are left out. */
+const fields = d => Object.entries(d).filter(([, v]) => v == null || typeof v !== 'object').map(([k, v]) => `${k} ${typeof v === 'string' ? words(v) : v}`).join(', ');
+
+/** One log entry's words: a track's choice without its name, fonts by their count, an error without its detail. */
+function logDetail(kind, d) {
+  if (kind === 'audio') return 'another track chosen';
+  if (kind === 'subtitle' || kind === 'second subtitle') return d === 'off' ? 'off' : 'a track shown';
+  if (kind === 'fonts') return Array.isArray(d) ? `${d.length} attached` : 'not read';
+  if (kind === 'plan') return words(d?.mode ?? '');
+  if (kind === 'error') return words(d?.message ?? '');
+  if (kind === 'passthrough') return `${codec(d?.codec)} at ${Number(d?.at) || 0}`;
+  if (d && typeof d === 'object') return Array.isArray(d) ? `${d.length} items` : fields(d);
+  return words(String(d ?? ''));
 }
 
 /** The engine's log since the load, each entry one plain line; kinds summarised above are left out. */
 function logLines(entries, start, scrub) {
   const shown = entries.filter(e => e.kind !== 'timing').slice(-60);
   // Each line scrubbed whole before it is cut: a name cut in two would no longer look like one.
-  return shown.length ? ['Log (seconds since the load):', ...shown.map(e => scrub(`    +${((e.t - start) / 1000).toFixed(1)} ${e.kind}: ${plain(e.detail)}`).slice(0, 240))] : [];
+  return shown.length ? ['Log (seconds since the load):', ...shown.map(e => scrub(`    +${((e.t - start) / 1000).toFixed(1)} ${words(e.kind)}: ${logDetail(e.kind, e.detail)}`).slice(0, 240))] : [];
 }
 
 /** This phone's decoders, in a few lines. */
@@ -177,15 +217,16 @@ export async function playbackReport(engine, {answer, known = [], ua, opened = t
   const device = await deviceReport().catch(() => null);
   if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null, false), ...deviceLines(device)].join('\n'), {known: known.filter(Boolean), hosts: false});
   const {entries, start} = thisLoad(e.log || []);
-  const scrubbing = {known: [url, ...known].filter(Boolean), hosts: false};
+  const scrubbing = {known: [url, ...known, ...fileWords(e)].filter(Boolean), hosts: false};
+  const say = text => words(scrubSecrets(text, scrubbing)); // an engine sentence that may carry the file's words
   const used = typeof e.dataUsed === 'function' ? (() => { try { return e.dataUsed(); } catch { return null; } })() : null;
   const rate = e.session?.rebuffer?.link?.rate?.() || 0;
   const stalls = entries.filter(x => x.kind === 'stall'), held = entries.filter(x => x.kind === 'rebuffer');
   const q = e.video?.getVideoPlaybackQuality?.(), group = serverGroup(url);
   const text = [
     heading(ua),
-    `How it plays: ${e.mode ? `${e.mode} (${MODE[e.mode] || e.mode})` : 'not decided yet'}${e.plan?.reason ? `: ${e.plan.reason}` : ''}`,
-    ...(e.plan?.notes || []).map(n => `    ${n}`),
+    `How it plays: ${e.mode ? `${e.mode} (${MODE[e.mode] || e.mode})` : 'not decided yet'}${e.plan?.reason ? `: ${say(e.plan.reason)}` : ''}`,
+    ...(e.plan?.notes || []).map(n => `    ${say(n)}`),
     'Where the time went (since the film’s load):', ...timeLines(entries, start),
     ...resolverLines(answer === undefined ? await answerFor(url) : answer),
     `Server: ${group ? `TorBox group ${group}` : 'not one of TorBox’s file servers'}`,

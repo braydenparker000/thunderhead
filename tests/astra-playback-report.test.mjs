@@ -31,8 +31,8 @@ const LOG = [
 const engine = (more = {}) => ({
   url: URL_, mode: 'remux', plan: { reason: null, notes: ['Sound converted to Opus on this phone.'] }, log: LOG,
   info: { video: [{ label: 'H.264', width: 1920, height: 1080 }] },
-  audioOptions: () => [{ label: 'English E-AC-3 5.1', selected: true, supported: true, delivery: 'rebuilt' }],
-  subtitleOptions: () => [{ label: 'English', selected: true }, { label: 'Invented.Film.2024.en.srt', selected: false }],
+  audioOptions: () => [{ label: 'English E-AC-3 5.1', language: 'en', selected: true, supported: true, delivery: 'rebuilt' }],
+  subtitleOptions: () => [{ label: 'English', language: 'en', kind: 'embedded', selected: true }, { label: 'Invented.Film.2024.en.srt', language: 'en', kind: 'external', selected: false }],
   video: { currentTime: 75, videoWidth: 1920, videoHeight: 1080, getVideoPlaybackQuality: () => ({ totalVideoFrames: 1800, droppedVideoFrames: 3 }) },
   dataUsed: () => 41_000_000, session: { rebuffer: { link: { rate: () => 5_000_000 } } },
   ...more,
@@ -51,14 +51,14 @@ test('where the time went, the route, the tracks, the address’s steps, the ser
   assert.match(text, /\nSpeed: 40\.0 Mbit\/s while downloading, 41\.0 MB downloaded so far\n/);
   assert.match(text, /\nStalls so far: 1 \(at 1:01\); waits for a slow link: 0\n/);
   assert.match(text, /\nNow: 1:15, 1920×1080, 1800 frames shown, 3 dropped\n/);
-  assert.match(text, /\nTracks:\n {4}picture: H\.264 1920×1080\n {4}sound: English E-AC-3 5\.1 \(playing\), converted on this phone\n {4}subtitles: English \(shown\), 2 in all\n/);
+  assert.match(text, /\nTracks:\n {4}picture: H\.264 1920×1080\n {4}sound: en \(playing\)\n {4}subtitles: en inside the file \(shown\); en from an add-on\n/);
   assert.match(text, /\nThis phone:\n {4}decodes H\.264 (yes|no), HEVC/);
   // The log of this film only; a kind the report does not know is a plain line.
   assert.match(text, /\nLog \(seconds since the load\):\n/);
   assert.match(text, /\n {4}\+9\.2 memory: heap 182, unit MB, note kept 3 fragments/);
   assert.ok(!text.includes('An earlier film'), 'the film before is not this one');
   for (const secret of [URL_, TOKEN, HASH, 'tb-cdn', 'store-7', 'Invented.Film', '.mkv', '.srt', 'token=']) assert.ok(!text.includes(secret), `the report holds ${secret}`);
-  assert.match(text, /\+9\.1 error: message The host stopped\., detail GET \[removed\] failed for \*\*\*/);
+  assert.match(text, /\+9\.1 error: The host stopped\.\n/);
 });
 
 test('a film that never opened says so, with how its address was asked for; an address not asked of the server says so', async () => {
@@ -150,4 +150,53 @@ test('a long log line is scrubbed before it is cut, so no name is left half-cut'
   const text = await playbackReport(e, { answer: null, ua: 'x' });
   for (const secret of ['Secret', 'My Se', '2021', 'nexus', '1080p']) assert.ok(!text.includes(secret), `the report holds ${secret}`);
   assert.ok(text.split('\n').every((l) => l.length <= 240));
+});
+
+test('no track label or title, chapter, font name or error detail from the file or the add-on: only languages, kinds, codecs and numbers', async () => {
+  const e = {
+    url: 'https://nexus-1.latm.tb-cdn.example/dld/123', mode: 'remux',
+    plan: { reason: null, notes: ['Not playable here: Grandpa Joe Directors Cut · DTS 5.1.', 'E-AC-3 audio is converted on this device as it plays.'] },
+    info: {
+      video: [{ label: 'H.264', width: 1920, height: 1080, name: 'Shot On Grandpa Joes Camera' }],
+      audio: [{ id: 1, label: 'E-AC-3', channels: 6, language: 'en', name: 'Grandpa Joe Directors Cut' }, { id: 2, label: 'DTS', channels: 6, language: 'fr', name: 'Le Commentaire Secret', commentary: true }],
+      subtitles: [{ id: 3, language: 'en', name: 'Sous-titres de Grandpa', format: 'ass' }],
+    },
+    audio: [{ id: 1, label: 'Grandpa Joe Directors Cut · E-AC-3 5.1', option: { track: { id: 1 } }, delivery: 'rebuilt' }, { id: 2, label: 'Le Commentaire Secret · DTS 5.1' }],
+    selectedAudio: 1,
+    textTracks: [{ id: 3, label: 'Sous-titres de Grandpa', kind: 'embedded' }, { id: 9, label: 'The.Secret.Film.2021.1080p.WEB-DL.DDP5.1-GRP', kind: 'external', source: 'This phone', format: 'The.Secret.Film.2021.srt' }],
+    chapters: [{ start: 0, title: 'Opening Credits Of Grandpa' }],
+    audioOptions: () => [
+      { id: 1, label: 'Grandpa Joe Directors Cut · E-AC-3 5.1', language: 'en', selected: true, supported: true, delivery: 'rebuilt' },
+      { id: 2, label: 'Le Commentaire Secret · DTS 5.1', language: 'fr', selected: false, supported: false, reason: 'Le Commentaire Secret cannot be decoded in a browser.' },
+    ],
+    subtitleOptions: () => [
+      { id: 3, label: 'Sous-titres de Grandpa', language: 'en', kind: 'embedded', selected: false },
+      { id: 9, label: 'The.Secret.Film.2021.1080p.WEB-DL.DDP5.1-GRP', language: 'und', kind: 'external', source: 'This phone', selected: true },
+    ],
+    video: { currentTime: 10 },
+    log: [
+      { t: 0, kind: 'timing', detail: { step: 'open', ms: 10 } },
+      { t: 50, kind: 'fonts', detail: ['Some Fansub Font Bold.ttf (1234 bytes)', 'Gandhi Sans.woff2 (99 bytes)'] },
+      { t: 55, kind: 'fonts', detail: 'not read: Gandhi Sans could not be parsed' },
+      { t: 60, kind: 'subtitle', detail: 'The.Secret.Film.2021.1080p.WEB-DL.DDP5.1-GRP' },
+      { t: 61, kind: 'second subtitle', detail: 'Sous-titres de Grandpa' },
+      { t: 62, kind: 'audio', detail: 'Le Commentaire Secret · DTS 5.1' },
+      { t: 70, kind: 'error', detail: { message: 'The video data could not be decoded on this device.', detail: 'Grandpa Joe track header at offset 99 is broken' } },
+      { t: 71, kind: 'passthrough', detail: { codec: 'eac3', at: 12.5, reason: 'Grandpa decoder said no' } },
+      { t: 80, kind: 'notice', detail: 'The audio converter is slow to download, so this plays Le Commentaire Secret · DTS 5.1 until it arrives.' },
+      { t: 90, kind: 'memory', detail: { heap: 182, unit: 'MB', note: 'kept 3 fragments', name: 'Grandpa’s Ünïcode Title' } },
+    ],
+  };
+  const text = await playbackReport(e, { answer: null, ua: 'x' });
+  for (const secret of ['Grandpa', 'Commentaire', 'Secret', 'Sous-titres', 'Fansub', 'Gandhi', 'Opening Credits', 'offset 99', 'decoder said', 'Ünïcode', 'WEB-DL'])
+    assert.ok(!text.includes(secret), `the report holds ${secret}`);
+  assert.match(text, /\n {4}sound: en, E-AC-3, 5\.1 \(playing\), converted on this phone\n {4}sound: fr, DTS, 5\.1, commentary\n/);
+  assert.match(text, /\n {4}subtitles: en inside the file; und from this phone \(shown\)\n/);
+  assert.match(text, /\+0\.1 fonts: 2 attached/);
+  assert.match(text, /\+0\.1 fonts: not read/);
+  assert.match(text, /\+0\.1 subtitle: a track shown/);
+  assert.match(text, /\+0\.1 audio: another track chosen/);
+  assert.match(text, /\+0\.1 error: The video data could not be decoded on this device\.\n/);
+  assert.match(text, /\+0\.1 passthrough: eac3 at 12\.5\n/);
+  assert.match(text, /\+0\.1 memory: heap 182, unit MB, note kept 3 fragments, name \[text\]/);
 });
