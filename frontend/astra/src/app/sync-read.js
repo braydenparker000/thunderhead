@@ -1,8 +1,10 @@
 // A copy from the owner's server, checked before any of it is used (ASTRA.md §5.3). The copy came from one
 // of the owner's phones through their Worker, but a phone must survive a damaged or hostile one, so:
 //  - every value passes the store's own sanitisers, all or nothing per key (as a restore does);
-//  - no time is taken as later than a day from now (`AHEAD`): an entry, a tombstone or a key's `at` from a
-//    clock far ahead would otherwise win every merge, and a tombstone for it would never end;
+//  - no time is taken as later than `AHEAD` from now: an entry, a tombstone or a key's `at` from a clock far
+//    ahead would otherwise win every merge, and a tombstone for it would never end. A key where a time was
+//    brought back is marked `clamped`, so the merge saves it back: the server then holds a fixed time that
+//    falls into the past, not a far-future one read as "just ahead" again at every fetch;
 //  - nothing may bloat or wedge it: a value nested deeper than `MAX_DEPTH` or holding a string longer than
 //    `MAX_STRING` is as if not kept (the merge's own walks stay shallow), an unknown setting larger than
 //    `MAX_SETTING` is dropped, add-ons keep only the fields Astra uses, recent searches are 10 of 200 characters.
@@ -12,8 +14,9 @@ import {BACKUP_KEYS, SANITISE} from './store.js';
 export const SYNC_TAG = 'sync/1';
 /** Keys merged entry by entry, with tombstones for removed entries. */
 export const ENTRY_KEYS = ['progress', 'watched', 'library'];
-/** How far ahead of this phone's clock any time may be: phones' clocks may differ, not by more. */
-export const AHEAD = 864e5;
+/** How far ahead of this phone's clock any time may be: phones' clocks may differ, not by more. Half the Worker's
+ * own day (shared/contract/astra.ts `ahead_ms`), so a stamp made here passes its check with this clock hours fast. */
+export const AHEAD = 12 * 3600e3;
 export const MAX_DEPTH = 6;
 export const MAX_STRING = 2048;
 export const MAX_SETTING = 4096;
@@ -97,10 +100,14 @@ export function readCopy(copy, now = Date.now()) {
     if (value === null) continue;
     let clean = SANITISE[k](value);
     if (clean === undefined || (size(value) && !size(clean))) continue;
-    const entries = ENTRY_KEYS.includes(k);
-    if (entries) clean = Object.fromEntries(Object.entries(clean).map(([id, x]) => [id, withTime(k, x, now)]));
+    const entries = ENTRY_KEYS.includes(k), max = now + AHEAD;
+    let clamped = e.at > max;
+    if (entries) clean = Object.fromEntries(Object.entries(clean).map(([id, x]) => { const y = withTime(k, x, now); clamped ||= y !== x; return [id, y]; }));
+    const late = v => isObject(v) && Object.values(v).some(t => t > max);
+    clamped ||= late(e.gone) || (k === 'addons' && late(e.times));
     keys[k] = {at: ahead(e.at, now), value: clean, gone: entries || k === 'addons' ? timesOf(e.gone, now) : {}};
     if (k === 'addons') keys[k].times = timesOf(e.times, now);
+    if (clamped) keys[k].clamped = true;
   }
   return {keys};
 }

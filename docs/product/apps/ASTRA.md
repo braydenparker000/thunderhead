@@ -359,9 +359,10 @@ the Worker (rule 3).
   turned on again: its own stamps and tombstones are kept while it is off) puts both sides together,
   minus what was removed; a phone with nothing but defaults takes the server's.
 - **A server copy is checked before use** (`sync-read.js`): every value passes the store's own
-  sanitisers, all or nothing per key; no time is taken as later than a day ahead of the phone's clock (a
-  far-future entry would otherwise win every merge and its tombstone never end; the phone's own stamps
-  are capped the same way); a value nested deeper than 6 or holding a string past 2,048 characters is as
+  sanitisers, all or nothing per key; no time is taken as later than 12 hours ahead of the phone's clock
+  (half the Worker's own day, so a stamp made here is never refused there), and a key where a time was
+  brought back is saved back with it fixed, so it falls into the past (a far-future entry would otherwise
+  win every merge and its tombstone never end; the phone's own stamps are capped the same way); a value nested deeper than 6 or holding a string past 2,048 characters is as
   if not kept, unknown settings larger than 4 KB are dropped, add-ons keep only url, enabled and name, and
   recent searches are 10 of at most 200 characters, so a damaged or hostile copy cannot bloat or wedge a
   phone. An add-on address this phone did not have is never taken in silently: a notice names it and its

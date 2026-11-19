@@ -139,7 +139,7 @@ export function mergeCopies({mine, theirs, first = false, playing = null, now = 
       : k === 'addons' ? {at: merged.at, value: merged.value, times: merged.times ?? {}, gone: merged.gone ?? {}} : {at: merged.at, value: merged.value};
     const here = k === 'progress' && playing ? keepPlaying(merged.value, m?.value, playing) : merged.value;
     if (!same(here, m?.value ?? (entries ? {} : undefined))) apply[k] = here;
-    if (!t || !same(keys[k].value, t.value) || ((entries || k === 'addons') && !same(keys[k].gone, t.gone)) || (k === 'addons' && !same(keys[k].times, t.times))) differs = true;
+    if (!t || t.clamped || !same(keys[k].value, t.value) || ((entries || k === 'addons') && !same(keys[k].gone, t.gone)) || (k === 'addons' && !same(keys[k].times, t.times))) differs = true;
   }
   return {copy: {astra: SYNC_TAG, keys}, apply, differs};
 }
