@@ -66,7 +66,7 @@ export function play(app, options) {
  * First play of the visit: the player's code may still be loading (the tap's user activation lasts long enough
  * for full screen once it has). The tap is answered in its own frame by a veil drawn as the player's own loading
  * layer (the title's backdrop dimming in, its logo, a line of status: never a spinner on black), its fade started
- * on the compositor; only once that frame is on screen is the code awaited (its pieces then larger: a tap waits).
+ * on the compositor; only once that frame is on screen is the code awaited (what is left of it then loads in one go).
  * The player opens under the veil already dimmed, and the veil goes in the same frame.
  */
 function withPlayer(app, ticket, go, meta = null) {
