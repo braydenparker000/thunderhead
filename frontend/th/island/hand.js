@@ -1,6 +1,5 @@
 // @ts-check
-// The island follows the finger (HOME §12.1), and let go it finishes or goes back by how far and how fast it moved.
-// Reduced motion keeps the thresholds without following.
+// The island follows the finger (HOME §12.1); let go, distance and speed decide. Reduced motion: thresholds only.
 import { haptic, motionReduced, springs } from '../motion.js';
 import { prefOn } from '../pref.js';
 import { st, control, collapse, wide } from './island.js';
@@ -35,7 +34,7 @@ export function grip(b) {
       b.setPointerCapture(e.pointerId);
       g.y = e.clientY; g.p = shape.value;
     } else if (motionReduced()) { if (g.axis === 'y' && Math.abs(dy) > 30) { g = null; void wide(dy > 0); } }
-    // Its bottom edge under the finger (36 to 180 px); title and art 1:1 sideways.
+    // Its bottom edge under the finger; title and art 1:1 sideways.
     else if (g.axis === 'y') shape.set(rubber(g.p + dy / 144, 0, 1, .12));
     else for (const n of strip()) n.style.translate = `${rubber(dx, -24, 24, 24)}px 0`;
   });
@@ -51,7 +50,7 @@ export function grip(b) {
         st.from = parseFloat(strip()[0]?.style.translate) || 0;
         control(dx < 0 ? 'next' : 'previous');
       }
-      // What no skip took springs back, held until its animation has a frame.
+      // The rest springs back, held until its animation has a frame.
       for (const n of strip()) if (n.style.translate) n.animate([{ translate: n.style.translate }, { translate: '0 0' }], { duration: ms('quick'), easing: token('--pop'), fill: 'forwards' }).onfinish = a => { n.style.translate = ''; /** @type {Animation} */ (a.target).cancel(); };
     }
     st.c.touch(); if (!st.expanded) st.c.marquee();
@@ -67,8 +66,8 @@ function card(dy, fy) {
   const y = rubber(dy, 0, 160, 80), s = 1 - .3 * y / 160, w = innerWidth * s;
   return [(innerWidth - w) / 2, fy * innerHeight * (1 - s) + y, w, innerHeight * s, 40 * clamp(y / 120)];
 }
-/** A touch on the app in front, in screen pixels (its zoom leaves them), from its bottom or Podcasts' players. @param {string} kind @param {any} w @param {any} e @param {any} p the touch or pointer; null for a second finger
- */
+/** A touch on the app in front (screen pixels), from its bottom or Podcasts' players; p is null for a second finger.
+ * @param {string} kind @param {any} w @param {any} e @param {any} p */
 export function pull(kind, w, e, p) {
   const l = st.layer, r = motionReduced();
   if (kind === 'down') {
@@ -82,6 +81,8 @@ export function pull(kind, w, e, p) {
     if (!r) surface(l, card(dy, d.fy), 0);
     else if (dy > 56) { d = null; void collapse('swipe down'); }
   } else if (d && l) {
+    // Moves thin out while a page pans: the lift is the last.
+    if (p && !r && p.screenY - d.y > d.dy) pull('move', w, e, p);
     const h = d, vy = e.timeStamp - h.t > 90 ? 0 : h.vy, D = card(h.dy, h.fy), V = card(h.dy + vy / 60, h.fy).map((n, k) => (n - D[k]) * 60);
     d = null;
     if (!h.on || r) return;

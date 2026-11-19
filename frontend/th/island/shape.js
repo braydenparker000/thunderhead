@@ -7,7 +7,7 @@ export const clamp = (/** @type {number} */ n) => Math.max(0, Math.min(1, n));
 const mix = (/** @type {number} */ a, /** @type {number} */ b, /** @type {number} */ p) => a + (b - a) * p;
 export const token = (/** @type {string} */ name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 export const ms = (/** @type {string} */ name) => { const v = token(`--d-${name}`); return parseFloat(v) * (v.endsWith('ms') ? 1 : 1000); };
-/** Each movement starts here, named for the feel report (ui/feel/log.js). @param {string} name @param {ReturnType<typeof animator>} a @param {number} to @param {object} [o] */
+/** Starts a movement, named for the feel report (ui/feel/log.js). @param {string} name @param {ReturnType<typeof animator>} a @param {number} to @param {object} [o] */
 export const go = (name, a, to, o) => { a.to(to, o); timed(name, a, to); };
 // The owner's island spring: growing overshoots about 4%, shrinking never.
 export const grow = () => spring({ stiffness: springs.island.stiffness, damping: springs.island.damping - .1 });
