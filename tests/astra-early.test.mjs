@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EarlyCuts, demote, startsWithKey } from '../frontend/astra/src/engine/early.js';
-import { fragmentWriter } from '../frontend/astra/src/engine/fragments.js';
+import { fragmentWriter, sampleBytes } from '../frontend/astra/src/engine/fragments.js';
 import * as MB from '../frontend/astra/vendor/mediabunny.js';
 
 const packet = (timestamp, type = 'delta') => ({ timestamp, type, clone(over) { return { ...this, ...over, copy: true }; } });
@@ -83,4 +83,36 @@ test('sound passed through goes in quarter-second fragments: a film cannot play 
   const starts = [...new Set(sent.filter((at) => at != null))];
   assert.ok(starts.length >= 7, `about two seconds of sound in ${starts.length} fragments`);
   assert.ok(starts.every((at, i) => !i || at - starts[i - 1] < 0.3), starts.map((x) => x.toFixed(2)).join(' '));
+});
+
+test('each fragment of picture is written into an array made once at its size, and comes out byte for byte as Mediabunny writes it', async () => {
+  // Invented packets: three seconds at 24 frames, a key frame each second, 2 to 62 kB each.
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const packets = Array.from({ length: 72 }, (_, i) => {
+    const data = new Uint8Array(2000 + Math.floor(rnd() * 60000));
+    for (let j = 0; j < data.length; j += 97) data[j] = (i + j) & 255;
+    return new MB.EncodedPacket(data, i % 24 ? 'delta' : 'key', i / 24, 1 / 24);
+  });
+  const config = { codec: 'avc1.42001f', codedWidth: 320, codedHeight: 240, description: new Uint8Array([1, 0x42, 0, 0x1f, 0xff, 0xe1, 0, 4, 0x67, 0x42, 0, 0x1f, 1, 0, 4, 0x68, 0xce, 0x3c, 0x80]) };
+  const write = async (output) => {
+    const source = new MB.EncodedVideoPacketSource('avc');
+    output.addVideoTrack(source);
+    await output.start();
+    for (const [i, p] of packets.entries()) await source.add(p, i ? undefined : { decoderConfig: config });
+    await output.finalize();
+  };
+  const sent = [];
+  await write(fragmentWriter({ append: (bytes) => sent.push(bytes) }, { appended: 0 }, 'video', 0));
+  // Mediabunny on its own: the array for each box starts at 1 KiB and doubles.
+  const plain = [];
+  await write(new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'fragmented', onFtyp: (d) => plain.push(d.slice()), onMoov: (d) => plain.push(d.slice()), onMoof: (d) => plain.push(d.slice()), onMdat: (d) => plain.push(d) }), target: new MB.NullTarget() }));
+  const join = (parts) => Buffer.concat(parts.map((p) => Buffer.from(p.buffer, p.byteOffset, p.byteLength)));
+  assert.ok(join(sent).equals(join(plain)), 'the same bytes');
+  const mdats = sent.filter((b) => String.fromCharCode(...b.subarray(4, 8)) === 'mdat');
+  assert.equal(mdats.length, 3);
+  for (const m of mdats) assert.ok(m.buffer.byteLength <= m.byteLength + 16, `an mdat of ${m.byteLength} bytes in an array of ${m.buffer.byteLength}`);
+  assert.ok(plain.filter((b) => String.fromCharCode(...b.subarray(4, 8)) === 'mdat').every((m) => m.buffer.byteLength === 1 << 20), 'where Mediabunny alone doubled to 1 MiB');
+  const moofs = sent.filter((b) => String.fromCharCode(...b.subarray(4, 8)) === 'moof');
+  assert.deepEqual(moofs.map((m) => sampleBytes(m) + 8), mdats.map((m) => m.byteLength), 'the moof gives the mdat\'s size');
 });

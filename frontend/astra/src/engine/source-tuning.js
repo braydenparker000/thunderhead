@@ -1,25 +1,34 @@
-// How far Astra's range reader (http-source.js) reads ahead and how much it keeps, by the film's bitrate.
-// Mixed into HttpSource's prototype, so `this` is the source. Before the bitrate is known a download runs
-// at most `readAhead` past the furthest byte read (2 MiB while the file is being described); once the probe
-// has the size and the duration, about `seconds` of the film (10, or 5 with the data saver), never under
-// 2 MiB nor over `readAhead`. The cache keeps `keepSeconds` of the film (a back-seek of 30 s plus what the
-// pipelines read ahead) and the reach, between 16 MiB and the size it was made with (96 MiB); a film too fast
-// for that to hold its back-seek keeps what reading needs (hold.js).
+// How far Astra's range reader (http-source.js) reads ahead and how much it keeps, by the film's bitrate and the
+// memory budget. Mixed into HttpSource's prototype, so `this` is the source. Before the bitrate is known a download runs
+// at most `readAhead` past the furthest byte read (2 MiB while the file is being described); once the probe has the
+// size and the duration, about `seconds` of the film (10, or 5 with the data saver), never under 2 MiB nor over
+// `readAhead`. The cache keeps `keepSeconds` of the film (a back-seek of 30 s plus what the pipelines read ahead) and
+// the reach, between 16 MiB and the size it was made with (96 MiB). A film too fast for its seconds to fit the budget
+// (budget.js, `budget`) is held to bytes (hold.js, `held`): a shorter reach, a cache of what reading needs.
 
 import {BLOCK, PROBE_AHEAD} from './source-stream.js';
-import {cacheBytes} from './hold.js';
+import {holding} from './hold.js';
+import {memoryBudget} from './budget.js';
 
 const MIN_REACH = 2 * BLOCK, MIN_KEEP = 16 * BLOCK;
 
 export const tuning = {
   /**
    * Changes how far downloads read ahead (the data saver), for the downloads running now too: at most `bytes`,
-   * and once the film's bitrate is known `seconds` of it; the cache keeps `keep` seconds of the film besides.
+   * and once the film's bitrate is known `seconds` of it; the cache keeps `keep` seconds of the film besides, and the
+   * pipelines read `ahead` seconds past the playhead (null: their own 40).
    */
-  setReadAhead(bytes, {seconds = this.seconds, keep = this.keepSeconds} = {}) {
-    Object.assign(this, {readAhead: bytes, seconds, keepSeconds: keep});
+  setReadAhead(bytes, {seconds = this.seconds, keep = this.keepSeconds, ahead = this.pipelineAhead} = {}) {
+    Object.assign(this, {readAhead: bytes, seconds, keepSeconds: keep, pipelineAhead: ahead});
     this.resize();
     for (const s of this.streams) s.wake?.(); // one paused short of a longer reach reads on; one past a shorter one pauses at its next piece
+  },
+
+  /** The memory budget (budget.js) this film is held within; a change applies at once. */
+  setBudget(budget) {
+    this.budget = budget;
+    this.resize();
+    for (const s of this.streams) s.wake?.();
   },
 
   /** The film lasts `duration` seconds: the reach and the cache follow its average bitrate. */
@@ -34,14 +43,18 @@ export const tuning = {
   reach() {
     if (this.probing) return PROBE_AHEAD;
     if (!this.byteRate) return this.readAhead;
-    return Math.floor(Math.min(this.readAhead, Math.max(MIN_REACH, this.byteRate * this.seconds)));
+    return this.held?.reach ?? this.timeReach();
   },
 
-  /** The cache holds what a back-seek and the read-ahead need at the film's bitrate, 16 to 96 MiB; a fast film's, less. */
+  /** The reach by the film's seconds alone: `seconds` of it, 2 MiB to `readAhead`. */
+  timeReach() { return Math.floor(Math.min(this.readAhead, Math.max(MIN_REACH, this.byteRate * this.seconds))); },
+
+  /** What the film may hold at its bitrate within the budget (hold.js); the cache 16 to 96 MiB, a fast film's less. */
   resize() {
     if (!this.byteRate) return;
-    const want = Math.min(this.byteRate * this.keepSeconds + this.reach(), cacheBytes(this.reach(), this.byteRate));
-    this.maxBlocks = Math.min(this.maxBase, Math.max(MIN_KEEP / BLOCK, Math.ceil(want / BLOCK)));
+    const budget = this.budget ??= memoryBudget();
+    this.held = holding({film: budget.film, rate: this.byteRate, reach: this.timeReach(), keep: this.keepSeconds, ahead: this.pipelineAhead ?? 40});
+    this.maxBlocks = Math.min(this.maxBase, Math.max(MIN_KEEP / BLOCK, Math.ceil(this.held.cache / BLOCK)));
     while (this.blocks.size > this.maxBlocks) this.blocks.delete(this.blocks.keys().next().value);
   }
 };

@@ -23,7 +23,7 @@ import {soundMime, soundShift} from './sound-six.js';
 import {aheadSeconds} from './hold.js';
 
 // Read-ahead limits (seconds; tests shorten them; a session's `ahead`, set by the data saver, overrides `ahead`; a fast
-// film's are fewer, hold.js). Picture and sound read to the same place, `apart` at most, so one download serves both.
+// film's are fewer: its bytes within the memory budget, hold.js). Picture and sound read to the same place, `apart` at most, so one download serves both.
 export const TUNING = {ahead: 40, apart: 3, maxQueued: 24 << 20, ownMkv: true}; // ownMkv: Astra's own Matroska reader (off: Mediabunny's)
 // Reading and re-wrapping run on the page's own thread: after this many
 // milliseconds the reader lets a tap or a frame through (scheduler.yield: with setTimeout instead, a start, far seeks
@@ -113,7 +113,7 @@ export class RemuxSession extends EventTarget {
     for (const type of ['timeupdate', 'seeking', 'playing', 'canplay']) this.video.addEventListener(type, this.onProgress);
     if (startTime > 0) this.video.currentTime = startTime;
     this.watch = new StallWatch(this);
-    this.rebuffer = new Rebuffer(this, () => aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate)); // on a link slower than the film
+    this.rebuffer = new Rebuffer(this, () => aheadSeconds(this.ahead ?? TUNING.ahead, this.source)); // on a link slower than the film
     this.run(startTime);
   }
 
@@ -189,7 +189,7 @@ export class RemuxSession extends EventTarget {
     const apart = () => this.queues[other] && !this.ended[other] && this.readAt[kind] - this.readAt[other] > TUNING.apart;
     // A stall held for a slow link (rebuffer.js) is not such a place: both read on to what it waits for.
     const v = this.video, head = () => (v.seeking || v.readyState < 3) && !this.rebuffer?.holding && this.readAt[kind] - v.currentTime > HEAD;
-    while (current() && (this.readAt[kind] - v.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source?.byteRate) || apart() || head() || (queue.pending() > TUNING.maxQueued && !queue.held))) {
+    while (current() && (this.readAt[kind] - v.currentTime > aheadSeconds(this.ahead ?? TUNING.ahead, this.source) || apart() || head() || (queue.pending() > TUNING.maxQueued && !queue.held))) {
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); this.wakers.delete(done); resolve(); };
         const timer = setTimeout(done, 1000);

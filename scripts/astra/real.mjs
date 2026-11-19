@@ -8,9 +8,11 @@
 //  seeks   inside the buffer (+5 s), far forward, far back, the last minute: time to a picture at the place
 //  resume  a fresh profile opening the film at --resume, and (warm) the same profile opening it again there
 // Memory is the renderer process's PSS from /proc (all of it: the page's buffers, Media Source's, the decoders') and
-// the JS heap with its ArrayBuffer backing stores (DevTools protocol, Runtime.getHeapUsage); never the Network domain,
-// which would keep copies of the film. The link is paced at the host: --mbit shares that many Mbit/s between the
-// requests open at the time (one link), --conn paces each connection alone (bytes/s); --delay ms a request.
+// the JS heap with its ArrayBuffer backing stores (DevTools protocol, Runtime.getHeapUsage). Playwright itself turns the
+// Network domain on, and the page then keeps a copy of every download for DevTools (up to about 190 MB): read memory with
+// memory.mjs, which drives Chromium without Playwright (the times here pay for that copy too, before and after alike).
+// The link is paced at the host: --mbit shares that many Mbit/s between the requests open at the time (one link),
+// --conn paces each connection alone (bytes/s); --delay ms a request.
 // Options: --runs 3 --cpu 1 --mbit 0 --conn 0 --delay 0 --audio default|aac --subs <language> --resume 120 --play 60
 //          --far 120 --back 15 --last 165 --skip resume,warm,seeks --out results.json --before '<js run in the page first>'
 //          --gc (a garbage collection forced before each look at memory: what is still held)

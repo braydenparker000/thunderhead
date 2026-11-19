@@ -6,6 +6,8 @@ import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-source.js';
 import { saverTuning } from '../frontend/astra/src/engine/player-data.js';
+import { BUDGETS } from '../frontend/astra/src/engine/budget.js';
+import { HOLD } from '../frontend/astra/src/engine/hold.js';
 import { TAIL } from '../frontend/astra/src/engine/source-tail.js';
 import { GAP, REUSE_WINDOW, SOON, soon } from '../frontend/astra/src/engine/source-stream.js';
 import { until } from './fixtures/waits.mjs';
@@ -156,13 +158,17 @@ test('the reach follows the film’s bitrate: 10 s of it (5 with the saver), nev
   assert.equal(source.reach(), 8 * BLOCK, '20 MiB, held to the saver’s 8');
   const full = saverTuning(false);
   source.setReadAhead(full.readAhead, full);
-  assert.equal(source.reach(), 24 * BLOCK, '40 MiB, held to 24');
+  const budget = Math.floor(BUDGETS.roomy.film * HOLD.reach); // 16.8 MiB: the download's share of the memory budget (hold.js)
+  assert.equal(source.reach(), budget, '40 MiB, held to 24 and to the reach\'s share of the memory budget');
+  source.setBudget({ ...BUDGETS.roomy, film: 1024 * BLOCK });
+  assert.equal(source.reach(), 24 * BLOCK, 'with a budget that does not bind: 40 MiB, held to 24');
+  source.setBudget(BUDGETS.roomy);
   source.learn(201.3); // a bitrate that does not divide (about 3.2 MiB in 10 s): a range request names whole bytes
   assert.ok(Number.isInteger(source.reach()), `a whole number of bytes (${source.reach()})`);
   source.close();
 });
 
-test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrate, between 16 and 96 MiB; a fast film’s, 48 MiB', async () => {
+test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrate, between 16 and 96 MiB; a fast film’s, what reading needs', async () => {
   const { source } = await open({ pace: 0 });
   assert.equal(source.maxBlocks, 96);
   source.learn(SIZE / (BLOCK / 8)); // 1 Mbit/s: 16 MiB, the least
@@ -174,9 +180,9 @@ test('the cache keeps a 30 s back-seek and the read-ahead at the film’s bitrat
   assert.equal(source.maxBlocks, 30, 'with the saver: (55 s + 5 s)');
   source.learn(SIZE / (4 * BLOCK)); // 32 Mbit/s: 80 s would be 320 MiB, its back-seek never whole: what reading needs (hold.js)
   source.setReadAhead(24 * BLOCK, saverTuning(false));
-  assert.equal(source.maxBlocks, 48, 'HOLD.cache: more than the reach (24 MiB) and 4 s of the sound trailing the picture');
-  source.learn(SIZE / (16 * BLOCK)); // 128 Mbit/s: the reach and 4 s of the film, 88 MiB
-  assert.equal(source.maxBlocks, 88);
+  assert.equal(source.maxBlocks, 40, 'the reach within the memory budget (16.8 MiB), a second behind it, and what the budget leaves of the browser\'s buffer ahead');
+  source.learn(SIZE / (16 * BLOCK)); // 128 Mbit/s: the reach and a second of the film, 33 MiB
+  assert.equal(source.maxBlocks, 33);
   source.close();
 });
 
