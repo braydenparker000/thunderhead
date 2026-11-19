@@ -152,6 +152,27 @@ function guess(stream) {
   };
 }
 
+/**
+ * The reader's one-time cost, in steps: compiling its expressions (and stream-text.js's) is about 20 ms at 4x CPU
+ * on a first card, so a list with frames to spare (screens/stream-pace.js) runs one step a frame first, each a few
+ * ms (each with plain text and with emoji). The expressions compiled are the very ones read with (each `test` pattern is the same text, which the
+ * engine compiles once), so nothing here changes what is read.
+ */
+const WARM_TEXT = ['x', 'x 🎬']; // the engine compiles an expression once for one-byte text and once for text with emoji
+const each = fn => WARM_TEXT.map(t => () => fn(t));
+export const WARM = [
+  ...each(t => withoutHash(`${t}\n🔗 0123456789abcdef0123456789abcdef01234567`)),
+  ...each(t => { dropHashes(t); plain(t); cleanLine(t); }),
+  ...each(t => { for (const table of [RESOLUTIONS, SOURCES, CODECS]) first(t, table); }),
+  ...each(t => { for (const table of [SOUNDS, QUALITY_WORDS, PICTURE]) first(t, table); TEN_BIT.test(t); CHANNELS.exec(t); }),
+  ...each(t => INDEXER.exec(t)),
+  ...each(t => groupOf(t, t)),
+  ...each(t => { SEEDERS.exec(t); RUNTIME.exec(t); BITRATE.exec(t); TITLE_LINE.exec(t); }),
+  ...each(t => { readiness(t, t); releaseLike(`${t} 2019 1080p`); }),
+  ...each(t => languagesOf(`🇬🇧 ${t}`)),
+  ...each(t => guess({name: t, title: t})),
+];
+
 /** How many facts were found, of any kind: what the designed card has to say. */
 export const factCount = f => (f ? [f.res || f.quality, f.release || f.title, f.bytes, f.sound.codec || f.sound.channels, f.source, f.codec, f.picture.length,
   f.runtime, f.bitrate, f.ready !== null, f.indexer, f.group, f.seeders != null, f.languages.length].filter(Boolean).length : 0);

@@ -18,14 +18,14 @@ const loaf = (over = {}) => ({
   ...over,
 });
 
-test('a script is named by its file name when it is Astra\'s own, else "other"; never an address or a query', () => {
+test('a script is named by its file name when it is Astra\'s own, else "other" ("unknown" with none); never an address or a query', () => {
   assert.equal(scriptFile('https://phone.example/astra/src/player/player-screen.js?v=3#x', ROOT), 'player-screen.js');
   assert.equal(scriptFile('https://phone.example/astra/vendor/mediabunny.js', ROOT), 'mediabunny.js');
   assert.equal(scriptFile('https://addon.example/astra/src/app.js', ROOT), 'other', 'another host');
   assert.equal(scriptFile('chrome-extension://abcdef/content.js', ROOT), 'other');
   assert.equal(scriptFile('blob:https://phone.example/1234', ROOT), 'other');
   assert.equal(scriptFile('https://phone.example/astra/src/app/app.js/../../../x?film=Some%20Title', ROOT), 'other', 'not a file name');
-  assert.equal(scriptFile('', ROOT), 'other');
+  assert.equal(scriptFile('', ROOT), 'unknown', 'no file given (code resumed after an await)');
   assert.equal(scriptFile('https://phone.example/other/thing.js', ROOT), 'other', 'outside Astra');
 });
 

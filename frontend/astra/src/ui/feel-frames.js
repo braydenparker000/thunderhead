@@ -2,7 +2,7 @@
 // reports them (the Long Animation Frames API, Chrome 123+; the older Long Tasks API, without scripts, where it is
 // missing; nothing where neither is), each kept with the named transitions it fell in. A frame is kept scrubbed:
 // numbers, and fixed names only. A script is named by its file's NAME when it is one of Astra's own (the last
-// segment of its address, never the address, a query or a fragment), else "other"; a function by its name only
+// segment of its address, never the address, a query or a fragment), "unknown" when the browser names none, else "other"; a function by its name only
 // in Astra's own code; the kind of call (a timer, a frame callback, an idle callback, an observer, a promise, an
 // event listener and its event, a module's evaluation, a script). Nothing an add-on, a film or the owner wrote.
 
@@ -12,9 +12,13 @@ export const LONG_MS = 50, KEEP = 2, SCRIPTS = 3;
 /** Astra's own folder (frontend/astra/): its modules, its vendored libraries, the lab. */
 const ROOT = new URL('../../', import.meta.url).href;
 
-/** A script's address as the report may carry it: its file's name when it is Astra's own, else 'other'. */
+/**
+ * A script's address as the report may carry it: its file's name when it is Astra's own, 'unknown' when the browser
+ * gives none (code resumed after an await on a timer or a promise has no file of its own), else 'other'.
+ */
 export function scriptFile(url, root = ROOT) {
   const s = String(url || '');
+  if (!s) return 'unknown';
   if (!root || !s.startsWith(root)) return 'other';
   const name = s.slice(root.length).split(/[?#]/)[0].split('/').pop();
   return /^[a-z0-9][a-z0-9._-]{0,60}\.m?js$/i.test(name) ? name : 'other';
@@ -44,7 +48,7 @@ export function frameOf(entry, root = ROOT) {
   const end = entry.startTime + entry.duration;
   const scripts = [...(entry.scripts || [])].sort((a, b) => b.duration - a.duration).slice(0, SCRIPTS).map(s => {
     const file = scriptFile(s.sourceURL, root);
-    return {file, fn: file === 'other' ? '' : fnName(s.sourceFunctionName), kind: callKind(s.invokerType, s.invoker), ms: ms(s.duration), forced: ms(s.forcedStyleAndLayoutDuration)};
+    return {file, fn: file === 'other' || file === 'unknown' ? '' : fnName(s.sourceFunctionName), kind: callKind(s.invokerType, s.invoker), ms: ms(s.duration), forced: ms(s.forcedStyleAndLayoutDuration)};
   });
   const long = entry.entryType === 'long-animation-frame';
   return {at: entry.startTime, end, ms: ms(entry.duration), blocked: ms(long ? entry.blockingDuration : entry.duration - LONG_MS),
