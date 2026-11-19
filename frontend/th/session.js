@@ -1,15 +1,15 @@
 // @ts-check
 // This device's session: kept in IndexedDB `th-auth` (never a cookie, never localStorage), read
 // only by a top-level page (frame guard, SECURITY.md §4.3), and wiped in the order of
-// SIGN-IN.md §11.3 when the owner signs out or the server says this device is signed out.
+// SIGN-IN.md §11.3 at a sign-out here or one the server reports.
 
 import { kv } from './idb.js';
 
 /** @typedef {import('./flow.js').Session} Session */
 
 const auth = kv('th-auth');
-/** One channel per page for both directions: a channel never hears its own messages, so the tab
- * that wipes doesn't also react to its own `signed_out`. */
+/** One channel per page, both ways: it never hears its own messages, so the wiping tab ignores
+ * its own `signed_out`. */
 let channel = /** @type {BroadcastChannel | null} */ (null);
 const tabs = () => {
   try {
@@ -17,7 +17,7 @@ const tabs = () => {
   } catch {}
   return channel;
 };
-/** Cache Storage caches that hold only code and survive a sign-out: `th-<build>` and `th-vendor`. */
+/** Code-only caches that survive a sign-out: `th-<build>`, `th-vendor`. */
 const CODE_CACHE = /^th-(\d+|vendor)$/;
 
 const top = () => {
@@ -64,20 +64,6 @@ export const pending = {
   clear: () => auth.del('pending_signout'),
 };
 
-/** Astra's sync record (frontend/astra/src/app/sync.js, ASTRA.md §5.3). */
-const ASTRA_SYNC = 'astra.sync.v1';
-/** Whether Astra's saved data (`astra.v2.*`, add-on addresses among it, which are secrets) is kept in step
- * with the owner's server: this phone joined and its switch is on. Then the server holds the copy and a
- * signed-out phone keeps none of it; otherwise it is Astra's own local data, kept as before. */
-function astraInStep() {
-  try {
-    const r = JSON.parse(localStorage.getItem(ASTRA_SYNC) || 'null');
-    return r?.joined === true && r.off !== true;
-  } catch {
-    return false;
-  }
-}
-
 /** Removes every private thing this device holds; app code and `th.ui.` choices stay (§11.3). */
 export async function wipe() {
   // 1. Audio, capture and Media Session belong to the apps; they listen for `signed_out` below.
@@ -102,11 +88,10 @@ export async function wipe() {
     for await (const name of /** @type {any} */ (root).keys()) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
   } catch {}
-  // 6. Personal localStorage keys, and Astra's saved data when it is a copy of the owner's server's.
+  // 6. Personal localStorage keys, and Astra's (astra/wipe.js).
   try {
-    const astra = astraInStep();
-    for (const key of Object.keys(localStorage))
-      if (key.startsWith('th.p.') || (astra && (key.startsWith('astra.v2.') || key === ASTRA_SYNC))) localStorage.removeItem(key);
+    for (const key of Object.keys(localStorage)) if (key.startsWith('th.p.')) localStorage.removeItem(key);
+    (await import('./astra/wipe.js')).wipeAstra();
   } catch {}
   // 7. Other tabs and the service worker.
   try {

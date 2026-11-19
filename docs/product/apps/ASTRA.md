@@ -373,7 +373,7 @@ the Worker (rule 3).
   is written into the senses reader's last look as well (`sync-senses.js`), so another phone's watching
   is never reported as watching here, except where this phone watched the same title since the reader's
   last look (then that watching is reported). A sign-out removes `astra.v2.*` and the record when this
-  phone kept Astra in step (`th/session.js` wipe; Astra itself on a 401 from the Worker; an open page stops
+  phone kept Astra in step (`th/session.js` wipe, through `th/astra/wipe.js`; Astra itself on a 401 from the Worker; an open page stops
   writing back): the server holds the copy. Recent searches turned off empties the list on every phone.
 - **Checks:** `backend/tests/integration/astra-backup.test.ts` (each token role, round trip, the copy
   back byte for byte, `same`, conflict, a race and two first saves, 1 MiB, the shape, a far-future `at`,
