@@ -79,7 +79,9 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   await page.waitForFunction(() => document.querySelector('.screen.streams .group-body')?.textContent.includes('1.2 GB'));
   // The owner's own filter chips (addons/stream-facts.js), under the add-ons. As the add-on sent them:
   // Large, Small, Unknown; a stream says what an hour of it costs when the runtime is known.
-  const names = () => page.locator('.screen.streams .stream-card .stream-name').allTextContents();
+  // A card's stream name: the add-on's own line (a designed card keeps it for screen readers).
+  const names = () => page.$$eval('.screen.streams .stream-card', (els) => els.map((el) => el.querySelector('.visually-hidden, .stream-name').textContent.replace(/\. $/, '')));
+  const order = async (label) => { await page.locator('.screen.streams .filter-chips.facts .chip.sort').click(); await page.locator('.sheet-row', { hasText: label }).click(); await page.locator('.sheet').waitFor({ state: 'detached' }); };
   const chip = (name) => page.locator('.screen.streams .filter-chips.facts').getByRole('button', { name, exact: true });
   assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
   assert.match(await page.locator('.screen.streams .stream-card', { hasText: 'Small' }).textContent(), /380 MB an hour/);
@@ -92,7 +94,7 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   else { await small.waitFor(); assert.equal(await small.textContent(), 'Needs the software decoder (uses more battery)'); }
   assert.equal(await page.locator('.screen.streams .stream-card', { hasText: 'Unknown' }).locator('.stream-plays').count(), 0, 'a label that says nothing: no mark');
   assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
-  await chip('Smallest first').click();
+  await order('Smallest first');
   assert.deepEqual(await names(), ['Small', 'Large', 'Unknown'], 'smallest first, the unknown size last');
   await chip('Under 700 MB').click();
   assert.deepEqual(await names(), ['Small']);
@@ -109,6 +111,8 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   assert.deepEqual(await page.locator('.screen.streams .filter-chips.facts .chip[aria-pressed="true"]').allTextContents(), ['Smallest first', '1080p', 'HEVC']);
   await chip('Clear').click();
   await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 3);
+  assert.deepEqual(await names(), ['Small', 'Large', 'Unknown'], 'Clear lifts the filters; the order chosen stays');
+  await order('As sent');
   assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
   // Nothing plays by itself (a negative read, on the page's own timers).
   await outlast(page, 500);

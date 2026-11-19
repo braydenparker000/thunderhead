@@ -33,13 +33,19 @@ test('the chips: a limit hides what is larger or of unknown size; picture sizes 
   assert.equal(names({ ...NO_FILTERS, codec: ['av1'] }), '');
   // Smallest first: by size, the unknown last, ties in the add-on's order; each keeps its place in the list.
   assert.equal(names({ ...NO_FILTERS, small: true }), 'bcad');
+  assert.equal(names({ ...NO_FILTERS, sort: 'smallest' }), 'bcad');
+  assert.equal(names({ ...NO_FILTERS, sort: 'largest' }), 'acbd', 'largest first, the unknown size still last');
+  assert.equal(names({ ...NO_FILTERS, sort: 'resolution' }), 'acbd', '1080p before 720p, ties and the unknown in the add-on order');
+  assert.equal(anyFilter({ ...NO_FILTERS, sort: 'largest' }), false, 'an order hides nothing');
   assert.deepEqual(shown(list, { ...NO_FILTERS, small: true }).map(([, i]) => i), [1, 2, 0, 3]);
   assert.equal(passes(factsOf(list[0]), { ...NO_FILTERS, maxMb: 3000 }), false);
 });
 
 test('filters as stored are made safe; data an hour from size and runtime', () => {
   assert.deepEqual(filtersFrom(null), NO_FILTERS);
-  assert.deepEqual(filtersFrom({ small: true, maxMb: 1500, res: ['720', 'huge'], codec: 'hevc' }), { small: true, maxMb: 1500, res: ['720'], codec: [] });
+  assert.deepEqual(filtersFrom({ small: true, maxMb: 1500, res: ['720', 'huge'], codec: 'hevc' }), { small: true, maxMb: 1500, res: ['720'], codec: [], sort: 'smallest' }, 'the old "smallest first" switch is that order');
+  assert.equal(filtersFrom({ sort: 'largest' }).sort, 'largest');
+  assert.equal(filtersFrom({ sort: 'cheapest' }).sort, 'addon', 'only the orders the owner can choose');
   assert.equal(filtersFrom({ maxMb: 42 }).maxMb, 0, 'only the limits the chips offer');
   assert.equal(anyFilter(NO_FILTERS), false);
   assert.equal(anyFilter({ ...NO_FILTERS, res: ['sd'] }), true);

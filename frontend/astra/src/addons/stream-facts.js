@@ -10,14 +10,16 @@
 import {dropHashes} from './stream-text.js';
 
 /** @typedef {{bytes: number | null, res: '4k' | '1080' | '720' | 'sd' | null, codec: 'hevc' | 'av1' | 'vp9' | 'h264' | null}} Facts */
-/** @typedef {{small: boolean, maxMb: number, res: string[], codec: string[]}} Filters */
+/** @typedef {{small: boolean, maxMb: number, res: string[], codec: string[], sort?: string}} Filters */
 
 /** The chips, in the order shown: a size limit (one at a time), picture sizes and codecs (any of). */
 export const SIZE_CHIPS = [[700, 'Under 700 MB'], [1500, 'Under 1.5 GB'], [3000, 'Under 3 GB']];
 export const RES_CHIPS = [['720', '720p'], ['1080', '1080p'], ['4k', '4K'], ['sd', 'SD']];
 export const CODEC_CHIPS = [['hevc', 'HEVC'], ['av1', 'AV1']];
 /** @type {Filters} */
-export const NO_FILTERS = Object.freeze({small: false, maxMb: 0, res: [], codec: []});
+export const NO_FILTERS = Object.freeze({small: false, maxMb: 0, res: [], codec: [], sort: 'addon'});
+/** The orders the owner may choose (Settings › Streams `streamSort`, and the sort chip): the add-on's own first. */
+export const SORTS = [['addon', 'As sent'], ['smallest', 'Smallest first'], ['largest', 'Largest first'], ['resolution', 'Best picture first']];
 
 // What a stream says of itself, without the torrent's hash (whose digits and letters are no words).
 export const text = s => dropHashes([s.name, s.title, s.filename].filter(Boolean).join(' '));
@@ -48,7 +50,7 @@ export function bytesOf(stream) {
 
 /** The words a picture size is read from: sizes taken out ("720 MB" is not 720p), and "1920x1080"
  * read by its width (a 1920x800 film is still 1080p). */
-function pictureText(t) {
+export function pictureText(t) {
   return t.replace(new RegExp(SIZE.source, 'gi'), ' ').replace(/(?<!\d)(\d{3,4})\s*[x×]\s*(\d{3,4})(?!\d)/g,
     (_, w, ht) => ` ${({3840: 2160, 4096: 2160, 1920: 1080, 1280: 720})[w] || ht}p `);
 }
@@ -90,9 +92,15 @@ export const playFactsOf = kept(stream => {
 /** The filters as stored, made safe: unknown values dropped. @param {any} v @returns {Filters} */
 export function filtersFrom(v) {
   const list = (got, chips) => (Array.isArray(got) ? got.filter(x => chips.some(c => c[0] === x)) : []);
-  return {small: v?.small === true, maxMb: SIZE_CHIPS.some(c => c[0] === v?.maxMb) ? v.maxMb : 0, res: list(v?.res, RES_CHIPS), codec: list(v?.codec, CODEC_CHIPS)};
+  // An order saved before there were four is "smallest first" when its old switch was on.
+  const sort = SORTS.some(s => s[0] === v?.sort) ? v.sort : v?.small === true ? 'smallest' : 'addon';
+  return {small: sort === 'smallest', maxMb: SIZE_CHIPS.some(c => c[0] === v?.maxMb) ? v.maxMb : 0, res: list(v?.res, RES_CHIPS), codec: list(v?.codec, CODEC_CHIPS), sort};
 }
-export const anyFilter = f => f.small || f.maxMb > 0 || f.res.length > 0 || f.codec.length > 0;
+/** Whether any filter hides something (an order hides nothing, so it is not one). */
+export const anyFilter = f => f.maxMb > 0 || f.res.length > 0 || f.codec.length > 0;
+/** The order a set of filters asks for ('addon' when none). */
+export const sortOf = f => (f?.sort && f.sort !== 'addon' ? f.sort : f?.small ? 'smallest' : 'addon');
+const RES_RANK = {'4k': 2160, 1080: 1080, 720: 720, sd: 480};
 
 /** Whether a stream passes. A limit or a choice the stream says nothing about hides it: with a size
  * limit on, a stream of unknown size may be any size. @param {Facts} facts @param {Filters} f */
@@ -103,12 +111,14 @@ export function passes(facts, f) {
   return true;
 }
 
-/** The streams to show, in order: those that pass, smallest first when asked (unknown sizes last,
- * equal sizes in the add-on's order). Each comes with its place in the add-on's own list.
+/** The streams to show, in order: those that pass, in the order the owner chose (the add-on's own by default;
+ * smallest or largest first, or the best picture first: what a stream does not say goes last, and equal ones keep
+ * the add-on's order). Each comes with its place in the add-on's own list.
  * @template T @param {T[]} streams @param {Filters} f @returns {[T, number][]} */
 export function shown(streams, f) {
   const kept = streams.map((s, i) => /** @type {[T, number, Facts]} */ ([s, i, factsOf(s)])).filter(([, , facts]) => passes(facts, f));
-  if (f.small) kept.sort((a, b) => (a[2].bytes ?? Infinity) - (b[2].bytes ?? Infinity) || a[1] - b[1]);
+  const by = {smallest: x => x.bytes ?? Infinity, largest: x => -(x.bytes ?? -Infinity), resolution: x => -(RES_RANK[x.res] ?? 0)}[sortOf(f)];
+  if (by) kept.sort((a, b) => by(a[2]) - by(b[2]) || a[1] - b[1]);
   return kept.map(([s, i]) => [s, i]);
 }
 
