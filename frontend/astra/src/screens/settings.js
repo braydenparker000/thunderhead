@@ -63,7 +63,7 @@ export class SettingsScreen {
         navRow('backup', 'Your data', 'Back up, restore, clear', () => this.open('Your data', p => this.data(p)))),
       group('About',
         navRow('info', 'Playback lab', 'See how a file plays on this phone', () => { location.href = 'lab/'; })),
-      h('p', {class: 'about'}, 'Astra · new · built on the Stremio add-on protocol. Everything stays on this device.'));
+      h('p', {class: 'about'}, 'Astra · new · built on the Stremio add-on protocol. Signed in, your own server keeps a sealed copy so your phones match (Your data); otherwise everything stays on this device.'));
   }
 
   appearance(page) {
@@ -205,6 +205,25 @@ export class SettingsScreen {
     ];
   }
 
+  /** This phone and the owner's others (app/sync.js): the switch, when it last saved and fetched, Sync now, and removing the server's copy. */
+  phones(page) {
+    const app = this.app, sync = app.sync, s = sync?.state();
+    if (!s || s.signedIn === null) { app.syncReady?.then(() => sync?.ready).then(() => page.render()); return group('This phone and your others', h('p', {class: 'set-note'}, 'Checking your sign-in…')); }
+    if (!s.signedIn) return group('This phone and your others', h('p', {class: 'set-note'}, 'Sign in on the Thunderhead to keep your phones in step.'));
+    page.off?.();
+    page.off = sync.onChange(() => page.render());
+    const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
+    const said = {unreached: 'Your server could not be reached last time; Astra tries again by itself.', newer: 'A newer Astra saved the copy on your server: update Astra on this phone.',
+      'too-big': 'What this phone holds is too large to keep on your server.', full: 'This phone’s storage is full, so nothing was brought in.'}[s.problem];
+    const remove = () => confirm('Remove the copy on your server?', {message: 'Your server forgets Astra’s add-ons, library, progress and settings, and its daily copies. This phone stops keeping one; turn it off on your other phones too, or they save theirs again. Nothing on this phone changes.',
+      action: 'Remove', destructive: true, run: async () => { const r = await sync.removeCopy(); toast(r.ok ? 'The copy on your server is removed' : r.message); page.render(); }});
+    return group('This phone and your others',
+      switchRow('Keep Astra the same on every phone I sign in on', s.on ? `Saved ${ago(s.savedAt)} · fetched ${ago(s.fetchedAt)}` : 'Turned on, what this phone has and the copy on your server are put together: nothing is lost.', s.on, v => sync.setOn(v)),
+      said && s.on ? h('p', {class: 'set-note'}, said) : null,
+      s.on ? h('button', {class: 'set-row', type: 'button', disabled: s.working, onclick: () => sync.syncNow()}, h('span', {class: 'set-text'}, h('b', {}, s.working ? 'Syncing…' : 'Sync now'))) : null,
+      h('button', {class: 'set-row danger', type: 'button', onclick: remove}, h('span', {class: 'set-text'}, h('b', {}, 'Remove the copy on my server'))));
+  }
+
   data(page) {
     const app = this.app;
     const exportData = () => {
@@ -227,6 +246,7 @@ export class SettingsScreen {
     }});
     const copyAgain = () => { for (const k of ['imported', 'addons', 'library', 'progress']) app.store.remove(k); app.store.freeze(); location.reload(); };
     return [
+      this.phones(page),
       group('Backup',
         h('button', {class: 'set-row', type: 'button', onclick: exportData}, h('span', {class: 'set-text'}, h('b', {}, 'Export a backup'), h('small', {}, 'Add-ons, library, progress and settings as a file'))),
         h('button', {class: 'set-row', type: 'button', onclick: () => file.click()}, h('span', {class: 'set-text'}, h('b', {}, 'Restore from a backup'), h('small', {}, 'Replaces what is on this device'))), file),
