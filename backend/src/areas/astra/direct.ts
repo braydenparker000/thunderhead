@@ -55,11 +55,15 @@ async function step<T>(
     mark(r, name, s.ok, since, s.note);
     return value;
   } catch (e) {
-    const refused = e instanceof TorboxTrouble && e.refused && refusedNote;
-    mark(r, name, false, since, refused ? refusedNote : e instanceof TorboxTrouble ? e.note : NOTE.unreadable);
-    if (e && typeof e === 'object') marked.add(e);
-    throw e;
+    throw failed(r, name, since, e, refusedNote);
   }
+}
+/** Marks a step that ended in trouble, once; the trouble goes on up. */
+function failed(r: Relay, name: AstraStepName, since: number, e: unknown, refusedNote?: string): unknown {
+  const refused = e instanceof TorboxTrouble && e.refused && refusedNote;
+  mark(r, name, false, since, refused ? refusedNote : e instanceof TorboxTrouble ? e.note : NOTE.unreadable);
+  if (e && typeof e === 'object') marked.add(e);
+  return e;
 }
 /** A call started beside another: its trouble is read where it is awaited, never left unhandled. */
 const beside = <T>(p: Promise<T>): Promise<{ value: T } | { error: unknown }> =>
@@ -78,11 +82,11 @@ function fileSaid(files: TorrentFile[], ask: Ask, guess: TorrentFile | null = nu
   return { ok: true, note: guess && file.id !== guess.id ? NOTE.otherId : undefined };
 }
 /** The torrent's own listing, fresh, as the file step with its own time, and the file it names. */
-async function listing(r: Relay, key: string, id: number, ask: Ask, guess: TorrentFile | null = null) {
+async function listing(r: Relay, key: string, id: number, hash: string, ask: Ask, guess: TorrentFile | null = null) {
   const files = await step(
     r,
     'file',
-    () => torrentFiles(r, key, id),
+    () => torrentFiles(r, key, id, hash),
     (f) => fileSaid(f, ask, guess),
   );
   return { files, file: files.length ? chooseFile(files, ask) : null };
@@ -106,21 +110,25 @@ async function finish(r: Relay, key: string, hash: string, t: Known, ask: Ask, l
 }
 
 /** A torrent just added, its files known only by their places in checkcached's list: requestdl for
- * that place beside the torrent's own listing, which confirms the id or names the real one. */
+ * that place beside the torrent's own listing, which confirms the id or names the real one. A
+ * speculative ask the listing does not confirm is set aside at once (marked so, never waited for):
+ * the real id is asked for straight away. */
 async function confirm(r: Relay, key: string, hash: string, id: number, places: TorrentFile[], ask: Ask) {
   const guess = chooseFile(places, ask);
-  const early = guess ? beside(step(r, 'link', () => fileLink(r, key, id, guess.id), linked)) : null;
-  const listed = await beside(listing(r, key, id, ask, guess));
-  const link = early ? await early : null;
+  const since = Date.now();
+  const early = guess ? beside(fileLink(r, key, id, guess.id)) : null;
+  const listed = await beside(listing(r, key, id, hash, ask, guess));
+  const file = 'value' in listed ? listed.value.file : null;
+  const confirmed = early !== null && file !== null && guess !== null && file.id === guess.id;
+  if (early && !confirmed) mark(r, 'link', false, since, NOTE.setAside);
   if ('error' in listed) throw listed.error;
-  const { files, file } = listed.value;
-  if (files.length) remember(hash, { id, files });
+  if (listed.value.files.length) remember(hash, { id, files: listed.value.files });
   if (!file) return null;
-  if (link && guess && file.id === guess.id) {
-    if ('error' in link) throw link.error;
-    return { url: link.value.url, size: file.size, type: file.type ?? typeOfName(file.name) };
-  }
-  return address(r, key, id, file);
+  if (!confirmed || !early) return address(r, key, id, file);
+  const link = await early;
+  if ('error' in link) throw failed(r, 'link', since, link.error);
+  mark(r, 'link', true, since, link.value.note);
+  return { url: link.value.url, size: file.size, type: file.type ?? typeOfName(file.name) };
 }
 
 /** A press: what can be known without adding, asked together. */
@@ -145,7 +153,7 @@ async function press(r: Relay, key: string, hash: string, ask: Ask) {
   const owned = settled(held);
   if (owned?.files.length) return finish(r, key, hash, owned, ask);
   if (owned) {
-    const { files, file } = await listing(r, key, owned.id, ask);
+    const { files, file } = await listing(r, key, owned.id, hash, ask);
     return finish(r, key, hash, { id: owned.id, files }, ask, file);
   }
   if (!cached.files.length) return null;
@@ -177,7 +185,7 @@ async function tap(r: Relay, key: string, hash: string, ask: Ask) {
   if (!t) return null;
   if (t.files.length) return finish(r, key, hash, t, ask);
   if (places.length) return confirm(r, key, hash, t.id, places, ask);
-  const { files, file } = await listing(r, key, t.id, ask);
+  const { files, file } = await listing(r, key, t.id, hash, ask);
   return finish(r, key, hash, { id: t.id, files }, ask, file);
 }
 

@@ -189,12 +189,15 @@ export async function findOwned(r: Relay, key: string, hash: string, page: numbe
   return t ? { id: t.id as number, files: filesOf(t.files) } : null;
 }
 
-/** One torrent's files, fresh. */
-export async function torrentFiles(r: Relay, key: string, id: number): Promise<TorrentFile[]> {
+/** One torrent's files, fresh. The answer must be about that torrent: its id, and its hash when it
+ * gives one (a requestdl beside this listing is trusted on its word); anything else is trouble. */
+export async function torrentFiles(r: Relay, key: string, id: number, hash: string): Promise<TorrentFile[]> {
   const q = new URLSearchParams({ id: String(id), bypass_cache: 'true' });
   const { body } = must(await call(r, `/torrents/mylist?${q}`, { key }));
   const one = Array.isArray(body.data) ? body.data.map(record).find((e) => e.id === id) : record(body.data);
-  return filesOf(one?.files);
+  const other = typeof one?.hash === 'string' && one.hash !== '' && one.hash.toLowerCase() !== hash;
+  if (!one || one.id !== id || other) throw new TorboxTrouble(NOTE.otherTorrent);
+  return filesOf(one.files);
 }
 
 /** GET /v1/astra/torbox: whether TorBox takes the key, and the plan number it gives. */

@@ -15,6 +15,8 @@ export const NOTE = {
   rememberedReady: 'Your server remembered from a press in the last half hour that TorBox has it ready.',
   notListed: 'TorBox did not add it again, and it is not in your account’s list either.',
   otherId: "The file's place in TorBox's list was not its id, so its address was asked for again by its id.",
+  setAside: "Asked ahead for the file's place in TorBox's list; set aside, as the listing named another file or none.",
+  otherTorrent: "TorBox's listing was not about this torrent, so it was not used.",
   forgotten: 'TorBox no longer knew the remembered torrent, so it was asked again.',
   saidExisting: 'TorBox said it was already in your account.',
   saidNew: 'TorBox said it added it to your account now.',
