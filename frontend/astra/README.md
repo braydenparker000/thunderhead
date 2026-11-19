@@ -293,6 +293,31 @@ Astra's own data is kept in this browser under `astra.v2.*`
 - When the browser cannot save (storage full, or site data blocked) Astra
   says so once instead of failing silently; with site data blocked it still
   opens.
+- **This phone and your others** (Settings > Your data; `src/app/sync.js`,
+  the merge in `src/app/sync-merge.js`; ASTRA.md §5.3). Signed in on the
+  Thunderhead, "Keep Astra the same on every phone I sign in on" is on by
+  default: add-ons, library, Continue Watching, the watched list, settings
+  and recent searches are merged with a copy your own server keeps sealed
+  (`/v1/astra/backup`), shortly after Astra opens (never before Home is
+  drawn), back in front after more than five minutes, a minute after the
+  last change, with **Sync now**, and when the page is hidden. Progress,
+  watched and library merge entry by entry (the later save of each wins;
+  a removal is remembered for 60 days so the other phone cannot bring it
+  back); add-ons, settings and recent searches go to the latest change; the
+  first time, both sides are put together and nothing is lost, and a new
+  phone simply takes what the server has. The film playing keeps its own
+  progress, and progress that came from another phone is never reported to
+  the Thunderhead as watched here. Player choices, Library layout and sort
+  and the last stream filter never travel. Failures stay quiet and are
+  tried again later. Signed out or switched off, nothing is sent at all.
+  **Remove the copy on my server** deletes it, with its daily copies, and
+  switches this phone off. What the phone remembers for this (when each
+  part last changed, removals, the server's version, when it last saved and
+  fetched) is in localStorage `astra.sync.v1`, outside `astra.v2.*`, so no
+  backup carries it. A restore, Clear Continue Watching or Copy again with
+  the switch on is a change like any other: it reaches your other phones,
+  though a title another phone saved later than the backup keeps that
+  phone's place.
 - What Skip intro learns by sound is kept apart, in IndexedDB `astra-intro`
   (`src/app/intro-store.js`; localStorage is too small for fingerprints): at
   most 60 series, the most recently used kept, and eight episodes each. It
