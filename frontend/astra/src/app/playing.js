@@ -123,6 +123,7 @@ export function playNow(app, {meta, video = null, source, sources, hiddenSources
   const remember = source.remembered || rememberSource(source, addonName(app, source.addonUrl));
   app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}, remember, recover};
   app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true, origin});
+  tint(app, meta);
   app.skip?.episode(skipEpisode(meta, video));
   resolveAndLoad(app, source.stream, startTime, ticket);
 }
@@ -177,6 +178,7 @@ export function pickIn(app, meta, video, sources, hidden, line = '') {
   const {next, options} = describe(meta, video);
   app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
   app.player.open({...options, stream: null, sources, hiddenSources: hidden});
+  tint(app, meta);
   if (line) app.player.loadingStatus.textContent = line;
 }
 
@@ -191,13 +193,30 @@ export function playNext(app, meta, video, group, {origin = null} = {}) {
     app.setCovered(true);
     app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
     app.player.open({...options, stream: {url: null, name: ''}, sources: [], deferred: true, origin});
+    tint(app, meta);
     app.player.loadingStatus.textContent = 'Finding the stream…';
     switchEpisode(app, video, group);
   }, meta);
 }
 
+/**
+ * The title's own colour (app.tintOf, FEEL.md rule 12: a colour, a promise of one, or null) as the player's
+ * accent: the progress line, the buffered line, the loading screen's button, the next card's Play. --accent
+ * where there is none, or while it is still being read; a late answer for another title is dropped.
+ */
+function tint(app, meta) {
+  const root = app.player?.root;
+  if (!root) return;
+  const put = c => { if (app.playing?.meta === meta || app.playing?.meta?.id === meta?.id) { if (typeof c === 'string' && c) root.style.setProperty('--ap-accent', c); else root.style.removeProperty('--ap-accent'); } };
+  root.style.removeProperty('--ap-accent');
+  let c = null;
+  try { c = app.tintOf?.(meta) ?? null; } catch {}
+  if (c && typeof c.then === 'function') c.then(put, () => {}); else put(c);
+}
+
 export function bindPlayer(app) {
   const player = app.player;
+  player.app = app; // the stream list's source cards in the player's panel read the app (player/menus.js)
   app.skip = new SkipTimes(player, {settings: () => app.settings});
   // The next episode made ready before Next (next-ready.js), loaded with the player rather than at start-up.
   import('./next-ready.js').then(({NextReady}) => { app.nextReady ??= new NextReady(app); }, () => {});

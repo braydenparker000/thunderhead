@@ -167,9 +167,7 @@ export class Menus {
     if (name === 'sources') {
       // Those the viewer's stream filters hide (the next episode's list) are counted, and can be shown.
       const hidden = p.hiddenSources || [], list = this.showHidden ? [...p.sources, ...hidden] : p.sources;
-      body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...list.map(s => h('button', {
-        class: 'ap-source' + (s.id === p.sourceId ? ' current' : ''), type: 'button', onclick: () => this.pickSource(s),
-      }, h('b', {}, viaName(s.label)), s.detail ? h('span', {}, s.detail) : null))),
+      body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...list.map(s => this.sourceRow(s))),
       hidden.length && !this.showHidden ? h('p', {class: 'ap-panel-note'}, `${hidden.length} hidden by your filters `,
         h('button', {class: 'ap-chip ghost', type: 'button', onclick: () => { this.showHidden = true; this.renderPanel(); }}, 'Show them')) : null];
     } else {
@@ -184,6 +182,23 @@ export class Menus {
         h('span', {}, h('small', {}, `E${i.episode}`), h('b', {}, i.title || 'Episode ' + i.episode))))) ];
     }
     this.panelSheet.render(name, body);
+  }
+
+  /**
+   * One source in the panel: the stream list's own card (screens/stream-card.js sourceCard, loaded the first
+   * time the panel opens; drawn again when it arrives) where Astra has it, else the player's plain row.
+   */
+  sourceRow(s) {
+    const p = this.p, current = s.id === p.sourceId, make = this.cards?.sourceCard;
+    if (this.cards === undefined) {
+      this.cards = null;
+      import('../screens/stream-card.js').then(m => { this.cards = m; if (typeof m.sourceCard === 'function' && this.panelName === 'sources') this.renderPanel(); }, () => {});
+    }
+    if (typeof make === 'function') {
+      const d = p.video.duration, card = make(s, {current, onPick: () => this.pickSource(s), minutes: Number.isFinite(d) && d > 0 ? d / 60 : null, app: p.app || null});
+      if (card) return h('div', {class: 'ap-source-slot' + (current ? ' current' : '')}, card);
+    }
+    return h('button', {class: 'ap-source' + (current ? ' current' : ''), type: 'button', onclick: () => this.pickSource(s)}, h('b', {}, viaName(s.label)), s.detail ? h('span', {}, s.detail) : null);
   }
 
   /**
