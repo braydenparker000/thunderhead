@@ -14,27 +14,69 @@ import {deviceReport, surroundWords} from '../engine/capabilities.js';
 const answerFor = async (...a) => { try { return (await import('../addons/debrid.js')).answerFor(...a); } catch { return null; } };
 
 const ADDRESS = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/?#@"'<>()[\]]*@)?([^\s/?#@"'<>()[\]:]*)(?::\d+)?[^\s"'<>()[\]]*/gi;
-const QUERY = /([?&;](?:token|apikey|api_key|key|access_token|password|pass|secret)=)[^&\s#"'<>]*/gi;
+// An address without its scheme: "//host/…", or a dotted host with a path ("nexus.tb-cdn.io/dl/…").
+const BARE = /(^|[\s"'(=,])(?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)|([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})\/)[^\s"'<>()[\]]*/gi;
+const ENCODED = /\b[a-z][a-z0-9+.-]*%3A%2F%2F[^\s"'<>]*/gi;
+// A secret by its name at any word: name=value (or %3D), and for the unmistakable names also "name: value".
+const QUERY = /(\b(?:token|apikey|api_key|key|access_token|password|pass|secret|dn)(?:=|%3D))[^&\s#"'<>]*/gi;
+const LABELLED = /(\b(?:apikey|api_key|access_token|password|secret|token):\s*)[^\s,;"'<>]+/gi;
+const MAGNET = /magnet:\?[^\s"'<>]*/gi;
 const RUN = /[A-Za-z0-9_-]{32,}/g;
-const FILE = /[^\s/\\"'<>|:*?]+\.(?:mkv|mp4|m4v|avi|webm|mov|ts|m2ts|mts|wmv|flv|mpg|mpeg|vob|iso|ogv|3gp|srt|ass|ssa|vtt|sub|idx|ttf|otf)\b/gi;
+const HEX = /\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{16,}\b/gi;
+// A release name: four or more dotted parts, two of them words ("The.Secret.Film.2021.1080p").
+const RELEASE = /[\w-]+(?:\.[\w-]+){3,}/g;
+const EXT = /\.(?:mkv|mp4|m4v|avi|webm|mov|ts|m2ts|mts|wmv|flv|mpg|mpeg|vob|iso|ogv|3gp|srt|ass|ssa|vtt|sub|idx|ttf|otf|ttc|otc|woff2?)\b/gi;
+
+const MARKS = ['[address]', '[removed]', '[magnet]', '[name]', '[file]', '***'];
+/** Where a file name that ends at `at` begins: back to the line's start, a tab, a quote, ": ", "; " or ", ", the
+ * bracket that opens around it, what this scrubber put in before it, or the name before it (`floor`); brackets inside
+ * the name ("(2020)") are part of it. */
+function nameStart(text, at, floor) {
+  let depth = 0, i = at;
+  for (; i > floor; i--) {
+    const c = text[i - 1];
+    if (c === '\n' || c === '\t' || c === '"' || c === '“' || c === '”' || MARKS.some(m => text.endsWith(m, i))) break;
+    if (c === ' ' && (text[i - 2] === ':' || text[i - 2] === ';' || text[i - 2] === ',')) break;
+    if (')]}'.includes(c)) depth++;
+    else if ('([{'.includes(c) && depth-- === 0) break;
+  }
+  return i;
+}
+/** Every file's name, spaces and brackets and all, as [file] (a space before it is kept). */
+function dropNames(text) {
+  let out = '', last = 0;
+  for (const m of text.matchAll(EXT)) {
+    if (m.index < last || !m.index || /[\s"'<>|:*?]/.test(text[m.index - 1])) continue; // an extension alone is no name
+    const start = nameStart(text, m.index, last);
+    out += text.slice(last, start) + (/\s/.test(text[start]) ? text[start] : '') + '[file]';
+    last = m.index + m[0].length;
+  }
+  return out + text.slice(last);
+}
+const decoded = s => { try { return decodeURIComponent(s); } catch { return s; } };
+const release = m => (m.split('.').filter(p => /^[A-Za-z]{2,}$/.test(p)).length >= 2 ? '[name]' : m);
 
 /**
- * `text` with every address, key, hash and file name taken out: every address becomes its host and "/…" (or
- * "[address]" with `hosts: false`), a key, token or password named in a query becomes ***, any run of 32 or more hex
- * or base64url characters (a hash, a key, a token, an encoded add-on setting) becomes ***, a video, subtitle or font
- * file's name becomes [file], and each of the `known` strings (the addresses and names the caller held) is removed
- * wherever it appears, plain or percent-encoded. @param {string} text @param {{known?: string[], hosts?: boolean}} [o]
+ * `text` with every address, key, hash and file name taken out: every address (with its scheme, without it, escaped
+ * in JSON or percent-encoded) becomes its host and "/…" (or "[address]" with `hosts: false`); a magnet becomes
+ * [magnet]; a token, key, password or magnet title named at any word ("token=…", "apikey: …") becomes ***; any run of
+ * 32 or more hex or base64url characters, or 16 or more hex (a hash, a key, a token, an encoded add-on setting),
+ * becomes ***; a video, subtitle or font file's whole name (spaces and all) becomes [file], a release name [name];
+ * and each of the `known` strings (the addresses and names the caller held) is removed wherever it appears, plain or
+ * percent-encoded. @param {string} text @param {{known?: string[], hosts?: boolean}} [o]
  */
 export function scrubSecrets(text, {known = [], hosts = true} = {}) {
   let out = String(text ?? '');
   for (const k of known) {
     if (typeof k !== 'string' || k.length < 4) continue;
-    for (const form of new Set([k, encodeURIComponent(k), encodeURI(k)])) out = out.split(form).join('[removed]');
+    for (const form of new Set([k, encodeURIComponent(k), encodeURI(k), JSON.stringify(k).slice(1, -1)])) out = out.split(form).join('[removed]');
   }
-  out = out.replace(QUERY, '$1***');
+  out = out.replace(/\\\//g, '/').replace(ENCODED, decoded);
+  out = out.replace(MAGNET, '[magnet]').replace(QUERY, '$1***').replace(LABELLED, '$1***');
   out = out.replace(ADDRESS, (_m, host) => (hosts && host ? `${host}/…` : '[address]'));
-  out = out.replace(RUN, '***');
-  return out.replace(FILE, '[file]');
+  out = out.replace(BARE, (_m, lead, a, b) => `${lead}${hosts ? `${a || b}/…` : '[address]'}`);
+  out = dropNames(out).replace(RELEASE, release);
+  return out.replace(RUN, '***').replace(HEX, '***');
 }
 
 /**

@@ -77,7 +77,7 @@ test('the pieces: plain lines for any detail, this load’s part of the log, and
   assert.equal(entries[0].t, t0 + 310);
   assert.equal(start, t0);
   assert.equal(timeLines(entries, start).length, 6);
-  assert.equal(scrubSecrets(`see ${URL_} and Fonts.ttf`, { hosts: false }), 'see [address] and [file]');
+  assert.equal(scrubSecrets(`see ${URL_} and Fonts.ttf`, { hosts: false }), 'see [address] [file]');
 });
 
 test('the player’s report finds how its own stream was asked for, by its link, and never another film’s steps', async () => {
@@ -106,4 +106,37 @@ test('the player’s report finds how its own stream was asked for, by its link,
   const a = await playerReport({ stream: { url: 'https://s.latm.tb-cdn.example/dl/1' }, sources: [], engine: engine({ url: 'https://s.latm.tb-cdn.example/dl/1' }) });
   assert.match(a, /\nAddress: from TorBox directly\n {4}your server’s own time: 1300 ms\n {4}add ✓ 1234 ms/);
   forgetAnswers();
+});
+
+test('the scrubber: names with spaces, fonts, escaped and encoded addresses, secrets at any word, magnets, hashes; ordinary words stay', () => {
+  const cases = [
+    ['error loading My Secret Film (2020) 1080p.mkv here', '[file] here'],
+    ['file [Group] Some Title 2020 BluRay.mkv', '[file]'],
+    ['Sound: (My Secret Film (2020).mkv) ok', 'Sound: ([file]) ok'],
+    ['url https:\\/\\/nexus-1.latm.tb-cdn.io\\/dl\\/abc?token=SHORT1', 'url [address]'],
+    ['plain token=short-token-value here', 'plain token=*** here'],
+    ['encoded https%3A%2F%2Fapi.torbox.app%2Fv1%2Fapi%2Ftorrents%2Frequestdl%3Ftoken%3Dabcdef12%26torrent_id%3D5', 'encoded [address]'],
+    ['magnet:?xt=urn:btih:ABCDEF0123456789ABCDEF0123456789ABCDEF01&dn=My+Film', '[magnet]'],
+    ['magnet:?xt=urn:btih:abcd&dn=My.Film.2020.1080p', '[magnet]'],
+    ['hash split abcdef0123456789abcd ef0123456789abcdef01', 'hash split *** ***'],
+    ['b32 MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U', 'b32 ***'],
+    ['//nexus.tb-cdn.io/dld/123?token=abc', '[address]'],
+    ['nexus.tb-cdn.io/dld/123?x=1\n&token=abc', '[address]\n&token=***'],
+    ['https://host/a?x=1\ntoken=abc', '[address]\ntoken=***'],
+    ['font Fansub Font Bold.ttf missing; woff Custom Sans.woff2', '[file] missing; [file]'],
+    ['fonts Gandhi Sans.woff, Old.TTC and Other.otc', '[file], [file] [file]'],
+    ['track title Movie.Name.2020.1080p.BluRay.x264-GRP', 'track title [name]'],
+    ['key%3Dabc1234', 'key%3D***'],
+    ['apikey: 1234abcd', 'apikey: ***'],
+    ['{"url":"https://h/x?token=a"}', '{"url":"[address]"}'],
+  ];
+  for (const [text, want] of cases) assert.equal(scrubSecrets(text, { hosts: false }), want, text);
+  // The lab's and the report's own words read as they were.
+  const ordinary = [
+    '(b) TorBox key: ok', '    A key is set, accepted by TorBox, plan 2.', 'First 64 KiB: 206, readable, 64 KiB read (first byte 12 ms, all of it 30 ms)',
+    'Route: remux (Astra unpacks it): the sound is converted.', '    decodes H.264 yes, HEVC 10-bit no, E-AC-3 no', 'Server group: latm', 'Server: TorBox group latm',
+    '    link ✓ 400 ms: The address is on a TorBox file server, came straight from TorBox, and carries your account\'s token.',
+    'Speed: 40.0 Mbit/s while downloading, 41.0 MB downloaded so far', 'Picture: H.264 1920×1080 HDR', 'Sound: E-AC-3 6 ch (en)', 'Now: 1:15, 1920×1080',
+  ];
+  for (const line of ordinary) assert.equal(scrubSecrets(line, { hosts: false }), line);
 });
