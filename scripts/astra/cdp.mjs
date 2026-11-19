@@ -75,8 +75,10 @@ export async function launch({ executable = process.env.CHROMIUM_PATH || '/opt/p
   }
 
   const close = async () => {
-    try { await send('Browser.close'); } catch {}
-    proc.kill();
+    // The browser may go before it answers: wait a second at most, then end it.
+    await Promise.race([send('Browser.close').catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1000))]);
+    sock.close();
+    proc.kill('SIGKILL');
     await new Promise((resolve) => setTimeout(resolve, 300));
     rmSync(dir, { recursive: true, force: true });
   };

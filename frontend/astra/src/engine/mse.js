@@ -69,7 +69,7 @@ export class AppendQueue {
   }
 
   /** Seconds of played media kept for short rewinds. */
-  behind() { return behindSeconds(BEHIND, this.source?.byteRate); }
+  behind() { return behindSeconds(BEHIND, this.source); }
 
   /** Runs one SourceBuffer operation and waits for it to finish. */
   run(operation) {

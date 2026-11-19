@@ -9,6 +9,7 @@
 // Options: --play 60 --every 5 --mbit 0 --conn 0 --delay 0 --cpu 1 --audio aac|<track id> --start 0
 //          --seek-every 0 (a seek every so many seconds of the sitting, through the film) --switch-every 0 (the next audio
 //          track) --rate 1 (playback speed) --memory <GB> (navigator.deviceMemory) --saver (the data saver on)
+//          --previews 0 (at the sitting's middle, that many seek previews across the film, one after another, as a drag)
 //          --gc (a collection forced before each dump: what is still held) --before '<js>' --out results.json
 // Needs CHROMIUM_PATH (default /opt/pw-browsers/chromium); nothing of the film is written here.
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -20,7 +21,7 @@ import { launch } from './cdp.mjs';
 const args = process.argv.slice(2), film = resolve(args[0] || '');
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
 const O = { play: +opt('play', 60), every: +opt('every', 5), mbit: +opt('mbit', 0), conn: +opt('conn', 0), delay: +opt('delay', 0), cpu: +opt('cpu', 1), audio: opt('audio'), start: +opt('start', 0),
-  seekEvery: +opt('seek-every', 0), switchEvery: +opt('switch-every', 0), rate: +opt('rate', 1), memory: opt('memory'), saver: args.includes('--saver'), gc: args.includes('--gc'), before: opt('before'), out: opt('out') };
+  seekEvery: +opt('seek-every', 0), switchEvery: +opt('switch-every', 0), previews: +opt('previews', 0), rate: +opt('rate', 1), memory: opt('memory'), saver: args.includes('--saver'), gc: args.includes('--gc'), before: opt('before'), out: opt('out') };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MB = (x) => x == null ? null : +(x / 1048576).toFixed(1);
 const median = (xs) => { const v = xs.filter(Number.isFinite).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
@@ -94,6 +95,7 @@ function look() {
     setTimeout(() => resolve(null), 60000);
   }), [url, O.start, audioId, O.rate]);
   const rows = [], seeks = [], switches = [];
+  let previews = null;
   const dur = await page.evaluate(() => window.p.video.duration || window.p.info?.duration || 0);
   let lastDump = null;
   for (let i = 1; i <= O.play; i++) {
@@ -117,6 +119,14 @@ function look() {
         setTimeout(check, 20);
       }), to));
     }
+    if (O.previews && i === Math.round(O.play / 2)) {
+      previews = await page.evaluate(async (n) => {
+        const p = window.p, d = p.video.duration, t0 = performance.now();
+        let got = 0;
+        for (let k = 0; k < n; k++) { const b = await p.previewAt(d * (k + 0.5) / n).catch(() => null); if (b) got++; }
+        return [got, Math.round(performance.now() - t0)];
+      }, O.previews);
+    }
     if (O.switchEvery && i % O.switchEvery === 0) {
       switches.push(await page.evaluate(async () => {
         const p = window.p, all = p.audioOptions().filter((a) => a.supported), at = all.findIndex((a) => a.selected), next = all[(at + 1) % all.length];
@@ -135,9 +145,10 @@ function look() {
   const summary = { film: basename(film), mbit: O.mbit, conn: O.conn, delay: O.delay, cpu: O.cpu, audio: O.audio || 'default', memory: O.memory || 'unset', saver: O.saver, rate: O.rate, firstMs: first, idlePss: MB(idle.pss),
     pssPeak: peak('pss'), pssMedian: median(col('pss')), sharePeak: peak('share'), shareMedian: median(col('share')), v8Peak: peak('v8'), abPeak: peak('ab'), abMedian: median(col('ab')), demuxerPeak: peak('demuxer'), demuxerMedian: median(col('demuxer')), framesPeak: peak('frames'), bufferPeak: peak('buffer'),
     aheadMedian: median(rows.map((r) => r.video?.[1])), behindMedian: median(rows.map((r) => r.video?.[0])), cacheMax: peak('cache'), queuedMax: peak('queued'), heapPeak: peak('heap'), budget: rows.at(-1)?.budget,
-    stalls, seeks: seeks.length, seekMedianMs: median(seeks.map((x) => x[1])), seekWorstMs: seeks.length ? Math.max(...seeks.map((x) => x[1] ?? Infinity)) : null, switches: switches.filter(Boolean).length, minutes, errors: end.errors, log: end.log };
+    stalls, seeks: seeks.length, seekMedianMs: median(seeks.map((x) => x[1])), seekWorstMs: seeks.length ? Math.max(...seeks.map((x) => x[1] ?? Infinity)) : null, switches: switches.filter(Boolean).length, previews, minutes, errors: end.errors, log: end.log };
   console.log(JSON.stringify(summary));
   if (O.out) writeFileSync(O.out, JSON.stringify({ options: O, summary, rows, seeks, switches }, null, 1));
   clearInterval(pacer);
-  await browser.close(); site.close(); await host.close();
+  await browser.close(); site.close(); await Promise.race([host.close(), sleep(2000)]);
+  process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
