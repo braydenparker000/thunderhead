@@ -185,15 +185,15 @@ test('close leaves no loading clock, notice, wake lock, hold or timer running', 
   assert.ok(reopened.since < 100 && reopened.notice && reopened.info === '', JSON.stringify(reopened));
 });
 
-test('the controls stay while ±10 is tapped, and hide 3.5 s after the last touch', opts, async (t) => {
+test('the controls stay while ±10 is tapped, and hide 3 s (the setting\'s default) after the last touch', opts, async (t) => {
   const { page, state } = await player(t, { clock: true });
   await page.evaluate(() => fake.plays(30));
   const forward = await page.evaluate(() => { const r = p.root.querySelector('[aria-label="Forward 10 seconds"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
-  await page.clock.runFor(3000);
+  await page.clock.runFor(2000);
   await page.touchscreen.tap(...forward);
-  await page.clock.runFor(3000);
-  assert.equal((await state()).controls, true, '6 s after showing, 3 s after the tap');
-  await page.clock.runFor(800);
+  await page.clock.runFor(2700);
+  assert.equal((await state()).controls, true, '4.7 s after showing, 2.7 s after the tap');
+  await page.clock.runFor(600);
   assert.equal((await state()).controls, false);
 });
 

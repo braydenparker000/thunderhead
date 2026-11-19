@@ -2,20 +2,22 @@
 
 import {App} from './app/app.js';
 import {HomeScreen} from './screens/home.js';
-import {SearchScreen} from './screens/search.js';
 import {LibraryScreen} from './screens/library.js';
-import {SettingsScreen} from './screens/settings.js';
 import {DetailsScreen} from './screens/details.js';
 import {StreamsScreen} from './screens/streams.js';
 import {CatalogScreen} from './screens/catalog.js';
 import {toast} from './ui/components.js';
 import {showRecovery} from './app/recovery.js';
+import {lazyTab} from './app/lazy-screen.js';
 
 const root = document.getElementById('app');
 let app = null;
 try {
   app = new App(root, {
-    home: HomeScreen, search: SearchScreen, library: LibraryScreen, settings: SettingsScreen,
+    home: HomeScreen, library: LibraryScreen,
+    // Loaded on their first visit, to keep start-up light (app/lazy-screen.js).
+    search: lazyTab(() => import('./screens/search.js').then(m => m.SearchScreen), 'Search', ['search-page', 'sticky-head']),
+    settings: lazyTab(() => import('./screens/settings.js').then(m => m.SettingsScreen), 'Settings', ['settings']),
     details: DetailsScreen, streams: StreamsScreen, catalog: CatalogScreen,
   });
   window.astra = app;
@@ -34,7 +36,8 @@ try {
 const launch = document.getElementById('launch');
 const done = () => { if (!launch.isConnected) return; launch.classList.add('gone'); setTimeout(() => launch.remove(), 250); };
 if (app) {
-  const home = app.views.home, drawn = () => home.querySelector('.hero, .row, .state-card');
+  // The tab Astra opens on (Settings › Appearance), usually Home; a tab other than Home is drawn at once.
+  const home = app.views[app.tab], drawn = () => app.tab !== 'home' || home.querySelector('.hero, .row, .state-card');
   if (drawn()) requestAnimationFrame(done);
   else new MutationObserver((_, observer) => { if (drawn()) { observer.disconnect(); done(); } }).observe(home, {childList: true, subtree: true});
   setTimeout(done, 5000);

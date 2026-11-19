@@ -18,8 +18,8 @@ export const MIN_DURATION = 121; // shorter streams are placeholder clips and ar
 
 /** What a backup carries. */
 export const BACKUP_KEYS = ['addons', 'library', 'progress', 'watched', 'settings', 'recentSearches'];
-/** Kept by a restore: how this phone shows things (player, Library layout, last stream filter), not what was saved or watched. */
-export const DEVICE_KEYS = ['player', 'libraryLayout', 'librarySort', 'lastAddon'];
+/** Kept by a restore: how this phone shows things (player, Library layout, last stream filter, the registry's 'device' rows), not what was saved or watched. */
+export const DEVICE_KEYS = ['player', 'libraryLayout', 'librarySort', 'lastAddon', 'device'];
 export const SAVE_FAILED = {full: "Astra can't save on this device (storage is full)", blocked: "Astra can't save on this device (site data is blocked)"};
 const NOT_BACKUP = "That file isn't an Astra backup.";
 const BACKUP_LABELS = {addons: 'add-ons', library: 'library', progress: 'Continue Watching', watched: 'watched list', settings: 'settings', recentSearches: 'recent searches'};

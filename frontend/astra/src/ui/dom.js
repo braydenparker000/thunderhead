@@ -1,5 +1,7 @@
 // Tiny DOM helpers. Text always goes in as text nodes.
 
+import {level, hapticsSetting} from './motion-core.js';
+
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
@@ -33,9 +35,11 @@ export function timeLeft(seconds) {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m left` : `${m}m left`;
 }
 
-export function haptic(ms = 10) { try { navigator.vibrate?.(ms); } catch {} }
+/** A vibration of `ms`, unless Settings › Motion and touch › Haptics is off (new code: tick() in ui/motion.js). */
+export function haptic(ms = 10) { if (hapticsSetting() === 'off') return; try { navigator.vibrate?.(ms); } catch {} }
 
-export function reducedMotion() { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
+/** True when motion is Reduced or Off (Settings › Motion and touch, or the phone's own wish). */
+export function reducedMotion() { return level() !== 'full'; }
 
 /** True when CSS can drive animations from scrolling (then parallax needs no script). */
 export const scrollTimelines = typeof CSS !== 'undefined' && CSS.supports?.('animation-timeline: scroll()') === true;

@@ -1,0 +1,283 @@
+/* Astra's browse screens: rows and poster cards, Home's hero, Continue Watching, Details, Catalog, Search
+   and Library, on the type and space scales (tokens.css). Loaded after shell.css. Settings › Browse sets
+   classes on the root (settings/browse.js): b-no-titles, b-no-years, b-art-flat, b-art-plain, b-no-snap,
+   b-cw-large. Only transform and opacity move here (tests/astra-motion-rules.test.mjs). */
+
+/* Rows and poster cards. A row settles on a poster's leading edge. */
+.row { padding-bottom: var(--s-3); }
+.row-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 32px; margin: var(--s-3) var(--gutter) var(--s-2); }
+.row-head h2 { margin: 0; font: var(--type-headline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-all { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-full); background: var(--surface-1); color: var(--muted); }
+.row-all .icon { fill: currentColor; }
+.row-all.placeholder { visibility: hidden; }
+.row-scroll { display: flex; gap: var(--s-3); overflow-x: auto; padding: 0 var(--gutter); scroll-padding-inline: var(--gutter); scroll-snap-type: x proximity; scrollbar-width: none; overscroll-behavior-x: contain; }
+.row-scroll > * { scroll-snap-align: start; }
+.b-no-snap .row-scroll { scroll-snap-type: none; }
+.row-scroll::-webkit-scrollbar { display: none; }
+/* Cold start: each arriving picture is laid out inside its own row (and a row below the first screen not at
+   all until it comes near), not over the whole of Home. */
+.rows > .row { content-visibility: auto; contain-intrinsic-size: auto 300px; }
+.row-scroll { contain: layout paint; }
+/* A Home row whose catalog failed: one quiet line under its title */
+.row-error { display: flex; align-items: center; gap: var(--s-3); margin: 0 var(--gutter); color: var(--muted); font: var(--type-caption); }
+.row-retry { flex: none; min-height: 44px; padding: 0 var(--s-4); border: 0; border-radius: var(--r-full); background: var(--surface-1); color: var(--text); font: var(--type-caption); font-weight: 600; }
+.row-retry:disabled { opacity: .6; }
+.poster-card { flex: none; display: flex; flex-direction: column; gap: var(--s-1); width: var(--poster-w); padding: 0; border: 0; background: none; color: var(--text); text-align: left; -webkit-touch-callout: none; user-select: none; }
+/* A picture's box shows its own colours (ui/art.js) until the picture fades in over them. */
+.poster-art { position: relative; width: 100%; aspect-ratio: .675; border-radius: var(--poster-r); overflow: hidden; contain: layout paint; }
+:is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--art-blur, var(--surface-1)); }
+.b-art-flat :is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--art-flat, var(--surface-1)); }
+.b-art-plain :is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--surface-1); }
+.poster-art.skeleton { background: var(--skeleton); }
+.poster-img, .poster-art .img-fallback { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster-title { font: var(--type-caption); font-weight: 600; height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poster-year { color: var(--muted); font: var(--type-caption); height: 18px; white-space: nowrap; overflow: hidden; }
+.b-no-titles .poster-title, .b-no-years .poster-year { display: none; }
+/* A placeholder card: the same box, title line and year line, so the card that replaces it moves nothing. */
+.poster-card.ph .ph-line { display: block; width: 78%; height: 10px; margin-top: 4px; border-radius: 5px; background: var(--skeleton); }
+.poster-card.ph .ph-line.short { width: 36%; }
+/* The shimmer waits: data already here replaces the placeholder before it would start. */
+.skeleton-row .skeleton::after, .poster-card.ph .skeleton::after, .skeleton-hero .skeleton::after { animation-delay: 600ms; }
+/* A poster without art shows its title in the tile, as Nuvio does. */
+.poster-art .img-fallback { display: grid; place-items: center; padding: 0 var(--s-3); background: none; }
+.img-label { color: var(--muted); font: var(--type-body); font-weight: 600; text-align: center; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.watched-badge { position: absolute; top: var(--s-2); right: var(--s-2); display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--on-accent); animation: img-in 200ms; }
+.watched-badge .icon { fill: currentColor; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4) var(--s-3); padding: var(--s-2) var(--gutter); }
+.grid .poster-card { width: auto; }
+.grid-footer { display: grid; place-items: center; min-height: 64px; }
+@media (min-width: 840px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1000px) { .grid { grid-template-columns: repeat(5, 1fr); } }
+@media (min-width: 1200px) { .grid { grid-template-columns: repeat(6, 1fr); } }
+
+/* Home: hero. It follows a finger and settles with the spring (screens/hero.js). */
+.hero { position: relative; height: clamp(360px, min(82svh, 116vw), 760px); overflow: hidden; border-radius: 0 0 28px 28px; background: var(--bg); touch-action: pan-y; }
+/* A hero's moving backdrop is clipped to whole pixels, so one row of raw art can show at its bottom edge:
+   a strip of page colour, drawn outside the hero's clip, covers that edge. */
+.hero-slot { position: relative; }
+.hero-slot::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 4px; background: var(--bg); pointer-events: none; }
+.tab-view.has-cw .hero { height: clamp(360px, min(82svh, 116vw, calc(100svh - 230px)), 760px); }
+.hero-track { display: flex; height: 100%; will-change: transform; }
+.hero-slide { position: relative; flex: none; width: 100%; height: 100%; overflow: hidden; }
+.hero-bg { position: absolute; inset: 0; transform: translateY(var(--parallax, 0)) scale(1.14); }
+.hero-img, .hero-bg .img-fallback { width: 100%; height: 100%; object-fit: cover; }
+.hero-shade { position: absolute; inset: 0; background: linear-gradient(rgba(13,13,13,.02), rgba(13,13,13,.12) 35%, rgba(13,13,13,.34) 60%, rgba(13,13,13,.78)), linear-gradient(transparent calc(100% - 220px), var(--bg)); }
+.hero-content { position: absolute; left: 0; right: 0; bottom: var(--s-8); display: flex; flex-direction: column; align-items: center; padding: 0 var(--s-6); text-align: center; }
+.hero-logo { width: 62%; aspect-ratio: 2.6; padding: 0; border: 0; background: none; }
+.hero-logo-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+/* A logo too dark for the art behind it, lifted to light; one that could not be measured, a soft light rim
+   that a light logo absorbs into its own edges and that outlines a dark one (screens/logo.js). */
+img.logo-lift { filter: invert(1) hue-rotate(180deg) drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+.hero-title { padding: 0; border: 0; background: none; color: var(--text); font: var(--type-display); letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.hero-meta { display: flex; align-items: center; gap: var(--s-2); margin: var(--s-3) 0 var(--s-4); font: var(--type-caption); font-weight: 600; color: var(--text); }
+.hero-meta .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .7; }
+.hero-cta { min-height: 48px; padding: 0 var(--s-8); border: 0; border-radius: var(--r-full); background: var(--text); color: var(--on-accent); font: var(--type-headline); }
+.hero-dots { position: absolute; left: 0; right: 0; bottom: var(--s-3); display: flex; justify-content: center; gap: var(--s-3); }
+/* The current dot grows by a transform (never by its width). */
+.hero-dot { position: relative; width: 6px; height: 6px; padding: 0; border: 0; border-radius: 50%; background: var(--text); opacity: .4; transition: transform var(--t-normal) var(--spring-snappy), opacity var(--t-fast) var(--ease); }
+.hero-dot::before { content: ''; position: absolute; inset: -14px -6px; } /* a finger-sized target around the small dot */
+.hero-dot.on { opacity: .95; transform: scale(1.5); }
+.skeleton-hero { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: var(--s-3); padding-bottom: var(--s-8); background: var(--surface-1); }
+.hero-logo-ph { width: 62%; height: 64px; } .hero-line-ph { width: 50%; height: 14px; } .hero-btn-ph { width: 160px; height: 48px; border-radius: var(--r-full); }
+.rows { padding-top: var(--s-1); }
+.home-title { padding-bottom: var(--s-2); }
+
+/* Continue Watching: two sizes (Settings › Continue Watching cards). */
+.cw-card { flex: none; width: calc(var(--poster-w) * 1.96); padding: 0; border: 0; background: none; color: var(--text); text-align: left; -webkit-touch-callout: none; }
+.b-cw-large .cw-card { width: min(calc(var(--poster-w) * 2.5), 82vw); }
+.cw-art { position: relative; aspect-ratio: 16 / 9; border-radius: var(--poster-r); overflow: hidden; }
+.cw-img, .cw-art .img-fallback { width: 100%; height: 100%; object-fit: cover; }
+.cw-shade { position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(13,13,13,.72) 75%, rgba(13,13,13,.95)); }
+.cw-chip { position: absolute; top: var(--s-2); right: var(--s-2); padding: 2px var(--s-2); border-radius: var(--r-sm); background: rgba(13,13,13,.78); font: var(--type-caption); font-weight: 600; }
+.cw-text { position: absolute; left: var(--s-3); right: var(--s-3); bottom: var(--s-3); display: flex; flex-direction: column; }
+.cw-art:has(.cw-progress) .cw-text { bottom: var(--s-6); }
+.cw-text small { font: var(--type-overline); letter-spacing: var(--track-overline); text-transform: uppercase; color: var(--text-2); }
+.cw-text b { font: var(--type-body); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-text span { font: var(--type-caption); opacity: .72; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-cw-large .cw-text b { font: var(--type-headline); }
+.cw-progress { position: absolute; left: var(--s-3); right: var(--s-3); bottom: var(--s-3); height: 3px; border-radius: 2px; background: rgba(255,255,255,.22); overflow: hidden; }
+.cw-progress i, .episode-progress i, .resume-bar i { display: block; height: 100%; background: var(--tint); transform-origin: left; }
+
+/* Details: the backdrop fades into the page (a mask, so the title's wash shows through), the poster and
+   title on it, then Play and the sections. --tint is the title's own colour (screens/details.js). */
+.details-body { position: relative; isolation: isolate; min-height: 100%; }
+.details-wash { position: absolute; inset: 0 0 calc(-24px - var(--safe-bottom)); z-index: -1; background: color-mix(in srgb, var(--tint) 14%, var(--bg)); opacity: 0; transition: opacity var(--t-normal) var(--ease); pointer-events: none; }
+.tinted .details-wash { opacity: 1; }
+/* Settings › Background › Tinted (the shell's): a title's page washed more strongly in its colour. */
+:root[data-bg="tinted"] .details-wash { background: color-mix(in srgb, var(--tint) 18%, var(--bg)); }
+.details-hero { position: relative; height: clamp(420px, 118vw, 720px); overflow: hidden; }
+.details-bg { position: absolute; inset: 0; transform: translateY(var(--parallax, 0)) scale(1.08); -webkit-mask-image: linear-gradient(#000 50%, transparent 98%); mask-image: linear-gradient(#000 50%, transparent 98%); }
+/* Parallax driven by the scroll itself (Chrome runs it off the main thread); without scroll timelines,
+   --parallax is set from script. */
+@supports (animation-timeline: scroll()) {
+  .hero-bg { --zoom: 1.14; --travel: 240px; }
+  .details-bg { --zoom: 1.08; --travel: 420px; }
+  /* Named on the scrolling page: the hero's own overflow clip would otherwise be the "nearest" scroller. */
+  .tab-view, .screen { scroll-timeline: --page block; }
+  .hero-bg, .details-bg { animation: parallax linear both; animation-timeline: --page; animation-range: 0 800px; }
+  @keyframes parallax { from { transform: translateY(0) scale(var(--zoom)); } to { transform: translateY(var(--travel)) scale(var(--zoom)); } }
+  /* Details' bar fades in, and the floating Back out, as the hero scrolls away. */
+  .details-header { transition: none; animation: bar-in linear both; animation-timeline: --page; animation-range: calc(clamp(420px, 118vw, 720px) - 150px) calc(clamp(420px, 118vw, 720px) - 70px); }
+  .float-back { animation: bar-out linear both; animation-timeline: --page; animation-range: calc(clamp(420px, 118vw, 720px) - 150px) calc(clamp(420px, 118vw, 720px) - 70px); }
+  @keyframes bar-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  @keyframes bar-out { to { opacity: 0; } }
+  /* A page's title (display) shrinks into its bar as the page scrolls. */
+  .search-page > .page-title, .library > .page-title, .home-title { transform-origin: 0 100%; animation: title-shrink linear both; animation-timeline: --page; animation-range: 0 64px; }
+  @keyframes title-shrink { to { transform: translateY(16px) scale(.55); opacity: 0; } }
+  .bar-title { animation: bar-title linear both; animation-timeline: --page; animation-range: 36px 72px; }
+  @keyframes bar-title { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+@media (prefers-reduced-motion: reduce) { .hero-bg, .details-bg { animation: none !important; transform: scale(1.08); } }
+:root:is([data-motion="reduced"], [data-motion="off"]) :is(.hero-bg, .details-bg) { animation: none !important; transform: scale(1.08); }
+.details-bg-img, .details-bg .img-fallback { width: 100%; height: 100%; object-fit: cover; }
+.details-shade { position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.32), transparent 22%, transparent 42%, rgba(0,0,0,.5) 78%, transparent); }
+.details-hero-content { position: absolute; left: 0; right: 0; bottom: var(--s-2); display: flex; align-items: flex-end; gap: var(--s-4); padding: 0 var(--s-4); }
+.details-poster-slot:empty { display: none; }
+.details-poster { flex: none; position: relative; width: 112px; aspect-ratio: .675; border-radius: var(--poster-r); overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1px var(--hairline); }
+.details-poster .poster-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.details-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); }
+.details-title-slot { display: contents; }
+.details-logo { width: 100%; height: 72px; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 12px rgba(0,0,0,.4)); }
+.details-title { margin: 0; font: var(--type-display); letter-spacing: -.02em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.details-genres { margin: 0; color: var(--text-2); font: var(--type-caption); font-weight: 600; }
+.details-error { margin: var(--s-4) var(--s-4) 0; }
+.float-back { position: fixed; z-index: 3; top: calc(var(--safe-top) + var(--s-2)); left: var(--s-3); display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: rgba(0,0,0,.28); color: var(--text); transition: opacity var(--t-fast) var(--ease); }
+.float-back .icon { fill: currentColor; }
+.float-back.hide { opacity: 0; pointer-events: none; }
+.details-header { position: fixed; z-index: 4; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); height: calc(56px + var(--safe-top)); padding: var(--safe-top) var(--s-2) 0; background: var(--bg); box-shadow: 0 1px 0 var(--hairline); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+.tinted .details-header { background: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
+.details-header.show { opacity: 1; transform: none; pointer-events: auto; }
+.header-logo { max-width: 220px; height: 40px; object-fit: contain; }
+.header-title { font: var(--type-headline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-header .icon-btn.active { color: var(--tint); }
+.details-actions { position: relative; z-index: 1; padding: var(--s-4) var(--s-4) 0; }
+.actions-row { display: flex; align-items: center; gap: var(--s-3); max-width: 480px; margin: 0 auto; }
+/* Play, the one strong button: the title's colour fades in over the accent when it becomes known. */
+.play-btn { position: relative; isolation: isolate; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: var(--s-2); height: 52px; padding: 0 var(--s-6); border: 0; border-radius: var(--r-full); overflow: hidden; background: var(--accent); color: var(--on-accent); font: var(--type-headline); -webkit-touch-callout: none; }
+.play-btn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--tint); opacity: 0; transition: opacity var(--t-normal) var(--ease); }
+.tinted .play-btn::before { opacity: 1; }
+.tinted .play-btn { color: var(--on-tint, var(--on-accent)); }
+.play-btn .icon { fill: currentColor; }
+.play-btn:disabled { opacity: .5; }
+.play-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-actions .round-btn { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); }
+.details-actions .round-btn.active { background: var(--surface-3); color: var(--tint); }
+.resume-bar { max-width: 480px; height: 3px; margin: var(--s-3) auto 0; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+.section { padding: 0 var(--s-4) var(--s-6); }
+.section-title { margin: 0 0 var(--s-3); font: var(--type-title); }
+.overview { padding-top: var(--s-6); }
+.meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-bottom: var(--s-3); font: var(--type-caption); font-weight: 600; }
+.age-badge { padding: 2px var(--s-2); border: 1px solid rgba(245,247,248,.55); border-radius: var(--r-sm); }
+.imdb { display: inline-flex; align-items: center; gap: var(--s-2); color: #f5c518; }
+.imdb b { padding: 1px var(--s-1); border-radius: var(--r-xs); background: #f5c518; color: #000; font: var(--type-overline); font-weight: 800; }
+.description { margin: 0; font: var(--type-body); color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.description.open { display: block; }
+.description.clamped { cursor: pointer; }
+.more-link { display: flex; align-items: flex-start; min-height: 44px; margin: 0 0 calc(-1 * var(--s-3)); padding: var(--s-1) 0 0; border: 0; background: none; color: var(--muted); font: var(--type-caption); font-weight: 600; text-align: left; }
+.people { margin: var(--s-3) 0 0; font: var(--type-caption); color: var(--text-2); }
+.people b { color: var(--muted); font-weight: 600; }
+.cast-row, .season-chips, .episode-row { display: flex; overflow-x: auto; margin: 0 calc(-1 * var(--s-4)); padding: 0 var(--s-4); scroll-padding-inline: var(--s-4); scroll-snap-type: x proximity; scrollbar-width: none; }
+.cast-row { gap: var(--s-4); }
+.cast { flex: none; width: 80px; display: flex; flex-direction: column; align-items: center; text-align: center; scroll-snap-align: start; }
+.cast-photo { display: grid; place-items: center; width: 72px; height: 72px; margin-bottom: var(--s-2); border-radius: 50%; overflow: hidden; background: var(--surface-2); color: var(--muted); font: var(--type-headline); }
+.cast-img, .cast-photo .img-fallback { width: 100%; height: 100%; object-fit: cover; display: grid; place-items: center; }
+.cast-name, .cast-role { width: 100%; font: var(--type-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cast-name { font-weight: 600; }
+.cast-role { color: var(--muted); }
+.season-chips { gap: var(--s-2); margin-bottom: var(--s-3); }
+.season-chips .chip { flex: none; scroll-snap-align: start; min-height: 40px; padding: 0 var(--s-4); background: var(--surface-1); color: var(--text-2); font: var(--type-body); font-weight: 600; }
+.season-chips .chip[aria-pressed="true"] { background: var(--tint); color: var(--on-tint, var(--on-accent)); }
+.episode-row { gap: var(--s-3); }
+.episode-card { flex: none; width: min(296px, 78vw); padding: 0; border: 0; background: none; color: #fff; text-align: left; scroll-snap-align: start; -webkit-touch-callout: none; }
+.episode-art { position: relative; aspect-ratio: 296 / 184; border-radius: var(--poster-r); overflow: hidden; }
+.episode-img, .episode-art .img-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Hide spoilers: a blurred copy over the picture, faded away on the first tap (its blur never animates). */
+.episode-veil { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(18px); transform: scale(1.15); }
+.episode-art::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
+.episode-art .watched-badge { top: var(--s-3); right: var(--s-3); }
+.episode-shade { position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(0,0,0,.45) 68%, rgba(0,0,0,.92)); }
+.episode-text { position: absolute; left: var(--s-3); right: var(--s-3); bottom: var(--s-3); display: flex; flex-direction: column; gap: var(--s-1); }
+.episode-art:has(.episode-progress) .episode-text { bottom: var(--s-6); }
+.episode-code { align-self: flex-start; padding: 2px var(--s-2); border-radius: var(--r-sm); background: rgba(0,0,0,.42); font: var(--type-overline); letter-spacing: var(--track-overline); }
+.episode-text b { font: var(--type-body); font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.episode-overview { font: var(--type-caption); color: rgba(255,255,255,.86); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.veiled .episode-overview { color: rgba(255,255,255,.66); font-style: italic; }
+.episode-meta { display: flex; justify-content: space-between; gap: var(--s-3); font: var(--type-caption); color: rgba(255,255,255,.78); white-space: nowrap; }
+.episode-meta span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.episode-card.unaired { opacity: .6; }
+.episode-progress { position: absolute; left: var(--s-3); right: var(--s-3); bottom: var(--s-3); height: 3px; border-radius: 2px; overflow: hidden; background: rgba(255,255,255,.22); }
+.like-row { margin: 0 calc(-1 * var(--s-4)); padding: 0 var(--s-4); }
+.facts { margin: 0; font: var(--type-caption); }
+.fact { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-3) 0; border-bottom: 1px solid var(--hairline); }
+.fact:last-child { border-bottom: 0; }
+.fact dt { flex: none; color: var(--muted); font-weight: 600; }
+.fact dd { min-width: 0; margin: 0; text-align: right; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Catalog ("View all"): back, then the title and its add-on stacked under it. */
+.catalog-head { display: flex; flex-direction: column; align-items: flex-start; padding: calc(var(--safe-top) + var(--s-4)) var(--gutter) var(--s-3); }
+.catalog-head .round-btn.small { width: 44px; height: 44px; margin: -2px; border: 2px solid transparent; background-clip: padding-box; }
+.catalog-head h1 { margin: var(--s-3) 0 0; font: var(--type-display); letter-spacing: -.02em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.catalog-head p { margin: var(--s-1) 0 0; color: var(--muted); font: var(--type-caption); font-weight: 600; }
+
+/* Search and Library: the page title on the scale; it shrinks on scroll (above). */
+.search-page > .page-title, .library > .page-title, .home-title { font: var(--type-display); letter-spacing: -.02em; }
+.sticky-head { position: sticky; top: 0; z-index: 2; padding: max(var(--s-2), var(--safe-top)) 0 var(--s-2); background: var(--bg); }
+.search-box { position: relative; display: flex; align-items: center; margin: 0 var(--gutter); }
+/* Focus: a ring that fades in (never a colour that animates). */
+.search-box::after { content: ''; position: absolute; inset: 0; border-radius: var(--r-lg); box-shadow: 0 0 0 2px var(--accent); opacity: 0; transition: opacity var(--t-fast) var(--ease); pointer-events: none; }
+.search-box:focus-within::after { opacity: 1; }
+.search-glass { position: absolute; left: var(--s-3); display: grid; color: var(--muted); pointer-events: none; }
+.search-glass .icon { fill: currentColor; }
+.search-input { width: 100%; min-height: 48px; padding: 0 44px; border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-2); color: var(--text); font: var(--type-body); font-size: calc(16px * var(--text-scale, 1)); }
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { outline: none; }
+.search-input::-webkit-search-cancel-button { display: none; }
+.search-clear { position: absolute; right: var(--s-1); display: grid; place-items: center; width: 40px; height: 40px; border: 0; background: none; color: var(--muted); }
+.search-clear .icon { fill: currentColor; }
+.recent { padding: var(--s-2) var(--gutter); animation: img-in var(--t-fast) var(--ease); }
+.recent-head { display: flex; align-items: center; justify-content: space-between; }
+.recent .section-label { margin: 0; color: var(--muted); font: var(--type-overline); letter-spacing: var(--track-overline); text-transform: uppercase; }
+.recent-clear { min-height: 44px; padding: 0 var(--s-2); border: 0; background: none; color: var(--text-2); font: var(--type-caption); font-weight: 600; }
+.recent-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.recent-chip { display: inline-flex; align-items: center; max-width: 100%; border-radius: var(--r-full); background: var(--surface-2); }
+.recent-q { min-width: 0; max-width: 240px; min-height: 36px; padding: 0 var(--s-1) 0 var(--s-3); border: 0; background: none; color: var(--text); font: var(--type-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-x { display: grid; place-items: center; width: 32px; height: 36px; padding: 0; border: 0; background: none; color: var(--muted); }
+.recent-x .icon { fill: currentColor; }
+.section-head { margin: var(--s-6) var(--gutter) var(--s-1); font: var(--type-title); }
+.discover-bar .chip.quiet { background: var(--surface-1); color: var(--text-2); }
+.chip.filter-open .icon { fill: currentColor; }
+.search-hint, .search-waiting { margin: var(--s-3) var(--gutter); color: var(--muted); font: var(--type-caption); }
+.search-waiting:empty { display: none; }
+/* Discover's filters: one sheet of chip groups (screens/filter-sheet.js; ui/motion.js moves it). */
+.filter-sheet { position: fixed; inset: 0; z-index: 950; display: flex; align-items: flex-end; justify-content: center; }
+.filter-scrim { position: absolute; inset: 0; background: var(--scrim); }
+.filter-sheet-body { position: relative; width: min(520px, calc(100% - 20px)); max-height: calc(80vh - var(--safe-bottom)); margin: 0 10px calc(10px + var(--safe-bottom)); overflow-y: auto; padding-bottom: var(--s-4); border-radius: 28px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); touch-action: pan-y; overscroll-behavior: contain; scrollbar-width: none; }
+.filter-sheet-body h3 { margin: 0; padding: var(--s-3) var(--s-4) 0; font: var(--type-headline); }
+.filter-group { padding: var(--s-4) var(--s-4) 0; }
+.filter-label { margin: 0 0 var(--s-2); color: var(--muted); font: var(--type-overline); letter-spacing: var(--track-overline); text-transform: uppercase; }
+.filter-options { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* Library: a bar that keeps the layout button, with the title shrinking into it. */
+.library-body { padding-bottom: var(--s-2); }
+.page-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; height: calc(48px + var(--safe-top)); padding: var(--safe-top) var(--s-2) 0 var(--gutter); background: var(--bg); }
+.bar-title { font: var(--type-headline); opacity: 0; }
+.library > .page-title { padding-top: 0; }
+.layout-toggle { color: var(--muted); }
+
+/* Empty states: an icon, a title, one line of help and one action. */
+.state-card.empty-state { display: flex; flex-direction: column; align-items: center; padding: var(--s-8) var(--s-6); background: none; text-align: center; }
+.empty-icon { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: var(--s-4); border-radius: 50%; background: var(--surface-2); color: var(--text-2); }
+.empty-icon .icon { fill: currentColor; }
+.empty-state h3 { margin: 0 0 var(--s-2); font: var(--type-title); }
+.empty-state p { max-width: 300px; margin: 0 0 var(--s-6); color: var(--text-2); font: var(--type-body); }
+.empty-state .btn.wide { width: auto; min-width: 180px; }
+
+@media (min-width: 600px) {
+  .hero-content { align-items: flex-start; text-align: left; padding-left: var(--s-12); }
+  .hero-cta { display: none; }
+}
+
+/* Pressed states: cards, buttons and chips scale through ui/motion.js press(); these few answer by fading. */
+.row-all, .more-link, .search-clear, .recent-x, .recent-clear { transition: opacity 100ms var(--ease); }
+.row-all:active, .more-link:active, .search-clear:active, .recent-x:active, .recent-clear:active { opacity: .6; }

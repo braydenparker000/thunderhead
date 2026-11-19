@@ -1369,11 +1369,6 @@
       ]
      ]
     },
-    "astra/src/styles/app.css": {
-     "sha256": "822166c041e639aa9b68a88faf8a18a65e95ad61b8eedef850d6251a8e6dc838",
-     "old_sha256": "822166c041e639aa9b68a88faf8a18a65e95ad61b8eedef850d6251a8e6dc838",
-     "adjustments": []
-    },
     "astra/src/styles/tokens.css": {
      "sha256": "50c74ebf77355a004a0415b9425d4d237e270e679b20b8b77c5ff7b60ed0b6dc",
      "old_sha256": "50c74ebf77355a004a0415b9425d4d237e270e679b20b8b77c5ff7b60ed0b6dc",

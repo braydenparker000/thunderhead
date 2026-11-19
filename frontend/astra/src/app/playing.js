@@ -8,6 +8,10 @@
 // pick makes the earlier one stale, and a stale one does nothing after its
 // await (a slow lookup cannot load over what the owner chose since, nor open
 // a player the owner closed). Nothing plays that the owner did not pick.
+//
+// `origin` (the card the owner tapped: a stream card, a Continue Watching card)
+// goes to the player, which presses it in while the screen dims over the
+// title's backdrop, and lets it go when the player leaves (player/passage.js).
 
 import {episodeCode, aired} from './content.js';
 import {resolveStream, renewStream} from '../addons/debrid.js';
@@ -52,19 +56,35 @@ const overLimit = (s, mb) => { const m = mb && /^([\d.]+) (GB|MB)$/.exec(sizeFro
 /** Plays a stream from the streams screen. Must run from a tap: the player goes full screen before anything awaits. */
 export function play(app, options) {
   const ticket = ++app.playTicket;
-  withPlayer(app, ticket, () => playNow(app, options, ticket));
+  withPlayer(app, ticket, () => playNow(app, options, ticket), options.meta);
 }
 
-/** Runs `go` with the player loaded (at once when it is), unless another play came since. */
-function withPlayer(app, ticket, go) {
+/**
+ * Runs `go` with the player loaded (at once when it is), unless another play came since.
+ * First play of the visit: the engine is still loading (the tap's user activation lasts long enough
+ * for full screen once it has). The tap is answered at once by a veil drawn as the player's own
+ * loading layer (the title's backdrop dimming in, its logo, a line of status: never a spinner on
+ * black); the player opens under it already dimmed, and the veil goes in the same frame.
+ */
+function withPlayer(app, ticket, go, meta = null) {
   if (app.player) return go();
-  // First play of the visit: the engine is still loading (the tap's user
-  // activation lasts long enough for full screen once it has). The player's
-  // black loading screen shows at once, so the tap is answered.
-  const veil = h('div', {class: 'player-veil', role: 'status', 'aria-label': 'Opening the player'}, h('div', {class: 'spinner'}));
+  const veil = playerVeil(meta);
   app.root.append(veil);
-  app.loadPlayer().then(() => { if (ticket === app.playTicket) go(); }, () => toast('The player could not load. Check the connection.'))
-    .finally(() => setTimeout(() => veil.remove(), 150));
+  import('../player/feel.js').then(({fade, T}) => { if (veil.isConnected) fade(veil, 1, {name: 'player:veil', from: 0, ms: T.normal}); }, () => {});
+  app.loadPlayer().then(() => { if (ticket === app.playTicket) { app.player.veiled = true; go(); } }, () => toast('The player could not load. Check the connection.'))
+    .finally(() => veil.remove());
+}
+
+/** The player's loading layer as a veil over the app (player.css .ap-loading, .ap-veil), from the title's art. */
+function playerVeil(meta) {
+  const art = h('div', {class: 'ap-loading-art'}), title = meta?.name || meta?.title || '';
+  const background = meta?.background || meta?.thumbnail || '';
+  if (background) art.style.backgroundImage = `url(${JSON.stringify(background)})`;
+  const logo = meta?.logo ? h('img', {src: meta.logo, alt: title, referrerpolicy: 'no-referrer'}) : h('span', {}, title);
+  const veil = h('div', {class: 'ap-loading ap-veil', role: 'status', 'aria-label': 'Opening the player'}, art, h('div', {class: 'ap-loading-logo'}, logo),
+    h('div', {class: 'ap-loading-foot'}, h('p', {class: 'ap-loading-status'}, 'Opening the player…')));
+  veil.style.opacity = '0'; // until its fade starts (a frame at most): the tap's screen stays as it was
+  return veil;
 }
 
 /** What the player shows for a title or an episode (everything but the stream). */
@@ -95,14 +115,15 @@ const addonName = (app, url) => app.manifests?.get(url)?.name || app.addons?.lis
  * `recover` (a Continue Watching card's remembered stream, app/resume.js): called once, instead of an error, when
  * that stream cannot be reached (not on TorBox any more, or its link dead before the first picture).
  */
-export function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0, recover = null}, ticket) {
+export function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0, recover = null, origin = null}, ticket) {
   app.setCovered(true);
   app.nextReady?.stop(); // whatever was being made ready belongs to the episode left
   const {next, options} = describe(meta, video);
   // What the progress entry remembers of the stream once it plays (app/remembered.js).
   const remember = source.remembered || rememberSource(source, addonName(app, source.addonUrl));
   app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}, remember, recover};
-  app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true});
+  app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true, origin});
+  tint(app, meta);
   app.skip?.episode(skipEpisode(meta, video));
   resolveAndLoad(app, source.stream, startTime, ticket);
 }
@@ -157,6 +178,7 @@ export function pickIn(app, meta, video, sources, hidden, line = '') {
   const {next, options} = describe(meta, video);
   app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
   app.player.open({...options, stream: null, sources, hiddenSources: hidden});
+  tint(app, meta);
   if (line) app.player.loadingStatus.textContent = line;
 }
 
@@ -164,20 +186,37 @@ export function pickIn(app, meta, video, sources, hidden, line = '') {
  * Next Up from a Continue Watching card (a tap): the player opens at once, loading, and the episode's streams
  * decide as Next's do inside the player (switchEpisode): the release group the owner watched, else the sources panel.
  */
-export function playNext(app, meta, video, group) {
+export function playNext(app, meta, video, group, {origin = null} = {}) {
   const ticket = ++app.playTicket;
   withPlayer(app, ticket, () => {
     const {next, options} = describe(meta, video);
     app.setCovered(true);
     app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
-    app.player.open({...options, stream: {url: null, name: ''}, sources: [], deferred: true});
+    app.player.open({...options, stream: {url: null, name: ''}, sources: [], deferred: true, origin});
+    tint(app, meta);
     app.player.loadingStatus.textContent = 'Finding the stream…';
     switchEpisode(app, video, group);
-  });
+  }, meta);
+}
+
+/**
+ * The title's own colour (app.tintOf, FEEL.md rule 12: a colour, a promise of one, or null) as the player's
+ * accent: the progress line, the buffered line, the loading screen's button, the next card's Play. --accent
+ * where there is none, or while it is still being read; a late answer for another title is dropped.
+ */
+function tint(app, meta) {
+  const root = app.player?.root;
+  if (!root) return;
+  const put = c => { if (app.playing?.meta === meta || app.playing?.meta?.id === meta?.id) { if (typeof c === 'string' && c) root.style.setProperty('--ap-accent', c); else root.style.removeProperty('--ap-accent'); } };
+  root.style.removeProperty('--ap-accent');
+  let c = null;
+  try { c = app.tintOf?.(meta) ?? null; } catch {}
+  if (c && typeof c.then === 'function') c.then(put, () => {}); else put(c);
 }
 
 export function bindPlayer(app) {
   const player = app.player;
+  player.app = app; // the stream list's source cards in the player's panel read the app (player/menus.js)
   app.skip = new SkipTimes(player, {settings: () => app.settings});
   // The next episode made ready before Next (next-ready.js), loaded with the player rather than at start-up.
   import('./next-ready.js').then(({NextReady}) => { app.nextReady ??= new NextReady(app); }, () => {});

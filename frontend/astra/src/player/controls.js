@@ -3,13 +3,24 @@
 // middle, the play button, the buffering spinner and the lock. Whatever is
 // covered (by a menu, the loading screen or the error card) is inert, so
 // Tab and a screen reader stay on what can be seen.
+//
+// The controls come and go as groups (FEEL.md): the top bar from the top edge, the transport from the
+// centre, the bar from the bottom, 8 px and a fade over --t-fast (feel.js restyle: interrupted, they
+// turn back from where they are). They hide after the "Hide controls after" setting (3 s), never while a
+// menu is open, a drag is under way or the film waits, and never while paused unless "Hide while
+// paused" is on; never while a finger is on the screen (the hide waits for the lift). Waiting for data
+// mid-film is a thin moving line at the bar, and words after WORDS_AFTER (no spinner over the picture).
 
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
+import {restyle, appear, leave, arrive, ghost, gone} from './feel.js';
 
-const HIDE_AFTER = 3500;
 const PAUSE_OVERLAY_AFTER = 5000;
 export const FEEDBACK_MS = 900;
+export const LINE_AFTER = 400; // a short wait shows nothing
+export const WORDS_AFTER = 2000;
+/** The hide timer for the owner's setting (seconds; 0 is never). */
+export const hideAfter = prefs => { const s = Number(prefs?.controlsHideAfter); return Number.isFinite(s) && s >= 0 ? s * 1000 : 3000; };
 
 export class Controls {
   constructor(p) {
@@ -18,6 +29,13 @@ export class Controls {
     this.locked = false;
     this.buffering = false;
     this.hintAt = 0;
+    this.fingers = new Set(); // pointers down anywhere on the player: nothing hides under them
+    this.painted = false;
+    // What moves as one when the controls come and go, and what rides above the bar with them.
+    this.groups = ['.ap-shade-top', '.ap-shade-bottom', '.ap-top', '.ap-top-mid', '.ap-center', '.ap-bottom'].map(s => p.controls.querySelector(s));
+    this.riders = [p.skipBtn, p.nextCard, p.noticeEl, p.waitBox];
+    for (const type of ['pointerup', 'pointercancel']) p.root.addEventListener(type, e => this.fingers.delete(e.pointerId), {capture: true});
+    p.root.addEventListener('pointerdown', e => this.fingers.add(e.pointerId), {capture: true});
     // Moving through the controls with Tab shows them.
     p.controls.addEventListener('focusin', () => { if (!this.visible && !this.locked) this.show(); });
     // Any touch or key on the controls (±10, the time, More, scrolling the row) restarts the hide timer.
@@ -25,12 +43,13 @@ export class Controls {
     p.controls.addEventListener('pointerdown', busy, {capture: true});
     p.controls.addEventListener('keydown', busy, {capture: true});
     p.actions.addEventListener('scroll', busy, {passive: true});
-    new MutationObserver(() => this.cover()).observe(p.root, {subtree: true, attributeFilter: ['hidden']});
+    new MutationObserver(() => this.cover()).observe(p.root, {subtree: true, attributeFilter: ['hidden', 'data-leaving']});
   }
 
   /** What the loading screen, the error card or a menu covers is out of reach. */
   cover() {
-    const p = this.p, covered = !p.loading.hidden || !p.errorCard.hidden || !p.modal.hidden || !p.panel.hidden;
+    const p = this.p, up = el => !el.hidden && el.dataset.leaving == null;
+    const covered = up(p.loading) || up(p.errorCard) || up(p.modal) || up(p.panel);
     for (const el of [p.controls, p.skipBtn, p.nextCard, p.mutedChip]) if (el.inert !== covered) el.inert = covered;
   }
 
@@ -48,25 +67,41 @@ export class Controls {
   }
 
   /**
-   * Waiting for data: a spinner of its own, over the picture whether or not
-   * the controls show, after 400 ms (a short wait shows nothing). The controls
-   * are left as they are, so a double-tap seek or a slow host does not keep
-   * popping them up.
+   * Waiting for data: after LINE_AFTER a thin line moves along the bar (along the bottom edge while
+   * the controls are hidden), and after WORDS_AFTER words say so (loading.js puts how long a slow link
+   * has left there). The controls are left as they are, so a double-tap seek or a slow host does not
+   * keep popping them up, and the play button stays where it is.
    */
   setBuffering(on) {
     const p = this.p;
     this.buffering = on;
-    clearTimeout(this.bufferTimer);
-    if (on) this.bufferTimer = setTimeout(() => { p.spinner.hidden = false; p.playBtn.hidden = true; }, 400);
-    else { p.spinner.hidden = true; p.playBtn.hidden = false; this.scheduleHide(); }
+    clearTimeout(this.bufferTimer); clearTimeout(this.wordsTimer);
+    if (on) {
+      if (!gone(p.waitBox)) return;
+      this.bufferTimer = setTimeout(() => { p.waitWords.hidden = true; arrive(p.waitBox, {name: 'player:waiting'}); }, LINE_AFTER);
+      this.wordsTimer = setTimeout(() => { p.waitWords.hidden = false; appear(p.waitWords, {name: 'player:waiting-words', offset: 'translateY(6px)', ms: 150, curve: 'snappy'}); }, WORDS_AFTER);
+    } else { leave(p.waitBox, {name: 'player:waited'}); this.scheduleHide(); }
+  }
+
+  /**
+   * The groups move to what the state now says: shown while `visible` and no menu covers them.
+   * `change` (optional) makes the state change (a class) inside the same measured step.
+   */
+  paint(change = null) {
+    const p = this.p;
+    restyle([...this.groups, ...this.riders], () => {
+      change?.();
+      p.root.classList.toggle('controls', this.visible);
+    }, {name: this.visible ? 'controls:show' : 'controls:hide'});
   }
 
   show(autoHide = true) {
     const p = this.p;
     if (this.locked) return;
+    const was = this.visible;
     this.visible = true;
-    p.root.classList.add('controls');
-    p.pauseOverlay.hidden = true;
+    if (!was) this.paint();
+    if (!p.pauseOverlay.hidden) { ghost(p.pauseOverlay, {name: 'pause-overlay:out'}); p.pauseOverlay.hidden = true; }
     p.markers.skipHiddenByTimer = false;
     if (autoHide) this.scheduleHide(); else clearTimeout(this.hideTimer); // an earlier timer must not hide what should stay
     p.updateTime(); // the bar is not kept up to date while hidden
@@ -74,8 +109,9 @@ export class Controls {
 
   hide() {
     const p = this.p;
+    const was = this.visible;
     this.visible = false;
-    p.root.classList.remove('controls');
+    if (was) this.paint(); else p.root.classList.remove('controls');
     clearTimeout(this.hideTimer);
     if (p.video.paused && p.prefs.pauseOverlay) this.schedulePauseOverlay();
   }
@@ -83,8 +119,11 @@ export class Controls {
   scheduleHide() {
     const p = this.p;
     clearTimeout(this.hideTimer);
-    if (p.video.paused || this.buffering || p.scrub.active || p.menus.open || !p.errorCard.hidden) return;
-    this.hideTimer = setTimeout(() => this.hide(), HIDE_AFTER);
+    const ms = hideAfter(p.prefs);
+    if (!ms || (p.video.paused && !p.prefs.controlsHidePaused) || this.buffering || p.scrub.active || p.menus.open || !p.errorCard.hidden) return;
+    // A finger still on the screen: the hide waits for the lift (looked at again a moment later).
+    const run = () => { if (this.fingers.size) this.hideTimer = setTimeout(run, 400); else this.hide(); };
+    this.hideTimer = setTimeout(run, ms);
   }
 
   schedulePauseOverlay() {
@@ -99,6 +138,7 @@ export class Controls {
         m.episodeLine ? h('p', {class: 'ap-pause-episode'}, m.episodeLine) : null,
         m.description ? h('p', {class: 'ap-pause-description'}, m.description) : null));
       p.pauseOverlay.hidden = false;
+      appear(p.pauseOverlay.firstChild, {name: 'pause-overlay:in', offset: 'translateY(12px)'});
     }, PAUSE_OVERLAY_AFTER);
   }
 
@@ -145,9 +185,9 @@ export class Controls {
   /** The player closed: no timer left running, nothing left showing. */
   close() {
     const p = this.p;
-    for (const t of [this.hideTimer, this.pauseTimer, this.feedbackTimer, this.bufferTimer, this.lockTimer]) clearTimeout(t);
+    for (const t of [this.hideTimer, this.pauseTimer, this.feedbackTimer, this.bufferTimer, this.wordsTimer, this.lockTimer]) clearTimeout(t);
     this.buffering = false;
-    p.spinner.hidden = true; p.playBtn.hidden = false;
+    p.waitBox.hidden = true; delete p.waitBox.dataset.leaving; p.waitBox.inert = false;
     p.pauseOverlay.hidden = true;
     p.feedback.className = 'ap-feedback';
     p.lockOverlay.classList.remove('show');

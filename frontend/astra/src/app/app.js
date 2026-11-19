@@ -11,8 +11,14 @@ import {play, bindPlayer} from './playing.js';
 import {forgetAnswers} from '../addons/debrid.js';
 import {fetchSubtitles, subtitleAddons} from '../addons/subtitles.js';
 import {h} from '../ui/dom.js';
-import {icon} from '../ui/icons.js';
+import {navIcon} from '../ui/nav-icons.js';
 import {toast} from '../ui/components.js';
+import {watchOnline} from './offline.js';
+import {readSetting, writeSetting, applyAll, row} from '../settings/registry.js';
+// Only what applies a stored look runs at start; the rows themselves load with the Settings screen.
+import {applyLook, lookSetting} from '../settings/look.js';
+import {screenFor} from './lazy-screen.js';
+import {push as pushMotion, pop as popMotion, swap, press, tick} from '../ui/motion.js';
 
 const TABS = [
   {id: 'home', label: 'Home', icon: 'home'},
@@ -22,6 +28,8 @@ const TABS = [
 ];
 const LABEL_SCROLL = 60; // px of scroll that hides or shows the bar's labels
 const SETTINGS = {showCatalogType: true, posterWidth: 126, posterRadius: 12, hero: true};
+/** A screen's name in the feel log: its own class beside `screen` (details, streams, catalog, settings-page). */
+const screenName = screen => [...(screen.el?.classList || [])].find(c => c !== 'screen') || 'screen';
 
 export class App {
   constructor(root, screens) {
@@ -34,6 +42,8 @@ export class App {
     this.watched = new Watched(this.store);
     this.progress = new Progress(this.store);
     this.settings = {...SETTINGS, ...this.store.get('settings', {})};
+    applyLook(this); // the accent, colours, sizes, nav and motion level, before anything is drawn
+    applyAll(this); // and any row already defined (settings/registry.js)
     this.manifests = new Map();
     this.unreachable = new Map(); // enabled add-ons whose manifest could not be loaded: url -> the error
     this.addonListeners = new Set();
@@ -47,12 +57,14 @@ export class App {
     // Leaving saves unsaved progress; with none it writes nothing (a reload after a restore must not undo it).
     addEventListener('pagehide', () => this.progress.flush(true));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.progress.flush(true); });
+    watchOnline(); // offline is said once, and Back online when it is
     // Back online: try the add-ons that could not be reached.
     addEventListener('online', () => { if (this.unreachable.size) this.reloadAddons(); });
     (globalThis.requestIdleCallback || (fn => setTimeout(fn, 4000)))(() => pruneCache().catch(() => {}));
     // Another Astra window (the installed app and a tab) changed add-ons or settings: follow it.
     this.addons.onChange(() => { this.reloadAddons(); this.screens.home?.load(); });
     this.store.watch('settings', () => this.reloadSettings());
+    this.store.watch('device', () => { applyLook(this); applyAll(this); });
   }
 
   /**
@@ -75,6 +87,10 @@ export class App {
     this.addonsTimer = setTimeout(() => { for (const fn of this.addonListeners) fn(); }, 50);
   }
 
+  /** A setting from the registry (settings/registry.js), and saving one: it is applied at once. */
+  setting(id) { return row(id) ? readSetting(this, id) : lookSetting(this, id); }
+  saveSetting(id, value) { return writeSetting(this, id, value); }
+
   /** Saves a change on top of the settings stored now, so another window's are kept. */
   saveSettings(patch) {
     const saved = {...this.store.get('settings', {}), ...patch};
@@ -87,6 +103,8 @@ export class App {
     for (const k of Object.keys(this.settings)) delete this.settings[k]; // in place: pages hold this object
     Object.assign(this.settings, SETTINGS, this.store.get('settings', {}));
     this.applySettings();
+    applyLook(this);
+    applyAll(this);
     if (rows(this.settings) !== before) this.screens.home?.load();
   }
   applySettings() {
@@ -135,8 +153,8 @@ export class App {
       this.tabsEl.append(view);
     }
     this.pill = h('span', {class: 'nav-pill', 'aria-hidden': 'true'});
-    this.navButtons = TABS.map(t => h('button', {class: 'nav-item', type: 'button', 'data-tab': t.id, 'aria-label': t.label, onclick: () => this.selectTab(t.id, true)},
-      icon(t.icon, {size: 26}), h('span', {class: 'nav-label'}, t.label)));
+    this.navButtons = TABS.map(t => press(h('button', {class: 'nav-item', type: 'button', 'data-tab': t.id, 'aria-label': t.label, onclick: () => this.selectTab(t.id, true)},
+      navIcon(t.icon), h('span', {class: 'nav-label'}, t.label))));
     this.nav = h('nav', {class: 'nav', 'aria-label': 'Astra'}, h('div', {class: 'nav-track'}, this.pill, ...this.navButtons));
     this.stackEl = h('div', {class: 'screen-stack'});
     this.root.append(this.tabsEl, this.nav, this.stackEl);
@@ -146,7 +164,7 @@ export class App {
   }
 
   start() {
-    this.selectTab('home');
+    this.selectTab(this.setting('startTab')); // Settings › Appearance › Open Astra on
     // The same Astra on every phone the owner signs in on (sync.js): loaded once Home is under way, its first ask waits
     // for an idle moment; signed out it sends nothing.
     this.syncReady = import('./sync.js').then(m => { this.sync = m.startSync(this, {toast}); }).catch(() => {});
@@ -158,13 +176,20 @@ export class App {
   /** Shows a tab. Tapping the current tab again scrolls it to the top (or focuses search). */
   selectTab(id, fromTap = false) {
     if (this.tab === id) { if (fromTap) this.screens[id]?.reselect?.(); return; }
+    if (fromTap) tick('select');
     const first = !this.screens[id];
-    if (first) this.screens[id] = new this.screenTypes[id](this, this.views[id]);
-    // Hidden tabs stay laid out (content-visibility), so coming back is a repaint, not a rebuild.
-    for (const [k, v] of Object.entries(this.views)) { v.classList.toggle('off', k !== id); v.inert = k !== id; }
+    if (first) this.screens[id] = screenFor(this, id); // Search and Settings load on their first visit
+    const previous = this.tab;
+    // Hidden tabs stay laid out (content-visibility), so coming back is a repaint, not a rebuild. Only
+    // the new tab takes touches at once; the old one fades (ui/motion.js swap) and is then hidden.
+    for (const [k, v] of Object.entries(this.views)) { v.inert = k !== id; if (k !== id && k !== previous) v.classList.add('off'); }
+    this.views[id].classList.remove('off');
+    if (previous) {
+      const out = this.views[previous];
+      this.tabMotion = swap(this.views[id], out, {name: 'tab', onOut: () => { if (this.tab !== previous) out.classList.add('off'); }});
+    }
     this.navButtons.forEach((b, i) => { const on = TABS[i].id === id; b.classList.toggle('selected', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
     this.pill.style.setProperty('--i', TABS.findIndex(t => t.id === id));
-    const previous = this.tab;
     this.tab = id;
     this.screens[previous]?.onHide?.();
     this.screens[id].onShow?.(first);
@@ -189,12 +214,13 @@ export class App {
 
   /** Pushes a screen over the tabs. */
   push(screen) {
-    const layer = h('div', {class: 'screen-layer'}, screen.el);
+    const layer = h('div', {class: 'screen-layer in'}, screen.el);
+    const under = this.stack.at(-1)?.layer || this.views[this.tab];
     this.stackEl.append(layer);
     this.stack.push({screen, layer});
     this.root.classList.add('has-screen');
     this.setCovered(true);
-    requestAnimationFrame(() => layer.classList.add('in'));
+    if (!screen.enter?.(layer, under)) pushMotion(layer, under, {name: 'push:' + screenName(screen)}); // from 8% right, unless it moves itself
     const entry = this.stack[this.stack.length - 1];
     entry.pop = pushLayer('screen', () => this.removeScreen(entry));
     screen.onShow?.(true);
@@ -207,12 +233,15 @@ export class App {
   removeScreen(entry) {
     const i = this.stack.indexOf(entry);
     if (i < 0) return;
-    for (const e of this.stack.splice(i)) {
+    const removed = this.stack.splice(i), under = this.stack.at(-1)?.layer || this.views[this.tab];
+    removed.forEach((e, n) => {
       e.screen.destroy?.();
       e.layer.classList.remove('in');
       e.layer.classList.add('out');
-      setTimeout(() => e.layer.remove(), 220);
-    }
+      // Only the top one is seen leaving (Back is push in reverse); any under it go at once.
+      if (n < removed.length - 1) e.layer.remove();
+      else (e.screen.leave?.(under, e.layer) || popMotion(under, e.layer, {name: 'pop:' + screenName(e.screen)})).finished.then(() => e.layer.remove());
+    });
     this.root.classList.toggle('has-screen', this.stack.length > 0);
     this.setCovered(this.stack.length > 0 || !!this.player?.isOpen);
     this.stack[this.stack.length - 1]?.screen.onShow?.(false);

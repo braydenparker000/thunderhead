@@ -1,11 +1,22 @@
 // Home: the hero carousel, Continue Watching, then each catalog as a row.
 
-import {h, timeLeft, reducedMotion} from '../ui/dom.js';
+import {h, timeLeft} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {posterCard, setWatchedBadge, image, longPress, liftMenu, skeletonRow, emptyCard, toast, mountTonight} from '../ui/components.js';
 import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/content.js';
 import {Hero} from './hero.js';
 import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
+import {press, rise, level, tick} from '../ui/motion.js';
+import {artBox} from '../ui/poster.js';
+import {setTint} from '../ui/art.js';
+import '../settings/browse.js';
+
+/** Opens a title's Details out of the picture that was tapped (screens/details-motion.js). */
+export function openDetails(app, m, from = null) {
+  return from && app.screenTypes?.details ? app.push(new app.screenTypes.details(app, m, {from})) : app.openTitle(m);
+}
+
+const risen = new Set(); // rows that have made their first appearance this visit
 
 /** Long-press actions shared by every poster. */
 export function posterMenu(app) {
@@ -21,12 +32,30 @@ export function posterMenu(app) {
 }
 
 export function posterContext(app) {
-  return {watched: m => app.watched.has(m.type, m.id), onOpen: m => app.openTitle(m), menu: posterMenu(app)};
+  return {watched: m => app.watched.has(m.type, m.id), onOpen: (m, art) => openDetails(app, m, art), menu: posterMenu(app)};
 }
 
 export function rowHeader(title, onAll) {
   return h('div', {class: 'row-head'}, h('h2', {}, title),
-    onAll ? h('button', {class: 'row-all', type: 'button', 'aria-label': 'View all ' + title, onclick: onAll}, icon('chevronRight', {size: 16})) : h('span', {class: 'row-all placeholder', 'aria-hidden': 'true'}));
+    onAll ? press(h('button', {class: 'row-all', type: 'button', 'aria-label': 'View all ' + title, onclick: onAll}, icon('chevronRight', {size: 16}))) : h('span', {class: 'row-all placeholder', 'aria-hidden': 'true'}));
+}
+
+/** A row of posters: it settles on a poster's edge (browse.css, Settings › Rows settle) with a tick at Full haptics. */
+export function rowScroll(...cards) {
+  const el = h('div', {class: 'row-scroll'}, ...cards);
+  el.addEventListener('scrollend', () => { if (!document.documentElement.classList.contains('b-no-snap')) tick('snap'); }, {passive: true});
+  return el;
+}
+
+/** A row's first appearance this visit: its header and first posters rise in (FEEL.md "Loading"); later, at once. */
+export function riseRow(app, key, slot) {
+  if (risen.has(key)) return;
+  risen.add(key);
+  if (app.setting?.('rowEntrance') === false || !slot.isConnected) return;
+  const r = slot.getBoundingClientRect();
+  if (r.top > innerHeight || r.bottom < 0) return; // below the fold: it is simply there when scrolled to
+  const cards = [...slot.querySelectorAll('.row-scroll > *')].slice(0, 4);
+  rise([[slot.querySelector('.row-head'), cards[0]], ...cards.slice(1)], {name: 'rise:row'});
 }
 
 export class HomeScreen {
@@ -36,8 +65,10 @@ export class HomeScreen {
     this.hero = h('div', {class: 'hero-slot'});
     this.cw = h('div', {class: 'cw-slot'});
     this.rows = h('div', {class: 'rows'});
+    // Without the hero, Home has a title of its own that shrinks into its bar as the page scrolls (browse.css).
+    this.title = h('h1', {class: 'page-title home-title'}, 'Home');
     this.tonight = h('div', {class: 'tonight-slot'});
-    view.append(h('div', {class: 'home'}, this.hero, this.tonight, this.cw, this.rows));
+    view.append(h('div', {class: 'home'}, this.title, this.hero, this.tonight, this.cw, this.rows));
     mountTonight(app, this.tonight);
     this.ctx = posterContext(app);
     app.progress.onChange(() => this.renderContinue());
@@ -51,12 +82,13 @@ export class HomeScreen {
   onShow() { if (this.dirty) { this.dirty = false; this.repaintBadges(); } this.carousel?.resume(); }
   onHide() { this.carousel?.pause(); }
   onCover(covered) { if (covered) this.onHide(); else this.onShow(); }
-  reselect() { this.view.scrollTo({top: 0, behavior: reducedMotion() ? 'auto' : 'smooth'}); }
+  reselect() { this.view.scrollTo({top: 0, behavior: level() === 'full' ? 'smooth' : 'auto'}); }
 
   async load({quiet = false} = {}) {
     this.abort?.abort();
     const abort = this.abort = new AbortController();
     const showHero = this.app.settings.hero !== false;
+    this.title.hidden = showHero;
     if (!quiet || !this.rows.childElementCount) {
       this.hero.replaceChildren(...(showHero ? [h('div', {class: 'hero skeleton-hero'}, h('div', {class: 'skeleton hero-logo-ph'}), h('div', {class: 'skeleton hero-line-ph'}), h('div', {class: 'skeleton hero-btn-ph'}))] : []));
       this.rows.replaceChildren(skeletonRow(), skeletonRow(), skeletonRow());
@@ -139,9 +171,10 @@ export class HomeScreen {
     const signature = [name, !!all, ...items.map(m => m.id)].join('\n');
     slot.entry = entry;
     if (slot.signature === signature) return;
-    slot.replaceChildren(rowHeader(name, all), h('div', {class: 'row-scroll'}, ...items.map(m => posterCard(m, this.ctx))));
+    slot.replaceChildren(rowHeader(name, all), rowScroll(...items.map(m => posterCard(m, this.ctx))));
     slot.dataset.key = entry.key;
     slot.signature = signature;
+    riseRow(this.app, 'home:' + entry.key, slot);
   }
 
   openAddons() {
@@ -171,7 +204,7 @@ export class HomeScreen {
     const items = heroItems(rows);
     this.carousel?.destroy();
     if (!items.length) { this.hero.replaceChildren(); return; }
-    this.carousel = new Hero(items, m => this.app.openTitle(m), this.view);
+    this.carousel = new Hero(items, (m, from) => openDetails(this.app, m, from), this.view, this.app);
     this.hero.replaceChildren(this.carousel.el);
   }
 
@@ -180,7 +213,7 @@ export class HomeScreen {
     this.view.classList.toggle('has-cw', items.length > 0);
     if (!items.length) { this.cw.replaceChildren(); return; }
     this.cw.replaceChildren(h('section', {class: 'row cw'}, rowHeader('Continue Watching', null),
-      h('div', {class: 'row-scroll'}, ...items.map(e => this.continueCard(e)))));
+      rowScroll(...items.map(e => this.continueCard(e)))));
   }
 
   /**
@@ -193,7 +226,7 @@ export class HomeScreen {
     if (this.resuming) return;
     this.resuming = true;
     setTimeout(() => { this.resuming = false; }, 600);
-    if (!list && (e.kind === 'next' ? continueNext(this.app, e, m) : resumeRemembered(this.app, e, m, startTime))) return;
+    if (!list && (e.kind === 'next' ? continueNext(this.app, e, m, {origin: card}) : resumeRemembered(this.app, e, m, startTime, {origin: card}))) return;
     const video = videoOf(e, m);
     const screen = this.app.openStreams(m, video, {startTime});
     this.app.meta(m).then(meta => screen.updateMeta?.(meta), () => {}); // without the add-ons the saved card still plays: streams are asked by id
@@ -205,14 +238,17 @@ export class HomeScreen {
     const status = e.kind === 'next' ? 'Next Up' : e.duration ? timeLeft(e.duration - e.time) : '';
     const art = e.thumbnail || m.background || m.poster;
     const open = () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0);
-    const card = h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => pressCard(this.app, e), 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
-      h('div', {class: 'cw-art'}, image(art, '', 'cw-img'), h('div', {class: 'cw-shade'}),
+    // Art, then over it the episode code, the title and what is left; the progress line in the title's own colour.
+    const card = press(h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => pressCard(this.app, e), 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
+      artBox('cw-art', art, [image(art, '', 'cw-img'), h('div', {class: 'cw-shade'}),
         status ? h('span', {class: 'cw-chip'}, status) : null,
         h('div', {class: 'cw-text'}, code ? h('small', {}, code) : null, h('b', {}, m.name || ''), e.title ? h('span', {}, e.title) : null),
-        e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null));
+        e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null])));
+    const tint = this.app.tintOf?.(m);
+    if (tint) setTint(card, tint);
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [
       playsDirectly(e) ? {label: 'Choose another stream', icon: 'sources', run: () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0, {list: true})} : null,
-      {label: 'Go to details', icon: 'info', run: () => this.app.openTitle(m)},
+      {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, card.querySelector('.cw-art'))},
       e.kind === 'resume' ? {label: 'Start from beginning', icon: 'replay', run: () => this.resume(e, m, card, 0)} : null,
       {label: 'Remove', icon: 'close', destructive: true, run: () => { this.app.progress.remove(e.type, e.id); toast('Removed from Continue Watching'); }},
     ].filter(Boolean)));

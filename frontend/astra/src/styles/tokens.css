@@ -38,12 +38,46 @@
   --t-fast: 150ms; --t-normal: 220ms; --t-sheet: 300ms; --t-slow: 400ms;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* The feel round's tokens (FEEL.md "Tokens"); the names above keep working. */
+  /* Durations: a control 90 to 150 ms, a card 220, a screen 320, a shared element 380, a sheet 300. */
+  --t-press: 90ms; --t-screen: 320ms; --t-travel: 380ms;
+  /* Springs as linear() easings, each used with the duration beside it. Generated: never edit by hand
+     (node scripts/astra/springs.mjs --write; tests/astra-springs.test.mjs checks them). */
+  /* snappy (stiffness 420, damping 34; with --t-normal): presses, switches, the nav pill, chips */
+  --spring-snappy: linear(0, 0.0317, 0.1091, 0.2109, 0.3224, 0.4334, 0.5376, 0.6313, 0.7127, 0.7816, 0.8384, 0.8841, 0.9201, 0.9477, 0.9684, 0.9835, 0.994, 1.0011, 1.0056, 1.0081, 1.0092, 1.0094, 1.0089, 1.0081, 1.0071, 1.0061, 1.005, 1.0041, 1.0032, 1.0025, 1.0019, 1.0014, 1);
+  /* smooth (stiffness 240, damping 27; with --t-travel): screens, sheets, shared elements */
+  --spring-smooth: linear(0, 0.0319, 0.109, 0.2095, 0.3187, 0.4268, 0.5278, 0.6184, 0.6972, 0.7641, 0.8195, 0.8646, 0.9006, 0.9289, 0.9506, 0.967, 0.9791, 0.9879, 0.9941, 0.9983, 1.0009, 1.0026, 1.0034, 1.0037, 1.0037, 1.0035, 1.0031, 1.0027, 1.0023, 1.0019, 1.0016, 1.0013, 1);
+  /* lively (stiffness 320, damping 22, about 8% overshoot; with 420ms): the lift menu, a toast, a badge, sparingly */
+  --spring-lively: linear(0, 0.0448, 0.1553, 0.3009, 0.4579, 0.6093, 0.7443, 0.8568, 0.9447, 1.0087, 1.0511, 1.0754, 1.0854, 1.085, 1.0776, 1.0661, 1.0527, 1.0393, 1.027, 1.0163, 1.0078, 1.0014, 0.997, 0.9942, 0.9929, 0.9926, 0.993, 0.9938, 0.9949, 0.9961, 0.9972, 0.9982, 1);
+  --t-lively: 420ms;
+  /* Distances: content rising into place, a pushed screen, the screen left behind (scaled and dimmed). */
+  --d-rise: 12px; --d-push: 8%; --d-recede: scale(0.98); --d-recede-dim: 0.08;
+  /* Type (Inter) as font shorthands, scaled by Settings › Appearance › Text size (--text-scale);
+     an overline is also uppercase with --track-overline. */
+  --text-scale: 1;
+  --type-display: 700 calc(34px * var(--text-scale))/calc(40px * var(--text-scale)) var(--font);
+  --type-title: 700 calc(22px * var(--text-scale))/calc(28px * var(--text-scale)) var(--font);
+  --type-headline: 600 calc(17px * var(--text-scale))/calc(24px * var(--text-scale)) var(--font);
+  --type-body: 400 calc(15px * var(--text-scale))/calc(22px * var(--text-scale)) var(--font);
+  --type-caption: 400 calc(13px * var(--text-scale))/calc(18px * var(--text-scale)) var(--font);
+  --type-overline: 600 calc(11px * var(--text-scale))/calc(14px * var(--text-scale)) var(--font);
+  --track-overline: 0.06em;
+  /* Space: a 4 px grid (3 px when compact), and no other gaps. */
+  --density: 1; /* Settings › Appearance › Density: compact is 0.75 */
+  --s-1: calc(4px * var(--density)); --s-2: calc(8px * var(--density)); --s-3: calc(12px * var(--density)); --s-4: calc(16px * var(--density));
+  --s-6: calc(24px * var(--density)); --s-8: calc(32px * var(--density)); --s-12: calc(48px * var(--density));
+  /* Surfaces, each a solid colour with a hairline (not a blur): cards, sheets and menus, the lifted thing. */
+  --surface-1: var(--surface); --surface-2: var(--card); --surface-3: var(--raised);
+  --hairline: rgba(255, 255, 255, 0.08);
+  /* A title's own colour from its artwork (set on its screens); --accent until then. */
+  --tint: var(--accent);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0; background: var(--bg); color: var(--text); font: 400 15px/22px var(--font);
+  margin: 0; background: var(--bg); color: var(--text); font: var(--type-body);
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -98,5 +132,8 @@ button { cursor: pointer; }
    shimmer, pulses) run a single 1 ms pass and stop, instead of jumping to a
    new position every frame. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 1ms !important; transition-delay: 0s !important; }
+  :root:not([data-motion="full"]) *, :root:not([data-motion="full"]) *::before, :root:not([data-motion="full"]) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 1ms !important; transition-delay: 0s !important; }
 }
+/* Settings › Motion › Reduced or Off (ui/motion.js sets data-motion on the root): the same, whatever the phone
+   asks. Reduced's 120 ms cross-fades are made by ui/motion.js (Web Animations), which this rule does not touch. */
+:root:is([data-motion="reduced"], [data-motion="off"]) *, :root:is([data-motion="reduced"], [data-motion="off"]) *::before, :root:is([data-motion="reduced"], [data-motion="off"]) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 1ms !important; transition-delay: 0s !important; }

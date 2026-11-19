@@ -4,6 +4,7 @@
 
 import {h} from '../ui/dom.js';
 import {confirm} from '../ui/components.js';
+import {enter, press} from '../ui/motion.js';
 import {createStorage, PREFIX} from './store.js';
 
 export function showRecovery(root, error) {
@@ -20,11 +21,13 @@ export function showRecovery(root, error) {
   const reset = () => { for (const k of store.keys()) store.remove(k); location.reload(); };
   const ask = () => confirm('Reset Astra data?', {message: 'Removes the add-ons, library, progress and settings this Astra saved on this device. Classic Astra’s data is not touched.',
     action: 'Reset and start again', destructive: true, run: reset});
-  root.replaceChildren(h('div', {class: 'recovery'}, h('div', {class: 'state-card', role: 'alert'},
+  const card = h('div', {class: 'state-card', role: 'alert'},
     h('h3', {}, 'Astra couldn’t start'),
     h('p', {}, 'Something saved on this device stopped it from opening. Export the raw data to keep a copy, then reset Astra’s data to start fresh.'),
     h('div', {class: 'recovery-actions'},
-      h('button', {class: 'btn wide', type: 'button', onclick: exportRaw}, 'Export raw data'),
-      h('button', {class: 'btn primary wide', type: 'button', onclick: ask}, 'Reset Astra data')),
-    h('p', {class: 'recovery-detail'}, String(error?.message || error || '')))));
+      press(h('button', {class: 'btn wide', type: 'button', onclick: exportRaw}, 'Export raw data')),
+      press(h('button', {class: 'btn primary wide', type: 'button', onclick: ask}, 'Reset Astra data'))),
+    h('p', {class: 'recovery-detail'}, String(error?.message || error || '')));
+  root.replaceChildren(h('div', {class: 'recovery'}, card));
+  enter(card, {from: 'scale(0.96)', name: 'recovery'}); // in place of the launch screen, it grows in as it fades
 }

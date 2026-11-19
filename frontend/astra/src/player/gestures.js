@@ -4,7 +4,8 @@
 export const DOUBLE_TAP_MS = 280; // a second tap within this is a double tap
 export const STREAK_MS = 800; // taps within this of a seek keep adding to it
 export const HOLD_MS = 400; // press this long to play faster
-export const SEEK_STEP = 10;
+export const SEEK_STEP = 10; // the double tap's step until the owner picks another (Settings › Player)
+export const SEEK_STEPS = [5, 10, 15, 30];
 export const EDGE_GUARD = 72; // vertical swipes ignored this close to the top and bottom edges
 export const SENSITIVITY = 0.65; // fraction of the full range per screen height
 
@@ -66,7 +67,7 @@ export class Gesture {
    * `w`, `h` are the surface's size; `gestures` the viewer's setting; `canHold` whether the video plays;
    * `zoom` whether a pinch may start (not while locked); `zoomed` whether the picture is enlarged (drags pan).
    */
-  down({id, x, y, w, h, gestures = true, canHold = false, zoom = false, zoomed = false}) {
+  down({id, x, y, w, h, gestures = true, canHold = false, zoom = false, zoomed = false, allow = null}) {
     const p = this.p;
     if (p) {
       if (!p.zoom || p.kind || p.moved || p.second) return null; // a finger too late to pinch: ignored
@@ -76,7 +77,7 @@ export class Gesture {
       p.focus = {x: (x + p.cx) / 2, y: (y + p.cy) / 2};
       return {holdIn: 0, pinch: true};
     }
-    this.p = {id, x, y, cx: x, cy: y, w, h, gestures, zoom, zoomed, kind: null, moved: false, holdable: gestures && canHold};
+    this.p = {id, x, y, cx: x, cy: y, w, h, gestures, zoom, zoomed, allow, kind: null, moved: false, holdable: gestures && canHold};
     return this.p.holdable ? {holdIn: HOLD_MS} : {holdIn: 0};
   }
 
@@ -103,7 +104,8 @@ export class Gesture {
     if (!p.kind && p.moved && p.zoomed) { p.kind = 'pan'; out.push({type: 'drag', kind: 'pan'}); }
     if (!p.kind && p.moved && p.gestures) {
       const kind = classifyDrag({dx, dy, startX: p.x, startY: p.y, width: p.w, height: p.h, slop: this.slop});
-      if (kind) { p.kind = kind; if (kind !== 'none') out.push({type: 'drag', kind}); }
+      // A drag the owner switched off (Settings › Player: swipe to seek, brightness, volume) is no gesture.
+      if (kind) { p.kind = kind !== 'none' && p.allow && p.allow[kind] === false ? 'none' : kind; if (p.kind !== 'none') out.push({type: 'drag', kind}); }
     }
     if (p.kind === 'seek') out.push({type: 'seek', dx});
     else if (p.kind === 'pan') out.push({type: 'pan', dx, dy});
@@ -137,6 +139,15 @@ export class Gesture {
 export function dragLevel(start, dy, height, max = 1) {
   return Math.max(0, Math.min(max, start - (dy / height) * SENSITIVITY * max));
 }
+
+/** The double tap's running total, as its ripple says it: "+20 s", "−10 s", "+1:30". */
+export function stepLabel(seconds) {
+  const s = Math.round(seconds), a = Math.abs(s), sign = s < 0 ? '−' : '+';
+  return sign + (a >= 60 ? `${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}` : `${a} s`);
+}
+
+/** The double tap's step from the owner's setting (one of SEEK_STEPS; 10 otherwise). */
+export const seekStep = prefs => SEEK_STEPS.includes(prefs?.seekStep) ? prefs.seekStep : SEEK_STEP;
 
 /** "+30s" / "-10s" / "+1:30". */
 export function deltaLabel(seconds) {
