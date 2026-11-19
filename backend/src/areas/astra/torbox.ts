@@ -180,15 +180,29 @@ function said(detail: unknown): 'existing' | 'new' | null {
   return /\b(added|created|queued)\b/i.test(d) ? 'new' : null;
 }
 
+/** The torrent's id in createtorrent's answer. TorBox's API description gives that answer no shape
+ * (an empty schema), so by the answers met: `torrent_id` is the torrent's id; `id` is taken only from
+ * an answer that names no other kind of id; a `queued_id` is a queued download's and `auth_id` the
+ * account's, never a torrent's. A `hash` alone names no id: the account's list is searched by it. */
+function torrentIdOf(data: Record<string, unknown>): number | null {
+  if (Number.isSafeInteger(data.torrent_id)) return data.torrent_id as number;
+  if ('torrent_id' in data || 'queued_id' in data) return null;
+  return Number.isSafeInteger(data.id) ? (data.id as number) : null;
+}
+
 /** Adds the torrent only if TorBox already has it ready (add_only_if_cached), seeding off, no zip.
- * TorBox refusing it as not cached is the definite "not on TorBox yet". TorBox's description of
- * the answer is empty: its files are taken only when it lists them, each with its id. */
+ * TorBox refusing it as not cached is the definite "not on TorBox yet". Its files are taken only
+ * when the answer lists them, each with its id; an answer that succeeds with no usable torrent id is
+ * `noId` (queued, when it names a queued download). */
 export async function addCached(
   r: Relay,
   key: string,
   hash: string,
 ): Promise<
-  { id: number; said: 'existing' | 'new' | null; files: TorrentFile[] } | { notCached: true } | { refused: string }
+  | { id: number; said: 'existing' | 'new' | null; files: TorrentFile[] }
+  | { noId: true; queued: boolean }
+  | { notCached: true }
+  | { refused: string }
 > {
   const form = {
     magnet: `magnet:?xt=urn:btih:${hash}`,
@@ -199,25 +213,27 @@ export async function addCached(
   };
   const a = await call(r, '/torrents/createtorrent', { key, form });
   const data = record(a.body.data);
-  const id = data.torrent_id ?? data.id;
-  if (!trouble(a) && Number.isSafeInteger(id))
-    return { id: id as number, said: said(a.body.detail), files: filesWithIds(data.files) };
+  const id = torrentIdOf(data);
+  if (!trouble(a) && id !== null) return { id, said: said(a.body.detail), files: filesWithIds(data.files) };
   if (a.body.error === 'DOWNLOAD_NOT_CACHED' || /not\s+cached/i.test(String(a.body.detail ?? '')))
     return { notCached: true };
+  if (!trouble(a)) return { noId: true, queued: 'queued_id' in data };
   const why = trouble(a) ?? NOTE.refused;
   // A refused key or a busy TorBox is no reason to look through the list.
   if (why === NOTE.badKey || why === NOTE.busy || a.status >= 500) throw new TorboxTrouble(why);
   return { refused: why };
 }
 
-/** The torrent in the owner's account with this hash, and its files, from the list's first `page`
- * items (a press reads only the newest: `list_page_ahead`). */
-export async function findOwned(r: Relay, key: string, hash: string, page: number) {
+/** The torrent in the owner's account with this hash, and its files when each has TorBox's id, from
+ * the list's first `page` items (a press reads only the newest: `list_page_ahead`); `fresh` asks
+ * TorBox past its own cache (a tap, just after an add). */
+export async function findOwned(r: Relay, key: string, hash: string, page: number, fresh = false) {
   const q = new URLSearchParams({ offset: '0', limit: String(page) });
+  if (fresh) q.set('bypass_cache', 'true');
   const { body } = must(await call(r, `/torrents/mylist?${q}`, { key }));
   const list = Array.isArray(body.data) ? body.data : [];
   const t = list.map(record).find((e) => String(e.hash).toLowerCase() === hash && Number.isSafeInteger(e.id));
-  return t ? { id: t.id as number, files: filesOf(t.files) } : null;
+  return t ? { id: t.id as number, files: filesWithIds(t.files) } : null;
 }
 
 /** One torrent's files, fresh. The answer must be about that torrent: its id, and its hash when it

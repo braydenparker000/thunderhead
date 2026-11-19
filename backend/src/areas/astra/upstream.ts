@@ -16,8 +16,15 @@ export function useFetch(f?: typeof fetch): void {
 }
 export const ask: typeof fetch = (...a) => fetcher(...a);
 
-type Times = { torbox_ms: number; request_ms: number; follow_ms: number; retry_ms: number };
-const TIMES: Times = { torbox_ms: L.torbox_ms, request_ms: L.request_ms, follow_ms: L.follow_ms, retry_ms: L.retry_ms };
+type Times = { torbox_ms: number; request_ms: number; follow_ms: number; retry_ms: number; again_ms: number };
+/** `again_ms`: the wait before a just-added torrent's listing is asked again (TorBox catching up). */
+const TIMES: Times = {
+  torbox_ms: L.torbox_ms,
+  request_ms: L.request_ms,
+  follow_ms: L.follow_ms,
+  retry_ms: L.retry_ms,
+  again_ms: 400,
+};
 let times = { ...TIMES };
 /** For tests: shorter limits (none given: the real ones). */
 export function useTimes(t: Partial<Times> = {}): void {
