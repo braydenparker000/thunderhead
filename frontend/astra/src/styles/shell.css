@@ -10,11 +10,16 @@ img { -webkit-user-drag: none; }
 img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 @keyframes img-in { from { opacity: 0; } }
 
-/* Launch */
-.launch { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; background: var(--bg); transition: opacity 250ms var(--ease); }
+/* Launch: the page's own colour from the first frame. The wordmark and spinner fade in only when
+   start-up takes longer than 400 ms, so a quick start goes straight from the page colour to Home's
+   first paint with nothing flashing between; the hand-over is a 120 ms fade (FEEL.md rule 3). */
+.launch { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; background: var(--bg); transition: opacity 120ms var(--ease); }
 .launch.gone { opacity: 0; pointer-events: none; }
+.launch > * { animation: launch-in 200ms 400ms var(--ease) backwards; }
+@keyframes launch-in { from { opacity: 0; } }
 .wordmark { font-size: calc(44px * var(--text-scale)); font-weight: 800; letter-spacing: -1.2px; }
 .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(255,255,255,.14); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+.launch > .spinner { animation: launch-in 200ms 400ms var(--ease) backwards, spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Tabs and stacked screens */

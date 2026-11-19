@@ -180,3 +180,6 @@ export function toast(text, {action = null, stay = false} = {}) {
   clearTimeout(toastTimer);
   if (!stay) toastTimer = setTimeout(() => { if (pinned) toast(pinned.text, {action: pinned.action, stay: true}); else hide(); }, action ? 4000 : 2500);
 }
+
+/** Forgets a toast that stays (its reason is over), so it is not shown again. */
+export function unpin() { pinned = null; }

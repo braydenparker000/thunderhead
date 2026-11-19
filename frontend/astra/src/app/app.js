@@ -13,6 +13,7 @@ import {fetchSubtitles, subtitleAddons} from '../addons/subtitles.js';
 import {h} from '../ui/dom.js';
 import {navIcon} from '../ui/nav-icons.js';
 import {toast} from '../ui/components.js';
+import {watchOnline} from './offline.js';
 import {readSetting, writeSetting, applyAll} from '../settings/registry.js';
 import '../settings/general.js';
 import '../settings/appearance.js';
@@ -55,6 +56,7 @@ export class App {
     // Leaving saves unsaved progress; with none it writes nothing (a reload after a restore must not undo it).
     addEventListener('pagehide', () => this.progress.flush(true));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.progress.flush(true); });
+    watchOnline(); // offline is said once, and Back online when it is
     // Back online: try the add-ons that could not be reached.
     addEventListener('online', () => { if (this.unreachable.size) this.reloadAddons(); });
     (globalThis.requestIdleCallback || (fn => setTimeout(fn, 4000)))(() => pruneCache().catch(() => {}));
