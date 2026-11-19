@@ -44,8 +44,13 @@ export const NOTE = {
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
   noServers: 'TorBox listed no test files the phone may be given.',
-  tokened: (n: number) =>
-    `${n} of TorBox's test ${n === 1 ? 'file was' : 'files were'} left out: the address carried a token.`,
+  leftOut: (tokened: number, other: number) =>
+    `${tokened + other} of TorBox's test ${tokened + other === 1 ? 'file was' : 'files were'} left out: ${[
+      tokened ? `${tokened} carried a token` : '',
+      other ? `${other} ${other === 1 ? 'was' : 'were'} not public https on a TorBox file server` : '',
+    ]
+      .filter(Boolean)
+      .join(', ')}.`,
   noLocation: 'A redirect named no address.',
   followOff:
     "Astra's server does not open add-on links for the phone, since an add-on may tie a link to the connection that asked for it.",

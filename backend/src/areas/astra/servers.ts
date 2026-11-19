@@ -3,8 +3,10 @@
 // /speedtest: its server groups and a test file on each), but a web page may not read it (CORS), so
 // the Worker asks it with the owner's key and the phone's address (`user_ip`, as requestdl) and hands
 // back, for each group, its label, its region's name and the test file's address. These are
-// TorBox's public test files, not the owner's films; one whose address carries the key or any token,
-// or is not public https, is left out. TorBox's description of the answer is empty, so it is read
+// TorBox's public test files, not the owner's films. Only TorBox's file servers are kept (a `tb-cdn`
+// label in the host, which also names the group, as the lab reads the owner's film's group), never
+// its API host; one whose address carries the key or any token, or is not public https, is left out,
+// and the note counts what was. TorBox's description of the answer is empty, so it is read
 // defensively: a list, or an object keyed by group or region, of objects naming an address. Labels
 // are kept only when they are short plain words. Device only, nothing stored or logged; its own
 // count of 6 a minute per isolate, then 429, so the lab never takes a tap's turn.
@@ -12,6 +14,7 @@ import type { Context } from 'hono';
 import { type AstraServer, type AstraServersResponse, ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 import type { AppEnv } from '../../http/auth';
 import { ApiError } from '../../http/errors';
+import { onTorboxApi } from './links';
 import { call, record, TorboxTrouble, trouble } from './torbox';
 import { publicHttps, type Relay, relayFor } from './upstream';
 import { NOTE, REASON } from './words';
@@ -50,11 +53,12 @@ function addressOf(o: Record<string, unknown>): string | null {
   return `https://${host}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
-/** TorBox's file-server group in a host: the label before "tb-cdn" (nexus-1.latm.tb-cdn.io → latm). */
+/** TorBox's file-server group in a host: the label before "tb-cdn" (nexus-1.latm.tb-cdn.io → latm),
+ * read as the lab reads it (player/playback-report.js serverGroup); null for any other host. */
 function hostGroup(url: string): string | null {
   const labels = new URL(url).hostname.toLowerCase().split('.');
   const at = labels.indexOf('tb-cdn');
-  return at > 0 ? label(labels[at - 1]) : null;
+  return at > 0 && /^[a-z0-9-]{1,20}$/.test(labels[at - 1]) ? labels[at - 1] : null;
 }
 
 /** The entries of TorBox's answer, each with the key it sat under (a group's or a region's name). */
@@ -65,28 +69,28 @@ function entries(data: unknown): [string | null, unknown][] {
   );
 }
 
-/** The groups and their test files, and how many were left out for carrying a token. */
-export function readServers(data: unknown, key: string | null): { servers: AstraServer[]; dropped: number } {
+/** The groups and their test files, and how many were left out: for carrying a token, and for not
+ * being public https on a TorBox file server. */
+export function readServers(data: unknown, key: string | null) {
   const servers: AstraServer[] = [];
   const seen = new Set<string>();
-  let dropped = 0;
+  let tokened = 0;
+  let foreign = 0;
   for (const [under, e] of entries(data)) {
     const o = record(e);
     const url = addressOf(o);
-    if (!url || !publicHttps(url) || seen.has(url)) continue;
-    if (carriesToken(url, key)) {
-      dropped++;
-      continue;
-    }
-    const named = label(o.group) ?? label(o.name) ?? label(o.label) ?? label(o.server);
-    const group = named ?? hostGroup(url) ?? label(under);
-    if (!group) continue;
-    const place = label(o.region_name) ?? label(o.region) ?? label(o.location) ?? label(o.country) ?? label(o.city);
+    if (!url || seen.has(url)) continue;
     seen.add(url);
-    servers.push({ group, region: place ?? (under && label(under) !== group ? label(under) : null), url });
-    if (servers.length >= L.servers_max) break;
+    const group = publicHttps(url) && !onTorboxApi(url) ? hostGroup(url) : null;
+    if (!group) foreign++;
+    else if (carriesToken(url, key)) tokened++;
+    if (!group || carriesToken(url, key)) continue;
+    const named = label(o.group) ?? label(o.name) ?? label(o.label) ?? label(o.server);
+    const place = label(o.region_name) ?? label(o.region) ?? label(o.location) ?? label(o.country) ?? label(o.city);
+    const other = [place, named, label(under)].find((v) => v && v.toLowerCase() !== group) ?? null;
+    if (servers.length < L.servers_max) servers.push({ group, region: other, url });
   }
-  return { servers, dropped };
+  return { servers, tokened, foreign };
 }
 
 /** Asks TorBox for its list: every group, the short test. */
@@ -99,8 +103,8 @@ async function ask(r: Relay, key: string): Promise<AstraServersResponse> {
     const bare = a.status >= 200 && a.status < 300 && a.body.success === undefined;
     const why = bare ? null : trouble(a);
     if (why) return { servers: [], note: why };
-    const { servers, dropped } = readServers(bare ? a.json : a.body.data, key);
-    const note = dropped ? NOTE.tokened(dropped) : servers.length ? undefined : NOTE.noServers;
+    const { servers, tokened, foreign } = readServers(bare ? a.json : a.body.data, key);
+    const note = tokened || foreign ? NOTE.leftOut(tokened, foreign) : servers.length ? undefined : NOTE.noServers;
     return { servers, ...(note ? { note } : {}) };
   } catch (e) {
     return { servers: [], note: e instanceof TorboxTrouble ? e.note : NOTE.unreachable };

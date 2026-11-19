@@ -1,7 +1,8 @@
 // GET /v1/astra/torbox/servers (SECURITY.md §8.2): TorBox's speed-test list, asked by the Worker
-// with the key and the phone's address, handed to the owner's device as each server group's label,
-// region and test file address. An address carrying the key or a token, or not public https, is left
-// out and the note counts them; TorBox's answer is read whether it comes in its usual envelope, bare,
+// with the key and the phone's address, handed to the owner's device as each server group's label
+// (read from the host, as the lab reads the film's), region and test file address. Only TorBox's file
+// servers (a `tb-cdn` label in the host), never its API host; an address carrying the key or a
+// token, or not public https, or on another host, is left out and the note counts them; TorBox's answer is read whether it comes in its usual envelope, bare,
 // or keyed by region. Its own count of 6 a minute, then 429, leaves the taps theirs. Invented hosts,
 // key and groups.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -34,6 +35,7 @@ const LIST = [
   { name: 'tokened', region: 'Invented North', url: 'https://speed.tok.tb-cdn.example/t.bin?token=invented' },
   { name: 'plain', region: 'Invented North', url: 'http://speed.plain.tb-cdn.example/t.bin' },
   { name: '<b>odd</b>', url: 'https://speed.odd.example/t.bin' },
+  { name: 'api', url: 'https://api.torbox.app/v1/api/speedtest/file.bin' },
 ];
 
 beforeAll(async () => {
@@ -70,7 +72,9 @@ describe('GET /v1/astra/torbox/servers', () => {
       { group: 'wnam', region: 'Invented West', url: 'https://speed.wnam.tb-cdn.example/test/1mb.bin' },
       { group: 'enam', region: 'Invented East', url: 'https://store-1.enam.tb-cdn.example/test/1mb.bin' },
     ]);
-    expect(body.note).toBe("2 of TorBox's test files were left out: the address carried a token.");
+    expect(body.note).toBe(
+      "4 of TorBox's test files were left out: 2 carried a token, 2 were not public https on a TorBox file server.",
+    );
     expect(text).not.toContain(KEY);
     expect(text).not.toContain('token=');
     const asked = new URL(torboxCalls()[0].url);
@@ -90,12 +94,25 @@ describe('GET /v1/astra/torbox/servers', () => {
     });
     speedtest({
       'Invented South': [{ url: 'https://s.latm.tb-cdn.example/a.bin' }],
-      latm2: { path: 'https://x.example/b' },
+      enam: { path: 'https://s2.enam.tb-cdn.example/b' },
     });
     expect((await servers()).body.servers).toEqual([
       { group: 'latm', region: 'Invented South', url: 'https://s.latm.tb-cdn.example/a.bin' },
-      { group: 'latm2', region: null, url: 'https://x.example/b' },
+      { group: 'enam', region: null, url: 'https://s2.enam.tb-cdn.example/b' },
     ]);
+    // A group's name that disagrees with its host: the host's label is the group, as the lab reads a film's.
+    speedtest([{ name: 'Invented', region: 'Invented North', url: 'https://s.wnam.tb-cdn.example/c.bin' }]);
+    expect((await servers()).body.servers).toEqual([
+      { group: 'wnam', region: 'Invented North', url: 'https://s.wnam.tb-cdn.example/c.bin' },
+    ]);
+    // A list larger than the Worker reads is not read.
+    speedtest(
+      Array.from({ length: 2000 }, (_, i) => ({ name: `g${i}`, url: `https://s${i}.latm.tb-cdn.example/t.bin` })),
+    );
+    expect((await servers()).body).toEqual({
+      servers: [],
+      note: "TorBox's answer was larger than the Worker reads, so it was not read.",
+    });
   });
 
   it('TorBox failing, or refusing the key: no servers, and why', async () => {
