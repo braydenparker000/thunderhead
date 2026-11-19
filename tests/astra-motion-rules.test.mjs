@@ -14,9 +14,6 @@ const LAYOUT = /^(all|width|height|min-width|min-height|max-width|max-height|top
 
 // [file, selector, property, note]: offenders that were here before rule 2, to be fixed by their area.
 const ALLOWED = [
-  ['src/styles/shell.css', '.nav', 'width', 'to be fixed by the shell (Settings and the shell\'s finish): the compact bar by a transform'],
-  ['src/styles/shell.css', '.nav-track', 'height', 'to be fixed by the shell (Settings and the shell\'s finish)'],
-  ['src/styles/shell.css', '.nav-label', 'max-height', 'to be fixed by the shell (Settings and the shell\'s finish)'],
   ['src/styles/browse.css', '.hero-dot', 'width', 'to be fixed by browse: the active dot grows by a transform'],
   ['src/player/player.css', '.ap-track', 'height', 'to be fixed by the player: the seek bar thickens by a transform'],
   ['src/player/player.css', '.ap-skip', 'bottom', 'to be fixed by the player: the button moves by a transform'],

@@ -33,19 +33,32 @@ img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 .astra.has-screen .nav { opacity: 0; transform: translate(-50%, 24px); pointer-events: none; }
 
 /* Floating navigation bar */
-.nav { position: fixed; z-index: 10; left: 50%; bottom: calc(var(--safe-bottom) + 14px); transform: translateX(-50%); width: min(400px, calc(100% - 56px)); transition: transform 300ms var(--ease), opacity 200ms var(--ease), width 300ms var(--ease); }
-.nav.compact { width: min(320px, calc(100% - 116px)); }
-.nav-track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); height: 64px; padding: 0 4px; border-radius: var(--r-full); background: rgba(28,28,30,.55); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 28px rgba(0,0,0,.35), inset 0 0.75px 0 rgba(255,255,255,.27); transition: height 300ms var(--ease); }
+.nav { position: fixed; z-index: 10; left: 50%; bottom: calc(var(--safe-bottom) + 14px); transform: translateX(-50%); width: min(400px, calc(100% - 56px)); transition: transform 300ms var(--ease), opacity 200ms var(--ease); }
+/* Compact while a page scrolls down: the labels fade and the bar shrinks evenly from its bottom edge (a transform, never its size). */
+.nav-track { transform-origin: 50% 100%; transition: transform var(--t-normal) var(--spring-snappy); }
+.nav.compact .nav-track { transform: scale(0.8); }
+.nav-track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); height: 64px; padding: 0 4px; border-radius: var(--r-full); background: rgba(28,28,30,.55); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 28px rgba(0,0,0,.35), inset 0 0.75px 0 rgba(255,255,255,.27); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .nav-track { background: rgba(28,28,30,.82); } }
-.nav.compact .nav-track { height: 48px; }
 .nav-pill { --i: 0; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: var(--r-full); background: rgba(245,245,245,.15); transform: translateX(calc(var(--i) * 100%)); transition: transform var(--t-normal) var(--spring-snappy); }
 .nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; color: var(--muted); padding: 0; transition: color var(--t-fast); }
-.nav-item .icon { width: 28px; height: 28px; fill: currentColor; transition: transform 200ms var(--ease); }
+.nav-item .icon { width: 28px; height: 28px; fill: currentColor; transition: transform 200ms var(--ease), translate var(--t-normal) var(--spring-snappy); }
+/* With its label faded (compact, or labels off) an icon moves to the middle of the bar (`translate`, a transform). */
+.nav.compact .nav-item .icon, .astra[data-nav-labels="off"] .nav-item .icon { translate: 0 9px; }
+/* The icon's weight follows the pill: the regular and fill drawings cross-fade (ui/nav-icons.js). */
+.nav-icon .weight-fill { opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.nav-icon .weight-regular { transition: opacity var(--t-fast) var(--ease); }
+.nav-item.selected .nav-icon .weight-fill { opacity: 1; }
+.nav-item.selected .nav-icon .weight-regular { opacity: 0; }
 .nav-item:active .icon { transform: scale(1.2); }
 .nav-item.selected { color: var(--text); }
-.nav-label { font-size: 13px; font-weight: 400; line-height: 16px; transition: opacity 200ms var(--ease), max-height 300ms var(--ease); max-height: 16px; overflow: hidden; }
+.nav-label { font-size: 13px; font-weight: 400; line-height: 16px; transition: opacity 200ms var(--ease); overflow: hidden; }
 .nav-item.selected .nav-label { font-weight: 700; }
-.nav.compact .nav-label { opacity: 0; max-height: 0; }
+.nav.compact .nav-label, .astra[data-nav-labels="off"] .nav-label { opacity: 0; }
+/* Docked (Settings › Appearance): the bar spans the bottom edge, square, over the safe area. */
+.astra[data-nav="docked"] .nav { left: 0; bottom: 0; width: 100%; transform: none; }
+.astra[data-nav="docked"] .nav-track { height: calc(64px + var(--safe-bottom)); padding-bottom: var(--safe-bottom); border-radius: 0; box-shadow: inset 0 0.5px 0 var(--hairline); }
+.astra[data-nav="docked"] .nav.compact .nav-track { transform: none; }
+.astra[data-nav="docked"].has-screen .nav { transform: translateY(100%); }
 
 /* Page titles and shared bits */
 .page-title { margin: 0; padding: calc(10px + var(--safe-top)) var(--gutter) 4px; font-size: 38px; line-height: 42px; font-weight: 700; letter-spacing: -1.2px; }
@@ -71,9 +84,10 @@ img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 .filter-chips::-webkit-scrollbar { display: none; }
 .chip.dropdown { gap: 4px; padding: 0 10px 0 12px; border-radius: var(--r-lg); background: var(--surface); font-weight: 600; }
 .chip.dropdown .icon { width: 18px; height: 18px; fill: var(--muted); transform: rotate(90deg); }
-/* Messages rise from the bottom, above the floating nav (or the screen's bottom edge). */
-.toast { position: fixed; z-index: 3000; left: 50%; width: max-content; bottom: calc(var(--nav-space) + 8px); transform: translate(-50%, 140%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--r-xl); background: var(--card); color: var(--text); font-size: 14px; line-height: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.5); opacity: 0; transition: transform 300ms var(--ease), opacity 300ms var(--ease); pointer-events: none; }
-.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+/* Messages rise from the nav bar (ui/overlays.js toast) and leave by fading; above the floating nav, or the screen's bottom edge. */
+.toast { position: fixed; z-index: 3000; left: 50%; width: max-content; bottom: calc(var(--nav-space) + 8px); transform: translate(-50%, 0); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--r-xl); background: var(--card); color: var(--text); font-size: 14px; line-height: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+.toast:not(.show) { visibility: hidden; pointer-events: none; }
+.toast .toast-later { color: var(--muted); }
 .toast button { border: 0; background: none; color: var(--accent); font-weight: 700; }
 
 /* Recovery: shown in place of the app when it cannot start (src/app/recovery.js) */
@@ -97,34 +111,28 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 /* Lift menu */
 /* The blur is set once and faded in: animating its radius repaints every frame. */
 .lift { position: fixed; inset: 0; z-index: 900; }
-.lift::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(36px); backdrop-filter: blur(36px); opacity: 0; transition: opacity 260ms var(--ease); }
-.lift.open::before { opacity: 1; }
+.lift-blur { position: absolute; inset: 0; background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(36px); backdrop-filter: blur(36px); opacity: 0; }
+.lift.closing { pointer-events: none; }
 .lift-art { position: fixed; margin: 0; border-radius: 18px !important; box-shadow: 0 24px 48px rgba(0,0,0,.5); overflow: hidden; will-change: transform; }
 .lift-art img { width: 100%; height: 100%; object-fit: cover; animation: none; }
 .lift-panel { position: fixed; top: var(--menu-top, 60%); left: 50%; width: min(280px, calc(100% - 48px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.lift-text, .lift-menu { opacity: 0; transition: opacity 200ms 120ms var(--ease), transform 200ms 120ms var(--ease); }
-.lift.open .lift-text, .lift.open .lift-menu { opacity: 1; }
-/* Nuvio's title (16/600, two lines) and muted subtitle rise 10 px into place. */
-.lift-text { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; padding: 0 12px; text-align: center; transform: translateY(10px); }
-.lift.open .lift-text { transform: none; }
+/* Nuvio's title (16/600, two lines) and muted subtitle, rising in with the items. */
+.lift-text { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; padding: 0 12px; text-align: center; }
 .lift-text b { font-size: 16px; line-height: 20px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .lift-text span { max-width: 100%; color: var(--muted); font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lift-menu { width: 100%; border-radius: 20px; background: #1a1a1a; transform-origin: top center; overflow: hidden; }
-.lift.open .lift-menu { animation: menu-pop 280ms cubic-bezier(.3,1.3,.5,1); }
-@keyframes menu-pop { from { transform: scale(.62); } }
-.lift-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 16px 18px; border: 0; border-bottom: .5px solid rgba(255,255,255,.08); background: none; color: var(--text); font-size: 15px; line-height: 22px; font-weight: 500; text-align: left; opacity: 0; animation: item-in 220ms var(--ease) forwards; transition: background 100ms var(--ease); }
+.lift-menu { width: 100%; border-radius: 20px; background: var(--surface-2); overflow: hidden; }
+.lift-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 16px 18px; border: 0; border-bottom: .5px solid rgba(255,255,255,.08); background: none; color: var(--text); font-size: 15px; line-height: 22px; font-weight: 500; text-align: left; transition: background 100ms var(--ease); }
 .lift-item:active { background: var(--pressed, rgba(255,255,255,.08)); }
 .lift-item:last-child { border-bottom: 0; }
 .lift-item .icon { flex: none; fill: currentColor; }
 .lift-item.destructive { color: var(--danger); }
-@keyframes item-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
 
 /* Bottom sheet: Nuvio's floating card, 10 px in from the edges, with a
    hairline edge that fades from 16% to 4% white. */
-.sheet { position: fixed; inset: 0; z-index: 950; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0); transition: background 250ms var(--ease); }
-.sheet.open { background: var(--scrim); }
-.sheet-body { width: min(520px, calc(100% - 20px)); max-height: calc(80vh - var(--safe-bottom)); margin: 0 10px calc(10px + var(--safe-bottom)); overflow-y: auto; padding-bottom: 16px; border: 1px solid transparent; border-radius: 28px; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(rgba(255,255,255,.16), rgba(255,255,255,.04)) border-box; transform: translateY(calc(100% + 10px + var(--safe-bottom))); transition: transform 300ms var(--ease); touch-action: pan-y; overscroll-behavior: contain; scrollbar-width: none; }
-.sheet.open .sheet-body { transform: none; }
+.sheet { position: fixed; inset: 0; z-index: 950; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-scrim, .dialog-scrim { position: absolute; inset: 0; background: var(--scrim); }
+.sheet.closing, .dialog-layer.closing { pointer-events: none; }
+.sheet-body { width: min(520px, calc(100% - 20px)); max-height: calc(80vh - var(--safe-bottom)); margin: 0 10px calc(10px + var(--safe-bottom)); overflow-y: auto; padding-bottom: 16px; border: 1px solid transparent; border-radius: 28px; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(rgba(255,255,255,.16), rgba(255,255,255,.04)) border-box; position: relative; touch-action: pan-y; overscroll-behavior: contain; scrollbar-width: none; }
 /* The top of the sheet (handle and title) is the drag area: the browser must not take that gesture. */
 .sheet-grab { position: relative; padding: 10px 0 14px; touch-action: none; cursor: grab; }
 .sheet-grab::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: .5px; background: var(--border); }
@@ -142,10 +150,8 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 .sheet-row.selected { background: rgba(245,245,245,.08); font-weight: 600; }
 
 /* Confirm dialog: Nuvio's centred card, with Cancel beside the action. */
-.dialog-layer { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom)); background: rgba(0,0,0,0); transition: background 200ms var(--ease); }
-.dialog-layer.open { background: var(--scrim); }
-.dialog { width: min(460px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid transparent; border-radius: 28px; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(rgba(255,255,255,.16), rgba(255,255,255,.04)) border-box; opacity: 0; transform: scale(.94); transition: opacity 160ms var(--ease), transform 200ms var(--ease); }
-.dialog-layer.open .dialog { opacity: 1; transform: none; }
+.dialog-layer { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom)); }
+.dialog { width: min(460px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid transparent; border-radius: 28px; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(rgba(255,255,255,.16), rgba(255,255,255,.04)) border-box; position: relative; }
 .dialog-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
 .dialog-text { margin: 0; color: var(--text-2); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
 .dialog-buttons { display: flex; gap: 10px; padding-top: 8px; }

@@ -9,6 +9,7 @@ import {timed, feelEntries, reportText} from './feel-log.js';
 
 export {level, onLevel, tick, setMotionChoice, setHaptics, levelFor, hapticPattern, T} from './motion-core.js';
 export {timed} from './feel-log.js';
+export {stop} from './motion-core.js';
 export {sheet, shouldDismiss, resist} from './sheet-motion.js';
 
 /** The feel log as plain text, with the level and haptics it was made under. */
@@ -165,5 +166,48 @@ export function swap(inEl, outEl, {name = 'tab', onOut = null} = {}) {
     const anims = [out, go(inEl, {opacity: 1}, {from: {opacity: 0}, duration: T.fade, delay: 90})];
     if (lv === 'full') anims.push(go(inEl, {transform: 'none'}, {from: {transform: 'translateY(6px)'}, duration: T.fade, delay: 90, easing: spring('snappy'), join: true}));
     return handle(anims, cancelled => { if (cancelled) done(); });
+  });
+}
+
+/**
+ * Something appearing in place (a dialog, a toast, a menu, the lifted poster): from `from` (a
+ * transform) to `to` on the spring named (`smooth`, `snappy`, `lively`), fading in over --t-fast
+ * unless `fade` is false. Reduced: a 120 ms fade. Off: at once.
+ */
+export function enter(el, {from = 'scale(0.96)', to = 'none', spring: curve = 'smooth', duration = T.normal, fade = true, name = 'enter'} = {}) {
+  return timed(name, () => {
+    const lv = level();
+    stop(el);
+    if (lv === 'off') return instant();
+    if (lv === 'reduced') return handle([go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})]);
+    const anims = [go(el, {transform: to}, {from: {transform: from}, duration, easing: spring(curve)})];
+    if (fade) anims.push(go(el, {opacity: 1}, {from: {opacity: 0}, duration: T.fast, join: true}));
+    return handle(anims);
+  });
+}
+
+/**
+ * Something leaving (FEEL.md: things leave by fading, or go back where they came from): fades out
+ * over --t-fast and, with `to`, moves there on the spring named. It stays as it ends until the caller
+ * removes it. Reduced: a 120 ms fade. Off: hidden at once.
+ */
+export function exit(el, {to = null, spring: curve = 'smooth', duration = T.normal, fade = true, name = 'exit'} = {}) {
+  return timed(name, () => {
+    const lv = level();
+    if (lv === 'off') { stop(el); go(el, {opacity: 0}, {from: {opacity: 0}, duration: 0, keep: true}); return instant(); }
+    if (lv === 'reduced') return handle([go(el, {opacity: 0}, {duration: T.fade, keep: true})]);
+    const anims = [];
+    if (to) anims.push(go(el, {transform: to}, {duration, easing: spring(curve), keep: true}));
+    if (fade) anims.push(go(el, {opacity: 0}, {duration: T.fast, keep: true, join: !!to}));
+    return anims.length ? handle(anims) : instant();
+  });
+}
+
+/** A scrim or a blur fading to `opacity` (0 or 1) with the standard ease; it stays there. */
+export function fadeTo(el, opacity, {duration = T.normal, name = 'fade'} = {}) {
+  return timed(name, () => {
+    const lv = level();
+    if (lv === 'off') { stop(el); go(el, {opacity}, {from: {opacity}, duration: 0, keep: true}); return instant(); }
+    return handle([go(el, {opacity}, {duration: lv === 'reduced' ? T.fade : duration, keep: true})]);
   });
 }

@@ -11,7 +11,7 @@ import {play, bindPlayer} from './playing.js';
 import {forgetAnswers} from '../addons/debrid.js';
 import {fetchSubtitles, subtitleAddons} from '../addons/subtitles.js';
 import {h} from '../ui/dom.js';
-import {icon} from '../ui/icons.js';
+import {navIcon} from '../ui/nav-icons.js';
 import {toast} from '../ui/components.js';
 import {readSetting, writeSetting, applyAll} from '../settings/registry.js';
 import '../settings/motion.js';
@@ -148,7 +148,7 @@ export class App {
     }
     this.pill = h('span', {class: 'nav-pill', 'aria-hidden': 'true'});
     this.navButtons = TABS.map(t => press(h('button', {class: 'nav-item', type: 'button', 'data-tab': t.id, 'aria-label': t.label, onclick: () => this.selectTab(t.id, true)},
-      icon(t.icon, {size: 26}), h('span', {class: 'nav-label'}, t.label))));
+      navIcon(t.icon), h('span', {class: 'nav-label'}, t.label))));
     this.nav = h('nav', {class: 'nav', 'aria-label': 'Astra'}, h('div', {class: 'nav-track'}, this.pill, ...this.navButtons));
     this.stackEl = h('div', {class: 'screen-stack'});
     this.root.append(this.tabsEl, this.nav, this.stackEl);
