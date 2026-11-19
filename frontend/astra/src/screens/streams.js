@@ -8,6 +8,7 @@
 import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {rise} from '../ui/motion.js';
+import {whenIdle} from '../ui/motion-core.js';
 import {fetchStreams, supports} from '../addons/client.js';
 import {factsOf, filtersFrom, shown} from '../addons/stream-facts.js';
 import {withoutHash} from '../addons/stream-text.js';
@@ -170,7 +171,15 @@ export class StreamsScreen {
     if (!signal.aborted) this.render();
   }
 
+  /** Every playable stream as the player lists them (made once per drawing: a tap reads it in its own frame). */
   sources() {
+    if (this.listed?.at === this.drawnAt) return this.listed.list;
+    const list = this.allSources();
+    if (this.drawnAt != null) this.listed = {at: this.drawnAt, list};
+    return list;
+  }
+
+  allSources() {
     return [...this.groups.values()].filter(g => g.streams).sort((a, b) => a.order - b.order)
       .flatMap(g => g.streams.filter(s => s.url).map(s => ({id: s.key, addonUrl: g.addon.url,
         label: sourceName(g.addon.name, withoutHash(s.name), ' · '), detail: [withoutHash(s.title).trim(), sizeFrom(s)].filter(Boolean).join('\n'), // shown: no hash
@@ -202,6 +211,8 @@ export class StreamsScreen {
    * never replaced or moved by another add-on's answer, so a press in progress is not lost and nothing jumps.
    */
   render() {
+    this.drawnAt = (this.drawnAt || 0) + 1; // what sources() made is made again, when the main thread is free
+    this.cancelListing?.(); this.cancelListing = whenIdle(() => { if (!this.destroyed) this.sources(); });
     const groups = [...this.groups.values()].sort((a, b) => a.order - b.order);
     // Listed: add-ons still asking, with streams, or that failed. One that answered with none is left out.
     const listed = groups.filter(g => g.streams === null || g.streams?.length || g.error);

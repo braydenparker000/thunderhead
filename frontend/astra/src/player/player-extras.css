@@ -174,5 +174,5 @@
 .ap-sheet :is(.ap-rails, .ap-rail, .ap-pb, .ap-picture, .ap-style-group) { min-width: 0; max-width: 100%; }
 .ap-sheet .ap-step, .ap-sheet .ap-step > div { flex-wrap: wrap; }
 /* A source drawn with the stream list's own card (menus.js sourceRow): the current one outlined. */
-.ap-source-slot { border-radius: var(--r-lg); }
+.ap-source-slot { border-radius: var(--r-lg); content-visibility: auto; contain-intrinsic-size: auto 132px; } /* off screen: skipped (a list of 300 opens and closes lightly) */
 .ap-source-slot.current { outline: 2px solid var(--ap-accent); outline-offset: 2px; }

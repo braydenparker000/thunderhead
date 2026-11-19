@@ -143,14 +143,22 @@ export function build(p) {
   return r;
 }
 
+/** The loading screen's art and logo (what the opening's dim shows), drawn once per title. */
+export function renderLoading(p) {
+  const m = p.meta, key = JSON.stringify([m.background || '', m.logo || '', m.title || '']);
+  if (p.loading.dataset.for === key) return;
+  p.loading.dataset.for = key;
+  p.loadingArt.style.backgroundImage = m.background ? `url(${JSON.stringify(m.background)})` : '';
+  p.loadingLogo.replaceChildren(m.logo ? h('img', {src: m.logo, alt: m.title || '', referrerpolicy: 'no-referrer', onerror: e => e.target.replaceWith(h('span', {}, m.title || ''))}) : h('span', {}, m.title || ''));
+}
+
 /** The title block, the loading screen's art, and which buttons this title has. */
 export function renderMeta(p) {
   const m = p.meta;
   p.titleEl.textContent = m.title || '';
   p.episodeEl.textContent = m.episodeLine || '';
   p.releaseEl.textContent = m.release || '';
-  p.loadingArt.style.backgroundImage = m.background ? `url(${JSON.stringify(m.background)})` : '';
-  p.loadingLogo.replaceChildren(m.logo ? h('img', {src: m.logo, alt: m.title || '', referrerpolicy: 'no-referrer', onerror: e => e.target.replaceWith(h('span', {}, m.title || ''))}) : h('span', {}, m.title || ''));
+  renderLoading(p);
   const series = !!p.options.episodes;
   p.actionButtons.episodes.hidden = !series;
   p.actionButtons.sources.hidden = !p.sources.length;

@@ -89,6 +89,9 @@ export class Controls {
    */
   paint(change = null) {
     const p = this.p;
+    // Under the opening's dim nothing of them shows (player.css .ap.opening): the state changes with no
+    // movement to measure, so no style pass is forced while the dim is being drawn; they come with the picture.
+    if (p.root.classList.contains('opening')) { change?.(); p.root.classList.toggle('controls', this.visible); return; }
     restyle([...this.groups, ...this.riders], () => {
       change?.();
       p.root.classList.toggle('controls', this.visible);

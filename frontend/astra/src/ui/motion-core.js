@@ -109,3 +109,17 @@ export function handle(anims, settle = () => {}) {
 
 /** A handle for a motion that happens at once (level 'off', or nothing to move). */
 export function instant(settle = () => {}) { settle(false); return {finished: Promise.resolve({cancelled: false}), cancel() {}}; }
+
+// Heavy work and movement do not share a frame (the feel report counts the main thread's gaps): a movement
+// starts first, on the compositor, and the work comes after its first frame, in pieces, one a frame.
+const raf = fn => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+/** Resolves just after the next frame has been drawn (in a task posted from its frame callback). */
+export const nextFrame = () => new Promise(resolve => raf(() => setTimeout(resolve, 0)));
+/** Resolves once the frame being made now (a movement's first) has been presented: two frames on. */
+export const afterFirstFrame = () => new Promise(resolve => raf(() => raf(() => setTimeout(resolve, 0))));
+/** Runs `fn` when the main thread is free (an idle moment; at most `timeout` ms later). Returns a cancel. */
+export function whenIdle(fn, {timeout = 2000} = {}) {
+  if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(() => fn(), {timeout}); return () => cancelIdleCallback(id); }
+  const id = setTimeout(fn, 200);
+  return () => clearTimeout(id);
+}

@@ -17,13 +17,13 @@
 // bar), keys.js, video-events.js, markers.js (skip and next episode),
 // loading.js (waiting, errors, notices) and system.js (full screen,
 // picture-in-picture, wake lock). Each part has close(); closing runs them all.
-// extras.js gathers the rest (the Playback menu, seek-bar marks, frames, search).
+// extras.js gathers the rest (the Playback menu, seek-bar marks, frames, search). opening.js puts opening,
+// loading and closing in the order the feel needs (the movement first, the work after its first frame).
 
 import {AstraPlayer} from '../engine/player.js';
-import {baseLanguage} from '../engine/languages.js';
-import {loadPrefs, savePrefs, subtitleStyle, ASPECTS, ASPECT_LABELS} from './prefs.js';
+import {loadPrefs, savePrefs, ASPECTS, ASPECT_LABELS} from './prefs.js';
 import {externalPlayerUrl} from './external.js';
-import {build, renderMeta, layout} from './view.js';
+import {build, layout} from './view.js';
 import {Controls} from './controls.js';
 import {Menus} from './menus.js';
 import {Surface} from './surface.js';
@@ -35,8 +35,8 @@ import {System} from './system.js';
 import {key} from './keys.js';
 import {bindVideo} from './video-events.js';
 import {Extras} from './extras.js';
-import {viaName} from './rules.js';
-import {withoutHash} from '../addons/stream-text.js';
+import {Stages} from './stages.js';
+import {openPlayer, loadFilm, closePlayer, idleReset} from './opening.js';
 
 export class PlayerScreen extends EventTarget {
   /** How long a load runs before the loading screen offers other sources. */
@@ -48,6 +48,8 @@ export class PlayerScreen extends EventTarget {
     this.prefs = loadPrefs();
     this.isOpen = false;
     this.scrub = {active: false, time: null}; // a drag on the seek bar or across the picture, and where it points
+    this.stages = new Stages(); // work after a movement's first frame (opening.js)
+    this.loadToken = 0; // which load is current
     Object.assign(this, build(this));
     const video = this.video;
     this.engine = new AstraPlayer(video, this.subsEl);
@@ -95,57 +97,11 @@ export class PlayerScreen extends EventTarget {
    * @param {Array} [o.hiddenSources] sources the viewer's filters hide: counted in the sources panel
    * With no o.stream, nothing loads: the sources panel opens for the viewer to pick one ('source').
    */
-  open(o) {
-    const before = this.meta;
-    this.options = o;
-    this.meta = o.meta || {title: ''};
-    this.sources = o.sources || [];
-    this.hiddenSources = o.hiddenSources || [];
-    this.sourceId = o.sourceId ?? (o.stream ? this.sources[0]?.id : null) ?? null;
-    // Choices that belong to one title start fresh with the next; the subtitle delay is kept for the same series.
-    if (!before || (before.id || before.title) !== (this.meta.id || this.meta.title)) this.engine.subtitles.setDelay(0);
-    for (const part of this.parts) if (part !== this.system) part.close(); // anything left from before: a hold, a timer, a notice
-    this.markers.reset(o.segments);
-    this.menus.reset();
-    this.touch.reset();
-    this.extras.opened(o);
-    this.mutedChip.hidden = !(this.video.muted || this.video.volume === 0);
-    this.firstFrame = false;
-    this.lastProgress = 0;
-    this.loadedFrom = o.startTime || 0;
-    this.playedTo = 0;
-    if (this.system.minimized) this.system.restoreFromPip({exit: true});
-    if (!this.isOpen) {
-      this.isOpen = true;
-      this.root.hidden = false;
-      this.system.open();
-      addEventListener('keydown', this.onKey);
-      document.addEventListener('visibilitychange', this.onVisibility);
-      this.root.focus({preventScroll: true});
-      this.passage.enter(o.origin); // the tapped card presses in, the screen dims over the backdrop
-    }
-    renderMeta(this);
-    this.markers.renderNext();
-    this.loader.show(true);
-    this.ctl.setLocked(false);
-    this.applyAspect();
-    this.engine.subtitles.setStyle(subtitleStyle(this.prefs));
-    if (!o.stream) { // the viewer picks the source
-      this.stream = null;
-      this.viaEl.textContent = '';
-      this.engine.reset();
-      this.loader.waitForPick();
-      this.showControls();
-      this.openPanel('sources');
-      return;
-    }
-    if (o.deferred) this.defer(o.stream, o.startTime || 0); // the caller resolves the address, then calls load()
-    else this.load(o.stream, o.startTime || 0);
-    this.showControls();
-  }
+  open(o) { openPlayer(this, o); }
 
   /** The caller is resolving this stream's address (a debrid link) and will call load(): stop what plays and say so. */
   defer(stream, startTime = 0) {
+    this.loadToken++; // a load still waiting for its frame is not wanted now
     this.stream = stream;
     this.loadedFrom = startTime;
     this.ready = false;
@@ -168,21 +124,8 @@ export class PlayerScreen extends EventTarget {
     return at || this.loadedFrom || 0;
   }
 
-  load(stream, startTime, {allowSilent = false} = {}) {
-    this.loader.restart(); // another source: count afresh
-    this.stream = stream;
-    this.loadedFrom = startTime || 0; // where "Try again" resumes when nothing played yet
-    this.ready = false;
-    this.firstFrame = false;
-    this.playedTo = 0;
-    this.loader.show(true);
-    this.errorCard.hidden = true;
-    this.viaEl.textContent = stream.name ? 'Via ' + viaName(withoutHash(stream.name)) : ''; // the add-on's name once
-    const prefs = {languages: [...new Set([this.prefs.audioLanguage, ...((navigator.languages || []).map(baseLanguage))].filter(Boolean))], subtitleLanguage: this.prefs.subtitleLanguage || null, allowSilent};
-    this.extras.loading();
-    this.engine.load({url: stream.url, renew: stream.renew || null, headers: stream.headers || {}, startTime, autoplay: true, prefs, subtitles: stream.subtitles || []});
-    this.system.mediaSession();
-  }
+  /** Plays `stream` from `startTime` (the engine is asked in the first piece after the frame on screen: opening.js). */
+  load(stream, startTime, options) { loadFilm(this, stream, startTime, options); }
 
   onReady() {
     this.ready = this.engine.mode !== 'unsupported';
@@ -214,20 +157,11 @@ export class PlayerScreen extends EventTarget {
    * lets go of the phone (full screen, wake lock, the app behind, the lock
    * screen's controls), then the app hears where playback got to.
    */
-  close(reason = 'user') {
-    if (!this.isOpen) return;
-    this.isOpen = false;
-    const time = this.firstFrame ? this.video.currentTime : 0, duration = Number.isFinite(this.video.duration) ? this.video.duration : 0;
-    removeEventListener('keydown', this.onKey);
-    document.removeEventListener('visibilitychange', this.onVisibility);
-    if (!this.video.paused) this.video.pause(); // silent at once; the picture stays while it fades
-    this.popLayer?.(); this.popLayer = null; // also pops an open modal's or panel's entry
-    this.extras.close();
-    for (const part of this.parts) part.close();
-    this.emit('progress', {time, duration, final: true});
-    this.emit('close', {time, duration, reason});
-    this.passage.exit(() => this.engine.reset()); // the picture fades to the backdrop, the dim lifts, then the engine lets go
-  }
+  close(reason = 'user') { closePlayer(this, reason); }
+
+  /** The engine lets go of the film when the main thread is free; settleReset() does it now if it still has to. */
+  idleReset() { idleReset(this); }
+  settleReset() { if (this.cancelReset) { this.cancelReset(); this.cancelReset = null; this.resetNow?.(); } }
 
   // ——— What the other parts and the app call ———
 
