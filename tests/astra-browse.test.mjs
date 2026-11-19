@@ -42,7 +42,7 @@ test('tintFrom: a calm colour that dark text reads on at 4.5:1 or better', () =>
 });
 
 test('Settings › Browse: every row with its designed default, and values it refuses', () => {
-  const byId = Object.fromEntries(rows('browse').map((r) => [r.id, r]));
+  const byId = Object.fromEntries([...rows('appearance'), ...rows('home')].map((r) => [r.id, r]));
   assert.deepEqual(Object.fromEntries(Object.values(byId).map((r) => [r.id, r.default])), {
     posterTitles: true, posterYears: true, artPlaceholder: 'blur', rowEntrance: true, rowSnap: true, heroTurn: true, heroSeconds: 8, cwSize: 'standard', tint: true, spoilerBlur: false,
   });
@@ -57,7 +57,7 @@ test('Settings › Browse: a change says so on the root, and Colour from artwork
   const classes = new Set();
   globalThis.document = { documentElement: { classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) } } };
   try {
-    const row = (id) => rows('browse').find((r) => r.id === id);
+    const row = (id) => [...rows('appearance'), ...rows('home')].find((r) => r.id === id);
     row('posterTitles').apply(false); row('posterYears').apply(false); row('rowSnap').apply(false); row('cwSize').apply('large'); row('artPlaceholder').apply('plain');
     assert.deepEqual([...classes].sort(), ['b-art-plain', 'b-cw-large', 'b-no-snap', 'b-no-titles', 'b-no-years']);
     row('posterTitles').apply(true); row('artPlaceholder').apply('colour');
