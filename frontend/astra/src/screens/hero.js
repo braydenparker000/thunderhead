@@ -18,7 +18,10 @@ export class Hero {
     this.items = items;
     this.index = 0;
     this.app = app;
-    this.onOpen = m => onOpen(m, this.slides[this.index]?.querySelector('.hero-bg'));
+    // The picture of the title whose button was tapped, not of whichever slide is current: the hero may have
+    // started turning by itself between the finger landing and the tap (a different title's art would fly).
+    this.artOf = m => this.slides[this.items.indexOf(m)]?.querySelector('.hero-bg') || null;
+    this.onOpen = m => onOpen(m, this.artOf(m));
     this.track = h('div', {class: 'hero-track'});
     this.slides = items.map((m, i) => this.slide(m, i));
     this.track.append(...this.slides);
@@ -45,7 +48,7 @@ export class Hero {
       h('div', {class: 'hero-content'},
         m.logo ? press(h('button', {class: 'hero-logo', type: 'button', onclick: () => this.onOpen(m), 'aria-label': m.name}, logoImage(m.logo, m.name, 'hero-logo-img', {onDark: img => img.parentElement?.replaceWith(this.title(m))}))) : this.title(m),
         h('p', {class: 'hero-meta'}, ...meta.flatMap((t, k) => k ? [h('i', {class: 'dot', 'aria-hidden': 'true'}), t] : [t])),
-        press(h('button', {class: 'hero-cta', type: 'button', onclick: () => this.onOpen(m), onpointerdown: () => warmArt(this.slides[this.index]?.querySelector('.hero-bg'))}, 'View Details'))));
+        press(h('button', {class: 'hero-cta', type: 'button', onclick: () => this.onOpen(m), onpointerdown: () => warmArt(this.artOf(m))}, 'View Details'))));
   }
 
   /** The title in text, where there is no logo or one too dark to read. */

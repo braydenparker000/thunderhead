@@ -17,7 +17,8 @@ const onScreen = el => {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
 };
-const srcOf = el => el?.querySelector?.('img')?.currentSrc || el?.querySelector?.('img')?.src || '';
+const imgOf = el => el?.tagName === 'IMG' ? el : el?.querySelector?.('img');
+const srcOf = el => imgOf(el)?.currentSrc || imgOf(el)?.src || '';
 
 /**
  * Lands a flight: the picture (`from`, an element or a rect) to `to`. A flight still in the air is taken over
@@ -25,11 +26,14 @@ const srcOf = el => el?.querySelector?.('img')?.currentSrc || el?.querySelector?
  */
 function fly(from, to, name, {radius = null, then = null, different = false} = {}) {
   let replaces = null;
-  if (flight) {
-    const r = flight.copy?.isConnected ? flight.copy.getBoundingClientRect() : null;
+  // Taken over only by a flight of the same picture (Back mid-flight). Another title's flight (a poster in
+  // "More like this" tapped as the last one lands) never starts from this copy: it is cut and flies its own.
+  const picture = srcOf(from instanceof Element ? from : to);
+  if (flight && flight.copy?.isConnected && picture && srcOf(flight.copy) === picture) {
+    const r = flight.copy.getBoundingClientRect();
     replaces = flight.travel.cancel({keep: true});
-    if (r?.width) from = {left: r.left, top: r.top, width: r.width, height: r.height};
-  }
+    if (r.width) from = {left: r.left, top: r.top, width: r.width, height: r.height};
+  } else flight?.travel.cancel();
   // Landing on Details' backdrop, the copy fades into the page as the backdrop does, so the title under it
   // shows through; landing on a different picture (a still on a backdrop), it fades into that one.
   const mask = to instanceof Element ? getComputedStyle(to).maskImage : 'none';
@@ -58,10 +62,12 @@ function fly(from, to, name, {radius = null, then = null, different = false} = {
  * change, a quiet reload of Home): the card on screen now with the same title and the same kind of picture.
  */
 function origin(screen) {
-  const was = screen.origin, {item, cls} = screen.originKey || {};
+  const was = screen.origin, {item, cls, row, src} = screen.originKey || {};
   if (was?.isConnected || !item || !cls) return was;
-  const cards = [...document.querySelectorAll(`[data-item="${CSS.escape(item)}"] .${CSS.escape(cls)}`)].filter(el => !screen.el.contains(el));
-  return cards.find(onScreen) || was;
+  const cards = [...document.querySelectorAll(`[data-item="${CSS.escape(item)}"] .${CSS.escape(cls)}`)].filter(el => !screen.el.contains(el) && onScreen(el));
+  // The same title may sit in several rows: the one in the card's own row first, then one with its picture.
+  const rowOf = el => el.closest('[data-key]')?.dataset.key || '';
+  return cards.find(el => rowOf(el) === row && srcOf(el) === src) || cards.find(el => srcOf(el) === src) || cards.find(el => rowOf(el) === row) || cards[0] || was;
 }
 
 /** Where on Details a picture lands: the same picture when Details shows it, else by its shape. */
@@ -81,7 +87,7 @@ export function enter(screen, from) {
   const layer = screen.el.parentElement;
   if (!from || !layer || !onScreen(from)) return null;
   screen.origin = from;
-  screen.originKey = {item: from.closest('[data-item]')?.dataset.item || '', cls: from.classList[0] || ''};
+  screen.originKey = {item: from.closest('[data-item]')?.dataset.item || '', cls: from.classList[0] || '', row: from.closest('[data-key]')?.dataset.key || '', src: srcOf(from)};
   const lv = level();
   if (lv === 'off') return instant();
   // Details fades in and its text rises once the picture starts to move: the frame that lays the page out
@@ -105,8 +111,6 @@ export function enter(screen, from) {
   return {finished: Promise.all([t.finished, faded]).then(([x, y]) => ({cancelled: x.cancelled || y.cancelled})), cancel: () => { t.cancel(); fadeIn.cancel(); }};
 }
 
-const both = (a, b) => ({finished: Promise.all([a.finished, b.finished]).then(([x, y]) => ({cancelled: x.cancelled || y.cancelled})), cancel: () => { a.cancel(); b.cancel(); }});
-
 /**
  * Back from a Details that opened itself (`layer` is its layer; the shell removes it when this is done): the
  * picture goes home to its card while Details fades, or, with the card off screen, Details fades and drops 12 px.
@@ -122,8 +126,13 @@ export function leave(screen, layer) {
       : [go(layer, {opacity: 0}, {duration: T.fade, easing: EASE, keep: true})]));
   }
   // The same picture flies itself; a different one (a backdrop going home to a still) flies as the card's copy.
+  // Details fades once the picture leaves, not in the two frames before it does (its poster would dim, then jump back).
+  const fadeOut = go(layer, {opacity: 0}, {duration: lv === 'full' ? T.normal : T.fade, easing: EASE, keep: true});
+  fadeOut.pause();
+  const start = () => { if (fadeOut.playState !== 'idle') timed('fade:details-out', () => { fadeOut.play(); return handle([fadeOut]); }); };
   const r = at.to.getBoundingClientRect();
-  const t = fly(at.same ? at.to : {left: r.left, top: r.top, width: r.width, height: r.height}, from, 'travel:details-poster', {});
+  const t = fly(at.same ? at.to : {left: r.left, top: r.top, width: r.width, height: r.height}, from, 'travel:details-poster', {then: start});
   if (!at.same) at.to.style.visibility = 'hidden';
-  return both(t, timed('fade:details-out', () => handle([go(layer, {opacity: 0}, {duration: lv === 'full' ? T.normal : T.fade, easing: EASE, keep: true})])));
+  const faded = fadeOut.finished.then(() => ({cancelled: false}), () => ({cancelled: true}));
+  return {finished: Promise.all([t.finished, faded]).then(([x, y]) => ({cancelled: x.cancelled || y.cancelled})), cancel: () => { t.cancel(); fadeOut.cancel(); }};
 }

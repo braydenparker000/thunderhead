@@ -13,7 +13,7 @@ const LIMIT = 400;
 const W = 8, H = 12;
 let memory = null;
 const reading = new Map(); // src -> promise of its entry
-const refused = new Set(); // hosts that refused CORS this visit
+const refused = new Set(); // hosts that refused CORS (remembered on this phone)
 
 const hex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -111,35 +111,48 @@ const hostOf = src => { try { return new URL(src).host; } catch { return ''; } }
 /**
  * Reads a picture's colours from its small copy (once per picture). Resolves the entry, or null when the
  * host has no small copy or does not let a page read it.
+ *
+ * Read with fetch at an address of its own, never the address a card shows: the page's picture cache keeps
+ * one entry per address, and a read of the card's own file (on Stremio's host the small copy is that file)
+ * took it from the card, so every new picture element of it (a flying copy, Details' poster, a redrawn row)
+ * waited for the network and showed its empty tile instead of the picture at once. One read per host is in
+ * flight until the host has answered; a host that refuses is remembered on this phone and not asked again.
  */
+const REFUSED = 'astra.art.refused';
+try { for (const host of JSON.parse(localStorage.getItem(REFUSED) || '[]')) if (typeof host === 'string') refused.add(host); } catch {}
+const allowed = new Set(), probing = new Map(); // host -> the first read's promise
+function refuse(host) {
+  refused.add(host);
+  try { localStorage.setItem(REFUSED, JSON.stringify([...refused].slice(-20))); } catch {}
+}
+async function readOnce(src, small) {
+  const host = hostOf(small);
+  const address = small === src ? small + (small.includes('?') ? '&' : '?') + 'colour' : small;
+  let res;
+  try { res = await fetch(address, {mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', priority: 'low'}); } catch { refuse(host); return null; }
+  allowed.add(host);
+  if (!res.ok) return null;
+  // Decoded off the main thread, already 8×12.
+  const bitmap = await createImageBitmap(await res.blob(), {resizeWidth: W, resizeHeight: H, resizeQuality: 'medium'});
+  const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), {width: W, height: H});
+  const c = canvas.getContext('2d', {willReadFrequently: true});
+  c.drawImage(bitmap, 0, 0, W, H);
+  bitmap.close?.();
+  const entry = readPixels(c.getImageData(0, 0, W, H).data, W);
+  remember(src, entry);
+  return entry;
+}
 export function readArt(src) {
   const known = artEntry(src);
   if (known) return Promise.resolve(known);
-  const small = artAt(src, 'small');
-  if (!small || refused.has(hostOf(small)) || typeof Image !== 'function') return Promise.resolve(null);
+  const small = artAt(src, 'small'), host = hostOf(small || '');
+  if (!small || refused.has(host) || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return Promise.resolve(null);
   if (reading.has(src)) return reading.get(src);
-  const task = new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.referrerPolicy = 'no-referrer';
-    img.decoding = 'async';
-    img.fetchPriority = 'low';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = W; canvas.height = H;
-        const c = canvas.getContext('2d', {willReadFrequently: true});
-        c.drawImage(img, 0, 0, W, H);
-        const entry = readPixels(c.getImageData(0, 0, W, H).data, W);
-        remember(src, entry);
-        resolve(entry);
-      } catch { resolve(null); }
-    };
-    img.onerror = () => { refused.add(hostOf(small)); resolve(null); };
-    img.src = small;
-  });
+  const first = !allowed.has(host) && probing.get(host);
+  const task = (first ? first.then(() => (refused.has(host) ? null : readOnce(src, small))) : readOnce(src, small)).catch(() => null);
+  if (!allowed.has(host) && !first) probing.set(host, task);
   reading.set(src, task);
-  task.then(() => reading.delete(src));
+  task.then(() => { reading.delete(src); if (probing.get(host) === task) probing.delete(host); });
   return task;
 }
 

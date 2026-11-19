@@ -4,7 +4,7 @@
 // (a new call on the same element starts from where it is; cancel() leaves things sane), and
 // times itself into the feel log under its `name`.
 
-import {T, EASE, spring, level, go, stop, handle, instant, decoded, frames, painted, hapticsSetting, motionChoice} from './motion-core.js';
+import {T, EASE, spring, level, go, stop, handle, instant, frames, painted, hapticsSetting, motionChoice} from './motion-core.js';
 import {timed, feelEntries, reportText} from './feel-log.js';
 
 export {level, onLevel, tick, setMotionChoice, setHaptics, levelFor, hapticPattern, T} from './motion-core.js';
@@ -48,39 +48,50 @@ const hidden = new WeakMap();
 const hide = el => { if (isElement(el) && !hidden.has(el)) { hidden.set(el, el.style.visibility); el.style.visibility = 'hidden'; } };
 const show = el => { if (isElement(el) && hidden.has(el)) { el.style.visibility = hidden.get(el); hidden.delete(el); } };
 
-/**
- * A copy of a picture box that shows exactly what the original shows now: each picture its current
- * address (`currentSrc`), asked for at once and decoded before it is drawn (never a lazy picture that
- * arrives later, never the 200 ms fade of a picture arriving).
- */
-function copyOf(source) {
-  const copy = source.cloneNode(true);
-  copy.removeAttribute('id');
-  copy.setAttribute('aria-hidden', 'true');
-  copy.inert = true;
-  const pics = el => el.tagName === 'IMG' ? [el] : [...el.querySelectorAll('img')];
-  const mine = pics(copy), theirs = pics(source);
-  mine.forEach((img, i) => {
-    img.loading = 'eager'; img.decoding = 'sync'; img.classList.remove('loaded'); img.removeAttribute('srcset');
-    const src = theirs[i]?.currentSrc || theirs[i]?.src;
-    if (src && img.src !== src) img.src = src;
-  });
-  // Only the pictures the original has painted are waited for: one still arriving shows its placeholder in both.
-  return {copy, pictures: mine.filter((img, i) => theirs[i]?.complete && theirs[i].naturalWidth > 0)};
+const pics = el => !el ? [] : el.tagName === 'IMG' ? [el] : [...el.querySelectorAll('img')];
+const whole = img => !!img?.isConnected && img.complete && img.naturalWidth > 0;
+const addressOf = img => img?.currentSrc || img?.src || '';
+/** Swaps two pictures' places in the page, and their classes with them (each keeps the look of where it is). */
+function trade(a, b) {
+  const mark = document.createTextNode('');
+  a.replaceWith(mark); b.replaceWith(a); mark.replaceWith(b);
+  const ca = a.className; a.className = b.className; b.className = ca;
+  for (const img of [a, b]) img.classList.remove('loaded'); // moved, a picture never replays its arrival fade
 }
 
 /**
- * A shared element (FEEL.md "Poster → Details"): a copy of `from` flies to `to`'s place and size
- * (--spring-smooth over --t-travel); then `to` is shown. Nothing is ever without its picture: `to` is
- * hidden at once (it is not seen yet), `from` only once the copy has painted over it (its picture
- * decoded, then a frame), and the copy goes only once `to`'s picture has decoded and painted under it.
- * `from` and `to` are elements or rects ({left, top, width, height}); with a rect for `from`, a copy of
- * `to` flies from there. `radius` is the corner radius at each end ([from, to] or one number; read from
- * the elements by default). `replaces` is a copy an interrupted flight left in place (cancel({keep})):
- * it stays until this flight's copy has painted. `onStart` runs when the copy starts to move.
- * Reduced: `to` fades in over 120 ms. Off: nothing moves. Returns {finished, cancel({keep})}: finished
- * resolves once the copy has gone; cancel() removes the copy and shows both originals, cancel({keep:
- * true}) leaves the copy where it is and returns it (for the flight that takes over).
+ * A copy of a picture box (a picture alone is wrapped in one). Its pictures are stand-ins: when it starts to
+ * fly, each trades places with the original picture (ui/motion.js travel), so the copy shows the very pixels
+ * that were on screen, decoded and painted already, never a picture asked for again.
+ */
+function copyOf(source) {
+  let copy = source.cloneNode(true);
+  if (copy.tagName === 'IMG') { const box = document.createElement('div'); box.append(copy); copy = box; }
+  copy.removeAttribute('id');
+  copy.setAttribute('aria-hidden', 'true');
+  copy.inert = true;
+  const mine = pics(copy), theirs = pics(source);
+  mine.forEach((img, i) => {
+    img.loading = 'eager'; img.decoding = 'sync'; img.classList.remove('loaded'); img.removeAttribute('srcset');
+    const src = addressOf(theirs[i]);
+    if (src && img.src !== src) img.src = src;
+  });
+  return {copy, pairs: mine.map((img, i) => [img, theirs[i]])};
+}
+
+/**
+ * A shared element (FEEL.md "Poster → Details"): the picture flies from `from` to `to`'s place and size
+ * (--spring-smooth over --t-travel); then `to` is shown. Nothing is ever without its picture, and it is always
+ * the same picture: the flying copy carries the original picture element itself (its pixels already decoded
+ * and painted; a stand-in takes its place, hidden), `to` is hidden at once (it is not seen yet), `from` in the
+ * same frame as the copy takes over, and on landing the copy goes only once `to`'s picture has painted, or
+ * hands its picture to `to` when `to`'s own has not arrived. `from` and `to` are elements or rects ({left,
+ * top, width, height}); with a rect for `from`, a copy of `to` flies from there. `radius` is the corner
+ * radius at each end ([from, to] or one number; read from the elements by default). `replaces` is a copy an
+ * interrupted flight left in place (cancel({keep})): its picture is taken over. `onStart` runs when the copy
+ * starts to move. Reduced: `to` fades in over 120 ms. Off: nothing moves. Returns {finished, cancel({keep})}:
+ * finished resolves once the copy has gone; cancel() puts every picture back and removes the copy,
+ * cancel({keep: true}) leaves the copy where it is and returns it (for the flight that takes over).
  */
 export function travel(from, to, {name = 'travel', radius = null, onStart = null, onEnd = null, replaces = null} = {}) {
   const a = rectOf(from), b = rectOf(to), source = isElement(from) ? from : isElement(to) ? to : null;
@@ -88,63 +99,71 @@ export function travel(from, to, {name = 'travel', radius = null, onStart = null
   const plain = settle => { replaces?.remove(); onStart?.(); return settle; };
   if (lv === 'off' || !a || !b || !source || !b.width || !b.height || !a.width || !a.height) return timed(name, () => instant(plain(cancelled => { show(from); show(to); onEnd?.({cancelled}); })));
   if (lv === 'reduced') return timed(name, () => isElement(to) ? handle([go(to, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})], plain(cancelled => onEnd?.({cancelled}))) : instant(plain(() => onEnd?.({cancelled: false}))));
-  {
-    const {copy, pictures} = copyOf(source);
-    Object.assign(copy.style, {position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px', margin: '0', zIndex: '5000',
-      pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'visible', opacity: '0.01', willChange: 'transform, clip-path'});
-    document.body.append(copy);
-    hide(to);
-    // The copy has `to`'s size; at the start it is scaled evenly to cover `from` and cut to its shape.
-    const [r0, r1] = Array.isArray(radius) ? radius : radius != null ? [radius, radius] : [radiusOf(from), radiusOf(to)];
-    const end = {transform: 'none', clipPath: `inset(0px 0px round ${r1}px)`};
-    const startAt = a => {
-      const s = Math.max(a.width / b.width, a.height / b.height);
-      const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
-      const ix = Math.max(0, (b.width - a.width / s) / 2), iy = Math.max(0, (b.height - a.height / s) / 2);
-      return {transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${r0 / s}px)`};
-    };
-    // Held at its start (over `from`, the same picture) until it has painted there; then it moves.
-    const anim = go(copy, end, {from: startAt(a), duration: T.travel, easing: spring('smooth'), keep: true});
-    anim.pause();
-    let state = 'waiting', resolve;
-    const finished = new Promise(r => { resolve = r; });
-    // All but transparent until its pictures are decoded and it has been drawn with them (never an empty tile
-    // over the card, nor a picture without the words a hero draws over it); then, in one frame, the copy shows,
-    // the card hides and the copy lets go.
-    decoded(pictures).then(() => frames(2)).then(() => {
-      if (state !== 'waiting') return;
-      state = 'flying';
-      replaces?.remove();
-      // From where `from` is now: a card still springing back from its press, a lifted card on its way home.
-      const now = isElement(from) && from.isConnected ? rectOf(from) : null;
-      if (now?.width && now.height) anim.effect.setKeyframes([startAt(now), end]);
-      copy.style.opacity = '';
-      hide(from);
-      anim.play();
-      // Timed in the feel log from here: the frames of the flight itself, not the wait before it.
-      timed(name, () => ({finished: anim.finished.then(() => ({cancelled: false}), () => ({cancelled: true}))}));
-      onStart?.();
-    });
-    const finish = (cancelled, keep = false) => {
-      if (state === 'done') return null;
-      state = 'done';
-      replaces?.remove();
-      show(from); show(to);
-      onEnd?.({cancelled});
-      if (cancelled) {
-        if (keep) { try { anim.commitStyles(); } catch {} }
-        anim.cancel();
-        if (!keep) copy.remove();
-        resolve({cancelled: true});
-        return keep ? copy : null;
-      }
-      // Landed: `to` is shown under the copy, which goes once `to`'s own picture has painted.
-      painted(isElement(to) ? [...(to.tagName === 'IMG' ? [to] : to.querySelectorAll('img'))].filter(img => img.src) : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
-      return null;
-    };
-    anim.finished.then(() => finish(false), () => finish(true));
-    return {finished, cancel: ({keep = false} = {}) => finish(true, keep)};
-  }
+  const {copy, pairs} = copyOf(source);
+  Object.assign(copy.style, {position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px', margin: '0', zIndex: '5000',
+    pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'visible', opacity: '0', willChange: 'transform, clip-path'});
+  document.body.append(copy);
+  hide(to);
+  // The copy has `to`'s size; at the start it is scaled evenly to cover `from` and cut to its shape.
+  const [r0, r1] = Array.isArray(radius) ? radius : radius != null ? [radius, radius] : [radiusOf(from), radiusOf(to)];
+  const end = {transform: 'none', clipPath: `inset(0px 0px round ${r1}px)`};
+  const startAt = a => {
+    const s = Math.max(a.width / b.width, a.height / b.height);
+    const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+    const ix = Math.max(0, (b.width - a.width / s) / 2), iy = Math.max(0, (b.height - a.height / s) / 2);
+    return {transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${r0 / s}px)`};
+  };
+  const anim = go(copy, end, {from: startAt(a), duration: T.travel, easing: spring('smooth'), keep: true});
+  anim.pause();
+  let state = 'waiting', resolve;
+  const finished = new Promise(r => { resolve = r; });
+  const traded = []; // [stand-in, original]: put back on cancel
+  // Two frames first, so the frame that lays out what opened (Details) is drawn before the flight's first.
+  // Then, in one frame: the copy takes the original pictures (or the ones an interrupted copy carried), it
+  // shows, `from` hides, and it lets go.
+  frames(2).then(() => {
+    if (state !== 'waiting') return;
+    state = 'flying';
+    const spare = pics(replaces).filter(whole);
+    for (const [mine, theirs] of pairs) {
+      const carried = spare.find(img => addressOf(img) === mine.src);
+      if (carried) trade(mine, carried);
+      else if (whole(theirs)) { trade(mine, theirs); traded.push([mine, theirs]); }
+    }
+    replaces?.remove();
+    // From where `from` is now: a card still springing back from its press, a lifted card on its way home.
+    const now = isElement(from) && from.isConnected ? rectOf(from) : null;
+    if (now?.width && now.height) anim.effect.setKeyframes([startAt(now), end]);
+    copy.style.opacity = '';
+    hide(from);
+    anim.play();
+    // Timed in the feel log from here: the frames of the flight itself, not the wait before it.
+    timed(name, () => ({finished: anim.finished.then(() => ({cancelled: false}), () => ({cancelled: true}))}));
+    onStart?.();
+  });
+  const finish = (cancelled, keep = false) => {
+    if (state === 'done') return null;
+    state = 'done';
+    replaces?.remove();
+    if (cancelled && !keep) for (const [mine, theirs] of traded) if (mine.isConnected && theirs.isConnected) trade(theirs, mine);
+    show(from); show(to);
+    onEnd?.({cancelled});
+    if (cancelled) {
+      if (keep) { try { anim.commitStyles(); } catch {} }
+      anim.cancel();
+      if (!keep) copy.remove();
+      resolve({cancelled: true});
+      return keep ? copy : null;
+    }
+    // Landed: `to` shows under the copy. Its picture, when it has not arrived (or is a stand-in still loading),
+    // is the copy's own, handed over; else the copy goes once `to`'s picture has painted.
+    const [carry] = pics(copy), [dest] = isElement(to) ? pics(to) : [];
+    if (carry && dest && !whole(dest) && whole(carry) && addressOf(carry) === dest.src) trade(carry, dest);
+    painted(dest ? [dest] : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
+    return null;
+  };
+  anim.finished.then(() => finish(false), () => finish(true));
+  return {finished, cancel: ({keep = false} = {}) => finish(true, keep)};
 }
 
 /**

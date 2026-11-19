@@ -59,10 +59,12 @@ export function warmArt(box) {
  * Puts `next` (a picture from image() in `box` in place of the one shown there, once it has decoded, so a
  * new address (a sharper copy, the full details' own art) replaces the old picture with no flash between.
  */
+const wanted = new WeakMap(); // box -> the picture last asked for: an older one decoding late never paints over it
 export function swapIn(box, next) {
   const now = box.firstElementChild;
+  wanted.set(box, next);
   if (!now || now.tagName !== 'IMG' || !now.complete || !next || next.tagName !== 'IMG') { box.replaceChildren(...[next].filter(Boolean)); return; }
-  const put = () => { if (now.parentElement === box) { next.classList.remove('loaded'); now.replaceWith(next); } };
+  const put = () => { if (wanted.get(box) !== next) return; next.classList.remove('loaded'); box.replaceChildren(next); };
   (next.decode ? next.decode() : Promise.resolve()).then(put, () => {}); // a picture that fails keeps the old one
 }
 

@@ -70,7 +70,11 @@ export class DetailsScreen {
     if (this.destroyed) return;
     // A failure keeps the poster, title and backdrop the card already had.
     this.failed = !meta;
-    this.meta = meta ? {...this.item, ...meta, videos: meta.videos || []} : {...this.item, videos: []};
+    // The art the card showed is this title's art for the visit: the full details may come from another add-on
+    // (the first that serves meta) with other artwork of the same title, which never replaces the picture that
+    // flew here, nor what Library, the stream list or the player show of it.
+    const brought = Object.fromEntries(['poster', 'background'].filter(k => this.item[k]).map(k => [k, this.item[k]]));
+    this.meta = meta ? {...this.item, ...meta, ...brought, videos: meta.videos || []} : {...this.item, videos: []};
     this.renderHero(this.meta);
     this.renderBody();
     this.tint();
@@ -105,11 +109,14 @@ export class DetailsScreen {
       this.hero = {bg, poster, title, genres, head, el: h('div', {class: 'details-hero'}, bg, h('div', {class: 'details-shade'}), h('div', {class: 'details-hero-content'}, poster, head))};
       this.body.append(this.hero.el);
     }
+    // The pictures the card brought stay: the full details' own art (another add-on's poster of the same title)
+    // never replaces the one that flew here, so the poster never turns into a different one after it lands.
+    // Only a missing or broken picture is replaced, once the new one has decoded (ui/poster.js swapIn).
+    const keeps = (box, src, brought) => !!src && src === brought && !!box?.querySelector('img');
     const art = m.background || m.poster || '';
-    // A new address for a picture already shown replaces it only once decoded (ui/poster.js swapIn): no flash.
-    if (art !== this.hero.art) { this.hero.art = art; swapIn(this.hero.bg, image(art, '', 'details-bg-img', {eager: true})); }
+    if (art !== this.hero.art && !keeps(this.hero.bg, this.hero.art, this.item.background)) { this.hero.art = art; swapIn(this.hero.bg, image(art, '', 'details-bg-img', {eager: true})); }
     // The same poster the card showed, at the card's size: already decoded, so it lands without a flash.
-    if ((m.poster || '') !== this.hero.posterSrc) {
+    if ((m.poster || '') !== this.hero.posterSrc && !keeps(this.posterBox, this.hero.posterSrc, this.item.poster)) {
       this.hero.posterSrc = m.poster || '';
       if (m.poster && this.posterBox) { paintArt(this.posterBox, m.poster); swapIn(this.posterBox, image(m.poster, '', 'poster-img', {eager: true})); }
       else {
