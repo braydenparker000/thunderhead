@@ -10,7 +10,7 @@
 import { clock, pref, prefOn } from '../pref.js';
 import { appFor } from '../registry/apps.js';
 import { citeHref, meta, revealMs } from './model.js';
-import { howFold } from './using.js';
+import { glide, howFold } from './using.js';
 import { rich } from './rich.js';
 import { from } from '../../ui/launch.js';
 
@@ -81,7 +81,7 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
   const pill = el('button', 'newpill', 'New reply ↓');
   pill.type = 'button';
   pill.addEventListener('click', () => {
-    convo.scrollTo({ top: convo.scrollHeight, behavior: 'smooth' });
+    convo.scrollTo({ top: convo.scrollHeight, behavior: glide() });
     pill.classList.remove('show');
   });
   convo.parentElement?.append(pill);

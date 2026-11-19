@@ -90,3 +90,12 @@ test('Settings slides in on a frame already painted, its Back drawn in place, an
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('under reduced motion the conversation scrolls at once, never smoothly (DESIGN-SYSTEM.md §8.4)', opts, async () => {
+  for (const reduced of [false, true]) {
+    const { page, context, errors } = await open({ reduced });
+    assert.equal(await page.evaluate(() => import('/th/chat/using.js').then((m) => m.glide())), reduced ? 'instant' : 'smooth');
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
