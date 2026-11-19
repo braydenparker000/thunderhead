@@ -368,16 +368,23 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
 - **Who:** the owner's device sessions only (route table `D`: the mind, Muse and CI get 403).
   Counted per isolate in memory (no row written): taps ("play") and `GET /v1/astra/torbox` 30 a
   minute, then `429`; presses ("ahead") 60 a minute on their own count, then no address (never a
-  429), so presses never starve a tap.
+  429), so presses never starve a tap; `GET /v1/astra/torbox/servers` 6 a minute on its own.
 - **What it may fetch:** TorBox's API at its fixed origin with `TORBOX_KEY`. A tap: createtorrent
   with `add_only_if_cached` (TorBox refusing it as not cached is answered `503`, and nothing is
-  followed: following the add-on's link is how an add-on adds an uncached torrent), the torrent's
-  files, requestdl. A press never adds: checkcached, the list's newest 100 items, requestdl. Nothing
-  uncached is ever added, nothing at all before a tap; a cached item added for a file that then
-  cannot be told apart stays in the account, which is harmless and uses no slot. Each TorBox call
-  8 s, one retry on 429/5xx, at most 6 calls; the whole request 25 s. A torrent found is remembered
-  in the isolate's memory (its id and file list, 30 minutes, at most 200), so the next ask for it
-  costs requestdl alone.
+  followed: following the add-on's link is how an add-on adds an uncached torrent), checkcached
+  beside it unless a press left the file list, then requestdl beside the torrent's own listing. A
+  press never adds: checkcached beside the list's newest 100 items, then requestdl when the account
+  holds it. Nothing uncached is ever added, nothing at all before a tap; a cached item added for a
+  file that then cannot be told apart stays in the account, which is harmless and uses no slot. Each
+  TorBox call 8 s, one retry on 429/5xx, at most 8 calls; the whole request 25 s. A torrent found
+  is remembered in the isolate's memory (its id and file list, 30 minutes, at most 200), so the next
+  ask for it costs requestdl alone; so is what a press learnt of a torrent TorBox has ready but the
+  account does not hold (its file list from checkcached, 30 minutes, at most 200). For the lab,
+  `GET /v1/astra/torbox/servers` asks TorBox's speed-test list (GET /speedtest, with the key and
+  the phone's address) and hands back each server group's label, region and public test-file
+  address; an address carrying the key or a token query, or not public https, is left out. The
+  phone reads those test files itself; the Worker reads none of them, and changes nothing in the
+  account (TorBox's server choice, `cdn_selection`, is an account setting it never touches).
 - **Add-on links are not opened** (owner's phone, 2026-11-18): an add-on may tie a link to the
   connection that asked for the stream list, and the Worker opening it got the add-on's error clip
   and may spoil the link for the phone. Without a TorBox address the answer is `url: null`, and the
@@ -385,8 +392,9 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
   `Range: bytes=0-0`, the site's `Origin`, no cookie, referrer or credential, the body never read;
   each address public https as `linkProblem` checks; at most 6 hops in 20 s) runs only with the
   Worker variable `ASTRA_FOLLOW` set to `on` in `wrangler.jsonc`.
-- **What it answers:** only `url`, `via`, `size`, `type`, `readable` and `steps`, never a body or a
-  header of what it fetched. TorBox's own file links may carry the account's token: such a link goes
+- **What it answers:** only `url`, `via`, `size`, `type`, `readable`, `ready`, `steps` and
+  `total_ms` (and the server list's labels and test-file addresses), never a body or a header of
+  what it fetched. TorBox's own file links may carry the account's token: such a link goes
   only to the owner's signed-in device, in the answer body, never logged or stored, exactly as every
   add-on already hands it to the phone when it plays. The key as a bare secret never leaves: not the
   Worker secret, not the `Authorization` header, not an address on TorBox's API host (a requestdl
