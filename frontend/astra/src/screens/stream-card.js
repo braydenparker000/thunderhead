@@ -136,21 +136,46 @@ export function sourceCard(source, {current = false, onPick = () => {}, minutes 
 }
 
 /**
+ * Cards made ahead for `items` into `made` (a Map: stream to card), a frame at a time (at least one, more while
+ * SLICE_MS allows): null once all are, else a promise (the same one while it runs) of their being made. A screenful
+ * made in one go was 25 ms at 4x CPU; made ahead, the frame that shows them only adds them (drawInSlices takes them).
+ */
+export function premake(made, items, make, alive) {
+  const missing = items.filter(s => !made.has(s));
+  if (!missing.length) return null;
+  return made.making ??= (async () => {
+    for (let i = 0; i < missing.length && alive();) {
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+      const end = performance.now() + SLICE_MS;
+      do { const s = missing[i++]; if (alive() && !made.has(s)) made.set(s, make(s)); } while (i < missing.length && performance.now() < end);
+    }
+    made.making = null;
+  })();
+}
+
+/**
  * Draws `items` into `body` in their order: a first slice at once (up to FIRST), then one slice a frame, each laid
  * out in its own frame (300 cards at once held a slowed phone for half a second; a card costs more to lay out than
  * to make, so a slice is counted in cards as well as in time; off screen, content-visibility skips the layout). Only ever appends, so a card under a finger is never
  * replaced or moved; `alive()` turns false when the body is drawn again, which ends the work left. `drawn(cards)`
- * hears each slice once it is in the page (the list makes the visible ones rise).
+ * hears each slice once it is in the page, and whether it landed below the screen (the list makes the visible ones rise). `ready(items)`: null when the
+ * slice's cards may be made, else a promise to wait for (their notes, stream-note.js), asked again after it; `after`:
+ * a promise the slices after the first wait for (the header settling: nothing for card 11 on before it has).
  */
-export function drawInSlices(body, items, make, alive, drawn = null) {
+export function drawInSlices(body, items, make, alive, drawn = null, {ready = null, after = null} = {}) {
   let i = 0;
-  const slice = (count, budget, least = 1) => {
+  const slice = async (count, budget, least = 1) => {
+    for (let wait; (wait = ready?.(items.slice(i, i + count)));) { await wait; if (!alive()) return; }
+    // Whether the slice lands below the screen, read before it is added (the layout is still the frame's own: no pass is forced).
+    const below = !!body.lastElementChild && body.lastElementChild.getBoundingClientRect().bottom > innerHeight;
     const first = i, stop = Math.min(items.length, i + count), end = performance.now() + budget, part = document.createDocumentFragment(), made = [];
     while (i < stop && (i - first < least || performance.now() < end)) { const el = make(items[i++]); made.push(el); part.append(el); }
     body.append(part);
-    drawn?.(made);
+    drawn?.(made, below);
+    if (i >= items.length) return;
+    if (!first && after) { await after; if (!alive()) return; }
     // The next slice after this one has been drawn: a task posted from a frame's callback runs after that frame.
-    if (i < items.length) requestAnimationFrame(() => setTimeout(() => { if (alive()) slice(SLICE, SLICE_MS); }, 0));
+    requestAnimationFrame(() => setTimeout(() => { if (alive()) slice(SLICE, SLICE_MS); }, 0));
   };
   slice(FIRST, SLICE_MS, SCREENFUL);
 }

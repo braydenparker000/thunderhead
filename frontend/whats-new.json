@@ -1,13 +1,13 @@
 {
-  "id": "2026-11-19-astra-torbox-listing",
+  "id": "2026-11-19-astra-what-froze",
   "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra: a film TorBox has ready no longer falls back to the slow add-on link when TorBox is a moment late listing it.",
+      "text": "Astra: the stream list shows its first cards sooner, and the player's code loads in small pieces before you tap.",
       "open": "astra"
     },
     {
-      "text": "Your server now asks again, then finds the film in your account by its hash, before giving up on the direct route."
+      "text": "The feel report (Settings › About) now ends with \"what froze\": the code behind each long freeze on your phone."
     }
   ]
 }

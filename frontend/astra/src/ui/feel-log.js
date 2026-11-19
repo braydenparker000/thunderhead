@@ -1,7 +1,10 @@
 // The feel log (FEEL.md "The feel log"): every named transition ui/motion.js runs is timed here,
 // with how many frames it drew, the longest gap between two, and whether it was interrupted, in a
 // small ring kept in memory only. Settings › About › "Copy feel report" copies it as plain text:
-// numbers and fixed names only, never a title, an address or anything the owner typed.
+// numbers and fixed names only, never a title, an address or anything the owner typed. Each run also keeps the
+// longest frames it fell in, with what ran in them (ui/feel-frames.js), so the report can say what froze.
+
+import {frozeText, keep, watchFrames} from './feel-frames.js';
 
 const RING = 150; // runs kept, newest last
 const entries = [];
@@ -28,9 +31,22 @@ function loop() {
 function finish(run, interrupted) {
   if (!running.delete(run)) return;
   const end = busyAt = now();
-  entries.push({name: run.name, ms: Math.round(end - run.start), frames: run.frames, worstGap: Math.round(Math.max(run.worst, end - run.last)), interrupted: !!interrupted});
+  entries.push({name: run.name, ms: Math.round(end - run.start), frames: run.frames, worstGap: Math.round(Math.max(run.worst, end - run.last)), interrupted: !!interrupted,
+    start: run.start, end, froze: run.froze || []});
   if (entries.length > RING) entries.splice(0, entries.length - RING);
 }
+
+// A long frame is reported after it ends, so it goes to the runs it overlapped: those still running, and the last
+// ones that ended (a frame that froze a run usually ends it too).
+const watching = typeof window === 'undefined' ? 'none' : watchFrames(frame => {
+  for (const run of running) if (frame.end > run.start) keep(run, frame);
+  for (let i = entries.length - 1; i >= 0 && i >= entries.length - 30; i--) {
+    const e = entries[i];
+    if (frame.at < e.end && frame.end > e.start) keep(e, frame);
+  }
+});
+/** What the browser reports of long frames here: 'long-animation-frame', 'longtask' or 'none'. */
+export const framesWatched = () => watching;
 
 /**
  * Runs fn() and times it under `name` until what it returns is done: a handle's `finished`
@@ -84,7 +100,7 @@ export function measureRefresh({wait = 2000} = {}) {
 export const refreshRate = () => refresh;
 
 /** The runs kept, oldest first (copies). */
-export const feelEntries = () => entries.map(e => ({...e}));
+export const feelEntries = () => entries.map(e => ({...e, froze: e.froze.map(f => ({...f, scripts: f.scripts.map(x => ({...x}))}))}));
 /** Empties the log (tests). */
 export function clearFeelLog() { entries.length = 0; }
 
@@ -96,9 +112,10 @@ export const PRESS_BAD_GAP = 50;
  * The report as plain text: a heading with the screen's measured refresh rate (`screen`: {hz, ms}, or
  * null) and the settings it was made under, one line per name (runs, median and slowest ms, frames a
  * second, the worst gap between frames, interruptions; `press` only when its worst gap is over
- * PRESS_BAD_GAP), then the last 20 runs as they happened. `info` holds fixed words only.
+ * PRESS_BAD_GAP), then what froze in the ten worst gaps (ui/feel-frames.js; `frames`: what the browser reports,
+ * 'long-animation-frame', 'longtask' or 'none'), then the last 20 runs as they happened. `info` holds fixed words only.
  */
-export function reportText(list, info = {}, screen = null) {
+export function reportText(list, info = {}, screen = null, frames = watching) {
   const rate = screen?.hz ? `screen ${screen.hz} Hz (median frame ${screen.ms} ms over a quiet second)` : 'screen not measured yet';
   const lines = [`Astra feel report · ${rate}`, Object.entries(info).map(([k, v]) => `${cleanName(k)} ${cleanName(v)}`).join(' · '), `${list.length} transitions`, ''];
   const names = [...new Set(list.map(e => e.name))].sort().filter(n => n !== 'press' || list.some(e => e.name === n && e.worstGap > PRESS_BAD_GAP));
@@ -108,6 +125,7 @@ export function reportText(list, info = {}, screen = null) {
     const ms = runs.map(e => e.ms), fps = runs.map(e => e.ms > 0 ? Math.round(e.frames * 1000 / e.ms) : 0);
     lines.push(`${cleanName(name).padEnd(42)}${pad(runs.length, 5)}${pad(median(ms), 8)}${pad(Math.max(...ms), 8)}${pad(median(fps), 5)}${pad(Math.max(...runs.map(e => e.worstGap)), 11)}${pad(runs.filter(e => e.interrupted).length, 5)}`);
   }
+  lines.push('', ...frozeText(list, frames, cleanName));
   lines.push('', 'last runs (name, ms, frames, worst gap, cut)');
   for (const e of list.slice(-20)) lines.push(`${cleanName(e.name)} ${e.ms} ${e.frames} ${e.worstGap}${e.interrupted ? ' cut' : ''}`);
   return lines.join('\n');

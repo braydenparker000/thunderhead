@@ -70,11 +70,12 @@ export class App {
   /**
    * The player screen and its engine (with Mediabunny) load on first use, so
    * they do not slow the app's start. Screens that lead to playback call this
-   * early, while the viewer is still choosing.
+   * early, while the viewer is still choosing; its code is evaluated a piece a
+   * frame (player-load.js), faster once a tap waits for it (`playerUrgent`).
    */
   loadPlayer() {
-    return this.playerLoading ??= import('../player/player-screen.js').then(({PlayerScreen}) => {
-      this.player = new PlayerScreen({parent: this.root});
+    return this.playerLoading ??= import('./player-load.js').then(({makePlayer}) => makePlayer(this.root, {urgent: () => !!this.playerUrgent})).then(screen => {
+      this.player = screen;
       bindPlayer(this);
       return this.player;
     }).catch(error => { this.playerLoading = null; throw error; });

@@ -10,28 +10,23 @@ import {icon} from '../ui/icons.js';
 import {rise} from '../ui/motion.js';
 import {T} from '../ui/motion-core.js';
 import {fetchStreams, supports} from '../addons/client.js';
-import {factsOf, filtersFrom, shown} from '../addons/stream-facts.js';
-import {withoutHash} from '../addons/stream-text.js';
+import {anyFilter, factsOf, filtersFrom, shown, sortOf} from '../addons/stream-facts.js';
 import {Notes} from '../addons/stream-note.js';
-import {cardStyle, drawInSlices, sizeFrom, streamCard} from './stream-card.js';
+import {FIRST, cardStyle, drawInSlices, premake, sizeFrom, streamCard} from './stream-card.js';
 import {measureDetails, streamsHero, tint} from './streams-hero.js';
 import {addonChips, filterChips, syncChips} from './stream-chips.js';
 import {emptyState, failedRow, skeletonStream} from './stream-states.js';
 import {handOver, placesOf, riseCards} from './stream-motion.js';
 import {settleIn, settleOut} from './streams-settle.js';
-import {Pace} from './stream-pace.js';
+import {Pace, inParts} from './stream-pace.js';
+import {prepareSources, sourcesOf} from './stream-sources.js';
 import '../settings/streams.js';
 
 export {sizeFrom};
+export {sourceName} from './stream-sources.js';
 
 /** Gives each stream of a group a key that stays the same however the list is filtered. */
 const keyed = g => ({...g, streams: g.streams ? g.streams.map((s, i) => ({...s, key: `${g.addon.url}#${i}`})) : g.streams});
-
-/** A source's name: the add-on's, then the stream's, once only when the stream's already starts with it ("Example 1080p", not "Example Example 1080p"). */
-export function sourceName(addon, stream, between = ' ') {
-  const a = String(addon || '').replace(/\s+/g, ' ').trim(), n = String(stream || '').replace(/\s+/g, ' ').trim();
-  return !n ? a : (a && n.toLowerCase().startsWith(a.toLowerCase()) && !/[\p{L}\p{N}]/u.test(n[a.length] || '') ? n : `${a}${between}${n}`).trim();
-}
 
 /** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */
 const overLimit = (s, mb) => !!mb && (factsOf(s).bytes ?? 0) > mb * 1e6;
@@ -52,8 +47,10 @@ export class StreamsScreen {
     if (headless) return;
     this.style = cardStyle(app);
     this.pace = new Pace(this); // when the list does its work: not under its own movement (stream-pace.js)
-    // Getting ready before a tap, once the screen has arrived and the page is idle.
-    this.pace.idle(() => { app.loadPlayer?.().catch(() => {}); import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}); }, 'ahead');
+    // Getting ready before a tap: the player's code as soon as the screen has arrived (its pieces fit frames: app/player-load.js),
+    // waiting on an idle moment no more than 300 ms; what a tap will need from the network once the page is idle.
+    this.pace.idle(() => app.loadPlayer?.().catch(() => {}), 'player', {timeout: 300});
+    this.pace.idle(() => import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}), 'ahead');
     // "No compatible add-ons" may change when a late manifest arrives or add-ons are edited.
     this.offAddons = app.onAddons?.(() => { if (this.empty) this.load(); });
     this.kept = measureDetails(app); // Details' backdrop and logo, where Details has them, before this screen covers it
@@ -94,7 +91,7 @@ export class StreamsScreen {
   restyle() {
     if (this.destroyed || !this.el) return;
     this.style = cardStyle(this.app);
-    for (const sec of this.sections?.values() || []) sec.shows = undefined;
+    for (const sec of this.sections?.values() || []) { sec.shows = undefined; sec.made = null; }
     this.render();
   }
 
@@ -177,20 +174,8 @@ export class StreamsScreen {
     if (!signal.aborted) this.drawSoon();
   }
 
-  /** Every playable stream as the player lists them (made once per drawing: a tap reads it in its own frame). */
-  sources() {
-    if (this.listed && this.listed.at === this.drawnAt) return this.listed.list; // a headless screen (collect) has none: made each time
-    const list = this.allSources();
-    if (this.drawnAt != null) this.listed = {at: this.drawnAt, list};
-    return list;
-  }
-
-  allSources() {
-    return [...this.groups.values()].filter(g => g.streams).sort((a, b) => a.order - b.order)
-      .flatMap(g => g.streams.filter(s => s.url).map(s => ({id: s.key, addonUrl: g.addon.url,
-        label: sourceName(g.addon.name, withoutHash(s.name), ' · '), detail: [withoutHash(s.title).trim(), sizeFrom(s)].filter(Boolean).join('\n'), // shown: no hash
-        stream: {...s, name: sourceName(g.addon.name, s.name)}})));
-  }
+  /** Every playable stream as the player lists them (stream-sources.js: made once per drawing, ahead when the main thread is free). */
+  sources() { return sourcesOf(this); }
 
   /** A state with nothing to list. Refresh stays, so a late add-on or a fixed connection can still be tried. */
   renderEmpty(title, body, retry = false, iconName = 'sources') {
@@ -218,7 +203,7 @@ export class StreamsScreen {
    */
   render() {
     this.drawnAt = (this.drawnAt || 0) + 1; // what sources() made is made again, when the main thread is free
-    this.pace?.idle(() => this.sources(), 'sources');
+    this.pace?.idle(() => prepareSources(this), 'sources');
     const groups = [...this.groups.values()].sort((a, b) => a.order - b.order);
     // Listed: add-ons still asking, with streams, or that failed. One that answered with none is left out.
     const listed = groups.filter(g => g.streams === null || g.streams?.length || g.error);
@@ -243,15 +228,19 @@ export class StreamsScreen {
     this.pace?.idle(() => this.getReady(), 'ready');
   }
 
-  /** An add-on's streams as the owner's filters and the Thunderhead's size limit leave them, each with its place in the add-on's list. */
-  visible(g) { return shown(g.streams, this.f).filter(([s]) => !overLimit(s, this.app.maxMb)); }
+  /** An add-on's streams as the owner's filters and the Thunderhead's size limit leave them, each with its place in the add-on's list (read only when one is on). */
+  visible(g) { return this.reads() ? shown(g.streams, this.f).filter(([s]) => !overLimit(s, this.app.maxMb)) : g.streams.map((s, i) => [s, i]); }
+  /** Whether the list needs every stream's facts before drawing: a filter, an order or the size limit is on. */
+  reads() { return anyFilter(this.f) || sortOf(this.f) !== 'addon' || !!this.app.maxMb; }
 
-  /** What a tap on the streams on screen will need is asked for now (app/ready.js: the switch and the saver decide). */
-  getReady() { if (!this.destroyed && !this.empty) this.ahead?.listed([...this.groups.values()].filter(g => g.streams && (this.filter === 'all' || g.addon.url === this.filter)).flatMap(g => this.visible(g).map(([s]) => s))); }
+  /** What a tap on the streams on screen will need is asked for now, 16 streams a frame (app/ready.js: the switch and the saver decide). */
+  getReady() {
+    if (this.destroyed || this.empty || !this.ahead) return;
+    inParts([...this.groups.values()].filter(g => g.streams && (this.filter === 'all' || g.addon.url === this.filter)).flatMap(g => this.visible(g).map(([s]) => s)), 16, part => this.ahead.listed(part), () => !this.destroyed);
+  }
 
   /** A change to the owner's filters or order: saved (the player's next episode follows it; the next title starts from it when remembered), and drawn. */
   setFilters(f) { this.f = f; this.app.store.set('streamFilters', {...f, base: this.setting('streamSort', 'addon')}); this.render(); }
-
   /** The owner chose an add-on chip. */
   chooseAddon(id) { this.filter = id; this.app.store.set('lastAddon', id); this.render(); }
 
@@ -273,7 +262,9 @@ export class StreamsScreen {
     if (sec.shows !== shows || sec.limit !== limit) {
       const list = Array.isArray(shows) ? this.visible(g).map(([s]) => s) : null;
       // The cards wait (placeholders, or the cards before) until their notes are known, so none arrives under a finger.
-      const wait = list && this.notes.pending(list);
+      // The first slice's notes, then, over placeholders, its cards made ahead (later slices wait for their notes: drawInSlices).
+      const first = list?.slice(0, FIRST), made = sec.made ??= new Map();
+      const wait = list && (this.notes.pending(first) || (sec.shows === 'asking' && premake(made, first, s => streamCard(this, g, s), () => !this.destroyed)));
       if (wait) { if (sec.waiting !== wait) { sec.waiting = wait; wait.then(() => this.destroyed || this.render()); } return sec; }
       Object.assign(sec, {shows, limit, drawn: (sec.drawn || 0) + 1});
       sec.count.textContent = list ? String(list.length) : '';
@@ -281,7 +272,9 @@ export class StreamsScreen {
       sec.body.replaceChildren(...(g.error ? [failedRow(g, () => this.retry(g.addon.url))] : g.streams === null ? [skeletonStream(), skeletonStream()] : []));
       handOver(placeholders, sec.body);
       const drawn = sec.drawn;
-      if (list) drawInSlices(sec.body, list, s => streamCard(this, g, s), () => !this.destroyed && sec.drawn === drawn, made => riseCards(made, this.el));
+      if (list) drawInSlices(sec.body, list, s => { const c = made.get(s); made.delete(s); return c || streamCard(this, g, s); }, () => !this.destroyed && sec.drawn === drawn, (cards, below) => below || riseCards(cards, this.el),
+        // Nothing past the first slice before the header has settled; nothing at all while the player is open over the list.
+        {ready: items => (this.app.player?.isOpen ? new Promise(r => setTimeout(r, 250)) : this.notes.pending(items)), after: this.pace?.settled()});
     }
     return sec;
   }
