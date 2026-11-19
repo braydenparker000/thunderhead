@@ -5,6 +5,7 @@
 // theme change cross-fades the screen (ui/theme.js), at once with reduced motion.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { afterFirstPaint, until } from './fixtures/waits.mjs';
@@ -46,6 +47,13 @@ const open = (page) => page.evaluate(async () => {
   location.assign('/guitar/');
 });
 const arrived = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem('arrive') || 'null'));
+
+test('home starts the movement only toward the app pages that take it (those loading ui/arrive.css)', () => {
+  const root = new URL('../frontend/', import.meta.url);
+  const pages = readdirSync(root).filter((d) => existsSync(new URL(`${d}/index.html`, root)) && readFileSync(new URL(`${d}/index.html`, root), 'utf8').includes('/ui/arrive.css')).sort();
+  const named = /\(\?:([a-z|]+)\)\\\/\$\/\.test\(to\) && document/.exec(readFileSync(new URL('ui/theme.js', root), 'utf8'))?.[1].split('|').sort();
+  assert.deepEqual(named, pages);
+});
 
 test('an app opened from home uncovers from the launch colour: the colour holds, only the page fades in', async () => {
   const page = await home();

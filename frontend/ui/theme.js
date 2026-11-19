@@ -94,5 +94,8 @@ addEventListener('pageswap', (e) => {
   // from it (ui/arrive.css). Without one ("Opening an app": none) the app's page comes at once.
   let to = '';
   try { to = new URL(e.activation.entry.url).pathname; } catch {}
-  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(to) && !document.querySelector('.launch')) e.viewTransition.skipTransition();
+  // Only toward the app pages that take it (they load ui/arrive.css): a page that has not opted in
+  // aborts the transition, and that abort is an error on the page arrived at.
+  const app = /^\/(?:media|podcasts|guitar|astra|study)\/$/.test(to) && document.querySelector('.launch');
+  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(to) && !app) e.viewTransition.skipTransition();
 });
