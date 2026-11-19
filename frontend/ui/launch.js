@@ -5,6 +5,8 @@
 // never happens (offline), after 8 s. The owner's Opening an app (circle, fade or none) and Opening
 // speed (Settings → Appearance) shape it; with none the promise resolves at once.
 
+import { timed } from './feel/log.js';
+
 const pref = (/** @type {string} */ k) => { try { return localStorage.getItem(`th.s.${k}`); } catch { return null; } };
 /** @type {{ x: number, y: number } | null} */
 let at = null;
@@ -29,6 +31,7 @@ export function launch(color) {
   const a = reduced || style === 'fade'
     ? o.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduced ? 120 : ms, easing: 'ease-out', fill: 'forwards' })
     : o.animate([{ clipPath: `circle(28px at ${x}px ${y}px)` }, { clipPath: `circle(${r}px at ${x}px ${y}px)` }], { duration: ms, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
+  timed('app:launch', a);
   addEventListener('pageshow', (e) => e.persisted && o.remove(), { once: true });
   setTimeout(() => o.remove(), 8000);
   return a.finished.then(

@@ -1,6 +1,7 @@
 // Shared menu and Settings anatomy. All presentation lives in ui/forms.css.
 import { el, tooSoon } from '/th/ui.js';
 import { animator, restTime, springs } from '/th/motion.js';
+import { timed } from '../../ui/feel/log.js';
 
 /** @param {string} name */
 export function icon(name) {
@@ -102,6 +103,7 @@ export function sheet({ title, children, onClose, cancel = 'Cancel' }) {
   element.classList.add('on'); dim.classList.add('on');
   element.style.transition = 'none'; dim.style.transition = 'none';
   move.to(0, { spring: springs.page, timeScale }); fade.to(1, { spring: springs.page, timeScale });
+  timed('sheet:open', move, 0);
   /** @param {number} [velocity] */
   const close = async (velocity = 0) => {
     if (closing) return;
@@ -114,6 +116,7 @@ export function sheet({ title, children, onClose, cancel = 'Cancel' }) {
     document.removeEventListener('keydown', onKey, true);
     move.to(element.getBoundingClientRect().height + 24, { spring: springs.page, timeScale, velocity });
     fade.to(0, { spring: springs.page, timeScale });
+    timed('sheet:close', move.whenResting());
     await Promise.all([move.whenResting(), fade.whenResting()]);
     element.remove(); dim.remove();
   };

@@ -10,6 +10,7 @@ import { el } from '/th/ui.js';
 import { CONFIG } from '/config.js';
 import { group } from './components.js';
 import { infoRow } from './catalog.js';
+import { feelRow } from '/ui/feel/row.js'; // the feel report's row (ui/feel/)
 
 const n = (/** @type {number} */ v) => v.toLocaleString('en');
 
@@ -48,7 +49,7 @@ export async function page(body) {
   body.append(
     el('p', { class: 'slead', text: 'What this phone and your Worker are running. Nothing here changes anything.' }),
     group('Versions', [release, worker]),
-    group('Diagnostics', [rows, lab]),
+    group('Diagnostics', [rows, lab, feelRow()]),
     line,
   );
   if (!configured) {

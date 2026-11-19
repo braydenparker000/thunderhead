@@ -14,6 +14,7 @@ import { dMMM, lastActive, place } from '/th/format.js';
 import { wipe } from '/th/session.js';
 import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { animator, haptic, springs } from '/th/motion.js';
+import { timed } from '/ui/feel/log.js';
 import { outbox } from '/th/chat/store.js';
 import { confirmSheet, icon, row } from './components.js';
 
@@ -138,6 +139,7 @@ function pageMotion(page) {
       const at = ++run;
       page.classList.add('moving');
       motion.to(to, { spring: springs.page, velocity, timeScale: ms ? ms / 410 : clock() });
+      timed(to ? 'settings:in' : 'settings:out', motion, to);
       return motion.whenResting().then(() => { if (at === run) page.classList.remove('moving'); });
     },
     /** A finger has the page: it follows on x, unfrosted. @param {number} v */
