@@ -134,8 +134,9 @@ export const ASTRA_BACKUP = {
   tag: 'sync/1',
   /** The keys a copy may hold: Astra's BACKUP_KEYS (frontend/astra/src/app/store.js). */
   keys: ['addons', 'library', 'progress', 'watched', 'settings', 'recentSearches'],
-  /** A PUT's body as sent, in bytes; past it 413 too_large. */
-  max_bytes: 2 * 1024 * 1024,
+  /** A PUT's body (the copy) as sent, in bytes; past it 413 too_large. A full phone's copy is about half of it
+   * (300 progress entries, 500 library titles, 3,000 watched); the Worker's CPU on the Free plan bounds it. */
+  max_bytes: 1024 * 1024,
   /** GET, PUT and DELETE together, per isolate and minute, then 429. */
   per_minute: 30,
   /** Earlier copies kept by hand: the copy as it stood at the start of each of the last 7 UTC days it changed. */
@@ -159,19 +160,17 @@ export interface AstraCopy {
   keys: Partial<Record<AstraBackupKey, AstraCopyKey>>;
 }
 
-/** GET /v1/astra/backup. All three null when nothing is kept; `copy` null alone when what is kept
- * could not be opened (damaged, or sealed under another key): a PUT on that `version` replaces it. */
-export interface AstraBackupResponse {
-  version: string | null;
-  saved_at: string | null;
-  copy: AstraCopy | null;
-}
-/** PUT /v1/astra/backup: `base` is the version the phone merged with (null: nothing was kept). Another
- * version kept now is 409 conflict (another phone saved first): the phone fetches, merges, tries again. */
-export interface AstraBackupPut {
-  base: string | null;
-  copy: AstraCopy;
-}
+/** GET /v1/astra/backup[?known=<version>]. All three null when nothing is kept; `copy` null alone when what
+ * is kept could not be opened (damaged, or sealed under another key): a PUT on that `version` replaces it.
+ * With `known` naming the version kept now, `{version, saved_at, same: true}` from the object's head alone
+ * (nothing read or opened): the phone already holds it. */
+export type AstraBackupResponse =
+  | { version: string | null; saved_at: string | null; copy: AstraCopy | null }
+  | { version: string; saved_at: string; same: true };
+/** PUT /v1/astra/backup[?base=<version>]: the body is the copy itself, sealed as sent. `base` is the version the
+ * phone merged with (absent: nothing was kept). Another version kept now is 409 conflict (another phone saved
+ * first): the phone fetches, merges, tries again. A version is an opaque random id. */
+export type AstraBackupPut = AstraCopy;
 export interface AstraBackupSaved {
   version: string;
   saved_at: string;

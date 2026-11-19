@@ -11,24 +11,32 @@ import { createStorage, Library, Progress, PREFIX } from '../frontend/astra/src/
 import { startSync, RECORD, SAVE_AFTER } from '../frontend/astra/src/app/sync.js';
 import { api } from '../frontend/astra/src/addons/worker-api.js';
 
-const T = 1_763_600_000_000, MIN = 60_000;
+// The phones' clocks start at the real time: the store's own classes stamp with Date.now(), and the sync takes no time
+// as later than a day ahead of its clock.
+const T = Math.floor(Date.now() / 1000) * 1000, MIN = 60_000;
 const ADDON = { url: 'https://addon.example/invented-config-0011/manifest.json', enabled: true, name: 'Invented' };
 const film = (id, updated) => ({ type: 'movie', id, videoId: id, season: null, episode: null, time: 600, duration: 6000, updated, completed: false, meta: { id, type: 'movie', name: `Invented ${id}` } });
 const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** The invented Worker: one copy, conditional saves, every request recorded. */
+/** The invented Worker as the real one answers: one copy, `?known=` answered `same` when it is that version, saves
+ * with the copy as the body and its base in `?base=` (conditional), every request recorded with its size. */
 function worker() {
   let n = 0;
   const w = { kept: null, calls: [], down: 0, conflict: false, answer: null };
   w.fetch = async (url, init = {}) => {
-    const method = init.method || 'GET', body = init.body ? JSON.parse(init.body) : undefined;
-    w.calls.push({ method, path: new URL(url).pathname, keepalive: init.keepalive === true, body, auth: init.headers?.Authorization });
+    const u = new URL(url), method = init.method || 'GET', body = init.body ? JSON.parse(init.body) : undefined;
+    w.calls.push({ method, path: u.pathname, query: u.search, keepalive: init.keepalive === true, body, auth: init.headers?.Authorization });
     if (w.down) return json(w.down, { error: { code: 'unavailable', message: 'Down.' } });
-    if (method === 'GET') return json(200, w.answer ?? (w.kept ? structuredClone(w.kept) : { version: null, saved_at: null, copy: null }));
+    if (method === 'GET') {
+      const known = u.searchParams.get('known');
+      if (known && w.kept?.version === known && !w.answer) return json(200, { version: known, saved_at: w.kept.saved_at, same: true });
+      return json(200, w.answer ?? (w.kept ? structuredClone(w.kept) : { version: null, saved_at: null, copy: null }));
+    }
     if (method === 'DELETE') { w.kept = null; return new Response(null, { status: 204 }); }
-    if (w.conflict || (w.kept?.version ?? null) !== body.base) return json(409, { error: { code: 'conflict', message: 'Stale.', details: { reason: 'stale_base' } } });
-    w.kept = { version: `v${++n}`, saved_at: new Date(T).toISOString(), copy: body.copy };
+    if (init.body.length > 1024 * 1024) return json(413, { error: { code: 'too_large', message: 'Too large.' } });
+    if (w.conflict || (w.kept?.version ?? null) !== u.searchParams.get('base')) return json(409, { error: { code: 'conflict', message: 'Stale.', details: { reason: 'stale_base' } } });
+    w.kept = { version: `v${++n}`, saved_at: new Date(T).toISOString(), copy: body };
     return json(200, { version: w.kept.version, saved_at: w.kept.saved_at });
   };
   w.methods = () => w.calls.map((c) => c.method);
@@ -90,10 +98,10 @@ test('a first start saves what the phone has, its backup keys only, and says not
   assert.deepEqual(w.methods(), ['GET', 'PUT']);
   assert.equal(w.calls[0].auth, 'Bearer invented-session-token');
   const put = w.calls[1].body;
-  assert.equal(put.base, null);
-  assert.deepEqual(Object.keys(put.copy.keys).sort(), ['addons', 'progress'], 'what is saved; never a device key');
-  assert.deepEqual(put.copy.keys.addons.value, [ADDON]);
-  assert.ok(put.copy.keys.addons.at >= T, 'stamped at the first merge');
+  assert.deepEqual([w.calls[0].query, w.calls[1].query], ['', ''], 'nothing held yet, nothing kept: no version named');
+  assert.deepEqual(Object.keys(put.keys).sort(), ['addons', 'progress'], 'what is saved; never a device key');
+  assert.deepEqual(put.keys.addons.value, [ADDON]);
+  assert.ok(put.keys.addons.at >= T, 'stamped at the first merge');
   assert.deepEqual([a.record().joined, a.record().version, a.record().owed, a.sync.state().savedAt], [true, 'v1', false, T]);
   assert.deepEqual(a.toasts, []);
 });
@@ -156,7 +164,7 @@ test('hidden with changes: a keepalive save, unless it is larger than a keepaliv
   w.calls = [];
   a.library.toggle({ id: 'tt01', type: 'movie', name: 'Invented' });
   await a.page('hidden');
-  assert.deepEqual(w.calls.map((c) => [c.method, c.keepalive, c.body?.base]), [['PUT', true, 'v1']]);
+  assert.deepEqual(w.calls.map((c) => [c.method, c.keepalive, c.query]), [['PUT', true, '?base=v1']]);
   assert.deepEqual([a.record().owed, a.record().version, a.queue.length], [false, 'v2', 0]);
   // Larger than 63 KiB: nothing is sent now; the next start sends it.
   w.calls = [];
@@ -315,4 +323,36 @@ test('an add-on this phone did not have is said once, by name and host', async (
   two.kept = { version: 'v1', saved_at: null, copy: { astra: 'sync/1', keys: { addons: { at: T, value: [ADDON, { url: 'https://addon2.example/x/manifest.json', enabled: true, name: 'Two' }] } } } };
   const b = await phone(two);
   assert.deepEqual(b.toasts, ['Added from your other phones: 2 add-ons (addon.example, addon2.example)']);
+});
+
+// The Free plan's CPU and the phone's mobile data: a phone names the version it holds, so an unchanged copy is
+// answered `same` from the object's head and never sent again; a copy larger than the Worker takes is not sent.
+test('nothing changed there: asked with the version held, answered `same`, and only this phone’s own changes are saved', async () => {
+  const w = worker();
+  const a = await phone(w, { data: { addons: [ADDON] } });
+  w.calls = [];
+  await a.sync.syncNow();
+  assert.deepEqual(w.calls.map((c) => [c.method, c.query]), [['GET', '?known=v1']], 'same: nothing downloaded, nothing saved');
+  // A restart of this phone: the same.
+  const again = await phone(w, { data: { addons: [ADDON] }, record: a.record() });
+  assert.deepEqual(w.calls.slice(1).map((c) => [c.method, c.query]), [['GET', '?known=v1']]);
+  assert.deepEqual(again.toasts, []);
+  // A change here, nothing there: saved on the version held, without taking the copy in.
+  w.calls = [];
+  a.library.toggle({ id: 'tt01', type: 'movie', name: 'Invented' });
+  await a.advance(SAVE_AFTER);
+  assert.deepEqual(w.calls.map((c) => [c.method, c.query]), [['GET', '?known=v1'], ['PUT', '?base=v1']]);
+  assert.deepEqual(Object.keys(w.kept.copy.keys.library.value), ['movie:tt01']);
+  // Another phone saved meanwhile: the version held is no longer kept, so the whole copy comes and is merged.
+  w.kept = { ...w.kept, version: 'v9', copy: { ...w.kept.copy, keys: { ...w.kept.copy.keys, settings: { at: a.t, value: { hero: false } } } } };
+  await a.sync.syncNow();
+  assert.deepEqual(a.read('settings'), { hero: false });
+});
+
+test('a copy larger than the Worker takes is not sent, and Settings is told', async () => {
+  const w = worker();
+  const library = {};
+  for (let i = 0; i < 7000; i++) library[`movie:tt${1_000_000 + i}`] = { id: `tt${1_000_000 + i}`, type: 'movie', name: `An Invented Film Number ${i}`, poster: `https://images.example/poster/${i}/w342-abcdefghijklmnopqrstuvwxyz0123456789.jpg`, added: T - i };
+  const a = await phone(w, { data: { addons: [ADDON], library } });
+  assert.deepEqual([w.methods(), a.sync.state().problem], [['GET'], 'too-big']);
 });

@@ -17,7 +17,8 @@ const ADDON = 'https://addon.example/invented-config-0011/manifest.json';
 const TOKEN = 'invented-session-token';
 const META = { id: 'tt0000501', type: 'movie', name: 'An Invented Film' };
 const SHOTS = process.env.ASTRA_SHOTS;
-/** The stand-in Worker: one copy, conditional saves, every request recorded; `delay` holds GET back. */
+/** The stand-in Worker, as the real one answers: one copy, `?known=` answered `same` when it is that version, saves
+ * with the copy as the body and its base in `?base=` (conditional); every request recorded; `delay` holds GET back. */
 const worker = { kept: null, calls: [], n: 0, delay: 0 };
 /** What reached the copy's route (the page asks the server for other things too, such as its arrangement slot). */
 const asked = (from = 0) => worker.calls.slice(from).filter((c) => c.path === '/v1/astra/backup' && c.method !== 'OPTIONS');
@@ -30,21 +31,23 @@ before(async () => {
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', async () => {
-      worker.calls.push({ method: req.method, path: req.url, auth: req.headers.authorization, body: body ? JSON.parse(body) : null });
+      const u = new URL(req.url, 'http://stand-in');
+      worker.calls.push({ method: req.method, path: u.pathname, query: u.search, auth: req.headers.authorization, body: body ? JSON.parse(body) : null });
       if (req.method === 'OPTIONS') {
         res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, PUT, DELETE', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' });
         return res.end();
       }
       const send = (status, out) => { res.writeHead(status, { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(out === undefined ? '' : JSON.stringify(out)); };
-      if (req.url !== '/v1/astra/backup') return send(404, { error: { code: 'not_found', message: 'Not found.' } });
+      if (u.pathname !== '/v1/astra/backup') return send(404, { error: { code: 'not_found', message: 'Not found.' } });
       if (req.method === 'GET') {
         if (worker.delay) await new Promise((r) => setTimeout(r, worker.delay));
+        const known = u.searchParams.get('known');
+        if (known && worker.kept?.version === known) return send(200, { version: known, saved_at: worker.kept.saved_at, same: true });
         return send(200, worker.kept ?? { version: null, saved_at: null, copy: null });
       }
       if (req.method === 'DELETE') { worker.kept = null; res.writeHead(204, cors); return res.end(); }
-      const put = JSON.parse(body);
-      if ((worker.kept?.version ?? null) !== put.base) return send(409, { error: { code: 'conflict', message: 'Stale.', details: { reason: 'stale_base' } } });
-      worker.kept = { version: `v${++worker.n}`, saved_at: new Date().toISOString(), copy: put.copy };
+      if ((worker.kept?.version ?? null) !== u.searchParams.get('base')) return send(409, { error: { code: 'conflict', message: 'Stale.', details: { reason: 'stale_base' } } });
+      worker.kept = { version: `v${++worker.n}`, saved_at: new Date().toISOString(), copy: JSON.parse(body) };
       send(200, { version: worker.kept.version, saved_at: worker.kept.saved_at });
     });
   });
@@ -148,6 +151,12 @@ test('phone A’s add-on, saved title and film reach phone B; B’s removal reac
   await a.page.waitForFunction(() => !JSON.parse(localStorage.getItem('astra.sync.v1')).owed);
   assert.deepEqual(asked(before).map((c) => c.method), ['PUT']);
   assert.equal(worker.kept.copy.keys.settings.value.hero, false);
+  // Opened again with nothing changed anywhere: it names the version it holds and nothing more travels.
+  const n = worker.calls.length;
+  await a.page.reload();
+  for (let i = 0; i < 100 && !asked(n).length; i++) await a.page.waitForTimeout(50);
+  await a.idle();
+  assert.deepEqual(asked(n).map((c) => [c.method, c.query]), [['GET', `?known=${worker.kept.version}`]]);
   for (const p of [a, b]) { assert.deepEqual(p.elsewhere, []); assert.deepEqual(p.errors, []); }
 });
 

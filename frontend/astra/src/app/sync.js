@@ -1,41 +1,36 @@
 // Astra the same on every phone the owner signs in on (ASTRA.md §5.3, owner 2026-11-19): this phone's
 // add-ons, library, progress, watched list, settings and recent searches are merged with the copy kept
-// on the owner's server (GET/PUT/DELETE /v1/astra/backup, sealed there by the Worker).
+// on the owner's server (GET/PUT/DELETE /v1/astra/backup, sealed there by the Worker; the requests are in
+// sync-wire.js).
 //
 // Who it talks to: only the owner's own Worker, through worker-api.js with the site's sign-in. Signed
 // out (or framed by another site) nothing is hooked and nothing is sent, ever; with the switch off
 // nothing is sent. When: shortly after start (never before the first paint), back in front after more
-// than 5 minutes, a minute after the last change (each time: fetch, merge, then save if the merge
-// changed anything), "Sync now", and when the page is hidden (a keepalive save of what changed, when it
-// fits in a keepalive's 64 KiB; else it goes on the next start). Failures stay quiet: offline, 5xx, 503,
-// a conflict three times over: tried again later, each wait longer, up to 30 minutes.
+// than 5 minutes, a minute after the last change (each time: fetch, naming the version this phone holds, so
+// an unchanged copy is not sent again; merge; then save if the merge changed anything), "Sync now", and when
+// the page is hidden (a keepalive save of what changed, when it fits in a keepalive's 64 KiB; else it goes on
+// the next start). Failures stay quiet: offline, 5xx, 503, a conflict three times over: tried again later,
+// each wait longer, up to 30 minutes. A copy larger than the Worker takes (1 MiB) is not sent; Settings says so.
 //
-// What stays on this phone: a small record in localStorage `astra.sync.v1` (outside the store's
-// `astra.v2.*`, so backups, restores and Reset never carry it): the switch, when each key last changed
-// here, removed entries (60 days), the version last merged, when it last saved and fetched. Merged values
+// What stays on this phone: a small record in localStorage `astra.sync.v1` (sync-record.js). Merged values
 // pass the store's sanitisers (sync-merge.js) and are written through the store, then announced as
 // another window's write would be, so every open screen follows; the title playing keeps its own
 // progress; the senses reader is told nothing of merged progress (sync-senses.js). Nothing is logged.
 
 import {BACKUP_KEYS, PREFIX} from './store.js';
-import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies, readCopy} from './sync-merge.js';
+import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies} from './sync-merge.js';
 import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
 import {addressesOf, arrivedLine} from './sync-addons.js';
 import {CINEMETA} from '../addons/client.js';
 import {hideFromSenses} from './sync-senses.js';
+import {KEEPALIVE_MAX, MAX_COPY, fetchCopy, removeCopy, saveCopy, sizeOf} from './sync-wire.js';
 import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
 
 export {RECORD};
-export const PATH = '/v1/astra/backup';
 export const SAVE_AFTER = 60_000;
 export const AWAY = 5 * 60_000;
-/** A keepalive request's body may be 64 KiB at most: kept under it. */
-export const KEEPALIVE_MAX = 63 * 1024;
 const RETRY = [60_000, 120_000, 300_000, 600_000, 1_800_000];
 const TRIES = 3;
-
-const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);
-const bytes = text => new TextEncoder().encode(text).length;
 
 /**
  * Starts keeping this phone in step for `app` (its store, and what it is playing). `deps` replace the
@@ -120,25 +115,30 @@ export function startSync(app, deps = {}) {
     } finally { applying = false; }
   }
 
-  /** The Worker's answer to GET, checked: {version, copy} with copy readCopy's (null: nothing usable). */
-  function kept(a) {
-    if (!isObject(a) || !('copy' in a) || (a.version !== null && typeof a.version !== 'string')) throw Object.assign(Error('unreadable'), {code: 'unreadable'});
-    return {version: a.version, copy: a.version === null ? null : readCopy(a.copy, d.now())};
-  }
+  /** This phone's own side as a copy, for a save without a merge (nothing changed on the server meanwhile). */
+  const localCopy = rec => mergeCopies({mine: mine(rec), theirs: {}, now: d.now()}).copy;
 
   /** Fetch, merge, write here, save there when the merge changed the copy; up to three times on a conflict. */
   async function run() {
     for (let tries = 1; ; tries++) {
-      const server = kept(await d.api(PATH));
+      const held = record();
+      const server = await fetchCopy(d.api, held.joined ? held.version : null, d.now());
       if (server.copy === 'newer') { problem = 'newer'; return; }
       let rec = record();
       if (rec.off) return;
-      const now = d.now(), first = !rec.joined, side = mine(rec);
+      const now = d.now(), mark = changes;
+      if (server.same) {
+        // The copy there is still the one this phone merged with: nothing to take in; save what changed here.
+        keep({...rec, fetchedAt: now});
+        if (!rec.owed) { problem = ''; return; }
+        if (await save(localCopy(rec), server.version, mark, tries)) return;
+        continue;
+      }
+      const first = !rec.joined, side = mine(rec);
       // A phone that has data but never merged: its non-empty keys changed now (the brief's first-merge rule).
       if (first) for (const k of BACKUP_KEYS) if (!isEmpty(k, side[k].value) && !rec.at[k]) side[k].at = now;
       const merged = mergeCopies({mine: side, theirs: server.copy?.keys ?? {}, first, playing: app.playing?.meta || null, now});
       if (!apply(merged.apply, side.progress.value)) { problem = 'full'; return; }
-      const mark = changes;
       rec = record();
       for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; if (v.times) rec.added = v.times; }
       Object.assign(rec, {joined: true, version: server.version, fetchedAt: now, owed: merged.differs});
@@ -150,17 +150,22 @@ export function startSync(app, deps = {}) {
       else if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
         d.toast?.('Astra on this phone and on your other phones were put together. Nothing was lost.');
       if (!merged.differs) { problem = ''; return; }
-      const body = {base: server.version, copy: merged.copy};
-      if (bytes(JSON.stringify(body)) > 2 * 1024 * 1024) { problem = 'too-big'; return; }
-      try {
-        const saved = await d.api(PATH, {method: 'PUT', body});
-        rec = record();
-        keep({...rec, version: String(saved.version), savedAt: d.now(), owed: rec.owed && changes !== mark});
-        problem = '';
-        return;
-      } catch (error) {
-        if (error?.status !== 409 || tries >= TRIES) throw error;
-      }
+      if (await save(merged.copy, server.version, changes, tries)) return;
+    }
+  }
+
+  /** Saves `copy` on `base`: true when done (or when it cannot fit, said in Settings), false on a conflict to merge again. */
+  async function save(copy, base, mark, tries) {
+    if (sizeOf(copy) > MAX_COPY) { problem = 'too-big'; return true; }
+    try {
+      const version = await saveCopy(d.api, copy, base);
+      const rec = record();
+      keep({...rec, version, savedAt: d.now(), owed: rec.owed && changes !== mark});
+      problem = '';
+      return true;
+    } catch (error) {
+      if (error?.status !== 409 || tries >= TRIES) throw error;
+      return false;
     }
   }
 
@@ -187,6 +192,7 @@ export function startSync(app, deps = {}) {
     d.cancel(timer);
     working = run().then(() => { retry = 0; }, error => {
       if (error?.code === 'signed-out' || error?.status === 401) { signedOut(error?.status === 401); return; }
+      if (error?.status === 413) { problem = 'too-big'; return; } // tried again after the next change
       problem = 'unreached';
       schedule(RETRY[Math.min(retry++, RETRY.length - 1)]);
     }).finally(() => { working = null; changed(); });
@@ -198,14 +204,13 @@ export function startSync(app, deps = {}) {
   function saveOnLeave() {
     const rec = record();
     if (!signedIn || rec.off || !rec.joined || !rec.owed || working) return;
-    const {copy} = mergeCopies({mine: mine(rec), theirs: {}, now: d.now()});
-    const body = {base: rec.version, copy};
-    if (bytes(JSON.stringify(body)) > KEEPALIVE_MAX) return; // too big to outlive the page: the next start sends it
+    const copy = localCopy(rec);
+    if (sizeOf(copy) > KEEPALIVE_MAX) return; // too big to outlive the page: the next start sends it
     d.cancel(timer);
     const mark = changes;
-    d.api(PATH, {method: 'PUT', body, fetchFn: (url, init) => d.fetch(url, {...init, keepalive: true})}).then(saved => {
+    saveCopy(d.api, copy, rec.version, (url, init) => d.fetch(url, {...init, keepalive: true})).then(version => {
       const now = record();
-      keep({...now, version: String(saved.version), savedAt: d.now(), owed: now.owed && changes !== mark});
+      keep({...now, version, savedAt: d.now(), owed: now.owed && changes !== mark});
       changed();
     }, () => {}); // a conflict or a failure: still owed, so the next exchange merges and saves it
   }
@@ -245,7 +250,7 @@ export function startSync(app, deps = {}) {
     syncNow: () => exchange(),
     /** Deletes the copy on the server, with its daily copies; this phone stops keeping one. */
     async removeCopy() {
-      try { await d.api(PATH, {method: 'DELETE'}); } catch (error) {
+      try { await removeCopy(d.api); } catch (error) {
         return {ok: false, message: error?.message || 'Your server could not be reached.'};
       }
       d.cancel(timer);

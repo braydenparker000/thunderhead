@@ -20,7 +20,7 @@
 // Every server value passes the store's own sanitisers first, as a restore does: a key of the wrong
 // shape, or whose every entry is damaged, is used as if the server had none (all or nothing per key).
 
-import {BACKUP_KEYS} from './store.js';
+import {BACKUP_KEYS, MAX_PROGRESS} from './store.js';
 import {CINEMETA} from '../addons/client.js';
 import {ENTRY_KEYS, SYNC_TAG, ahead, entryTime, isObject, size, withTime} from './sync-read.js';
 import {mergeAddons} from './sync-addons.js';
@@ -28,6 +28,17 @@ import {mergeAddons} from './sync-addons.js';
 export {ENTRY_KEYS, SYNC_TAG, entryTime, readCopy} from './sync-read.js';
 export const GONE_MS = 60 * 864e5;
 const MAX_RECENT = 10;
+/** The newest watched marks a copy carries. A mark is about 55 bytes; 3,000 is some three years of a series
+ * watcher's episodes in about 165 KB, a third of a full phone's copy. Older marks stay on the phones that have them. */
+export const WATCHED_MAX = 3000;
+
+/** The newest `max` entries of an entry key, by their own times (as Astra itself keeps progress). */
+function newest(key, value, max) {
+  const ids = Object.keys(value);
+  if (ids.length <= max) return value;
+  ids.sort((a, b) => entryTime(key, value[b]) - entryTime(key, value[a]));
+  return Object.fromEntries(ids.slice(0, max).map(id => [id, value[id]]));
+}
 
 /** Equal as data, whatever the order of an object's fields. Walked with a list, never by recursion, so no value
  * (this phone's own included) can be deep enough to stop it. */
@@ -119,9 +130,12 @@ export function mergeCopies({mine, theirs, first = false, playing = null, now = 
       : k !== 'addons' ? mergeWhole(k, m, t, first, now)
       : first && t && isEmpty(k, m?.value) ? t : mergeAddons(m, t, {now, gone: GONE_MS}); // a first merge with defaults: the server's
     if (!merged) continue;
+    // Progress is Astra's own 300 newest, here and in the copy; the copy carries the newest watched marks only.
+    if (k === 'progress') merged = {...merged, value: newest(k, merged.value, MAX_PROGRESS)};
+    const sent = k === 'watched' ? newest(k, merged.value, WATCHED_MAX) : merged.value;
     // The same as the server's: keep its times, so a stamp here that changed nothing never wins later.
     if (t && k === 'addons' && same(merged.value, t.value) && same(merged.gone, t.gone) && same(merged.times, t.times)) merged = t;
-    keys[k] = entries ? {at: merged.at, value: merged.value, gone: merged.gone}
+    keys[k] = entries ? {at: merged.at, value: sent, gone: merged.gone}
       : k === 'addons' ? {at: merged.at, value: merged.value, times: merged.times ?? {}, gone: merged.gone ?? {}} : {at: merged.at, value: merged.value};
     const here = k === 'progress' && playing ? keepPlaying(merged.value, m?.value, playing) : merged.value;
     if (!same(here, m?.value ?? (entries ? {} : undefined))) apply[k] = here;

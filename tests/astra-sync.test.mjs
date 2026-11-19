@@ -276,3 +276,32 @@ test('watching here that the reader has not looked at yet is not hidden by a mer
   assert.equal(c.senses[0][0], 'media.watch');
   assert.ok(c.senses[0][2].ms >= 1_200_000, 'the 20 minutes watched here are reported');
 });
+
+// The security read's size probe: a merge must not grow a phone past Astra's own caps, and a full phone's copy stays
+// well under the Worker's 1 MiB (its CPU on the Free plan).
+test('merged progress is Astra’s own 300 newest; the copy carries the newest 3,000 watched marks; a full phone’s copy is small', () => {
+  const a = {}, b = {};
+  for (let i = 0; i < 300; i++) { a[`movie:ta${i}|ta${i}`] = film(`ta${i}`, T - 2 * i); b[`movie:tb${i}|tb${i}`] = film(`tb${i}`, T - 2 * i - 1); }
+  const r = mergeCopies({ mine: side({ progress: a }), theirs: server({ progress: b }), now: T });
+  assert.equal(Object.keys(r.apply.progress).length, 300);
+  assert.equal(Object.keys(r.copy.keys.progress.value).length, 300);
+  assert.ok(r.apply.progress['movie:ta0|ta0'] && r.apply.progress['movie:tb0|tb0'] && !r.apply.progress['movie:ta299|ta299'], 'the newest of both');
+  const watched = {};
+  for (let i = 0; i < 5000; i++) watched[`series:tt${2_000_000 + (i >> 5)}|tt${2_000_000 + (i >> 5)}:1:${i & 31}`] = T - i;
+  const w = mergeCopies({ mine: side({ watched }), theirs: {}, now: T });
+  assert.equal(Object.keys(w.copy.keys.watched.value).length, 3000);
+  assert.equal(w.copy.keys.watched.value['series:tt2000000|tt2000000:1:0'], T, 'the newest');
+  assert.equal(w.apply.watched, undefined, 'this phone keeps all of its own');
+  // A full phone: 300 progress entries, 500 library titles, 5,000 watched marks, a few add-ons.
+  const progress = {}, library = {};
+  for (let i = 0; i < 300; i++) {
+    const e = episode(`tt${1_000_000 + i}`, 1, 1 + (i % 24), T - i * MIN, 812.5);
+    e.meta = { ...e.meta, poster: `https://images.example/poster/${i}/w342-abcdefghijklmnopqrstuvwxyz0123456789.jpg`, background: `https://images.example/background/${i}/original-abcdefghijklmnopqrstuvwxyz.jpg`, releaseInfo: '2001–2004', genres: ['Drama', 'Mystery'] };
+    e.next = { videoId: `${e.id}:1:${2 + (i % 24)}`, season: 1, episode: 2 + (i % 24), title: `The Invented Episode Title ${i}`, thumbnail: `https://images.example/episode/${i}/thumb.jpg` };
+    progress[pkey(e)] = e;
+  }
+  for (let i = 0; i < 500; i++) Object.assign(library, lib(`tt${5_000_000 + i}`, T - i));
+  const full = mergeCopies({ mine: side({ addons: [addon(1), addon(2), addon(3)], progress, library, watched, settings: { hero: true } }), theirs: {}, now: T });
+  const bytes = new TextEncoder().encode(JSON.stringify(full.copy)).length;
+  assert.ok(bytes < 0.6 * 1024 * 1024, `${bytes} bytes`);
+});

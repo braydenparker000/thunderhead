@@ -6,7 +6,6 @@
 // (its etag), else it is a conflict and the phone fetches, merges and tries again. The text is sealed
 // before it is stored (backup-seal.ts); nothing here logs it or reads inside it.
 import { ASTRA_BACKUP } from '../../../../shared/contract/astra.ts';
-import { uuidv7 } from '../../lib/ids';
 import { openBackup, sealBackup } from './backup-seal';
 
 export const BACKUP_NAME = 'astra/backup.json.enc';
@@ -20,8 +19,21 @@ const savedAt = (o: R2Object) => Date.parse(o.customMetadata?.saved_at ?? '') ||
 export interface KeptCopy {
   version: string;
   saved_at: string;
-  /** The copy's JSON text, or null when it does not open (damaged, moved, another pepper). */
-  text: string | null;
+  /** The copy's bytes as a phone sent them, or null when they do not open (damaged, moved, another pepper). */
+  bytes: Uint8Array | null;
+}
+
+/** A new version: an opaque random id (it travels in a query, so it says nothing, not even when). */
+const newVersion = () =>
+  btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+/** The kept copy's version and time from its head alone (nothing read or opened); null when none is kept. */
+export async function headBackup(vault: R2Bucket): Promise<{ version: string; saved_at: string } | null> {
+  const o = await vault.head(BACKUP_NAME);
+  return o ? { version: versionOf(o), saved_at: new Date(savedAt(o)).toISOString() } : null;
 }
 
 /** The kept copy, opened; null when none is kept. */
@@ -30,26 +42,26 @@ export async function readBackup(vault: R2Bucket, pepper: string): Promise<KeptC
   if (!o) return null;
   const version = versionOf(o);
   const saved_at = new Date(savedAt(o)).toISOString();
-  const text = await openBackup(pepper, BACKUP_NAME, version, new Uint8Array(await o.arrayBuffer()));
-  return { version, saved_at, text };
+  const bytes = await openBackup(pepper, BACKUP_NAME, version, new Uint8Array(await o.arrayBuffer()));
+  return { version, saved_at, bytes };
 }
 
-/** Seals and stores `text` in place of the copy `base` names (null: none is kept). 'conflict' when
- * another copy is kept now, or one was written meanwhile. */
+/** Seals and stores the copy's bytes, as sent, in place of the copy `base` names (null: none is kept).
+ * 'conflict' when another copy is kept now, or one was written meanwhile. */
 export async function writeBackup(
   vault: R2Bucket,
   pepper: string,
   base: string | null,
-  text: string,
+  bytes: Uint8Array,
   now: number,
 ): Promise<{ version: string; saved_at: string } | 'conflict'> {
   const head = await vault.head(BACKUP_NAME);
   if ((head ? versionOf(head) : null) !== base) return 'conflict';
   // The first save of a UTC day keeps the copy as it stood at the day's start (at most one a day).
   if (head && dayOf(savedAt(head)) < dayOf(now)) await keepDay(vault, head, dayOf(now));
-  const version = uuidv7(now);
+  const version = newVersion();
   const saved_at = new Date(now).toISOString();
-  const sealed = await sealBackup(pepper, BACKUP_NAME, version, text);
+  const sealed = await sealBackup(pepper, BACKUP_NAME, version, bytes);
   const put = await vault.put(BACKUP_NAME, sealed, {
     // Only over exactly the object read above, or only where none is: R2 refuses it otherwise.
     onlyIf: head ? { etagMatches: head.etag } : new Headers({ 'If-None-Match': '*' }),

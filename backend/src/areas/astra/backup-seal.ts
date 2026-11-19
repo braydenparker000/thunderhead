@@ -4,7 +4,8 @@
 // key can never open the Drive grant or the other way round. A fresh 12-byte nonce for every seal. The
 // additional data names the copy's place and version, so a sealed copy opens only where and as what it
 // was written: moved to another name, given another version, or changed by one bit, it does not open.
-// Nothing here logs or keeps the text.
+// It works on the copy's bytes as the phone sent them, never decoding or re-encoding them (the Free plan's
+// CPU). Nothing here logs or keeps them.
 const enc = new TextEncoder();
 /** The format byte that starts every sealed copy. */
 const FORMAT = 1;
@@ -25,13 +26,18 @@ async function keyOf(pepper: string): Promise<CryptoKey> {
 const placeOf = (name: string, version: string) => enc.encode(`${name}\n${version}`);
 
 /** The sealed bytes: the format byte, the nonce, then the ciphertext with GCM's tag. */
-export async function sealBackup(pepper: string, name: string, version: string, text: string): Promise<Uint8Array> {
+export async function sealBackup(
+  pepper: string,
+  name: string,
+  version: string,
+  plain: Uint8Array,
+): Promise<Uint8Array> {
   const iv = crypto.getRandomValues(new Uint8Array(NONCE));
   const out = new Uint8Array(
     await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv, additionalData: placeOf(name, version) },
       await keyOf(pepper),
-      enc.encode(text),
+      plain,
     ),
   );
   const sealed = new Uint8Array(1 + NONCE + out.length);
@@ -41,8 +47,13 @@ export async function sealBackup(pepper: string, name: string, version: string, 
   return sealed;
 }
 
-/** The text, or null when it does not open here: damaged, moved, another version, another pepper. */
-export async function openBackup(pepper: string, name: string, version: string, sealed: Uint8Array) {
+/** The bytes sealed, or null when they do not open here: damaged, moved, another version, another pepper. */
+export async function openBackup(
+  pepper: string,
+  name: string,
+  version: string,
+  sealed: Uint8Array,
+): Promise<Uint8Array | null> {
   if (sealed.length < 1 + NONCE + 16 || sealed[0] !== FORMAT) return null;
   try {
     const out = await crypto.subtle.decrypt(
@@ -50,7 +61,7 @@ export async function openBackup(pepper: string, name: string, version: string, 
       await keyOf(pepper),
       sealed.subarray(1 + NONCE),
     );
-    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(out);
+    return new Uint8Array(out);
   } catch {
     return null;
   }

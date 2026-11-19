@@ -11,7 +11,7 @@
 import {CINEMETA} from '../addons/client.js';
 
 export const PREFIX = 'astra.v2.';
-const MAX_PROGRESS = 300;
+export const MAX_PROGRESS = 300;
 export const COMPLETE = 0.9; // watched at 90%
 export const MIN_DURATION = 121; // shorter streams are placeholder clips and are not tracked
 

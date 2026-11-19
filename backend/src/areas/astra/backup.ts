@@ -3,14 +3,15 @@
 // recent searches. Who: the owner's device sessions only (route table `D`; the mind, Muse and CI get
 // 403 before anything here runs). What is stored: the copy, sealed whole (backup-seal.ts), at one
 // fixed name in the private bucket with the last 7 daily copies (backup-store.ts); the Worker checks
-// only the outer shape (an object, the tag, known keys, each with a time) and never reads, parses
-// further or logs what the keys hold, since add-on addresses are secrets. What can leak: nothing of
+// only the outer shape (an object, the tag, known keys, each with a time) and never reads further or
+// logs what the keys hold, since add-on addresses are secrets. The Free plan gives about 10 ms of CPU
+// a request: the copy is parsed once and sealed as sent, a GET with the version the phone holds is
+// answered from the object's head alone, and a copy is 1 MiB at most. What can leak: nothing of
 // the body reaches a log line, an error or a path; errors are fixed codes whose issues name a rule,
 // never a value sent. Without the bucket (some local configs) every route answers 503 and the page
 // carries on alone. Counted per isolate in memory like the relay: 30 requests a minute, then 429.
 import { Hono } from 'hono';
 import {
-  type AstraBackupPut,
   type AstraBackupResponse,
   type AstraBackupSaved,
   type AstraCopy,
@@ -19,7 +20,7 @@ import {
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { present } from '../../lib/secrets';
-import { readBackup, removeBackup, writeBackup } from './backup-store';
+import { headBackup, readBackup, removeBackup, writeBackup } from './backup-store';
 
 let minute = { start: 0, n: 0 };
 /** For tests: a fresh minute. */
@@ -46,14 +47,33 @@ const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === 'obje
 const only = (o: Record<string, unknown>, names: readonly string[]) => Object.keys(o).every((k) => names.includes(k));
 /** A shape failure: the path names only fields this contract knows, the issue a rule. */
 const bad = (path: string, issue: string) => new ApiError('validation', [{ path, issue }]);
+/** A version in a query: an opaque id (ours are random base64url; an old object's etag is hex). */
+const VERSION = /^[A-Za-z0-9_-]{1,64}$/;
+const BOM = [0xef, 0xbb, 0xbf];
+const enc = new TextEncoder();
 
-/** The PUT body's outer shape, checked without reading any key's value or removed entries. An `at` past a day
- * from the Worker's own clock is refused: a far-future time would win every merge on every phone. */
-export function checkedPut(raw: unknown, now = Date.now()): AstraBackupPut {
-  if (!isPlain(raw) || !only(raw, ['base', 'copy'])) throw bad('', 'an object with base and copy only');
-  const { base, copy } = raw;
-  if (base !== null && (typeof base !== 'string' || base.length < 1 || base.length > 64))
-    throw bad('base', 'a version, or null');
+/** A version named in the query, or null when none is; anything else is refused. */
+function versionIn(value: string | undefined, name: string): string | null {
+  if (value === undefined) return null;
+  if (!VERSION.test(value)) throw bad(name, 'a version');
+  return value;
+}
+
+/**
+ * The PUT body, the copy as the phone sent it: parsed once to check its outer shape (an object tagged sync/1 with
+ * known keys, each with a time at most a day ahead of the Worker's clock, a value, and objects for `gone` and
+ * `times`); what the keys hold is not read. Its bytes are then sealed as they came (no second encoding): JSON
+ * text without a byte-order mark, so they can go back inside the GET envelope as they are.
+ */
+export function checkedCopy(bytes: Uint8Array, now = Date.now()): AstraCopy {
+  if (bytes.byteLength > B.max_bytes) throw new ApiError('too_large');
+  if (BOM.every((b, i) => bytes[i] === b)) throw new ApiError('bad_request');
+  let copy: unknown;
+  try {
+    copy = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes));
+  } catch {
+    throw new ApiError('bad_request');
+  }
   if (!isPlain(copy) || !only(copy, ['astra', 'keys']) || copy.astra !== B.tag)
     throw bad('copy', `an object tagged ${B.tag} with keys only`);
   if (!isPlain(copy.keys)) throw bad('copy.keys', 'an object');
@@ -67,34 +87,43 @@ export function checkedPut(raw: unknown, now = Date.now()): AstraBackupPut {
     if ('gone' in v && !isPlain(v.gone)) throw bad(`copy.keys.${k}.gone`, 'an object');
     if ('times' in v && !isPlain(v.times)) throw bad(`copy.keys.${k}.times`, 'an object');
   }
-  return { base, copy: copy as unknown as AstraCopy };
+  return copy as unknown as AstraCopy;
+}
+
+/** The GET answer around the copy's bytes, built from byte pieces: the bytes are never decoded or encoded again. */
+export function envelope(version: string, saved_at: string, copy: Uint8Array | null): Uint8Array<ArrayBuffer> {
+  const head = enc.encode(`{"version":${JSON.stringify(version)},"saved_at":${JSON.stringify(saved_at)},"copy":`);
+  const middle = copy ?? enc.encode('null');
+  const out = new Uint8Array(head.length + middle.length + 1);
+  out.set(head);
+  out.set(middle, head.length);
+  out[out.length - 1] = 0x7d; // }
+  return out;
 }
 
 export const backupRoutes = new Hono<AppEnv>()
   .get('/astra/backup', guard('GET /v1/astra/backup'), async (c) => {
     cap();
     const { vault, pepper } = placeOf(c.env);
-    const kept = await readBackup(vault, pepper);
+    const known = versionIn(c.req.query('known'), 'known');
     c.header('Cache-Control', 'no-store');
+    // The phone holds that version already: answered from the object's head, nothing read or opened.
+    if (known) {
+      const head = await headBackup(vault);
+      if (head?.version === known) return c.json({ ...head, same: true } satisfies AstraBackupResponse);
+    }
+    const kept = await readBackup(vault, pepper);
     if (!kept) return c.json({ version: null, saved_at: null, copy: null } satisfies AstraBackupResponse);
-    // The copy's text goes back as it was sealed (our own JSON, checked by the seal), never parsed here.
-    const head = `{"version":${JSON.stringify(kept.version)},"saved_at":${JSON.stringify(kept.saved_at)},"copy":`;
-    return c.body(`${head}${kept.text ?? 'null'}}`, 200, { 'Content-Type': 'application/json' });
+    return c.body(envelope(kept.version, kept.saved_at, kept.bytes), 200, { 'Content-Type': 'application/json' });
   })
   .put('/astra/backup', guard('PUT /v1/astra/backup'), async (c) => {
     cap();
     const { vault, pepper } = placeOf(c.env);
-    // The app's body limit refused a larger one already; counted again here, in bytes as sent.
-    const bytes = await c.req.arrayBuffer();
-    if (bytes.byteLength > B.max_bytes) throw new ApiError('too_large');
-    let raw: unknown;
-    try {
-      raw = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes));
-    } catch {
-      throw new ApiError('bad_request');
-    }
-    const { base, copy } = checkedPut(raw);
-    const saved = await writeBackup(vault, pepper, base, JSON.stringify(copy), Date.now());
+    const base = versionIn(c.req.query('base'), 'base');
+    // The app's body limit refused a larger one already (by its length); counted again here, as sent.
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    checkedCopy(bytes);
+    const saved = await writeBackup(vault, pepper, base, bytes, Date.now());
     if (saved === 'conflict') throw new ApiError('conflict', { reason: 'stale_base' });
     c.header('Cache-Control', 'no-store');
     return c.json(saved satisfies AstraBackupSaved);
