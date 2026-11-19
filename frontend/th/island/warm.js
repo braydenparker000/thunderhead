@@ -1,7 +1,6 @@
 import { appFor } from '../registry/apps.js';
 
-// Ring and chip callers create the generic circle before importing the island. Remove it in
-// this mutation microtask, before paint; the app's own capsule clip supplies the whole reveal.
+// A ring or chip's circle is removed before paint: the capsule's clip is the reveal.
 if (window.top === window.self && location.pathname === '/') {
   const colors = new Set(['music','podcasts'].map(id => appFor(id)?.color));
   new MutationObserver(records => {
@@ -13,8 +12,7 @@ if (window.top === window.self && location.pathname === '/') {
   }).observe(document.body, {childList:true});
 }
 
-// Chat publishes th:changed after its first complete sync. Wait for idle after that, signed in only.
-// Kept separate so the capsule and app code do not compete with home's first paint.
+// After the chat's first sync (th:changed), at idle, signed in only: away from home's first paint.
 let scheduled = false;
 document.addEventListener('th:changed', () => {
   if (scheduled || window.top !== window.self || location.pathname !== '/' || document.documentElement.dataset.signedIn === undefined) return;
