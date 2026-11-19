@@ -5,15 +5,20 @@
 // times itself into the feel log under its `name`.
 
 import {T, EASE, spring, level, go, stop, handle, instant, frames, painted, hapticsSetting, motionChoice} from './motion-core.js';
-import {timed, feelEntries, reportText} from './feel-log.js';
+import {timed, feelEntries, reportText, measureRefresh, refreshRate} from './feel-log.js';
 
 export {level, onLevel, tick, setMotionChoice, setHaptics, levelFor, hapticPattern, T} from './motion-core.js';
 export {timed} from './feel-log.js';
-export {stop} from './motion-core.js';
+export {stop, afterFirstFrame, nextFrame, whenIdle} from './motion-core.js';
 export {sheet, shouldDismiss, resist} from './sheet-motion.js';
 
-/** The feel log as plain text, with the level and haptics it was made under. */
-export const feelReport = () => reportText(feelEntries(), {motion: `${level()} (${motionChoice()})`, haptics: hapticsSetting()});
+/** The feel log as plain text, with the screen's refresh rate and the level and haptics it was made under. */
+export function feelReport() {
+  const text = reportText(feelEntries(), {motion: `${level()} (${motionChoice()})`, haptics: hapticsSetting()}, refreshRate());
+  measureRefresh(); // afresh for the next report (the phone may have changed its rate)
+  return text;
+}
+measureRefresh(); // the first quiet second after start
 
 const pressed = new WeakSet();
 /**
@@ -24,15 +29,18 @@ const pressed = new WeakSet();
 export function press(el, {scale = 0.97, name = 'press'} = {}) {
   if (!el || pressed.has(el)) return el;
   pressed.add(el);
-  let down = false;
+  let down = false, current = null;
   el.addEventListener('pointerdown', e => {
     if (e.button !== 0 || level() === 'off') return;
     down = true;
-    timed(name, () => go(el, {transform: `scale(${scale})`}, {duration: T.press, easing: EASE, keep: true}).finished.then(() => ({cancelled: false}), () => ({cancelled: true})));
+    // A release during the press-in is how a press ends, not a cut; a cancel (a scroll took over) is.
+    const one = current = {released: false};
+    timed(name, () => go(el, {transform: `scale(${scale})`}, {duration: T.press, easing: EASE, keep: true}).finished.then(() => ({cancelled: false}), () => ({cancelled: !one.released})));
   });
-  const up = () => {
+  const up = e => {
     if (!down) return;
     down = false;
+    if (current) current.released = e?.type === 'pointerup';
     const lv = level();
     if (lv === 'off') { stop(el); return; }
     go(el, {transform: 'none'}, {duration: T.normal, easing: lv === 'full' ? spring('snappy') : EASE});

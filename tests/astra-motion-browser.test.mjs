@@ -134,7 +134,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
   assert.ok(r.riseEnd);
   assert.deepEqual(r.offLevel, ['off', 'off']);
   assert.deepEqual(r.off, { anims: 0, copies: 0, travel: { cancelled: false }, push: { cancelled: false }, a: '' });
-  assert.match(r.report, /^Astra feel report\nmotion /);
+  assert.match(r.report, /^Astra feel report · screen (\d+ Hz \(median frame [\d.]+ ms over a quiet second\)|not measured yet)\nmotion /);
   for (const name of ['test:travel', 'test:push', 'test:pop', 'test:rise']) assert.match(r.report, new RegExp(`^${name} `, 'm'));
   assert.deepEqual(errors, []);
   await context.close();

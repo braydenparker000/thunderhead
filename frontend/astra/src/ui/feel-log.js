@@ -11,6 +11,8 @@ let looping = false;
 /** A transition's name as the report may carry it: lower-case letters, digits and : . _ - only. */
 export const cleanName = name => String(name || 'unnamed').toLowerCase().replace(/[^a-z0-9:._-]+/g, '-').slice(0, 40) || 'unnamed';
 
+const median = list => { const s = [...list].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; };
+const pad = (v, n) => String(v).padStart(n);
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 function loop() {
@@ -47,22 +49,50 @@ export function timed(name, fn) {
   return result;
 }
 
+// The screen's refresh rate as this page sees it: the median time between frames over a quiet second
+// (no transition running), so the report's "fps" can be read against what the phone can do.
+let refresh = null, sampling = false;
+/** Measures it (once a second is quiet; tried again later when one is not). Returns at once. */
+export function measureRefresh({wait = 2000} = {}) {
+  if (sampling || typeof requestAnimationFrame !== 'function') return;
+  sampling = true;
+  setTimeout(() => {
+    const gaps = [];
+    let last = null, start = null;
+    const frame = t => {
+      if (running.size) { sampling = false; measureRefresh({wait: 3000}); return; } // not quiet: later
+      if (last != null) gaps.push(t - last);
+      last = t; start ??= t;
+      if (t - start < 1000) { requestAnimationFrame(frame); return; }
+      sampling = false;
+      const ms = median(gaps);
+      if (ms > 0) refresh = {ms: Math.round(ms * 10) / 10, hz: Math.round(1000 / ms)};
+    };
+    requestAnimationFrame(frame);
+  }, wait);
+}
+/** The last measured refresh: {hz, ms} or null. */
+export const refreshRate = () => refresh;
+
 /** The runs kept, oldest first (copies). */
 export const feelEntries = () => entries.map(e => ({...e}));
 /** Empties the log (tests). */
 export function clearFeelLog() { entries.length = 0; }
 
-const median = list => { const s = [...list].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; };
-const pad = (v, n) => String(v).padStart(n);
+
+/** A press is in the table only when it went badly (a gap over this): a press is short, and ends at its release. */
+export const PRESS_BAD_GAP = 50;
 
 /**
- * The report as plain text: a heading with the settings it was made under, one line per name
- * (runs, median and slowest ms, frames a second, the worst gap between frames, interruptions),
- * then the last 20 runs as they happened. `info` holds fixed words only (the motion level, haptics).
+ * The report as plain text: a heading with the screen's measured refresh rate (`screen`: {hz, ms}, or
+ * null) and the settings it was made under, one line per name (runs, median and slowest ms, frames a
+ * second, the worst gap between frames, interruptions; `press` only when its worst gap is over
+ * PRESS_BAD_GAP), then the last 20 runs as they happened. `info` holds fixed words only.
  */
-export function reportText(list, info = {}) {
-  const lines = ['Astra feel report', Object.entries(info).map(([k, v]) => `${cleanName(k)} ${cleanName(v)}`).join(' · '), `${list.length} transitions`, ''];
-  const names = [...new Set(list.map(e => e.name))].sort();
+export function reportText(list, info = {}, screen = null) {
+  const rate = screen?.hz ? `screen ${screen.hz} Hz (median frame ${screen.ms} ms over a quiet second)` : 'screen not measured yet';
+  const lines = [`Astra feel report · ${rate}`, Object.entries(info).map(([k, v]) => `${cleanName(k)} ${cleanName(v)}`).join(' · '), `${list.length} transitions`, ''];
+  const names = [...new Set(list.map(e => e.name))].sort().filter(n => n !== 'press' || list.some(e => e.name === n && e.worstGap > PRESS_BAD_GAP));
   lines.push('name                                       runs  med ms  max ms  fps  worst gap  cut');
   for (const name of names) {
     const runs = list.filter(e => e.name === name);

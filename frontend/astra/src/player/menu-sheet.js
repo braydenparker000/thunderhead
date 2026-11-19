@@ -14,10 +14,14 @@
 import {h} from '../ui/dom.js';
 import {shouldDismiss, resist} from '../ui/motion.js';
 import {T, EASE, spring, level, go, stop, handle, tick, gone} from './feel.js';
+import {nextFrame} from '../ui/motion-core.js';
 import {timed} from '../ui/feel-log.js';
 
 const PRESSABLE = '.ap-row, .ap-chip, .ap-tab, .ap-source, .ap-episode, .ap-swatch, .ap-line, .ap-btn';
 const MARKS = '.ap-row.selected, .ap-chip.on, .ap-tab.on, .ap-swatch.on, .ap-source.current, .ap-episode.current';
+const LISTS = '.ap-rail, .ap-panel-list';
+/** A long list opens with this many rows; the rest are added once the sheet has landed, FILL_MS of them a frame. */
+export const CUT_ROWS = 12, FILL_MS = 4;
 const keyOf = el => el.getAttribute('aria-label') || el.textContent.trim().slice(0, 60);
 
 /** Whether menus dock to the right: a wide screen held sideways, unless the owner keeps them at the bottom. */
@@ -32,6 +36,7 @@ export class MenuSheet {
     this.scrim = h('div', {class: 'ap-modal-scrim', onclick: () => onDismiss()});
     this.grab = h('div', {class: 'ap-sheet-grab', 'aria-hidden': 'true'}, h('i'));
     this.body = h('div', {class: bodyClass});
+    this.later = [];
     this.sheet = h('div', {class: 'ap-sheet'}, this.grab, closeButton, this.body);
     el.replaceChildren(this.scrim, this.sheet);
     this.bindDrag();
@@ -53,13 +58,23 @@ export class MenuSheet {
   at(offset) { return this.axis === 'x' ? `translateX(${offset}px)` : `translateY(${offset}px)`; }
   where() { const t = getComputedStyle(this.sheet).transform; if (!t || t === 'none') return 0; const m = new DOMMatrixReadOnly(t); return this.axis === 'x' ? m.m41 : m.m42; }
 
-  /** Draws `content` in the body, keeping its scroll; `look` is the scrim's kind ('', 'solid', 'preview'). The newly selected mark springs. */
-  render(name, content, look = '') {
+  /**
+   * Draws `content` in the body, keeping its scroll; `look` is the scrim's kind ('', 'solid', 'preview'). The
+   * newly selected mark springs. `later`: rows to add after the sheet has landed ([{into, items, make}]: each of
+   * `items` made by `make` and appended to `into`, a few a frame), so a long menu opens with a screenful; with
+   * `cut`, any list already drawn longer than CUT_ROWS keeps a screenful and gets the rest back the same way.
+   */
+  render(name, content, look = '', {later = [], cut = false} = {}) {
     const before = new Set([...this.body.querySelectorAll(MARKS)].map(keyOf)), open = !gone(this.el);
     this.scrim.className = 'ap-modal-scrim' + (look ? ' ' + look : '');
     this.sheet.classList.toggle('preview', look === 'preview');
     this.body.className = this.body.className.split(' ')[0] + (name ? ' ' + name : '');
     this.body.replaceChildren(...[content].flat(9).filter(x => x != null && x !== ''));
+    this.later = [...later];
+    this.whenFilled = null;
+    if (cut) for (const list of this.body.querySelectorAll(LISTS)) if (list.children.length > CUT_ROWS) this.later.push({into: list, items: [...list.children].slice(CUT_ROWS).map(el => (el.remove(), el)), make: el => el});
+    this.drawn = (this.drawn || 0) + 1;
+    if (this.later.length && open && !this.rising) this.fill(); // already up: at once, a few a frame
     if (!open || level() !== 'full') return;
     for (const el of this.body.querySelectorAll(MARKS)) {
       if (before.has(keyOf(el))) continue;
@@ -68,13 +83,49 @@ export class MenuSheet {
     }
   }
 
-  /** Rises (or turns back from where it is, if it was leaving). */
-  open() {
-    const p = this.p, was = gone(this.el), from = was && !this.el.hidden ? this.where() : null;
-    const scrimFrom = was && !this.el.hidden ? Number(getComputedStyle(this.scrim).opacity) : 0;
+  /** The rows render() left for later, a few a frame, while the body is still the one they belong to. */
+  async fill() {
+    const drawn = this.drawn;
+    for (const part of this.later.splice(0)) {
+      for (let i = 0; i < part.items.length;) {
+        await nextFrame();
+        if (drawn !== this.drawn || this.el.hidden) return;
+        const end = performance.now() + FILL_MS, rows = document.createDocumentFragment();
+        do rows.append(part.make(part.items[i++])); while (i < part.items.length && performance.now() < end);
+        part.into.append(rows);
+      }
+    }
+    this.whenFilled?.(); this.whenFilled = null;
+  }
+
+  /**
+   * Rises (or turns back from where it is, if it was leaving). From hidden, the rows drawn for it are laid out in
+   * this frame with the sheet held at its start (off screen, the scrim clear), and it rises from the next one, so
+   * the movement never shares a frame with the building; `onRise` runs as it starts, the rows left for later come
+   * once it has landed.
+   */
+  open({onRise = null} = {}) {
+    const p = this.p, was = gone(this.el), leaving = was && !this.el.hidden, from = leaving ? this.where() : null;
+    const scrimFrom = leaving ? Number(getComputedStyle(this.scrim).opacity) : 0;
     delete this.el.dataset.leaving; this.el.inert = false; this.el.hidden = false;
     this.sheet.classList.toggle('docked', docks(p.root.clientWidth, p.root.clientHeight, p.prefs.menuDock));
-    if (!was) return;
+    if (!was) { onRise?.(); return; }
+    if (leaving || level() === 'off') { this.rise(from, scrimFrom); onRise?.(); return; }
+    const size = this.size(), lv = level();
+    this.sheet.style.transform = lv === 'full' ? this.at(size) : ''; this.sheet.style.opacity = lv === 'full' ? '' : '0';
+    this.scrim.style.opacity = '0';
+    const id = this.rising = {};
+    nextFrame().then(() => {
+      if (this.rising !== id) return;
+      this.rising = null;
+      this.sheet.style.transform = ''; this.sheet.style.opacity = ''; this.scrim.style.opacity = '';
+      this.rise(size, 0);
+      onRise?.();
+    });
+  }
+
+  /** The rise itself, from `from` (px along its axis) and the scrim at `scrimFrom`. */
+  rise(from, scrimFrom) {
     this.run = timed('sheet:open', () => {
       const lv = level();
       stop(this.sheet); stop(this.scrim);
@@ -83,6 +134,7 @@ export class MenuSheet {
       return handle([go(this.sheet, {transform: 'none'}, {from: {transform: this.at(from ?? this.size())}, duration: T.travel, easing: spring('smooth')}),
         go(this.scrim, {opacity: 1}, {from: {opacity: scrimFrom}, duration: T.normal, easing: EASE})]);
     });
+    this.run.finished.then(({cancelled}) => { if (!cancelled && this.later.length && !gone(this.el)) this.fill(); });
   }
 
   /** Leaves: out of reach at once, then hidden once it has gone (a fling leaves faster). */
@@ -90,6 +142,7 @@ export class MenuSheet {
     const el = this.el;
     this.velocity = 0;
     if (gone(el)) return;
+    if (this.rising) { this.hide(); return; } // closed before it rose: nothing of it was seen
     el.dataset.leaving = ''; el.inert = true;
     const from = this.drag?.last ?? null;
     this.drag = null;
@@ -107,7 +160,7 @@ export class MenuSheet {
   }
 
   /** Gone at once (the player closed). */
-  hide() { stop(this.sheet); stop(this.scrim); delete this.el.dataset.leaving; this.el.inert = false; this.el.hidden = true; this.drag = null; }
+  hide() { this.rising = null; this.sheet.style.transform = ''; this.sheet.style.opacity = ''; this.scrim.style.opacity = ''; stop(this.sheet); stop(this.scrim); delete this.el.dataset.leaving; this.el.inert = false; this.el.hidden = true; this.drag = null; }
 
   /** The grab strip follows a finger along the sheet's axis (FEEL.md: exactly, resisting the wrong way). */
   bindDrag() {
