@@ -45,6 +45,7 @@ export function openPlayer(p, o) {
     document.addEventListener('visibilitychange', p.onVisibility);
     p.stages.add(() => { if (p.isOpen && !p.system.minimized) p.system.setInert(true); }); // a style pass over the whole app: its own frame
     p.stages.add(() => { if (p.isOpen) p.root.focus({preventScroll: true}); });
+    p.stages.add(() => p.menus.preloadCards()); // the Sources panel's cards, so it opens with them
   }
   renderLoading(p); // what the dim shows: the backdrop, the logo
   p.loader.show(true);

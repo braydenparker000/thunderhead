@@ -14,6 +14,7 @@
 import {icon} from '../ui/icons.js';
 import {h} from '../ui/dom.js';
 import {restyle, appear, leave, arrive, ghost, gone} from './feel.js';
+import {nextFrame} from '../ui/motion-core.js';
 
 const PAUSE_OVERLAY_AFTER = 5000;
 export const FEEDBACK_MS = 900;
@@ -98,12 +99,21 @@ export class Controls {
     }, {name: this.visible ? 'controls:show' : 'controls:hide'});
   }
 
+  /**
+   * The controls' movement starts in the frame after their contents were drawn (the time, the bar: show()), so
+   * the two never share a frame; asked twice before it, they move once, to the state then.
+   */
+  paintNext() {
+    if (this.painting) return;
+    this.painting = nextFrame().then(() => { this.painting = null; if (this.p.isOpen && this.visible !== this.p.root.classList.contains('controls')) this.paint(); });
+  }
+
   show(autoHide = true) {
     const p = this.p;
     if (this.locked) return;
     const was = this.visible;
     this.visible = true;
-    if (!was) this.paint();
+    if (!was) { p.updateTime(); if (p.root.classList.contains('opening')) this.paint(); else this.paintNext(); }
     if (!p.pauseOverlay.hidden) { ghost(p.pauseOverlay, {name: 'pause-overlay:out'}); p.pauseOverlay.hidden = true; }
     p.markers.skipHiddenByTimer = false;
     if (autoHide) this.scheduleHide(); else clearTimeout(this.hideTimer); // an earlier timer must not hide what should stay

@@ -15,8 +15,9 @@ import {iconButton} from './view.js';
 import {subtitleModal, pickLanguage, pickSubtitleFile} from './subtitle-menu.js';
 import {viaName} from './rules.js';
 import {addressLine} from './address.js';
-import {MenuSheet} from './menu-sheet.js';
+import {MenuSheet, CUT_ROWS} from './menu-sheet.js';
 
+const sameKey = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 const MODAL_LABELS = {audio: 'Audio', subtitles: 'Subtitles', info: 'Stream info', playback: 'Playback', find: 'Find a line'};
 
 export class Menus {
@@ -38,6 +39,7 @@ export class Menus {
 
   /** Choices that belong to one title start fresh with the next. */
   reset() {
+    this.builtPanel = null;
     this.panelSeason = null;
     this.showHidden = false;
     this.subLang = null;
@@ -56,12 +58,25 @@ export class Menus {
     p.touch.abort(); // a hold or a drag ends with the menu's arrival
     this.modalName = name;
     this.modalClose = pushLayer('player-modal', () => { this.modalClose = null; this.dismiss(); });
-    this.renderModal();
-    this.modalSheet.open();
+    this.renderModal({cut: true}); // built in this frame (a long list a screenful), risen from the next
+    this.modalSheet.open({onRise: () => this.covered(name)});
     p.modal.setAttribute('aria-label', MODAL_LABELS[name] || name);
+    this.focusOverlay(p.modal);
+  }
+
+  /** The menu `name` has started to rise: the controls under it go (unless another menu came since). */
+  covered(name) {
+    const p = this.p;
+    if (this.open !== name) return;
     p.ctl.paint(() => p.root.classList.add('overlay'));
     p.showControls(false);
-    this.focusOverlay(p.modal);
+  }
+
+  /** The stream list's cards for the Sources panel, loaded ahead (when the player opens) so the panel opens with them. */
+  preloadCards() {
+    if (this.cards !== undefined) return;
+    this.cards = null;
+    import('../screens/stream-card.js').then(m => { this.cards = m; if (typeof m.sourceCard === 'function' && this.panelName === 'sources') this.renderPanel(); }, () => {});
   }
 
   openPanel(name) {
@@ -70,11 +85,9 @@ export class Menus {
     p.touch.abort();
     this.panelName = name;
     this.panelClose = pushLayer('player-panel', () => { this.panelClose = null; this.dismiss(); });
-    this.renderPanel();
-    this.panelSheet.open();
+    if (!sameKey(this.panelKey(), this.builtPanel)) this.renderPanel(); // the same list as last time is kept as it was built
+    this.panelSheet.open({onRise: () => this.covered(name)});
     p.panel.setAttribute('aria-label', name === 'sources' ? 'Sources' : 'Episodes');
-    p.ctl.paint(() => p.root.classList.add('overlay'));
-    p.showControls(false);
     // The current source or episode is in view, not a screen or two down the list (the sheet's own scroll only).
     const body = this.panelSheet.body, cur = body.querySelector('.current');
     if (cur && cur.offsetTop + cur.offsetHeight > body.clientHeight) body.scrollTop = Math.max(0, cur.offsetTop - (body.clientHeight - cur.offsetHeight) / 2);
@@ -109,7 +122,13 @@ export class Menus {
   /** Whether subtitle add-ons are still being asked (shown in the subtitles menu). */
   setSubtitleSearch(on) { this.subtitleSearch = on; this.refresh(); }
 
-  renderModal() {
+  /** What the panel would draw now: the same key, the same rows. */
+  panelKey() {
+    const p = this.p, name = this.panelName;
+    return name === 'sources' ? ['sources', p.sources, p.hiddenSources, p.sourceId, this.showHidden, !!this.cards] : ['episodes', p.options?.episodes, this.panelSeason];
+  }
+
+  renderModal({cut = false} = {}) {
     const p = this.p, name = this.modalName;
     let body;
     if (name === 'audio') body = this.audioModal();
@@ -121,7 +140,7 @@ export class Menus {
     const key = el => el.getAttribute('aria-label') || el.textContent;
     const focused = p.modal.contains(document.activeElement) && document.activeElement.matches('button') ? key(document.activeElement) : null;
     // Styling the subtitles leaves the picture showing (a light scrim, a lower sheet), so the change can be seen.
-    this.modalSheet.render(name, body, name === 'subtitles' && this.subTab === 'style' ? 'preview' : '');
+    this.modalSheet.render(name, body, name === 'subtitles' && this.subTab === 'style' ? 'preview' : '', {cut});
     for (const [selector, top] of kept) { const el = p.modal.querySelector(selector); if (el) el.scrollTop = top; }
     if (focused != null) [...p.modal.querySelectorAll('button')].find(b => key(b) === focused)?.focus({preventScroll: true});
   }
@@ -162,12 +181,15 @@ export class Menus {
   }
 
   renderPanel() {
-    const p = this.p, name = this.panelName;
+    const p = this.p, name = this.panelName, later = [];
     let body;
     if (name === 'sources') {
       // Those the viewer's stream filters hide (the next episode's list) are counted, and can be shown.
+      // A screenful now (to the current one at least); the rest once the panel has landed (menu-sheet.js).
       const hidden = p.hiddenSources || [], list = this.showHidden ? [...p.sources, ...hidden] : p.sources;
-      body = [h('h3', {}, 'Sources'), h('div', {class: 'ap-panel-list'}, ...list.map(s => this.sourceRow(s))),
+      const now = Math.max(CUT_ROWS, list.findIndex(s => s.id === p.sourceId) + 4), box = h('div', {class: 'ap-panel-list'}, ...list.slice(0, now).map(s => this.sourceRow(s)));
+      if (list.length > now) later.push({into: box, items: list.slice(now), make: s => this.sourceRow(s)});
+      body = [h('h3', {}, 'Sources'), box,
       hidden.length && !this.showHidden ? h('p', {class: 'ap-panel-note'}, `${hidden.length} hidden by your filters `,
         h('button', {class: 'ap-chip ghost', type: 'button', onclick: () => { this.showHidden = true; this.renderPanel(); }}, 'Show them')) : null];
     } else {
@@ -181,7 +203,9 @@ export class Menus {
         }, i.thumbnail ? h('img', {src: i.thumbnail, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer'}) : h('div', {class: 'ap-episode-thumb'}),
         h('span', {}, h('small', {}, `E${i.episode}`), h('b', {}, i.title || 'Episode ' + i.episode))))) ];
     }
-    this.panelSheet.render(name, body);
+    this.panelSheet.render(name, body, '', {later});
+    this.builtPanel = later.length ? null : this.panelKey(); // kept only once every row is in
+    if (later.length) this.panelSheet.whenFilled = () => { if (this.panelName === name) this.builtPanel = this.panelKey(); };
   }
 
   /**
@@ -190,10 +214,7 @@ export class Menus {
    */
   sourceRow(s) {
     const p = this.p, current = s.id === p.sourceId, make = this.cards?.sourceCard;
-    if (this.cards === undefined) {
-      this.cards = null;
-      import('../screens/stream-card.js').then(m => { this.cards = m; if (typeof m.sourceCard === 'function' && this.panelName === 'sources') this.renderPanel(); }, () => {});
-    }
+    this.preloadCards();
     if (typeof make === 'function') {
       const d = p.video.duration, card = make(s, {current, onPick: () => this.pickSource(s), minutes: Number.isFinite(d) && d > 0 ? d / 60 : null, app: p.app || null});
       if (card) return h('div', {class: 'ap-source-slot' + (current ? ' current' : '')}, card);
