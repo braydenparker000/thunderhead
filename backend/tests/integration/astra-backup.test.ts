@@ -143,6 +143,13 @@ describe('the size of a copy', () => {
     expect((await backup<Kept>('GET', D)).body.copy).toEqual(copy);
   });
 
+  it('only a save may send a large body: any other method on the path keeps the 64 KiB limit', async () => {
+    const big = 'x'.repeat(100 * 1024);
+    expect((await backup('DELETE', D, { body: big })).status).toBe(413);
+    expect((await backup('DELETE', null, { body: big })).status, 'before any token check').toBe(413);
+    expect((await put(D, copyOf({ recentSearches: [big] }))).status).toBe(200);
+  });
+
   it('past 1 MiB as sent is 413 too_large, and nothing is stored', async () => {
     const r = await put(D, copyOf({ recentSearches: ['x'.repeat(ASTRA_BACKUP.max_bytes)] }));
     expect([r.status, r.body.error?.code]).toEqual([413, 'too_large']);
