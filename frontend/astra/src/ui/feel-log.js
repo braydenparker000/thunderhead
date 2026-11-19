@@ -27,7 +27,7 @@ function loop() {
 
 function finish(run, interrupted) {
   if (!running.delete(run)) return;
-  const end = now();
+  const end = busyAt = now();
   entries.push({name: run.name, ms: Math.round(end - run.start), frames: run.frames, worstGap: Math.round(Math.max(run.worst, end - run.last)), interrupted: !!interrupted});
   if (entries.length > RING) entries.splice(0, entries.length - RING);
 }
@@ -40,6 +40,7 @@ export function timed(name, fn) {
   const start = now();
   const run = {name: cleanName(name), start, last: start, frames: 0, worst: 0};
   running.add(run);
+  busyAt = start;
   loop();
   let result;
   try { result = fn(); } catch (error) { finish(run, true); throw error; }
@@ -49,18 +50,26 @@ export function timed(name, fn) {
   return result;
 }
 
-// The screen's refresh rate as this page sees it: the median time between frames over a quiet second
-// (no transition running), so the report's "fps" can be read against what the phone can do.
-let refresh = null, sampling = false;
-/** Measures it (once a second is quiet; tried again later when one is not). Returns at once. */
+// The screen's refresh rate as this page sees it: the median time between frames over a quiet second, so the
+// report's "fps" can be read against what the phone can do. Quiet means no transition for 2 s, no touch, and no
+// film playing; a second that stops being quiet is dropped and tried again later (waits doubling to 30 s), so the
+// sampling never runs beside the owner's use of the app or a film (it is a second of frames drawn for nothing).
+let refresh = null, sampling = false, busyAt = 0;
+const touched = () => { busyAt = now(); };
+const playing = () => typeof document !== 'undefined' && [...document.getElementsByTagName('video')].some(v => !v.paused && !v.ended);
+const quiet = () => !running.size && now() - busyAt > 2000 && !playing();
+/** Measures it once a second is quiet (see above). Returns at once. */
 export function measureRefresh({wait = 2000} = {}) {
   if (sampling || typeof requestAnimationFrame !== 'function') return;
   sampling = true;
+  if (typeof addEventListener === 'function') addEventListener('pointerdown', touched, {capture: true, passive: true});
+  const later = () => { sampling = false; measureRefresh({wait: Math.min(wait * 2, 30000)}); };
   setTimeout(() => {
+    if (!quiet()) { later(); return; }
     const gaps = [];
     let last = null, start = null;
     const frame = t => {
-      if (running.size) { sampling = false; measureRefresh({wait: 3000}); return; } // not quiet: later
+      if (!quiet()) { later(); return; } // not quiet after all: later
       if (last != null) gaps.push(t - last);
       last = t; start ??= t;
       if (t - start < 1000) { requestAnimationFrame(frame); return; }

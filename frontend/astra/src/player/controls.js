@@ -20,6 +20,8 @@ const PAUSE_OVERLAY_AFTER = 5000;
 export const FEEDBACK_MS = 900;
 export const LINE_AFTER = 400; // a short wait shows nothing
 export const WORDS_AFTER = 2000;
+/** A finger held longer than this without moving is not believed to be on the screen (a lift the page never heard). */
+export const FINGER_MS = 10000;
 /** The hide timer for the owner's setting (seconds; 0 is never). */
 export const hideAfter = prefs => { const s = Number(prefs?.controlsHideAfter); return Number.isFinite(s) && s >= 0 ? s * 1000 : 3000; };
 
@@ -30,13 +32,19 @@ export class Controls {
     this.locked = false;
     this.buffering = false;
     this.hintAt = 0;
-    this.fingers = new Set(); // pointers down anywhere on the player: nothing hides under them
+    this.fingers = new Map(); // pointers down anywhere on the player (id -> when last seen): nothing hides under them
     this.painted = false;
     // What moves as one when the controls come and go, and what rides above the bar with them.
     this.groups = ['.ap-shade-top', '.ap-shade-bottom', '.ap-top', '.ap-top-mid', '.ap-center', '.ap-bottom'].map(s => p.controls.querySelector(s));
     this.riders = [p.skipBtn, p.nextCard, p.noticeEl, p.waitBox];
-    for (const type of ['pointerup', 'pointercancel']) p.root.addEventListener(type, e => this.fingers.delete(e.pointerId), {capture: true});
-    p.root.addEventListener('pointerdown', e => this.fingers.add(e.pointerId), {capture: true});
+    // A finger that is not on the screen never holds them: let go wherever it lifts (or the browser takes the
+    // gesture), all at once when the page loses focus or is hidden, and an entry not seen for FINGER_MS is not believed.
+    const lift = e => this.fingers.delete(e.pointerId);
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) { p.root.addEventListener(type, lift, {capture: true}); addEventListener(type, lift, {capture: true, passive: true}); }
+    p.root.addEventListener('pointerdown', e => this.fingers.set(e.pointerId, performance.now()), {capture: true});
+    p.root.addEventListener('pointermove', e => { if (this.fingers.has(e.pointerId)) this.fingers.set(e.pointerId, performance.now()); }, {capture: true, passive: true});
+    addEventListener('blur', () => this.fingers.clear());
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.fingers.clear(); });
     // Moving through the controls with Tab shows them.
     p.controls.addEventListener('focusin', () => { if (!this.visible && !this.locked) this.show(); });
     // Any touch or key on the controls (±10, the time, More, scrolling the row) restarts the hide timer.
@@ -136,8 +144,15 @@ export class Controls {
     const ms = hideAfter(p.prefs);
     if (!ms || (p.video.paused && !p.prefs.controlsHidePaused) || this.buffering || p.scrub.active || p.menus.open || !p.errorCard.hidden) return;
     // A finger still on the screen: the hide waits for the lift (looked at again a moment later).
-    const run = () => { if (this.fingers.size) this.hideTimer = setTimeout(run, 400); else this.hide(); };
+    const run = () => { if (this.touching()) this.hideTimer = setTimeout(run, 400); else this.hide(); };
     this.hideTimer = setTimeout(run, ms);
+  }
+
+  /** Whether a finger is on the screen now (one not seen for FINGER_MS, still or moving, is forgotten). */
+  touching() {
+    const now = performance.now();
+    for (const [id, at] of this.fingers) if (now - at > FINGER_MS) this.fingers.delete(id);
+    return this.fingers.size > 0;
   }
 
   schedulePauseOverlay() {
