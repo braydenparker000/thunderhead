@@ -8,20 +8,9 @@ import {homeCatalogs} from '../app/content.js';
 import {loadPrefs, savePrefs, ORIENTATIONS} from '../player/prefs.js';
 import {languageName} from '../engine/languages.js';
 import {BACKUP_KEYS, restoreBackup} from '../app/store.js';
+import {navRow, switchRow, choiceRow, group, areaGroup} from '../settings/rows.js';
 
 const languageLabel = code => code ? languageName(code) || code : '';
-
-const navRow = (iconName, title, detail, run) => h('button', {class: 'set-row link', type: 'button', onclick: run},
-  h('span', {class: 'set-icon'}, icon(iconName, {size: 20})), h('span', {class: 'set-text'}, h('b', {}, title), detail ? h('small', {}, detail) : null), icon('chevronRight', {size: 20}));
-// `iconName` gives the row the same icon tile as the rows beside it, so their text lines up.
-const switchRow = (title, detail, on, change, iconName = '') => {
-  const input = h('input', {type: 'checkbox', role: 'switch', checked: !!on, onchange: e => change(e.target.checked)});
-  return h('label', {class: 'set-row'}, iconName ? h('span', {class: 'set-icon'}, icon(iconName, {size: 20})) : null,
-    h('span', {class: 'set-text'}, h('b', {}, title), detail ? h('small', {}, detail) : null), h('span', {class: 'switch'}, input, h('i')));
-};
-const choiceRow = (title, options, value, change, detail = '') => h('div', {class: 'set-row column'}, h('span', {class: 'set-text'}, h('b', {}, title), detail ? h('small', {}, detail) : null),
-  h('div', {class: 'filter-chips'}, ...options.map(([v, label]) => h('button', {class: 'chip', type: 'button', 'aria-pressed': String(v === value), onclick: () => change(v)}, label))));
-const group = (label, ...rows) => h('section', {class: 'set-group'}, h('h2', {class: 'section-label'}, label), h('div', {class: 'set-card'}, ...rows.filter(Boolean)));
 
 class Page {
   constructor(app, title, render) {
@@ -56,7 +45,9 @@ export class SettingsScreen {
         navRow('palette', 'Appearance', 'Poster size and corners', () => this.open('Appearance', p => this.appearance(p))),
         navRow('home', 'Home', 'Hero, rows and their order', () => this.open('Home', p => this.homeLayout(p))),
         navRow('extension', 'Add-ons', `${addons.filter(a => a.enabled !== false).length} active of ${addons.length}`, () => this.open('Add-ons', p => this.addons(p))),
-        navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p)))),
+        navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p))),
+        // Drawn from the settings registry (settings/motion.js): the example the other areas follow.
+        navRow('aspect', 'Motion and touch', 'Animation and haptics', () => this.open('Motion and touch', p => areaGroup(this.app, 'motion', 'Motion and touch', p)))),
       group('Content',
         // Off removes the searches kept, everywhere: an empty list is a change like any other (app/sync.js).
         switchRow('Recent searches', 'Keep your last 10 searches, on every phone you keep the same', app.settings.recentSearches !== false,

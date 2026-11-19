@@ -22,12 +22,10 @@ img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 .tab-view { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: var(--nav-space); scrollbar-width: none; }
 .tab-view::-webkit-scrollbar { display: none; }
 .screen-stack { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
-/* A pushed screen slides in from 6% while it turns opaque within 90 ms, so
-   the two screens are never blended for long. isolation keeps a screen's
-   fixed headers inside its own layer (under the screen pushed over it). */
-.screen-layer { position: absolute; inset: 0; isolation: isolate; pointer-events: auto; background: var(--bg); opacity: 0; transform: translateX(6%); transition: opacity 90ms linear, transform 260ms var(--ease-decel); }
-.screen-layer.in { opacity: 1; transform: none; }
-.screen-layer.out { opacity: 0; transform: translateX(6%); transition: opacity 150ms 40ms linear, transform 200ms var(--ease); pointer-events: none; }
+/* A pushed screen and its Back are moved by ui/motion.js (push and pop), not here. isolation keeps
+   a screen's fixed headers inside its own layer (under the screen pushed over it). */
+.screen-layer { position: absolute; inset: 0; isolation: isolate; pointer-events: auto; background: var(--bg); }
+.screen-layer.out { pointer-events: none; }
 /* Hidden tabs keep their layout and paint state (switching back is cheap) but draw nothing. */
 .tab-view.off { content-visibility: hidden; visibility: hidden; pointer-events: none; }
 .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: calc(24px + var(--safe-bottom)); scrollbar-width: none; }
@@ -40,7 +38,7 @@ img.loaded, .img-fallback { animation: img-in 200ms var(--ease); }
 .nav-track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); height: 64px; padding: 0 4px; border-radius: var(--r-full); background: rgba(28,28,30,.55); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 8px 28px rgba(0,0,0,.35), inset 0 0.75px 0 rgba(255,255,255,.27); transition: height 300ms var(--ease); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .nav-track { background: rgba(28,28,30,.82); } }
 .nav.compact .nav-track { height: 48px; }
-.nav-pill { --i: 0; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: var(--r-full); background: rgba(245,245,245,.15); transform: translateX(calc(var(--i) * 100%)); transition: transform 380ms cubic-bezier(.3,1.25,.5,1); }
+.nav-pill { --i: 0; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: var(--r-full); background: rgba(245,245,245,.15); transform: translateX(calc(var(--i) * 100%)); transition: transform var(--t-normal) var(--spring-snappy); }
 .nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; color: var(--muted); padding: 0; transition: color var(--t-fast); }
 .nav-item .icon { width: 28px; height: 28px; fill: currentColor; transition: transform 200ms var(--ease); }
 .nav-item:active .icon { transform: scale(1.2); }
