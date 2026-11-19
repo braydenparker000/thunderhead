@@ -8,6 +8,7 @@ import {Hero} from './hero.js';
 import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
 import {press, rise, level, tick} from '../ui/motion.js';
 import {artBox} from '../ui/poster.js';
+import {setTint} from '../ui/art.js';
 import '../settings/browse.js';
 
 /** Opens a title's Details out of the picture that was tapped (screens/details-motion.js). */
@@ -225,7 +226,7 @@ export class HomeScreen {
     if (this.resuming) return;
     this.resuming = true;
     setTimeout(() => { this.resuming = false; }, 600);
-    if (!list && (e.kind === 'next' ? continueNext(this.app, e, m) : resumeRemembered(this.app, e, m, startTime))) return;
+    if (!list && (e.kind === 'next' ? continueNext(this.app, e, m, {origin: card}) : resumeRemembered(this.app, e, m, startTime, {origin: card}))) return;
     const video = videoOf(e, m);
     const screen = this.app.openStreams(m, video, {startTime});
     this.app.meta(m).then(meta => screen.updateMeta?.(meta), () => {}); // without the add-ons the saved card still plays: streams are asked by id
@@ -244,7 +245,7 @@ export class HomeScreen {
         h('div', {class: 'cw-text'}, code ? h('small', {}, code) : null, h('b', {}, m.name || ''), e.title ? h('span', {}, e.title) : null),
         e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null])));
     const tint = this.app.tintOf?.(m);
-    if (tint) card.style.setProperty('--tint', tint);
+    if (tint) setTint(card, tint);
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [
       playsDirectly(e) ? {label: 'Choose another stream', icon: 'sources', run: () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0, {list: true})} : null,
       {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, card.querySelector('.cw-art'))},

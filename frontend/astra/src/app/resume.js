@@ -21,9 +21,10 @@ export const playsDirectly = e => e.kind === 'next' ? !!e.stream?.group : !!e.st
 
 /**
  * Plays a card's remembered stream from `startTime`. Must run from the tap (the player goes full screen).
- * Returns false when the card remembers no stream (the caller opens the stream list).
+ * Returns false when the card remembers no stream (the caller opens the stream list). `origin`: the element tapped,
+ * which the player opens out of.
  */
-export function resumeRemembered(app, e, m, startTime) {
+export function resumeRemembered(app, e, m, startTime, {origin = null} = {}) {
   const r = e.stream;
   if (!r?.link) return false;
   const video = videoOf(e, m), meta = {...m, videos: m.videos || []}, source = rememberedSource(r);
@@ -42,7 +43,7 @@ export function resumeRemembered(app, e, m, startTime) {
       pickIn(app, meta, app.playing?.video ?? video, sources, hidden, GONE_LINE);
     });
   };
-  play(app, {meta, video, source, sources: [source], startTime, recover});
+  play(app, {meta, video, source, sources: [source], startTime, recover, origin});
   const ticket = app.playTicket; // this play's; a recovery, another pick or a close moves it on
   collected.then(all => { if (ticket === app.playTicket && app.player?.isOpen) adopt(app, r, all); });
   app.meta(m).then(full => { if (app.playing?.meta?.id === m.id) fullMeta(app, full); }, () => {});
@@ -64,11 +65,11 @@ function adopt(app, r, all) {
 }
 
 /** A 'next' card with a remembered release group: Next's rule. False without one (the caller opens the stream list). */
-export function continueNext(app, e, m) {
+export function continueNext(app, e, m, {origin = null} = {}) {
   const group = e.stream?.group;
   if (!group) return false;
   const video = videoOf(e, m);
-  playNext(app, {...m, videos: m.videos || []}, video, group);
+  playNext(app, {...m, videos: m.videos || []}, video, group, {origin});
   app.meta(m).then(full => { if (app.playing?.meta?.id === m.id) fullMeta(app, full); }, () => {});
   return true;
 }
