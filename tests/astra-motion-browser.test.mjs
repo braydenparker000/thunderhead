@@ -55,11 +55,14 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     const M = window.M, $ = (s) => document.querySelector(s), out = {};
     M.setMotionChoice('full');
     out.level = M.level();
-    // A shared element: a copy flies from #a to #b while both are hidden, then #b shows.
+    // A shared element: a copy flies from #a to #b while both are hidden, then #b shows. #b (not seen yet)
+    // is hidden at once; #a only once the copy has painted over it, two frames later.
     let started = 0;
     const t = M.travel($('#a'), $('#b'), { name: 'test:travel', onStart: () => started++ });
     const copy = [...document.body.children].at(-1);
-    out.during = { hiddenA: $('#a').style.visibility, hiddenB: $('#b').style.visibility, copy: copy.getAttribute('aria-hidden') };
+    out.during = { hiddenA: $('#a').style.visibility, hiddenB: $('#b').style.visibility, copy: copy.getAttribute('aria-hidden'), started };
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    out.during.after = $('#a').style.visibility;
     await new Promise((r) => setTimeout(r, 120));
     const mid = copy.getBoundingClientRect();
     out.midway = mid.top > 0 && mid.top < 600;
@@ -112,7 +115,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     return out;
   });
   assert.equal(r.level, 'full');
-  assert.deepEqual(r.during, { hiddenA: 'hidden', hiddenB: 'hidden', copy: 'true' });
+  assert.deepEqual(r.during, { hiddenA: '', hiddenB: 'hidden', copy: 'true', started: 0, after: 'hidden' });
   assert.ok(r.midway, 'the copy is on its way at 120 ms');
   assert.deepEqual(r.travel, { cancelled: false });
   assert.deepEqual(r.travelEnd, { copyGone: true, a: '', b: '', started: 1, left: '0px', top: '0px', width: '390px', height: '300px', transform: 'none' });

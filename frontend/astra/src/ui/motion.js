@@ -4,7 +4,7 @@
 // (a new call on the same element starts from where it is; cancel() leaves things sane), and
 // times itself into the feel log under its `name`.
 
-import {T, EASE, spring, level, go, stop, handle, instant, hapticsSetting, motionChoice} from './motion-core.js';
+import {T, EASE, spring, level, go, stop, handle, instant, decoded, frames, painted, hapticsSetting, motionChoice} from './motion-core.js';
 import {timed, feelEntries, reportText} from './feel-log.js';
 
 export {level, onLevel, tick, setMotionChoice, setHaptics, levelFor, hapticPattern, T} from './motion-core.js';
@@ -49,39 +49,94 @@ const hide = el => { if (isElement(el) && !hidden.has(el)) { hidden.set(el, el.s
 const show = el => { if (isElement(el) && hidden.has(el)) { el.style.visibility = hidden.get(el); hidden.delete(el); } };
 
 /**
- * A shared element (FEEL.md "Poster → Details"): a copy of `from` flies to `to`'s place and size
- * (--spring-smooth over --t-travel) while both originals are hidden; then `to` is shown. `from` and
- * `to` are elements or rects ({left, top, width, height}); with a rect for `from`, a copy of `to`
- * flies from there. `radius` is the corner radius at each end ([from, to] or one number; read from
- * the elements by default). Reduced: `to` fades in over 120 ms. Off: nothing moves.
- * Returns {finished, cancel()}; cancel() removes the copy and shows both originals.
+ * A copy of a picture box that shows exactly what the original shows now: each picture its current
+ * address (`currentSrc`), asked for at once and decoded before it is drawn (never a lazy picture that
+ * arrives later, never the 200 ms fade of a picture arriving).
  */
-export function travel(from, to, {name = 'travel', radius = null, onStart = null, onEnd = null} = {}) {
-  return timed(name, () => {
-    const a = rectOf(from), b = rectOf(to), source = isElement(from) ? from : isElement(to) ? to : null;
-    const lv = level();
-    let copy = null;
-    const settle = cancelled => { copy?.remove(); show(from); show(to); onEnd?.({cancelled}); };
-    onStart?.();
-    if (lv === 'off' || !a || !b || !source || !b.width || !b.height || !a.width || !a.height) return instant(settle);
-    if (lv === 'reduced') return isElement(to) ? handle([go(to, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})], settle) : instant(settle);
-    copy = source.cloneNode(true);
-    copy.removeAttribute('id');
-    copy.setAttribute('aria-hidden', 'true');
-    copy.inert = true;
+function copyOf(source) {
+  const copy = source.cloneNode(true);
+  copy.removeAttribute('id');
+  copy.setAttribute('aria-hidden', 'true');
+  copy.inert = true;
+  const pics = el => el.tagName === 'IMG' ? [el] : [...el.querySelectorAll('img')];
+  const mine = pics(copy), theirs = pics(source);
+  mine.forEach((img, i) => {
+    img.loading = 'eager'; img.decoding = 'sync'; img.classList.remove('loaded'); img.removeAttribute('srcset');
+    const src = theirs[i]?.currentSrc || theirs[i]?.src;
+    if (src && img.src !== src) img.src = src;
+  });
+  // Only the pictures the original has painted are waited for: one still arriving shows its placeholder in both.
+  return {copy, pictures: mine.filter((img, i) => theirs[i]?.complete && theirs[i].naturalWidth > 0)};
+}
+
+/**
+ * A shared element (FEEL.md "Poster → Details"): a copy of `from` flies to `to`'s place and size
+ * (--spring-smooth over --t-travel); then `to` is shown. Nothing is ever without its picture: `to` is
+ * hidden at once (it is not seen yet), `from` only once the copy has painted over it (its picture
+ * decoded, then a frame), and the copy goes only once `to`'s picture has decoded and painted under it.
+ * `from` and `to` are elements or rects ({left, top, width, height}); with a rect for `from`, a copy of
+ * `to` flies from there. `radius` is the corner radius at each end ([from, to] or one number; read from
+ * the elements by default). `replaces` is a copy an interrupted flight left in place (cancel({keep})):
+ * it stays until this flight's copy has painted. `onStart` runs when the copy starts to move.
+ * Reduced: `to` fades in over 120 ms. Off: nothing moves. Returns {finished, cancel({keep})}: finished
+ * resolves once the copy has gone; cancel() removes the copy and shows both originals, cancel({keep:
+ * true}) leaves the copy where it is and returns it (for the flight that takes over).
+ */
+export function travel(from, to, {name = 'travel', radius = null, onStart = null, onEnd = null, replaces = null} = {}) {
+  const a = rectOf(from), b = rectOf(to), source = isElement(from) ? from : isElement(to) ? to : null;
+  const lv = level();
+  const plain = settle => { replaces?.remove(); onStart?.(); return settle; };
+  if (lv === 'off' || !a || !b || !source || !b.width || !b.height || !a.width || !a.height) return timed(name, () => instant(plain(cancelled => { show(from); show(to); onEnd?.({cancelled}); })));
+  if (lv === 'reduced') return timed(name, () => isElement(to) ? handle([go(to, {opacity: 1}, {from: {opacity: 0}, duration: T.fade})], plain(cancelled => onEnd?.({cancelled}))) : instant(plain(() => onEnd?.({cancelled: false}))));
+  {
+    const {copy, pictures} = copyOf(source);
     Object.assign(copy.style, {position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px', margin: '0', zIndex: '5000',
-      pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'visible', willChange: 'transform, clip-path'});
+      pointerEvents: 'none', transformOrigin: '50% 50%', boxSizing: 'border-box', overflow: 'hidden', visibility: 'hidden', willChange: 'transform, clip-path'});
     document.body.append(copy);
-    hide(from); hide(to);
+    hide(to);
     // The copy has `to`'s size; at the start it is scaled evenly to cover `from` and cut to its shape.
     const s = Math.max(a.width / b.width, a.height / b.height);
     const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
     const ix = Math.max(0, (b.width - a.width / s) / 2), iy = Math.max(0, (b.height - a.height / s) / 2);
     const [r0, r1] = Array.isArray(radius) ? radius : radius != null ? [radius, radius] : [radiusOf(from), radiusOf(to)];
+    // Held at its start (over `from`, the same picture) until it has painted there; then it moves.
     const anim = go(copy, {transform: 'none', clipPath: `inset(0px 0px round ${r1}px)`},
       {from: {transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${r0 / s}px)`}, duration: T.travel, easing: spring('smooth'), keep: true});
-    return handle([anim], settle);
-  });
+    anim.pause();
+    let state = 'waiting', resolve;
+    const finished = new Promise(r => { resolve = r; });
+    // Unseen until its pictures are decoded (it never covers the card with an empty tile), then shown over the
+    // card for a frame, and only then is the card hidden and the copy let go.
+    decoded(pictures).then(() => { if (state === 'waiting') copy.style.visibility = 'visible'; return frames(2); }).then(() => {
+      if (state !== 'waiting') return;
+      state = 'flying';
+      replaces?.remove();
+      hide(from);
+      anim.play();
+      // Timed in the feel log from here: the frames of the flight itself, not the wait before it.
+      timed(name, () => ({finished: anim.finished.then(() => ({cancelled: false}), () => ({cancelled: true}))}));
+      onStart?.();
+    });
+    const end = (cancelled, keep = false) => {
+      if (state === 'done') return null;
+      state = 'done';
+      replaces?.remove();
+      show(from); show(to);
+      onEnd?.({cancelled});
+      if (cancelled) {
+        if (keep) { try { anim.commitStyles(); } catch {} }
+        anim.cancel();
+        if (!keep) copy.remove();
+        resolve({cancelled: true});
+        return keep ? copy : null;
+      }
+      // Landed: `to` is shown under the copy, which goes once `to`'s own picture has painted.
+      painted(isElement(to) ? [...(to.tagName === 'IMG' ? [to] : to.querySelectorAll('img'))].filter(img => img.src) : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
+      return null;
+    };
+    anim.finished.then(() => end(false), () => end(true));
+    return {finished, cancel: ({keep = false} = {}) => end(true, keep)};
+  }
 }
 
 /**

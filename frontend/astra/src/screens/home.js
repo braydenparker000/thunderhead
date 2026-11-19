@@ -7,7 +7,7 @@ import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/
 import {Hero} from './hero.js';
 import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
 import {press, rise, level, tick} from '../ui/motion.js';
-import {artBox} from '../ui/poster.js';
+import {artBox, warmArt} from '../ui/poster.js';
 import {setTint} from '../ui/art.js';
 import '../settings/browse.js';
 
@@ -239,11 +239,12 @@ export class HomeScreen {
     const art = e.thumbnail || m.background || m.poster;
     const open = () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0);
     // Art, then over it the episode code, the title and what is left; the progress line in the title's own colour.
-    const card = press(h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => pressCard(this.app, e), 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
+    const card = press(h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => { pressCard(this.app, e); warmArt(card.querySelector('.cw-art')); }, 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
       artBox('cw-art', art, [image(art, '', 'cw-img'), h('div', {class: 'cw-shade'}),
         status ? h('span', {class: 'cw-chip'}, status) : null,
         h('div', {class: 'cw-text'}, code ? h('small', {}, code) : null, h('b', {}, m.name || ''), e.title ? h('span', {}, e.title) : null),
         e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null])));
+    card.dataset.item = `${m.type}:${m.id}`; // found again by its title after a redraw (screens/details-motion.js)
     const tint = this.app.tintOf?.(m);
     if (tint) setTint(card, tint);
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [

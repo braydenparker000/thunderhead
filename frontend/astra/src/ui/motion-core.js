@@ -107,5 +107,15 @@ export function handle(anims, settle = () => {}) {
   return {finished, cancel: () => end(true)};
 }
 
+/** Resolves once `pictures` (img elements) are decoded, or after `cap` ms. */
+export function decoded(pictures, {cap = 150} = {}) {
+  const all = Promise.all([...pictures].map(img => img.decode?.().catch(() => {})));
+  return Promise.race([all, new Promise(r => setTimeout(r, cap))]);
+}
+/** Resolves after `n` frames have been drawn: what was changed before the call is on screen by then. */
+export const frames = (n = 2) => new Promise(r => { const step = () => (n-- <= 0 ? r() : requestAnimationFrame(step)); step(); });
+/** Pictures decoded (at most `cap` ms), then two frames drawn with them (ui/motion.js travel). */
+export const painted = (pictures, options) => decoded(pictures, options).then(() => frames(2));
+
 /** A handle for a motion that happens at once (level 'off', or nothing to move). */
 export function instant(settle = () => {}) { settle(false); return {finished: Promise.resolve({cancelled: false}), cancel() {}}; }

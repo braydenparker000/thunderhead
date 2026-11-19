@@ -9,6 +9,7 @@ import {image} from '../ui/components.js';
 import {press, level, tick, T, timed} from '../ui/motion.js';
 import {go, stop, spring, handle, EASE} from '../ui/motion-core.js';
 import {logoImage} from './logo.js';
+import {warmArt} from '../ui/poster.js';
 
 const tx = el => { const t = getComputedStyle(el).transform; return t && t !== 'none' ? new DOMMatrixReadOnly(t).m41 : 0; };
 
@@ -39,12 +40,12 @@ export class Hero {
 
   slide(m, i = 1) {
     const meta = [m.type === 'series' ? 'Series' : 'Movie', (m.genres || [])[0], String(m.releaseInfo || m.year || '').slice(0, 4)].filter(Boolean);
-    return h('article', {class: 'hero-slide', 'aria-roledescription': 'slide', 'aria-label': m.name},
+    return h('article', {class: 'hero-slide', 'aria-roledescription': 'slide', 'aria-label': m.name, 'data-item': `${m.type}:${m.id}`},
       h('div', {class: 'hero-bg'}, image(m.background || m.poster, '', 'hero-img', {eager: i === 0})), h('div', {class: 'hero-shade'}),
       h('div', {class: 'hero-content'},
         m.logo ? press(h('button', {class: 'hero-logo', type: 'button', onclick: () => this.onOpen(m), 'aria-label': m.name}, logoImage(m.logo, m.name, 'hero-logo-img', {onDark: img => img.parentElement?.replaceWith(this.title(m))}))) : this.title(m),
         h('p', {class: 'hero-meta'}, ...meta.flatMap((t, k) => k ? [h('i', {class: 'dot', 'aria-hidden': 'true'}), t] : [t])),
-        press(h('button', {class: 'hero-cta', type: 'button', onclick: () => this.onOpen(m)}, 'View Details'))));
+        press(h('button', {class: 'hero-cta', type: 'button', onclick: () => this.onOpen(m), onpointerdown: () => warmArt(this.slides[this.index]?.querySelector('.hero-bg'))}, 'View Details'))));
   }
 
   /** The title in text, where there is no logo or one too dark to read. */

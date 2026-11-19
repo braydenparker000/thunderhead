@@ -6,9 +6,9 @@
 import {h, scrollTimelines} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {image, longPress, toast} from '../ui/components.js';
-import {artBox} from '../ui/poster.js';
+import {artBox, swapIn} from '../ui/poster.js';
 import {press, rise} from '../ui/motion.js';
-import {readTint, setTint} from '../ui/art.js';
+import {readTint, setTint, paintArt} from '../ui/art.js';
 import {logoImage} from './logo.js';
 import {cast, episodes, facts, moreLike} from './details-parts.js';
 import {enter, leave} from './details-motion.js';
@@ -21,8 +21,10 @@ export class DetailsScreen {
     this.app = app;
     this.item = item;
     this.from = from;
-    // Fetch the player while the viewer reads, so Play opens it at once.
-    (globalThis.requestIdleCallback || (fn => setTimeout(fn, 1200)))(() => app.loadPlayer?.().catch(() => {}));
+    // Fetch the player while the viewer reads, so Play opens it at once: once the picture has landed (its
+    // modules evaluated under the flight were a 50 to 100 ms hole in it on a slow phone).
+    const prefetch = () => (globalThis.requestIdleCallback || (fn => setTimeout(fn, 1200)))(() => app.loadPlayer?.().catch(() => {}), {timeout: 4000});
+    queueMicrotask(() => Promise.resolve(this.landed).then(prefetch));
     this.el = h('div', {class: 'screen details'});
     this.header = h('header', {class: 'details-header', 'aria-hidden': 'true', inert: true});
     this.backBtn = press(h('button', {class: 'float-back', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back', {size: 24})));
@@ -62,6 +64,8 @@ export class DetailsScreen {
     if (retry) { retry.disabled = true; retry.textContent = 'Retrying…'; }
     let meta = null;
     try { meta = await this.app.meta(this.item); } catch (error) { this.error = error; }
+    // Built after the picture has landed, never under its flight (a long frame there is a jump in it).
+    if (this.landed) { await this.landed; this.landed = null; await new Promise(r => requestAnimationFrame(() => r())); }
     this.loading = false;
     if (this.destroyed) return;
     // A failure keeps the poster, title and backdrop the card already had.
@@ -75,7 +79,7 @@ export class DetailsScreen {
   destroy() { this.destroyed = true; for (const off of this.offs) off(); }
   onShow(first) { if (!first && this.meta) this.renderActions(); }
   /** The shell's hooks (app/app.js): opened out of a picture, Details moves itself in and out (screens/details-motion.js). */
-  enter() { const moving = enter(this, this.from); this.moved = !!moving; return moving; }
+  enter() { const moving = enter(this, this.from); this.moved = !!moving; this.landed = moving?.finished || null; return moving; }
   leave(under, layer) { return this.moved ? leave(this, layer) : null; }
   /** A Browse setting changed (Colour from artwork, Hide spoilers): what it changes is redrawn. */
   settingChanged() { if (this.destroyed) return; this.tint(); this.redrawEpisodes(); }
@@ -102,13 +106,16 @@ export class DetailsScreen {
       this.body.append(this.hero.el);
     }
     const art = m.background || m.poster || '';
-    if (art !== this.hero.art) { this.hero.art = art; this.hero.bg.replaceChildren(image(art, '', 'details-bg-img', {eager: true})); }
+    // A new address for a picture already shown replaces it only once decoded (ui/poster.js swapIn): no flash.
+    if (art !== this.hero.art) { this.hero.art = art; swapIn(this.hero.bg, image(art, '', 'details-bg-img', {eager: true})); }
     // The same poster the card showed, at the card's size: already decoded, so it lands without a flash.
     if ((m.poster || '') !== this.hero.posterSrc) {
       this.hero.posterSrc = m.poster || '';
-      this.posterBox = m.poster ? artBox('details-poster', m.poster, image(m.poster, '', 'poster-img', {eager: true})) : null;
-      this.hero.poster.replaceChildren(...[this.posterBox].filter(Boolean));
-      this.posterBox?.querySelector('img')?.decode?.().catch(() => {});
+      if (m.poster && this.posterBox) { paintArt(this.posterBox, m.poster); swapIn(this.posterBox, image(m.poster, '', 'poster-img', {eager: true})); }
+      else {
+        this.posterBox = m.poster ? artBox('details-poster', m.poster, image(m.poster, '', 'poster-img', {eager: true})) : null;
+        this.hero.poster.replaceChildren(...[this.posterBox].filter(Boolean));
+      }
     }
     const titleKey = (m.logo || '') + '\n' + (m.name || '');
     if (titleKey !== this.hero.titleKey) {
