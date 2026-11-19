@@ -300,7 +300,7 @@ Under `prefers-reduced-motion: reduce`:
 | Rise, breathe, think, drift, press | Off. Elements appear in their final state. |
 | Edge light | Static at the state's resting value; thinking shows a steady brighter glow instead of a pulse. |
 | Page and sheet moves | 150 ms opacity crossfade; swipes still track the finger. |
-| Moving between shell pages (sign-in → home, the 404 → home) | Built: a 150 ms cross-fade instead of the default. Toward an app's page there is none (apps don't take part). |
+| Moving between shell pages (sign-in → home, the 404 → home) | Built: a 150 ms cross-fade instead of the default. Toward an app's page opened from the ring, the page fades in over the launch colour in 150 ms (`ui/arrive.js`). |
 | Press scale | Off. |
 | Ring | Bubbles appear in place with a 120 ms fade. |
 | Reply reveal | Whole text at once. |

@@ -1,6 +1,5 @@
-/* What every shell page shares (Home with the Briefing, menu and Settings; sign-in, setup,
-   recovery, import and the 404), never the apps: no grey tap flash, one focus ring, one press
-   feel, and a crossfade between shell pages (cross-document view transitions). Needs tokens.css. */
+/* What every shell page shares, never the apps: no grey tap flash, one focus ring, one press
+   feel, and the cross-fade between pages (ui/theme.js says when). Needs tokens.css. */
 @view-transition{navigation:auto}
 html{-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid color-mix(in srgb,var(--accent-fill) 75%,transparent);outline-offset:2px}

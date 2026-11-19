@@ -6,10 +6,10 @@
 //    saw them in `th.p.settings`): day from the one, night from the other, flipping at each while
 //    the page stays open. Settings and the shell.appearance verb change the choice through th:theme;
 //    new hours arrive as th:setting.
-// 3. The shell's pages cross-fade into each other (shell.css). A cross-fade that can't run rejects
-//    its promise, which is expected, not an error: into a page that moves on before it shows (signed
-//    out, home goes straight to sign-in), or toward an app's page, which doesn't take part and would
-//    throw on arriving, so it is skipped before it leaves.
+// 3. The shell's pages cross-fade into each other (shell.css), and an app's page opened from the
+//    ring uncovers from the launch colour (ui/arrive.css). A cross-fade that can't run rejects its
+//    promise, which is expected, not an error: into a page that moves on before it shows (signed
+//    out, home goes straight to sign-in), or toward an app's page with no launch colour over home.
 try { if (window.top === window.self) document.documentElement.dataset.unframed = ''; } catch {}
 {
 let flip = 0;
@@ -70,9 +70,17 @@ try {
 } catch {}
 const expected = (fade) => fade?.ready.catch(() => {});
 expected(document.activeViewTransition);
-addEventListener('pagereveal', (e) => expected(e.viewTransition));
+// A page the browser kept whole (its back/forward cache) shows its last frame at once, so a
+// cross-fade from the page left would only flash that page again: none (ui/launch.js uncovers home).
+let kept = false;
+addEventListener('pageshow', (e) => { kept = e.persisted; });
+addEventListener('pagereveal', (e) => { expected(e.viewTransition); if (kept) e.viewTransition?.skipTransition(); });
 addEventListener('pageswap', (e) => {
   if (!e.viewTransition) return;
   expected(e.viewTransition);
-  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(new URL(e.activation.entry.url).pathname)) e.viewTransition.skipTransition();
+  // Toward an app's page only when home's launch colour covers it (ui/launch.js): the app uncovers
+  // from it (ui/arrive.css). Without one ("Opening an app": none) the app's page comes at once.
+  let to = '';
+  try { to = new URL(e.activation.entry.url).pathname; } catch {}
+  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(to) && !document.querySelector('.launch')) e.viewTransition.skipTransition();
 });
