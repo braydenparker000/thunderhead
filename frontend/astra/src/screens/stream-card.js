@@ -23,7 +23,7 @@ import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
 const NEEDS_DEBRID = 'Torrents need a debrid add-on such as TorBox.';
 /** Cards in the first slice at most (more than a screenful), then at most SLICE cards a slice; every slice also stops
  * after SLICE_MS of work (each stays under about 8 ms a frame with its layout on a slowed phone). */
-export const FIRST = 10, SLICE = 8, SLICE_MS = 4;
+export const FIRST = 10, SLICE = 8, SLICE_MS = 4, SCREENFUL = 4; // the first slice is never under a screenful, however slow the phone
 const sizeLabel = n => !n ? '' : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB' : Math.round(n / 1e6) + ' MB';
 
 /** A best-effort size from the stream's own number or text ("💾 4.2 GB", "1,400 MB"), as "1.4 GB". */
@@ -144,13 +144,13 @@ export function sourceCard(source, {current = false, onPick = () => {}, minutes 
  */
 export function drawInSlices(body, items, make, alive, drawn = null) {
   let i = 0;
-  const slice = (count, budget) => {
+  const slice = (count, budget, least = 1) => {
     const first = i, stop = Math.min(items.length, i + count), end = performance.now() + budget, part = document.createDocumentFragment(), made = [];
-    while (i < stop && (i === first || performance.now() < end)) { const el = make(items[i++]); made.push(el); part.append(el); }
+    while (i < stop && (i - first < least || performance.now() < end)) { const el = make(items[i++]); made.push(el); part.append(el); }
     body.append(part);
     drawn?.(made);
     // The next slice after this one has been drawn: a task posted from a frame's callback runs after that frame.
     if (i < items.length) requestAnimationFrame(() => setTimeout(() => { if (alive()) slice(SLICE, SLICE_MS); }, 0));
   };
-  slice(FIRST, SLICE_MS);
+  slice(FIRST, SLICE_MS, SCREENFUL);
 }
