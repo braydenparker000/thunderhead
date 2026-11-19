@@ -80,9 +80,9 @@
 .stream-list > .state-card .btn.wide { width: auto; min-width: 160px; }
 
 /* A stream card: a solid surface with a hairline. */
-.stream-card { display: flex; flex-direction: column; gap: var(--s-1); min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
+.stream-card { display: flex; flex-direction: column; gap: var(--s-1); width: 100%; min-width: 0; min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
 .stream-card.disabled { opacity: .5; }
-.stream-card.current { border-color: var(--tint); }
+/* The one playing is marked by the player's own slot around the card (player/menus.js .ap-source-slot.current). */
 /* Designed. Line 1: the resolution badge (solid, the strongest thing), picture badges, codec and sound, ready. */
 .sc-top { display: flex; align-items: center; gap: var(--s-2); min-width: 0; overflow: hidden; white-space: nowrap; }
 .sc-res { flex: none; padding: 0 var(--s-2); border-radius: var(--r-sm); background: var(--tint); color: var(--on-tint, var(--on-accent)); font: 800 calc(13px * var(--text-scale, 1))/calc(24px * var(--text-scale, 1)) var(--font); letter-spacing: .02em; }
