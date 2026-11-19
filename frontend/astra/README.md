@@ -72,7 +72,8 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   the add-ons' own order, with a chip per add-on. Each add-on's section holds
   its place with placeholder cards while it is asked and is filled in place,
   so cards already on screen never move to a new element under the finger.
-  Continue Watching opens Streams at once from what was saved. Nothing is
+  A Continue Watching card plays the stream you picked, again (below); one
+  that remembers none opens Streams at once from what was saved. Nothing is
   ranked or picked for you. A long list (an add-on can send 300 streams)
   is drawn ten cards at once, then at most eight a frame, each slice laid
   out in its own frame and only ever appended, so a card under a finger
@@ -171,6 +172,19 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   Continue Watching offers the next episode instead. A resumed film saves
   nothing until it has reached its saved place (or played a minute), so the
   early times of a resume never overwrite it.
+- **Continue Watching remembers the stream** (owner ruling 2026-11-19;
+  `app/resume.js`, `app/remembered.js`): the entry keeps the stream you tapped
+  (its link, the torrent's hash and file, the release group, the add-on's name
+  and the card's label; checked on every read, in the backup and the server
+  copy; a finished entry keeps only the release group). A tap on the card
+  opens the player at once and resolves that stream as a tap on the list
+  does, from where it stopped; the title's streams are collected behind it
+  for the Sources panel. If it cannot be reached, the same file is looked for
+  in that list; if it is not offered any more, the sources panel says so and
+  waits for your pick. Next Up continues the release group you watched, as
+  Next does. Hold a card for "Choose another stream" (the list) and "Start
+  from beginning" (the same stream from 0:00). A finger on a card asks for
+  its address ahead (Get ready ahead). Entries from before open the list.
 - **Settings**: appearance, which catalogs Home shows, add-ons (install,
   enable, reorder, configure, remove), playback and your data (export,
   restore, clear). Install takes what people paste (`stremio://`, a

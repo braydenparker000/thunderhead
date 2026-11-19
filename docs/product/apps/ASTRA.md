@@ -26,11 +26,19 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
    ahead" (on by default) and is off with the data saver. Still in force: nothing plays without a tap;
    Astra never ranks, picks or pre-selects a stream on the list; secrets never leave the phone or
    reach storage (§5).
+   **Owner ruling 2026-11-19 (Continue Watching remembers the stream):** a progress entry keeps the
+   stream the owner tapped, and a tap on its Continue Watching card plays that same stream again from
+   where it stopped, without the stream list; a long press offers "Choose another stream". Only the
+   stream the owner chose plays again: when it cannot be reached and the same file is not offered any
+   more, the sources panel waits for the owner's pick (§4.4).
 3. **Add-on URLs, stream URLs and the debrid token are secrets.** On the server they are stored only
    Worker-encrypted; they never appear in logs, senses, surfaces, errors, the mind's context or the repo.
    **Owner ruling 2026-11-18:** stream addresses may pass through the owner's Worker in transit, for the
    owner's signed-in device only, never stored, never logged; the TorBox API key lives in the Worker as
-   the secret `TORBOX_KEY`. TorBox's own file links may carry the account's token: such a link is passed
+   the secret `TORBOX_KEY`.
+   **Owner ruling 2026-11-19:** the stream a Continue Watching entry remembers (the add-on's link, the
+   torrent's hash, the file's index, name and size, the release group, the add-on's name and the card's
+   label) is a secret at rest on the phone exactly as the add-on list is (§5.2 rule 7). TorBox's own file links may carry the account's token: such a link is passed
    only to the owner's signed-in device, in the answer body, never logged or stored, exactly as every
    add-on already hands it to the phone when it plays. The key as a bare secret (the Worker secret,
    the `Authorization` header, a TorBox API address such as a requestdl permanent link) never leaves.
@@ -248,6 +256,21 @@ How it is enforced:
    through `/v1/astra/*` in transit and a torrent's id and file list stay half an hour in its memory,
    for the owner's device only; agent keys get 403); senses carry none (§3).
 
+5. **Continue Watching, as built (owner ruling 2026-11-19, `app/resume.js`, `app/remembered.js`):** when
+   a stream the owner tapped plays, its progress entry remembers it (rule 3; a finished entry keeps only
+   the release group). A tap on a "resume" card opens the player at once and resolves that stream as a
+   tap on the list does (mode "play": with a hash, the Worker hands TorBox's fresh address, so it works on
+   any phone), from the saved time; the title's streams are collected behind it for the Sources panel and
+   never disturb what plays. When the stream cannot be reached (the Worker says it is not on TorBox; its
+   link dead before the first picture), the same stream is looked for in that list (same hash and file,
+   else same link, else same release group and file name) and played; when it is not there, the sources
+   panel waits with "The stream you were watching is no longer offered. Pick another." Nothing else is
+   ever picked. A "Next Up" card follows Next's rule (2026-11-15): the release group the owner watched
+   plays when the episode has it, else the sources panel. Entries from before remember nothing and open
+   the stream list as before. A long press: "Choose another stream" (the list, at the saved time), then
+   "Start from beginning" (the remembered stream from 0:00). A finger coming down on a card asks for its
+   address ahead (mode "ahead", Get ready ahead on, data saver off); nothing is asked while Home is shown.
+
 Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-10-27).
 
 ---
@@ -290,6 +313,13 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    phone (IndexedDB `astra-films`) are keyed by the file's size and a SHA-256 of its first 64 KiB,
    never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
    codec names only.
+7. **Owner ruling 2026-11-19 (amends rule 6's "never storage" for one case):** a Continue Watching
+   entry's remembered stream (§4.4 #5) lives in `localStorage` `astra.v2.progress` beside the add-on
+   list and is treated like it: checked by the store's sanitiser on every read (the link https only and
+   at most 4,096 characters, a 40-hex hash, finite numbers, capped text; a damaged one is dropped and
+   the entry stays), carried in the backup file and in the Worker-encrypted copy (§5.3) as progress is,
+   sent only to the owner's Worker when a tap plays it, and never logged, shown (the label has no hash)
+   or read by the senses reader, which takes refs and times only.
 
 ### 5.3 Server copy (Worker-encrypted), as built (2026-11-19)
 
