@@ -583,41 +583,61 @@ only, nothing stored or logged.
 Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and
 the page plays the add-on's own link, as before the relay.
 
-## Next round: look, motion and settings (owner, 2026-11-19)
+## Look, motion and settings (owner, 2026-11-19; as built)
 
-Agreed after the finishing round ([decisions](../../process/decisions.md), 2026-11-19); nothing here is built yet.
-The owner's words: "I think it needs more customizability and overall more settings, your continuity ideas are
-great. Honestly every part should feel specifically engineered to be the way that it is… I wanna build something
-better than everything else. Novio, Apple TV, Zen Browser… These aren't even perfect yet. I wanna do something
-better than them obviously."
+Asked by the owner after the finishing round ([decisions](../../process/decisions.md), 2026-11-19): "I think it
+needs more customizability and overall more settings… every part should feel specifically engineered to be
+the way that it is… I wanna build something better than everything else." Built as one Astra-only pull request
+from a one-page feel spec: every number below is the spec's.
 
-What that fixes for the round:
+**The rules, each checked.** A touch is answered in the frame it lands (the pressed state on pointerdown).
+Only `transform` and `opacity` move: `tests/astra-motion-rules.test.mjs` reads every Astra stylesheet and
+fails on a transition or keyframe that moves width, height, a position, a margin or a padding (a short list
+of older offenders names the area that fixes each). Everything that appears comes from somewhere and goes
+back there; what has no origin fades in place in 120 ms at most. Every movement can be interrupted: a new one
+starts from where the element is (Web Animations), never a queue. Sizes set times: a control 90 to 150 ms, a
+card 220 ms, a screen 320 ms, a shared element 380 ms, nothing over 450 ms.
 
-1. **The bar.** Better than the references, not level with them: Apple TV, Zen Browser and the app the owner
-   calls Novio are starting points, and the owner expects there are good interfaces not yet seen. Every part
-   must look and behave as if it was engineered for its place; nothing generic, nothing left at a default.
-2. **More settings, more of Astra the owner's own.** Today Settings has Appearance (poster size and corners),
-   Home (hero, rows, their order), Add-ons, Playback and Your data. The round adds real customisation across
-   the app; what exactly is decided with the owner from a list, not guessed.
-3. **Continuity** (agreed): things travel instead of appearing. The poster grows into Details; Details, the
-   stream list and the player share one backdrop instead of cutting to black; the player opens out of Play.
-4. **Touch**: springs on sheets and menus, sheets dragged down to dismiss, rows that settle on a poster, small
-   haptic ticks.
-5. **Loading**: posters fade up from their own colour, placeholders match the final layout so nothing jumps,
-   the first picture cross-fades in from the backdrop.
-6. **The stream list** is the least finished screen (the add-on's raw text): a designed card with quality,
-   size, sound and source as tidy labels, and a format for the owner's add-on that Astra reads reliably.
-   Labels only: rule 2 stands, nothing is ranked, hidden or picked.
-7. **Layout and type**: one spacing rhythm and type scale; a tint per title from its artwork.
-8. **Player controls**: how they appear and leave, how seeking and a double tap feel.
+**Motion: one place.** `src/ui/motion.js` makes every movement and nothing else does: `press`, `travel`
+(a shared element), `push`/`pop` (a screen and its Back), `swap` (tabs), `rise` (content in up to four groups
+30 ms apart), `sheet` (follows the finger, resists upward by a fifth, dismissed past 30% of its height or a
+downward fling over 0.5 px/ms), `enter`/`exit`/`fadeTo`, and `tick` (haptics). Three springs are CSS
+`linear()` easings generated from a stiffness and a damping (`scripts/astra/springs.mjs`, checked by a test):
+snappy (420, 34: presses, switches, the nav pill), smooth (240, 27: screens, sheets, shared elements), lively
+(320, 22, about 8% overshoot: the lift, toasts). Motion has three levels in Settings › Motion and touch: Full,
+Reduced (travel and slides become 120 ms fades) and Off (no animation at all); System, the default, follows
+the phone. Every named transition is timed (frames, the longest gap, whether it was cut short) into a ring in
+memory; Settings › About › "Copy feel report" copies it as plain numbers and fixed names, for the next round.
 
-How it is run: (a) every transition as it is today is recorded at phone size on a slowed processor, with frame
-times; (b) a one-page feel spec fixes the timings, the springs and the rules (every movement shows where a
-thing came from; nothing delays a tap; 60 frames a second on the owner's phone; reduced motion respected);
-(c) it is built in the layers above and each is shown to the owner as before and after before it ships;
-(d) a check fails when a transition drops frames on a slowed processor, and the playback report gains
-frame-drop counts so the owner's phone says what stutters. It is its own pull request, Astra-only, after the
-finishing round is live.
+**The shell.** Tabs fade (the old one out in 90 ms, the new one in over 120 ms rising 6 px; the new tab takes
+touches at once); the nav pill springs and the tab's icon turns from its regular to its fill weight
+(Phosphor) as the pill arrives; the bar shrinks while a page scrolls by a transform. Pushed screens come from
+8% to the right while the screen behind recedes (scale .98, 8% dimmer); Back is the same in reverse. Sheets
+rise and follow a finger with a scrim that darkens with them; confirm dialogs grow from .96 as they fade;
+toasts rise from the nav bar and leave by fading (the very first one moves too); the long-press lift carries
+the poster up on the lively spring over one fading blur, its menu growing from the corner on the card's side.
+The launch screen shows its wordmark only when start-up takes longer than 400 ms and hands over in a 120 ms
+fade. Offline is said once, in a toast that stays until the phone is back.
+
+**Settings: the registry.** A setting is a row of data (`src/settings/registry.js`: id, area, title, detail,
+kind, options, default, where it is kept, and what applying it does). Screens read `app.setting(id)`; a change
+calls `app.saveSetting(id, value)`, which checks the value, keeps it ("astra": in a backup and between phones;
+"device": this phone's; "player": the player's preferences) and applies it at once. Every setting from before
+kept its id and its stored place, so nothing the owner set was lost and a backup keeps its shape. Settings
+opens with a search over every row (the rows work in place in the results) and one page per area: Appearance,
+Motion and touch, Home, Stream list, Player, Playback, Add-ons, Your data, About. An area with no rows yet is
+not listed; each page has a live preview where a picture says it better and "Reset this page".
+
+**Appearance.** Accent colour (eight designed swatches and a custom one; a colour too dark to read on the page
+is lightened until it reads at 4.5:1, and the text on it is near black or white, whichever reads better);
+background (true black, near black, or tinted by the title on that title's pages); text size (three steps
+scaling the type tokens); density (comfortable or compact: the space tokens); poster size and corners; tab
+names under the icons; a floating or docked nav bar; the tab Astra opens on.
+
+**Measured.** Every transition was recorded at 390×844 with the processor slowed 4×, before and after. Cold
+start was the worst by dropped frames; its script is cheap (under 40 ms of Astra's own code at 4×): the cost is
+the browser's own work, parsing the page and evaluating some fifty modules (about 70 ms), handling 120 requests
+on the page's thread, and laying out and painting the whole of Home again each time a picture arrives.
 
 ---
 
