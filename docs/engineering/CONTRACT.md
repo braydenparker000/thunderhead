@@ -242,6 +242,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/workshop` | D | P9 | built | the files sent for the workshop, newest first, and how much room they take |
 | `PUT /v1/workshop/:id/parts/:n` | D | P9 | built | ?bytes=<the whole file>; one piece, bytes: 8 MiB but the last; TH-File-Name, TH-Sha256 of the piece |
 | `DELETE /v1/workshop/:id` | D | P9 | built | removes a file, every piece |
+| `GET /v1/astra/backup` | D | P8 | built | {version, saved_at, copy}: the copy kept for every phone, opened; all null when none; copy null when it does not open |
+| `PUT /v1/astra/backup` | D | P8 | built | {base, copy ≤ 2 MiB as sent, tagged sync/1, known keys only}: sealed in place of the copy base names; another kept now is 409 conflict |
+| `DELETE /v1/astra/backup` | D | P8 | built | removes the copy and its daily copies: 204 |
 | `POST /v1/astra/play` | D | P8 | built | {link, hash?, fileIndex?, fileName?, fileSize?, mode play\|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on |
 | `GET /v1/astra/torbox` | D | P8 | built | whether the TorBox key is set and accepted, and the plan number |
 | `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |

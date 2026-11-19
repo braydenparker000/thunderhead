@@ -36,6 +36,10 @@ export const PHOTO_ROUTES = {
   'GET /v1/workshop': { who: ['D'], phase: 'P9', note: 'the files sent for the workshop, newest first, and how much room they take' },
   'PUT /v1/workshop/:id/parts/:n': { who: ['D'], phase: 'P9', note: '?bytes=<the whole file>; one piece, bytes: 8 MiB but the last; TH-File-Name, TH-Sha256 of the piece' },
   'DELETE /v1/workshop/:id': { who: ['D'], phase: 'P9', note: 'removes a file, every piece' },
+  // Astra's copy of the owner's data (astra.ts, ASTRA.md §5.3): the owner's phone only (agent keys 403); sealed, never read or logged.
+  'GET /v1/astra/backup': { who: ['D'], phase: 'P8', note: '{version, saved_at, copy}: the copy kept for every phone, opened; all null when none; copy null when it does not open' },
+  'PUT /v1/astra/backup': { who: ['D'], phase: 'P8', note: '{base, copy ≤ 2 MiB as sent, tagged sync/1, known keys only}: sealed in place of the copy base names; another kept now is 409 conflict' },
+  'DELETE /v1/astra/backup': { who: ['D'], phase: 'P8', note: 'removes the copy and its daily copies: 204' },
   // Astra's relay: the owner's phone only (agent keys 403); addresses in transit, never kept or logged.
   'POST /v1/astra/play': { who: ['D'], phase: 'P8', note: "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on" },
   'GET /v1/astra/torbox': { who: ['D'], phase: 'P8', note: 'whether the TorBox key is set and accepted, and the plan number' },

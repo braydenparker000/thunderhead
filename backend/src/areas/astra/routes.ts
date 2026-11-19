@@ -23,6 +23,7 @@ import {
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
+import { backupRoutes } from './backup';
 import { direct, NOT_CACHED, READY } from './direct';
 import { follow } from './follow';
 import { serverList } from './servers';
@@ -103,3 +104,7 @@ export const astraRoutes = new Hono<AppEnv>()
       return c.json({ configured: false, ok: null, plan: null, note: NOTE.noKey } satisfies AstraTorboxResponse);
     return c.json({ configured: true, ...(await account(r, r.key)) } satisfies AstraTorboxResponse);
   });
+
+// --- The owner's copy of Astra's data (backup.ts; ASTRA.md §5.3): GET, PUT and DELETE /v1/astra/backup,
+// the owner's device only, in their own module so the relay above is unchanged. ---
+astraRoutes.route('/', backupRoutes);

@@ -85,6 +85,7 @@ export async function api(path, {method = 'GET', body, signal, fetchFn = (...a) 
     throw new WorkerError(SAID[response.status] || 'Your server could not do this just now.', {status: response.status,
       code: typeof e?.code === 'string' ? e.code : '', reason: plainSentence(details.reason), steps: Array.isArray(details.steps) ? details.steps : []});
   }
+  if (response.status === 204) return {}; // done, with nothing to say (a removal)
   if (data === null || typeof data !== 'object') throw new WorkerError('Your server sent an answer Astra could not read.', {status: response.status, code: 'unreadable'});
   return data;
 }

@@ -1987,6 +1987,30 @@
       "status": "built",
       "note": "removes a file, every piece"
     },
+    "GET /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "{version, saved_at, copy}: the copy kept for every phone, opened; all null when none; copy null when it does not open"
+    },
+    "PUT /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "{base, copy ≤ 2 MiB as sent, tagged sync/1, known keys only}: sealed in place of the copy base names; another kept now is 409 conflict"
+    },
+    "DELETE /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "removes the copy and its daily copies: 204"
+    },
     "POST /v1/astra/play": {
       "who": [
         "D"

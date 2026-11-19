@@ -147,6 +147,9 @@ export class App {
 
   start() {
     this.selectTab('home');
+    // The same Astra on every phone the owner signs in on (sync.js): loaded once Home is under way, its first ask waits
+    // for an idle moment; signed out it sends nothing.
+    this.syncReady = import('./sync.js').then(m => { this.sync = m.startSync(this, {toast}); }).catch(() => {});
     if (this.imported && (this.imported.addons || this.imported.library || this.imported.progress)) {
       toast(`Brought over from classic Astra: ${[this.imported.addons && `${this.imported.addons} add-ons`, this.imported.library && `${this.imported.library} saved`, this.imported.progress && `${this.imported.progress} in progress`].filter(Boolean).join(', ')}`);
     }
