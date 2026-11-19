@@ -155,9 +155,10 @@ function trackLines(e) {
 }
 
 /** The engine's log since the load, each entry one plain line; kinds summarised above are left out. */
-function logLines(entries, start) {
+function logLines(entries, start, scrub) {
   const shown = entries.filter(e => e.kind !== 'timing').slice(-60);
-  return shown.length ? ['Log (seconds since the load):', ...shown.map(e => `    +${((e.t - start) / 1000).toFixed(1)} ${e.kind}: ${plain(e.detail)}`.slice(0, 240))] : [];
+  // Each line scrubbed whole before it is cut: a name cut in two would no longer look like one.
+  return shown.length ? ['Log (seconds since the load):', ...shown.map(e => scrub(`    +${((e.t - start) / 1000).toFixed(1)} ${e.kind}: ${plain(e.detail)}`).slice(0, 240))] : [];
 }
 
 /** This phone's decoders, in a few lines. */
@@ -176,6 +177,7 @@ export async function playbackReport(engine, {answer, known = [], ua, opened = t
   const device = await deviceReport().catch(() => null);
   if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null, false), ...deviceLines(device)].join('\n'), {known: known.filter(Boolean), hosts: false});
   const {entries, start} = thisLoad(e.log || []);
+  const scrubbing = {known: [url, ...known].filter(Boolean), hosts: false};
   const used = typeof e.dataUsed === 'function' ? (() => { try { return e.dataUsed(); } catch { return null; } })() : null;
   const rate = e.session?.rebuffer?.link?.rate?.() || 0;
   const stalls = entries.filter(x => x.kind === 'stall'), held = entries.filter(x => x.kind === 'rebuffer');
@@ -192,9 +194,9 @@ export async function playbackReport(engine, {answer, known = [], ua, opened = t
     `Now: ${clock(e.video?.currentTime)}${e.video?.videoWidth ? `, ${e.video.videoWidth}×${e.video.videoHeight}` : ''}${q ? `, ${q.totalVideoFrames} frames shown, ${q.droppedVideoFrames} dropped` : ''}${e.video?.error ? `, error ${e.video.error.code}` : ''}`,
     ...(e.info ? trackLines(e) : ['Tracks: not read']),
     ...deviceLines(device),
-    ...logLines(entries, start),
+    ...logLines(entries, start, line => scrubSecrets(line, scrubbing)),
   ].join('\n');
-  return scrubSecrets(text, {known: [url, ...known].filter(Boolean), hosts: false});
+  return scrubSecrets(text, scrubbing);
 }
 
 /** What the player knows that must never show: the stream's address, its file's name, its torrent. */

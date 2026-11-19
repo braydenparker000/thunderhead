@@ -140,3 +140,14 @@ test('the scrubber: names with spaces, fonts, escaped and encoded addresses, sec
   ];
   for (const line of ordinary) assert.equal(scrubSecrets(line, { hosts: false }), line);
 });
+
+test('a long log line is scrubbed before it is cut, so no name is left half-cut', async () => {
+  const e = { url: 'https://s.latm.tb-cdn.example/x', mode: 'remux', video: { currentTime: 1 }, log: [
+    { t: 0, kind: 'timing', detail: { step: 'open', ms: 1 } },
+    { t: 5, kind: 'notice', detail: `${'Waiting '.repeat(26)}My Secret Film (2021) 1080p.mkv` },
+    { t: 6, kind: 'notice', detail: `${'Reading '.repeat(24)}https://nexus.tb-cdn.example/dl/My.Secret.Film.2021.1080p.mkv` },
+  ] };
+  const text = await playbackReport(e, { answer: null, ua: 'x' });
+  for (const secret of ['Secret', 'My Se', '2021', 'nexus', '1080p']) assert.ok(!text.includes(secret), `the report holds ${secret}`);
+  assert.ok(text.split('\n').every((l) => l.length <= 240));
+});
