@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-19-astra-finished",
+  "id": "2026-11-19-astra-feel",
   "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra: tap a Continue Watching card and it plays the stream you last picked, from where you stopped. Hold it for others.",
+      "text": "Astra moves now: a poster flies into its title's page, and the player opens out of the stream you tap. No cuts to black.",
       "open": "astra"
     },
     {
-      "text": "Astra now stays the same on every phone you sign in on: add-ons, library, progress and settings follow you."
+      "text": "Stream cards are designed: resolution, picture, sound, size and release at a glance, in the order you choose."
     },
     {
-      "text": "Stream cards hide the long hash line and say before you tap when a stream will play poorly on this phone."
+      "text": "Settings can be searched and has far more: accent, text size, motion, haptics, player buttons, hiding spoilers."
     },
     {
-      "text": "Films start sooner after a tap and hold less memory. Stream info has Copy playback report for a slow start."
+      "text": "Settings › About has Copy feel report: it shows which transitions stutter on your phone, so they can be fixed."
     }
   ]
 }
