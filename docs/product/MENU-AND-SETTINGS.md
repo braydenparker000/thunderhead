@@ -32,6 +32,10 @@ Presses tint and scale on `--d-fast`; releases use `--pop`. Focus uses the shell
 curves and motion durations come from `tokens.css`; its values are unchanged. Reduced motion
 removes control travel. No native select is rendered. Pickers open sheets with a check on the
 current choice. Legacy sign-in fields share these surfaces without changing sign-in behavior.
+Settings opens with a search field (2026-11-19, `apps/settings/search.js`, loaded on its first focus):
+a word of a setting's name or line finds it; one kept on the phone works where it is found, the
+others and the pages open there. Each catalogue page ends with **Reset this page**, which asks, then
+puts that page's settings (and no other's) back as they came.
 
 ## 2. Search
 
@@ -274,7 +278,7 @@ intensity only says how strongly.
 | `appearance.glyphs` | segments: filled / outline | phone | `filled` | `apps/home/home.js`: the ring's icons, Phosphor fill or regular |
 | `appearance.ring` | segments: compact / regular / large | phone | `regular` | `ui/tokens.css` scales `.ring` (.86 / 1 / 1.16); `home.js` keeps it clear of the edges by the same factor |
 | `appearance.haptics` | segments: off / light / full | phone | `light` | `th/motion.js` `buzz()`: off none, full pulses twice as long; the ring, swipes, dictation, the decision card and the Briefing's hold |
-| `appearance.motion` | segments: follow system / on / off | phone | `system` | `ui/tokens.css` (the duration tokens) and `th/motion.js` `motionReduced()`; off keeps the tokens and springs, while a few decorative loops still follow the phone's own setting |
+| `appearance.motion` (Motion) | segments: System / Full (`never`) / Reduced (`always`) / Off (`off`, 2026-11-19) | phone | `system` | `ui/tokens.css` (the duration tokens) and `th/motion.js` `motionReduced()`; Full keeps the tokens and springs, while a few decorative loops still follow the phone's own setting; Off zeroes every duration, lands even fades at once and stops loops (`ui/prefs.css`); `apps/home/prefs.js` puts the level on `<html data-motion-level>` (full, reduced, off) |
 | `appearance.field` | segments: glow / plain | phone | `glow` | `ui/prefs.css`: plain drops the two drifting glows behind home |
 | `appearance.grain` | switch | phone | `on` | `ui/prefs.css`: off hides the film grain |
 | `appearance.idle_glow` | switch | phone | `on` | `ui/prefs.css`: off hides the edge light while nothing happens; thinking, listening, working and a waiting card still light it |

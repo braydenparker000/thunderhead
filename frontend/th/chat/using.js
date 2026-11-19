@@ -1,11 +1,10 @@
 // @ts-check
-// What the mind drew on, as chips (HOME.md §4.13): on the working card while it works, and under the
-// reply once it lands, folded into one line, "How I got this", that opens to them (`meta.using`,
-// which the Worker copies from the work onto the reply). A chip shows its label and nothing else
-// (textContent, capped by the Worker), and a tap opens its place: a fact Settings › Memory at it, a
-// song Music, a page Study, a file saves it, a day opens that day's conversation, an app opens it;
-// a source says its host; a search only says what was looked for.
+// What the mind drew on, as chips (HOME.md §4.13): on the working card, and under the reply as
+// "How I got this" (`meta.using`, copied by the Worker). A chip shows its label only (textContent),
+// and a tap opens its place: a fact in Memory, a song, a page, a file, a day, an app; a source
+// says its host; a search what was looked for.
 import { from } from '../../ui/launch.js';
+import { motionReduced } from '../motion.js';
 import { appFor, deepLink } from '../registry/apps.js';
 import { el, toast } from '../ui.js';
 import { citeHref, plain } from './model.js';
@@ -33,7 +32,7 @@ function hostOf(url) {
  * @param {string} day */
 async function openDay(day) {
   const data = await import('../convos/data.js');
-  if (data.cachedToday()?.day === day) return void document.querySelector('.convo')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+  if (data.cachedToday()?.day === day) return void document.querySelector('.convo')?.scrollTo({ top: 1e9, behavior: glide() });
   const find = () => [...data.list.threads.values()].find((t) => t.kind === 'daily' && t.day === day);
   let t = find();
   if (!t) t = await data.refresh().then(find, () => undefined);
@@ -82,6 +81,9 @@ export function chip(u, open) {
 export function usable(list) {
   return Array.isArray(list) ? list.filter((u) => u && Object.hasOwn(GLYPH, u.kind) && plain(u.label)).slice(0, 6) : [];
 }
+
+/** A scroll's way: at once under reduced motion (DESIGN-SYSTEM.md §8.4), else smooth. */
+export const glide = () => (motionReduced() ? 'instant' : 'smooth');
 
 let folds = 0;
 /** "How I got this" under a reply, or null when it drew on nothing: one quiet line that opens (and

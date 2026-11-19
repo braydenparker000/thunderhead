@@ -8,11 +8,17 @@ export function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'i row-icon');
   svg.setAttribute('aria-hidden', 'true');
-  const use = document.createElementNS(svg.namespaceURI, 'use');
-  use.setAttribute('href', `/ui/icons.svg#${name}`);
-  svg.append(use);
+  // Every page's Back is drawn in place (the sprite's own path): by reference, the first page's slide
+  // spent a frame reading the whole sprite again for it.
+  const path = INLINE[name];
+  if (path) svg.setAttribute('viewBox', '0 0 256 256');
+  const part = document.createElementNS(svg.namespaceURI, path ? 'path' : 'use');
+  part.setAttribute(path ? 'd' : 'href', path ?? `/ui/icons.svg#${name}`);
+  svg.append(part);
   return svg;
 }
+/** @type {Record<string, string>} */
+const INLINE = { 'caret-left': 'M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z' };
 
 /** @param {{title:string,detail?:string,icon?:string,value?:string,open?:boolean,danger?:boolean,onClick?:()=>unknown}} options */
 export function row({ title, detail, icon: symbol, value, open = false, danger = false, onClick }) {

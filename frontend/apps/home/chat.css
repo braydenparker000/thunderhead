@@ -79,18 +79,16 @@
 .pullfind{position:absolute;z-index:8;top:calc(14px + env(safe-area-inset-top,0px));left:50%;padding:6px 12px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);font:500 var(--fs-label) var(--ui);color:var(--ink-2);pointer-events:none;opacity:0;transform:translate(-50%,-12px)}
 .pullfind.ready{color:var(--accent-text)}
 @media (prefers-reduced-motion: reduce){.talk .reply.reveal .w{animation:none}.newpill{transition:none}}
-/* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
-   the odds and what happens if ignored; a spinner on the pressed button; the error line. */
-/* docked above the ask bar while a card waits (owner, 2026-10-31), the working card above the
-   decision card; the conversation, the "New reply" pill and the toasts all keep above them
-   (--dock-h and --under, th/decide/dock.js) */
+/* Decision cards (HOME.md §3): "1 of 3", the odds, a spinner, the error line. Docked above the ask
+   bar (owner, 2026-10-31), the working card above; all else keeps above them (th/decide/dock.js) */
 #home>.dock{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
 .pastview #working{display:none}
 /* The working card (HOME.md §4.13): the decision card's glass with the mind's blue; a title in the
    mind's words, its live line, chips for what it draws on, and Stop. Folded to its title line while
    a decision waits; the dot pulses while the mind wakes; it folds up into the reply when it comes. */
-#working .card{margin-top:0;max-height:240px;padding:12px 10px 12px 16px;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--accent-text) 45%,transparent);animation:dockin calc(var(--d-rise) * 5 / 9) var(--settle) both;transform-origin:50% 0;transition:max-height var(--d-base) var(--settle),padding var(--d-base) var(--settle),opacity var(--d-base) var(--settle),transform var(--d-base) var(--settle)}
-#working .card.fold{max-height:0;padding-top:0;padding-bottom:0;opacity:0;transform:translateY(-10px) scaleY(.3);border-color:transparent;pointer-events:none}
+#working .card{margin-top:0;max-height:240px;padding:12px 10px 12px 16px;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--accent-text) 45%,transparent);animation:dockin calc(var(--d-rise) * 5 / 9) var(--settle) both;transform-origin:50% 0}
+#working .card.fold{border-color:transparent;pointer-events:none;animation:dockcut var(--d-base) var(--settle) both,wkfold var(--d-base) var(--settle) both}
+@keyframes wkfold{to{opacity:0;transform:translateY(-10px) scaleY(.3)}}
 .work .wkhead{display:flex;align-items:center;gap:8px;min-height:32px}
 .work .d{flex:none;width:7px;height:7px;border-radius:50%;background:var(--accent-text);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-text) 22%,transparent)}
 .work.waking .d{animation:wake var(--d-edge) var(--ease-ambient) infinite}
@@ -110,7 +108,7 @@
 .how .howt{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin-top:-10px;padding:0;border:0;background:none;color:var(--ink-3);font:500 var(--fs-label) var(--ui);cursor:pointer}
 .how .howt .i{width:12px;height:12px;fill:currentColor;transition:transform var(--d-base) var(--settle)}
 .how.open .howt .i{transform:rotate(90deg)}
-.how .howin{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--d-base) var(--settle),opacity var(--d-base) var(--ease-default)}
+.how .howin{display:grid;grid-template-rows:0fr;opacity:0;transition:opacity var(--d-base) var(--ease-default)}
 .how.open .howin{grid-template-rows:1fr;opacity:1}
 .how .wkuse{display:flex;flex-wrap:wrap;gap:6px;min-height:0;overflow:hidden}
 .work.tight .wkn,.work.tight .wkuse{display:none}
@@ -123,7 +121,7 @@
 @media (prefers-reduced-motion: reduce){.work.waking .d{animation:none}}
 #decision .card{margin-top:0;max-height:none;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--gold) 55%,transparent);animation:dockin calc(var(--d-rise) * 5 / 9) var(--settle) both}
 @keyframes dockin{from{opacity:0;transform:translateY(18px) scale(.98)}}
-#decision .card.gone{max-height:0}
+#decision .card.gone{animation:dockcut calc(var(--d-rise) / 2) calc(var(--d-quick) / 2) var(--settle) both,fade var(--d-base) var(--ease-default) both}
 #decision .card.pulse{animation:pulse var(--d-base) var(--ease-out)}
 .card .why .of{margin-left:auto}
 .card .tg{margin-top:4px;font:500 var(--fs-small)/var(--lh-body) var(--ui);color:var(--ink-2);overflow-wrap:anywhere}
@@ -132,7 +130,6 @@
 .card .err{margin-top:10px;font:500 var(--fs-small)/var(--lh-body) var(--ui);color:var(--alarm,#b42318)}
 .decide button:disabled{opacity:.7;cursor:default}
 .card.news{max-height:520px}
-.card.news.gone{max-height:0}
 .card.news .why .d{background:var(--accent-text);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-text) 22%,transparent)}
 .card.news ul.q{margin:7px 0 0;padding:0;list-style:none}
 .card.news ul.q li{position:relative;padding-left:14px;font:500 var(--fs-body)/var(--lh-card) var(--ui)}

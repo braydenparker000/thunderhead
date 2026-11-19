@@ -3,6 +3,7 @@
 import { landing, ringApps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
+import { watchFolds } from './fold.js';
 import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
 import { timed } from '/ui/feel/log.js';
 
@@ -30,7 +31,7 @@ function openFromRing(id,color,to){
 
   // + folds the options sheet up out of the ask bar
   const ask=$('#ask'), q=$('#q'), convo=$('#convo'), hint=$('#hint'), opts=$('#opts'), plus=$('#plus');
-  startPinned();
+  startPinned(); watchFolds();
   // The gesture hint retires once the ring has opened 3 times and the Briefing and the menu were each
   // swiped open once (HOME.md §10; audit fix 11), counted on this phone.
   const HINT='th-hint'; let learnt={ring:0,brief:0,side:0}; try{ learnt={...learnt,...JSON.parse(localStorage.getItem(HINT)||'{}')} }catch(e){}
