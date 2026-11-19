@@ -19,6 +19,8 @@ import {filtersFrom, shown} from '../addons/stream-facts.js';
 import {sizeFrom} from '../screens/streams.js';
 import {h} from '../ui/dom.js';
 import {toast} from '../ui/components.js';
+import {T, level, go as goTo, handle, instant, afterFirstFrame} from '../ui/motion-core.js';
+import {timed} from '../ui/feel-log.js';
 import {SkipTimes} from './skip.js';
 import {rememberSource} from './remembered.js';
 
@@ -61,18 +63,20 @@ export function play(app, options) {
 
 /**
  * Runs `go` with the player loaded (at once when it is), unless another play came since.
- * First play of the visit: the engine is still loading (the tap's user activation lasts long enough
- * for full screen once it has). The tap is answered at once by a veil drawn as the player's own
- * loading layer (the title's backdrop dimming in, its logo, a line of status: never a spinner on
- * black); the player opens under it already dimmed, and the veil goes in the same frame.
+ * First play of the visit: the player's code may still be loading (the tap's user activation lasts long enough
+ * for full screen once it has). The tap is answered in its own frame by a veil drawn as the player's own loading
+ * layer (the title's backdrop dimming in, its logo, a line of status: never a spinner on black), its fade started
+ * on the compositor; only once that frame is on screen is the code awaited (its pieces then larger: a tap waits).
+ * The player opens under the veil already dimmed, and the veil goes in the same frame.
  */
 function withPlayer(app, ticket, go, meta = null) {
   if (app.player) return go();
   const veil = playerVeil(meta);
   app.root.append(veil);
-  import('../player/feel.js').then(({fade, T}) => { if (veil.isConnected) fade(veil, 1, {name: 'player:veil', from: 0, ms: T.normal}); }, () => {});
-  app.loadPlayer().then(() => { if (ticket === app.playTicket) { app.player.veiled = true; go(); } }, () => toast('The player could not load. Check the connection.'))
-    .finally(() => veil.remove());
+  timed('player:veil', () => (level() === 'off' ? (veil.style.opacity = '1', instant()) : handle([goTo(veil, {opacity: 1}, {from: {opacity: 0}, duration: T.normal, keep: true})])));
+  app.playerUrgent = true;
+  afterFirstFrame().then(() => app.loadPlayer()).then(() => { if (ticket === app.playTicket) { app.player.veiled = true; go(); } }, () => toast('The player could not load. Check the connection.'))
+    .finally(() => { veil.remove(); app.playerUrgent = false; });
 }
 
 /** The player's loading layer as a veil over the app (player.css .ap-loading, .ap-veil), from the title's art. */

@@ -61,12 +61,12 @@ export class Pace {
     this.running = null;
   }
 
-  /** Runs `fn` once the movement is over and the main thread is free (once per `key` while one is waiting). */
-  idle(fn, key = fn) {
+  /** Runs `fn` once the movement is over and the main thread is free, or `timeout` ms later (once per `key` while one is waiting). */
+  idle(fn, key = fn, {timeout = 2000} = {}) {
     if (this.idles.has(key)) return;
     this.idles.set(key, true);
     // A task later (the shell starts the movement just after making the screen), until it is over, then idle.
     const still = async () => { await wait(0); while (performance.now() < this.stillAt) await wait(this.stillAt - performance.now()); };
-    still().then(() => whenIdle(() => { this.idles.delete(key); if (!this.screen.destroyed) fn(); }));
+    still().then(() => whenIdle(() => { this.idles.delete(key); if (!this.screen.destroyed) fn(); }, {timeout}));
   }
 }

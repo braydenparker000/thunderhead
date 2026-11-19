@@ -52,8 +52,10 @@ export class StreamsScreen {
     if (headless) return;
     this.style = cardStyle(app);
     this.pace = new Pace(this); // when the list does its work: not under its own movement (stream-pace.js)
-    // Getting ready before a tap, once the screen has arrived and the page is idle.
-    this.pace.idle(() => { app.loadPlayer?.().catch(() => {}); import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}); }, 'ahead');
+    // Getting ready before a tap: the player's code as soon as the screen has arrived (its pieces fit frames: app/player-load.js),
+    // waiting on an idle moment no more than 300 ms; what a tap will need from the network once the page is idle.
+    this.pace.idle(() => app.loadPlayer?.().catch(() => {}), 'player', {timeout: 300});
+    this.pace.idle(() => import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}), 'ahead');
     // "No compatible add-ons" may change when a late manifest arrives or add-ons are edited.
     this.offAddons = app.onAddons?.(() => { if (this.empty) this.load(); });
     this.kept = measureDetails(app); // Details' backdrop and logo, where Details has them, before this screen covers it
