@@ -9,7 +9,8 @@
 // following the add-on's link is how an add-on adds an uncached torrent. checkcached gives files no
 // ids, only places, so requestdl for the file's place runs beside the torrent's own listing, which
 // confirms its id; a file whose id is another is asked for again by that id (createtorrent's answer,
-// when it lists files with their ids, needs no listing at all). A torrent found in the account is
+// when it lists files with their ids, needs no listing at all; added.ts: a listing that does not know
+// the new torrent yet is asked again, then the account's list by the hash). A torrent found in the account is
 // remembered, so the next ask costs requestdl alone. Every call is a step with its own time; calls
 // made together overlap. A file that cannot be told apart is never guessed: no address (an already
 // cached item left in the account is harmless and uses no slot).
@@ -18,8 +19,8 @@ import { afterAdd, foundSaid } from './added';
 import { chooseFile } from './files';
 import { forget, type Known, recall, recallReady, rememberReady } from './kept';
 import {
-  address,
   type Ask,
+  address,
   beside,
   choose,
   type Found,

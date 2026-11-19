@@ -12,7 +12,7 @@ import { ASTRA_LIMITS as L } from '../../../../shared/contract/astra.ts';
 import { chooseFile, type TorrentFile, typeOfName } from './files';
 import { type Known, remember } from './kept';
 import { fileLink } from './links';
-import { address, type Ask, beside, choose, type Found, failed, listing, type Said, step } from './steps';
+import { type Ask, address, beside, choose, type Found, failed, listing, type Said, step } from './steps';
 import { findOwned, TorboxTrouble } from './torbox';
 import { mark, type Relay, timesNow, wait } from './upstream';
 import { NOTE } from './words';

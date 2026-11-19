@@ -18,7 +18,8 @@ export const NOTE = {
   setAside: "Asked ahead for the file's place in TorBox's list; set aside, as the listing named another file or none.",
   listedAgain: 'TorBox did not list the new torrent yet, so its listing was asked again after a short wait.',
   foundByHash: "Found by the torrent's hash in your account's list.",
-  foundOtherId: "Found by the torrent's hash in your account's list, under another id than the add gave; that one is used.",
+  foundOtherId:
+    "Found by the torrent's hash in your account's list, under another id than the add gave; that one is used.",
   contradicted: "Found by the torrent's hash under the id whose listing named another torrent, so it was not used.",
   notFoundByHash: "Not found by the torrent's hash in your account's list either, so there is no address.",
   addNoId: "TorBox took it but named no torrent id, so your account's list was searched for it.",

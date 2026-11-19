@@ -372,11 +372,13 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
 - **What it may fetch:** TorBox's API at its fixed origin with `TORBOX_KEY`. A tap: createtorrent
   with `add_only_if_cached` (TorBox refusing it as not cached is answered `503`, and nothing is
   followed: following the add-on's link is how an add-on adds an uncached torrent), checkcached
-  beside it unless a press left the file list, then requestdl beside the torrent's own listing. A
+  beside it unless a press left the file list, then requestdl beside the torrent's own listing
+  (when TorBox does not list a torrent just added: the listing once more after 400 ms, then the
+  account's list searched by the hash; an address only for a file whose id a list confirmed). A
   press never adds: checkcached beside the list's newest 100 items, then requestdl when the account
   holds it. Nothing uncached is ever added, nothing at all before a tap; a cached item added for a
   file that then cannot be told apart stays in the account, which is harmless and uses no slot. Each
-  TorBox call 8 s, one retry on 429/5xx, at most 8 calls; the whole request 25 s. A torrent found
+  TorBox call 8 s, one retry on 429/5xx, at most 10 calls (the longest tap 7); the whole request 25 s. A torrent found
   is remembered in the isolate's memory (its id and file list, 30 minutes, at most 200), so the next
   ask for it costs requestdl alone; so is what a press learnt of a torrent TorBox has ready but the
   account does not hold (its file list from checkcached, 30 minutes, at most 200). For the lab,
