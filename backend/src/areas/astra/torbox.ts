@@ -186,7 +186,7 @@ function said(detail: unknown): 'existing' | 'new' | null {
  * account's, never a torrent's. A `hash` alone names no id: the account's list is searched by it. */
 function torrentIdOf(data: Record<string, unknown>): number | null {
   if (Number.isSafeInteger(data.torrent_id)) return data.torrent_id as number;
-  if ('torrent_id' in data || 'queued_id' in data) return null;
+  if ('torrent_id' in data || 'queued_id' in data || 'auth_id' in data) return null;
   return Number.isSafeInteger(data.id) ? (data.id as number) : null;
 }
 
