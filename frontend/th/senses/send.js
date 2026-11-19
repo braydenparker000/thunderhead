@@ -203,6 +203,9 @@ async function send() {
   }
 }
 
-addEventListener('pagehide', () => void flush());
+// A page the browser keeps whole for Back must run nothing as it is put away, or it is not kept
+// (the back/forward cache); what waits is sent when it comes back, or at the next start.
+addEventListener('pagehide', (e) => e.persisted || void flush());
+addEventListener('pageshow', (e) => e.persisted && void flush());
 addEventListener('online', () => void flush());
 if (waiting().length || sealed()) setTimeout(flush, 3000);

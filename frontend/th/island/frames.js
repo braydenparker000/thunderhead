@@ -1,9 +1,9 @@
 // @ts-check
-// One retained browsing context per app. Only windows in this map can reclaim a frame token.
+// One retained browsing context per app; only these windows can reclaim a frame token.
 import { appFor } from '../registry/apps.js';
 
 /** @typedef {{ id:string, frame:HTMLIFrameElement, shell:HTMLDivElement, cover:HTMLDivElement,
- * front:boolean, ready:boolean, loaded:Promise<void>, readyAt:number }} Layer */
+ * front:boolean, ready:boolean, loaded:Promise<void> }} Layer */
 /** @type {Map<string, Layer>} */
 export const frames = new Map();
 /** @type {any} */ (window).thIsland = {
@@ -14,7 +14,7 @@ export const frames = new Map();
   },
 };
 
-/** Uses the apps' completed startup state, never iframe load as a readiness proxy. @param {Layer} l */
+/** The apps' own finished startup, never the frame's load. @param {Layer} l */
 function interactive(l) {
   try {
     const w = /** @type {any} */ (l.frame.contentWindow);
@@ -33,30 +33,14 @@ export function retain(id, watch) {
   const shell = document.createElement('div');
   shell.className = 'th-app-shell parked';
   shell.style.setProperty('--c', app.color);
-  const frame = document.createElement('iframe');
-  frame.className = 'th-app away';
-  frame.dataset.app = id;
-  frame.title = app.name;
-  frame.allow = 'autoplay; fullscreen; picture-in-picture; screen-wake-lock';
-  frame.inert = true;
-  const cover = document.createElement('div');
-  cover.className = 'th-app-wait';
-  cover.setAttribute('role', 'status');
-  cover.setAttribute('aria-label', `Opening ${app.name}`);
-  const dots = document.createElement('span');
-  dots.className = 'wait-dots';
-  for (let i = 0; i < 3; i++) dots.append(document.createElement('i'));
-  cover.append(dots);
-  shell.append(frame, cover);
-  const l = { id, frame, shell, cover, front:false, ready:false, loaded:Promise.resolve(), readyAt:0 };
+  shell.innerHTML = `<iframe class="th-app away" allow="autoplay; fullscreen; picture-in-picture; screen-wake-lock" inert></iframe><div class="th-app-wait" role="status"><span class="wait-dots"><i></i><i></i><i></i></span></div>`;
+  const frame = /** @type {HTMLIFrameElement} */ (shell.firstChild), cover = /** @type {HTMLDivElement} */ (shell.lastChild);
+  frame.dataset.app = id; frame.title = app.name;
+  cover.ariaLabel=`Opening ${app.name}`;
+  const l = { id, frame, shell, cover, front:false, ready:false, loaded:Promise.resolve() };
   frames.set(id, l);
-  /** @type {ReturnType<typeof setTimeout>|undefined} */
-  let failed;
   /** @type {MutationObserver|null} */
-  let boot = null;
-  /** @type {()=>void} */
-  let ready = () => {};
-  let pending = false;
+  let boot = null, failed = 0, ready = () => {}, pending = false;
   const reset = () => {
     boot?.disconnect(); clearTimeout(failed);
     l.ready = false; delete frame.dataset.ready; cover.hidden = false;
@@ -66,17 +50,16 @@ export function retain(id, watch) {
   const check = () => {
     if (l.ready || !interactive(l)) return;
     boot?.disconnect(); clearTimeout(failed);
-    l.ready = true; l.readyAt = performance.now();
+    l.ready = true;
     frame.dataset.ready = 'true'; cover.hidden = true; pending = false; ready();
   };
   const deadline = () => {
     clearTimeout(failed);
     failed = setTimeout(() => {
       if (l.ready) return;
-      const retry = document.createElement('button');
-      retry.type = 'button'; retry.textContent = `Retry ${app.name}`;
-      retry.addEventListener('click', () => { reset(); frame.src = frame.src; deadline(); });
-      cover.append(retry);
+      const retry = cover.appendChild(document.createElement('button'));
+      retry.textContent = `Retry ${app.name}`;
+      retry.onclick = () => { reset(); frame.src = frame.src; deadline(); };
     }, 15_000);
   };
   reset();
@@ -85,8 +68,7 @@ export function retain(id, watch) {
       if (frame.contentWindow?.location.pathname !== app.path) return;
       watch(l);
       frame.contentWindow.addEventListener('pagehide', () => { reset(); deadline(); }, {once:true});
-      // Music removes cp-boot; Podcasts measures its chrome after installing handlers.
-      // Observe those completion mutations, including a late success after the retry appears.
+      // Music removes cp-boot; Podcasts measures its chrome: watch for either, even after a retry.
       boot?.disconnect(); boot = new MutationObserver(check);
       boot.observe(/** @type {Document} */ (frame.contentDocument), {subtree:true,childList:true,attributes:true,attributeFilter:['style']});
       check();
@@ -106,8 +88,7 @@ async function frameToken(scope) {
   try {
     const sw = navigator.serviceWorker;
     if (!sw) return '';
-    // The app's own worker: home's worker (scope /) also matches the app's folder, so only a
-    // registration for exactly that folder will do; on a first visit it is registered here.
+    // The app's own worker (home's, scope /, also matches its folder); registered on a first visit.
     let reg = await sw.getRegistration(scope);
     if (!reg || new URL(reg.scope).pathname !== scope) reg = await sw.register(`${scope}sw.js`, { scope, type: scope === '/podcasts/' ? 'module' : 'classic' });
     const worker = reg.active ?? (await new Promise((r) => {

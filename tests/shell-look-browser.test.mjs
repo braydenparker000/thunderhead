@@ -10,6 +10,7 @@
 // text area (no autofill bar over the keyboard) that grows to five lines and keeps the
 // conversation clear of it, Enter sends and Shift+Enter starts a new line.
 import { test, before, after } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
@@ -75,11 +76,12 @@ test('idle parses menu and Settings; moving panels are opaque and unblurred, fro
       const point = (type, x) => app.dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 29, clientX: x, clientY: 300 }));
       point('pointerdown', 330); point('pointermove', 150);
       const field = getComputedStyle(side.querySelector('.field')), row = getComputedStyle(side.querySelector('.row')), fill = getComputedStyle(side, '::before');
-      const state = { moving: side.classList.contains('moving'), blur: getComputedStyle(side).backdropFilter, field: field.visibility, fill: [fill.opacity, fill.backgroundImage.startsWith('linear-gradient'), fill.backgroundColor], row: row.opacity, rowAnimation: row.animationName, dim: document.querySelector('#dim').style.transition, home: document.querySelector('#home').style.transition };
+      const state = { moving: side.classList.contains('moving'), blur: getComputedStyle(side).backdropFilter, field: field.opacity, fill: [fill.opacity, fill.backgroundImage.startsWith('linear-gradient'), fill.backgroundColor], row: row.opacity, rowAnimation: row.animationName, dim: document.querySelector('#dim').style.transition, home: document.querySelector('#home').style.transition };
       point('pointerup', 150); return state;
     });
-    // The panel moves on its own opaque fill (--panel over --bg), never a see-through one.
-    assert.deepEqual(moving, { moving: true, blur: 'none', field: 'hidden', fill: ['1', true, await page.evaluate(() => getComputedStyle(document.body).backgroundColor)], row: '1', rowAnimation: 'none', dim: 'none', home: 'none' });
+    // The panel moves on its own opaque fill (--panel over --bg), never a see-through one; its frosted layer is
+    // not drawn (opacity 0: a visibility change would not stay on the compositor).
+    assert.deepEqual(moving, { moving: true, blur: 'none', field: '0', fill: ['1', true, await page.evaluate(() => getComputedStyle(document.body).backgroundColor)], row: '1', rowAnimation: 'none', dim: 'none', home: 'none' });
     await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
     assert.equal(await page.$eval('#side', s => s.classList.contains('moving')), false);
     // At rest the frost has faded in over the fill, and then the fill out under it.
@@ -91,7 +93,7 @@ test('idle parses menu and Settings; moving panels are opaque and unblurred, fro
     const panel = await page.$eval('.spage > .field', field => ({ visible: getComputedStyle(field).visibility, blur: getComputedStyle(field).backdropFilter, transition: getComputedStyle(field).transitionProperty }));
     assert.equal(panel.visible, 'visible'); assert.match(panel.blur, /blur/); assert.equal(panel.transition, 'opacity');
     // The menu under the page keeps its fill and drops its blur.
-    await page.waitForFunction(() => getComputedStyle(document.querySelector('#side > .field')).visibility === 'hidden');
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#side > .field')).opacity === '0');
     assert.equal(await page.$eval('#side', s => getComputedStyle(s, '::before').opacity), '1');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
@@ -149,6 +151,9 @@ test('at most two surfaces blur what is behind them, in every view', opts, async
 test('Settings keeps a fixed header with a round caret back button and focuses its title', opts, async () => {
   const { page, context, errors } = await open({ path: '/settings/devices/' });
   await page.waitForSelector('.spage.in .sback');
+  // Back is drawn in place, with the sprite's own caret (by reference, the slide spent a frame reading the sprite).
+  const caret = /<symbol id="caret-left"[^>]*><path d="([^"]+)"/.exec(readFileSync(new URL('../frontend/ui/icons.svg', import.meta.url), 'utf8'))?.[1];
+  assert.ok(caret, 'the sprite has caret-left');
   const look = await page.evaluate(() => {
     const s = document.querySelector('.spage');
     return {
@@ -156,11 +161,11 @@ test('Settings keeps a fixed header with a round caret back button and focuses i
       header: Boolean(s.querySelector(':scope > .sheader .page-title')),
       scroll: Boolean(s.querySelector(':scope > .sscroll .sbody')),
       // The page's own back button: the menu's Settings circle shares the class once the menu is prepared.
-      back: [s.querySelector('.sheader .sback').getAttribute('aria-label'), s.querySelector('.sheader .sback svg use').getAttribute('href')],
+      back: [s.querySelector('.sheader .sback').getAttribute('aria-label'), s.querySelector('.sheader .sback svg path').getAttribute('d')],
       focused: document.activeElement?.tagName,
     };
   });
-  assert.deepEqual(look, { blur: 'none', header: true, scroll: true, back: ['Back to the menu', '/ui/icons.svg#caret-left'], focused: 'H1' });
+  assert.deepEqual(look, { blur: 'none', header: true, scroll: true, back: ['Back to the menu', caret], focused: 'H1' });
   assert.ok((await blurs(page)).length <= 2);
   assert.deepEqual(errors, []);
   await context.close();

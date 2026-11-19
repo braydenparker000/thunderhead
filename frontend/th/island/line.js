@@ -1,21 +1,18 @@
 // @ts-check
-// The island line (HOME.md §12.1, BEHAVIOR.md §2): one sentence from the mind in the capsule while
-// Music or Podcasts plays there (`island.show`, shared/contract/verbs-island.ts; the Worker has
-// checked it: at most 80 characters, never a question, under the phrase lint). The next one
-// replaces it; its undo (`island.clear`) takes it away, and so does its app leaving the island:
-// opened full screen, or another app taking the capsule. Kept in memory only, so a reload drops it.
-
+// The island line (HOME.md §12.1, BEHAVIOR.md §2): one sentence from the mind (`island.show`, checked by the Worker)
+// in the capsule while Music or Podcasts plays there. The next replaces it; its undo (`island.clear`) or its app
+// leaving the island takes it away. Kept in memory only.
 /** @type {{ id: string, text: string, app: string } | null} */
 let line = null;
 const changed = () => document.dispatchEvent(new CustomEvent('th:island-line'));
 
-/** The line the capsule shows for `app`, or ''; one from another app went with it. @param {string} app */
+/** The line for `app`, or ''. @param {string} app */
 export function saidFor(app) {
   if (line && line.app !== app) line = null;
   return line?.text ?? '';
 }
 
-/** Its app came to the front: the line has been seen through, and goes. @param {string} app */
+/** Its app came to the front: the line goes. @param {string} app */
 export function drop(app) {
   if (line?.app === app) line = null;
 }

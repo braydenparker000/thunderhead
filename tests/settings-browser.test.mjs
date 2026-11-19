@@ -123,7 +123,7 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
       const rows = [...body.querySelectorAll('.row, .seg-field')];
       return {
         keys: [...body.querySelectorAll('[data-key]')].map((n) => n.dataset.key),
-        loose: rows.filter((r) => !r.closest('[data-key]') && !r.hasAttribute('data-info') && !r.hasAttribute('data-page')).map((r) => r.textContent),
+        loose: rows.filter((r) => !r.closest('[data-key]') && !r.hasAttribute('data-info') && !r.hasAttribute('data-page') && !r.hasAttribute('data-action')).map((r) => r.textContent),
         info: rows.filter((r) => r.hasAttribute('data-info')).length,
         details: [...body.querySelectorAll('[data-key]')].filter((n) => !(n.querySelector('.row-detail, .shelp')?.textContent ?? '').trim()).map((n) => n.dataset.key),
         // Hit areas: rows and switches by their box, segment options and round buttons with their invisible extension.

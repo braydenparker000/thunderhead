@@ -3,7 +3,9 @@
 import { landing, ringApps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
+import { watchFolds } from './fold.js';
 import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
+import { timed } from '/ui/feel/log.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -29,7 +31,7 @@ function openFromRing(id,color,to){
 
   // + folds the options sheet up out of the ask bar
   const ask=$('#ask'), q=$('#q'), convo=$('#convo'), hint=$('#hint'), opts=$('#opts'), plus=$('#plus');
-  startPinned();
+  startPinned(); watchFolds();
   // The gesture hint retires once the ring has opened 3 times and the Briefing and the menu were each
   // swiped open once (HOME.md §10; audit fix 11), counted on this phone.
   const HINT='th-hint'; let learnt={ring:0,brief:0,side:0}; try{ learnt={...learnt,...JSON.parse(localStorage.getItem(HINT)||'{}')} }catch(e){}
@@ -151,6 +153,7 @@ function openFromRing(id,color,to){
     // Started at the hold's own time, not at the first frame that shows them, so the flight keeps its clock.
     const t0=document.timeline.currentTime, anims=fx.effects.map(e=>{ const a=new Animation(e,document.timeline); if(t0==null) a.play(); else a.startTime=t0; return a });
     flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },fx.at85)};
+    timed('ring:open',Promise.all(anims.filter((a,k)=>k%2===0).map(a=>a.finished)).catch(()=>petsRest().then(()=>({cancelled:!open}))));
     ringMoving();
     // The flight is over when the discs' paths are (the fades end well before).
     Promise.all(anims.filter((a,k)=>k%2===0).map(a=>a.finished)).then(()=>{ if(flight?.run===run) land(1) },()=>{});
@@ -187,7 +190,7 @@ function openFromRing(id,color,to){
   // The name under the ring: the new one fades up into place, the old one fades on up and out (compositor only).
   function name(d){ const was=lbl.classList.contains('show')?lbl.textContent:'', next=d>=0?APPS[d][0]:'';
     if(was===next) return;
-    const rise=(el,keys,ms)=>{ try{ el.animate(keys,{duration:ms,easing:look.ease}) }catch(e){} };
+    const rise=(el,keys,ms)=>{ try{ timed('ring:name',el.animate(keys,{duration:ms,easing:look.ease})) }catch(e){} };
     if(was){ ghost.textContent=was; ghost.style.setProperty('--c',lbl.style.getPropertyValue('--c')); rise(ghost,[{opacity:1,transform:'translate(-50%,0)'},{opacity:0,transform:'translate(-50%,-6px)'}],look.fast) }
     lbl.classList.toggle('show',d>=0);
     if(d>=0){ lbl.textContent=next; lbl.style.setProperty('--c',APPS[d][2]); rise(lbl,[{opacity:0,transform:'translate(-50%,8px)'},{opacity:1,transform:'translate(-50%,0)'}],look.quick) } }
@@ -217,6 +220,7 @@ function openFromRing(id,color,to){
     const timeScale=(ms??(parseFloat(getComputedStyle(root).getPropertyValue('--d-page'))||460))/410;
     briefMotion.to(v==='brief'?1:0,{spring:springs.page,velocity:velocity.b,timeScale});
     sideMotion.to(v==='side'?1:0,{spring:springs.page,velocity:velocity.s,timeScale});
+    timed(v==='home'?(was==='brief'?'briefing:close':was==='side'?'menu:close':'home:back'):v==='brief'?'briefing:open':'menu:open',Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>({cancelled:briefMotion.value!==(v==='brief'?1:0)||sideMotion.value!==(v==='side'?1:0)})));
     Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun){side.classList.remove('moving');pages.forEach((el,i)=>{el.style.transition=savedTransitions[i]})}});
     inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='brief') enter(brief) }
   function resumePages(){ if(start?.paused){start.paused=false;go(view,undefined,{b:start.bv,s:start.sv})} }
@@ -277,6 +281,7 @@ function openFromRing(id,color,to){
       ring.classList.remove('glassy');
       pets.forEach((p,i)=>{const m=petMotion[i], c=i===chosen, spring=c?springs.pop:springs.ring; p.classList.remove('lifted'); m.face.to(0,{spring:springs.fade}); m.radial.to(c?1.25:0,{spring}); m.size.to(c?1.15:.2,{spring}); m.choice.to(c?.12:0,{spring})});
       settleRing(run);
+      timed('ring:close',petsRest().then(()=>({cancelled:run!==ringRun})));
       petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');const m=petMotion[i];m.radial.set(0);m.size.set(.2);m.choice.set(0);m.face.set(0)}); hush(); requestAnimationFrame(()=>setTimeout(tokens)) });
       dir=-1; name(-1) }
     resumePages(); open=false; start=null }

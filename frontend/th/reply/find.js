@@ -3,6 +3,7 @@
 // every match in today's turns with the CSS Custom Highlight API (the text itself is never
 // changed), says "2 of 5", and steps through them with ↑ ↓ or Enter, newest first; ✕ or Escape
 // closes it. Loaded on the first pull.
+import { motionReduced } from '../motion.js';
 
 /** @type {HTMLElement | null} */
 let bar = null;
@@ -68,7 +69,7 @@ export function openFind() {
       CSS.highlights.set('find-now', new Highlight(hits[at]));
       const r = hits[at].getBoundingClientRect();
       const c = convo.getBoundingClientRect();
-      convo.scrollBy({ top: r.top - c.top - c.height / 3, behavior: 'smooth' });
+      convo.scrollBy({ top: r.top - c.top - c.height / 3, behavior: motionReduced() ? 'instant' : 'smooth' });
     } else CSS.highlights.delete('find-now');
   };
   const run = () => {

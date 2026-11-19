@@ -5,7 +5,7 @@ At most 80 lines ([RUNTIME.md §14](../mind/RUNTIME.md#14-statusmd-upkeep)): old
 history. October's narrative and the whole deploy log are in
 [archive/STATUS-2026-10.md](../archive/STATUS-2026-10.md).
 
-## Now (2026-11-02)
+## Now (2026-11-19)
 
 The owner enjoys the product; the agent leads, and work lands as pull requests the owner merges
 (AGENTS.md). The plan is [PLAN.md](PLAN.md); fixed decisions are [decisions.md](decisions.md). Owner,
@@ -17,12 +17,16 @@ were tidied on 2026-11-02: history moved to [docs/archive/](../archive/README.md
 **Photos → LightCraft (owner, 2026-11-08; decisions.md):** step 1, the test page `/lab/lightcraft/`
 (engine/lightcraft-web/README.md) for the owner's phone; step 2 is export and 1:1 memory (measured there).
 
-**The 30-hour run (2026-11-10 to 11, the owner away; PRs #114 to #133, each merged when green and
-confirmed live):** the new editor's quality passes; Astra's eleven more decoders and quicker seeks;
-Music's queue, shuffle and restart; the night's report (two causes fixed, a third way left for the
-owner in BRIEFING.md); fewer rules on the chat; apps loaded ahead from the ring; 34 new settings and
-12 old ones wired; Edit opening the new editor. What is left from it is in each area's doc
-(`engine/raw/STATUS.md`, `frontend/astra/README.md`, MUSIC.md §18, BRIEFING.md, PHOTOS.md §4).
+**Astra finished (2026-11-12 to 19; PRs #206 to #212, live):** TorBox direct play, sync of the
+library sealed on the owner's server, remembered streams on Continue Watching, the look, motion and
+settings round, a feel report with what froze (`docs/product/apps/ASTRA.md`). Owner: "pretty set".
+
+**The main pages' feel round (2026-11-19, one PR):** the island remade as one shape that follows
+the finger; apps open from the ring in one movement; Back restores home whole; card folds, menu
+groups and Settings slide without layout animation; Settings gains search, Motion Off and Reset this
+page; a feel report for the shell (Settings → About). Left: the ring's per-frame style work
+(compositor springs), the re-rise on leaving an old conversation (owner's call), cold start. Music:
+audited read-only; its look and behaviour change only after talking with the owner.
 
 ## Current phase: what is live
 
@@ -72,7 +76,5 @@ owner in BRIEFING.md); fewer rules on the chat; apps loaded ahead from the ring;
 
 ## Last deploy
 
-- 2026-11-11: the 30-hour run, PRs #114 to #133, each deployed by its own merge (Worker and site);
-  the newest is on `/release.json` and `/v1/health`.
-- 2026-11-02 04:06 UTC: `594d2b7` (Deploy run #135), PRs #17 to #20: Menu and Settings on one
-  component set, Island v2, What's new, Settings after Batch 2. Earlier ones are in git history.
+- 2026-11-19: Astra's PRs #206 to #212, the newest at `b79d9e1`; the newest deploy is on
+  `/release.json` and `/v1/health`. Earlier ones are in git history.

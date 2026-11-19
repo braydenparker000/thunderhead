@@ -10,8 +10,7 @@ export function spring({ stiffness = 380, damping = .8 } = {}) {
 export const springs = { page: spring({ stiffness: 320, damping: .86 }), pop: spring({ stiffness: 900, damping: .55 }), ring: spring({ stiffness: 1100, damping: .7 }), island: spring({ stiffness: 130, damping: .82 }), lift: spring({ stiffness: 700, damping: .64 }), fade: spring({ stiffness: 3800, damping: 1 }) };
 /** @param {keyof typeof springs} name @param {Partial<Params>} params */
 export function setSpring(name, params) { return springs[name] = spring({ ...springs[name], ...params }); }
-// The owner's Springs (Settings → Appearance, `data-feel` on <html>): calm lands without a bounce
-// and a little slower, lively bounces more. Applied once, to every spring, as this module loads.
+// The owner's Springs (`data-feel`): calm lands without a bounce and slower, lively bounces more.
 const FEEL = { calm: { k: .85, d: .14 }, lively: { k: 1.1, d: -.1 } }[globalThis.document?.documentElement.dataset.feel ?? ''];
 if (FEEL) for (const name of /** @type {(keyof typeof springs)[]} */ (Object.keys(springs))) setSpring(name, { stiffness: springs[name].stiffness * FEEL.k, damping: Math.min(1, Math.max(.3, springs[name].damping + FEEL.d)) });
 
@@ -38,11 +37,12 @@ const config = { requestFrame: f => requestAnimationFrame(f), now: () => perform
 export const motionSettings = () => ({ reduced: config.reduced, haptics: config.haptics });
 /** @param {Partial<typeof config>} [options] */
 export function configureMotion(options = {}) { Object.assign(config, options); return motionSettings(); }
-// The owner's Reduced motion and Haptics (Settings → More appearance) ride on <html> as data attributes.
+// The owner's Motion and Haptics ride on <html> (data-reduced-motion: always, never, off; data-haptics).
 const owner = (/** @type {string} */ name) => globalThis.document?.documentElement.dataset[name];
-export const motionReduced = () => config.reduced ?? ({ always: true, never: false }[owner('reducedMotion') ?? ''] ?? config.matchMedia('(prefers-reduced-motion: reduce)').matches);
-/** A tap back (ms, or a pattern of pulses and gaps): none with Haptics off, pulses twice as long with
- * it full. @param {number | number[]} p */
+// Motion Off: a fade lands at once too (Reduced fades in 150 ms).
+const off = () => owner('reducedMotion') === 'off';
+export const motionReduced = () => config.reduced ?? ({ always: true, off: true, never: false }[owner('reducedMotion') ?? ''] ?? config.matchMedia('(prefers-reduced-motion: reduce)').matches);
+/** A tap back (ms, or pulses and gaps): none with Haptics off, pulses twice as long at Full. @param {number | number[]} p */
 export function buzz(p) { const h = owner('haptics'), list = [p].flat(); if (config.haptics && h !== 'off') try { config.vibrate(h === 'full' ? list.map((ms, i) => i % 2 ? ms : ms * 2) : list); } catch {} }
 /** @param {'open'|'choose'|'commit'} kind */
 export function haptic(kind) { buzz({ open: 8, choose: 4, commit: 10 }[kind]); }
@@ -51,7 +51,7 @@ export function haptic(kind) { buzz({ open: 8, choose: 4, commit: 10 }[kind]); }
 const moving = new Set();
 /** @type {Set<()=>void>} */
 const idle = new Set();
-/** Resolves when all current engine motion rests, including retargeting. @returns {Promise<void>} */
+/** Resolves when all engine motion rests, retargets included. @returns {Promise<void>} */
 export function whenResting() { return moving.size ? new Promise(resolve => idle.add(resolve)) : Promise.resolve(); }
 let queued = false;
 function schedule() {
@@ -72,7 +72,7 @@ export function animator(onFrame, { unit = 'px' } = {}) {
   function move(/** @type {number} */ time) {
     const dt = Math.max(0, Math.min(32, time - last)) / 1000; last = Math.max(last, time);
     if (motionReduced()) {
-      if (unit !== 'opacity') { set(target); return; }
+      if (unit !== 'opacity' || off()) { set(target); return; }
       if (!linear) { origin = value; elapsed = 0; linear = true; }
       elapsed += dt; value = origin + (target - origin) * Math.min(1, elapsed / .15);
       velocity = (target - origin) / .15;
@@ -93,7 +93,7 @@ export function animator(onFrame, { unit = 'px' } = {}) {
       target = next; travel = Math.abs(target - value); params = options.spring ?? params;
       scale = nextScale;
       velocity = options.velocity ?? velocity; last = config.now(); linear = false;
-      if ((motionReduced() && unit !== 'opacity') || resting()) { set(target); return; }
+      if ((motionReduced() && (unit !== 'opacity' || off())) || resting()) { set(target); return; }
       moving.add(move); schedule();
     },
     set, stop: stopped,
@@ -112,7 +112,7 @@ export function restTime(params) {
   return Infinity;
 }
 
-/** Adaptive error subdivision, including quarter points to catch inflections. @param {Params} params @param {number} durationMs */
+/** Adaptive subdivision, with quarter points for inflections. @param {Params} params @param {number} durationMs */
 export function linearCurve(params, durationMs) {
   const points = [[0, 0], [1, 1]];
   while (points.length < 32) {

@@ -25,9 +25,10 @@ export const PHONE_SETTINGS = [
     detail: 'How big the ring of apps is when you hold an empty spot on home.', options: o('compact:Compact', 'regular:Regular', 'large:Large') },
   { ...LOOK, key: 'appearance.haptics', label: 'Haptics', default: 'light', attr: 'data-haptics',
     detail: 'How much the phone taps back on holds, swipes and switches.', options: o('off:Off', 'light:Light', 'full:Full') },
-  { ...LOOK, key: 'appearance.motion', label: 'Reduced motion', default: 'system', attr: 'data-reduced-motion',
-    detail: 'On keeps things still even when the phone allows motion; off keeps the springs even when it asks for less.',
-    options: o('system:Follow system', 'always:On', 'never:Off') },
+  // Motion (2026-11-19): the stored values keep their meaning (always is Reduced, never is Full); Off is new.
+  { ...LOOK, key: 'appearance.motion', label: 'Motion', default: 'system', attr: 'data-reduced-motion',
+    detail: 'System follows the phone. Full keeps every spring, Reduced keeps things short and still, Off sets everything in place at once.',
+    options: o('system:System', 'never:Full', 'always:Reduced', 'off:Off') },
   // The second batch (2026-11-11, ui/prefs.css and apps/home/prefs.js): how home is drawn and moves.
   { ...LOOK, key: 'appearance.field', label: 'Background', default: 'glow', attr: 'data-field',
     detail: 'The soft glow behind home, or a plain background.', options: o('glow:Glow', 'plain:Plain') },

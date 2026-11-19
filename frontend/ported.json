@@ -783,7 +783,7 @@
      "adjustments": []
     },
     "guitar/index.html": {
-     "sha256": "de30add375a50ddc3aa6476e81f695f53a318f9a2bbbd1ff1f077e9a4838e9ee",
+     "sha256": "6dccc547ac90b67c5fcaf73c83801a69efa4acdd05ede238494e81ea0e33cc5a",
      "old_sha256": "81bb9653bf5050c338626f0b96e9a44189194e02357005619fd61829d842eda3",
      "adjustments": [
       "improvement"
@@ -792,6 +792,10 @@
       [
        "<title>Guitar</title>",
        "<title>Guitar · Jarvis</title>"
+      ],
+      [
+       "\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>",
+       ""
       ]
      ]
     },
@@ -1011,7 +1015,7 @@
      "adjustments": []
     },
     "podcasts/index.html": {
-     "sha256": "f7300e6a04af6924550b66349832b42db832360137e9c68d6545d59319ed6fde",
+     "sha256": "f32676920855631f4c38abbf2e795a07f25f0daad761b0a001918a1a372e4ec5",
      "old_sha256": "e009bf91dd50bb6252329662f23a5186562664929e6078d8406d756f41f12c2c",
      "adjustments": [
       "improvement"
@@ -1020,6 +1024,10 @@
       [
        "<title>Podcasts</title>",
        "<title>Podcasts · Jarvis</title>"
+      ],
+      [
+       "\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>",
+       ""
       ]
      ]
     },
@@ -1137,9 +1145,17 @@
      "adjustments": []
     },
     "astra/index.html": {
-     "sha256": "022e97394f76a56cd8e4b88a4cb55b49083810bb0a3c83d519a4317dcd845985",
+     "sha256": "9389c8e46f344a3c61542bb39e89022ae7490e091480006d4a3368cfb7dd9db8",
      "old_sha256": "022e97394f76a56cd8e4b88a4cb55b49083810bb0a3c83d519a4317dcd845985",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>",
+       ""
+      ]
+     ]
     },
     "astra/lab/index.html": {
      "sha256": "379de4149482dcdb70645d16835c366c7ae3e8db81b16b341b161499cea447d5",
@@ -1487,7 +1503,7 @@
      "adjustments": []
     },
     "media/index.html": {
-     "sha256": "ac9b48046f2ebe343aa4ab3a2e13e38ec712990516a56e6c52d886d402c184c4",
+     "sha256": "9ceea574f2cae52fbbfe1c4bf7cb0c73026683585b27851c2a89c9afbf9a33dd",
      "old_sha256": "282325a4cdc88a9b4cc3fedf194969712ca1df22472e663829ed0c90b8fc252b",
      "adjustments": [
       "paths",
@@ -1505,6 +1521,10 @@
       [
        "<title>My Media</title>",
        "<title>My Media · Jarvis</title>"
+      ],
+      [
+       "\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>",
+       ""
       ]
      ]
     },

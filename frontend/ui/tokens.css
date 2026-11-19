@@ -105,10 +105,10 @@
 /* Appearance only changes replies and owner bubbles. Fixed 16px fields share --fs-ask. */
 :root[data-text="s"]{--fs-reply:var(--fs-body);--fs-input:var(--fs-body)}
 :root[data-text="l"]{--fs-reply:var(--fs-x-18-5);--fs-input:var(--fs-x-18)}
-/* Reduced motion (Settings → More appearance): follows the phone unless the owner set it on
-   (`always`) or off (`never`); th/motion.js reads the same attribute for the springs. */
+/* Motion: the phone's, or the owner's Reduced (`always`), Full (`never`), Off (`off`); th/motion.js too. */
 @media (prefers-reduced-motion: reduce){:root:not([data-reduced-motion="never"]){--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:150ms;--d-page:150ms;--settle:linear;--pop:linear}}
 :root[data-reduced-motion="always"]{--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:150ms;--d-page:150ms;--settle:linear;--pop:linear}
+:root[data-reduced-motion="off"]{--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:0ms;--d-page:0ms;--settle:linear;--pop:linear}
 
 /* The owner's appearance (MENU-AND-SETTINGS.md §6.1, DESIGN-SYSTEM.md §1.2, §4, §6): each a data
    attribute on <html> while it is not the default, set by ui/theme.js before the first paint and by

@@ -34,3 +34,5 @@
 :root[data-island-progress="false"] .th-island .progress{display:none}
 /* Expanded controls "Play, next, sleep": the first button is the sleep timer's moon, upright. */
 .th-island [data-control].zzz .i{transform:none;border:0;width:22px;height:22px}
+/* Motion Off: what keeps its own clock stops too */
+:root[data-reduced-motion="off"] *,:root[data-reduced-motion="off"] ::before,:root[data-reduced-motion="off"] ::after{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important}
