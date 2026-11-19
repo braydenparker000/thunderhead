@@ -55,7 +55,7 @@ const PACK: Torrent = {
 const steps = (b: { steps?: { step: string; ok: boolean }[] }) => (b.steps ?? []).map((s) => `${s.step}:${s.ok}`);
 /** Calls made together finish in no fixed order: compared sorted. */
 const sorted = (list: string[]) => [...list].sort();
-const stepOf = (b: { steps?: { step: string }[] }, name: string) => b.steps?.find((s) => s.step === name);
+const stepOf = <S extends { step: string }>(b: { steps?: S[] }, name: string) => b.steps?.find((s) => s.step === name);
 const play = (body: Record<string, unknown>, key: string | undefined = KEY) =>
   relay(D, { key, body: { link: LINK, mode: 'play', ...body } });
 

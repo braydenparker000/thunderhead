@@ -25,6 +25,7 @@ import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
 import { direct, NOT_CACHED, READY } from './direct';
 import { follow } from './follow';
+import { serverList } from './servers';
 import { account } from './torbox';
 import { mark, relayFor } from './upstream';
 import { NOTE, REASON } from './words';
@@ -93,6 +94,8 @@ export const astraRoutes = new Hono<AppEnv>()
       r.steps,
     );
   })
+  // TorBox's speed-test files for the lab (servers.ts): its own count, 6 a minute.
+  .get('/astra/torbox/servers', guard('GET /v1/astra/torbox/servers'), async (c) => c.json(await serverList(c)))
   .get('/astra/torbox', guard('GET /v1/astra/torbox'), async (c) => {
     capTap();
     const r = relayFor(c);

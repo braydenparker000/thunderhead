@@ -35,6 +35,8 @@ interface Body {
 export interface Answer {
   status: number;
   body: Body;
+  /** The JSON as sent, for an answer that may not be TorBox's usual envelope (the speed-test list). */
+  json: unknown;
   /** A redirect's Location, as sent. */
   location: string | null;
 }
@@ -84,7 +86,12 @@ export async function call(
         } catch {
           // Not JSON (an HTML error page): the status says enough.
         }
-        return { status: res.status, body: record(parsed) as Body, location: res.headers.get('Location') };
+        return {
+          status: res.status,
+          body: record(parsed) as Body,
+          json: parsed,
+          location: res.headers.get('Location'),
+        };
       });
     } catch (e) {
       throw new TorboxTrouble(e instanceof TimedOut ? NOTE.slow : NOTE.unreachable);

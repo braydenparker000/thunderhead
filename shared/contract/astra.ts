@@ -40,6 +40,10 @@ export const ASTRA_LIMITS = {
    * add TorBox refused reads a longer page. */
   list_page_ahead: 100,
   list_page: 1000,
+  /** GET /v1/astra/torbox/servers: asks one isolate takes a minute (its own count), then 429; and
+   * the server groups it hands back at most. */
+  servers_per_minute: 6,
+  servers_max: 30,
 } as const;
 
 export const ASTRA_MODES = ['play', 'ahead'] as const;
@@ -94,6 +98,20 @@ export interface AstraPlayResponse {
    * up to `total_ms`, the Worker's whole time for this request. */
   steps: AstraStep[];
   total_ms: number;
+}
+
+/** GET /v1/astra/torbox/servers: TorBox's public speed-test files, one a server group, for the lab
+ * to time from the phone (a web page may not read TorBox's list itself). The group's label, its
+ * region's name when TorBox gives one, and the test file's address; an address carrying a token, or
+ * not public https, is left out. These are TorBox's own test files, never the owner's films. */
+export interface AstraServer {
+  group: string;
+  region: string | null;
+  url: string;
+}
+export interface AstraServersResponse {
+  servers: AstraServer[];
+  note?: string;
 }
 
 /** GET /v1/astra/torbox: whether the key is set, whether TorBox takes it (null when not set or not

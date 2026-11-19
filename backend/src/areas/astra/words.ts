@@ -40,6 +40,9 @@ export const NOTE = {
   budget: 'This request already asked TorBox as often as it may.',
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
+  noServers: 'TorBox listed no test files the phone may be given.',
+  tokened: (n: number) =>
+    `${n} of TorBox's test ${n === 1 ? 'file was' : 'files were'} left out: the address carried a token.`,
   noLocation: 'A redirect named no address.',
   followOff:
     "Astra's server does not open add-on links for the phone, since an add-on may tie a link to the connection that asked for it.",
@@ -65,4 +68,5 @@ export const REASON = {
   tooLong: "The add-on's forward went on too long.",
   torboxLink: "TorBox did not give the file's address.",
   tooMany: 'Too many films were asked for in a minute. Try again shortly.',
+  tooManyChecks: "TorBox's server list was asked for too often in a minute. Try again shortly.",
 } as const;
