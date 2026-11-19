@@ -96,3 +96,53 @@ export interface AstraTorboxResponse {
   plan: number | null;
   note?: string;
 }
+
+// --- The owner's copy of Astra's data (ASTRA.md §5.3, SECURITY.md §11; backup.ts) ---
+// The phone's saved add-ons, library, progress, watched list, settings and recent searches, kept on
+// the owner's server so every phone they sign in on holds the same. The owner's device only (agent
+// keys get 403). The Worker checks the outer shape and seals the copy whole (AES-256-GCM under a key
+// derived from AUTH_PEPPER) without reading what is inside: add-on addresses are secrets.
+
+export const ASTRA_BACKUP = {
+  /** The copy's tag; any other is refused. */
+  tag: 'sync/1',
+  /** The keys a copy may hold: Astra's BACKUP_KEYS (frontend/astra/src/app/store.js). */
+  keys: ['addons', 'library', 'progress', 'watched', 'settings', 'recentSearches'],
+  /** A PUT's body as sent, in bytes; past it 413 too_large. */
+  max_bytes: 2 * 1024 * 1024,
+  /** GET, PUT and DELETE together, per isolate and minute, then 429. */
+  per_minute: 30,
+  /** Earlier copies kept by hand: the copy as it stood at the start of each of the last 7 UTC days it changed. */
+  days: 7,
+} as const;
+export type AstraBackupKey = (typeof ASTRA_BACKUP.keys)[number];
+
+/** One key of a copy: when it last changed on a phone (ms), the value as the phone's store holds it,
+ * and, for progress, watched and library, removed entries with when they were removed (60 days). */
+export interface AstraCopyKey {
+  at: number;
+  value: unknown;
+  gone?: Record<string, number>;
+}
+export interface AstraCopy {
+  astra: typeof ASTRA_BACKUP.tag;
+  keys: Partial<Record<AstraBackupKey, AstraCopyKey>>;
+}
+
+/** GET /v1/astra/backup. All three null when nothing is kept; `copy` null alone when what is kept
+ * could not be opened (damaged, or sealed under another key): a PUT on that `version` replaces it. */
+export interface AstraBackupResponse {
+  version: string | null;
+  saved_at: string | null;
+  copy: AstraCopy | null;
+}
+/** PUT /v1/astra/backup: `base` is the version the phone merged with (null: nothing was kept). Another
+ * version kept now is 409 conflict (another phone saved first): the phone fetches, merges, tries again. */
+export interface AstraBackupPut {
+  base: string | null;
+  copy: AstraCopy;
+}
+export interface AstraBackupSaved {
+  version: string;
+  saved_at: string;
+}
