@@ -84,6 +84,33 @@ test('a run shows every step as it goes and copies a report with no address, has
   assert.deepEqual(l.errors, []);
 });
 
+test('Server speed says first how much it will read, then times each TorBox group from the phone, fastest first; the report carries the table, no address', opts, async (t) => {
+  const servers = [
+    { group: 'latm', region: 'Invented South', url: host.url('multi.mkv') },
+    { group: 'wnam', region: 'Invented West', url: host.url('open.webm') },
+    { group: 'enam', region: null, url: `${host.url('multi.mkv')}?nocors` },
+  ];
+  const l = await lab(t, (path) => (path === '/v1/astra/torbox/servers' ? { json: { servers } } : { error: 'not signed in' }));
+  await l.page.click('#torbox-speed');
+  await l.page.waitForFunction(() => /1 MB from each/.test(document.querySelector('#torbox-speed-hint').textContent));
+  assert.match(await l.page.textContent('#torbox-speed-hint'), /1 MB from each of 3 TorBox server groups \(about 3 MB in all\), 3 at a time\. The lab’s film stops first\./);
+  assert.equal(await l.page.textContent('#torbox-speed'), 'Measure (3 MB)');
+  assert.equal(host.stats.requests, 0, 'nothing read before the second tap');
+  await l.page.click('#torbox-speed');
+  await l.page.waitForFunction(() => /^Done/.test(document.querySelector('#torbox-speed-hint').textContent), null, { timeout: 30_000 });
+  const rows = await l.page.$$eval('#torbox-speed-table tbody tr', (trs) => trs.map((tr) => [...tr.children].map((td) => td.textContent)));
+  assert.deepEqual(rows.map((r) => r[0]).sort(), ['enam', 'latm', 'wnam']);
+  assert.deepEqual(rows.at(-1).slice(0, 3), ['enam', '–', 'not readable by the page'], 'one the page may not read goes last');
+  assert.ok(rows.slice(0, 2).every((r) => Number(r[2]) > 0 && /^\d+ ms$/.test(r[3])), 'speed and first byte for the others');
+  if (process.env.ASTRA_SHOTS) await l.page.locator('#torbox-speed-table').screenshot({ path: `${process.env.ASTRA_SHOTS}/lab-speed.png` });
+  assert.deepEqual(l.asked.map((a) => a.path), ['/v1/astra/torbox/servers']);
+  const text = await l.report();
+  assert.match(text, /^Astra TorBox server speed, /);
+  assert.match(text, /\n {4}latm \(Invented South\): [\d.]+ Mbit\/s, first byte \d+ ms/);
+  for (const secret of ['127.0.0.1', 'multi.mkv', 'open.webm', 'nocors', 'http']) assert.ok(!text.includes(secret), `the report holds ${secret}`);
+  assert.deepEqual(l.errors, []);
+});
+
 test('signed out: the first step says so and nothing else is asked', opts, async (t) => {
   const l = await lab(t, () => ({ error: 'not signed in' }));
   const s = await l.check();

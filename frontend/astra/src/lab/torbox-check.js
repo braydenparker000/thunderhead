@@ -104,7 +104,8 @@ export async function torboxCheck(link, {api, fetchFn = (...a) => globalThis.fet
     return done(steps, facts);
   }
   facts.url = typeof answer?.url === 'string' ? answer.url : null;
-  const how = [`via ${answer?.via || 'nothing'}`, answer?.readable === true ? 'readable by a page' : answer?.readable === false ? 'not readable by a page' : '', answer?.size ? size(answer.size) : '', answer?.type || ''].filter(Boolean).join(' · ');
+  const how = [`via ${answer?.via || 'nothing'}`, answer?.readable === true ? 'readable by a page' : answer?.readable === false ? 'not readable by a page' : '', answer?.size ? size(answer.size) : '', answer?.type || '',
+    Number.isFinite(answer?.total_ms) ? `the Worker’s own time ${ms(answer.total_ms)}` : ''].filter(Boolean).join(' · ');
   set('c', facts.url ? 'ok' : 'bad', facts.url ? `${how} (${ms(now() - started)}).` : `The Worker gave no address (${how}).`, stepLines(answer?.steps));
   if (!facts.url || stopped()) return done(steps, facts);
   // d: the first and the last 64 KiB, from the phone.
