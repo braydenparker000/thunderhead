@@ -39,4 +39,5 @@ export const PHOTO_ROUTES = {
   // Astra's relay: the owner's phone only (agent keys 403); addresses in transit, never kept or logged.
   'POST /v1/astra/play': { who: ['D'], phase: 'P8', note: "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on" },
   'GET /v1/astra/torbox': { who: ['D'], phase: 'P8', note: 'whether the TorBox key is set and accepted, and the plan number' },
+  'GET /v1/astra/torbox/servers': { who: ['D'], phase: 'P8', note: "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute" },
 } as const;

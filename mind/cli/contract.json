@@ -2002,6 +2002,14 @@
       "phase": "P8",
       "status": "built",
       "note": "whether the TorBox key is set and accepted, and the plan number"
+    },
+    "GET /v1/astra/torbox/servers": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute"
     }
   },
   "verbs": {
