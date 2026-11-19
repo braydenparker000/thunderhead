@@ -27,6 +27,8 @@ export const timesNow = () => times;
 
 /** One request's state: when it must be done, what it tried, how often it asked TorBox. */
 export interface Relay {
+  /** When the request began, for its total time. */
+  started: number;
   deadline: number;
   steps: AstraStep[];
   calls: number;
@@ -45,8 +47,10 @@ export function relayFor(c: Context<AppEnv>): Relay {
   const origins = allowedOrigins(c.env.SITE_ORIGINS);
   const origin = c.req.header('Origin');
   const ip = c.req.header('CF-Connecting-IP') ?? '';
+  const now = Date.now();
   return {
-    deadline: Date.now() + times.request_ms,
+    started: now,
+    deadline: now + times.request_ms,
     steps: [],
     calls: 0,
     userIp: IP.test(ip) ? ip : null,

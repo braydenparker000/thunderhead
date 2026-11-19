@@ -112,6 +112,11 @@ function fileOf(v: unknown, at: number): TorrentFile | null {
 }
 const filesOf = (v: unknown): TorrentFile[] =>
   (Array.isArray(v) ? v : []).map(fileOf).filter((f): f is TorrentFile => f !== null);
+/** A file list only when TorBox gave every file its own id (a place in a list is not one). */
+const filesWithIds = (v: unknown): TorrentFile[] => {
+  const list = Array.isArray(v) ? v : [];
+  return list.length && list.every((f) => Number.isSafeInteger(record(f).id)) ? filesOf(list) : [];
+};
 
 /** Whether TorBox has the torrent ready, and its files when it lists them. `data` is an object
  * keyed by hash (format=object), a list (format=list), or empty when nothing is cached: only then
@@ -138,12 +143,15 @@ function said(detail: unknown): 'existing' | 'new' | null {
 }
 
 /** Adds the torrent only if TorBox already has it ready (add_only_if_cached), seeding off, no zip.
- * TorBox refusing it as not cached is the definite "not on TorBox yet". */
+ * TorBox refusing it as not cached is the definite "not on TorBox yet". TorBox's description of
+ * the answer is empty: its files are taken only when it lists them, each with its id. */
 export async function addCached(
   r: Relay,
   key: string,
   hash: string,
-): Promise<{ id: number; said: 'existing' | 'new' | null } | { notCached: true } | { refused: string }> {
+): Promise<
+  { id: number; said: 'existing' | 'new' | null; files: TorrentFile[] } | { notCached: true } | { refused: string }
+> {
   const form = {
     magnet: `magnet:?xt=urn:btih:${hash}`,
     add_only_if_cached: 'true',
@@ -154,7 +162,8 @@ export async function addCached(
   const a = await call(r, '/torrents/createtorrent', { key, form });
   const data = record(a.body.data);
   const id = data.torrent_id ?? data.id;
-  if (!trouble(a) && Number.isSafeInteger(id)) return { id: id as number, said: said(a.body.detail) };
+  if (!trouble(a) && Number.isSafeInteger(id))
+    return { id: id as number, said: said(a.body.detail), files: filesWithIds(data.files) };
   if (a.body.error === 'DOWNLOAD_NOT_CACHED' || /not\s+cached/i.test(String(a.body.detail ?? '')))
     return { notCached: true };
   const why = trouble(a) ?? NOTE.refused;
