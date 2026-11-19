@@ -1,64 +1,114 @@
-/* Astra's stream list. Loaded after browse.css. */
+/* Astra's stream list (screens/streams.js and its modules beside it). Loaded after browse.css. Every size, gap
+   and colour is a token (tokens.css); only transform and opacity move, and they move through ui/motion.js
+   (screens/stream-motion.js), so nothing here has a transition of its own except a tint's colour fading. */
+
+/* The top. Kept from Details: its pieces are placed by script where Details had them (streams-hero.js). */
+.streams { transition: background-color var(--t-normal) var(--ease); }
+.streams.tinted { background-color: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
 .streams-hero { position: relative; overflow: hidden; }
-.streams-hero.movie { height: calc(140px + var(--safe-top)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
-.streams-hero.episode { height: calc(220px + var(--safe-top)); }
+.streams-hero.movie:not(.kept) { height: calc(140px + var(--safe-top)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: var(--s-2); }
+.streams-hero.episode:not(.kept) { height: calc(220px + var(--safe-top)); }
 .streams-art { position: absolute; inset: 0; }
-.streams-hero.episode .streams-art { bottom: 2px; } /* the art stops where the fade is opaque, so its snapped edge never shows */
+.streams-hero.episode:not(.kept) .streams-art { bottom: 2px; } /* the art stops where the fade is opaque, so its snapped edge never shows */
 .streams-img, .streams-art .img-fallback { width: 100%; height: 100%; object-fit: cover; }
-.streams-hero.movie .streams-art { filter: blur(22px) brightness(.35); transform: scale(1.2); }
+.streams-hero.kept .streams-art { inset: auto; }
+.streams-hero.movie:not(.kept) .streams-art { filter: blur(22px) brightness(.35); transform: scale(1.2); }
 .streams-shade { position: absolute; inset: 0; background: linear-gradient(transparent 30%, var(--bg)); }
+.streams.tinted .streams-hero:not(.kept) .streams-shade { background: linear-gradient(transparent 30%, color-mix(in srgb, var(--tint) 14%, var(--bg))); }
 .streams-logo { position: relative; max-width: 85%; height: 80px; object-fit: contain; }
-.streams-name { position: relative; margin: 0; padding: 0 24px; font-size: 28px; font-weight: 900; text-align: center; }
-.streams-text { position: absolute; left: var(--gutter); right: var(--gutter); bottom: 6px; }
-.streams-text .code { color: var(--accent); font-size: 14px; }
-.streams-text h1 { margin: 2px 0; font-size: 24px; line-height: 28px; font-weight: 700; }
-.streams-text p { margin: 0; color: var(--muted); font-size: 13px; }
-.resume-pill { display: inline-flex; align-items: center; gap: 8px; margin: 12px var(--gutter) 0; padding: 8px 14px; border-radius: 18px; background: rgba(34,34,34,.72); font-size: 13px; font-weight: 600; }
+.streams-name { position: relative; margin: 0; padding: 0 var(--s-6); font: var(--type-display); text-align: center; overflow-wrap: anywhere; }
+.streams-line { margin: 0; color: var(--text-2); font: var(--type-caption); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.streams-text { position: absolute; left: var(--gutter); right: var(--gutter); bottom: var(--s-2); }
+.streams-text .code { color: var(--tint); font: var(--type-overline); letter-spacing: var(--track-overline); text-transform: uppercase; }
+.streams-text h1 { margin: var(--s-1) 0; font: var(--type-title); }
+.streams-text p { margin: 0; color: var(--muted); font: var(--type-caption); }
+.resume-pill { display: inline-flex; align-items: center; gap: var(--s-2); margin: var(--s-3) var(--gutter) 0; padding: var(--s-2) var(--s-4); border-radius: var(--r-full); background: var(--surface-2); font: var(--type-caption); font-weight: 600; }
 .resume-pill .icon { fill: currentColor; }
-.chip.refresh { width: 36px; padding: 0; justify-content: center; }
-.chip.refresh .icon { fill: currentColor; }
-.chip.refresh.spinning .icon { animation: spin 1s linear infinite; }
-.stream-list { display: flex; flex-direction: column; gap: 10px; padding: 4px var(--gutter) 0; }
-/* The add-on chips stay at the top while the list scrolls, as in Nuvio. Their
-   band reaches up under the floating back button (so the list never shows
-   behind it); at rest the hero and resume line, drawn above, hide that band. */
-.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(56px + var(--safe-top)); background: var(--bg); }
-/* The owner's filters, under the add-ons: smaller chips, the chosen ones filled. */
-.streams .filter-chips.facts { padding-top: 0; }
-.filter-chips.facts .chip { min-height: 32px; padding: 0 12px; font-size: 13px; white-space: nowrap; flex: none; }
-.filter-chips.facts .chip.clear { background: none; color: var(--muted); }
 .streams-hero, .streams .resume-pill { position: relative; z-index: 3; }
-/* Nothing to list: Nuvio's open empty state, centred, not a card. */
-.stream-list > .state-card { margin: 16px 0; padding: 32px 16px; background: none; text-align: center; }
-.stream-list > .state-card h3 { margin: 0 0 8px; font-size: 16px; line-height: 22px; font-weight: 600; }
-.stream-list > .state-card p { margin: 0 0 16px; color: rgba(245,247,248,.7); }
-.stream-list > .state-card .btn.wide { width: auto; min-width: 160px; }
-.group-title { margin: 12px 0 0; font-size: 14px; font-weight: 700; }
-.fetching { font-weight: 500; color: var(--accent); animation: pulse-text 1.2s ease-in-out infinite; }
-/* An add-on that failed: its chip is marked, its group is one line with Retry */
-.chip.failed::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
-.group-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 8px 8px 8px 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.03); font-size: 14px; }
-.group-error-text { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
-.group-error-text small { color: var(--muted); font-size: 12px; line-height: 16px; }
-.group-error .chip { flex: none; min-height: 44px; }
+
+/* The chips stay at the top while the list scrolls. Their band reaches up under the floating back button (so
+   the list never shows behind it); at rest the top and the resume line, drawn above, hide that band. */
+.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(48px + var(--s-2) + var(--safe-top)); background: var(--bg); }
+.streams.tinted .chip-band { background: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
+.streams .filter-chips { gap: var(--s-2); padding: var(--s-2) var(--gutter); }
+.streams .filter-chips.facts { padding-top: 0; }
+/* A chip: a solid surface with a hairline; chosen, a fill in the title's colour springs in under its label. */
+.streams .chip { position: relative; isolation: isolate; overflow: hidden; min-height: 36px; padding: 0 var(--s-4); border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text); font: var(--type-caption); font-weight: 600; transition: none; }
+.streams .chip:active { transform: none; } /* the press comes from ui/motion.js press() */
+.streams .chip[aria-pressed="true"] { background: var(--surface-1); color: var(--on-tint, var(--on-accent)); }
+.chip-fill { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--tint); opacity: 0; pointer-events: none; }
+.chip[aria-pressed="true"] > .chip-fill { opacity: 1; }
+.chip-label { display: inline-flex; align-items: center; gap: var(--s-1); }
+.chip-label .icon { fill: currentColor; }
+.streams .filter-chips.facts .chip { min-height: 32px; padding: 0 var(--s-3); flex: none; }
+.streams .chip.clear { border-color: transparent; background: none; color: var(--muted); }
+.streams .chip.refresh { width: 36px; padding: 0; justify-content: center; }
+.chip.refresh.spinning .icon { animation: spin 1s linear infinite; }
+/* An add-on that failed: its chip is marked. */
+.chip.failed .chip-label::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
+
+/* The list: a section per add-on under its headline. */
+.stream-list { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-1) var(--gutter) 0; }
+.stream-group, .group-body { display: flex; flex-direction: column; gap: var(--s-2); }
+.group-title { display: flex; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 0; font: var(--type-headline); }
+.group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-count { margin-left: auto; color: var(--muted); font: var(--type-caption); font-variant-numeric: tabular-nums; }
+.fetching { color: var(--tint); font: var(--type-caption); font-weight: 600; animation: pulse-text 1.2s ease-in-out infinite; }
 @keyframes pulse-text { 50% { opacity: .4; } }
-.stream-card { display: flex; flex-direction: column; gap: 4px; min-height: 68px; padding: 14px; border: 0; border-radius: var(--r-lg); background: rgba(255,255,255,.05); color: var(--text); text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,.2); -webkit-touch-callout: none; }
-.stream-card:active { background: rgba(255,255,255,.09); transform: scale(.99); }
+
+/* States: an add-on that did not answer; nothing to list (open, centred, not a card). */
+.group-error { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); }
+.group-error-icon { flex: none; display: grid; color: var(--danger); }
+.group-error-icon .icon { fill: currentColor; }
+.group-error-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font: var(--type-body); overflow-wrap: anywhere; }
+.group-error-text b { font-weight: 600; }
+.group-error-text small { color: var(--muted); font: var(--type-caption); }
+.group-error .chip { flex: none; min-height: 44px; }
+.stream-list > .state-card { display: flex; flex-direction: column; align-items: center; margin: var(--s-4) 0; padding: var(--s-8) var(--s-4); background: none; text-align: center; }
+.state-icon { display: grid; place-items: center; width: var(--s-12); height: var(--s-12); margin-bottom: var(--s-3); border-radius: 50%; background: var(--surface-2); color: var(--text-2); }
+.state-icon .icon { fill: currentColor; }
+.stream-list > .state-card h3 { margin: 0 0 var(--s-2); font: var(--type-headline); }
+.stream-list > .state-card p { margin: 0 0 var(--s-4); color: var(--text-2); font: var(--type-body); }
+.stream-list > .state-card .btn.wide { width: auto; min-width: 160px; }
+
+/* A stream card: a solid surface with a hairline. */
+.stream-card { display: flex; flex-direction: column; gap: var(--s-1); min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
 .stream-card.disabled { opacity: .5; }
-/* Each add-on's streams sit in a section of their own, filled in place as it answers. */
-.stream-group, .group-body { display: flex; flex-direction: column; gap: 10px; }
-.stream-skeleton { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 68px; padding: 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.05); pointer-events: none; }
-.stream-skeleton i { display: block; width: 55%; height: 14px; border-radius: 6px; }
-.stream-skeleton i + i { width: 85%; height: 10px; }
-.stream-name { font-size: 14px; line-height: 20px; }
-.stream-desc { color: var(--muted); font-size: 12px; line-height: 18px; white-space: pre-line; overflow-wrap: anywhere; }
-.stream-badges { display: flex; gap: 6px; }
+.stream-card.current { border-color: var(--tint); }
+/* Designed. Line 1: the resolution badge (solid, the strongest thing), picture badges, codec and sound, ready. */
+.sc-top { display: flex; align-items: center; gap: var(--s-2); min-width: 0; overflow: hidden; white-space: nowrap; }
+.sc-res { flex: none; padding: 0 var(--s-2); border-radius: var(--r-sm); background: var(--tint); color: var(--on-tint, var(--on-accent)); font: 800 calc(13px * var(--text-scale, 1))/calc(24px * var(--text-scale, 1)) var(--font); letter-spacing: .02em; }
+.sc-badge { flex: none; padding: 0 var(--s-1); border: 1px solid var(--border-strong); border-radius: var(--r-xs); color: var(--text); font: var(--type-overline); line-height: calc(18px * var(--text-scale, 1)); letter-spacing: var(--track-overline); }
+.sc-tech { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); font: var(--type-caption); font-weight: 600; }
+.sc-tech + .sc-tech { flex-shrink: 2; }
+.sc-ready { flex: none; margin-left: auto; color: var(--muted); font: var(--type-caption); }
+.sc-ready.on { color: var(--success); font-weight: 600; }
+.sc-ready.on::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 var(--s-1) 1px 0; border-radius: 50%; background: currentColor; }
+/* Line 2: the release's own name on one line; its start gives way (ellipsis), its end stays whole. */
+.sc-name { display: flex; min-width: 0; font: var(--type-body); font-weight: 500; white-space: nowrap; }
+.sc-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sc-tail { flex: none; }
+/* Line 3: size · per hour · source · group … in caption size. */
+.sc-facts { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s-1); color: var(--muted); font: var(--type-caption); }
+.sc-dot { font-style: normal; opacity: .6; }
+.sc-sound { color: var(--text-2); font: var(--type-caption); }
+/* The add-on's own text (Settings › Streams › Add-on text, or too little found for a designed card). */
+.stream-name { font: var(--type-body); font-weight: 600; }
+.stream-desc { color: var(--muted); font: var(--type-caption); white-space: pre-line; overflow-wrap: anywhere; }
+.stream-badges { display: flex; flex-wrap: wrap; gap: var(--s-1); }
 .stream-badges:empty { display: none; }
-.stream-badges em { font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); background: var(--card); color: var(--text-2); }
-/* How a stream will play here (addons/stream-note.js): one quiet note, drawn with its card (what it
-   needs is known first), so it may wrap and nothing moves under a finger. */
-.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; }
-.stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--warning); }
-.stream-badges:has(.sound) { flex-wrap: wrap; }
-.stream-footer { margin: 12px var(--gutter); color: var(--muted); font-size: 13px; text-align: center; }
+.stream-badges em { padding: 0 var(--s-2); border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); font: var(--type-overline); font-style: normal; line-height: calc(20px * var(--text-scale, 1)); }
+/* How a stream will play here (addons/stream-note.js): one quiet note, drawn with its card (what it needs is
+   known first), so it may wrap and nothing moves under a finger. */
+.stream-plays, .sc-sound { display: block; min-height: calc(18px * var(--text-scale, 1)); color: var(--muted); font: var(--type-caption); }
+.stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 var(--s-2) 1px 0; border-radius: 50%; background: var(--warning); }
+/* A placeholder card: a designed card's geometry (badge line, name line, facts line), so cards replace it without a jump. */
+.stream-skeleton { display: flex; flex-direction: column; justify-content: center; gap: var(--s-2); min-height: 96px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); pointer-events: none; }
+.stream-skeleton i { display: block; height: 14px; border-radius: var(--r-sm); }
+.sk-top { display: flex; gap: var(--s-2); }
+.stream-skeleton .sk-res { width: 44px; height: 20px; }
+.stream-skeleton .sk-tech { width: 96px; height: 20px; }
+.stream-skeleton .sk-name { width: 85%; }
+.stream-skeleton .sk-facts { width: 55%; height: 10px; }
+.stream-footer { margin: var(--s-3) var(--gutter); color: var(--muted); font: var(--type-caption); text-align: center; }
 .stream-footer:empty { display: none; }

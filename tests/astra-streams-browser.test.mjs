@@ -97,7 +97,8 @@ async function app(t, { report, streams = STREAMS }) {
   await page.evaluate((meta) => window.astra.openStreams(meta), META);
   await page.waitForFunction((n) => document.querySelectorAll('.screen.streams .stream-card').length === n, streams.length);
   await page.waitForFunction(() => window.astra.stack.at(-1).screen.ahead); // getting ready loads behind the screen (app/ready.js)
-  const cards = () => page.$$eval('.screen.streams .stream-card', (els) => els.map((el) => ({ text: el.textContent, note: el.querySelector('.stream-plays')?.textContent ?? '' })));
+  const cards = () => page.$$eval('.screen.streams .stream-card', (els) => els.map((el) => ({ text: el.textContent, note: el.querySelector('.stream-plays')?.textContent ?? '',
+    res: el.querySelector('.sc-res')?.textContent ?? null, size: el.querySelector('.sc-facts')?.firstChild?.textContent ?? null, name: el.querySelector('.visually-hidden, .stream-name')?.textContent.replace(/\. $/, '') })));
   return { page, errors, cards };
 }
 
@@ -109,9 +110,20 @@ test("the owner's phone: no hash on any card, one note a card, the add-on's orde
   const list = await cards();
   for (const [i, c] of list.entries()) assert.doesNotMatch(c.text, /[0-9a-f]{40}/i, `card ${i}`);
   assert.deepEqual(list.map((c) => c.note), ['10-bit HEVC: this phone decodes it in software (slow, more battery)', '', "No hash from this source: may open in Chrome's plain player", '']);
-  assert.match(list[0].text, /📺 2160p · HDR10 · HEVC/);
-  assert.match(list[3].text, /📺 720p · HEVC · AAC \| 💾 900 MB/, 'the hash cut out of its line cleanly');
-  assert.deepEqual(list.map((c) => /💾 ([\d.]+ [GM]B)/.exec(c.text)[1]), ['14.2 GB', '2.1 GB', '1.9 GB', '900 MB'], "in the add-on's own order");
+  // Designed cards (the default): the resolution badge first, the size leading the facts line, in the add-on's own order.
+  assert.deepEqual(list.map((c) => c.res), ['4K', '1080p', '1080p', '720p']);
+  assert.deepEqual(list.map((c) => c.size), ['14 GB', '2.1 GB', '1.9 GB', '900 MB'], "in the add-on's own order");
+  assert.match(list[0].text, /HDR10/);
+  assert.match(list[0].text, /Ready on TB/);
+  // Settings › Streams › Add-on text: the add-on's own words again, the hash cut out of its line cleanly.
+  await page.evaluate(() => window.astra.saveSetting('streamCard', 'addon'));
+  await page.waitForFunction(() => !document.querySelector('.screen.streams .stream-card.designed') && document.querySelectorAll('.screen.streams .stream-card').length === 4);
+  const own = await cards();
+  assert.match(own[0].text, /📺 2160p · HDR10 · HEVC/);
+  assert.match(own[3].text, /📺 720p · HEVC · AAC \| 💾 900 MB/, 'the hash cut out of its line cleanly');
+  for (const [i, c] of own.entries()) assert.doesNotMatch(c.text, /[0-9a-f]{40}/i, `card ${i}`);
+  await page.evaluate(() => window.astra.saveSetting('streamCard', 'designed'));
+  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card.designed').length === 4);
   assert.equal(await page.locator('.screen.streams .stream-card.disabled').count(), 0, 'nothing dimmed');
   // The second card's hash is only in its words (shown without it): a press still asks the server with it.
   await page.locator('.screen.streams .stream-card').nth(1).dispatchEvent('pointerdown', { button: 0, isPrimary: true });
@@ -128,8 +140,8 @@ test('a browser that decodes everything: no decode notes; only the link without 
 
 test('300 streams: the first cards at once, the rest in slices, in order, each answering a press', opts, async (t) => {
   const many = Array.from({ length: 300 }, (_, i) => ({ name: `AIO #${i}`, description: `📺 1080p · x264 · AAC\n💾 ${1 + (i % 9)}.5 GB\n${HASH(1000 + i)}`, url: torrentio(1000 + i) }));
-  const { page, errors } = await app(t, { report: EVERYTHING, streams: many });
-  const names = await page.$$eval('.screen.streams .stream-card .stream-name', (els) => els.map((el) => el.textContent));
+  const { page, errors, cards } = await app(t, { report: EVERYTHING, streams: many });
+  const names = (await cards()).map((c) => c.name);
   assert.deepEqual(names, many.map((s) => s.name));
   // Ten at once, then at most eight a frame, never one taken away.
   const counts = (await page.evaluate(() => window.cardsByFrame)).filter((n) => n > 0);
@@ -141,10 +153,14 @@ test('300 streams: the first cards at once, the rest in slices, in order, each a
   await last.scrollIntoViewIfNeeded();
   await last.dispatchEvent('pointerdown', { button: 0, isPrimary: true });
   assert.equal(await asked(HASH(1299)), 'ahead');
+  await last.dispatchEvent('pointerup', { button: 0, isPrimary: true }); // the finger lifts (a sheet waits for that)
   // A filter chip while the list is drawn again: still in order, and only what the filter leaves.
-  await page.locator('.screen.streams .filter-chips.facts').getByRole('button', { name: 'Smallest first', exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 300);
-  const sizes = await page.$$eval('.screen.streams .stream-card', (els) => els.map((el) => Number(/💾 ([\d.]+) GB/.exec(el.textContent)[1])));
+  // The order chip opens the four orders; the owner's choice reorders, and is kept for the next title.
+  await page.locator('.screen.streams .filter-chips.facts .chip.sort').click();
+  await page.locator('.sheet-row', { hasText: 'Smallest first' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 300 && document.querySelector('.screen.streams .chip.sort[aria-pressed="true"]'));
+  const sizes = (await cards()).map((c) => Number.parseFloat(c.size));
+  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('astra.v2.streamFilters')))).sort, 'smallest');
   assert.deepEqual(sizes, [...sizes].sort((a, b) => a - b));
   assert.deepEqual(errors, []);
 });
