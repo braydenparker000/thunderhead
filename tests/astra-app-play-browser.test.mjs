@@ -94,7 +94,8 @@ test('the app plays an episode: chapters, data used, the Sound tab, Find a line,
   await page.evaluate(() => window.astra.player.menus.dismiss());
   // Another source from the Sources panel: the film with a styled track, drawn by libass with its own font.
   await p.click('Sources');
-  await page.locator('.ap .ap-source', { hasText: 'Signs' }).click();
+  // The panel draws each source as the stream list's own card (player/menus.js with screens/stream-card.js).
+  await page.locator('.ap .ap-source-slot .stream-card', { hasText: 'Signs' }).click();
   await page.waitForFunction(() => { const p = window.astra.player; return p.engine.url?.includes('anime.mkv') && p.engine.mode === 'remux' && p.ready; }, null, { timeout: 20_000 });
   await p.click('Subtitles');
   await page.locator('.ap .ap-rail.tracks .ap-row', { hasText: 'Signs' }).click();
