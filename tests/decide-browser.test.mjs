@@ -92,11 +92,16 @@ test('one card docked above the ask bar, with the gold edge; Yes folds it and th
     assert.equal(await status(page), null, 'the card speaks for itself; nothing else counts it');
     // Docked just above the ask bar (owner, 2026-10-31), and the conversation ends above it.
     assert.equal(await page.$eval('#decision', (d) => d.parentElement?.id), 'home');
-    const dock = await page.evaluate(() => {
+    // Measured once the card has come to rest: read while it was still rising into its dock it sat a few
+    // pixels over the ask bar (seen on CI under load, gap -4). A card that rests wrongly still fails, after the wait.
+    const measure = () => page.evaluate(() => {
       const c = document.querySelector('#decision .card').getBoundingClientRect();
       return { gap: Math.round(document.querySelector('#ask').getBoundingClientRect().top - c.bottom), above: document.querySelector('#convo').getBoundingClientRect().bottom <= c.top + 1 };
     });
-    assert.ok(dock.gap >= 0 && dock.gap <= 24 && dock.above, JSON.stringify(dock));
+    const rests = (d) => d.gap >= 0 && d.gap <= 24 && d.above;
+    let dock = await measure();
+    for (const end = Date.now() + 3000; !rests(dock) && Date.now() < end; dock = await measure()) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(rests(dock), JSON.stringify(dock));
     const details = await page.$$eval('#decision .dx', (ds) => ds.map((d) => d.textContent));
     assert.deepEqual(details, [a.why, 'About 90% sure.', a.if_ignored]);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/decision-${theme === 'light' ? 'day' : 'night'}.png` });
