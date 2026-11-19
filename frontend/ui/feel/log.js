@@ -18,7 +18,7 @@ import {keep, watchFrames} from './frames.js';
 import {motionReduced} from '../../th/motion.js';
 
 /** @typedef {import('./frames.js').Frame} Frame */
-/** @typedef {{name: string, start: number, counted: number, last: number, frames: number, worst: number, parts: number, cut: boolean, froze: Frame[]}} Run */
+/** @typedef {{name: string, start: number, counted: number, last: number, frames: number, worst: number, parts: number, cut: boolean, froze: Frame[], css?: Set<Element>}} Run */
 /** @typedef {{name: string, ms: number, counted?: number, frames: number, worstGap: number, interrupted: boolean, start: number, end: number, froze: Frame[]}} Entry */
 
 const RING = 150; // movements kept, newest last
@@ -39,6 +39,7 @@ function loop() {
   const frame = (/** @type {number} */ t) => {
     for (const run of [...active.values()]) {
       run.frames++; run.worst = Math.max(run.worst, t - run.last); run.last = Math.max(run.last, t);
+      if (run.css) leftPage(run);
       if (t - run.start > LONGEST) { run.parts = 1; end(run, true); }
     }
     if (active.size) requestAnimationFrame(frame); else looping = false;
@@ -133,13 +134,25 @@ function onCss(e) {
     if (!name) return;
     const map = mine ?? new Map();
     parts.set(el, map);
-    map.set(what, begin(name));
+    const run = begin(name);
+    (run.css ??= new Set()).add(el);
+    map.set(what, run);
     return;
   }
   const run = mine?.get(what);
   if (!run) return;
   mine.delete(what);
   end(run, e.type.endsWith('cancel'));
+}
+
+/** A stylesheet part whose element left the page ends with it: its end event goes to the detached element and
+ * never reaches the document. @param {Run} run */
+function leftPage(run) {
+  for (const el of /** @type {Set<Element>} */ (run.css)) {
+    if (el.isConnected) continue;
+    run.css?.delete(el);
+    for (const [what, part] of parts.get(el) ?? []) if (part === run) { parts.get(el)?.delete(what); end(run); }
+  }
 }
 
 /** Calls fn at the first idle moment once the page has loaded. */
