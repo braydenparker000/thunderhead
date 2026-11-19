@@ -14,6 +14,14 @@ import {paintArt, readArt, artEntry} from './art.js';
 // redrawn, a tab or a screen built anew, Details' poster after the card's), such a picture is asked for at
 // once and decoded before it is drawn: no lazy wait, no placeholder, no 200 ms fade replayed.
 const shown = new Set();
+// Lazy pictures still waiting (off screen: to the right in a row, below the fold), by address. When the same
+// picture is painted elsewhere (the hero shows a title a row shows further on), they are asked for at once:
+// the bytes are here, so the card is whole before it is scrolled to, not a placeholder until then.
+const waiting = new Map(); // src -> Set of WeakRef(img)
+function wake(src) {
+  for (const ref of waiting.get(src) || []) { const img = ref.deref(); if (img && !img.complete && img.loading === 'lazy') img.loading = 'eager'; }
+  waiting.delete(src);
+}
 /** True when `src` has been painted somewhere this visit. */
 export const seen = src => !!src && shown.has(src);
 
@@ -32,9 +40,12 @@ export function image(src, alt = '', cls = '', {eager = false, label = ''} = {})
   img.addEventListener('error', () => img.replaceWith(fallback()), {once: true});
   // Once painted, a picture is drawn with its pixels ready (decoding sync): a phone short of memory that
   // dropped its decoded copy draws it again in the same frame instead of leaving its tile empty for one.
-  const painted = () => { shown.add(src); img.decoding = 'sync'; };
+  const painted = () => { shown.add(src); img.decoding = 'sync'; wake(src); };
   if (img.complete && img.naturalWidth) painted();
-  else img.addEventListener('load', () => { if (!shown.has(src)) img.classList.add('loaded'); painted(); }, {once: true}); // painted elsewhere meanwhile: no fade
+  else {
+    img.addEventListener('load', () => { if (!shown.has(src)) img.classList.add('loaded'); painted(); }, {once: true}); // painted elsewhere meanwhile: no fade
+    if (img.loading === 'lazy' && typeof WeakRef === 'function') { if (!waiting.has(src)) waiting.set(src, new Set()); waiting.get(src).add(new WeakRef(img)); }
+  }
   return img;
 }
 
@@ -53,6 +64,29 @@ export function warmArt(box) {
   warm.add(w); // held until it has decoded, and a while after, so the copy finds it
   const drop = () => setTimeout(() => warm.delete(w), 2000);
   w.decode().then(drop, drop);
+}
+
+/** The whole pictures in a part about to be redrawn, by address (for keepPictures). */
+export function wholePictures(root) {
+  const found = new Map();
+  for (const img of root.querySelectorAll('img')) if (img.complete && img.naturalWidth && !found.has(img.src)) found.set(img.src, img);
+  return found;
+}
+/**
+ * In a part just redrawn, each picture not whole yet takes the element that showed the same address before
+ * (its pixels already decoded): a redrawn row or grid shows its art at once even when the browser has let go
+ * of the bytes (a phone short of memory), instead of its placeholder until the picture comes back.
+ */
+export function keepPictures(old, root) {
+  for (const img of root.querySelectorAll('img')) {
+    if (img.complete && img.naturalWidth) continue;
+    const was = old.get(img.src);
+    if (!was || was.isConnected) continue;
+    old.delete(img.src);
+    was.className = img.className;
+    was.classList.remove('loaded');
+    img.replaceWith(was);
+  }
 }
 
 /**

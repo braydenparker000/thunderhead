@@ -131,8 +131,11 @@ export function travel(from, to, {name = 'travel', radius = null, onStart = null
     // Landed: `to` shows under the copy. Its picture, when it has not arrived (or is a stand-in still loading),
     // is the copy's own, handed over; else the copy goes once `to`'s picture has painted.
     const [carry] = pics(copy), [dest] = isElement(to) ? pics(to) : [];
-    if (carry && dest && !whole(dest) && whole(carry) && addressOf(carry) === dest.src) trade(carry, dest);
-    painted(dest ? [dest] : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
+    if (carry && dest && !whole(dest) && whole(carry) && addressOf(carry) === dest.src) {
+      trade(carry, dest); // `to` now shows the very picture that flew; the copy, left with the stand-in, goes at once
+      copy.remove();
+      frames(1).then(() => resolve({cancelled: false}));
+    } else painted(dest ? [dest] : [], {cap: 400}).then(() => { copy.remove(); resolve({cancelled: false}); });
     return null;
   };
   anim.finished.then(() => finish(false), () => finish(true));

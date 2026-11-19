@@ -7,7 +7,7 @@ import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/
 import {Hero} from './hero.js';
 import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
 import {press, rise, level, tick} from '../ui/motion.js';
-import {artBox, warmArt} from '../ui/poster.js';
+import {artBox, warmArt, wholePictures, keepPictures} from '../ui/poster.js';
 import {setTint} from '../ui/art.js';
 import '../settings/browse.js';
 
@@ -181,7 +181,9 @@ export class HomeScreen {
     const signature = [name, !!all, ...items.map(m => m.id)].join('\n');
     slot.entry = entry;
     if (slot.signature === signature) return;
+    const pictures = wholePictures(slot);
     slot.replaceChildren(rowHeader(name, all), rowScroll(...items.map(m => posterCard(m, this.ctx))));
+    keepPictures(pictures, slot);
     slot.dataset.key = entry.key;
     slot.signature = signature;
     riseRow(this.app, 'home:' + entry.key, slot);
