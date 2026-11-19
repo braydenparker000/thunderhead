@@ -462,6 +462,44 @@ only, nothing stored or logged.
 Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and
 the page plays the add-on's own link, as before the relay.
 
+## Next round: look, motion and settings (owner, 2026-11-19)
+
+Agreed after the finishing round ([decisions](../../process/decisions.md), 2026-11-19); nothing here is built yet.
+The owner's words: "I think it needs more customizability and overall more settings, your continuity ideas are
+great. Honestly every part should feel specifically engineered to be the way that it is… I wanna build something
+better than everything else. Novio, Apple TV, Zen Browser… These aren't even perfect yet. I wanna do something
+better than them obviously."
+
+What that fixes for the round:
+
+1. **The bar.** Better than the references, not level with them: Apple TV, Zen Browser and the app the owner
+   calls Novio are starting points, and the owner expects there are good interfaces not yet seen. Every part
+   must look and behave as if it was engineered for its place; nothing generic, nothing left at a default.
+2. **More settings, more of Astra the owner's own.** Today Settings has Appearance (poster size and corners),
+   Home (hero, rows, their order), Add-ons, Playback and Your data. The round adds real customisation across
+   the app; what exactly is decided with the owner from a list, not guessed.
+3. **Continuity** (agreed): things travel instead of appearing. The poster grows into Details; Details, the
+   stream list and the player share one backdrop instead of cutting to black; the player opens out of Play.
+4. **Touch**: springs on sheets and menus, sheets dragged down to dismiss, rows that settle on a poster, small
+   haptic ticks.
+5. **Loading**: posters fade up from their own colour, placeholders match the final layout so nothing jumps,
+   the first picture cross-fades in from the backdrop.
+6. **The stream list** is the least finished screen (the add-on's raw text): a designed card with quality,
+   size, sound and source as tidy labels, and a format for the owner's add-on that Astra reads reliably.
+   Labels only: rule 2 stands, nothing is ranked, hidden or picked.
+7. **Layout and type**: one spacing rhythm and type scale; a tint per title from its artwork.
+8. **Player controls**: how they appear and leave, how seeking and a double tap feel.
+
+How it is run: (a) every transition as it is today is recorded at phone size on a slowed processor, with frame
+times; (b) a one-page feel spec fixes the timings, the springs and the rules (every movement shows where a
+thing came from; nothing delays a tap; 60 frames a second on the owner's phone; reduced motion respected);
+(c) it is built in the layers above and each is shown to the owner as before and after before it ships;
+(d) a check fails when a transition drops frames on a slowed processor, and the playback report gains
+frame-drop counts so the owner's phone says what stutters. It is its own pull request, Astra-only, after the
+finishing round is live.
+
+---
+
 ## Open questions / tests
 
 | # | Question | How to settle |
