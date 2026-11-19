@@ -273,7 +273,8 @@ export class StreamsScreen {
       handOver(placeholders, sec.body);
       const drawn = sec.drawn;
       if (list) drawInSlices(sec.body, list, s => { const c = made.get(s); made.delete(s); return c || streamCard(this, g, s); }, () => !this.destroyed && sec.drawn === drawn, (cards, below) => below || riseCards(cards, this.el),
-        {ready: items => this.notes.pending(items), after: this.pace?.settled()}); // nothing past the first slice before the header has settled
+        // Nothing past the first slice before the header has settled; nothing at all while the player is open over the list.
+        {ready: items => (this.app.player?.isOpen ? new Promise(r => setTimeout(r, 250)) : this.notes.pending(items)), after: this.pace?.settled()});
     }
     return sec;
   }
