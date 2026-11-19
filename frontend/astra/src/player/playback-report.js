@@ -93,8 +93,8 @@ export function timeLines(entries, start) {
 }
 
 /** The resolver's answer: how the address was found, each step and its time, and the server's own. */
-export function resolverLines(answer) {
-  if (!answer) return ['Address: as given (not asked of your server)'];
+export function resolverLines(answer, opened = true) {
+  if (!answer) return [opened ? 'Address: as given (not asked of your server)' : 'Address: not known'];
   return [`Address: ${VIA[answer.via] || answer.via}${answer.reason ? `: ${answer.reason}` : ''}`,
     ...(Number.isFinite(answer.total) ? [`    your server’s own time: ${ms(answer.total)}`] : []),
     ...(answer.steps || []).map(s => `    ${s.step} ${s.ok ? '✓' : '✗'} ${ms(+s.ms || 0)}${s.note ? `: ${s.note}` : ''}`)];
@@ -132,7 +132,7 @@ const heading = ua => `Astra playback report, ${new Date().toISOString().slice(0
 export async function playbackReport(engine, {answer, known = [], ua, opened = true} = {}) {
   const e = engine, url = typeof e.url === 'string' ? e.url : '';
   const device = await deviceReport().catch(() => null);
-  if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null), ...deviceLines(device)].join('\n'), {known: known.filter(Boolean), hosts: false});
+  if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null, false), ...deviceLines(device)].join('\n'), {known: known.filter(Boolean), hosts: false});
   const {entries, start} = thisLoad(e.log || []);
   const used = typeof e.dataUsed === 'function' ? (() => { try { return e.dataUsed(); } catch { return null; } })() : null;
   const rate = e.session?.rebuffer?.link?.rate?.() || 0;
@@ -155,16 +155,21 @@ export async function playbackReport(engine, {answer, known = [], ua, opened = t
   return scrubSecrets(text, {known: [url, ...known].filter(Boolean), hosts: false});
 }
 
-/** Copies the report; resolves whether it was copied. */
-export async function copyPlaybackReport(engine, options = {}) {
-  try { await navigator.clipboard.writeText(await playbackReport(engine, options)); return true; } catch { return false; }
-}
-
 /** What the player knows that must never show: the stream's address, its file's name, its torrent. */
 export const streamSecrets = stream => [stream?.url, stream?.filename, stream?.behaviorHints?.filename, stream?.infoHash].filter(s => typeof s === 'string');
 
-/** The player's own copy (Stream info, the error card): the film playing, or how it was asked for when it never opened. */
+/** The stream's own link: the source being played as the player lists it (before it opens its stream has no address). */
+const ownLink = p => [...(p.sources || []), ...(p.hiddenSources || [])].find(s => s.id === p.sourceId)?.stream?.url || p.stream?.url || null;
+
+/** The player's own report (Stream info, the error card): the film playing, or how its own stream was asked for when it
+ * never opened; how the address was found is looked up by the address played or the stream's own link, never another's. */
+export async function playerReport(p) {
+  const opened = !!p.stream?.url, link = ownLink(p);
+  const answer = (opened ? await answerFor(p.engine?.url) : null) ?? await answerFor(link);
+  return playbackReport(p.engine, {opened, answer, known: [...streamSecrets(p.stream), link]});
+}
+
+/** Copies the player's own report; resolves whether it was copied. */
 export async function copyFromPlayer(p) {
-  const opened = !!p.stream?.url;
-  return copyPlaybackReport(p.engine, {opened, answer: opened ? undefined : await answerFor(), known: streamSecrets(p.stream)});
+  try { await navigator.clipboard.writeText(await playerReport(p)); return true; } catch { return false; }
 }

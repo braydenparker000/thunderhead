@@ -7,7 +7,8 @@
 // hosts, hashes, tokens and films.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { playbackReport, plain, thisLoad, timeLines, resolverLines, scrubSecrets } from '../frontend/astra/src/player/playback-report.js';
+import { playbackReport, playerReport, plain, thisLoad, timeLines, resolverLines, scrubSecrets } from '../frontend/astra/src/player/playback-report.js';
+import { resolveStream, forgetAnswers } from '../frontend/astra/src/addons/debrid.js';
 
 const HASH = 'fedcba9876543210fedcba9876543210fedcba98';
 const TOKEN = 'tok_Invented0123456789abcdefABCDEF';
@@ -77,4 +78,32 @@ test('the pieces: plain lines for any detail, this load’s part of the log, and
   assert.equal(start, t0);
   assert.equal(timeLines(entries, start).length, 6);
   assert.equal(scrubSecrets(`see ${URL_} and Fonts.ttf`, { hosts: false }), 'see [address] and [file]');
+});
+
+test('the player’s report finds how its own stream was asked for, by its link, and never another film’s steps', async () => {
+  forgetAnswers();
+  const LINK_A = 'https://addon.example/watch/a', LINK_B = 'https://addon.example/watch/b';
+  const fetchFn = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const json = body.link === LINK_A
+      ? { url: 'https://s.latm.tb-cdn.example/dl/1', via: 'torbox', ready: false, steps: [{ step: 'add', ok: true, ms: 1234 }], total_ms: 1300 }
+      : { error: { code: 'unavailable', message: 'x', details: { reason: 'This film is not on TorBox yet, so Astra did not start it.', steps: [{ step: 'add', ok: false, ms: 987 }] } } };
+    return new Response(JSON.stringify(json), { status: body.link === LINK_A ? 200 : 503 });
+  };
+  const read = async () => ({ api: 'https://api.example', token: 'invented-session' });
+  await resolveStream({ url: LINK_A }, { fetchFn, read });
+  // Film B: picked, never opened (its stream has no address yet), and never asked about: no steps at all.
+  const player = (link) => ({ stream: { url: null }, sourceId: 's1', sources: [{ id: 's1', stream: { url: link } }], engine: engine({ url: null, log: [] }) });
+  const unasked = await playerReport(player(LINK_B));
+  assert.match(unasked, /\nThe film was not opened\.\nAddress: not known\n/);
+  assert.ok(!unasked.includes('1234 ms'), 'another film’s steps');
+  // Asked and not on TorBox: its own steps.
+  await resolveStream({ url: LINK_B }, { fetchFn, read });
+  const asked = await playerReport(player(LINK_B));
+  assert.match(asked, /\nAddress: none: not on TorBox yet: This film is not on TorBox yet, so Astra did not start it\.\n {4}add ✗ 987 ms/);
+  assert.ok(!asked.includes('1234 ms') && !asked.includes('watch/b'));
+  // Film A playing: found by the address it plays.
+  const a = await playerReport({ stream: { url: 'https://s.latm.tb-cdn.example/dl/1' }, sources: [], engine: engine({ url: 'https://s.latm.tb-cdn.example/dl/1' }) });
+  assert.match(a, /\nAddress: from TorBox directly\n {4}your server’s own time: 1300 ms\n {4}add ✓ 1234 ms/);
+  forgetAnswers();
 });

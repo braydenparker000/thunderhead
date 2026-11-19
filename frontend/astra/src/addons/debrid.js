@@ -48,7 +48,7 @@ export const SAID = {
 
 const STEPS = new Set(['key', 'cached', 'owned', 'add', 'file', 'link', 'follow']);
 const kept = new Map(); // link -> {at, mode, promise, done, found, ready}
-const told = new Map(); // the address handed over (or the add-on's link) -> its answer, the last few, for the playback report
+const told = new Map(); // the stream's own link, and the address handed over -> its answer, the last few, for the playback report
 
 /**
  * @typedef {{url: string | null, via: 'torbox' | 'follow' | 'addon' | 'none', size: number | null, type: string | null,
@@ -60,17 +60,13 @@ const told = new Map(); // the address handed over (or the add-on's link) -> its
 /** Forgets every kept answer (sign-out, the add-ons changed; tests). */
 export function forgetAnswers() { kept.clear(); told.clear(); }
 
-/** How the address being played was found (its via, reason, steps and the server's time), or null: for the playback
- * report, which prints none of the address itself. With no address, the latest answer to a tap (a film not opened). */
-export function answerFor(url) {
-  if (url === undefined) return [...told.values()].at(-1) ?? null;
-  return typeof url === 'string' ? told.get(url) ?? null : null;
-}
+/** How an address was found (its via, reason, steps and the server's time), looked up by the stream's own link or by
+ * the address handed over; null for any other (never the newest of another film): for the playback report, which
+ * prints none of the address itself. */
+export function answerFor(url) { return typeof url === 'string' ? told.get(url) ?? null : null; }
 const tell = (answer, stream) => {
-  const at = answer.url || stream?.url;
-  if (!at) return;
-  told.delete(at); told.set(at, answer);
-  while (told.size > 8) told.delete(told.keys().next().value);
+  for (const at of new Set([stream?.url, answer.url].filter(Boolean))) { told.delete(at); told.set(at, answer); }
+  while (told.size > 16) told.delete(told.keys().next().value);
 };
 
 const httpsUrl = value => {
@@ -140,14 +136,23 @@ function ask(stream, mode, options) {
 const stale = (entry, now = Date.now()) => entry.done && (now < entry.at || now - entry.at >= (entry.found ? KEEP : entry.ready ? READY : MISS));
 
 /** A tap while a press is still under way: the press's address if it comes within GRACE (or before the play's), else
- * the tap's own ask to play, made at once when the press answers without an address (a second tap shares it). */
+ * the tap's own ask to play, made at once when the press answers without an address (a second tap shares it). The tap's
+ * answer without an address waits for a press still under way, which may yet bring one. */
 function afterPress(stream, press, options) {
   return new Promise(resolve => {
-    let play = null;
+    let play = null, pressed = false, without = null;
     const sharing = () => { const live = kept.get(stream.url); return live?.mode === 'play' && !stale(live) ? live.promise : null; };
-    const start = () => { if (!play) { clearTimeout(timer); play = sharing() || ask(stream, 'play', options); play.then(resolve); } };
+    const start = () => {
+      if (play) return;
+      clearTimeout(timer);
+      play = sharing() || ask(stream, 'play', options);
+      play.then(answer => { if (hasAddress(answer) || pressed) resolve(answer); else without = answer; });
+    };
     const timer = setTimeout(start, GRACE);
-    press.then(answer => { if (hasAddress(answer)) { clearTimeout(timer); resolve(answer); } else start(); });
+    press.then(answer => {
+      pressed = true;
+      if (hasAddress(answer)) { clearTimeout(timer); resolve(answer); } else if (without) resolve(without); else start();
+    });
   });
 }
 

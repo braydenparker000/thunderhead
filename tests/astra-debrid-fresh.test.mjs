@@ -128,3 +128,46 @@ test('a tap waits a moment for a press under way, then asks to play; whichever a
   assert.deepEqual(ready.asked, ['ahead', 'play']);
   assert.equal((await t3).url, 'https://cdn.example/2/film.mkv');
 });
+
+test('a tap’s own ask that comes back without an address does not win over a press’s address a moment later', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let pressAnswer;
+  const slowPress = new Promise((r) => { pressAnswer = r; });
+  // The press brings the address late; the tap's own ask fails at once (the server's error envelope).
+  const w = worker((body) => (body.mode === 'ahead' ? slowPress : [502, { error: { code: 'upstream', message: 'x', details: { reason: 'Invented trouble.' } } }]));
+  resolveStream(STREAM, w.opts({ mode: 'ahead' }));
+  await flush();
+  let tapped = null;
+  resolveStream(STREAM, w.opts()).then((a) => { tapped = a; });
+  await flush();
+  t.mock.timers.tick(GRACE); await flush(); await flush(); await flush(); await flush();
+  assert.deepEqual(w.asked, ['ahead', 'play']);
+  assert.equal(tapped, null, 'the tap waits for the press, which may still bring an address');
+  pressAnswer(address(1));
+  await flush(); await flush(); await flush(); await flush();
+  assert.equal(tapped?.url, 'https://cdn.example/1/film.mkv');
+  // A press that ends without one: the tap's own answer is the answer.
+  forgetAnswers();
+  let second;
+  const press2 = new Promise((r) => { second = r; });
+  const w2 = worker((body) => (body.mode === 'ahead' ? press2 : [502, { error: { code: 'upstream', message: 'x', details: { reason: 'Invented trouble.' } } }]));
+  resolveStream(STREAM, w2.opts({ mode: 'ahead' }));
+  await flush();
+  const tap2 = resolveStream(STREAM, w2.opts());
+  await flush();
+  t.mock.timers.tick(GRACE); await flush(); await flush();
+  second(noAddress(false));
+  assert.deepEqual([(await tap2).via, (await tap2).reason], ['addon', 'Invented trouble.']);
+});
+
+test('how an address was found is looked up by the stream’s own link or the address, never another film’s', async () => {
+  const w = worker((_b, n) => (n === 1 ? address(1) : [503, { error: { code: 'unavailable', message: 'x', details: { reason: 'Not on TorBox yet.', steps: [{ step: 'add', ok: false, ms: 9 }] } } }]));
+  const played = await resolveStream(STREAM, w.opts());
+  assert.equal(answerFor('https://cdn.example/1/film.mkv'), played);
+  assert.equal(answerFor(LINK), played, 'by the stream’s own link too');
+  const other = { url: 'https://addon.example/watch/other' };
+  const none = await resolveStream(other, w.opts());
+  assert.equal(answerFor(other.url), none);
+  assert.equal(answerFor(), null, 'no link, no answer: never the newest of any film');
+  assert.equal(answerFor('https://addon.example/watch/never-asked'), null);
+});
