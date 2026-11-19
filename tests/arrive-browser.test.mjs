@@ -87,12 +87,17 @@ test('back to a home the browser kept, the launch colour fades off it', async ()
 
 test('a theme change cross-fades the screen; with reduced motion it is at once', async () => {
   const page = await home();
+  // The cross-fade the page asks for is kept here (document.activeViewTransition is newer than the browser CI runs).
+  await page.evaluate(() => {
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = (update) => { const fade = start(update); window.__fade = fade; fade.finished.finally(() => { window.__fade = null; }); return fade; };
+  });
   const change = (to) => page.evaluate((to) => {
     document.dispatchEvent(new CustomEvent('th:theme', { detail: to }));
-    return { now: document.documentElement.dataset.theme, fading: !!document.activeViewTransition };
+    return { now: document.documentElement.dataset.theme, fading: !!window.__fade };
   }, to);
   assert.deepEqual(await change('dark'), { now: 'light', fading: true }, 'the change waits for the cross-fade to take its picture');
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark' && !document.activeViewTransition);
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark' && !window.__fade);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.deepEqual(await change('light'), { now: 'light', fading: false });
   await page.close();

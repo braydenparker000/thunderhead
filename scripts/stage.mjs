@@ -206,7 +206,8 @@ const budgets = [
   // (2026-11-19, the owner: "let's make the island premium and feel more like the apple dynamic island") +8,185
   // measured (43,972 → 52,157), under the 8 KB allowed for it: one continuous-corner surface for capsule, card and
   // app (shape.js), touch that follows the finger (hand.js), the song's slide, loaded when the island first appears.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 52_157],
+  // (2026-11-19) +44 measured: the drag-down reads the finger from the app's own pixels and its zoom, not screenY.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 52_201],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads

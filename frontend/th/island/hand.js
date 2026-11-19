@@ -66,23 +66,22 @@ function card(dy, fy) {
   const y = rubber(dy, 0, 160, 80), s = 1 - .3 * y / 160, w = innerWidth * s;
   return [(innerWidth - w) / 2, fy * innerHeight * (1 - s) + y, w, innerHeight * s, 40 * clamp(y / 120)];
 }
-/** A touch on the app in front (screen pixels), from its bottom or Podcasts' players; p is null for a second finger.
+/** A touch on the app in front, from its bottom or Podcasts' players; p is null for a second finger.
  * @param {string} kind @param {any} w @param {any} e @param {any} p */
 export function pull(kind, w, e, p) {
   const l = st.layer, r = motionReduced();
   if (kind === 'down') {
     const zone = w.document.getElementById('mini-player') ? e.target?.closest?.('#mini-player,.podcast-nav') : p?.clientY > w.innerHeight - 150;
-    d = zone && p ? { x: p.screenX, y: p.screenY, fy: p.clientY / innerHeight, t: e.timeStamp, dy: 0, vy: 0, on: false } : null;
+    d = zone && p ? { x: p.clientX, y: p.clientY, fy: p.clientY / innerHeight, t: e.timeStamp, dy: 0, vy: 0, on: false } : null;
   } else if (d && l && p && kind === 'move') {
-    const dy = p.screenY - d.y;
+    // On the screen: the app's own pixels under its zoom (a test's touch has no screenY).
+    const [X, Y, W] = d.on && !r ? card(d.dy, d.fy) : [0, 0, innerWidth], k = W / innerWidth, dy = Y + p.clientY * k - d.y;
     d.vy = speed(d.vy, dy - d.dy, e.timeStamp - d.t); d.dy = dy; d.t = e.timeStamp;
-    if (!d.on && (dy < 10 || dy < Math.abs(p.screenX - d.x) * 1.2)) return;
+    if (!d.on && (dy < 10 || dy < Math.abs(X + p.clientX * k - d.x) * 1.2)) return;
     d.on = true;
     if (!r) surface(l, card(dy, d.fy), 0);
     else if (dy > 56) { d = null; void collapse('swipe down'); }
   } else if (d && l) {
-    // Moves thin out while a page pans: the lift is the last.
-    if (p && !r && p.screenY - d.y > d.dy) pull('move', w, e, p);
     const h = d, vy = e.timeStamp - h.t > 90 ? 0 : h.vy, D = card(h.dy, h.fy), V = card(h.dy + vy / 60, h.fy).map((n, k) => (n - D[k]) * 60);
     d = null;
     if (!h.on || r) return;
