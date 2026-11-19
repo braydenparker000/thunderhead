@@ -39,11 +39,13 @@ export class System {
     for (const el of this.inerted || []) el.inert = true;
   }
 
-  /** The player opened: the app behind it is out of reach, back closes the player, and it goes full screen. */
+  /**
+   * The player opened: back closes the player, and it goes full screen. The app behind goes out of reach
+   * (setInert, a style pass over the whole app) after the opening's first frame (opening.js); until then the
+   * player, over everything, takes every touch.
+   */
   open() {
     const p = this.p;
-    // Keyboard focus stays in the player: the app behind it is inert while it is open.
-    this.setInert(true);
     document.documentElement.classList.add('ap-open');
     p.popLayer = pushLayer('player', () => { p.popLayer = null; p.close('back'); });
     this.enterFullscreen();
@@ -221,10 +223,9 @@ export class System {
     try { navigator.mediaSession.setPositionState({duration: d, position: Math.min(d, p.video.currentTime), playbackRate: p.video.playbackRate || 1}); } catch {}
   }
 
-  /** The player closed: the app is in reach again, and the phone is as it was. */
+  /** The player closed: the phone is as it was (the app comes back in reach after the leave's first frame: opening.js). */
   close() {
     const p = this.p;
-    this.setInert(false);
     document.removeEventListener('fullscreenchange', this.onFullscreen);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.exitFullscreen();

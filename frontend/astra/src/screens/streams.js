@@ -8,6 +8,7 @@
 import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {rise} from '../ui/motion.js';
+import {T} from '../ui/motion-core.js';
 import {fetchStreams, supports} from '../addons/client.js';
 import {factsOf, filtersFrom, shown} from '../addons/stream-facts.js';
 import {withoutHash} from '../addons/stream-text.js';
@@ -18,6 +19,7 @@ import {addonChips, filterChips, syncChips} from './stream-chips.js';
 import {emptyState, failedRow, skeletonStream} from './stream-states.js';
 import {handOver, placesOf, riseCards} from './stream-motion.js';
 import {settleIn, settleOut} from './streams-settle.js';
+import {Pace} from './stream-pace.js';
 import '../settings/streams.js';
 
 export {sizeFrom};
@@ -49,7 +51,9 @@ export class StreamsScreen {
     if (!kept || kept.base !== start) this.f = {...this.f, sort: start, small: start === 'smallest'}; // a newer starting order chosen in Settings wins
     if (headless) return;
     this.style = cardStyle(app);
-    app.loadPlayer?.().catch(() => {}); import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}); // getting ready before a tap
+    this.pace = new Pace(this); // when the list does its work: not under its own movement (stream-pace.js)
+    // Getting ready before a tap, once the screen has arrived and the page is idle.
+    this.pace.idle(() => { app.loadPlayer?.().catch(() => {}); import('../app/ready.js').then(({ReadyAhead}) => { this.ahead = new ReadyAhead(app); this.getReady(); }, () => {}); }, 'ahead');
     // "No compatible add-ons" may change when a late manifest arrives or add-ons are edited.
     this.offAddons = app.onAddons?.(() => { if (this.empty) this.load(); });
     this.kept = measureDetails(app); // Details' backdrop and logo, where Details has them, before this screen covers it
@@ -73,7 +77,7 @@ export class StreamsScreen {
   setting(id, fallback) { try { return this.app.setting ? this.app.setting(id) : fallback; } catch { return fallback; } }
 
   /** The shell's hooks (app/app.js): from Details the list moves itself in and out (streams-settle.js); else null, the shell's push. */
-  enter() { const m = settleIn(this); this.settled = !!m; return m; }
+  enter() { const m = settleIn(this); this.settled = !!m; this.pace?.moving(T.screen); return m; }
   leave(under, layer) { return settleOut(this, layer); }
 
   /** Pushed by the shell's own motion: what is under the top rises into place. */
@@ -121,6 +125,9 @@ export class StreamsScreen {
     return this.sources();
   }
 
+  /** An answer is drawn when the list may do the work (stream-pace.js); a headless screen draws nothing. */
+  drawSoon() { if (this.pace) this.pace.draw(); else if (this.el) this.render(); }
+
   /** Add-ons that may have streams: those that say so, and those not reached yet (asked again). */
   addons() {
     return this.app.enabledAddons().filter(a => {
@@ -145,7 +152,7 @@ export class StreamsScreen {
     await this.ask(addons, abort.signal);
     if (abort.signal.aborted) return;
     this.loading = false;
-    this.render();
+    this.drawSoon();
   }
 
   /** Asks these add-ons for streams; each group fills in, or fails, as its add-on answers. One reached only now with no streams for this title is dropped. */
@@ -154,7 +161,7 @@ export class StreamsScreen {
       const group = this.groups.get(g.addon.url);
       if (signal.aborted || !group) return;
       this.groups.set(g.addon.url, keyed({...g, addon: group.addon, order: group.order}));
-      this.render();
+      this.drawSoon();
     }});
     if (signal.aborted) return;
     for (const a of addons) if (this.groups.get(a.url)?.streams === null) this.groups.delete(a.url);
@@ -167,10 +174,18 @@ export class StreamsScreen {
     this.groups.set(url, {addon: group.addon, order: group.order, streams: null});
     this.render();
     await this.ask([group.addon], signal);
-    if (!signal.aborted) this.render();
+    if (!signal.aborted) this.drawSoon();
   }
 
+  /** Every playable stream as the player lists them (made once per drawing: a tap reads it in its own frame). */
   sources() {
+    if (this.listed && this.listed.at === this.drawnAt) return this.listed.list; // a headless screen (collect) has none: made each time
+    const list = this.allSources();
+    if (this.drawnAt != null) this.listed = {at: this.drawnAt, list};
+    return list;
+  }
+
+  allSources() {
     return [...this.groups.values()].filter(g => g.streams).sort((a, b) => a.order - b.order)
       .flatMap(g => g.streams.filter(s => s.url).map(s => ({id: s.key, addonUrl: g.addon.url,
         label: sourceName(g.addon.name, withoutHash(s.name), ' · '), detail: [withoutHash(s.title).trim(), sizeFrom(s)].filter(Boolean).join('\n'), // shown: no hash
@@ -202,6 +217,8 @@ export class StreamsScreen {
    * never replaced or moved by another add-on's answer, so a press in progress is not lost and nothing jumps.
    */
   render() {
+    this.drawnAt = (this.drawnAt || 0) + 1; // what sources() made is made again, when the main thread is free
+    this.pace?.idle(() => this.sources(), 'sources');
     const groups = [...this.groups.values()].sort((a, b) => a.order - b.order);
     // Listed: add-ons still asking, with streams, or that failed. One that answered with none is left out.
     const listed = groups.filter(g => g.streams === null || g.streams?.length || g.error);
@@ -222,7 +239,8 @@ export class StreamsScreen {
     order.forEach((el, i) => { if (this.list.children[i] !== el) this.list.insertBefore(el, this.list.children[i] || null); });
     while (this.list.children.length > order.length) this.list.lastElementChild.remove();
     const hidden = shownGroups.reduce((n, g) => n + (g.streams ? g.streams.length - this.visible(g).length : 0), 0);
-    this.footer.textContent = asking ? 'Checking more add-ons…' : hidden ? `${hidden} hidden by your filters` : ''; this.getReady();
+    this.footer.textContent = asking ? 'Checking more add-ons…' : hidden ? `${hidden} hidden by your filters` : '';
+    this.pace?.idle(() => this.getReady(), 'ready');
   }
 
   /** An add-on's streams as the owner's filters and the Thunderhead's size limit leave them, each with its place in the add-on's list. */

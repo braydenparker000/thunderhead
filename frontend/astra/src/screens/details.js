@@ -6,9 +6,9 @@
 import {h, scrollTimelines} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {image, longPress, toast} from '../ui/components.js';
-import {artBox} from '../ui/poster.js';
+import {artBox, swapIn} from '../ui/poster.js';
 import {press, rise} from '../ui/motion.js';
-import {readTint, setTint} from '../ui/art.js';
+import {readTint, setTint, paintArt} from '../ui/art.js';
 import {logoImage} from './logo.js';
 import {cast, episodes, facts, moreLike} from './details-parts.js';
 import {enter, leave} from './details-motion.js';
@@ -21,8 +21,10 @@ export class DetailsScreen {
     this.app = app;
     this.item = item;
     this.from = from;
-    // Fetch the player while the viewer reads, so Play opens it at once.
-    (globalThis.requestIdleCallback || (fn => setTimeout(fn, 1200)))(() => app.loadPlayer?.().catch(() => {}));
+    // Fetch the player while the viewer reads, so Play opens it at once: once the picture has landed (its
+    // modules evaluated under the flight were a 50 to 100 ms hole in it on a slow phone).
+    const prefetch = () => (globalThis.requestIdleCallback || (fn => setTimeout(fn, 1200)))(() => app.loadPlayer?.().catch(() => {}), {timeout: 4000});
+    queueMicrotask(() => Promise.resolve(this.landed).then(prefetch));
     this.el = h('div', {class: 'screen details'});
     this.header = h('header', {class: 'details-header', 'aria-hidden': 'true', inert: true});
     this.backBtn = press(h('button', {class: 'float-back', type: 'button', 'aria-label': 'Back', onclick: () => app.back()}, icon('back', {size: 24})));
@@ -62,11 +64,17 @@ export class DetailsScreen {
     if (retry) { retry.disabled = true; retry.textContent = 'Retrying…'; }
     let meta = null;
     try { meta = await this.app.meta(this.item); } catch (error) { this.error = error; }
+    // Built after the picture has landed, never under its flight (a long frame there is a jump in it).
+    if (this.landed) { await this.landed; this.landed = null; await new Promise(r => requestAnimationFrame(() => r())); }
     this.loading = false;
     if (this.destroyed) return;
     // A failure keeps the poster, title and backdrop the card already had.
     this.failed = !meta;
-    this.meta = meta ? {...this.item, ...meta, videos: meta.videos || []} : {...this.item, videos: []};
+    // The art the card showed is this title's art for the visit: the full details may come from another add-on
+    // (the first that serves meta) with other artwork of the same title, which never replaces the picture that
+    // flew here, nor what Library, the stream list or the player show of it.
+    const brought = Object.fromEntries(['poster', 'background'].filter(k => this.item[k]).map(k => [k, this.item[k]]));
+    this.meta = meta ? {...this.item, ...meta, ...brought, videos: meta.videos || []} : {...this.item, videos: []};
     this.renderHero(this.meta);
     this.renderBody();
     this.tint();
@@ -75,7 +83,7 @@ export class DetailsScreen {
   destroy() { this.destroyed = true; for (const off of this.offs) off(); }
   onShow(first) { if (!first && this.meta) this.renderActions(); }
   /** The shell's hooks (app/app.js): opened out of a picture, Details moves itself in and out (screens/details-motion.js). */
-  enter() { const moving = enter(this, this.from); this.moved = !!moving; return moving; }
+  enter() { const moving = enter(this, this.from); this.moved = !!moving; this.landed = moving?.finished || null; return moving; }
   leave(under, layer) { return this.moved ? leave(this, layer) : null; }
   /** A Browse setting changed (Colour from artwork, Hide spoilers): what it changes is redrawn. */
   settingChanged() { if (this.destroyed) return; this.tint(); this.redrawEpisodes(); }
@@ -101,14 +109,20 @@ export class DetailsScreen {
       this.hero = {bg, poster, title, genres, head, el: h('div', {class: 'details-hero'}, bg, h('div', {class: 'details-shade'}), h('div', {class: 'details-hero-content'}, poster, head))};
       this.body.append(this.hero.el);
     }
+    // The pictures the card brought stay: the full details' own art (another add-on's poster of the same title)
+    // never replaces the one that flew here, so the poster never turns into a different one after it lands.
+    // Only a missing or broken picture is replaced, once the new one has decoded (ui/poster.js swapIn).
+    const keeps = (box, src, brought) => !!src && src === brought && !!box?.querySelector('img');
     const art = m.background || m.poster || '';
-    if (art !== this.hero.art) { this.hero.art = art; this.hero.bg.replaceChildren(image(art, '', 'details-bg-img', {eager: true})); }
+    if (art !== this.hero.art && !keeps(this.hero.bg, this.hero.art, this.item.background)) { this.hero.art = art; swapIn(this.hero.bg, image(art, '', 'details-bg-img', {eager: true})); }
     // The same poster the card showed, at the card's size: already decoded, so it lands without a flash.
-    if ((m.poster || '') !== this.hero.posterSrc) {
+    if ((m.poster || '') !== this.hero.posterSrc && !keeps(this.posterBox, this.hero.posterSrc, this.item.poster)) {
       this.hero.posterSrc = m.poster || '';
-      this.posterBox = m.poster ? artBox('details-poster', m.poster, image(m.poster, '', 'poster-img', {eager: true})) : null;
-      this.hero.poster.replaceChildren(...[this.posterBox].filter(Boolean));
-      this.posterBox?.querySelector('img')?.decode?.().catch(() => {});
+      if (m.poster && this.posterBox) { paintArt(this.posterBox, m.poster); swapIn(this.posterBox, image(m.poster, '', 'poster-img', {eager: true})); }
+      else {
+        this.posterBox = m.poster ? artBox('details-poster', m.poster, image(m.poster, '', 'poster-img', {eager: true})) : null;
+        this.hero.poster.replaceChildren(...[this.posterBox].filter(Boolean));
+      }
     }
     const titleKey = (m.logo || '') + '\n' + (m.name || '');
     if (titleKey !== this.hero.titleKey) {

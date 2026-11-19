@@ -139,11 +139,14 @@ export function holdIn(el, {name = 'press'} = {}) {
   timed(name, () => handle([go(el, {transform: 'scale(0.97)'}, {duration: T.press, easing: EASE, keep: true})]));
 }
 
-/** Lets a held press go, with the snappy spring (after `delay` ms). */
-export function release(el, {delay = 0} = {}) {
+/** Where `el`'s transform is now (read before a change, so starting from it later forces no style pass). */
+export const transformOf = el => getComputedStyle(el).transform;
+
+/** Lets a held press go, with the snappy spring (after `delay` ms), from `from` (a transform) or from where it is. */
+export function release(el, {delay = 0, from = null} = {}) {
   const lv = level();
   if (lv !== 'full') { stop(el); return; }
-  const a = go(el, {transform: 'none'}, {duration: T.normal, easing: spring('snappy'), delay, keep: true});
+  const a = go(el, {transform: 'none'}, {from: from ? {transform: from} : null, duration: T.normal, easing: spring('snappy'), delay, keep: true});
   a.finished.then(() => stop(el), () => {});
 }
 

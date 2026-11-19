@@ -143,9 +143,9 @@ test('300 streams: the first cards at once, the rest in slices, in order, each a
   const { page, errors, cards } = await app(t, { report: EVERYTHING, streams: many });
   const names = (await cards()).map((c) => c.name);
   assert.deepEqual(names, many.map((s) => s.name));
-  // Ten at once, then at most eight a frame, never one taken away.
+  // A screenful at once (four to ten: as many as a few milliseconds allow), then at most eight a frame, never one taken away.
   const counts = (await page.evaluate(() => window.cardsByFrame)).filter((n) => n > 0);
-  assert.equal(counts[0], 10, counts.join(' '));
+  assert.ok(counts[0] >= 4 && counts[0] <= 10, counts.join(' '));
   assert.equal(counts.at(-1), 300);
   for (let i = 1; i < counts.length; i++) assert.ok(counts[i] > counts[i - 1] && counts[i] - counts[i - 1] <= 8, counts.join(' '));
   // The last card was drawn in a later slice; a press on it asks ahead as on the first.

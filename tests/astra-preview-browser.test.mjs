@@ -147,7 +147,10 @@ test('a fast drag across the bar fetches at most two frames; closing the film le
   const kept = await page.evaluate(() => { window.held = [...p.engine.previews.pictures.values()]; return window.held.length; });
   assert.ok(kept >= 1 && kept <= 2, `${kept} frames fetched`);
   await page.mouse.up();
-  const after = await page.evaluate(() => { p.close(); return { previews: p.engine.previews, decoder: p.engine.previewDecoder, widths: window.held.map((b) => b.width) }; });
+  // Closing fades the picture out first; the engine is torn down once that has ended (player/stages.js).
+  await page.evaluate(() => { p.close(); });
+  await page.waitForFunction(() => !window.p.stages.running && p.engine.previews === null, null, { timeout: 10_000 });
+  const after = await page.evaluate(() => ({ previews: p.engine.previews, decoder: p.engine.previewDecoder, widths: window.held.map((b) => b.width) }));
   assert.equal(after.previews, null);
   assert.equal(after.decoder, null);
   assert.ok(after.widths.every((w) => w === 0), 'every picture was closed');

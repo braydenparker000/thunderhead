@@ -100,6 +100,8 @@ test('a menu is a sheet: docked to the right sideways, from the bottom upright; 
   for (const [viewport, docked] of [[SIDEWAYS, true], [UPRIGHT, false]]) {
     const { page, settled } = await player(t, viewport);
     await page.evaluate(() => { openIt(); plays(); p.menus.openModal('info'); });
+    // Built in this frame, risen from the next (menu-sheet.js): its rise has begun, then ended.
+    await until(() => page.evaluate(() => !p.menus.modalSheet.rising));
     await settled();
     const where = await page.evaluate(() => { const s = p.modal.querySelector('.ap-sheet'), r = s.getBoundingClientRect(); return { docked: s.classList.contains('docked'), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left) }; });
     assert.equal(where.docked, docked);

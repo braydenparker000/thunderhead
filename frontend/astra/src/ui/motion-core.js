@@ -107,5 +107,29 @@ export function handle(anims, settle = () => {}) {
   return {finished, cancel: () => end(true)};
 }
 
+/** Resolves once `pictures` (img elements) are decoded, or after `cap` ms. */
+export function decoded(pictures, {cap = 150} = {}) {
+  const all = Promise.all([...pictures].map(img => img.decode?.().catch(() => {})));
+  return Promise.race([all, new Promise(r => setTimeout(r, cap))]);
+}
+/** Resolves after `n` frames have been drawn: what was changed before the call is on screen by then. */
+export const frames = (n = 2) => new Promise(r => { const step = () => (n-- <= 0 ? r() : requestAnimationFrame(step)); step(); });
+/** Pictures decoded (at most `cap` ms), then two frames drawn with them (ui/motion.js travel). */
+export const painted = (pictures, options) => decoded(pictures, options).then(() => frames(2));
+
 /** A handle for a motion that happens at once (level 'off', or nothing to move). */
 export function instant(settle = () => {}) { settle(false); return {finished: Promise.resolve({cancelled: false}), cancel() {}}; }
+
+// Heavy work and movement do not share a frame (the feel report counts the main thread's gaps): a movement
+// starts first, on the compositor, and the work comes after its first frame, in pieces, one a frame.
+const raf = fn => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+/** Resolves just after the next frame has been drawn (in a task posted from its frame callback). */
+export const nextFrame = () => new Promise(resolve => raf(() => setTimeout(resolve, 0)));
+/** Resolves once the frame being made now (a movement's first) has been presented: two frames on. */
+export const afterFirstFrame = () => new Promise(resolve => raf(() => raf(() => setTimeout(resolve, 0))));
+/** Runs `fn` when the main thread is free (an idle moment; at most `timeout` ms later). Returns a cancel. */
+export function whenIdle(fn, {timeout = 2000} = {}) {
+  if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(() => fn(), {timeout}); return () => cancelIdleCallback(id); }
+  const id = setTimeout(fn, 200);
+  return () => clearTimeout(id);
+}

@@ -1,19 +1,19 @@
 {
-  "id": "2026-11-19-astra-feel",
+  "id": "2026-11-19-astra-feel-2",
   "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra moves now: a poster flies into its title's page, and the player opens out of the stream you tap. No cuts to black.",
+      "text": "Astra: a tapped poster flies in whole and stays the same picture. No blink, and no swap to other artwork.",
       "open": "astra"
     },
     {
-      "text": "Stream cards are designed: resolution, picture, sound, size and release at a glance, in the order you choose."
+      "text": "The player, menus, stream list and toasts no longer stutter: the movement starts first, the heavy work after."
     },
     {
-      "text": "Settings can be searched and has far more: accent, text size, motion, haptics, player buttons, hiding spoilers."
+      "text": "The hero's button always opens the title you tapped, even if the hero was turning at that moment."
     },
     {
-      "text": "Settings › About has Copy feel report: it shows which transitions stutter on your phone, so they can be fixed."
+      "text": "The feel report now shows your screen's refresh rate and leaves out the noise from ordinary taps."
     }
   ]
 }

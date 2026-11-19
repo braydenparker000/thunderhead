@@ -5,6 +5,7 @@
 import {h} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {posterCard, emptyCard, sheet} from '../ui/components.js';
+import {wholePictures, keepPictures} from '../ui/poster.js';
 import {posterContext, rowHeader, rowScroll} from './home.js';
 import {press, level, tick, T, timed} from '../ui/motion.js';
 import {go, handle, spring, EASE} from '../ui/motion-core.js';
@@ -76,7 +77,9 @@ export class LibraryScreen {
   /** Draws the page; with `moved`, the posters on screen travel from where they were (a layout, sort or type change). */
   render(moved = false) {
     const before = moved ? placesOf(this.body) : null;
+    const pictures = wholePictures(this.body);
     this.draw();
+    keepPictures(pictures, this.body); // a redrawn card keeps the picture it showed (ui/poster.js)
     if (before) flip(this.body, before);
   }
 

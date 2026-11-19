@@ -21,8 +21,9 @@ import {withoutHash} from '../addons/stream-text.js';
 import {externalPlayerUrl, canOpenExternally} from '../player/external.js';
 
 const NEEDS_DEBRID = 'Torrents need a debrid add-on such as TorBox.';
-/** Cards drawn at once (more than a screenful), then at most SLICE cards or SLICE_MS of work a frame. */
-export const FIRST = 10, SLICE = 8, SLICE_MS = 4;
+/** Cards in the first slice at most (more than a screenful), then at most SLICE cards a slice; every slice also stops
+ * after SLICE_MS of work (each stays under about 8 ms a frame with its layout on a slowed phone). */
+export const FIRST = 10, SLICE = 8, SLICE_MS = 4, SCREENFUL = 4; // the first slice is never under a screenful, however slow the phone
 const sizeLabel = n => !n ? '' : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB' : Math.round(n / 1e6) + ' MB';
 
 /** A best-effort size from the stream's own number or text ("💾 4.2 GB", "1,400 MB"), as "1.4 GB". */
@@ -135,21 +136,21 @@ export function sourceCard(source, {current = false, onPick = () => {}, minutes 
 }
 
 /**
- * Draws `items` into `body` in their order: the first FIRST at once, then one slice a frame, each laid out in its
- * own frame (300 cards at once held a slowed phone for half a second; a card costs more to lay out than to make,
- * so a slice is counted in cards as well as in time). Only ever appends, so a card under a finger is never
+ * Draws `items` into `body` in their order: a first slice at once (up to FIRST), then one slice a frame, each laid
+ * out in its own frame (300 cards at once held a slowed phone for half a second; a card costs more to lay out than
+ * to make, so a slice is counted in cards as well as in time; off screen, content-visibility skips the layout). Only ever appends, so a card under a finger is never
  * replaced or moved; `alive()` turns false when the body is drawn again, which ends the work left. `drawn(cards)`
  * hears each slice once it is in the page (the list makes the visible ones rise).
  */
 export function drawInSlices(body, items, make, alive, drawn = null) {
   let i = 0;
-  const slice = (count, budget) => {
+  const slice = (count, budget, least = 1) => {
     const first = i, stop = Math.min(items.length, i + count), end = performance.now() + budget, part = document.createDocumentFragment(), made = [];
-    while (i < stop && (i === first || performance.now() < end)) { const el = make(items[i++]); made.push(el); part.append(el); }
+    while (i < stop && (i - first < least || performance.now() < end)) { const el = make(items[i++]); made.push(el); part.append(el); }
     body.append(part);
     drawn?.(made);
     // The next slice after this one has been drawn: a task posted from a frame's callback runs after that frame.
     if (i < items.length) requestAnimationFrame(() => setTimeout(() => { if (alive()) slice(SLICE, SLICE_MS); }, 0));
   };
-  slice(FIRST, Infinity);
+  slice(FIRST, SLICE_MS, SCREENFUL);
 }

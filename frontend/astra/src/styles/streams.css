@@ -82,6 +82,9 @@
 /* A stream card: a solid surface with a hairline. */
 .stream-card { display: flex; flex-direction: column; gap: var(--s-1); width: 100%; min-width: 0; min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
 .stream-card.disabled { opacity: .5; }
+/* A card off screen is skipped by style, layout and paint (a list of 300 restyles in a few ms when the app behind the
+   player goes out of reach, and lays out only what shows); it keeps its size once drawn. */
+.group-body > .stream-card { content-visibility: auto; contain-intrinsic-size: auto 132px; }
 /* The one playing is marked by the player's own slot around the card (player/menus.js .ap-source-slot.current). */
 /* Designed. Line 1: the resolution badge (solid, the strongest thing), picture badges, codec and sound, ready. */
 .sc-top { display: flex; align-items: center; gap: var(--s-2); min-width: 0; overflow: hidden; white-space: nowrap; }

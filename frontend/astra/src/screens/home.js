@@ -7,7 +7,7 @@ import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/
 import {Hero} from './hero.js';
 import {resumeRemembered, continueNext, playsDirectly, pressCard, videoOf} from '../app/resume.js';
 import {press, rise, level, tick} from '../ui/motion.js';
-import {artBox} from '../ui/poster.js';
+import {artBox, warmArt, wholePictures, keepPictures} from '../ui/poster.js';
 import {setTint} from '../ui/art.js';
 import '../settings/browse.js';
 
@@ -17,6 +17,16 @@ export function openDetails(app, m, from = null) {
 }
 
 const risen = new Set(); // rows that have made their first appearance this visit
+
+/**
+ * The lifted copy of a card's picture while its long-press menu closes (ui/overlays.js liftMenu): "Go to
+ * details" flies the picture from there, the one on screen, not a second one from the card under it.
+ */
+function liftedArt(card) {
+  const art = [...document.querySelectorAll('body > .lift .lift-art')].at(-1);
+  if (art) art.dataset.item = card.dataset.item; // Back finds the card by this title (screens/details-motion.js)
+  return art || null;
+}
 
 /** Long-press actions shared by every poster. */
 export function posterMenu(app) {
@@ -171,7 +181,9 @@ export class HomeScreen {
     const signature = [name, !!all, ...items.map(m => m.id)].join('\n');
     slot.entry = entry;
     if (slot.signature === signature) return;
+    const pictures = wholePictures(slot);
     slot.replaceChildren(rowHeader(name, all), rowScroll(...items.map(m => posterCard(m, this.ctx))));
+    keepPictures(pictures, slot);
     slot.dataset.key = entry.key;
     slot.signature = signature;
     riseRow(this.app, 'home:' + entry.key, slot);
@@ -239,16 +251,17 @@ export class HomeScreen {
     const art = e.thumbnail || m.background || m.poster;
     const open = () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0);
     // Art, then over it the episode code, the title and what is left; the progress line in the title's own colour.
-    const card = press(h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => pressCard(this.app, e), 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
+    const card = press(h('button', {class: 'cw-card', type: 'button', onclick: open, onpointerdown: () => { pressCard(this.app, e); warmArt(card.querySelector('.cw-art')); }, 'aria-label': [m.name, code, status].filter(Boolean).join(', ')},
       artBox('cw-art', art, [image(art, '', 'cw-img'), h('div', {class: 'cw-shade'}),
         status ? h('span', {class: 'cw-chip'}, status) : null,
         h('div', {class: 'cw-text'}, code ? h('small', {}, code) : null, h('b', {}, m.name || ''), e.title ? h('span', {}, e.title) : null),
         e.kind === 'resume' ? h('div', {class: 'cw-progress'}, h('i', {style: {transform: `scaleX(${Math.min(1, e.time / e.duration)})`}})) : null])));
+    card.dataset.item = `${m.type}:${m.id}`; // found again by its title after a redraw (screens/details-motion.js)
     const tint = this.app.tintOf?.(m);
     if (tint) setTint(card, tint);
     longPress(card, () => liftMenu(card.querySelector('.cw-art'), m.name, code, [
       playsDirectly(e) ? {label: 'Choose another stream', icon: 'sources', run: () => this.resume(e, m, card, e.kind === 'resume' ? e.time : 0, {list: true})} : null,
-      {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, card.querySelector('.cw-art'))},
+      {label: 'Go to details', icon: 'info', run: () => openDetails(this.app, m, liftedArt(card) || card.querySelector('.cw-art'))},
       e.kind === 'resume' ? {label: 'Start from beginning', icon: 'replay', run: () => this.resume(e, m, card, 0)} : null,
       {label: 'Remove', icon: 'close', destructive: true, run: () => { this.app.progress.remove(e.type, e.id); toast('Removed from Continue Watching'); }},
     ].filter(Boolean)));

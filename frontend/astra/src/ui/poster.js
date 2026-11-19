@@ -10,20 +10,96 @@ import {longPress, liftMenu} from './components.js';
 import {press} from './motion.js';
 import {paintArt, readArt, artEntry} from './art.js';
 
+// Pictures painted this visit (FEEL.md "Loading": a later visit shows them at once). Drawn again (a row
+// redrawn, a tab or a screen built anew, Details' poster after the card's), such a picture is asked for at
+// once and decoded before it is drawn: no lazy wait, no placeholder, no 200 ms fade replayed.
+const shown = new Set();
+// Lazy pictures still waiting (off screen: to the right in a row, below the fold), by address. When the same
+// picture is painted elsewhere (the hero shows a title a row shows further on), they are asked for at once:
+// the bytes are here, so the card is whole before it is scrolled to, not a placeholder until then.
+const waiting = new Map(); // src -> Set of WeakRef(img)
+function wake(src) {
+  for (const ref of waiting.get(src) || []) { const img = ref.deref(); if (img && !img.complete && img.loading === 'lazy') img.loading = 'eager'; }
+  waiting.delete(src);
+}
+/** True when `src` has been painted somewhere this visit. */
+export const seen = src => !!src && shown.has(src);
+
 /**
- * An image that fades in when it arrives from the network. Art the browser already holds (a poster
- * seen on Home, now on Details) shows at once, with no fade to replay. `eager` is for the art that fills
- * the screen first; `label` is written in the empty tile when there is no art (a poster's title).
+ * An image that fades in when it arrives from the network. Art already seen this visit (a poster seen on
+ * Home, now on Details, in Search or in a redrawn row) shows at once, with no fade to replay. `eager` is for
+ * the art that fills the screen first; `label` is written in the empty tile when there is no art (a poster's title).
  */
 export function image(src, alt = '', cls = '', {eager = false, label = ''} = {}) {
   const fallback = () => h('div', {class: 'img-fallback ' + cls}, label ? h('span', {class: 'img-label', 'aria-hidden': 'true'}, label) : null);
   if (!src) return fallback();
-  const img = h('img', {class: cls, alt, loading: eager ? 'eager' : 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', draggable: 'false'});
+  const again = shown.has(src);
+  const img = h('img', {class: cls, alt, loading: eager || again ? 'eager' : 'lazy', decoding: again ? 'sync' : 'async', referrerpolicy: 'no-referrer', draggable: 'false'});
   if (eager) img.fetchPriority = 'high';
   img.src = src;
   img.addEventListener('error', () => img.replaceWith(fallback()), {once: true});
-  if (!img.complete) img.addEventListener('load', () => img.classList.add('loaded'), {once: true});
+  // Once painted, a picture is drawn with its pixels ready (decoding sync): a phone short of memory that
+  // dropped its decoded copy draws it again in the same frame instead of leaving its tile empty for one.
+  const painted = () => { shown.add(src); img.decoding = 'sync'; wake(src); };
+  if (img.complete && img.naturalWidth) painted();
+  else {
+    img.addEventListener('load', () => { if (!shown.has(src)) img.classList.add('loaded'); painted(); }, {once: true}); // painted elsewhere meanwhile: no fade
+    if (img.loading === 'lazy' && typeof WeakRef === 'function') { if (!waiting.has(src)) waiting.set(src, new Set()); waiting.get(src).add(new WeakRef(img)); }
+  }
   return img;
+}
+
+/**
+ * A finger is down on a picture that may fly (ui/motion.js travel): its picture is asked for and decoded
+ * again now, so the flying copy made at the tap has its pixels at once and the flight starts without a wait.
+ */
+const warm = new Set();
+export function warmArt(box) {
+  const img = box?.tagName === 'IMG' ? box : box?.querySelector?.('img');
+  const src = img?.complete && img.naturalWidth ? img.currentSrc || img.src : '';
+  if (!src || typeof Image !== 'function') return;
+  const w = new Image();
+  w.referrerPolicy = 'no-referrer';
+  w.src = src;
+  warm.add(w); // held until it has decoded, and a while after, so the copy finds it
+  const drop = () => setTimeout(() => warm.delete(w), 2000);
+  w.decode().then(drop, drop);
+}
+
+/** The whole pictures in a part about to be redrawn, by address (for keepPictures). */
+export function wholePictures(root) {
+  const found = new Map();
+  for (const img of root.querySelectorAll('img')) if (img.complete && img.naturalWidth && !found.has(img.src)) found.set(img.src, img);
+  return found;
+}
+/**
+ * In a part just redrawn, each picture not whole yet takes the element that showed the same address before
+ * (its pixels already decoded): a redrawn row or grid shows its art at once even when the browser has let go
+ * of the bytes (a phone short of memory), instead of its placeholder until the picture comes back.
+ */
+export function keepPictures(old, root) {
+  for (const img of root.querySelectorAll('img')) {
+    if (img.complete && img.naturalWidth) continue;
+    const was = old.get(img.src);
+    if (!was || was.isConnected) continue;
+    old.delete(img.src);
+    was.className = img.className;
+    was.classList.remove('loaded');
+    img.replaceWith(was);
+  }
+}
+
+/**
+ * Puts `next` (a picture from image() in `box` in place of the one shown there, once it has decoded, so a
+ * new address (a sharper copy, the full details' own art) replaces the old picture with no flash between.
+ */
+const wanted = new WeakMap(); // box -> the picture last asked for: an older one decoding late never paints over it
+export function swapIn(box, next) {
+  const now = box.firstElementChild;
+  wanted.set(box, next);
+  if (!now || now.tagName !== 'IMG' || !now.complete || !next || next.tagName !== 'IMG') { box.replaceChildren(...[next].filter(Boolean)); return; }
+  const put = () => { if (wanted.get(box) !== next) return; next.classList.remove('loaded'); box.replaceChildren(next); };
+  (next.decode ? next.decode() : Promise.resolve()).then(put, () => {}); // a picture that fails keeps the old one
 }
 
 // Pictures whose colour is not known yet are read (their small copy) as they come near the screen,
@@ -62,7 +138,7 @@ export function posterCard(m, ctx) {
   const year = String(m.releaseInfo || m.year || '').slice(0, 9);
   const art = artBox('poster-art', m.poster, image(m.poster, '', 'poster-img', {label: name}));
   if (watched) art.append(watchedBadge());
-  const card = press(h('button', {class: 'poster-card', type: 'button', onclick: () => ctx.onOpen(m, art)},
+  const card = press(h('button', {class: 'poster-card', type: 'button', onclick: () => ctx.onOpen(m, art), onpointerdown: () => warmArt(art)},
     art, h('span', {class: 'poster-title'}, name), h('span', {class: 'poster-year'}, year)));
   card.setAttribute('aria-label', [name, String(m.releaseInfo || ''), watched ? 'watched' : ''].filter(Boolean).join(', '));
   if (ctx.menu) longPress(card, () => liftMenu(art, name, String(m.releaseInfo || ''), ctx.menu(m)));

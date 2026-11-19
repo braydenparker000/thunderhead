@@ -74,6 +74,7 @@ async function player(t, { viewport = LANDSCAPE, clock = false, open = {} } = {}
     p.open({ stream: { url, name: 'One' }, meta: { title: 'Invented film' }, sourceId: 'a',
       sources: [{ id: 'a', label: 'One', stream: { url, name: 'One' } }, { id: 'b', label: 'Two', stream: { url: 'https://cdn.example/two.mkv', name: 'Two' } }], ...open });
   }, open);
+  await staged(page); // the opening's work after its first frame (player/stages.js)
   const cdp = await context.newCDPSession(page);
   /** Touch points by [x, y, id]; an empty list lifts every finger. */
   const touch = (type, points = []) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y, id = 0]) => ({ x, y, id })) });
@@ -81,6 +82,8 @@ async function player(t, { viewport = LANDSCAPE, clock = false, open = {} } = {}
   return { page, errors, touch, state, viewport };
 }
 
+/** Resolves once the player's work after a movement's first frame has run (player/stages.js). */
+const staged = (page) => page.waitForFunction(() => !window.p.stages.running);
 const press = (page, label) => page.evaluate((label) => [...p.root.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === label || b.textContent.trim() === label).click(), label);
 
 test('a source chosen before the first frame starts where the first was asked to, and the app can resolve it itself', opts, async (t) => {
@@ -88,17 +91,19 @@ test('a source chosen before the first frame starts where the first was asked to
   assert.deepEqual(await page.evaluate(() => window.loads), [{ url: 'https://cdn.example/one.mkv', startTime: 600 }]);
   await press(page, 'Sources');
   await press(page, 'Two');
+  await staged(page);
   assert.equal((await page.evaluate(() => window.loads))[1].startTime, 600, 'not 0:00: the video clock had not started');
   // The app's way: it asks its server for the address and loads; the player only says what was picked and from where.
   const told = await page.evaluate(() => new Promise((resolve) => {
     p.addEventListener('source', (e) => { e.preventDefault(); resolve({ id: e.detail.source.id, startTime: e.detail.startTime, loads: window.loads.length }); }, { once: true });
     p.menus.openPanel('sources');
-    [...p.panel.querySelectorAll('.ap-source')].find((b) => b.textContent.includes('One')).click();
+    [...p.panel.querySelectorAll('.ap-source, .ap-source-slot .stream-card')].find((b) => b.textContent.includes('One')).click(); // the plain row, or the stream list's card once its module is in
   }));
   assert.deepEqual(told, { id: 'a', startTime: 600, loads: 2 }, 'told, and nothing loaded by the player');
   // After the first frame, from where the film is; "Try again" the same.
   await page.evaluate(() => { fake.plays(700); p.showError('Lost', { retry: true }, { network: true }); });
   await press(page, 'Try again');
+  await staged(page);
   assert.equal((await page.evaluate(() => window.loads)).at(-1).startTime, 700);
   assert.deepEqual(errors, []);
 });
