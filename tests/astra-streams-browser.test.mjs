@@ -63,8 +63,8 @@ async function app(t, { report, streams = STREAMS }) {
     const mc = navigator.mediaCapabilities;
     mc.decodingInfo = async (c) => report(c.video.contentType);
     // How many cards each frame showed (the list is drawn in slices).
-    const counts = window.cardsByFrame = [];
-    const look = () => { const n = document.querySelectorAll('.screen.streams .stream-card').length; if (n !== counts.at(-1)) counts.push(n); requestAnimationFrame(look); };
+    const counts = window.cardsByFrame = [], at = window.cardsAt = [];
+    const look = () => { const n = document.querySelectorAll('.screen.streams .stream-card').length; if (n !== counts.at(-1)) { counts.push(n); at.push(performance.now()); } requestAnimationFrame(look); };
     requestAnimationFrame(look);
   })()`);
   const json = (route, v) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(v) });
@@ -94,7 +94,7 @@ async function app(t, { report, streams = STREAMS }) {
   }), ADDON);
   await page.goto(`${base}/astra/`);
   await page.waitForFunction(() => window.astra?.openStreams && window.astra.manifests?.size);
-  await page.evaluate((meta) => window.astra.openStreams(meta), META);
+  await page.evaluate((meta) => { window.pushedAt = performance.now(); window.astra.openStreams(meta); }, META);
   await page.waitForFunction((n) => document.querySelectorAll('.screen.streams .stream-card').length === n, streams.length);
   await page.waitForFunction(() => window.astra.stack.at(-1).screen.ahead); // getting ready loads behind the screen (app/ready.js)
   const cards = () => page.$$eval('.screen.streams .stream-card', (els) => els.map((el) => ({ text: el.textContent, note: el.querySelector('.stream-plays')?.textContent ?? '',
@@ -148,6 +148,10 @@ test('300 streams: the first cards at once, the rest in slices, in order, each a
   assert.ok(counts[0] >= 4 && counts[0] <= 10, counts.join(' '));
   assert.equal(counts.at(-1), 300);
   for (let i = 1; i < counts.length; i++) assert.ok(counts[i] > counts[i - 1] && counts[i] - counts[i - 1] <= 8, counts.join(' '));
+  // Nothing past the first slice before the header has settled (the screen's movement, 320 ms).
+  const { at, pushedAt } = await page.evaluate(() => ({ at: window.cardsByFrame.map((n, i) => [n, window.cardsAt[i]]), pushedAt: window.pushedAt }));
+  const more = at.find(([n]) => n > 10);
+  assert.ok(more[1] - pushedAt >= 320, `card 11 came ${Math.round(more[1] - pushedAt)} ms after the push`);
   // The last card was drawn in a later slice; a press on it asks ahead as on the first.
   const last = page.locator('.screen.streams .stream-card').last();
   await last.scrollIntoViewIfNeeded();

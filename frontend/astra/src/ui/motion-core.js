@@ -14,6 +14,12 @@ const linearWorks = typeof CSS !== 'undefined' && CSS.supports?.('animation-timi
 /** A spring's easing by name (snappy, smooth, lively); the standard ease where linear() is missing. */
 export const spring = name => linearWorks ? (spring.cache[name] ??= linearEasing(SPRINGS[name])) : EASE;
 spring.cache = {};
+// Each spring's easing is made at an idle moment after start, one a moment, rather than in the frame of the first
+// movement that uses it (8 ms at 4x CPU each, inside a screen's push).
+if (linearWorks && typeof requestIdleCallback === 'function') {
+  const make = names => { if (names.length) requestIdleCallback(() => { spring(names[0]); make(names.slice(1)); }, {timeout: 5000}); };
+  make(Object.keys(SPRINGS));
+}
 
 // The level: 'full' | 'reduced' | 'off'.
 let choice = 'system';

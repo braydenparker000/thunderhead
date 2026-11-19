@@ -28,14 +28,14 @@ export function riseCards(cards, scroller, name = 'rise:streams') {
  * cards take their place at once), they fade out over 120 ms while the cards rise in, so the surface never dips.
  */
 export const placesOf = els => els.map(el => ({el, top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight}));
-/** `at` is placesOf(the placeholders), read before they left the body. */
+/** `at` is placesOf(the placeholders), read before they left the body. They fade from 1 (reading it would force a style pass). */
 export function handOver(at, body) {
   if (!at.length || level() === 'off') return;
   for (const {el, top, left, width, height} of at) {
     Object.assign(el.style, {position: 'absolute', top: top + 'px', left: left + 'px', width: width + 'px', height: height + 'px', margin: '0'});
     body.prepend(el);
   }
-  timed('fade:streams-placeholders', () => handle(at.map(({el}) => { const a = go(el, {opacity: 0}, {duration: T.fade, easing: EASE, keep: true}); a.finished.then(() => el.remove(), () => el.remove()); return a; })));
+  timed('fade:streams-placeholders', () => handle(at.map(({el}) => { const a = go(el, {opacity: 0}, {from: {opacity: 1}, duration: T.fade, easing: EASE, keep: true}); a.finished.then(() => el.remove(), () => el.remove()); return a; })));
 }
 
 /** A chip's fill springing in when it is chosen, and fading out when it is not (--spring-snappy, a control's few px). */
