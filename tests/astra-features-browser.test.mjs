@@ -76,6 +76,8 @@ async function player(t, { open = {}, prefs = null, second = false, clock = fals
     p.open({ stream: { url, name: 'Example Example 1080p' }, meta: { title: 'Invented film' }, sourceId: 'a',
       sources: [{ id: 'a', label: 'Example · Example 1080p', stream: { url, name: 'Example Example 1080p' } }, { id: 'b', label: 'Other 720p', stream: { url: 'https://cdn.example/two.mkv', name: 'Other 720p' } }], ...open });
   }, { open, prefs, second });
+  // The opening's work after its first frame (player/stages.js: the controls, the title block, the engine's start) has run.
+  await page.waitForFunction(() => !window.p.stages.running);
   const cdp = await context.newCDPSession(page);
   const touch = (type, points = []) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y, id = 0]) => ({ x, y, id })) });
   return { page, errors, touch };
