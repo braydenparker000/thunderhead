@@ -5,8 +5,10 @@
 // read as that film watched here (`media.watch`), finished here (`media.finish`), or, for an entry
 // another phone removed, dropped here (`media.drop`). So when a merge writes progress, the same refs are
 // written into that last look as the merge leaves them: the next look finds them unchanged and says
-// nothing of them, while everything this phone watched itself is compared as before. Refs and numbers
-// only, as the reader keeps them; nothing is sent from here.
+// nothing of them, while everything this phone watched itself is compared as before. A ref is written
+// over only where the reader's last look equals what this phone had before the merge: when this phone
+// watched a title the reader has not looked at yet, that watching is reported (with whatever the merge
+// added on top) rather than hidden. Refs and numbers only, as the reader keeps them; nothing is sent.
 
 const SEEN = 'th.p.senses.watch';
 // The reader's own rules for a ref (watch.js `astraSpots`), kept the same here.
@@ -27,7 +29,8 @@ export function spotsOf(progress) {
 }
 
 /** Writes into the reader's last look every ref the merge changed (`before` → `after`), as `after` has
- * it. No last look yet: nothing to do (the reader's first look only remembers). */
+ * it, where nothing of this phone's own waits to be reported. No last look yet: nothing to do (the
+ * reader's first look only remembers). */
 export function hideFromSenses(before, after, storage) {
   let seen;
   try { seen = JSON.parse(storage?.getItem(SEEN) || 'null'); } catch { return; }
@@ -36,6 +39,7 @@ export function hideFromSenses(before, after, storage) {
   let changed = false;
   for (const ref of new Set([...Object.keys(was), ...Object.keys(now)])) {
     if (JSON.stringify(was[ref]) === JSON.stringify(now[ref])) continue;
+    if (JSON.stringify(seen.spots[ref]) !== JSON.stringify(was[ref])) continue; // watched here since the last look
     if (now[ref]) seen.spots[ref] = now[ref]; else delete seen.spots[ref];
     changed = true;
   }

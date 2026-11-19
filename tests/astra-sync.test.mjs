@@ -262,3 +262,17 @@ test('a removed add-on stays removed: after an offline change elsewhere, on a fi
     theirs: readCopy({ astra: 'sync/1', keys: { addons: { at: T + MIN, value: [kept, extra] } } }, T).keys, now: T + 4 * MIN });
   assert.deepEqual(both.copy.keys.addons.value.map((a) => a.name), ['Removed', 'Kept', 'Extra']);
 });
+
+// The security read's senses probe: watching done here and not yet looked at must still be reported when a merge
+// changes the same title. The reader's last look is written over only where it equals what this phone had.
+test('watching here that the reader has not looked at yet is not hidden by a merge', () => {
+  const area = new Map();
+  const storage = { getItem: (k) => area.get(k) ?? null, setItem: (k, v) => area.set(k, v) };
+  // The reader looked at T: tt1 at 0 s. This phone then watched 20 minutes (saved T + 20 min); the other phone's is newer.
+  area.set('th.p.senses.watch', JSON.stringify({ look: T, spots: { 'astra:movie:tt1': { t: 0, d: 6_000_000, done: false, at: T - 864e5 } } }));
+  hideFromSenses(prog(film('tt1', T + 20 * MIN, 1200)), prog(film('tt1', T + 21 * MIN, 1500)), storage);
+  const c = changes(JSON.parse(area.get('th.p.senses.watch')), spotsOf(prog(film('tt1', T + 21 * MIN, 1500))), T + 25 * MIN);
+  assert.equal(c.senses.length, 1);
+  assert.equal(c.senses[0][0], 'media.watch');
+  assert.ok(c.senses[0][2].ms >= 1_200_000, 'the 20 minutes watched here are reported');
+});
