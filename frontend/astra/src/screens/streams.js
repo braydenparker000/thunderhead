@@ -2,7 +2,8 @@
 // own order, one section each under its name. Nothing is auto-picked, and nothing is ranked or hidden unless
 // the owner says so: their filter chips and their chosen order (Settings › Streams `streamSort`, the order
 // chip; addons/stream-facts.js), remembered between titles when `streamRemember` is on. From Details the top
-// stays as Details had it (streams-hero.js); cards rise in as they arrive (stream-motion.js).
+// continues Details' hero and settles into a short header (streams-hero.js, streams-settle.js); cards rise in as
+// they arrive (stream-motion.js).
 
 import {h, clock} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
@@ -15,7 +16,8 @@ import {cardStyle, drawInSlices, sizeFrom, streamCard} from './stream-card.js';
 import {measureDetails, streamsHero, tint} from './streams-hero.js';
 import {addonChips, filterChips, syncChips} from './stream-chips.js';
 import {emptyState, failedRow, skeletonStream} from './stream-states.js';
-import {riseCards, stayPut} from './stream-motion.js';
+import {handOver, placesOf, riseCards} from './stream-motion.js';
+import {settleIn, settleOut} from './streams-settle.js';
 import '../settings/streams.js';
 
 export {sizeFrom};
@@ -70,19 +72,19 @@ export class StreamsScreen {
   /** A setting from Settings › Streams (settings/streams.js), or `fallback` where the app has no registry (tests). */
   setting(id, fallback) { try { return this.app.setting ? this.app.setting(id) : fallback; } catch { return fallback; } }
 
-  /** Pushed: the top held still against the slide (from Details), what is under it rising into place. */
+  /** The shell's hooks (app/app.js): from Details the list moves itself in and out (streams-settle.js); else null, the shell's push. */
+  enter() { const m = settleIn(this); this.settled = !!m; return m; }
+  leave(under, layer) { return settleOut(this, layer); }
+
+  /** Pushed by the shell's own motion: what is under the top rises into place. */
   onShow(first) {
-    if (!first || !this.el) return;
-    if (this.kept) { stayPut(this.top); stayPut(this.backButton); } // Details' back button sits where this one does
+    if (!first || !this.el || this.settled) return;
     rise([[this.band], [this.list]], {name: 'rise:streams-open'});
   }
 
   get id() { return this.video ? this.video.id : this.meta.id; }
 
-  destroy() {
-    this.destroyed = true; this.abort?.abort(); this.offAddons?.();
-    if (this.kept && this.top?.isConnected) { stayPut(this.top, true); stayPut(this.backButton, true); } // popped back to Details: its backdrop and logo stay put
-  }
+  destroy() { this.destroyed = true; this.abort?.abort(); this.offAddons?.(); }
 
   /** Settings › Streams changed: cards drawn again in the new style (filters and scroll left as they are). */
   restyle() {
@@ -257,7 +259,9 @@ export class StreamsScreen {
       if (wait) { if (sec.waiting !== wait) { sec.waiting = wait; wait.then(() => this.destroyed || this.render()); } return sec; }
       Object.assign(sec, {shows, limit, drawn: (sec.drawn || 0) + 1});
       sec.count.textContent = list ? String(list.length) : '';
+      const placeholders = shows !== 'asking' ? placesOf([...sec.body.querySelectorAll(':scope > .stream-skeleton')]) : []; // read before the body changes
       sec.body.replaceChildren(...(g.error ? [failedRow(g, () => this.retry(g.addon.url))] : g.streams === null ? [skeletonStream(), skeletonStream()] : []));
+      handOver(placeholders, sec.body);
       const drawn = sec.drawn;
       if (list) drawInSlices(sec.body, list, s => streamCard(this, g, s), () => !this.destroyed && sec.drawn === drawn, made => riseCards(made, this.el));
     }

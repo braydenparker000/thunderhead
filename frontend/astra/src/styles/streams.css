@@ -3,18 +3,26 @@
    (screens/stream-motion.js), so nothing here has a transition of its own except a tint's colour fading. */
 
 /* The top. Kept from Details: its pieces are placed by script where Details had them (streams-hero.js). */
-.streams { transition: background-color var(--t-normal) var(--ease); }
-.streams.tinted { background-color: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
+.streams { --streams-page: var(--bg); background-color: var(--streams-page); transition: background-color var(--t-normal) var(--ease); }
+/* The wash under the content, as Details has it (browse.css .details-wash), so the page does not change colour between them. */
+.streams.tinted { --streams-page: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
+:root[data-bg="tinted"] .streams.tinted { --streams-page: color-mix(in srgb, var(--tint) 18%, var(--bg)); }
 .streams-hero { position: relative; overflow: hidden; }
 .streams-hero.movie:not(.kept) { height: calc(140px + var(--safe-top)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: var(--s-2); }
 .streams-hero.episode:not(.kept) { height: calc(220px + var(--safe-top)); }
 .streams-art { position: absolute; inset: 0; }
 .streams-hero.episode:not(.kept) .streams-art { bottom: 2px; } /* the art stops where the fade is opaque, so its snapped edge never shows */
 .streams-img, .streams-art .img-fallback { width: 100%; height: 100%; object-fit: cover; }
-.streams-hero.kept .streams-art { inset: auto; }
+/* Kept from Details: the backdrop's box is cut to the strip; its pieces sit in the short form (streams-hero.js). */
+.streams-hero.kept { overflow: visible; }
+.streams-hero.kept > * { pointer-events: none; }
+.streams-artbox { position: absolute; left: 0; right: 0; top: 0; overflow: hidden; }
+.streams-artin { position: relative; }
+.streams-edge { position: absolute; left: 0; right: 0; height: var(--s-12); background: linear-gradient(transparent, var(--streams-page)); }
+.streams-hero.kept .streams-name { padding: 0; }
 .streams-hero.movie:not(.kept) .streams-art { filter: blur(22px) brightness(.35); transform: scale(1.2); }
 .streams-shade { position: absolute; inset: 0; background: linear-gradient(transparent 30%, var(--bg)); }
-.streams.tinted .streams-hero:not(.kept) .streams-shade { background: linear-gradient(transparent 30%, color-mix(in srgb, var(--tint) 14%, var(--bg))); }
+.streams.tinted .streams-hero:not(.kept) .streams-shade { background: linear-gradient(transparent 30%, var(--streams-page)); }
 .streams-logo { position: relative; max-width: 85%; height: 80px; object-fit: contain; }
 .streams-name { position: relative; margin: 0; padding: 0 var(--s-6); font: var(--type-display); text-align: center; overflow-wrap: anywhere; }
 .streams-line { margin: 0; color: var(--text-2); font: var(--type-caption); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -28,8 +36,7 @@
 
 /* The chips stay at the top while the list scrolls. Their band reaches up under the floating back button (so
    the list never shows behind it); at rest the top and the resume line, drawn above, hide that band. */
-.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(48px + var(--s-2) + var(--safe-top)); background: var(--bg); }
-.streams.tinted .chip-band { background: color-mix(in srgb, var(--tint) 14%, var(--bg)); }
+.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(48px + var(--s-2) + var(--safe-top)); background: var(--streams-page); }
 .streams .filter-chips { gap: var(--s-2); padding: var(--s-2) var(--gutter); }
 .streams .filter-chips.facts { padding-top: 0; }
 /* A chip: a solid surface with a hairline; chosen, a fill in the title's colour springs in under its label. */
@@ -50,6 +57,7 @@
 /* The list: a section per add-on under its headline. */
 .stream-list { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-1) var(--gutter) 0; }
 .stream-group, .group-body { display: flex; flex-direction: column; gap: var(--s-2); }
+.group-body { position: relative; } /* placeholders fading out sit where they were (stream-motion.js handOver) */
 .group-title { display: flex; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 0; font: var(--type-headline); }
 .group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-count { margin-left: auto; color: var(--muted); font: var(--type-caption); font-variant-numeric: tabular-nums; }
@@ -72,12 +80,13 @@
 .stream-list > .state-card .btn.wide { width: auto; min-width: 160px; }
 
 /* A stream card: a solid surface with a hairline. */
-.stream-card { display: flex; flex-direction: column; gap: var(--s-1); min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
+.stream-card { display: flex; flex-direction: column; gap: var(--s-1); width: 100%; min-width: 0; min-height: 72px; padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1); color: var(--text); text-align: left; -webkit-touch-callout: none; }
 .stream-card.disabled { opacity: .5; }
-.stream-card.current { border-color: var(--tint); }
+/* The one playing is marked by the player's own slot around the card (player/menus.js .ap-source-slot.current). */
 /* Designed. Line 1: the resolution badge (solid, the strongest thing), picture badges, codec and sound, ready. */
 .sc-top { display: flex; align-items: center; gap: var(--s-2); min-width: 0; overflow: hidden; white-space: nowrap; }
 .sc-res { flex: none; padding: 0 var(--s-2); border-radius: var(--r-sm); background: var(--tint); color: var(--on-tint, var(--on-accent)); font: 800 calc(13px * var(--text-scale, 1))/calc(24px * var(--text-scale, 1)) var(--font); letter-spacing: .02em; }
+.sc-quality { flex: none; padding: 0 var(--s-2); border: 1px solid var(--border-strong); border-radius: var(--r-sm); color: var(--text); font: 700 calc(13px * var(--text-scale, 1))/calc(22px * var(--text-scale, 1)) var(--font); }
 .sc-badge { flex: none; padding: 0 var(--s-1); border: 1px solid var(--border-strong); border-radius: var(--r-xs); color: var(--text); font: var(--type-overline); line-height: calc(18px * var(--text-scale, 1)); letter-spacing: var(--track-overline); }
 /* The codec is short and stays whole; the sound gives way (ellipsis) before the ready mark does. */
 .sc-tech { flex: none; color: var(--text-2); font: var(--type-caption); font-weight: 600; }

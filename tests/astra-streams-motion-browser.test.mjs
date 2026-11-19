@@ -1,6 +1,6 @@
-// How the stream list moves (FEEL.md), in the real app at phone size: from Details, the backdrop and title
-// logo stay exactly where Details had them through the whole push (the screen slides, they do not), and Back
-// in the middle of it leaves Details at rest; a filter chip's fill springs in and ends filled; an empty state
+// How the stream list moves (FEEL.md), in the real app at phone size: from Details, its header is Details'
+// hero in the first frame and settles into a short one (Back grows it again, and Back in the middle leaves
+// Details at rest); a filter chip's fill springs in and ends filled; an empty state
 // fades in place and ends opaque. An invented add-on answers by route interception; nothing reaches a real host.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { serve } from '../scripts/serve.mjs';
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (invented add-on)', timeout: 60_000 };
 const ADDON = 'https://addon.example';
-const META = { id: 'tt0000601', type: 'movie', name: 'An Invented Film', runtime: '118 min', background: `${ADDON}/bg.png`, logo: `${ADDON}/logo.png`, genres: ['Drama'] };
+const META = { id: 'tt0000601', type: 'movie', name: 'An Invented Film', runtime: '118 min', background: `${ADDON}/bg.png`, poster: `${ADDON}/poster.png`, logo: `${ADDON}/logo.png`, genres: ['Drama'] };
 const STREAMS = [
   { name: 'Example\n1080p', description: 'Invented.Film.2019.1080p.WEB-DL.x265-INV\n💾 1.4 GB', url: 'https://cdn.example/a.mkv' },
   { name: 'Example\n720p', description: 'Invented.Film.2019.720p.WEB-DL.x264-INV\n💾 700 MB', url: 'https://cdn.example/b.mkv' },
@@ -28,6 +28,7 @@ function png(w, ht, px) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 const BG = png(64, 36, (x, y) => [40 + x * 2, 60 + y * 2, 120, 255]);
+const POSTER = png(27, 40, (x, y) => [200, 80 + x * 4, 60 + y, 255]);
 const LOGO = png(60, 20, (x, y) => (y > 4 && y < 16 && x % 12 < 9 ? [240, 220, 120, 255] : [0, 0, 0, 0]));
 
 let site, browser, base;
@@ -49,6 +50,7 @@ async function app(t, { addons = true, streams = STREAMS } = {}) {
     const image = (body) => route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body });
     if (u.pathname === '/bg.png') return image(BG);
     if (u.pathname === '/logo.png') return image(LOGO);
+    if (u.pathname === '/poster.png') return image(POSTER);
     if (u.pathname === '/manifest.json') return json(route, { id: 'example', name: 'Example', version: '1.0.0', resources: ['stream'], types: ['movie'], idPrefixes: ['tt'], catalogs: [] });
     if (u.pathname.startsWith('/stream/')) return json(route, { streams });
     return route.fulfill({ status: 404, body: '' });
@@ -67,32 +69,29 @@ async function app(t, { addons = true, streams = STREAMS } = {}) {
   return { page, errors };
 }
 
-test('from Details the backdrop and logo stay where Details had them; Back during the push leaves Details at rest', opts, async (t) => {
+test('from Details the header continues its hero, then settles short with about three cards on screen; Back grows it again, and Back during the settle leaves Details at rest', opts, async (t) => {
   const { page, errors } = await app(t);
   await page.evaluate((m) => window.astra.openTitle(m), META);
-  await page.waitForFunction(() => document.querySelector('.screen.details .details-logo')?.complete && document.querySelector('.screen.details .details-bg img')?.complete);
+  await page.waitForFunction(() => document.querySelector('.screen.details .details-logo')?.complete && document.querySelector('.screen.details .details-poster img')?.complete);
   await page.waitForTimeout(500); // Details' own entry is done
-  // Where Details shows them; then, every frame of the push, where the stream list shows its copies.
-  const drift = await page.evaluate(async (m) => {
-    const box = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; };
-    const was = { logo: box(document.querySelector('.screen.details .details-logo')), art: box(document.querySelector('.screen.details .details-bg')) };
+  // In the first frame the list's header is Details' hero, piece for piece: the backdrop, the poster, the logo.
+  const first = await page.evaluate(async (m) => {
+    const box = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
+    const q = (sel) => document.querySelector(sel);
+    const was = { bg: box(q('.screen.details .details-bg')), poster: box(q('.screen.details .details-poster')), logo: box(q('.screen.details .details-logo')), width: q('.screen.details .details-logo').offsetWidth };
     window.astra.openStreams(window.astra.stack.at(-1).screen.meta || m);
-    let worst = 0, frames = 0;
-    const end = performance.now() + 450;
-    while (performance.now() < end) {
-      await new Promise((r) => requestAnimationFrame(r));
-      const logo = document.querySelector('.screen.streams .streams-logo.kept'), art = document.querySelector('.screen.streams .streams-img.kept');
-      if (!logo || !art) return { missing: true };
-      for (const [a, b] of [[box(logo), was.logo], [box(art), was.art]]) worst = Math.max(worst, ...a.map((v, i) => Math.abs(v - b[i])));
-      frames++;
-    }
-    return { worst, frames };
+    const now = { bg: box(q('.screen.streams .streams-bg.kept')), poster: box(q('.screen.streams .streams-hero .details-poster.kept')), logo: box(q('.screen.streams .streams-logo.kept')), width: q('.screen.streams .streams-logo.kept').offsetWidth };
+    return { was, now };
   }, META);
-  assert.equal(drift.missing, undefined, 'the stream list shows copies of Details\' backdrop and logo');
-  assert.ok(drift.frames >= 5, `frames: ${drift.frames}`);
-  assert.ok(drift.worst < 1, `moved by ${drift.worst}px during the push`);
-  // The list rises under them; then Back in the middle of the next push: Details ends at rest, the list gone.
-  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 2);
+  assert.deepEqual(first.now, first.was);
+  // Settled: the logo and poster at the strip's foot, the title's box as wide as on Details (no rewrap), cards above the middle.
+  await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 2 && !document.querySelector('.screen.streams .streams-logo.kept').getAnimations().length);
+  const settled = await page.evaluate(() => ({ logo: document.querySelector('.screen.streams .streams-logo.kept').getBoundingClientRect().bottom, card: document.querySelector('.screen.streams .stream-card').getBoundingClientRect().top,
+    width: document.querySelector('.screen.streams .streams-logo.kept').offsetWidth }));
+  assert.ok(settled.logo < 200, `logo foot at ${settled.logo}`);
+  assert.ok(settled.card < 844 / 2, `first card at ${settled.card}`);
+  assert.equal(settled.width, first.was.width);
+  // Back grows it into Details' hero again; then Back in the middle of the next settle: Details ends at rest, the list gone.
   await page.evaluate(() => window.astra.back());
   await page.waitForFunction(() => !document.querySelector('.screen.streams'));
   await page.evaluate(() => { window.astra.openStreams(window.astra.stack.at(-1).screen.meta); return new Promise((r) => setTimeout(r, 120)); });

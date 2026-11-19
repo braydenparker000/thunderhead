@@ -30,6 +30,13 @@ const CASES = [
     { res: '1080p', codec: 'HEVC', sound: 'DD 2.0', languages: ['Multi'] }],
   ['a label that says nothing', { name: 'Example', title: 'An episode' }, { res: null, source: null, picture: [], codec: null, languages: [], bytes: null, ready: null }],
   ['the hash is never read as words ("dd5…", "ac3…")', { name: 'Example', title: `1080p WEB\n${'dd5ac3'.padEnd(40, 'a')}` }, { sound: '' }],
+  // The owner's aggregating add-on, when a release name carries no resolution: a quality word, running time, bitrate.
+  ['a quality word instead of a resolution, with running time and bitrate', { name: '💩 Low Quality', title: '🎬 Some Invented Film French\n⏱️ 2h:10m:37s\n🔊 2.0\n📦 735 MB 📊 751 Kbps\n⚡Ready (TB) 🔍Exampleindex' },
+    { res: null, quality: 'Low quality', title: 'Some Invented Film French', runtime: 130, bitrate: 751e3, sound: '2.0', bytes: 735e6, ready: true, service: 'TB', indexer: 'Exampleindex', languages: ['French'] }],
+  ['"💿 HD" is the add-on\'s word, "📺 FHD" and "🎞️ 4K" are resolutions', { name: '💿 HD', title: '🎬 Invented Film\n📦 1.1 GB 📊 4.2 Mbps' }, { res: null, quality: 'HD', bitrate: 4.2e6 }],
+  ['FHD', { name: '📺 FHD', title: '🎬 Invented Film' }, { res: '1080p', quality: null }],
+  ['4K', { name: '🎞️ 4K', title: '🎬 Invented Film' }, { res: '2160p', quality: null }],
+  ['CAM as a quality word', { name: '🎥 CAM', title: '🎬 Invented Film\n⏱️ 1h 58m' }, { res: null, quality: 'CAM', runtime: 118 }],
   ['CAM and a 576p DVD', { name: 'Example', title: 'Film.2024.HDCAM.576p.x264' }, { source: 'CAM', res: '576p' }],
 ];
 
@@ -47,7 +54,8 @@ test('the release name: the file name, else a description line shaped like one; 
 test('a designed card needs the resolution and two more facts; the middle of a long name gives way', () => {
   assert.equal(designedEnough(releaseFacts({ title: '1080p x264 💾 2 GB' })), true);
   assert.equal(designedEnough(releaseFacts({ title: '1080p' })), false, 'a resolution alone');
-  assert.equal(designedEnough(releaseFacts({ title: 'x264 💾 2 GB BluRay' })), false, 'no resolution');
+  assert.equal(designedEnough(releaseFacts({ title: 'x264 💾 2 GB BluRay' })), true, 'no resolution, three facts: designed all the same');
+  assert.equal(designedEnough(releaseFacts({ name: 'Example', title: 'An episode' })), false, 'almost nothing readable: the add-on\'s own text');
   assert.deepEqual(splitMiddle('Invented.Film.2019.2160p.BluRay-FAKEGRP.mkv'), ['Invented.Film.2019.2160p.BluR', 'ay-FAKEGRP.mkv']);
   assert.deepEqual(splitMiddle('Short.mkv'), ['Short.mkv', '']);
 });
@@ -62,7 +70,7 @@ test("Astra's format for AIOStreams: the templates use AIOStreams' variables, an
 Invented.Film.2019.2160p.BluRay.REMUX.HEVC-FAKEGRP.mkv
 ${HASH}`;
   const f = readAstraFormat({ name: 'AIOStreams 2160p ⚡', title });
-  assert.deepEqual(f, { exact: true, res: '2160p', resLabel: '4K', source: 'Remux', picture: ['DV', 'HDR', '10-bit'], codec: 'HEVC', sound: { codec: 'TrueHD', channels: '7.1', atmos: true },
+  assert.deepEqual(f, { exact: true, res: '2160p', resLabel: '4K', quality: null, runtime: null, bitrate: null, title: '', source: 'Remux', picture: ['DV', 'HDR', '10-bit'], codec: 'HEVC', sound: { codec: 'TrueHD', channels: '7.1', atmos: true },
     languages: ['English', 'Italian'], bytes: 58.2e9, group: 'FAKEGRP', indexer: 'Exampleindex', via: 'Exampleinner', service: 'TB', ready: true, seeders: 45, kind: 'debrid',
     release: 'Invented.Film.2019.2160p.BluRay.REMUX.HEVC-FAKEGRP.mkv', hash: HASH });
   assert.equal(releaseFacts({ name: 'x', title }).exact, true, 'the card reader prefers the exact format');
@@ -71,4 +79,31 @@ ${HASH}`;
   assert.deepEqual([sparse.res, sparse.source, sparse.picture, sparse.seeders, sparse.ready, sparse.release, sparse.hash], [null, null, [], 0, null, '', HASH]);
   assert.equal(readAstraFormat({ title: 'Astra/2|res=1080p' }), null, 'only the version Astra knows');
   assert.equal(readAstraFormat({ title: '📺 1080p · x264' }), null);
+});
+
+test('one mixed list of twenty reads as one list: only the unreadable cards keep the add-on\'s text', () => {
+  const list = [
+    { name: '[TB+] Example\n1080p', title: 'Invented.Film.2019.1080p.BluRay.x264-INV\n👤 12 💾 2.1 GB ⚙️ Exampleindex' },
+    { name: '💩 Low Quality', title: '🎬 Invented Film French\n⏱️ 2h:10m:37s\n🔊 2.0\n📦 735 MB 📊 751 Kbps\n⚡Ready (TB) 🔍Exampleindex' },
+    { name: '💿 HD', title: '🎬 Invented Film\n⏱️ 2h:10m:37s\n📦 1.4 GB 📊 1.4 Mbps\n⚡Ready (TB)' },
+    { name: '📺 FHD', title: '🎬 Invented Film\n🔊 5.1\n📦 3.2 GB\n⏳ 🔍Exampleindex' },
+    { name: '🎞️ 4K', title: '🎬 Invented Film\n📦 18 GB 📊 19 Mbps\n⚡Ready (TB)' },
+    { name: '🎥 CAM', title: '🎬 Invented Film\n📦 900 MB' },
+    { name: 'AIO\n720p', title: '📺 720p · x265 · AAC\n💾 600 MB · ⚡ Ready (TB)' },
+    { name: 'Example', title: 'Invented Film (2019) 1080p WEB-DL DDP5.1 H.264 | 💾 4.3 GB | 🔎 Exampleindex' },
+    { name: 'Example', title: '', filename: '[InventedSubs] Show - 01 (1080p) [ABCD1234].mkv' },
+    { name: 'Example 4K', title: 'Film 2160p UHD HDR HEVC 💾 18,5 GB' },
+    { name: 'Example', title: 'Film.720p.BluRay.x264 [850 MB]' },
+    { name: 'Example', title: 'Film AV1 480p 300MiB' },
+    { name: 'Example', title: 'Show.S01E02.720p.HDTV.x265-GRP\n⏳ 👥 1,203 💾 400 MB' },
+    { name: 'Example', title: 'Film 2160p WEBRip HDR10+ 10bit AV1 Opus 💾 7 GB' },
+    { name: 'Example', title: 'Film 1920x800 BluRay HEVC AC3 2.0 Multi' },
+    { name: 'Example\n1080p', title: '💾 2 GB' },
+    { name: 'Example', title: 'Direct link' },
+    { name: 'Example', title: 'An episode' },
+    { name: 'Example web', title: 'Some file without much said' },
+    { name: 'Invented server', title: 'Watch now' },
+  ];
+  const plain = list.filter((s) => !designedEnough(releaseFacts(s)));
+  assert.deepEqual(plain.map((s) => s.title), ['Direct link', 'An episode', 'Some file without much said', 'Watch now'], 'four of twenty say almost nothing');
 });
