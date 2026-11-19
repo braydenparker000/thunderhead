@@ -12,6 +12,9 @@ export const NOTE = {
   notOwned: 'It is not in your TorBox account yet, and nothing is added before a tap.',
   owned: 'It was already in your TorBox account.',
   remembered: 'Your server remembered this torrent from the last half hour.',
+  rememberedReady: 'Your server remembered from a press in the last half hour that TorBox has it ready.',
+  notListed: 'TorBox did not add it again, and it is not in your account’s list either.',
+  otherId: "The file's place in TorBox's list was not its id, so its address was asked for again by its id.",
   forgotten: 'TorBox no longer knew the remembered torrent, so it was asked again.',
   saidExisting: 'TorBox said it was already in your account.',
   saidNew: 'TorBox said it added it to your account now.',
@@ -37,6 +40,9 @@ export const NOTE = {
   budget: 'This request already asked TorBox as often as it may.',
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
+  noServers: 'TorBox listed no test files the phone may be given.',
+  tokened: (n: number) =>
+    `${n} of TorBox's test ${n === 1 ? 'file was' : 'files were'} left out: the address carried a token.`,
   noLocation: 'A redirect named no address.',
   followOff:
     "Astra's server does not open add-on links for the phone, since an add-on may tie a link to the connection that asked for it.",
@@ -62,4 +68,5 @@ export const REASON = {
   tooLong: "The add-on's forward went on too long.",
   torboxLink: "TorBox did not give the file's address.",
   tooMany: 'Too many films were asked for in a minute. Try again shortly.',
+  tooManyChecks: "TorBox's server list was asked for too often in a minute. Try again shortly.",
 } as const;

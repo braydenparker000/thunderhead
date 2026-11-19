@@ -1,10 +1,12 @@
 // A stream's address asked of the owner's own server (frontend/astra/src/addons/debrid.js, addons/worker-api.js),
 // against a stand-in for the Worker's POST /v1/astra/play: its answers, an answer without an address, its error
 // envelope, a server that is slow (30 s to play, 6 s ahead), signed out, answers kept 45 minutes in memory and
-// shared while under way, a press's answer taken by the tap, renew, and forgetting. Everything here is invented.
+// shared while under way, a press's answer taken by the tap, renew, and forgetting. The freshness checks (no
+// address older than 45 minutes, a renewed one replacing it, a press that found the film ready told apart from a
+// miss, a tap that does not wait long for a press) are in astra-debrid-fresh.test.mjs. Everything here is invented.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveStream, renewStream, forgetAnswers, SAID, KEEP } from '../frontend/astra/src/addons/debrid.js';
+import { resolveStream, renewStream, forgetAnswers, SAID, KEEP, answerFor } from '../frontend/astra/src/addons/debrid.js';
 
 const H = '0123456789abcdef0123456789abcdef01234567';
 const LINK = `https://addon.example/resolve/torbox/invented-key/${H}/null/2/Invented.Film.mkv`;
@@ -15,7 +17,7 @@ const signedOut = async () => null;
 const DIRECT = 'https://cdn.example/1/Invented.Film.mkv';
 
 /** The Worker's stand-in: `answer(body)` gives [status, json] (or throws, or never answers with 'hang'); `asked` is every request. */
-function worker(answer = () => [200, { url: DIRECT, via: 'torbox', size: 1_500_000_000, type: 'video/x-matroska', readable: true, steps: [{ step: 'cached', ok: true, ms: 40 }] }]) {
+function worker(answer = () => [200, { url: DIRECT, via: 'torbox', size: 1_500_000_000, type: 'video/x-matroska', readable: true, ready: false, steps: [{ step: 'cached', ok: true, ms: 40 }], total_ms: 41.4 }]) {
   const asked = [];
   const fetchFn = async (url, init) => {
     const body = JSON.parse(init.body);
@@ -34,7 +36,8 @@ beforeEach(() => forgetAnswers());
 test('signed in: the link and what it says of the file go to the server, and its direct address comes back', async () => {
   const w = worker();
   const a = await resolveStream(STREAM, w.opts());
-  assert.deepEqual(a, { url: DIRECT, via: 'torbox', size: 1_500_000_000, type: 'video/x-matroska', readable: true, steps: [{ step: 'cached', ok: true, ms: 40 }], reason: null });
+  assert.deepEqual(a, { url: DIRECT, via: 'torbox', size: 1_500_000_000, type: 'video/x-matroska', readable: true, steps: [{ step: 'cached', ok: true, ms: 40 }], reason: null, ready: false, total: 41 });
+  assert.equal(answerFor(DIRECT), a, 'how the address being played was found, for the playback report');
   assert.equal(w.asked.length, 1);
   const [r] = w.asked;
   assert.deepEqual([r.url, r.method, r.auth, r.type, r.credentials], ['https://api.example/v1/astra/play', 'POST', 'Bearer invented-session', 'application/json', 'omit']);
@@ -52,7 +55,7 @@ test('signed in: the link and what it says of the file go to the server, and its
 
 test("without an address, after an error, from a slow or unreachable server: the add-on's own link, and why", async (t) => {
   const none = await resolveStream(STREAM, worker(() => [200, { url: null, via: null, steps: [{ step: 'owned', ok: false, ms: 5 }] }]).opts({ mode: 'ahead' }));
-  assert.deepEqual(none, { url: LINK, via: 'addon', size: null, type: null, readable: null, steps: [{ step: 'owned', ok: false, ms: 5 }], reason: SAID.noAddress });
+  assert.deepEqual(none, { url: LINK, via: 'addon', size: null, type: null, readable: null, steps: [{ step: 'owned', ok: false, ms: 5 }], reason: SAID.noAddress, ready: false, total: null });
   const http = await resolveStream(STREAM, worker(() => [200, { url: 'http://cdn.example/x.mkv', via: 'torbox' }]).opts());
   assert.equal(http.via, 'addon', 'a plain-http address is not taken');
   const envelope = (status, details) => worker(() => [status, { error: { code: 'upstream', message: 'Fixed.', ...(details ? { details } : {}), request_id: 'r1' } }]);

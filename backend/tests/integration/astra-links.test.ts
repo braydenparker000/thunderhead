@@ -94,13 +94,10 @@ describe('TorBox’s address, handed over', () => {
     expect(linkStep(body)?.note).toBe(
       'The address is on a TorBox file server, came after 1 exchange with TorBox, and carries no account token.',
     );
-    expect(pathsAsked()).toEqual([
-      '/torrents/createtorrent',
-      '/torrents/mylist',
-      '/torrents/requestdl',
-      '/torrents/requestdl',
-    ]);
-    expect(new URL(world.asked[3].url).searchParams.get('user_ip')).toBe('192.0.2.10');
+    expect(pathsAsked().filter((p) => p === '/torrents/requestdl').length).toBe(2);
+    expect(pathsAsked().length).toBe(5);
+    const exchange = world.asked.filter((a) => a.url.includes('/requestdl'))[1];
+    expect(new URL(exchange.url).searchParams.get('user_ip')).toBe('192.0.2.10');
   });
 
   it('never hands over an address on TorBox’s API, after two exchanges at most', async () => {
@@ -115,7 +112,7 @@ describe('TorBox’s address, handed over', () => {
         note: 'TorBox kept answering with its own API address, so nothing was passed on.',
       }),
     ]);
-    expect(pathsAsked().length).toBe(5);
+    expect(pathsAsked().length).toBe(6);
     expect(text).not.toContain('api.torbox.app');
     expect(text).not.toContain(KEY);
   });
@@ -125,7 +122,7 @@ describe('the memory', () => {
   it('a second ask for the same film, tap or press, costs requestdl alone', async () => {
     world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: [structuredClone(FILM)] }));
     expect((await tap()).body.url).toBe(`https://${FILE_SERVER}/dl/77/0`);
-    expect(pathsAsked().length).toBe(3);
+    expect(pathsAsked().length).toBe(4);
     for (const mode of ['play', 'ahead']) {
       world.asked = [];
       const again = await tap(mode);
@@ -146,12 +143,9 @@ describe('the memory', () => {
     world.asked = [];
     const { body } = await tap();
     expect(body.url).toBe(`https://${FILE_SERVER}/dl/600/0`);
-    expect(pathsAsked()).toEqual([
-      '/torrents/requestdl',
-      '/torrents/createtorrent',
-      '/torrents/mylist',
-      '/torrents/requestdl',
-    ]);
+    expect(pathsAsked()[0]).toBe('/torrents/requestdl');
+    expect([...pathsAsked().slice(1, 3)].sort()).toEqual(['/torrents/checkcached', '/torrents/createtorrent']);
+    expect([...pathsAsked().slice(3)].sort()).toEqual(['/torrents/mylist', '/torrents/requestdl']);
     expect(linkStep(body)).toMatchObject({
       ok: false,
       note: 'TorBox no longer knew the remembered torrent, so it was asked again.',

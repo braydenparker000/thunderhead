@@ -13,6 +13,9 @@
 // with the link and the film's address named, so they are removed wherever they might appear.
 
 import {scrubSecrets, serverGroup} from './scrub.js';
+import {deviceLine} from '../player/playback-report.js';
+
+export {deviceLine};
 
 const PIECE = 64 << 10, SPEED = 2 << 20, WAIT = 15000, LIMIT_WAIT = 10000;
 export const STEPS = [
@@ -104,7 +107,8 @@ export async function torboxCheck(link, {api, fetchFn = (...a) => globalThis.fet
     return done(steps, facts);
   }
   facts.url = typeof answer?.url === 'string' ? answer.url : null;
-  const how = [`via ${answer?.via || 'nothing'}`, answer?.readable === true ? 'readable by a page' : answer?.readable === false ? 'not readable by a page' : '', answer?.size ? size(answer.size) : '', answer?.type || ''].filter(Boolean).join(' · ');
+  const how = [`via ${answer?.via || 'nothing'}`, answer?.readable === true ? 'readable by a page' : answer?.readable === false ? 'not readable by a page' : '', answer?.size ? size(answer.size) : '', answer?.type || '',
+    Number.isFinite(answer?.total_ms) ? `the Worker’s own time ${ms(answer.total_ms)}` : ''].filter(Boolean).join(' · ');
   set('c', facts.url ? 'ok' : 'bad', facts.url ? `${how} (${ms(now() - started)}).` : `The Worker gave no address (${how}).`, stepLines(answer?.steps));
   if (!facts.url || stopped()) return done(steps, facts);
   // d: the first and the last 64 KiB, from the phone.
@@ -194,12 +198,4 @@ export function checkReport(steps, {link = '', device = ''} = {}) {
   const text = [`Astra TorBox check, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC${device ? `, ${device}` : ''}`,
     ...steps.flatMap(s => [`(${s.id}) ${s.title}: ${mark[s.state] || s.state}`, ...s.lines.map(l => `    ${l}`)])].join('\n');
   return scrubSecrets(text, {known: [link, steps.facts?.url].filter(Boolean), hosts: false});
-}
-
-/** The browser and system in two words each, from the user agent: "Chrome 131, Android 14". */
-export function deviceLine(ua = globalThis.navigator?.userAgent || '') {
-  const first = list => list.map(r => r.exec(ua)).find(Boolean);
-  const browser = first([/(Edg|SamsungBrowser|Firefox)\/(\d+)/, /(Chrome)\/(\d+)/, /(Version)\/(\d+)/]);
-  const system = first([/Android [\d.]+/, /iPhone OS [\d_]+/, /Windows NT [\d.]+/, /Mac OS X [\d_]+/, /Linux/]);
-  return [browser && `${browser[1] === 'Version' ? 'Safari' : browser[1]} ${browser[2]}`, system && system[0].replace(/_/g, '.')].filter(Boolean).join(', ');
 }

@@ -1,10 +1,12 @@
 // What the stream-info menu shows beyond the file's facts: how much this film
 // has downloaded (when the engine counts it: engine.dataUsed(), in bytes),
 // refreshed while the menu is open; the chapters, each a row that goes
-// there; and "Save this frame" (frames.js).
+// there; "Save this frame" (frames.js); and, while a film plays, "Copy
+// playback report" (playback-report.js: plain words, no address in them).
 
 import {clock, h} from '../ui/dom.js';
 import {chaptersOf} from './marks.js';
+import {copyFromPlayer} from './playback-report.js';
 
 /** "412 MB so far", "1.24 GB so far". */
 export function dataText(bytes) {
@@ -42,7 +44,14 @@ export class InfoExtras {
         ...chapters.map((c, i) => h('button', {class: 'ap-row', type: 'button', onclick: () => go(c)},
           h('span', {class: 'ap-row-text'}, h('b', {}, c.title || `Chapter ${i + 1}`)), h('small', {}, clock(c.start))))) : null,
       p.firstFrame ? h('button', {class: 'ap-chip', type: 'button', onclick: () => { p.menus.dismiss(); p.extras.frames.save(); }}, 'Save this frame') : null,
+      p.engine.mode ? this.reportButton() : null,
     ];
+  }
+
+  /** "Copy playback report": the report in plain words, for the owner to paste; the button says how it went. */
+  reportButton() {
+    const button = h('button', {class: 'ap-chip ap-copy-report', type: 'button', onclick: async () => { button.textContent = await copyFromPlayer(this.p) ? 'Report copied' : 'Copy failed'; }}, 'Copy playback report');
+    return button;
   }
 
   close() { clearInterval(this.timer); this.timer = 0; }

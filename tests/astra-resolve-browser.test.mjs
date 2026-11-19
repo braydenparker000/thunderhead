@@ -5,7 +5,9 @@
 // there, the add-on's link untouched, and Stream info says "From TorBox directly". Answered with an error, the
 // film still plays through the add-on's link (a host a page cannot read, so in Chrome's own player) and the
 // server's reason is the notice and Stream info's line. Signed out, nothing reaches the server and the add-on's
-// link plays as before. Every DNS answer but the local host's is refused: nothing can leave for a real host.
+// link plays as before. The playback report copied from Stream info and from the error card holds no address, hash,
+// key, token or file name, though the film came from an invented tokened address. Every DNS answer but the local
+// host's is refused: nothing can leave for a real host.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -65,7 +67,7 @@ async function app(t, { signedIn = true, addonReadable = true } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   t.after(() => context.close());
   const json = (route, v) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(v) });
-  await context.route((url) => !/^(http:\/\/127\.0\.0\.1|https:\/\/(addon\.example|cdn\.example)\/)/.test(url.href), (route) => { seen.elsewhere.push(new URL(route.request().url()).host); return route.abort(); });
+  await context.route((url) => !/^(http:\/\/127\.0\.0\.1|https:\/\/(addon\.example|cdn\.example|[a-z0-9-]+\.latm\.tb-cdn\.example)\/)/.test(url.href), (route) => { seen.elsewhere.push(new URL(route.request().url()).host); return route.abort(); });
   for (const known of ['https://v3-cinemeta.strem.io/**', 'https://opensubtitles-v3.strem.io/**']) await context.route(known, (route) => route.fulfill({ status: 404, body: '' }));
   await context.route(`${ADDON}/**`, async (route) => {
     const u = new URL(route.request().url());
@@ -80,7 +82,7 @@ async function app(t, { signedIn = true, addonReadable = true } = {}) {
     }
     return route.fulfill({ status: 404, body: '' });
   });
-  await context.route('https://cdn.example/**', async (route) => {
+  await context.route(/^https:\/\/(cdn\.example|[a-z0-9-]+\.latm\.tb-cdn\.example)\//, async (route) => {
     seen.films++;
     return route.fulfill({ response: await route.fetch({ url: host.url(new URL(route.request().url()).pathname.split('/').pop()) }) });
   });
@@ -88,6 +90,7 @@ async function app(t, { signedIn = true, addonReadable = true } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) errors.push(m.text()); });
+  await context.addInitScript(() => { window.copied = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text) => { window.copied = text; } } }); });
   await page.goto(`${base}/astra/`);
   await page.evaluate(([url, token, signedIn]) => new Promise((resolve, reject) => {
     localStorage.setItem('astra.v2.addons', JSON.stringify([{ url: `${url}/manifest.json`, enabled: true, name: 'Example' }]));
@@ -177,6 +180,50 @@ test('the server says the film is not on TorBox yet: nothing is opened, the add-
   assert.equal(a.seen.link, 0, 'the add-on’s own link was never opened: opening it is what starts a download on TorBox');
   assert.equal(a.seen.films, 0);
   assert.equal(server.asked.at(-1).body.mode, 'play', 'the tap asked to play');
+  // The card's report says the film never opened, and why, with no address in it.
+  await a.page.locator('.ap-error-actions button', { hasText: 'Copy report' }).click();
+  await a.page.waitForFunction(() => window.copied);
+  const text = await a.page.evaluate(() => window.copied);
+  assert.match(text, /\nThe film was not opened\.\nAddress: none: not on TorBox yet: This film is not on TorBox yet, so Astra did not start it\.\n {4}cached ✗ 20 ms\n/);
+  for (const secret of SECRETS(LINK)) assert.ok(!text.includes(secret), `the report holds ${secret}`);
+  assert.deepEqual(a.seen.elsewhere, []);
+  assert.deepEqual(a.errors, []);
+});
+
+/** What a copied report may never hold: the addresses, the torrent, the film's name, the session, the add-on's setting. */
+const SECRETS = (film) => [film, new URL(film).host, 'tb-cdn', 'tok_Invented', 'invented-film-token', LINK, HASH, FILM, 'Invented.Film', 'open.webm', 'addon.example', '127.0.0.1', 'cdn.example', TOKEN, json64, 'U2VhbGVk'];
+
+test('the playback report from Stream info and from the error card: where the time went and how the address was found, no address in it', opts, async (t) => {
+  const FILM_URL = 'https://store-7.latm.tb-cdn.example/dl/tok_Invented0123456789abcdefABCDEF/open.webm?token=invented-film-token';
+  server.answer = () => [200, { url: FILM_URL, via: 'torbox', size: 400_000, type: 'video/webm', readable: true, ready: false, total_ms: 1407,
+    steps: [{ step: 'key', ok: true, ms: 0 }, { step: 'cached', ok: true, ms: 300 }, { step: 'add', ok: true, ms: 1000, note: 'TorBox said it added it to your account now.' }, { step: 'link', ok: true, ms: 400, note: "The address is on a TorBox file server, came straight from TorBox, and carries your account's token." }] }];
+  const a = await app(t);
+  await a.tap();
+  await a.page.waitForFunction(() => { const p = window.astra.player; return p?.isOpen && p.ready && p.firstFrame && p.video.currentTime > 0.3; }, null, { timeout: 20_000 });
+  await a.page.evaluate(() => document.querySelector('.ap [aria-label="Stream info"]').click());
+  const button = a.page.locator('.ap .ap-copy-report');
+  if (process.env.ASTRA_SHOTS) await a.page.screenshot({ path: `${process.env.ASTRA_SHOTS}/report-info.png` });
+  await button.click();
+  await a.page.waitForFunction(() => window.copied);
+  assert.equal(await button.textContent(), 'Report copied');
+  const text = await a.page.evaluate(() => window.copied);
+  assert.match(text, /^Astra playback report, /);
+  assert.match(text, /\nHow it plays: \w+/);
+  assert.match(text, /\nWhere the time went \(since the film’s load\):\n {4}opened: \d+ ms/);
+  assert.match(text, /\n {4}first picture: \d+ ms/);
+  assert.match(text, /\nAddress: from TorBox directly\n {4}your server’s own time: 1407 ms\n {4}key ✓ 0 ms\n {4}cached ✓ 300 ms\n {4}add ✓ 1000 ms: TorBox said/);
+  assert.match(text, /\nServer: TorBox group latm\n/);
+  assert.match(text, /\nStalls so far: 0;/);
+  assert.match(text, /\nTracks:\n {4}picture: /);
+  assert.match(text, /\nThis phone:\n {4}decodes H\.264 /);
+  for (const secret of SECRETS(FILM_URL)) assert.ok(!text.includes(secret), `Stream info's report holds ${secret}`);
+  // The error card's "Copy report" is the same report.
+  await a.page.evaluate(() => { window.copied = null; window.astra.player.menus.dismiss(); window.astra.player.loader.showError('Invented stop.'); });
+  await a.page.locator('.ap-error-actions button', { hasText: 'Copy report' }).click();
+  await a.page.waitForFunction(() => window.copied);
+  const card = await a.page.evaluate(() => window.copied);
+  assert.match(card, /\nWhere the time went[\s\S]*\nAddress: from TorBox directly\n/);
+  for (const secret of SECRETS(FILM_URL)) assert.ok(!card.includes(secret), `the error card's report holds ${secret}`);
   assert.deepEqual(a.seen.elsewhere, []);
   assert.deepEqual(a.errors, []);
 });

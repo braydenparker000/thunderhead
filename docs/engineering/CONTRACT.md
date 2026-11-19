@@ -244,6 +244,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `DELETE /v1/workshop/:id` | D | P9 | built | removes a file, every piece |
 | `POST /v1/astra/play` | D | P8 | built | {link, hash?, fileIndex?, fileName?, fileSize?, mode play\|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on |
 | `GET /v1/astra/torbox` | D | P8 | built | whether the TorBox key is set and accepted, and the plan number |
+| `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |
 
 ## Verbs
 

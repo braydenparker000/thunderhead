@@ -69,3 +69,8 @@ body { min-height: 100vh; padding-bottom: calc(32px + var(--safe-bottom)); }
 .check-step[data-state="skip"] b, .check-step[data-state="run"] b { color: var(--muted); }
 #torbox-copy { margin-top: 12px; width: 100%; }
 #torbox-hint pre { white-space: pre-wrap; font-size: 12px; }
+.speed-table { width: 100%; margin-top: 12px; padding: 4px 12px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.speed-table th { color: var(--muted); font-weight: 500; text-align: left; padding: 8px 4px; white-space: nowrap; }
+.speed-table td { padding: 8px 4px; border-top: 1px solid rgba(37, 42, 42, 0.55); color: var(--text-2); overflow-wrap: anywhere; }
+.speed-table tr.film td { color: var(--text); font-weight: 600; }
+#torbox-speed { margin-top: 12px; width: 100%; }

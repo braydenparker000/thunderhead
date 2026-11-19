@@ -176,13 +176,34 @@ host. The page never calls TorBox.
 - **At the tap** the mode is `play`: the server may add a film TorBox
   already holds to the owner's account (never an uncached one). **Before a
   tap** (a press, the next episode) the mode is `ahead`, which never adds
-  anything: it answers only for what is already in the account.
+  anything: it answers with an address only for what is already in the
+  account. A press that finds the film ready on TorBox but not in the
+  account answers `ready: true` (no address yet; not a miss): the server
+  keeps what it learnt for half an hour, so the tap costs only the add and
+  the address.
+- **What the server waits for** (measured in its tests' stub with the live
+  delays, createtorrent 1000 ms, mylist 350, requestdl 400, checkcached 300,
+  2026-11-19): a press asks checkcached and the account's list together
+  (360 ms, or 760 with the address when the account holds it); a tap after
+  it waits for createtorrent, then requestdl beside the listing that
+  confirms the file's id (1410 ms, was 1760); a tap with no press asks
+  checkcached beside the add (1410 ms, was 1760); a film remembered from
+  the last half hour, requestdl alone (400 ms). Each answer carries every
+  step's own time and the server's whole time (`total_ms`).
+- **A tap during a press**: a tap follows the finger by about a tenth of a
+  second, and a press needs a round trip and TorBox's answers, so the press
+  has usually not answered by the tap. The tap gives it 100 ms (`GRACE`),
+  then asks to play itself; whichever address comes first is played.
 - **What is kept**: each answer, in memory only (never stored, gone with
-  the page), per link, for 45 minutes (a TorBox link lives 3 hours); one
-  under way is shared, so a press and its tap ask once. An answer without
-  an address is not kept. Signed out, everything kept is forgotten, and so
-  it is when the add-ons change. The player is also given a way to ask
-  afresh (`renew`) for an address that stops working mid-film.
+  the page), per link, for 45 minutes (a TorBox link lives 3 hours, so the
+  engine always starts with over two left); one under way is shared, so a
+  press and a quick tap ask once. A tap's answer without an address is not
+  kept; a press's is, a minute for a miss and half an hour for a `ready`
+  one. A clock set back counts as expired. A renewed address replaces the
+  kept one, and an older answer arriving late does not put it back. Signed
+  out, everything kept is forgotten, and so it is when the add-ons change.
+  The player is also given a way to ask afresh (`renew`) for an address
+  that stops working mid-film.
 - **When the server cannot help** (signed out, no answer within 30 s for a
   tap or 6 s ahead, an error, no address), the add-on's own link plays as
   it always did, and one plain sentence says why: the server's own reason,
@@ -196,6 +217,16 @@ host. The page never calls TorBox.
   and every link plays as the add-on gave it.
 - Addresses, links, hashes and file names are sent only to the owner's own
   server, and are never stored, logged or put in a report by Astra.
+- **The playback report** (`player/playback-report.js`): "Copy playback
+  report" in Stream info while a film plays, the error card's "Copy
+  report" and the lab's copy all give the same plain text: where the time
+  went from the load to the first picture (the engine's `timing` entries),
+  the route and why, the tracks, this phone's decoders, how the address was
+  found (`via`, each step's time and the server's own, from
+  `debrid.js answerFor`), the server group, the link's speed, the stalls so
+  far, and the log (a kind it does not know is a plain line). A film that
+  never opened says so, with why. It goes through the scrubber below, with
+  the stream's address, file name and torrent named.
 
 ## When add-ons misbehave
 
@@ -1641,17 +1672,30 @@ lab's own playback, then runs, showing each step as it goes:
 - (g) the film's container and codecs by the engine's own probe, and the
   route the planner would take.
 
+**Server speed** (`src/lab/server-speed.js`), under the check: a tap asks
+the Worker for TorBox's speed-test files (`GET /v1/astra/torbox/servers`:
+each server group's label, its region and a public test file; a page may
+not read TorBox's list itself), then says what it will read: 1 MB from each
+group, 20 groups (20 MB) at most, three at a time. A second tap ends the
+lab's film and reads them; the table is fastest first: group, region,
+Mbit/s, the first byte's time, and the group the last check's film came
+from. **Copy report** carries the table, never an address. Choosing a
+server is not offered: TorBox's only choice is the account-wide
+`cdn_selection` setting, and requestdl takes nothing but `user_ip`.
+
 The Worker is asked through the page's own helper, `src/addons/worker-api.js`
 (`api(path, {method, body, signal})`, the owner's session, a top-level page
 only; it throws "not signed in" without a session), loaded when the check
 runs; without it the check stops at (a). **Copy report** copies plain text:
 the steps' words, which never hold an address, a hash, a key or a file
-name, run through `scrubSecrets` (`src/lab/scrub.js`, ASTRA.md §5.2 rule 3)
-with the link and the film's address named as well, so it is safe to paste
-into a chat. The scrubber turns every address into its host (or, for the
-reports, `[address]`), a key or token named in a query and any run of 32 or
-more hex or base64url characters into `***`, and a video or subtitle file's
-name into `[file]`.
+name, run through `scrubSecrets` (`src/player/playback-report.js`, passed on by
+`src/lab/scrub.js`, ASTRA.md §5.2 rule 3) with the link and the film's
+address named as well, so it is safe to paste into a chat. The scrubber
+turns every address into its host (or, for the reports, `[address]`), a
+key or token named in a query and any run of 32 or more hex or base64url
+characters into `***`, and a video, subtitle or font file's name into
+`[file]`. The lab's **Copy playback report** (after Analyse) is the
+player's own report.
 
 ## Tests
 
