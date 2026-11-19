@@ -7,65 +7,8 @@
 // never changes the phone; removing the copy. Invented add-ons, titles, token and times.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStorage, Library, PREFIX } from '../frontend/astra/src/app/store.js';
-import { startSync, RECORD, SAVE_AFTER } from '../frontend/astra/src/app/sync.js';
-import { api } from '../frontend/astra/src/addons/worker-api.js';
-
-const T = 1_763_600_000_000, MIN = 60_000;
-const ADDON = { url: 'https://addon.example/invented-config-0011/manifest.json', enabled: true, name: 'Invented' };
-const film = (id, updated) => ({ type: 'movie', id, videoId: id, season: null, episode: null, time: 600, duration: 6000, updated, completed: false, meta: { id, type: 'movie', name: `Invented ${id}` } });
-const settle = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-
-/** The invented Worker: one copy, conditional saves, every request recorded. */
-function worker() {
-  let n = 0;
-  const w = { kept: null, calls: [], down: 0, conflict: false, answer: null };
-  w.fetch = async (url, init = {}) => {
-    const method = init.method || 'GET', body = init.body ? JSON.parse(init.body) : undefined;
-    w.calls.push({ method, path: new URL(url).pathname, keepalive: init.keepalive === true, body, auth: init.headers?.Authorization });
-    if (w.down) return json(w.down, { error: { code: 'unavailable', message: 'Down.' } });
-    if (method === 'GET') return json(200, w.answer ?? (w.kept ? structuredClone(w.kept) : { version: null, saved_at: null, copy: null }));
-    if (method === 'DELETE') { w.kept = null; return new Response(null, { status: 204 }); }
-    if (w.conflict || (w.kept?.version ?? null) !== body.base) return json(409, { error: { code: 'conflict', message: 'Stale.', details: { reason: 'stale_base' } } });
-    w.kept = { version: `v${++n}`, saved_at: new Date(T).toISOString(), copy: body.copy };
-    return json(200, { version: w.kept.version, saved_at: w.kept.saved_at });
-  };
-  w.methods = () => w.calls.map((c) => c.method);
-  return w;
-}
-
-function memory(entries = {}) {
-  const m = new Map(Object.entries(entries));
-  return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), key: (i) => [...m.keys()][i] ?? null, get length() { return m.size; } };
-}
-
-/** A phone: Astra's store over its own storage, its clock (`offset` from true time), timers, page and window. */
-async function phone(w, { data = {}, signedIn = true, offset = 0, record = null } = {}) {
-  const area = memory(Object.fromEntries(Object.entries(data).map(([k, v]) => [PREFIX + k, JSON.stringify(v)])));
-  if (record) area.setItem(RECORD, JSON.stringify(record));
-  const win = new EventTarget();
-  const store = createStorage(area, { events: win });
-  const p = { area, store, t: T + offset, queue: [], toasts: [], doc: Object.assign(new EventTarget(), { visibilityState: 'visible' }), set: store.set };
-  p.library = new Library(store);
-  p.app = { store, playing: null };
-  const later = (fn, ms) => { const id = Symbol('timer'); p.queue.push({ id, at: p.t + ms, fn }); return id; };
-  const cancel = (id) => { p.queue = p.queue.filter((x) => x.id !== id); };
-  p.advance = async (ms) => { p.t += ms; for (const due of p.queue.filter((x) => x.at <= p.t)) { cancel(due.id); due.fn(); } await settle(); };
-  p.read = (k) => JSON.parse(area.getItem(PREFIX + k) ?? 'null');
-  p.record = () => JSON.parse(area.getItem(RECORD) ?? 'null');
-  p.page = async (state) => { p.doc.visibilityState = state; p.doc.dispatchEvent(new Event('visibilitychange')); await settle(); };
-  const session = async () => (signedIn ? { api: 'https://api.example.test', token: 'invented-session-token' } : null);
-  p.sync = startSync(p.app, {
-    api: (path, o = {}) => api(path, { ...o, read: session, fetchFn: o.fetchFn ?? w.fetch }), session, storage: area, now: () => p.t,
-    later, cancel, idle: (fn) => fn(), win, doc: p.doc, toast: (t) => p.toasts.push(t), fetch: w.fetch,
-    // Node has no StorageEvent: the same event's shape, which the store's own listener reads.
-    announce: (k) => win.dispatchEvent(Object.assign(new Event('storage'), { key: PREFIX + k, storageArea: area })),
-  });
-  await p.sync.ready;
-  await settle();
-  return p;
-}
+import { SAVE_AFTER } from '../frontend/astra/src/app/sync.js';
+import { T, MIN, ADDON, film, settle, worker, phone } from './fixtures/astra-sync-phones.mjs';
 
 test('signed out, or switched off: nothing is hooked or sent, whatever happens', async () => {
   const w = worker();
@@ -90,10 +33,10 @@ test('a first start saves what the phone has, its backup keys only, and says not
   assert.deepEqual(w.methods(), ['GET', 'PUT']);
   assert.equal(w.calls[0].auth, 'Bearer invented-session-token');
   const put = w.calls[1].body;
-  assert.equal(put.base, null);
-  assert.deepEqual(Object.keys(put.copy.keys).sort(), ['addons', 'progress'], 'what is saved; never a device key');
-  assert.deepEqual(put.copy.keys.addons.value, [ADDON]);
-  assert.ok(put.copy.keys.addons.at >= T, 'stamped at the first merge');
+  assert.deepEqual([w.calls[0].query, w.calls[1].query], ['', ''], 'nothing held yet, nothing kept: no version named');
+  assert.deepEqual(Object.keys(put.keys).sort(), ['addons', 'progress'], 'what is saved; never a device key');
+  assert.deepEqual(put.keys.addons.value, [ADDON]);
+  assert.ok(put.keys.addons.at >= T, 'stamped at the first merge');
   assert.deepEqual([a.record().joined, a.record().version, a.record().owed, a.sync.state().savedAt], [true, 'v1', false, T]);
   assert.deepEqual(a.toasts, []);
 });
@@ -156,7 +99,7 @@ test('hidden with changes: a keepalive save, unless it is larger than a keepaliv
   w.calls = [];
   a.library.toggle({ id: 'tt01', type: 'movie', name: 'Invented' });
   await a.page('hidden');
-  assert.deepEqual(w.calls.map((c) => [c.method, c.keepalive, c.body?.base]), [['PUT', true, 'v1']]);
+  assert.deepEqual(w.calls.map((c) => [c.method, c.keepalive, c.query]), [['PUT', true, '?base=v1']]);
   assert.deepEqual([a.record().owed, a.record().version, a.queue.length], [false, 'v2', 0]);
   // Larger than 63 KiB: nothing is sent now; the next start sends it.
   w.calls = [];
@@ -212,4 +155,27 @@ test('removing the copy on the server: a DELETE, then this phone stops keeping o
   await settle();
   assert.deepEqual(w.methods(), ['DELETE', 'GET', 'PUT']);
   assert.deepEqual(Object.keys(w.kept.copy.keys).sort(), ['addons', 'library']);
+});
+
+test('the session ends: in step, nothing of the copy stays or is written back; a phone that never joined keeps its own', async () => {
+  // The server ends the session (signed out from another device): this phone's copy goes, as th/session.js wipe() does.
+  const w = worker();
+  const a = await phone(w, { data: { addons: [ADDON], library: { 'movie:tt01': { id: 'tt01', type: 'movie', name: 'Invented', added: T } }, player: { volume: 1 } } });
+  assert.equal(a.record().joined, true);
+  w.down = 401;
+  await a.sync.syncNow();
+  assert.deepEqual([a.area.length, a.sync.state().signedIn], [0, false], 'every astra.v2 key and the record are gone');
+  assert.equal(a.store.set('addons', [ADDON]), false, 'and nothing this page holds is written back');
+  // Never joined (its first exchange was refused): its data is its own and stays.
+  const w2 = worker();
+  w2.down = 401;
+  const b = await phone(w2, { data: { addons: [ADDON] } });
+  assert.deepEqual([b.read('addons'), b.store.set('settings', { hero: false })], [[ADDON], true]);
+  // Signed out in another tab: th/session.js has removed the data and says so on its channel; this page stops writing.
+  const c = await phone(worker(), { data: { addons: [ADDON] } });
+  c.channel.dispatchEvent(new MessageEvent('message', { data: 'signed_out' }));
+  assert.equal(c.store.set('settings', { hero: false }), false);
+  const off = await phone(worker(), { data: { addons: [ADDON] }, record: { joined: true, off: true } });
+  off.channel.dispatchEvent(new MessageEvent('message', { data: 'signed_out' }));
+  assert.equal(off.store.set('settings', { hero: false }), true, 'switched off, the data is the phone’s own');
 });

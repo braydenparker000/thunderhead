@@ -291,7 +291,7 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
    codec names only.
 
-### 5.3 Server copy (Worker-encrypted), as built (2026-11-19)
+### 5.3 Server copy (Worker-encrypted), as built (2026-11-19; after the security read)
 
 The owner agreed (2026-11-19) that Astra's data follows their sign-in: "any phone I sign in on, nothing
 to set up". The add-on list, whose addresses are secrets, is kept on the owner's server only sealed by
@@ -299,56 +299,90 @@ the Worker (rule 3).
 
 - **Routes** (`backend/src/areas/astra/backup.ts`, shapes in `shared/contract/astra.ts`), the owner's
   device sessions only (route table `D`: the mind, Muse, reflex and CI get 403), `Cache-Control:
-  no-store`, 30 requests a minute per isolate (then 429): `GET /v1/astra/backup` →
-  `{version, saved_at, copy}` (all null when none is kept; `copy` null alone when what is kept does not
-  open), `PUT /v1/astra/backup` `{base, copy}` → `{version, saved_at}`, or `409 conflict` when `base` is
-  not the version kept now (another phone saved first), `DELETE /v1/astra/backup` → 204. Without the
-  bucket binding every route answers `503 unavailable` and the page carries on alone.
-- **The copy** is `{"astra": "sync/1", "keys": {<key>: {"at", "value", "gone"?}}}` for the
+  no-store`, 30 requests a minute per isolate (then 429):
+  `GET /v1/astra/backup[?known=<version>]` → `{version, saved_at, copy}` (all null when none is kept;
+  `copy` null alone when what is kept does not open), or `{version, saved_at, same: true}` when `known` is
+  the version kept now, answered from the object's head alone (nothing read or opened: a start where
+  nothing changed costs a few hundred bytes of mobile data);
+  `PUT /v1/astra/backup[?base=<version>]`, the body being the copy itself → `{version, saved_at}`, or
+  `409 conflict` when `base` (absent: nothing kept) is not the version kept now (another phone saved
+  first); `DELETE /v1/astra/backup` → 204. A version is an opaque random id (16 bytes, base64url), so a
+  query says nothing, not even when (Cloudflare's own invocation logs record a request's address; the
+  Worker logs none). Without the bucket binding every route answers `503 unavailable` and the page
+  carries on alone. Only a PUT may send more than the Worker's usual 64 KiB.
+- **The copy** is `{"astra": "sync/1", "keys": {<key>: {"at", "value", "gone"?, "times"?}}}` for the
   `BACKUP_KEYS`: `value` as the store holds it, `at` when the key last changed on a phone (ms), `gone`
-  (progress, watched, library) the removed entries with when. The Worker checks only that outer shape (an
-  object, the tag, known keys, each with a time and a value; `DEVICE_KEYS` never travel), at most 2 MiB as
-  sent (`413 too_large` beyond; a heavy real-shaped store of 2,000 progress entries, 500 library titles
-  and 3,000 watched episodes is 1.72 MiB; a full phone at Astra's own 300 progress entries about 0.5 MiB),
-  and never reads, parses further or logs what the keys hold. Errors name a rule, never a value sent.
+  (progress, watched, library, add-ons) the removed entries with when, `times` (add-ons) when each
+  address was had. The Worker parses it once to check only that outer shape (an object, the tag, known
+  keys, each with a time at most a day ahead of the Worker's clock, a value, objects for `gone` and
+  `times`; `DEVICE_KEYS` never travel), at most 1 MiB as sent (`413 too_large` beyond), seals its bytes
+  as sent and never reads further or logs what the keys hold. Errors name a rule, never a value sent.
+- **Size and the Free plan's CPU** (about 10 ms a request): a full phone's copy (Astra's 300 progress
+  entries, 500 library titles, the newest 3,000 watched marks) is about 0.5 MiB. Measured in workerd
+  (`backend/tests/cost/astra-backup-cpu.test.ts`): a PUT's own work 2, 3–4 and 6 ms for 0.31, 0.57 and
+  0.96 MiB (the first build, which parsed, stringified and encoded again: 4, 7–8, 11–12), a GET's 0–1 ms
+  (first build 2, 3, 5): the opened bytes go back inside the answer built from byte pieces.
 - **At rest** (`backup-seal.ts`, `backup-store.ts`): sealed whole with AES-256-GCM, a fresh 12-byte nonce
   each time, under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `astra.backup`),
   as the Drive grant's is; the additional data is the object's name and the version, so a copy opens only
   where and as what it was written. It lives in `thunderhead-private` at `astra/backup.json.enc`, with only
-  its version and save time as metadata. `version` is a new UUIDv7 each save; the write is conditional
-  (`If-None-Match: *` when none is kept, else the etag read just before), so two phones saving on the same
-  version cannot both win.
+  its version, save time and the name of the pepper it was sealed under as metadata. The write is
+  conditional (`If-None-Match: *` when none is kept, else the etag read just before), so two phones saving
+  on the same version, or both saving first, cannot both win.
 - **Daily copies, undone by hand:** the first save of a UTC day first copies the kept object, sealed as it
   is, to `astra/days/<YYYY-MM-DD>.json.enc`; the newest 7 are kept. Its additional data still names the
   main object, so it opens only put back there: to undo a bad merge, copy a day's object (with its
   metadata) over `astra/backup.json.enc`; the phones take it at their next fetch. `DELETE` removes the
   copy and every daily one.
-- **Pepper rotation** follows the Drive grant: `AUTH_PEPPER` is never overwritten (SECURITY.md §11); if
-  it ever were, the copy would no longer open, `GET` would answer `copy: null`, and the next phone's save
-  would replace it with what the phones hold (the daily copies would stay unreadable).
-- **The page** (`frontend/astra/src/app/sync.js`, the merge in `sync-merge.js`): signed out, or with
-  Settings › Your data › "Keep Astra the same on every phone I sign in on" off, nothing is hooked or sent.
-  Signed in it fetches and merges shortly after start (never before the first paint), back in front after
-  more than 5 minutes, and before each save; a save goes out a minute after the last change, and as a
-  keepalive request when the page is hidden (when it fits in 63 KiB; else on the next start). Offline,
-  5xx, 503 and three conflicts in a row stay quiet and are tried again later (1, 2, 5, 10, then 30
-  minutes). The merge: progress, watched and library entry by entry by their own times (`updated`, the
-  time marked, `added`), removals kept as tombstones for 60 days so they never come back; add-ons,
-  settings and recent searches whole, the newer change winning, a change stamped later than the time
-  this phone last saw for the key (so a phone whose clock is behind still wins with a change it made
-  after seeing the other's); a phone's first merge puts both sides together (add-ons by address, settings
-  field by field) and a phone with nothing but defaults takes the server's. Every server value passes the
-  store's own sanitisers, all or nothing per key; merged values are written through the store and
-  announced as another window's write, so every open screen follows; the title playing keeps its own
-  progress. The device-only record (`localStorage` `astra.sync.v1`: the switch, each key's last change,
-  the tombstones, the version last merged, when it last saved and fetched) is outside `astra.v2.*`, so a
-  backup never carries it. Merged progress is written into the senses reader's last look as well
-  (`sync-senses.js`), so another phone's watching is never reported as watching here.
-- **Checks:** `backend/tests/integration/astra-backup.test.ts` (each token role, round trip, conflict and
-  a race, 413, the shape, 503, the count), `astra-backup-seal.test.ts` (no plain text of an add-on
-  address in the bucket, a tampered copy refused, the daily copies, a log capture), `tests/astra-sync.test.mjs`
-  (the merge), `tests/astra-sync-engine.test.mjs` (the engine on the real store), `tests/astra-sync-browser.test.mjs`
-  (two phones in Chromium).
+- **Pepper rotation** (SECURITY.md §14.5, §14.6): the copy is opened with the pepper its metadata names,
+  then the others, and always sealed with the newest, so the first save after `AUTH_PEPPER_V2` is added
+  re-seals it; that save also removes the daily copies, sealed under the old pepper. Today there is one
+  pepper; `placeOf` in `backup.ts` takes the new one first once it is declared.
+- **The page** (`frontend/astra/src/app/sync.js`; the requests in `sync-wire.js`, the checks of a server
+  copy in `sync-read.js`, the merge in `sync-merge.js` and `sync-addons.js`, the device record in
+  `sync-record.js`): signed out, or with Settings › Your data › "Keep Astra the same on every phone I
+  sign in on" off, nothing is sent. Signed in it fetches (naming the version it holds) and merges shortly
+  after start (never before the first paint), back in front after more than 5 minutes, and before each
+  save; a save goes out a minute after the last change, and as a keepalive request when the page is
+  hidden (when it fits in 63 KiB; else on the next start). Offline, 5xx, 503 and three conflicts in a row
+  stay quiet and are tried again later (1, 2, 5, 10, then 30 minutes); a copy too large for the Worker is
+  not sent, and Your data says so in one line.
+- **The merge:** progress, watched and library entry by entry by their own times (`updated`, the time
+  marked, `added`), removals kept as tombstones for 60 days so they never come back; merged progress is
+  Astra's own 300 newest. Add-ons address by address: each address carries when it was had or added again
+  and a removal is a tombstone (both keyed by a fingerprint of the address, never the address), so an
+  add-on removed on one phone (perhaps because its key leaked) comes back only when added again after the
+  removal; the side whose list changed last gives the order and each one's on/off and name, and addresses
+  only the other side has follow. Settings and recent searches whole, the newer change winning, a change
+  stamped later than the time this phone last saw for the key (so a phone whose clock is behind still
+  wins with a change it made after seeing the other's). A phone's first merge (joining, or its switch
+  turned on again: its own stamps and tombstones are kept while it is off) puts both sides together,
+  minus what was removed; a phone with nothing but defaults takes the server's.
+- **A server copy is checked before use** (`sync-read.js`): every value passes the store's own
+  sanitisers, all or nothing per key; no time is taken as later than 12 hours ahead of the phone's clock
+  (half the Worker's own day, so a stamp made here is never refused there), and a key where a time was
+  brought back is saved back with it fixed, so it falls into the past (a far-future entry would otherwise
+  win every merge and its tombstone never end; the phone's own stamps are capped the same way); a value nested deeper than 6 or holding a string past 2,048 characters is as
+  if not kept, unknown settings larger than 4 KB are dropped, add-ons keep only url, enabled and name, and
+  recent searches are 10 of at most 200 characters, so a damaged or hostile copy cannot bloat or wedge a
+  phone. An add-on address this phone did not have is never taken in silently: a notice names it and its
+  host once ("Added from your other phones: …"), a new phone's first merge included.
+- **On the phone:** merged values are written through the store and announced as another window's write,
+  so every open screen follows; the title playing keeps its own progress. The device record
+  (`localStorage` `astra.sync.v1`) is outside `astra.v2.*`, so a backup never carries it. Merged progress
+  is written into the senses reader's last look as well (`sync-senses.js`), so another phone's watching
+  is never reported as watching here, except where this phone watched the same title since the reader's
+  last look (then that watching is reported). A sign-out removes `astra.v2.*` and the record when this
+  phone kept Astra in step (`th/session.js` wipe, through `th/astra/wipe.js`; Astra itself on a 401 from the Worker; an open page stops
+  writing back): the server holds the copy. Recent searches turned off empties the list on every phone.
+- **Checks:** `backend/tests/integration/astra-backup.test.ts` (each token role, round trip, the copy
+  back byte for byte, `same`, conflict, a race and two first saves, 1 MiB, the shape, a far-future `at`,
+  503, the count), `astra-backup-seal.test.ts` (no plain text of an add-on address in the bucket, a
+  tampered copy refused, a pepper rotation, the daily copies, a log capture),
+  `backend/tests/cost/astra-backup-cpu.test.ts` (CPU), `tests/astra-sync.test.mjs` (the merge and the
+  checks of a copy), `tests/astra-sync-engine.test.mjs` (the engine on the real store),
+  `tests/astra-sync-browser.test.mjs` (two phones in Chromium), `tests/signin-browser.test.mjs` (the
+  sign-out wipe).
 
 ---
 

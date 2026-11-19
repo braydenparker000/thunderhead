@@ -20,32 +20,43 @@
 // Every server value passes the store's own sanitisers first, as a restore does: a key of the wrong
 // shape, or whose every entry is damaged, is used as if the server had none (all or nothing per key).
 
-import {BACKUP_KEYS, SANITISE} from './store.js';
+import {BACKUP_KEYS, MAX_PROGRESS} from './store.js';
 import {CINEMETA} from '../addons/client.js';
+import {ENTRY_KEYS, SYNC_TAG, ahead, entryTime, isObject, size, withTime} from './sync-read.js';
+import {mergeAddons} from './sync-addons.js';
 
-export const SYNC_TAG = 'sync/1';
-/** Keys merged entry by entry, with tombstones for removed entries. */
-export const ENTRY_KEYS = ['progress', 'watched', 'library'];
+export {ENTRY_KEYS, SYNC_TAG, entryTime, readCopy} from './sync-read.js';
 export const GONE_MS = 60 * 864e5;
 const MAX_RECENT = 10;
+/** The newest watched marks a copy carries. A mark is about 55 bytes; 3,000 is some three years of a series
+ * watcher's episodes in about 165 KB, a third of a full phone's copy. Older marks stay on the phones that have them. */
+export const WATCHED_MAX = 3000;
 
-const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);
-const time = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
-const size = v => Array.isArray(v) ? v.length : isObject(v) ? Object.keys(v).length : 0;
-
-/** When an entry last changed, on the phone that changed it. */
-export function entryTime(key, entry) {
-  if (key === 'watched') return entry === true ? 1 : time(entry) ?? 0;
-  return time(key === 'library' ? entry?.added : entry?.updated) ?? 0;
+/** The newest `max` entries of an entry key, by their own times (as Astra itself keeps progress). */
+function newest(key, value, max) {
+  const ids = Object.keys(value);
+  if (ids.length <= max) return value;
+  ids.sort((a, b) => entryTime(key, value[b]) - entryTime(key, value[a]));
+  return Object.fromEntries(ids.slice(0, max).map(id => [id, value[id]]));
 }
 
-/** Equal as data, whatever the order of an object's fields. */
+/** Equal as data, whatever the order of an object's fields. Walked with a list, never by recursion, so no value
+ * (this phone's own included) can be deep enough to stop it. */
 export function same(a, b) {
-  if (a === b) return true;
-  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((x, i) => same(x, b[i]));
-  if (!isObject(a) || !isObject(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every(k => Object.hasOwn(b, k) && same(a[k], b[k]));
+  const pairs = [[a, b]];
+  while (pairs.length) {
+    const [x, y] = pairs.pop();
+    if (x === y) continue;
+    if (Array.isArray(x)) {
+      if (!Array.isArray(y) || x.length !== y.length) return false;
+      for (let i = 0; i < x.length; i++) pairs.push([x[i], y[i]]);
+    } else if (isObject(x) && isObject(y)) {
+      const keys = Object.keys(x);
+      if (keys.length !== Object.keys(y).length) return false;
+      for (const k of keys) { if (!Object.hasOwn(y, k)) return false; pairs.push([x[k], y[k]]); }
+    } else return false;
+  }
+  return true;
 }
 
 /** Nothing but what a fresh Astra starts with (Cinemeta alone, or nothing saved). */
@@ -55,34 +66,8 @@ export function isEmpty(key, value) {
   return size(value) === 0;
 }
 
-/** Tombstones, checked: id → a time. */
-function goneOf(v) {
-  const out = {};
-  if (isObject(v)) for (const [id, at] of Object.entries(v)) if (time(at) > 0) out[id] = at;
-  return out;
-}
-
-/**
- * A copy from the server, checked: {keys: {key: {at, value, gone}}} with damaged keys left out, null
- * when it is no copy at all, or 'newer' when a newer Astra wrote it (then nothing is merged or saved).
- */
-export function readCopy(copy) {
-  if (!isObject(copy) || !isObject(copy.keys)) return null;
-  if (copy.astra !== SYNC_TAG) { const n = /^sync\/(\d+)$/.exec(String(copy.astra)); return n && Number(n[1]) > 1 ? 'newer' : null; }
-  const keys = {};
-  for (const k of BACKUP_KEYS) {
-    const e = copy.keys[k];
-    if (!isObject(e) || time(e.at) == null) continue;
-    const clean = SANITISE[k](e.value);
-    if (clean === undefined || (size(e.value) && !size(clean))) continue;
-    keys[k] = {at: e.at, value: clean, gone: ENTRY_KEYS.includes(k) ? goneOf(e.gone) : {}};
-  }
-  return {keys};
-}
-
 /** A first merge of a whole key: both put together. */
 function union(key, theirs, mine) {
-  if (key === 'addons') return [...theirs, ...mine.filter(a => !theirs.some(t => t.url === a.url))];
   if (key === 'recentSearches') {
     const seen = new Set();
     return [...mine, ...theirs].filter(q => !seen.has(q.toLowerCase()) && seen.add(q.toLowerCase())).slice(0, MAX_RECENT);
@@ -93,13 +78,13 @@ function union(key, theirs, mine) {
 }
 
 function mergeWhole(key, mine, theirs, first, now) {
-  const m = mine?.value === undefined ? null : mine;
+  const m = mine?.value === undefined ? null : {...mine, at: ahead(mine.at, now)};
   if (!theirs) return m && {at: m.at, value: m.value};
   if (!m || same(m.value, theirs.value)) return theirs;
   if (first) {
     if (isEmpty(key, m.value)) return theirs;
     const value = union(key, theirs.value, m.value);
-    return same(value, theirs.value) ? theirs : {at: Math.max(now, m.at, theirs.at + 1), value};
+    return same(value, theirs.value) ? theirs : {at: ahead(Math.max(now, m.at, theirs.at + 1), now), value};
   }
   return m.at > theirs.at ? {at: m.at, value: m.value} : theirs;
 }
@@ -108,17 +93,18 @@ function mergeEntries(key, side, theirs, now) {
   const mine = side && (side.value !== undefined || size(side.gone)) ? side : null; // nothing saved here and nothing removed
   const a = mine?.value ?? {}, b = theirs?.value ?? {}, gone = {};
   for (const side of [mine?.gone, theirs?.gone])
-    for (const [id, at] of Object.entries(side || {})) if (at > now - GONE_MS && !(gone[id] >= at)) gone[id] = at;
+    for (const [id, t] of Object.entries(side || {})) { const at = ahead(t, now); if (at > now - GONE_MS && !(gone[id] >= at)) gone[id] = at; }
   const value = {};
   for (const id of new Set([...Object.keys(b), ...Object.keys(a)])) {
-    const x = a[id], y = b[id];
+    // Times a day ahead at most, this phone's own entries too (a clock far ahead once): healed as they are written.
+    const x = a[id] === undefined ? undefined : withTime(key, a[id], now), y = b[id];
     const entry = x === undefined ? y : y === undefined ? x : entryTime(key, y) > entryTime(key, x) ? y : x;
     if (gone[id] >= entryTime(key, entry)) continue; // removed after its last change: stays removed
     delete gone[id]; // changed after it was removed: it is back
     value[id] = entry;
   }
   if (!mine && !theirs) return null;
-  return {at: Math.max(mine?.at ?? 0, theirs?.at ?? 0), value, gone};
+  return {at: ahead(Math.max(mine?.at ?? 0, theirs?.at ?? 0), now), value, gone};
 }
 
 /** The title playing now keeps this phone's own progress entries (never changed or removed mid-film). */
@@ -140,12 +126,20 @@ export function mergeCopies({mine, theirs, first = false, playing = null, now = 
   let differs = false;
   for (const k of BACKUP_KEYS) {
     const entries = ENTRY_KEYS.includes(k), m = mine[k], t = theirs[k];
-    const merged = entries ? mergeEntries(k, m, t, now) : mergeWhole(k, m, t, first, now);
+    let merged = entries ? mergeEntries(k, m, t, now)
+      : k !== 'addons' ? mergeWhole(k, m, t, first, now)
+      : first && t && isEmpty(k, m?.value) ? t : mergeAddons(m, t, {now, gone: GONE_MS}); // a first merge with defaults: the server's
     if (!merged) continue;
-    keys[k] = entries ? {at: merged.at, value: merged.value, gone: merged.gone} : {at: merged.at, value: merged.value};
+    // Progress is Astra's own 300 newest, here and in the copy; the copy carries the newest watched marks only.
+    if (k === 'progress') merged = {...merged, value: newest(k, merged.value, MAX_PROGRESS)};
+    const sent = k === 'watched' ? newest(k, merged.value, WATCHED_MAX) : merged.value;
+    // The same as the server's: keep its times, so a stamp here that changed nothing never wins later.
+    if (t && k === 'addons' && same(merged.value, t.value) && same(merged.gone, t.gone) && same(merged.times, t.times)) merged = t;
+    keys[k] = entries ? {at: merged.at, value: sent, gone: merged.gone}
+      : k === 'addons' ? {at: merged.at, value: merged.value, times: merged.times ?? {}, gone: merged.gone ?? {}} : {at: merged.at, value: merged.value};
     const here = k === 'progress' && playing ? keepPlaying(merged.value, m?.value, playing) : merged.value;
     if (!same(here, m?.value ?? (entries ? {} : undefined))) apply[k] = here;
-    if (!t || !same(merged.value, t.value) || (entries && !same(merged.gone, t.gone))) differs = true;
+    if (!t || t.clamped || !same(keys[k].value, t.value) || ((entries || k === 'addons') && !same(keys[k].gone, t.gone)) || (k === 'addons' && !same(keys[k].times, t.times))) differs = true;
   }
   return {copy: {astra: SYNC_TAG, keys}, apply, differs};
 }

@@ -1,48 +1,36 @@
 // Astra the same on every phone the owner signs in on (ASTRA.md §5.3, owner 2026-11-19): this phone's
 // add-ons, library, progress, watched list, settings and recent searches are merged with the copy kept
-// on the owner's server (GET/PUT/DELETE /v1/astra/backup, sealed there by the Worker).
+// on the owner's server (GET/PUT/DELETE /v1/astra/backup, sealed there by the Worker; the requests are in
+// sync-wire.js).
 //
 // Who it talks to: only the owner's own Worker, through worker-api.js with the site's sign-in. Signed
 // out (or framed by another site) nothing is hooked and nothing is sent, ever; with the switch off
 // nothing is sent. When: shortly after start (never before the first paint), back in front after more
-// than 5 minutes, a minute after the last change (each time: fetch, merge, then save if the merge
-// changed anything), "Sync now", and when the page is hidden (a keepalive save of what changed, when it
-// fits in a keepalive's 64 KiB; else it goes on the next start). Failures stay quiet: offline, 5xx, 503,
-// a conflict three times over: tried again later, each wait longer, up to 30 minutes.
+// than 5 minutes, a minute after the last change (each time: fetch, naming the version this phone holds, so
+// an unchanged copy is not sent again; merge; then save if the merge changed anything), "Sync now", and when
+// the page is hidden (a keepalive save of what changed, when it fits in a keepalive's 64 KiB; else it goes on
+// the next start). Failures stay quiet: offline, 5xx, 503, a conflict three times over: tried again later,
+// each wait longer, up to 30 minutes. A copy larger than the Worker takes (1 MiB) is not sent; Settings says so.
 //
-// What stays on this phone: a small record in localStorage `astra.sync.v1` (outside the store's
-// `astra.v2.*`, so backups, restores and Reset never carry it): the switch, when each key last changed
-// here, removed entries (60 days), the version last merged, when it last saved and fetched. Merged values
+// What stays on this phone: a small record in localStorage `astra.sync.v1` (sync-record.js). Merged values
 // pass the store's sanitisers (sync-merge.js) and are written through the store, then announced as
 // another window's write would be, so every open screen follows; the title playing keeps its own
 // progress; the senses reader is told nothing of merged progress (sync-senses.js). Nothing is logged.
 
 import {BACKUP_KEYS, PREFIX} from './store.js';
-import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies, readCopy} from './sync-merge.js';
+import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies} from './sync-merge.js';
+import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
+import {addressesOf, arrivedLine} from './sync-addons.js';
+import {CINEMETA} from '../addons/client.js';
 import {hideFromSenses} from './sync-senses.js';
+import {KEEPALIVE_MAX, MAX_COPY, fetchCopy, removeCopy, saveCopy, sizeOf} from './sync-wire.js';
 import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
 
-export const RECORD = 'astra.sync.v1';
-export const PATH = '/v1/astra/backup';
+export {RECORD};
 export const SAVE_AFTER = 60_000;
 export const AWAY = 5 * 60_000;
-/** A keepalive request's body may be 64 KiB at most: kept under it. */
-export const KEEPALIVE_MAX = 63 * 1024;
 const RETRY = [60_000, 120_000, 300_000, 600_000, 1_800_000];
 const TRIES = 3;
-
-const isObject = v => v != null && typeof v === 'object' && !Array.isArray(v);
-const times = v => isObject(v) ? Object.fromEntries(Object.entries(v).filter(([, t]) => typeof t === 'number' && Number.isFinite(t))) : {};
-const bytes = text => new TextEncoder().encode(text).length;
-const fresh = () => ({off: false, joined: false, at: {}, gone: {}, version: null, savedAt: null, fetchedAt: null, owed: false});
-
-/** The record as stored, checked field by field (a damaged one starts afresh). */
-export function recordOf(v) {
-  if (!isObject(v)) return fresh();
-  const stamp = x => typeof x === 'number' && Number.isFinite(x) ? x : null;
-  return {off: v.off === true, joined: v.joined === true, at: times(v.at), gone: Object.fromEntries(ENTRY_KEYS.map(k => [k, times(v.gone?.[k])])),
-    version: typeof v.version === 'string' ? v.version : null, savedAt: stamp(v.savedAt), fetchedAt: stamp(v.fetchedAt), owed: v.owed === true};
-}
 
 /**
  * Starts keeping this phone in step for `app` (its store, and what it is playing). `deps` replace the
@@ -52,21 +40,23 @@ export function startSync(app, deps = {}) {
   const d = {api: workerApi, session: workerSession, now: () => Date.now(), win: globalThis, doc: globalThis.document, toast: null,
     storage: (() => { try { return globalThis.localStorage; } catch { return null; } })(),
     later: (fn, ms) => setTimeout(fn, ms), cancel: id => clearTimeout(id), idle: fn => globalThis.requestIdleCallback ? requestIdleCallback(fn, {timeout: 4000}) : setTimeout(fn, 1500),
-    fetch: (...a) => globalThis.fetch(...a), ...deps};
+    fetch: (...a) => globalThis.fetch(...a), channel: () => new BroadcastChannel('th-auth'), ...deps};
   // As another window's write is heard (store.js createStorage), so every open screen follows.
   d.announce ??= key => d.win?.dispatchEvent?.(new StorageEvent('storage', {key: PREFIX + key, storageArea: d.storage}));
   const store = app.store, listeners = new Set(), snap = {};
   let signedIn = null, working = null, problem = '', timer = 0, retry = 0, hiddenAt = 0, changes = 0, applying = false;
+  /** This phone's data is a copy of the server's (joined, switch on): what a sign-out must not leave behind. */
+  let inStep = false;
 
   const record = () => { try { return recordOf(JSON.parse(d.storage?.getItem(RECORD) || 'null')); } catch { return fresh(); } };
-  const keep = rec => { try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
+  const keep = rec => { inStep = rec.joined && !rec.off; try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
   // A copy: a listener may stop and start listening again as it runs (Settings redraws itself).
   const changed = () => { for (const fn of [...listeners]) fn(); };
   const schedule = ms => { d.cancel(timer); timer = d.later(() => exchange('timer'), ms); };
 
   /** What this phone holds of a key now: its stored text and, for entry keys, each entry's time. */
   function snapshot(k) {
-    const entries = new Map();
+    const entries = k === 'addons' ? addressesOf(store.get(k, [])) : new Map();
     if (ENTRY_KEYS.includes(k)) for (const [id, e] of Object.entries(store.get(k, {}))) entries.set(id, entryTime(k, e));
     snap[k] = {raw: store.raw(PREFIX + k), entries};
   }
@@ -82,15 +72,12 @@ export function startSync(app, deps = {}) {
       const was = snap[k];
       if (was && store.raw(PREFIX + k) === was.raw) continue;
       snapshot(k);
-      if (rec.off) continue;
-      any = true;
-      // Later than this phone last saw for the key, so a change made after seeing another phone's wins.
-      rec.at[k] = Math.max(now, (rec.at[k] ?? 0) + 1);
-      if (was && ENTRY_KEYS.includes(k))
-        for (const [id, t] of was.entries) if (!snap[k].entries.has(id)) rec.gone[k][id] = Math.max(now, t + 1);
+      // Stamped with the switch off too (nothing is sent): turned on again, removals and additions made meanwhile count.
+      stampChange(rec, k, was, snap[k], now);
+      if (!rec.off) any = true;
     }
+    keep(any ? {...rec, owed: true} : rec);
     if (!any) return;
-    keep({...rec, owed: true});
     changes++;
     schedule(Math.max(SAVE_AFTER, retry ? RETRY[retry - 1] : 0));
   }
@@ -110,7 +97,7 @@ export function startSync(app, deps = {}) {
   /** This phone's side for a merge: each key as stored (undefined when nothing is saved), with the record's stamps. */
   function mine(rec) {
     const out = {};
-    for (const k of BACKUP_KEYS) out[k] = {at: rec.at[k] ?? 0, value: store.get(k, undefined), gone: rec.gone[k] ?? {}};
+    for (const k of BACKUP_KEYS) out[k] = {at: rec.at[k] ?? 0, value: store.get(k, undefined), gone: rec.gone[k] ?? {}, ...(k === 'addons' ? {times: rec.added} : {})};
     return out;
   }
 
@@ -128,44 +115,74 @@ export function startSync(app, deps = {}) {
     } finally { applying = false; }
   }
 
-  /** The Worker's answer to GET, checked: {version, copy} with copy readCopy's (null: nothing usable). */
-  function kept(a) {
-    if (!isObject(a) || !('copy' in a) || (a.version !== null && typeof a.version !== 'string')) throw Object.assign(Error('unreadable'), {code: 'unreadable'});
-    return {version: a.version, copy: a.version === null ? null : readCopy(a.copy)};
-  }
+  /** This phone's own side as a copy, for a save without a merge (nothing changed on the server meanwhile). */
+  const localCopy = rec => mergeCopies({mine: mine(rec), theirs: {}, now: d.now()}).copy;
 
   /** Fetch, merge, write here, save there when the merge changed the copy; up to three times on a conflict. */
   async function run() {
     for (let tries = 1; ; tries++) {
-      const server = kept(await d.api(PATH));
+      const held = record();
+      const server = await fetchCopy(d.api, held.joined ? held.version : null, d.now());
       if (server.copy === 'newer') { problem = 'newer'; return; }
       let rec = record();
       if (rec.off) return;
-      const now = d.now(), first = !rec.joined, side = mine(rec);
+      const now = d.now(), mark = changes;
+      if (server.same) {
+        // The copy there is still the one this phone merged with: nothing to take in; save what changed here.
+        keep({...rec, fetchedAt: now});
+        if (!rec.owed) { problem = ''; return; }
+        if (await save(localCopy(rec), server.version, mark, tries)) return;
+        continue;
+      }
+      const first = !rec.joined, side = mine(rec);
       // A phone that has data but never merged: its non-empty keys changed now (the brief's first-merge rule).
       if (first) for (const k of BACKUP_KEYS) if (!isEmpty(k, side[k].value) && !rec.at[k]) side[k].at = now;
       const merged = mergeCopies({mine: side, theirs: server.copy?.keys ?? {}, first, playing: app.playing?.meta || null, now});
       if (!apply(merged.apply, side.progress.value)) { problem = 'full'; return; }
-      const mark = changes;
       rec = record();
-      for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; }
+      for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; if (v.times) rec.added = v.times; }
       Object.assign(rec, {joined: true, version: server.version, fetchedAt: now, owed: merged.differs});
       keep(rec);
-      if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
+      // An add-on this phone did not have is never taken in silently (anyone with a session of the owner's could
+      // have put it in the copy): said once, by name and host. Else, a first merge with data on both sides says so.
+      const arrived = 'addons' in merged.apply ? arrivedLine(side.addons.value, merged.apply.addons, CINEMETA) : '';
+      if (arrived) d.toast?.(arrived);
+      else if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
         d.toast?.('Astra on this phone and on your other phones were put together. Nothing was lost.');
       if (!merged.differs) { problem = ''; return; }
-      const body = {base: server.version, copy: merged.copy};
-      if (bytes(JSON.stringify(body)) > 2 * 1024 * 1024) { problem = 'too-big'; return; }
-      try {
-        const saved = await d.api(PATH, {method: 'PUT', body});
-        rec = record();
-        keep({...rec, version: String(saved.version), savedAt: d.now(), owed: rec.owed && changes !== mark});
-        problem = '';
-        return;
-      } catch (error) {
-        if (error?.status !== 409 || tries >= TRIES) throw error;
-      }
+      if (await save(merged.copy, server.version, changes, tries)) return;
     }
+  }
+
+  /** Saves `copy` on `base`: true when done (or when it cannot fit, said in Settings), false on a conflict to merge again. */
+  async function save(copy, base, mark, tries) {
+    if (sizeOf(copy) > MAX_COPY) { problem = 'too-big'; return true; }
+    try {
+      const version = await saveCopy(d.api, copy, base);
+      const rec = record();
+      keep({...rec, version, savedAt: d.now(), owed: rec.owed && changes !== mark});
+      problem = '';
+      return true;
+    } catch (error) {
+      if (error?.status !== 409 || tries >= TRIES) throw error;
+      return false;
+    }
+  }
+
+  /**
+   * The session ended. Signed out on this phone, th/session.js wipe() has already removed Astra's data when it
+   * was in step with the server (and says so on its channel); a 401 from the Worker means the server ended the
+   * session (signed out from another device), so the same is done here. Either way, when in step, nothing this
+   * page still holds is written back (the store is frozen until the page is opened again).
+   */
+  function signedOut(byServer) {
+    signedIn = false;
+    d.cancel(timer);
+    if (inStep) {
+      if (byServer) try { for (const k of store.keys()) d.storage.removeItem(PREFIX + k); d.storage.removeItem(RECORD); } catch {}
+      store.freeze();
+    }
+    changed();
   }
 
   /** One exchange at a time; a failure is quiet and tried again later, each wait longer. */
@@ -174,7 +191,8 @@ export function startSync(app, deps = {}) {
     if (working) return working;
     d.cancel(timer);
     working = run().then(() => { retry = 0; }, error => {
-      if (error?.code === 'signed-out' || error?.status === 401) { signedIn = false; return; }
+      if (error?.code === 'signed-out' || error?.status === 401) { signedOut(error?.status === 401); return; }
+      if (error?.status === 413) { problem = 'too-big'; return; } // tried again after the next change
       problem = 'unreached';
       schedule(RETRY[Math.min(retry++, RETRY.length - 1)]);
     }).finally(() => { working = null; changed(); });
@@ -186,14 +204,13 @@ export function startSync(app, deps = {}) {
   function saveOnLeave() {
     const rec = record();
     if (!signedIn || rec.off || !rec.joined || !rec.owed || working) return;
-    const {copy} = mergeCopies({mine: mine(rec), theirs: {}, now: d.now()});
-    const body = {base: rec.version, copy};
-    if (bytes(JSON.stringify(body)) > KEEPALIVE_MAX) return; // too big to outlive the page: the next start sends it
+    const copy = localCopy(rec);
+    if (sizeOf(copy) > KEEPALIVE_MAX) return; // too big to outlive the page: the next start sends it
     d.cancel(timer);
     const mark = changes;
-    d.api(PATH, {method: 'PUT', body, fetchFn: (url, init) => d.fetch(url, {...init, keepalive: true})}).then(saved => {
+    saveCopy(d.api, copy, rec.version, (url, init) => d.fetch(url, {...init, keepalive: true})).then(version => {
       const now = record();
-      keep({...now, version: String(saved.version), savedAt: d.now(), owed: now.owed && changes !== mark});
+      keep({...now, version, savedAt: d.now(), owed: now.owed && changes !== mark});
       changed();
     }, () => {}); // a conflict or a failure: still owed, so the next exchange merges and saves it
   }
@@ -202,6 +219,8 @@ export function startSync(app, deps = {}) {
     signedIn = !!(await d.session().catch(() => null));
     changed();
     if (!signedIn) return; // signed out: nothing is hooked and nothing is sent
+    inStep = record().joined && !record().off;
+    try { d.channel()?.addEventListener('message', e => { if (e.data === 'signed_out') signedOut(false); }); } catch {}
     for (const k of BACKUP_KEYS) snapshot(k);
     hearWrites();
     d.doc?.addEventListener?.('visibilitychange', () => {
@@ -222,7 +241,8 @@ export function startSync(app, deps = {}) {
     setOn(on) {
       if (on === !record().off) return;
       d.cancel(timer);
-      keep(on ? fresh() : {...record(), off: true});
+      // On again: a first merge (both put together), its stamps and tombstones kept so removals still hold.
+      keep({...record(), off: !on, ...(on ? {joined: false, version: null} : {})});
       problem = '';
       changed();
       if (on) { for (const k of BACKUP_KEYS) snapshot(k); exchange(); }
@@ -230,12 +250,11 @@ export function startSync(app, deps = {}) {
     syncNow: () => exchange(),
     /** Deletes the copy on the server, with its daily copies; this phone stops keeping one. */
     async removeCopy() {
-      try { await d.api(PATH, {method: 'DELETE'}); } catch (error) {
-        // api() reads a JSON answer; the Worker's 204 has none, which is the success it says it is.
-        if (error?.status !== 204) return {ok: false, message: error?.message || 'Your server could not be reached.'};
+      try { await removeCopy(d.api); } catch (error) {
+        return {ok: false, message: error?.message || 'Your server could not be reached.'};
       }
       d.cancel(timer);
-      keep({...fresh(), off: true});
+      keep({...record(), off: true, joined: false, version: null, savedAt: null, fetchedAt: null, owed: false});
       changed();
       return {ok: true};
     },

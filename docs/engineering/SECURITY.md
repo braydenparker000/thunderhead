@@ -454,7 +454,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `AUTH_SETUP_FP` | Worker secret (`none` except during first setup) | First setup | Set by the Open setup workflow; set back to `none` after setup (never deleted: it is in `secrets.required`) |
 | `AUTH_RESET_FP` | Worker secret (`none` except during a reset) | Reset ticket via GitHub | Request reset workflow; set back to `none` after use |
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
-| `ASTRA_SEAL_KEY` (P1b; not made) | Nowhere: **as built (2026-11-19) no separate key is made** | Astra's copy of the owner's data ([ASTRA.md §5.3](../product/apps/ASTRA.md)) is sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `astra.backup`), as the Drive grant's is: a fresh 12-byte nonce each save, the object's name and version as additional data, stored in `thunderhead-private` under `astra/` with only a version and a time as metadata. As safe as a key of its own: that key would be a Worker secret beside the pepper, readable by exactly whoever can read the pepper (the Worker's secrets, §14.5), so it would add a secret for the owner to make and keep without separating anyone; HKDF's own info string makes this key independent of the Drive grant's and of the password hashing (the pepper never keys AES itself); the bucket alone (a leak, an export, the read-only signing token that reaches `thunderhead-private`, §9) holds only sealed bytes. No `/import/` run seals anything | Not rotated on its own: the pepper is never overwritten (above). Were it ever, the copy would no longer open; `GET` answers `copy: null` and the next phone's save replaces it from what the phones hold. The owner removes it in Astra: Settings › Your data › Remove the copy on my server |
+| `ASTRA_SEAL_KEY` (P1b; not made) | Nowhere: **as built (2026-11-19) no separate key is made** | Astra's copy of the owner's data ([ASTRA.md §5.3](../product/apps/ASTRA.md)) is sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `astra.backup`), as the Drive grant's is: a fresh 12-byte nonce each save, the object's name and version as additional data, stored in `thunderhead-private` under `astra/` with only a version (an opaque random id), a time and the name of the pepper as metadata. As safe as a key of its own: that key would be a Worker secret beside the pepper, readable by exactly whoever can read the pepper (the Worker's secrets, §14.5), so it would add a secret for the owner to make and keep without separating anyone; HKDF's own info string makes this key independent of the Drive grant's and of the password hashing (the pepper never keys AES itself); the bucket alone (a leak, an export, the read-only signing token that reaches `thunderhead-private`, §9) holds only sealed bytes. No `/import/` run seals anything | Not rotated on its own: the pepper is never overwritten (above). Were it ever, the copy would no longer open; `GET` answers `copy: null` and the next phone's save replaces it from what the phones hold. The owner removes it in Astra: Settings › Your data › Remove the copy on my server |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (P9, Photos) | Worker secrets (`none` until the owner sets them, SETUP.md §R) | Photos' OAuth client for Google Drive (scope `drive.file`); the redirect is fixed, `WORKER_ORIGIN` + `/v1/photos/drive/callback` | Owner: a new client secret in Google Cloud → Credentials, pasted into the Worker's secrets; Disconnect and Connect again in Settings › Photos |
 | The Drive grant (P9) | `Auth` DO table `drive_grant`: the refresh token and the consenting account's address, each sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `photos.drive.refresh`), a fresh 12-byte nonce each | Minting short-lived Drive access tokens (kept only in the object's memory, handed only to the owner's phone and the Worker's daily pass; never to the mind) | Owner: Disconnect in Settings › Photos (the Worker also asks Google to revoke it, the token in a POST body), or remove the app's access in the Google account |
@@ -536,6 +536,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 1. Owner: Settings → Sign-in & devices → **Sign out** that device (or **Sign out everywhere**). Effective ≤60 s.
 2. Check the device list and the ledger for actions in the window.
 3. If the device is still in hand, sign in again.
+4. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.2 An agent key leaked (`thm_`, `ths_`, `thc_`)
 1. Owner: Settings → Agents → **Revoke** the key. Effective ≤60 s.
@@ -547,12 +548,15 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 2. Settings → Sign-in & devices: confirm only this device remains.
 3. Make a new recovery code if the code may have been seen too.
 4. Review Settings → Agents for keys made recently (`agent_key_created` notices).
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.4 The phone is lost or stolen
 1. From any browser: sign in at `/signin/` → Settings → Sign-in & devices → **Sign out** the lost phone (or **Sign out everywhere else**).
 2. If the password isn't available: `/recover/` with the recovery code; that signs out everything.
 3. The phone wipes its private data the next time it reaches the API (or on the `signout` push once Web Push exists). Use Android's own Find My Device erase if needed.
+   Astra's saved data, add-on addresses among it, goes with it when the phone kept Astra in step with the server (ASTRA.md §5.3): the shell's wipe removes it, and Astra removes it itself when the Worker answers 401. A phone that never joined, or had the switch off, keeps it until erased.
 4. Agent keys are not on the phone; leave them.
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.5 A repository or Worker secret leaked
 | Leaked | Do |
@@ -564,6 +568,8 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 | `VAPID_PRIVATE_JWK` | New key pair; devices re-subscribe at next start. An attacker with it alone can't reach devices without their endpoints. |
 | `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
+
+Rotating `AUTH_PEPPER` (§14.6) re-seals Astra's copy (ASTRA.md §5.3) at its next save, under the newest pepper, and that save removes the copy's daily copies, which were sealed under the old one: once the object's `seal` metadata names the new pepper, the old pepper opens nothing kept. A phone's next change saves it; **Sync now** in Astra's Settings › Your data does it at once.
 
 ### 14.7 A stranger used up the free quota
 Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdog fires at 70% of the daily 100k Worker requests before 18:00 UTC.
@@ -606,7 +612,7 @@ Sections once marked as proposals that are not built and not in PLAN.md; their f
 
 - **§6.4 Fallback: client-side KDF ("server relief").** scrypt on the phone and only a keyed hash on the server, with the same verifier, picked by `AUTH_KDF_WHERE`.
   Not needed: X3 passed on 2026-10-29 (decisions.md), so scrypt runs in the `Auth` object.
-- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper.
+- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper. Astra's copy is opened with the newest pepper, then the older, and sealed with the newest (`placeOf` in `backend/src/areas/astra/backup.ts` takes `AUTH_PEPPER_V2` first once it is declared); drop the old pepper after the copy's next save (§14.5).
   Not built (the Worker has one pepper; `pepper_v` is stored for the day it does) and not in PLAN.md.
 - **§14.10 Start the account over (last resort, ask-first).** A one-shot migration, gated on a fingerprint the owner makes and a 24 h wait, clears `Auth` only.
   Not built and not in PLAN.md; the reset ticket is the built way back in.

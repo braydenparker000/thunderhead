@@ -58,7 +58,9 @@ export class SettingsScreen {
         navRow('extension', 'Add-ons', `${addons.filter(a => a.enabled !== false).length} active of ${addons.length}`, () => this.open('Add-ons', p => this.addons(p))),
         navRow('play', 'Playback', 'Gestures, skip intro, subtitles', () => this.open('Playback', p => this.playback(p)))),
       group('Content',
-        switchRow('Recent searches', 'Keep the last 10 searches on this device', app.settings.recentSearches !== false, v => app.saveSettings({recentSearches: v}), 'search')),
+        // Off removes the searches kept, everywhere: an empty list is a change like any other (app/sync.js).
+        switchRow('Recent searches', 'Keep your last 10 searches, on every phone you keep the same', app.settings.recentSearches !== false,
+          v => { app.saveSettings({recentSearches: v}); if (!v) app.store.set('recentSearches', []); }, 'search')),
       group('Data',
         navRow('backup', 'Your data', 'Back up, restore, clear', () => this.open('Your data', p => this.data(p)))),
       group('About',
@@ -214,7 +216,7 @@ export class SettingsScreen {
     page.off = sync.onChange(() => page.render());
     const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
     const said = {unreached: 'Your server could not be reached last time; Astra tries again by itself.', newer: 'A newer Astra saved the copy on your server: update Astra on this phone.',
-      'too-big': 'What this phone holds is too large to keep on your server.', full: 'This phone’s storage is full, so nothing was brought in.'}[s.problem];
+      'too-big': 'What this phone holds is larger than your server keeps (1 MB), so your other phones do not get its changes.', full: 'This phone’s storage is full, so nothing was brought in.'}[s.problem];
     const remove = () => confirm('Remove the copy on your server?', {message: 'Your server forgets Astra’s add-ons, library, progress and settings, and its daily copies. This phone stops keeping one; turn it off on your other phones too, or they save theirs again. Nothing on this phone changes.',
       action: 'Remove', destructive: true, run: async () => { const r = await sync.removeCopy(); toast(r.ok ? 'The copy on your server is removed' : r.message); page.render(); }});
     return group('This phone and your others',

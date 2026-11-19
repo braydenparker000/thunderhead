@@ -16,23 +16,22 @@ export interface Answer<T = Record<string, unknown>> {
   body: T & { error?: { code: string; details?: unknown; message: string } };
 }
 
-/** One request to /v1/astra/backup with a token, a body (an object, or text sent as it is) and,
- * when given, other bindings (`VAULT: undefined` for a config without the bucket). */
+/** One request to /v1/astra/backup with a token, a query (`?known=…`, `?base=…`), a body (an object, or text or
+ * bytes sent as they are) and, when given, other bindings (`VAULT: undefined` for a config without the bucket). */
 export async function backup<T = Record<string, unknown>>(
   method: 'GET' | 'PUT' | 'DELETE',
   token: string | null,
-  body?: unknown,
-  over: Partial<Env> = {},
+  o: { body?: unknown; query?: string; over?: Partial<Env> } = {},
 ): Promise<Answer<T>> {
   const headers = new Headers({ 'CF-Connecting-IP': '192.0.2.10' });
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (body !== undefined) headers.set('Content-Type', 'application/json');
-  const request = new Request('https://api.example.test/v1/astra/backup', {
-    method,
-    headers,
-    body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
-  });
-  const res = await app.fetch(request, { ...env, ...over } as Env, createExecutionContext());
+  if (o.body !== undefined) headers.set('Content-Type', 'application/json');
+  const body =
+    o.body === undefined || typeof o.body === 'string' || o.body instanceof Uint8Array
+      ? o.body
+      : JSON.stringify(o.body);
+  const request = new Request(`https://api.example.test/v1/astra/backup${o.query ?? ''}`, { method, headers, body });
+  const res = await app.fetch(request, { ...env, ...o.over } as Env, createExecutionContext());
   const text = await res.text();
   return {
     status: res.status,
@@ -41,6 +40,14 @@ export async function backup<T = Record<string, unknown>>(
     body: (text ? JSON.parse(text) : null) as Answer<T>['body'],
   };
 }
+
+/** A save: the copy as the body, the version it was merged with (none: nothing kept) in the query. */
+export const put = <T = { version: string; saved_at: string }>(
+  token: string | null,
+  copy: unknown,
+  base: string | null = null,
+  over: Partial<Env> = {},
+) => backup<T>('PUT', token, { body: copy, query: base === null ? '' : `?base=${encodeURIComponent(base)}`, over });
 
 const meta = (i: number, type: string) => ({
   id: `tt${String(1_000_000 + i).padStart(7, '0')}`,
