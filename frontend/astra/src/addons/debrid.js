@@ -61,8 +61,11 @@ const told = new Map(); // the address handed over (or the add-on's link) -> its
 export function forgetAnswers() { kept.clear(); told.clear(); }
 
 /** How the address being played was found (its via, reason, steps and the server's time), or null: for the playback
- * report, which prints none of the address itself. */
-export function answerFor(url) { return typeof url === 'string' ? told.get(url) ?? null : null; }
+ * report, which prints none of the address itself. With no address, the latest answer to a tap (a film not opened). */
+export function answerFor(url) {
+  if (url === undefined) return [...told.values()].at(-1) ?? null;
+  return typeof url === 'string' ? told.get(url) ?? null : null;
+}
 const tell = (answer, stream) => {
   const at = answer.url || stream?.url;
   if (!at) return;

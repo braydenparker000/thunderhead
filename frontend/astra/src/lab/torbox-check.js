@@ -13,6 +13,9 @@
 // with the link and the film's address named, so they are removed wherever they might appear.
 
 import {scrubSecrets, serverGroup} from './scrub.js';
+import {deviceLine} from '../player/playback-report.js';
+
+export {deviceLine};
 
 const PIECE = 64 << 10, SPEED = 2 << 20, WAIT = 15000, LIMIT_WAIT = 10000;
 export const STEPS = [
@@ -195,12 +198,4 @@ export function checkReport(steps, {link = '', device = ''} = {}) {
   const text = [`Astra TorBox check, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC${device ? `, ${device}` : ''}`,
     ...steps.flatMap(s => [`(${s.id}) ${s.title}: ${mark[s.state] || s.state}`, ...s.lines.map(l => `    ${l}`)])].join('\n');
   return scrubSecrets(text, {known: [link, steps.facts?.url].filter(Boolean), hosts: false});
-}
-
-/** The browser and system in two words each, from the user agent: "Chrome 131, Android 14". */
-export function deviceLine(ua = globalThis.navigator?.userAgent || '') {
-  const first = list => list.map(r => r.exec(ua)).find(Boolean);
-  const browser = first([/(Edg|SamsungBrowser|Firefox)\/(\d+)/, /(Chrome)\/(\d+)/, /(Version)\/(\d+)/]);
-  const system = first([/Android [\d.]+/, /iPhone OS [\d_]+/, /Windows NT [\d.]+/, /Mac OS X [\d_]+/, /Linux/]);
-  return [browser && `${browser[1] === 'Version' ? 'Safari' : browser[1]} ${browser[2]}`, system && system[0].replace(/_/g, '.')].filter(Boolean).join(', ');
 }

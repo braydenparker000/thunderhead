@@ -111,6 +111,22 @@ test('Server speed says first how much it will read, then times each TorBox grou
   assert.deepEqual(l.errors, []);
 });
 
+test('Analyse’s "Copy playback report" is the player’s own plain-words report, with no address in it', opts, async (t) => {
+  const film = host.link('multi.mkv', 'tok_Invented0123456789abcdefABCDEF');
+  const l = await lab(t, () => ({ error: 'not signed in' }));
+  await l.page.click('.paste summary');
+  await l.page.fill('#link', film);
+  await l.page.click('#link-form button');
+  await l.page.waitForSelector('#plan:not([hidden])', { timeout: 20_000 });
+  await l.page.click('#copy-report');
+  const text = await l.page.waitForFunction(() => window.copied).then((h) => h.jsonValue());
+  assert.match(text, /^Astra playback report, /);
+  assert.match(text, /\nWhere the time went \(since the film’s load\):\n {4}opened: \d+ ms/);
+  assert.match(text, /\nAddress: as given \(not asked of your server\)\n/);
+  for (const secret of [film, '127.0.0.1', 'multi.mkv', 'tok_Invented', '/via/']) assert.ok(!text.includes(secret), `the report holds ${secret}`);
+  assert.deepEqual(l.errors, []);
+});
+
 test('signed out: the first step says so and nothing else is asked', opts, async (t) => {
   const l = await lab(t, () => ({ error: 'not signed in' }));
   const s = await l.check();
