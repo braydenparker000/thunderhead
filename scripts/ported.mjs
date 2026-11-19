@@ -22,10 +22,13 @@ export const SHARED = ['assets/', 'drawercast/drive-api.js'];
 export const EDITS = {
   // The owner's yes (2026-10-31, the audit's fix list): the pages are titled by their app's name, not the
   // old project's ("Claude Player", "· Jarvis").
-  'media/index.html': { adjustments: ['paths', 'improvement'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js'], ['<title>My Media</title>', '<title>My Media · Jarvis</title>']] },
+  'media/index.html': { adjustments: ['paths', 'improvement'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js'], ['<title>My Media</title>', '<title>My Media · Jarvis</title>'], ["\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>", ""]] },
   'music/index.html': { adjustments: ['improvement'], edits: [['<title>Music</title>', '<title>Claude Player</title>']] },
-  'guitar/index.html': { adjustments: ['improvement'], edits: [['<title>Guitar</title>', '<title>Guitar · Jarvis</title>']] },
-  'podcasts/index.html': { adjustments: ['improvement'], edits: [['<title>Podcasts</title>', '<title>Podcasts · Jarvis</title>']] },
+  'guitar/index.html': { adjustments: ['improvement'], edits: [['<title>Guitar</title>', '<title>Guitar · Jarvis</title>'], ["\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>", ""]] },
+  'podcasts/index.html': { adjustments: ['improvement'], edits: [['<title>Podcasts</title>', '<title>Podcasts · Jarvis</title>'], ["\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>", ""]] },
+  // The owner's yes to smoother pages (2026-11-19): an app's page opened from home's ring uncovers from the
+  // launch colour as one movement (ui/arrive.css, ui/arrive.js, HOME.md §12).
+  'astra/index.html': { adjustments: ['improvement'], edits: [["\n  <link rel=\"stylesheet\" href=\"/ui/arrive.css\"><script src=\"/ui/arrive.js\"></script>", ""]] },
   // The same list: when the page's Drive settings can't be read, it says so in words instead of showing
   // the JSON parser's message.
   'media/app.js': {

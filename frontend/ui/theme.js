@@ -6,13 +6,24 @@
 //    saw them in `th.p.settings`): day from the one, night from the other, flipping at each while
 //    the page stays open. Settings and the shell.appearance verb change the choice through th:theme;
 //    new hours arrive as th:setting.
-// 3. The shell's pages cross-fade into each other (shell.css). A cross-fade that can't run rejects
-//    its promise, which is expected, not an error: into a page that moves on before it shows (signed
-//    out, home goes straight to sign-in), or toward an app's page, which doesn't take part and would
-//    throw on arriving, so it is skipped before it leaves.
+// 3. The shell's pages cross-fade into each other (shell.css), and an app's page opened from the
+//    ring uncovers from the launch colour (ui/arrive.css). A cross-fade that can't run rejects its
+//    promise, which is expected, not an error: into a page that moves on before it shows (signed
+//    out, home goes straight to sign-in), or toward an app's page with no launch colour over home.
 try { if (window.top === window.self) document.documentElement.dataset.unframed = ''; } catch {}
 {
 let flip = 0;
+let shown = false;
+/** Day to night or back: the whole screen cross-fades (a view transition, the browser's 250 ms,
+ * about --d-base) once the page is on screen; at once before its first frame, while hidden, with
+ * reduced motion (the phone's or the owner's), or where the browser has no view transitions. */
+const show = (t) => {
+  const root = document.documentElement, rm = root.dataset.reducedMotion;
+  if (root.dataset.theme === t) return;
+  const still = rm === 'always' || (rm !== 'never' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (!shown || still || document.hidden || !document.startViewTransition) root.dataset.theme = t;
+  else document.startViewTransition(() => { root.dataset.theme = t; }).ready.catch(() => {});
+};
 /** Applies the theme for `pref` (the stored one when not given) and, for Auto, waits for the next of the two hours. */
 const theme = (pref) => {
   clearTimeout(flip);
@@ -25,7 +36,7 @@ const theme = (pref) => {
     night = at(s['mind.night_start'], 22);
   } catch {}
   const now = new Date(), h = now.getHours();
-  document.documentElement.dataset.theme = pref && pref !== 'auto' ? pref : h >= day && h < night ? 'light' : 'dark';
+  show(pref && pref !== 'auto' ? pref : h >= day && h < night ? 'light' : 'dark');
   if (pref && pref !== 'auto') return;
   const next = new Date(now);
   next.setMinutes(0, 0, 0);
@@ -33,6 +44,7 @@ const theme = (pref) => {
   flip = setTimeout(() => theme(), next.getTime() - now.getTime() + 50);
 };
 theme();
+shown = true;
 document.addEventListener('th:theme', (e) => {
   if (!['auto', 'light', 'dark'].includes(e.detail)) return;
   try { localStorage.setItem('th-theme', e.detail); } catch {}
@@ -70,9 +82,17 @@ try {
 } catch {}
 const expected = (fade) => fade?.ready.catch(() => {});
 expected(document.activeViewTransition);
-addEventListener('pagereveal', (e) => expected(e.viewTransition));
+// A page the browser kept whole (its back/forward cache) shows its last frame at once, so a
+// cross-fade from the page left would only flash that page again: none (ui/launch.js uncovers home).
+let kept = false;
+addEventListener('pageshow', (e) => { kept = e.persisted; });
+addEventListener('pagereveal', (e) => { expected(e.viewTransition); if (kept) e.viewTransition?.skipTransition(); });
 addEventListener('pageswap', (e) => {
   if (!e.viewTransition) return;
   expected(e.viewTransition);
-  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(new URL(e.activation.entry.url).pathname)) e.viewTransition.skipTransition();
+  // Toward an app's page only when home's launch colour covers it (ui/launch.js): the app uncovers
+  // from it (ui/arrive.css). Without one ("Opening an app": none) the app's page comes at once.
+  let to = '';
+  try { to = new URL(e.activation.entry.url).pathname; } catch {}
+  if (!/^\/(?:|signin\/|setup\/|recover\/|import\/)$/.test(to) && !document.querySelector('.launch')) e.viewTransition.skipTransition();
 });
