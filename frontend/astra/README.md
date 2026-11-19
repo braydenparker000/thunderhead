@@ -260,10 +260,18 @@ host. The page never calls TorBox.
   went from the load to the first picture (the engine's `timing` entries),
   the route and why, the tracks, this phone's decoders, how the address was
   found (`via`, each step's time and the server's own, from
-  `debrid.js answerFor`), the server group, the link's speed, the stalls so
-  far, and the log (a kind it does not know is a plain line). A film that
-  never opened says so, with why. It goes through the scrubber below, with
-  the stream's address, file name and torrent named.
+  `debrid.js answerFor`, looked up by the stream's own link or the address
+  played, never another film's), the server group, the link's speed, the
+  stalls so far, and the log (a kind it does not know is a plain line). A
+  film that never opened says so, with why. Nothing the file or an add-on
+  named is printed: a track is its language code, codec, channels and kind
+  (inside the file, from an add-on, from this phone), never its label or
+  title; a track chosen, fonts by their count, an error without its detail.
+  Every name the engine holds from the file (track names and labels, chapter
+  titles, font names, subtitle names) is taken out of any engine sentence
+  carrying it, a sentence that is not plain English words and numbers is
+  `[text]`, and each line goes through the scrubber below whole, before it
+  is cut to 240 characters.
 
 ## When add-ons misbehave
 
@@ -1753,10 +1761,14 @@ the steps' words, which never hold an address, a hash, a key or a file
 name, run through `scrubSecrets` (`src/player/playback-report.js`, passed on by
 `src/lab/scrub.js`, ASTRA.md §5.2 rule 3) with the link and the film's
 address named as well, so it is safe to paste into a chat. The scrubber
-turns every address into its host (or, for the reports, `[address]`), a
-key or token named in a query and any run of 32 or more hex or base64url
-characters into `***`, and a video, subtitle or font file's name into
-`[file]`. The lab's **Copy playback report** (after Analyse) is the
+turns every address into its host (or, for the reports, `[address]`),
+also one escaped in JSON, percent-encoded or without its scheme; a magnet
+into `[magnet]`; a key, token, password or magnet title named at any word
+(`token=…`, `apikey: …`) and any run of 32 or more hex or base64url
+characters, or 16 or more hex, into `***`; a video, subtitle or font file's
+whole name, spaces and brackets and all (back to the line, a quote, `: `,
+`; `, `, ` or the bracket around it), into `[file]`; and a dotted release
+name into `[name]`. The lab's **Copy playback report** (after Analyse) is the
 player's own report.
 
 ## Tests

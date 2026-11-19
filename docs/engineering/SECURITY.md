@@ -382,7 +382,10 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
   account does not hold (its file list from checkcached, 30 minutes, at most 200). For the lab,
   `GET /v1/astra/torbox/servers` asks TorBox's speed-test list (GET /speedtest, with the key and
   the phone's address) and hands back each server group's label, region and public test-file
-  address; an address carrying the key or a token query, or not public https, is left out. The
+  address: only TorBox file servers (a `tb-cdn` label in the host), never its API host; an address
+  carrying the key or a token query, or not public https, is left out. checkcached's answer with its
+  file list is read up to 512 KiB and the server list up to 64 KiB (the Free plan's CPU); past that
+  it is trouble, not read. The
   phone reads those test files itself; the Worker reads none of them, and changes nothing in the
   account (TorBox's server choice, `cdn_selection`, is an account setting it never touches).
 - **Add-on links are not opened** (owner's phone, 2026-11-18): an add-on may tie a link to the
