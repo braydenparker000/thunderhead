@@ -380,7 +380,7 @@ export async function renderGroup(body, name, opts = {}) {
     if (!(await confirmSheet({ title: 'Reset this page?', body: 'Every setting on this page goes back to how it came.', action: 'Reset', keep: 'Cancel', danger: false }))) return;
     for (const s of specs) if (!same(value(s), s.default)) { save(s, s.default); redraw(s); }
   } });
-  reset.dataset.act = 'reset';
+  reset.dataset.action = 'reset';
   parts.push(el('div', { class: 'group' }, [reset]));
   const host = el('div', { class: 'scatalog', 'data-group': name }, parts);
   body.append(...(opts.before ?? []), el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);

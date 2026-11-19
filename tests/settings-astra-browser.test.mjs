@@ -90,7 +90,7 @@ test("Motion Off stops even the field's drift, which Reduced leaves running; Hap
 test("Reset this page puts back that page's settings and no other's", opts, async () => {
   const { page, context, errors } = await open({ 'th.s.appearance.glass': 'flat', 'th.s.appearance.corners': 'round', 'th.s.chat.density': 'compact' });
   await show(page, 'appearance');
-  await page.click('.spage.in [data-act="reset"]');
+  await page.click('.spage.in [data-action="reset"]');
   await page.click('.sheet button:has-text("Reset")');
   await page.waitForFunction(() => localStorage.getItem('th.s.appearance.glass') === null);
   assert.deepEqual([await stored(page, 'appearance.glass'), await stored(page, 'appearance.corners'), await stored(page, 'chat.density')], [null, null, 'compact']);
