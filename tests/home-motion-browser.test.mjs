@@ -72,3 +72,21 @@ test('a disc chosen in the ring fades its fill, icon and lift on the compositor:
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('Settings slides in on a frame already painted, its Back drawn in place, and its frost fades on the compositor', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
+  await page.waitForTimeout(800);
+  // The frame that lays the new page out is not one of the slide's.
+  const first = page.evaluate(() => new Promise((resolve) => new MutationObserver((_, o) => {
+    const p = document.querySelector('.spage');
+    if (p) { o.disconnect(); requestAnimationFrame(() => resolve(p.classList.contains('in'))); }
+  }).observe(document.querySelector('#app'), { childList: true })));
+  await page.click('#settings');
+  assert.equal(await first, false);
+  await page.waitForSelector('.spage.in');
+  assert.equal(await page.$('.spage .sback use'), null, 'Back reads no sprite');
+  assert.deepEqual(await page.$$eval('#side > .field, .spage > .field', (fs) => fs.map((f) => getComputedStyle(f).transitionProperty)), ['opacity', 'opacity']);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

@@ -83,7 +83,8 @@ export async function openPage(name, opts = {}) {
   document.querySelector('#app').append(page);
   stack.push(page);
   let closed = false;
-  requestAnimationFrame(() => { if (!closed) { page.classList.add('in'); slide.to(1); } });
+  // A frame lays the page out and paints it off to the right; the slide starts on the next (none of its frames carries that).
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (!closed) { page.classList.add('in'); slide.to(1); } }));
   /** @param {number} [velocity] the finger's, in progress per second @param {number} [ms] a flick's own duration */
   const close = (velocity = 0, ms = undefined) => {
     if (closed) return;
@@ -130,6 +131,7 @@ function pageMotion(page) {
   motion.set(0);
   page.classList.add('moving');
   const clock = () => (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--d-page')) || 460) / 410;
+  const opening = clock(); // read now, while style is clean (in the slide's first frame it forced the new page's style)
   return {
     get value() { return motion.value; },
     /** @param {number} to @param {number} [velocity] @param {number} [ms] a flick's own duration */
@@ -137,7 +139,7 @@ function pageMotion(page) {
       target = to; held = false;
       const at = ++run;
       page.classList.add('moving');
-      motion.to(to, { spring: springs.page, velocity, timeScale: ms ? ms / 410 : clock() });
+      motion.to(to, { spring: springs.page, velocity, timeScale: ms ? ms / 410 : to === 1 ? opening : clock() });
       return motion.whenResting().then(() => { if (at === run) page.classList.remove('moving'); });
     },
     /** A finger has the page: it follows on x, unfrosted. @param {number} v */
