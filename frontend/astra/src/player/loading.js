@@ -11,6 +11,7 @@ import {T, appear, arrive, leave, ghost} from './feel.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
 import {addressNotice, tryAgain} from './address.js';
 import {copyFromPlayer} from './playback-report.js';
+import {whenIdle} from '../ui/motion-core.js';
 
 export const WAITING = 'Waiting for the film…';
 /** The error card's actions with the filled (primary) one first, where the eye and the thumb land. */
@@ -93,22 +94,37 @@ export class Loading {
    * puts it away. Across the top, dropping from the top edge; `edge` (the sleep timer): at the bar's
    * edge, rising from it with the spring.
    */
-  notice(text, action = null, {edge = false} = {}) {
+  notice(text, action = null, {edge = false, hold = false} = {}) {
     const p = this.p, n = p.noticeEl;
     text = addressNotice(p.stream?.resolved, text); // Chrome plays the add-on's link: why that link was used (address.js)
     const fresh = n.hidden || n.classList.contains('edge') !== edge;
     n.replaceChildren(h('span', {}, text), action ? h('button', {class: 'ap-chip ap-notice-action', type: 'button', onclick: action.run}, action.label) : '');
     n.classList.toggle('edge', edge);
     n.hidden = false;
-    if (fresh) appear(n, edge ? {name: 'notice:edge', offset: 'translateY(16px)'} : {name: 'notice:in', offset: 'translateY(-8px)', ms: T.normal, curve: 'snappy'});
     clearTimeout(this.noticeTimer);
-    this.noticeTimer = setTimeout(() => this.dropNotice(), 7000);
+    if (fresh) {
+      // Never urgent: held unseen until the main thread is free (the film's first picture is busy), then it moves.
+      this.cancelNotice?.();
+      Object.assign(n.style, {opacity: '0', pointerEvents: 'none'});
+      this.cancelNotice = whenIdle(() => {
+        this.cancelNotice = null;
+        n.style.opacity = ''; n.style.pointerEvents = '';
+        if (n.hidden) return;
+        appear(n, edge ? {name: 'notice:edge', offset: 'translateY(16px)'} : {name: 'notice:in', offset: 'translateY(-8px)', ms: T.normal, curve: 'snappy'});
+        clearTimeout(this.noticeTimer);
+        if (!hold) this.noticeTimer = setTimeout(() => this.dropNotice(), 7000);
+      }, {timeout: 1500});
+    } else if (!hold) this.noticeTimer = setTimeout(() => this.dropNotice(), 7000);
   }
+
+  /** A notice still waiting to be seen is dropped with it. */
+  quietNotice() { this.cancelNotice?.(); this.cancelNotice = null; const n = this.p.noticeEl; n.style.opacity = ''; n.style.pointerEvents = ''; }
 
   /** The notice goes back where it came from (a copy fades; the notice itself is gone at once). */
   dropNotice() {
     const n = this.p.noticeEl;
     if (n.hidden) return;
+    if (this.cancelNotice) { this.quietNotice(); n.hidden = true; return; } // never seen: nothing to fade
     ghost(n, {name: 'notice:out', offset: n.classList.contains('edge') ? 'translateY(8px)' : 'translateY(-8px)'});
     n.hidden = true;
   }
@@ -116,7 +132,7 @@ export class Loading {
   /** The host connection lost and found again: playback goes on from the buffer meanwhile, so this is a notice, not an error. */
   networkState(state) {
     const p = this.p;
-    if (state === 'reconnecting') { this.notice('Reconnecting…'); clearTimeout(this.noticeTimer); }
+    if (state === 'reconnecting') this.notice('Reconnecting…', null, {hold: true}); // stays until connected or lost
     else if (state === 'connected' && !p.noticeEl.hidden) this.notice('Connected again');
     else if (state === 'lost') this.dropNotice();
   }
@@ -155,6 +171,7 @@ export class Loading {
     this.show(false);
     p.waitWords.textContent = WAITING;
     clearTimeout(this.noticeTimer);
+    this.quietNotice();
     p.noticeEl.hidden = true;
     p.errorCard.hidden = true;
   }

@@ -18,7 +18,7 @@ import {readSetting, writeSetting, applyAll, row} from '../settings/registry.js'
 // Only what applies a stored look runs at start; the rows themselves load with the Settings screen.
 import {applyLook, lookSetting} from '../settings/look.js';
 import {screenFor} from './lazy-screen.js';
-import {push as pushMotion, pop as popMotion, swap, press, tick} from '../ui/motion.js';
+import {push as pushMotion, pop as popMotion, swap, press, tick, afterFirstFrame} from '../ui/motion.js';
 
 const TABS = [
   {id: 'home', label: 'Home', icon: 'home'},
@@ -177,9 +177,9 @@ export class App {
   selectTab(id, fromTap = false) {
     if (this.tab === id) { if (fromTap) this.screens[id]?.reselect?.(); return; }
     if (fromTap) tick('select');
-    const first = !this.screens[id];
-    if (first) this.screens[id] = screenFor(this, id); // Search and Settings load on their first visit
-    const previous = this.tab;
+    const previous = this.tab, first = !this.screens[id] || !!this.unshown?.delete(id);
+    // A first visit (Search and Settings load then) is built after the fade's first frame, under the old tab's fade-out.
+    const build = () => { this.screens[id] ??= screenFor(this, id); if (this.tab === id) this.screens[id].onShow?.(first); else (this.unshown ??= new Set()).add(id); };
     // Hidden tabs stay laid out (content-visibility), so coming back is a repaint, not a rebuild. Only
     // the new tab takes touches at once; the old one fades (ui/motion.js swap) and is then hidden.
     for (const [k, v] of Object.entries(this.views)) { v.inert = k !== id; if (k !== id && k !== previous) v.classList.add('off'); }
@@ -192,7 +192,7 @@ export class App {
     this.pill.style.setProperty('--i', TABS.findIndex(t => t.id === id));
     this.tab = id;
     this.screens[previous]?.onHide?.();
-    this.screens[id].onShow?.(first);
+    if (first && previous) afterFirstFrame().then(build); else build();
     // Back from another tab returns to Home.
     if (id !== 'home' && !this.tabLayer) this.tabLayer = pushLayer('tab', () => { this.tabLayer = null; this.selectTab('home'); });
     else if (id === 'home' && this.tabLayer) { const pop = this.tabLayer; this.tabLayer = null; pop(); }

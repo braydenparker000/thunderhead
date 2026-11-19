@@ -7,6 +7,7 @@ import {icon} from './icons.js';
 import {pushLayer} from '../app/back-stack.js';
 import {enter, exit, fadeTo, rise, press, stop, sheet as sheetMotion, T} from './motion.js';
 import {SPRINGS, samples} from './spring.js';
+import {whenIdle} from './motion-core.js';
 
 // Pointers currently down anywhere, so a menu opened by a long press can ignore the release of that
 // same press.
@@ -167,10 +168,12 @@ export function confirm(title, {message = '', action = 'OK', destructive = false
   return close;
 }
 
-let toastTimer = 0, pinned = null, leaving = null;
+let toastTimer = 0, pinned = null, leaving = null, coming = null;
 /**
  * A short message that rises from the nav bar (--spring-lively) and leaves by fading. With `stay`, it
- * stays (shown again after any other toast) until its action is taken or Later is tapped.
+ * stays (shown again after any other toast) until its action is taken or Later is tapped. A toast is never
+ * urgent: its words are there at once, held unseen, and it rises once the main thread is free (an idle
+ * moment, within 2 s), so its movement never shares a frame with heavy work and runs on the compositor.
  */
 export function toast(text, {action = null, stay = false} = {}) {
   let el = document.querySelector('.toast');
@@ -185,12 +188,24 @@ export function toast(text, {action = null, stay = false} = {}) {
   el.replaceChildren(...[h('span', {}, text), action ? h('button', {type: 'button', onclick: () => { hide(); action.run(); }}, action.label) : null, later].filter(Boolean));
   // A toast already up changes its words in place; one coming in rises (its first frame is drawn
   // below the bar, so even the very first toast moves).
-  const wasUp = el.classList.contains('show') && !leaving;
+  const wasUp = el.classList.contains('show') && !leaving && !coming;
+  const keep = () => {
+    clearTimeout(toastTimer);
+    if (!stay) toastTimer = setTimeout(() => { if (pinned) toast(pinned.text, {action: pinned.action, stay: true}); else hide(); }, action ? 4000 : 2500);
+  };
+  if (wasUp) { keep(); return; }
+  coming?.cancel(); // the newest words and timing win
   leaving = null;
+  stop(el);
   el.classList.add('show');
-  if (!wasUp) enter(el, {from: 'translate(-50%, 48px) scale(0.92)', to: 'translate(-50%, 0)', spring: 'lively', duration: T.lively, name: 'toast:in'});
-  clearTimeout(toastTimer);
-  if (!stay) toastTimer = setTimeout(() => { if (pinned) toast(pinned.text, {action: pinned.action, stay: true}); else hide(); }, action ? 4000 : 2500);
+  Object.assign(el.style, {opacity: '0', pointerEvents: 'none'}); // held unseen until it rises
+  const cancel = whenIdle(() => {
+    coming = null;
+    el.style.opacity = ''; el.style.pointerEvents = '';
+    enter(el, {from: 'translate(-50%, 48px) scale(0.92)', to: 'translate(-50%, 0)', spring: 'lively', duration: T.lively, name: 'toast:in'});
+    keep();
+  }, {timeout: 2000});
+  coming = {cancel};
 }
 
 /** Forgets a toast that stays (its reason is over), so it is not shown again. */

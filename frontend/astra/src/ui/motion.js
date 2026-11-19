@@ -9,7 +9,7 @@ import {timed, feelEntries, reportText, measureRefresh, refreshRate} from './fee
 
 export {level, onLevel, tick, setMotionChoice, setHaptics, levelFor, hapticPattern, T} from './motion-core.js';
 export {timed} from './feel-log.js';
-export {stop} from './motion-core.js';
+export {stop, afterFirstFrame, nextFrame, whenIdle} from './motion-core.js';
 export {sheet, shouldDismiss, resist} from './sheet-motion.js';
 
 /** The feel log as plain text, with the screen's refresh rate and the level and haptics it was made under. */
