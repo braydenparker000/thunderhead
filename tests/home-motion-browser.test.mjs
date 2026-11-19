@@ -63,3 +63,12 @@ test('a menu group folding slides the groups under it on a transform; its rows n
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('a disc chosen in the ring fades its fill, icon and lift on the compositor: no visibility flip rides with them', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.waitForSelector('#ring .pet .fill', { state: 'attached' });
+  const transitions = await page.$eval('#ring .pet', (p) => ['.fill', 'svg.on', '.lift'].map((s) => getComputedStyle(p.querySelector(s)).transitionProperty));
+  assert.deepEqual(transitions, ['opacity', 'opacity', 'opacity']);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
