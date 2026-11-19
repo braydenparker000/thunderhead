@@ -34,7 +34,7 @@ export function image(src, alt = '', cls = '', {eager = false, label = ''} = {})
   // dropped its decoded copy draws it again in the same frame instead of leaving its tile empty for one.
   const painted = () => { shown.add(src); img.decoding = 'sync'; };
   if (img.complete && img.naturalWidth) painted();
-  else img.addEventListener('load', () => { if (!again) img.classList.add('loaded'); painted(); }, {once: true});
+  else img.addEventListener('load', () => { if (!shown.has(src)) img.classList.add('loaded'); painted(); }, {once: true}); // painted elsewhere meanwhile: no fade
   return img;
 }
 
