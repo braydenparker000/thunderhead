@@ -272,7 +272,10 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 3. **Scrubber** (one function, `scrubSecrets(text)`; as built 2026-11-18 it is `frontend/astra/src/lab/scrub.js`, used by the lab's reports, while error reports use `frontend/ui/scrub.js`): replaces
    every `https?://` URL with `<host>/…` and every query value named `token`, `apikey`, `api_key`, `key`
    with `***`, and any 32+ character hex or base64url run with `***`. Check: unit tests with fixture
-   add-on URLs (invented hosts).
+   add-on URLs (invented hosts). **Owner ruling 2026-11-19:** the player's playback report (`player/playback-report.js`,
+   which now holds `scrubSecrets`) keeps out only links, hashes, tokens and keys, and the stream's own address, host
+   and file name: it may hold the file's own words (track titles and languages, error details, font names, the plan's
+   notes). The lab's TorBox check still also takes out file and release names.
 4. Fixture add-ons in tests use invented hosts (`addon.example`) and invented tokens.
 5. **As built (2026-11-15):** "Check playback in the lab" sends the stream address in the fragment
    (`lab/#src=…`), which never reaches a server or a cache key, and the lab removes it from the address

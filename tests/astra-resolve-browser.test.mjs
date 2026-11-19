@@ -5,8 +5,9 @@
 // there, the add-on's link untouched, and Stream info says "From TorBox directly". Answered with an error, the
 // film still plays through the add-on's link (a host a page cannot read, so in Chrome's own player) and the
 // server's reason is the notice and Stream info's line. Signed out, nothing reaches the server and the add-on's
-// link plays as before. The playback report copied from Stream info and from the error card holds no address, hash,
-// key, token or file name, though the film came from an invented tokened address. Every DNS answer but the local
+// link plays as before. The playback report copied from Stream info and from the error card holds the file's own
+// words but no address, host, hash, key, token, add-on setting or the film's file name (owner ruling 2026-11-19),
+// though the film came from an invented tokened address. Every DNS answer but the local
 // host's is refused: nothing can leave for a real host.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -215,6 +216,9 @@ test('the playback report from Stream info and from the error card: where the ti
   assert.match(text, /\nServer: TorBox group latm\n/);
   assert.match(text, /\nStalls so far: 0;/);
   assert.match(text, /\nTracks:\n {4}picture: /);
+  assert.match(text, /\n {4}sound 1 \(playing\): .*language /, 'each sound as the file gives it');
+  assert.match(text, /\nChapters: \d+\n/);
+  if (process.env.ASTRA_SHOTS) await import('node:fs').then((fs) => fs.writeFileSync(`${process.env.ASTRA_SHOTS}/report.txt`, text));
   assert.match(text, /\nThis phone:\n {4}decodes H\.264 /);
   for (const secret of SECRETS(FILM_URL)) assert.ok(!text.includes(secret), `Stream info's report holds ${secret}`);
   // The error card's "Copy report" is the same report.

@@ -1,11 +1,14 @@
-// The playback report: one plain text, safe to paste into a chat, copied from the player's Stream info while a film
+// The playback report: one plain text for the person debugging, copied from the player's Stream info while a film
 // plays, from its error card, and from the lab (docs/product/apps/ASTRA.md §5.2 rule 3). It says where the time went
-// between the film's load and its first picture (the engine's `timing` entries), the route and why, the tracks, this
-// phone's decoders, how the address was found (the resolver's via and each step's time, from addons/debrid.js), the
-// server group, the link's speed and the stalls so far, then the engine's log, where an entry of a kind this module
-// does not know is printed as a plain line rather than dropped. It never holds an address, a hash, a key, a token or
-// a file name: none is put in, and scrubSecrets() takes out any that a log line carried. scrubSecrets(),
-// serverGroup() and deviceLine() live here so the player need not load the lab (lab/scrub.js passes them on).
+// between the film's load and its first picture (the engine's `timing` entries), the route and why as the engine
+// wrote it, the tracks as the file gives them (titles, languages, codecs, how each sound plays and why), this phone's
+// decoders, how the address was found (the resolver's via and each step's time, from addons/debrid.js), the server
+// group, the link's speed, the stalls and the chapter count, then the engine's log as it is (errors with their
+// detail, fonts by name). Owner ruling 2026-11-19: it keeps out only links, hashes, tokens and keys. So every web
+// address in any form, magnet, hash, token and key is taken out of every line before it is cut, and so are the
+// stream's own address, its host and its file's name wherever they appear (scrubSecrets with `names: false`). The
+// lab's TorBox check keeps the stricter scrubbing (`names: true`, the default: file and release names go too).
+// scrubSecrets(), serverGroup() and deviceLine() live here so the player need not load the lab (lab/scrub.js).
 
 import {deviceReport, surroundWords} from '../engine/capabilities.js';
 import {channelName} from '../engine/labels.js';
@@ -62,11 +65,13 @@ const release = m => (m.split('.').filter(p => /^[A-Za-z]{2,}$/.test(p)).length 
  * in JSON or percent-encoded) becomes its host and "/…" (or "[address]" with `hosts: false`); a magnet becomes
  * [magnet]; a token, key, password or magnet title named at any word ("token=…", "apikey: …") becomes ***; any run of
  * 32 or more hex or base64url characters, or 16 or more hex (a hash, a key, a token, an encoded add-on setting),
- * becomes ***; a video, subtitle or font file's whole name (spaces and all) becomes [file], a release name [name];
- * and each of the `known` strings (the addresses and names the caller held) is removed wherever it appears, plain or
- * percent-encoded. @param {string} text @param {{known?: string[], hosts?: boolean}} [o]
+ * becomes ***; each of the `known` strings (the addresses and names the caller held) is removed wherever it appears,
+ * plain, percent-encoded or JSON-escaped; and with `names` (the lab's check, the default) a video, subtitle or font
+ * file's whole name (spaces and all) becomes [file] and a release name [name]. The playback report passes
+ * `names: false`: the file's own words are what the person debugging needs, and the film's file name is known.
+ * @param {string} text @param {{known?: string[], hosts?: boolean, names?: boolean}} [o]
  */
-export function scrubSecrets(text, {known = [], hosts = true} = {}) {
+export function scrubSecrets(text, {known = [], hosts = true, names = true} = {}) {
   let out = String(text ?? '');
   for (const k of known) {
     if (typeof k !== 'string' || k.length < 4) continue;
@@ -76,7 +81,7 @@ export function scrubSecrets(text, {known = [], hosts = true} = {}) {
   out = out.replace(MAGNET, '[magnet]').replace(QUERY, '$1***').replace(LABELLED, '$1***');
   out = out.replace(ADDRESS, (_m, host) => (hosts && host ? `${host}/…` : '[address]'));
   out = out.replace(BARE, (_m, lead, a, b) => `${lead}${hosts ? `${a || b}/…` : '[address]'}`);
-  out = dropNames(out).replace(RELEASE, release);
+  if (names) out = dropNames(out).replace(RELEASE, release);
   return out.replace(RUN, '***').replace(HEX, '***');
 }
 
@@ -143,62 +148,65 @@ export function resolverLines(answer, opened = true) {
     ...(answer.steps || []).map(s => `    ${s.step} ${s.ok ? '✓' : '✗'} ${ms(+s.ms || 0)}${s.note ? `: ${s.note}` : ''}`)];
 }
 
-// A track is said by its language code, codec, channels and kind: never its label or title (a file's or an add-on's
-// own words: a release name, a commentary's name, a subtitle file's name).
-const lang = v => (typeof v === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i.test(v) ? v : 'und');
-const codec = v => (typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9 .+-]{0,23}$/.test(v) ? v : 'unknown codec');
 const KIND = {embedded: 'inside the file', stream: 'from the stream', external: 'from an add-on'};
+const DELIVERY = {direct: 'plays as it is', rebuilt: 'converted on this phone', software: 'by the software decoder'};
+const quoted = v => (typeof v === 'string' && v ? `"${v}"` : '');
 
-/** The tracks: the picture, each sound (the one playing marked), the subtitles. */
+/** The tracks as the file gives them: each sound (its title, language, codec, channels, how it plays and why; the one
+ * playing marked) and each subtitle (its title, language and kind), numbered as the log names them. */
 function trackLines(e) {
-  const v = e.info?.video?.[0], known = e.info?.audio || [];
-  const sel = (e.audio || []).find(a => a.id === e.selectedAudio);
+  const v = e.info?.video?.[0], known = e.info?.audio || [], list = e.audio || [];
   // Astra's own pipeline names the probe's track; the software decoder's and the browser's own list them in order.
-  const playing = sel?.option?.track?.id ?? (/^(sw|native):/.test(String(sel?.id)) ? known[e.audio.indexOf(sel)]?.id : sel?.id);
-  const sounds = known.length ? known.map(t => [lang(t.language), codec(t.label), t.channels && channelName(t.channels), t.commentary && 'commentary'].filter(Boolean).join(', ')
-    + (t.id === playing ? ` (playing)${sel?.delivery === 'rebuilt' ? ', converted on this phone' : ''}` : ''))
-    : (typeof e.audioOptions === 'function' ? e.audioOptions() : []).map(a => lang(a.language) + (a.selected ? ' (playing)' : ''));
-  const subs = (typeof e.subtitleOptions === 'function' ? e.subtitleOptions() : []).map(s => `${lang(s.language)} ${s.kind === 'external' && s.source === 'This phone' ? 'from this phone' : KIND[s.kind] || 'from elsewhere'}${s.image ? ', pictures' : ''}${s.forced ? ', forced' : ''}${s.selected ? ' (shown)' : ''}`);
+  const trackOf = (a, i) => a.option?.track ?? (/^(sw|native):/.test(String(a.id)) && known.length === list.length ? known[i] : null);
+  const sounds = list.map((a, i) => {
+    const t = trackOf(a, i);
+    const facts = t ? [t.name && `title ${quoted(t.name)}`, `language ${t.language || 'not given'}`, t.label && `codec ${t.label}`, t.channels && channelName(t.channels), t.commentary && 'commentary']
+      : [quoted(a.label), `language ${a.language || 'not given'}`];
+    const how = a.supported === false ? `not playable here${a.reason ? `: ${a.reason}` : ''}` : DELIVERY[a.delivery];
+    return `    sound ${i + 1}${a.id === e.selectedAudio ? ' (playing)' : ''}: ${[...facts, how].filter(Boolean).join(', ')}`;
+  });
+  const subs = (typeof e.subtitleOptions === 'function' ? e.subtitleOptions() : []).map((s, i) =>
+    `    subtitle ${i + 1}${s.selected ? ' (shown)' : ''}: ${[quoted(s.label), `language ${s.language || 'not given'}`,
+      s.kind === 'external' && s.source === 'This phone' ? 'from this phone' : s.kind === 'external' && s.source ? `from an add-on (${s.source})` : KIND[s.kind] || s.kind,
+      s.image && 'pictures', s.forced && 'forced', s.supported === false && `not shown here${s.reason ? `: ${s.reason}` : ''}`].filter(Boolean).join(', ')}`);
   return ['Tracks:',
-    `    picture: ${v ? [codec(v.label || v.codec), v.width && `${v.width}×${v.height}`, v.hdr && 'HDR'].filter(Boolean).join(' ') : 'not read'}`,
-    ...sounds.map(x => `    sound: ${x}`), `    subtitles: ${subs.join('; ') || 'none'}`];
+    `    picture: ${v ? [v.label || v.codec, v.width && `${v.width}×${v.height}`, v.hdr && 'HDR', v.name && `title ${quoted(v.name)}`].filter(Boolean).join(', ') : 'not read'}`,
+    ...(sounds.length ? sounds : known.map((t, i) => `    sound ${i + 1}: ${[t.name && `title ${quoted(t.name)}`, `language ${t.language || 'not given'}`, t.label && `codec ${t.label}`].filter(Boolean).join(', ')}`)),
+    ...(subs.length ? subs : ['    subtitles: none'])];
 }
 
-/** What came from the file or the add-on that the engine holds: track names and labels, chapter titles, font names,
- * subtitle names. Never printed: taken out wherever an engine sentence carries one. Longest first. */
-export function fileWords(e) {
-  const words = [];
-  for (const t of [...(e.info?.video || []), ...(e.info?.audio || []), ...(e.info?.subtitles || [])]) words.push(t.name, t.title);
-  for (const t of [...(e.audio || []), ...(e.textTracks || [])]) words.push(t.label, t.name);
-  for (const o of [...(e.audioOptions?.() || []), ...(e.subtitleOptions?.() || [])]) words.push(o.label, o.name);
-  for (const c of e.chapters || []) words.push(c.title);
-  for (const l of e.log || []) if (l.kind === 'fonts' && Array.isArray(l.detail)) words.push(...l.detail.map(f => String(f).replace(/ \(\d+ bytes\)$/, '')));
-  return [...new Set(words.filter(w => typeof w === 'string' && w.length >= 4))].sort((a, b) => b.length - a.length);
-}
-
-/** An engine sentence as it may be printed: plain English words and numbers, else [text] (a name in another script,
- * a symbol a file name carries). The file's own words are taken out before (fileWords), and the scrubber after. */
-export const words = v => (typeof v === 'string' && v.length <= 300 && /^[A-Za-z0-9\s.,;:'’‘“”()%+×\-–—…!?/·→[\]]*$/.test(v) ? v : '[text]');
-/** Only numbers, yes-no and plain words of an object; nested ones are left out. */
-const fields = d => Object.entries(d).filter(([, v]) => v == null || typeof v !== 'object').map(([k, v]) => `${k} ${typeof v === 'string' ? words(v) : v}`).join(', ');
-
-/** One log entry's words: a track's choice without its name, fonts by their count, an error without its detail. */
-function logDetail(kind, d) {
-  if (kind === 'audio') return 'another track chosen';
-  if (kind === 'subtitle' || kind === 'second subtitle') return d === 'off' ? 'off' : 'a track shown';
-  if (kind === 'fonts') return Array.isArray(d) ? `${d.length} attached` : 'not read';
-  if (kind === 'plan') return words(d?.mode ?? '');
-  if (kind === 'error') return words(d?.message ?? '');
-  if (kind === 'passthrough') return `${codec(d?.codec)} at ${Number(d?.at) || 0}`;
-  if (d && typeof d === 'object') return Array.isArray(d) ? `${d.length} items` : fields(d);
-  return words(String(d ?? ''));
+/** One log entry's words, as the engine wrote them: a track chosen by its number and title, fonts by name and count,
+ * an error with its detail, a sound passed through with why. */
+function logDetail(e, kind, d) {
+  const numbered = (list, label) => { const i = list.findIndex(x => x.label === label); return i >= 0 ? `track ${i + 1} ${quoted(label)}` : quoted(label); };
+  if (kind === 'audio') return numbered(e.audio || [], d);
+  if (kind === 'subtitle' || kind === 'second subtitle') return d === 'off' ? 'off' : numbered(typeof e.subtitleOptions === 'function' ? e.subtitleOptions() : [], d);
+  if (kind === 'fonts') return Array.isArray(d) ? `${d.length} attached: ${d.join(', ')}` : plain(d);
+  if (kind === 'error') return [d?.message, d?.detail].filter(Boolean).join(' — ');
+  if (kind === 'passthrough') return `${d?.codec} at ${d?.at}${d?.reason ? `: ${d.reason}` : ''}`;
+  return plain(d);
 }
 
 /** The engine's log since the load, each entry one plain line; kinds summarised above are left out. */
-function logLines(entries, start, scrub) {
-  const shown = entries.filter(e => e.kind !== 'timing').slice(-60);
-  // Each line scrubbed whole before it is cut: a name cut in two would no longer look like one.
-  return shown.length ? ['Log (seconds since the load):', ...shown.map(e => scrub(`    +${((e.t - start) / 1000).toFixed(1)} ${words(e.kind)}: ${logDetail(e.kind, e.detail)}`).slice(0, 240))] : [];
+function logLines(e, entries, start, scrub) {
+  const shown = entries.filter(x => x.kind !== 'timing').slice(-60);
+  // Each line scrubbed whole before it is cut: an address or a known name cut in two would no longer look like one.
+  return shown.length ? ['Log (seconds since the load):', ...shown.map(x => scrub(`    +${((x.t - start) / 1000).toFixed(1)} ${x.kind}: ${logDetail(e, x.kind, x.detail)}`).slice(0, 300))] : [];
+}
+
+/** What is known that must never show, from the addresses themselves: each address, its host, and the file's name
+ * its path ends with (the film's file name is part of its address), plain and decoded. */
+export function addressSecrets(urls) {
+  const out = [];
+  for (const u of urls) {
+    let parsed = null;
+    try { parsed = new URL(u); } catch { continue; }
+    const last = parsed.pathname.split('/').pop() || '';
+    let name = last;
+    try { name = decodeURIComponent(last); } catch {}
+    out.push(u, parsed.hostname, ...(/\.[a-z0-9]{2,5}$/i.test(name) ? [last, name, name.replace(/\+/g, ' ')] : []));
+  }
+  return out;
 }
 
 /** This phone's decoders, in a few lines. */
@@ -215,29 +223,31 @@ const heading = ua => `Astra playback report, ${new Date().toISOString().slice(0
 export async function playbackReport(engine, {answer, known = [], ua, opened = true} = {}) {
   const e = engine, url = typeof e.url === 'string' ? e.url : '';
   const device = await deviceReport().catch(() => null);
-  if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null, false), ...deviceLines(device)].join('\n'), {known: known.filter(Boolean), hosts: false});
+  const secrets = [...known, ...addressSecrets([url, ...known])].filter(s => typeof s === 'string' && s);
+  // Longest first, so an address goes whole before its host or its file's name inside it.
+  const scrubbing = {known: [...new Set(secrets)].sort((a, b) => b.length - a.length), hosts: false, names: false};
+  if (!opened) return scrubSecrets([heading(ua), 'The film was not opened.', ...resolverLines(answer ?? null, false), ...deviceLines(device)].join('\n'), scrubbing);
   const {entries, start} = thisLoad(e.log || []);
-  const scrubbing = {known: [url, ...known, ...fileWords(e)].filter(Boolean), hosts: false};
-  const say = text => words(scrubSecrets(text, scrubbing)); // an engine sentence that may carry the file's words
   const used = typeof e.dataUsed === 'function' ? (() => { try { return e.dataUsed(); } catch { return null; } })() : null;
   const rate = e.session?.rebuffer?.link?.rate?.() || 0;
   const stalls = entries.filter(x => x.kind === 'stall'), held = entries.filter(x => x.kind === 'rebuffer');
   const q = e.video?.getVideoPlaybackQuality?.(), group = serverGroup(url);
   const text = [
     heading(ua),
-    `How it plays: ${e.mode ? `${e.mode} (${MODE[e.mode] || e.mode})` : 'not decided yet'}${e.plan?.reason ? `: ${say(e.plan.reason)}` : ''}`,
-    ...(e.plan?.notes || []).map(n => `    ${say(n)}`),
+    `How it plays: ${e.mode ? `${e.mode} (${MODE[e.mode] || e.mode})` : 'not decided yet'}${e.plan?.reason ? `: ${e.plan.reason}` : ''}`,
+    ...(e.plan?.notes || []).map(n => `    ${n}`),
     'Where the time went (since the film’s load):', ...timeLines(entries, start),
     ...resolverLines(answer === undefined ? await answerFor(url) : answer),
     `Server: ${group ? `TorBox group ${group}` : 'not one of TorBox’s file servers'}`,
     `Speed: ${rate ? `${(rate * 8 / 1e6).toFixed(1)} Mbit/s while downloading` : 'not measured yet'}${used ? `, ${(used / 1e6).toFixed(1)} MB downloaded so far` : ''}`,
     `Stalls so far: ${stalls.length}${stalls.length ? ` (at ${stalls.slice(-5).map(s => clock(s.detail?.at)).join(', ')})` : ''}; waits for a slow link: ${held.length}`,
     `Now: ${clock(e.video?.currentTime)}${e.video?.videoWidth ? `, ${e.video.videoWidth}×${e.video.videoHeight}` : ''}${q ? `, ${q.totalVideoFrames} frames shown, ${q.droppedVideoFrames} dropped` : ''}${e.video?.error ? `, error ${e.video.error.code}` : ''}`,
-    ...(e.info ? trackLines(e) : ['Tracks: not read']),
+    ...(e.info || e.audio?.length ? trackLines(e) : ['Tracks: not read']),
+    `Chapters: ${Array.isArray(e.chapters) ? e.chapters.length : 0}`,
     ...deviceLines(device),
-    ...logLines(entries, start, line => scrubSecrets(line, scrubbing)),
-  ].join('\n');
-  return scrubSecrets(text, scrubbing);
+    ...logLines(e, entries, start, line => scrubSecrets(line, scrubbing)),
+  ].map(line => scrubSecrets(line, scrubbing)).join('\n');
+  return text;
 }
 
 /** What the player knows that must never show: the stream's address, its file's name, its torrent. */
