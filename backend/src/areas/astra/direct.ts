@@ -131,9 +131,11 @@ async function confirm(r: Relay, key: string, hash: string, id: number, places: 
   return { url: link.value.url, size: file.size, type: file.type ?? typeOfName(file.name) };
 }
 
-/** A press: what can be known without adding, asked together. */
+/** A press: what can be known without adding, asked together. Ready from memory only when this
+ * press's own hints name a file there (a season pack shares one hash among its episodes). */
 async function press(r: Relay, key: string, hash: string, ask: Ask) {
-  if (recallReady(hash)) {
+  const kept = recallReady(hash);
+  if (kept && chooseFile(kept.files, ask)) {
     mark(r, 'cached', true, Date.now(), NOTE.rememberedReady);
     return READY;
   }
@@ -170,13 +172,18 @@ async function tap(r: Relay, key: string, hash: string, ask: Ask) {
     return { ok: false, note: 'notCached' in a ? NOTE.notCachedNow : a.refused };
   };
   const tried = await beside(step(r, 'add', () => addCached(r, key, hash), addSaid));
-  const places = ready?.files ?? settled(look ? await look : null)?.files ?? [];
-  if ('error' in tried) throw tried.error;
-  const added = tried.value;
-  if ('notCached' in added) {
+  const looked = settled(look ? await look : null);
+  const places = ready?.files ?? looked?.files ?? [];
+  // No id from the add, and checkcached said for certain it is not cached: "not on TorBox yet",
+  // whatever else stopped the add (never the list, never the add-on's link).
+  const noId = 'error' in tried || !('id' in tried.value);
+  if ((noId && looked?.cached === false) || ('value' in tried && 'notCached' in tried.value)) {
     forget(hash);
     return NOT_CACHED;
   }
+  if ('error' in tried) throw tried.error;
+  const added = tried.value;
+  if ('notCached' in added) return NOT_CACHED;
   const listSaid = (o: Known | null): Said => ({ ok: o !== null, note: o ? NOTE.owned : NOTE.notListed });
   const t: Known | null =
     'id' in added
