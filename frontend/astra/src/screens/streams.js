@@ -12,6 +12,7 @@ import {withoutHash} from '../addons/stream-text.js';
 import {episodeCode, videoTitle} from '../app/content.js';
 import {Notes} from '../addons/stream-note.js';
 import {drawInSlices, sizeFrom, streamCard} from './stream-card.js';
+import {logoImage} from './logo.js';
 
 export {sizeFrom};
 
@@ -63,7 +64,7 @@ export class StreamsScreen {
         h('div', {class: 'streams-text'}, episodeCode(v) ? h('b', {class: 'code'}, episodeCode(v)) : null, h('h1', {}, videoTitle(v)), h('p', {}, m.name)));
     }
     return h('div', {class: 'streams-hero movie'}, h('div', {class: 'streams-art'}, image(m.background, '', 'streams-img')), h('div', {class: 'streams-shade'}),
-      m.logo ? image(m.logo, m.name, 'streams-logo') : h('h1', {class: 'streams-name'}, m.name));
+      m.logo ? logoImage(m.logo, m.name, 'streams-logo', {onDark: img => img.replaceWith(h('h1', {class: 'streams-name'}, m.name))}) : h('h1', {class: 'streams-name'}, m.name));
   }
 
   get id() { return this.video ? this.video.id : this.meta.id; }
