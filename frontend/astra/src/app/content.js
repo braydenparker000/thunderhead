@@ -184,6 +184,21 @@ export function playTarget(meta, {progress, watched}) {
   return {label: `Play ${episodeCode(firstUnwatched)}`.trim(), video: firstUnwatched, startTime: 0};
 }
 
+/**
+ * The same art at another size, where its host offers one: Stremio's image host (images.metahub.space:
+ * /poster|background|logo/small|medium|large/…) and TMDB's (/t/p/w92 … /original/…). `small` is a copy of
+ * a few kB, enough for a placeholder and for reading the art's colour. Anything else: null.
+ * @param {string} src @param {'small' | 'medium'} [size]
+ */
+export function artAt(src, size = 'small') {
+  if (typeof src !== 'string') return null;
+  const hub = /^(https:\/\/images\.metahub\.space\/(?:poster|background|logo))\/(?:small|medium|large)\/(.+)$/.exec(src);
+  if (hub) return `${hub[1]}/${size}/${hub[2]}`;
+  const tmdb = /^(https:\/\/image\.tmdb\.org\/t\/p\/)(?:w\d+|h\d+|original)(\/[^/?#]+)$/.exec(src);
+  if (tmdb) return tmdb[1] + (size === 'small' ? 'w92' : 'w342') + tmdb[2];
+  return null;
+}
+
 /** "1h 52m" from "112 min" or 112. */
 export function runtimeLabel(value) {
   const m = Number(String(value || '').match(/\d+/)?.[0]);
