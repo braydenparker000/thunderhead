@@ -17,7 +17,6 @@ import {h} from '../ui/dom.js';
 import {toast} from '../ui/components.js';
 import {SkipTimes} from './skip.js';
 import {rememberSource} from './remembered.js';
-import {renderMeta} from '../player/view.js';
 
 // "Out 3 Nov" for an episode with a date to come; "Not out yet" without one.
 const outOn = v => { const t = v?.released ? new Date(v.released) : null; return t && !Number.isNaN(t.getTime()) ? 'Out ' + t.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : 'Not out yet'; };
@@ -149,8 +148,8 @@ export function fullMeta(app, meta) {
   Object.assign(p, {meta: {...p.meta, ...meta}, video, next});
   Object.assign(player.options, {episodes: options.episodes, next: options.next});
   player.meta = options.meta;
-  renderMeta(player);
-  player.markers.renderNext();
+  // The player's own module, loaded with it (never part of Astra's start-up): here the player is already open.
+  import('../player/view.js').then(({renderMeta}) => { if (player.isOpen) { renderMeta(player); player.markers.renderNext(); } }, () => {});
 }
 
 /** The sources panel with nothing loading, for the owner to pick (`line`: what the loading screen says meanwhile). */
