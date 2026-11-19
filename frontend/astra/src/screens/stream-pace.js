@@ -43,7 +43,7 @@ export async function inParts(items, size, fn, alive = () => true) {
 
 let warmed = null;
 // And what the filters and a card's note read (stream-facts.js, device-facts.js), with plain text and with emoji.
-const MORE = ['x', 'x 🎬'].flatMap(t => [() => factsOf({name: t, title: `${t} 1.2 GB`}), () => questionOf({url: 'https://x.example/a.mkv', name: t, title: `${t} x265`})]);
+const MORE = ['x', 'x 🎬'].flatMap(t => [() => factsOf({name: t, title: `${t} 1.2 GB`}), () => questionOf({url: new URL('a.mkv', location.href).href, name: t, title: `${t} x265`})]);
 /** The stream reader's one-time cost, a step a frame, once a visit (release-facts.js WARM). */
 export const warm = () => (warmed ??= (async () => { for (const step of [...WARM, ...MORE]) { await nextFrame(); try { step(); } catch {} } })());
 
