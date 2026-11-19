@@ -362,30 +362,39 @@ Astra's own data is kept in this browser under `astra.v2.*`
   says so once instead of failing silently; with site data blocked it still
   opens.
 - **This phone and your others** (Settings > Your data; `src/app/sync.js`,
-  the merge in `src/app/sync-merge.js`; ASTRA.md §5.3). Signed in on the
+  with `sync-wire.js`, `sync-read.js`, `sync-merge.js`, `sync-addons.js`,
+  `sync-record.js` and `sync-senses.js`; ASTRA.md §5.3). Signed in on the
   Thunderhead, "Keep Astra the same on every phone I sign in on" is on by
   default: add-ons, library, Continue Watching, the watched list, settings
   and recent searches are merged with a copy your own server keeps sealed
   (`/v1/astra/backup`), shortly after Astra opens (never before Home is
   drawn), back in front after more than five minutes, a minute after the
-  last change, with **Sync now**, and when the page is hidden. Progress,
-  watched and library merge entry by entry (the later save of each wins;
-  a removal is remembered for 60 days so the other phone cannot bring it
-  back); add-ons, settings and recent searches go to the latest change; the
-  first time, both sides are put together and nothing is lost, and a new
-  phone simply takes what the server has. The film playing keeps its own
-  progress, and progress that came from another phone is never reported to
-  the Thunderhead as watched here. Player choices, Library layout and sort
-  and the last stream filter never travel. Failures stay quiet and are
-  tried again later. Signed out or switched off, nothing is sent at all.
-  **Remove the copy on my server** deletes it, with its daily copies, and
-  switches this phone off. What the phone remembers for this (when each
-  part last changed, removals, the server's version, when it last saved and
-  fetched) is in localStorage `astra.sync.v1`, outside `astra.v2.*`, so no
-  backup carries it. A restore, Clear Continue Watching or Copy again with
-  the switch on is a change like any other: it reaches your other phones,
-  though a title another phone saved later than the backup keeps that
-  phone's place.
+  last change, with **Sync now**, and when the page is hidden. Each time it
+  names the version it already holds, so when nothing changed elsewhere the
+  copy is not downloaded again. Progress, watched and library merge entry by
+  entry (the later save of each wins; a removal is remembered for 60 days so
+  the other phone cannot bring it back); Continue Watching stays at Astra's
+  own 300. Add-ons merge address by address: one removed on any phone stays
+  removed until it is added again, and one that arrives from another phone
+  is named in a notice ("Added from your other phones: …"). Settings and
+  recent searches go to the latest change. The first time, both sides are
+  put together and nothing is lost, and a new phone simply takes what the
+  server has. The film playing keeps its own progress, and progress that
+  came from another phone is not reported to the Thunderhead as watched
+  here. Player choices, Library layout and sort and the last stream filter
+  never travel; the copy carries the newest 3,000 watched marks (older ones
+  stay on the phones that have them). A copy too large for your server
+  (1 MB) is not sent, and Your data says so. Failures stay quiet and are
+  tried again later. Signed out or switched off, nothing is sent at all;
+  signing out of a phone that kept Astra in step removes Astra's data from
+  it (the server has it). **Remove the copy on my server** deletes it, with
+  its daily copies, and switches this phone off. What the phone remembers
+  for this (when each part last changed, removals, the server's version,
+  when it last saved and fetched) is in localStorage `astra.sync.v1`,
+  outside `astra.v2.*`, so no backup carries it. A restore, Clear Continue
+  Watching, Copy again or turning Recent searches off with the switch on is
+  a change like any other: it reaches your other phones, though a title
+  another phone saved later than the backup keeps that phone's place.
 - What Skip intro learns by sound is kept apart, in IndexedDB `astra-intro`
   (`src/app/intro-store.js`; localStorage is too small for fingerprints): at
   most 60 series, the most recently used kept, and eight episodes each. It
