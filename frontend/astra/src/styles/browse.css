@@ -14,13 +14,17 @@
 .row-scroll > * { scroll-snap-align: start; }
 .b-no-snap .row-scroll { scroll-snap-type: none; }
 .row-scroll::-webkit-scrollbar { display: none; }
+/* Cold start: each arriving picture is laid out inside its own row (and a row below the first screen not at
+   all until it comes near), not over the whole of Home. */
+.rows > .row { content-visibility: auto; contain-intrinsic-size: auto 300px; }
+.row-scroll { contain: layout paint; }
 /* A Home row whose catalog failed: one quiet line under its title */
 .row-error { display: flex; align-items: center; gap: var(--s-3); margin: 0 var(--gutter); color: var(--muted); font: var(--type-caption); }
 .row-retry { flex: none; min-height: 44px; padding: 0 var(--s-4); border: 0; border-radius: var(--r-full); background: var(--surface-1); color: var(--text); font: var(--type-caption); font-weight: 600; }
 .row-retry:disabled { opacity: .6; }
 .poster-card { flex: none; display: flex; flex-direction: column; gap: var(--s-1); width: var(--poster-w); padding: 0; border: 0; background: none; color: var(--text); text-align: left; -webkit-touch-callout: none; user-select: none; }
 /* A picture's box shows its own colours (ui/art.js) until the picture fades in over them. */
-.poster-art { position: relative; width: 100%; aspect-ratio: .675; border-radius: var(--poster-r); overflow: hidden; }
+.poster-art { position: relative; width: 100%; aspect-ratio: .675; border-radius: var(--poster-r); overflow: hidden; contain: layout paint; }
 :is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--art-blur, var(--surface-1)); }
 .b-art-flat :is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--art-flat, var(--surface-1)); }
 .b-art-plain :is(.poster-art, .cw-art, .episode-art, .details-poster) { background: var(--surface-1); }
@@ -100,6 +104,8 @@ img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2
 .details-body { position: relative; isolation: isolate; min-height: 100%; }
 .details-wash { position: absolute; inset: 0 0 calc(-24px - var(--safe-bottom)); z-index: -1; background: color-mix(in srgb, var(--tint) 14%, var(--bg)); opacity: 0; transition: opacity var(--t-normal) var(--ease); pointer-events: none; }
 .tinted .details-wash { opacity: 1; }
+/* Settings › Background › Tinted (the shell's): a title's page washed more strongly in its colour. */
+:root[data-bg="tinted"] .details-wash { background: color-mix(in srgb, var(--tint) 18%, var(--bg)); }
 .details-hero { position: relative; height: clamp(420px, 118vw, 720px); overflow: hidden; }
 .details-bg { position: absolute; inset: 0; transform: translateY(var(--parallax, 0)) scale(1.08); -webkit-mask-image: linear-gradient(#000 50%, transparent 98%); mask-image: linear-gradient(#000 50%, transparent 98%); }
 /* Parallax driven by the scroll itself (Chrome runs it off the main thread); without scroll timelines,
@@ -222,7 +228,7 @@ img.logo-rim { filter: drop-shadow(0 0 1px rgba(255,255,255,.5)) drop-shadow(0 2
 .search-box:focus-within::after { opacity: 1; }
 .search-glass { position: absolute; left: var(--s-3); display: grid; color: var(--muted); pointer-events: none; }
 .search-glass .icon { fill: currentColor; }
-.search-input { width: 100%; min-height: 48px; padding: 0 44px; border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-2); color: var(--text); font: var(--type-body); font-size: 16px; }
+.search-input { width: 100%; min-height: 48px; padding: 0 44px; border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-2); color: var(--text); font: var(--type-body); font-size: calc(16px * var(--text-scale, 1)); }
 .search-input::placeholder { color: var(--muted); }
 .search-input:focus { outline: none; }
 .search-input::-webkit-search-cancel-button { display: none; }
