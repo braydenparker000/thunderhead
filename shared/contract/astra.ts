@@ -44,6 +44,11 @@ export const ASTRA_LIMITS = {
    * the server groups it hands back at most. */
   servers_per_minute: 6,
   servers_max: 30,
+  /** The most the Worker reads of checkcached's answer with its file list, and of the server list,
+   * in bytes (the Free plan gives a request about 10 ms of CPU: 512 KiB is some 5,000 files, about
+   * 1 ms to parse; the server list is a few KiB). Past it the answer is trouble, not read. */
+  cached_bytes: 512 * 1024,
+  servers_bytes: 64 * 1024,
 } as const;
 
 export const ASTRA_MODES = ['play', 'ahead'] as const;

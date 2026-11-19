@@ -160,7 +160,7 @@ describe('a tap that checkcached says is not cached', () => {
 
 describe('what is read of an answer', () => {
   it('a checkcached answer larger than the Worker reads is trouble, not parsed', async () => {
-    const files = Array.from({ length: 6000 }, (_, i) => ({
+    const files = Array.from({ length: 10_000 }, (_, i) => ({
       name: `Invented Show/Invented.Show.E${i}.mkv`,
       size: 900 * MB,
     }));

@@ -55,10 +55,39 @@ export function trouble(a: Answer): string | null {
 
 /** One call: `path` under the API, or a whole TorBox address (a permanent link, which carries its
  * own token). Tried once more on a 429 or 5xx when time allows. */
+/** The body as text, or null when it is longer than `max` bytes (then it is not read further). */
+async function textUpTo(res: Response, max: number): Promise<string | null> {
+  if (Number(res.headers.get('Content-Length') ?? 0) > max) {
+    await res.body?.cancel();
+    return null;
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    parts.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const p of parts) {
+    all.set(p, at);
+    at += p.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 export async function call(
   r: Relay,
   target: string,
-  o: { key?: string; form?: Record<string, string>; until?: number } = {},
+  o: { key?: string; form?: Record<string, string>; until?: number; maxBytes?: number } = {},
 ): Promise<Answer> {
   const t = timesNow();
   const url = target.startsWith('https://') ? target : `${API}${target}`;
@@ -68,7 +97,7 @@ export async function call(
     if (ms <= 0) throw new TorboxTrouble(NOTE.slow);
     if (r.calls >= L.torbox_calls_max) throw new TorboxTrouble(NOTE.budget);
     r.calls++;
-    let answer: Answer;
+    let answer: Answer | null;
     try {
       answer = await timed(ms, async (signal) => {
         const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': UA };
@@ -79,7 +108,8 @@ export async function call(
           for (const [k, v] of Object.entries(o.form)) body.set(k, v);
         }
         const res = await ask(url, { method: body ? 'POST' : 'GET', headers, body, redirect: 'manual', signal });
-        const text = await res.text();
+        const text = o.maxBytes ? await textUpTo(res, o.maxBytes) : await res.text();
+        if (text === null) return null;
         let parsed: unknown = null;
         try {
           parsed = JSON.parse(text);
@@ -96,6 +126,7 @@ export async function call(
     } catch (e) {
       throw new TorboxTrouble(e instanceof TimedOut ? NOTE.slow : NOTE.unreachable);
     }
+    if (!answer) throw new TorboxTrouble(NOTE.tooBig);
     const again = answer.status === 429 || answer.status >= 500;
     if (!again || attempt > 0 || until - Date.now() < t.retry_ms + 1000) return answer;
     await wait(t.retry_ms);
@@ -130,7 +161,7 @@ const filesWithIds = (v: unknown): TorrentFile[] => {
  * is "not cached" definite. Any other shape leaves it unknown, which is trouble, not "not cached". */
 export async function checkCached(r: Relay, key: string, hash: string) {
   const q = new URLSearchParams({ hash, format: 'object', list_files: 'true' });
-  const { body } = must(await call(r, `/torrents/checkcached?${q}`, { key }));
+  const { body } = must(await call(r, `/torrents/checkcached?${q}`, { key, maxBytes: L.cached_bytes }));
   const ours = (e: unknown) => String(record(e).hash).toLowerCase() === hash;
   const data = body.data;
   if (!data || typeof data !== 'object') throw new TorboxTrouble(NOTE.unreadable);

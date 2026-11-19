@@ -94,7 +94,7 @@ async function ask(r: Relay, key: string): Promise<AstraServersResponse> {
   const q = new URLSearchParams({ region: 'all', test_length: 'short' });
   if (r.userIp) q.set('user_ip', r.userIp);
   try {
-    const a = await call(r, `/speedtest?${q}`, { key });
+    const a = await call(r, `/speedtest?${q}`, { key, maxBytes: L.servers_bytes });
     // A list sent bare, without TorBox's usual envelope, is read as it is.
     const bare = a.status >= 200 && a.status < 300 && a.body.success === undefined;
     const why = bare ? null : trouble(a);

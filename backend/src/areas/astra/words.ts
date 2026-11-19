@@ -39,6 +39,7 @@ export const NOTE = {
   busy: 'TorBox asked to slow down.',
   refused: 'TorBox refused the request.',
   unreadable: 'TorBox answered in a way the Worker could not read.',
+  tooBig: "TorBox's answer was larger than the Worker reads, so it was not read.",
   budget: 'This request already asked TorBox as often as it may.',
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
