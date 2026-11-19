@@ -22,7 +22,7 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
 | `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
 | `src/addons/` | The Stremio add-on protocol client (`client.js`), a stream's address from the owner's own server (`debrid.js`, with `worker-api.js`, the signed-in client of the Worker, and `link-facts.js`, what a link says of its file), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`), its text as shown, without a hash (`stream-text.js`), how it will likely play here (`device-facts.js`) and the one note a card carries for that (`stream-note.js`), and the optional skip-times lookup (`skip-times.js`). |
-| `src/styles/` | `tokens.css` (colours, type, radii, motion and shared controls) and `app.css`. |
+| `src/styles/` | `tokens.css` (colours, type, radii, motion and shared controls), then one sheet per area, loaded in this order: `shell.css`, `browse.css`, `streams.css`, `settings.css`. |
 | `vendor/` | Mediabunny 1.66.0 and its AC-3, DTS and TrueHD decoders, hls.js 1.6.13, dash.js 5.2.0 and JASSUB 2.5.37 (libass), copied by `node scripts/astra/vendor.mjs` from the npm packages pinned in `vendor.json`, which also holds a hash of every file (see `vendor/LICENSES.md`). |
 | `fonts/`, `icons/` | Inter (SIL OFL 1.1, `fonts/LICENSE.md`) and the app's icons. |
 

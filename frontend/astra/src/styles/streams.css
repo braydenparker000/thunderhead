@@ -1,0 +1,64 @@
+/* Astra's stream list. Loaded after browse.css. */
+.streams-hero { position: relative; overflow: hidden; }
+.streams-hero.movie { height: calc(140px + var(--safe-top)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+.streams-hero.episode { height: calc(220px + var(--safe-top)); }
+.streams-art { position: absolute; inset: 0; }
+.streams-hero.episode .streams-art { bottom: 2px; } /* the art stops where the fade is opaque, so its snapped edge never shows */
+.streams-img, .streams-art .img-fallback { width: 100%; height: 100%; object-fit: cover; }
+.streams-hero.movie .streams-art { filter: blur(22px) brightness(.35); transform: scale(1.2); }
+.streams-shade { position: absolute; inset: 0; background: linear-gradient(transparent 30%, var(--bg)); }
+.streams-logo { position: relative; max-width: 85%; height: 80px; object-fit: contain; }
+.streams-name { position: relative; margin: 0; padding: 0 24px; font-size: 28px; font-weight: 900; text-align: center; }
+.streams-text { position: absolute; left: var(--gutter); right: var(--gutter); bottom: 6px; }
+.streams-text .code { color: var(--accent); font-size: 14px; }
+.streams-text h1 { margin: 2px 0; font-size: 24px; line-height: 28px; font-weight: 700; }
+.streams-text p { margin: 0; color: var(--muted); font-size: 13px; }
+.resume-pill { display: inline-flex; align-items: center; gap: 8px; margin: 12px var(--gutter) 0; padding: 8px 14px; border-radius: 18px; background: rgba(34,34,34,.72); font-size: 13px; font-weight: 600; }
+.resume-pill .icon { fill: currentColor; }
+.chip.refresh { width: 36px; padding: 0; justify-content: center; }
+.chip.refresh .icon { fill: currentColor; }
+.chip.refresh.spinning .icon { animation: spin 1s linear infinite; }
+.stream-list { display: flex; flex-direction: column; gap: 10px; padding: 4px var(--gutter) 0; }
+/* The add-on chips stay at the top while the list scrolls, as in Nuvio. Their
+   band reaches up under the floating back button (so the list never shows
+   behind it); at rest the hero and resume line, drawn above, hide that band. */
+.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(56px + var(--safe-top)); background: var(--bg); }
+/* The owner's filters, under the add-ons: smaller chips, the chosen ones filled. */
+.streams .filter-chips.facts { padding-top: 0; }
+.filter-chips.facts .chip { min-height: 32px; padding: 0 12px; font-size: 13px; white-space: nowrap; flex: none; }
+.filter-chips.facts .chip.clear { background: none; color: var(--muted); }
+.streams-hero, .streams .resume-pill { position: relative; z-index: 3; }
+/* Nothing to list: Nuvio's open empty state, centred, not a card. */
+.stream-list > .state-card { margin: 16px 0; padding: 32px 16px; background: none; text-align: center; }
+.stream-list > .state-card h3 { margin: 0 0 8px; font-size: 16px; line-height: 22px; font-weight: 600; }
+.stream-list > .state-card p { margin: 0 0 16px; color: rgba(245,247,248,.7); }
+.stream-list > .state-card .btn.wide { width: auto; min-width: 160px; }
+.group-title { margin: 12px 0 0; font-size: 14px; font-weight: 700; }
+.fetching { font-weight: 500; color: var(--accent); animation: pulse-text 1.2s ease-in-out infinite; }
+/* An add-on that failed: its chip is marked, its group is one line with Retry */
+.chip.failed::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
+.group-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 8px 8px 8px 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.03); font-size: 14px; }
+.group-error-text { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.group-error-text small { color: var(--muted); font-size: 12px; line-height: 16px; }
+.group-error .chip { flex: none; min-height: 44px; }
+@keyframes pulse-text { 50% { opacity: .4; } }
+.stream-card { display: flex; flex-direction: column; gap: 4px; min-height: 68px; padding: 14px; border: 0; border-radius: var(--r-lg); background: rgba(255,255,255,.05); color: var(--text); text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,.2); -webkit-touch-callout: none; }
+.stream-card:active { background: rgba(255,255,255,.09); transform: scale(.99); }
+.stream-card.disabled { opacity: .5; }
+/* Each add-on's streams sit in a section of their own, filled in place as it answers. */
+.stream-group, .group-body { display: flex; flex-direction: column; gap: 10px; }
+.stream-skeleton { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 68px; padding: 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.05); pointer-events: none; }
+.stream-skeleton i { display: block; width: 55%; height: 14px; border-radius: 6px; }
+.stream-skeleton i + i { width: 85%; height: 10px; }
+.stream-name { font-size: 14px; line-height: 20px; }
+.stream-desc { color: var(--muted); font-size: 12px; line-height: 18px; white-space: pre-line; overflow-wrap: anywhere; }
+.stream-badges { display: flex; gap: 6px; }
+.stream-badges:empty { display: none; }
+.stream-badges em { font-style: normal; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); background: var(--card); color: var(--text-2); }
+/* How a stream will play here (addons/stream-note.js): one quiet note, drawn with its card (what it
+   needs is known first), so it may wrap and nothing moves under a finger. */
+.stream-plays { display: block; min-height: 16px; color: var(--muted); font-size: 11px; line-height: 16px; }
+.stream-plays.heavy::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--warning); }
+.stream-badges:has(.sound) { flex-wrap: wrap; }
+.stream-footer { margin: 12px var(--gutter); color: var(--muted); font-size: 13px; text-align: center; }
+.stream-footer:empty { display: none; }
