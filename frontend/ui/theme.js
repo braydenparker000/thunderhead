@@ -13,6 +13,17 @@
 try { if (window.top === window.self) document.documentElement.dataset.unframed = ''; } catch {}
 {
 let flip = 0;
+let shown = false;
+/** Day to night or back: the whole screen cross-fades (a view transition, the browser's 250 ms,
+ * about --d-base) once the page is on screen; at once before its first frame, while hidden, with
+ * reduced motion (the phone's or the owner's), or where the browser has no view transitions. */
+const show = (t) => {
+  const root = document.documentElement, rm = root.dataset.reducedMotion;
+  if (root.dataset.theme === t) return;
+  const still = rm === 'always' || (rm !== 'never' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (!shown || still || document.hidden || !document.startViewTransition) root.dataset.theme = t;
+  else document.startViewTransition(() => { root.dataset.theme = t; }).ready.catch(() => {});
+};
 /** Applies the theme for `pref` (the stored one when not given) and, for Auto, waits for the next of the two hours. */
 const theme = (pref) => {
   clearTimeout(flip);
@@ -25,7 +36,7 @@ const theme = (pref) => {
     night = at(s['mind.night_start'], 22);
   } catch {}
   const now = new Date(), h = now.getHours();
-  document.documentElement.dataset.theme = pref && pref !== 'auto' ? pref : h >= day && h < night ? 'light' : 'dark';
+  show(pref && pref !== 'auto' ? pref : h >= day && h < night ? 'light' : 'dark');
   if (pref && pref !== 'auto') return;
   const next = new Date(now);
   next.setMinutes(0, 0, 0);
@@ -33,6 +44,7 @@ const theme = (pref) => {
   flip = setTimeout(() => theme(), next.getTime() - now.getTime() + 50);
 };
 theme();
+shown = true;
 document.addEventListener('th:theme', (e) => {
   if (!['auto', 'light', 'dark'].includes(e.detail)) return;
   try { localStorage.setItem('th-theme', e.detail); } catch {}

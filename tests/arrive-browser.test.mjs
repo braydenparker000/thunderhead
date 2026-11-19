@@ -1,7 +1,8 @@
 // Moving between home and an app's own page (HOME.md §12; ui/launch.js, ui/arrive.js, ui/theme.js):
 // the app's page uncovers from the launch colour that covered home, as one cross-document view
 // transition (the colour held, only the page fading in over it), and none runs when the owner
-// turned the launch off. Back to a home the browser kept whole uncovers home from that colour.
+// turned the launch off. Back to a home the browser kept whole uncovers home from that colour. A
+// theme change cross-fades the screen (ui/theme.js), at once with reduced motion.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -20,6 +21,7 @@ async function home(prefs = {}) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   await page.addInitScript((p) => {
     for (const [k, v] of Object.entries(p)) localStorage.setItem(`th.s.${k}`, v);
+    if (!localStorage.getItem('th-theme')) localStorage.setItem('th-theme', 'light');
     // What the arriving page's transition does, kept where the test can read it after the move.
     addEventListener('pagereveal', (e) => {
       if (location.pathname !== '/guitar/') return;
@@ -72,5 +74,18 @@ test('back to a home the browser kept, the launch colour fades off it', async ()
   await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
   assert.equal(await page.evaluate(() => document.querySelector('.launch').getAnimations().at(-1).effect.getKeyframes().at(-1).opacity), '0');
   await until(async () => (await page.locator('.launch').count()) === 0, { message: 'the colour stayed over home' });
+  await page.close();
+});
+
+test('a theme change cross-fades the screen; with reduced motion it is at once', async () => {
+  const page = await home();
+  const change = (to) => page.evaluate((to) => {
+    document.dispatchEvent(new CustomEvent('th:theme', { detail: to }));
+    return { now: document.documentElement.dataset.theme, fading: !!document.activeViewTransition };
+  }, to);
+  assert.deepEqual(await change('dark'), { now: 'light', fading: true }, 'the change waits for the cross-fade to take its picture');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark' && !document.activeViewTransition);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.deepEqual(await change('light'), { now: 'light', fading: false });
   await page.close();
 });
