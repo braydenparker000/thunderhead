@@ -16,6 +16,7 @@ import {sizeFrom} from '../screens/streams.js';
 import {h} from '../ui/dom.js';
 import {toast} from '../ui/components.js';
 import {SkipTimes} from './skip.js';
+import {rememberSource} from './remembered.js';
 
 // "Out 3 Nov" for an episode with a date to come; "Not out yet" without one.
 const outOn = v => { const t = v?.released ? new Date(v.released) : null; return t && !Number.isNaN(t.getTime()) ? 'Out ' + t.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : 'Not out yet'; };
@@ -51,13 +52,18 @@ const overLimit = (s, mb) => { const m = mb && /^([\d.]+) (GB|MB)$/.exec(sizeFro
 /** Plays a stream from the streams screen. Must run from a tap: the player goes full screen before anything awaits. */
 export function play(app, options) {
   const ticket = ++app.playTicket;
-  if (app.player) return playNow(app, options, ticket);
+  withPlayer(app, ticket, () => playNow(app, options, ticket));
+}
+
+/** Runs `go` with the player loaded (at once when it is), unless another play came since. */
+function withPlayer(app, ticket, go) {
+  if (app.player) return go();
   // First play of the visit: the engine is still loading (the tap's user
   // activation lasts long enough for full screen once it has). The player's
   // black loading screen shows at once, so the tap is answered.
   const veil = h('div', {class: 'player-veil', role: 'status', 'aria-label': 'Opening the player'}, h('div', {class: 'spinner'}));
   app.root.append(veil);
-  app.loadPlayer().then(() => { if (ticket === app.playTicket) playNow(app, options, ticket); }, () => toast('The player could not load. Check the connection.'))
+  app.loadPlayer().then(() => { if (ticket === app.playTicket) go(); }, () => toast('The player could not load. Check the connection.'))
     .finally(() => setTimeout(() => veil.remove(), 150));
 }
 
@@ -82,11 +88,20 @@ function describe(meta, video) {
 /** The episode skip.js looks for, or null for a movie. */
 export const skipEpisode = (meta, video) => video && meta?.type !== 'movie' && video.id ? {series: {type: meta.type, id: meta.id}, video: video.id, season: video.season, episode: video.episode} : null;
 
-function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0}, ticket) {
+/** The add-on's name as Astra shows it, for the remembered stream. */
+const addonName = (app, url) => app.manifests?.get(url)?.name || app.addons?.list?.find(a => a.url === url)?.name || '';
+
+/**
+ * `recover` (a Continue Watching card's remembered stream, app/resume.js): called once, instead of an error, when
+ * that stream cannot be reached (not on TorBox any more, or its link dead before the first picture).
+ */
+export function playNow(app, {meta, video = null, source, sources, hiddenSources = [], startTime = 0, recover = null}, ticket) {
   app.setCovered(true);
   app.nextReady?.stop(); // whatever was being made ready belongs to the episode left
   const {next, options} = describe(meta, video);
-  app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}};
+  // What the progress entry remembers of the stream once it plays (app/remembered.js).
+  const remember = source.remembered || rememberSource(source, addonName(app, source.addonUrl));
+  app.playing = {meta, video, next, stream: source.stream, sourceId: source.id, load: {startTime}, remember, recover};
   app.player.open({...options, stream: {...source.stream, url: null}, sourceId: source.id, sources, hiddenSources, startTime, deferred: true});
   app.skip?.episode(skipEpisode(meta, video));
   resolveAndLoad(app, source.stream, startTime, ticket);
@@ -103,12 +118,62 @@ async function resolveAndLoad(app, stream, startTime, ticket) {
   const {via, steps, reason} = answer;
   if (app.playing) app.playing.answer = {via, steps, reason};
   // Not on TorBox yet: nothing is opened (the add-on's link would start a download there), and the player says so.
+  if (via === 'none' && app.playing?.recover) return takeRecover(app)('none');
   if (via === 'none') { app.player.loader.showError(reason || 'This film is not on TorBox yet.', {mode: 'unsupported'}); return; }
   // TorBox's file servers need none of the headers an add-on asks for its own link (a custom one would cost a preflight).
   const headers = via === 'torbox' ? {} : stream.headers;
   // Only a direct address is a renewal: the add-on's own link, which the page cannot read, would not help the engine.
   const renew = () => renewStream(stream).then(r => { if (r.via === 'addon' || !r.url) throw new Error('no direct address'); return r.url; });
   app.player.load({...stream, url: answer.url || stream.url, headers, resolved: {via, reason}, renew}, startTime);
+}
+
+/** The play's recovery, taken so it runs once. */
+const takeRecover = app => { const r = app.playing.recover; app.playing.recover = null; return r; };
+
+/** The link failed before the first picture: the add-on's own link was played and the host was dead, silent or refused. */
+function unreachable(player, detail) {
+  const kind = player.engine.probed?.error?.kind;
+  return !player.firstFrame && (detail?.plan?.gone || detail?.plan?.retry || detail?.network || ['gone', 'status', 'timeout', 'unreadable'].includes(kind));
+}
+
+/**
+ * The title's full details arrived after the player opened from a saved card: the episode panel and Next follow
+ * (what plays is not touched).
+ */
+export function fullMeta(app, meta) {
+  const p = app.playing, player = app.player;
+  if (!meta || !p || p.meta.id !== meta.id || !player?.isOpen) return;
+  const video = p.video ? meta.videos?.find(v => v.id === p.video.id) || p.video : null;
+  const {next, options} = describe({...p.meta, ...meta}, video);
+  Object.assign(p, {meta: {...p.meta, ...meta}, video, next});
+  Object.assign(player.options, {episodes: options.episodes, next: options.next});
+  player.meta = options.meta;
+  // The player's own module, loaded with it (never part of Astra's start-up): here the player is already open.
+  import('../player/view.js').then(({renderMeta}) => { if (player.isOpen) { renderMeta(player); player.markers.renderNext(); } }, () => {});
+}
+
+/** The sources panel with nothing loading, for the owner to pick (`line`: what the loading screen says meanwhile). */
+export function pickIn(app, meta, video, sources, hidden, line = '') {
+  const {next, options} = describe(meta, video);
+  app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
+  app.player.open({...options, stream: null, sources, hiddenSources: hidden});
+  if (line) app.player.loadingStatus.textContent = line;
+}
+
+/**
+ * Next Up from a Continue Watching card (a tap): the player opens at once, loading, and the episode's streams
+ * decide as Next's do inside the player (switchEpisode): the release group the owner watched, else the sources panel.
+ */
+export function playNext(app, meta, video, group) {
+  const ticket = ++app.playTicket;
+  withPlayer(app, ticket, () => {
+    const {next, options} = describe(meta, video);
+    app.setCovered(true);
+    app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
+    app.player.open({...options, stream: {url: null, name: ''}, sources: [], deferred: true});
+    app.player.loadingStatus.textContent = 'Finding the stream…';
+    switchEpisode(app, video, group);
+  });
 }
 
 export function bindPlayer(app) {
@@ -120,7 +185,7 @@ export function bindPlayer(app) {
     const p = app.playing;
     if (!p || !keepProgress(time, p.load)) return;
     const v = p.video;
-    const entry = app.progress.save({type: p.meta.type, id: p.meta.id, videoId: v ? v.id : p.meta.id, season: v?.season ?? null, episode: v?.episode ?? null, time, duration, meta: p.meta,
+    const entry = app.progress.save({type: p.meta.type, id: p.meta.id, videoId: v ? v.id : p.meta.id, season: v?.season ?? null, episode: v?.episode ?? null, time, duration, meta: p.meta, stream: p.remember,
       next: p.next ? {videoId: p.next.id, season: p.next.season, episode: p.next.episode, title: p.next.title, thumbnail: p.next.thumbnail} : null});
     if (entry?.completed && !app.watched.has(p.meta.type, p.meta.id, v ? v.id : null)) app.watched.set(p.meta.type, p.meta.id, v ? v.id : null, true);
   };
@@ -140,12 +205,14 @@ export function bindPlayer(app) {
     e.preventDefault();
     const {source, startTime} = e.detail, ticket = ++app.playTicket;
     app.nextReady?.stop(); // made ready for the release group playing before
-    Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}, answer: null});
+    Object.assign(p, {sourceId: source.id, stream: source.stream, load: {startTime}, answer: null, recover: null, remember: source.remembered || rememberSource(source, addonName(app, source.addonUrl))});
     app.skip.episode(skipEpisode(p.meta, p.video)); // the same episode keeps its finder; one picked from a new episode's list starts
     player.defer(source.stream, startTime);
     resolveAndLoad(app, source.stream, startTime, ticket);
   });
   player.addEventListener('fileinfo', e => app.findSubtitles(e.detail));
+  // A remembered stream whose link is dead (after the player's own error card): the card's recovery takes over.
+  player.engine.addEventListener('error', e => { if (app.playing?.recover && unreachable(player, e.detail)) takeRecover(app)('dead'); });
 }
 
 /**
@@ -155,13 +222,12 @@ export function bindPlayer(app) {
  * sources, through the owner's filters, wait for the owner to pick one.
  * Streams collected ahead for this episode (next-ready.js) are used without asking the add-ons again.
  */
-async function switchEpisode(app, video) {
+async function switchEpisode(app, video, group = app.player.stream?.bingeGroup) {
   const {meta} = app.playing || {};
   const player = app.player;
   if (!meta || !player.isOpen) return;
   const ticket = ++app.playTicket;
   app.skip?.stop(); // this episode is left
-  const group = player.stream?.bingeGroup;
   player.video.pause();
   player.showLoading(true);
   // The streams collected ahead for this episode (next-ready.js: ten minutes, the same release group), else asked now.
@@ -171,7 +237,5 @@ async function switchEpisode(app, video) {
   const {sources, hidden} = filterSources(all, app.store.get('streamFilters', null), app.maxMb);
   const same = group && all.find(s => s.stream.bingeGroup === group);
   if (same) return playNow(app, {meta, video, source: same, sources: sources.includes(same) ? sources : [same, ...sources], hiddenSources: hidden.filter(s => s !== same)}, ticket);
-  const {next, options} = describe(meta, video);
-  app.playing = {meta, video, next, stream: null, sourceId: null, load: {startTime: 0}};
-  player.open({...options, stream: null, sources, hiddenSources: hidden}); // the sources panel, nothing loading
+  pickIn(app, meta, video, sources, hidden); // the sources panel, nothing loading
 }

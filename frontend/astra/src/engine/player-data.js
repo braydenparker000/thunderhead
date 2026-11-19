@@ -12,8 +12,14 @@
 // the cache keeps 30 s behind besides (http-source.js, source-tuning.js). 'auto' (the default) is on when the phone asks to save
 // data or is on a mobile network, and follows the network as it changes. It
 // takes effect at once, on the film that is playing too.
+//
+// The memory budget (budget.js) goes with it: by the phone's memory, three quarters of it with the saver on, put on
+// the reader each time the saver is (hold.js shares it out); and the engine's log gets its `memory` entries
+// (player-memory.js).
 
 import {BLOCK, READ_AHEAD} from './source-stream.js';
+import {memoryBudget} from './budget.js';
+import {memoryMethods} from './player-memory.js';
 
 export const SAVER = {readAhead: 8 * BLOCK, ahead: 20, seconds: 5, keep: 55};
 const FULL = {readAhead: READ_AHEAD, ahead: null, seconds: 10, keep: 80}; // keep: a 30 s back-seek, the pipelines' reach (remux.js TUNING.ahead) and the reader's
@@ -50,11 +56,14 @@ export const dataMethods = {
     this.applyDataSaver();
   },
 
-  /** Puts the saver's limits on the reader and the pipeline of the film loaded now (each load and session calls it too). */
+  /** Puts the saver's limits and the memory budget on the reader and the pipeline of the film loaded now (each load and session calls it too). */
   applyDataSaver() {
     this.dataSaver = saverOn(this.saverSetting ?? 'auto');
     const tuning = saverTuning(this.dataSaver);
     const source = this.probed?.source || this.source;
+    this.budget = memoryBudget({saver: this.dataSaver});
+    this.watchMemory?.(); // (a stand-in player in the tests has none)
+    source?.setBudget?.(this.budget);
     if (this.info?.duration) source?.learn?.(this.info.duration); // a reader opened again (fallBack) learns the bitrate here
     source?.setReadAhead?.(tuning.readAhead, tuning);
     if (this.session && this.mode === 'remux') { this.session.ahead = tuning.ahead; this.session.onProgress?.(); }
@@ -68,5 +77,8 @@ export const dataMethods = {
   stopDataSaver() {
     if (this.onConnection) globalThis.navigator?.connection?.removeEventListener?.('change', this.onConnection);
     this.onConnection = null;
+    this.stopMemory?.();
   },
+
+  ...memoryMethods,
 };

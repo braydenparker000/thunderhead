@@ -7,6 +7,7 @@
 // would need is fetched. All of it stays in memory; none of it happens with Settings › Playback › "Get
 // ready ahead" off, or with the data saver on.
 
+import {dropHashes} from '../addons/stream-text.js';
 import {resolveStream} from '../addons/debrid.js';
 import {apiOrigin} from '../addons/worker-api.js';
 import {saverOn} from '../engine/player-data.js';
@@ -31,7 +32,7 @@ export function saverNow(prefs = loadPrefs(), connection = globalThis.navigator?
 
 /** The first sound codec a stream's label names that Astra converts, or null. */
 export function soundOf(stream) {
-  const text = `${stream?.name || ''} ${stream?.title || ''} ${stream?.description || ''}`;
+  const text = dropHashes(`${stream?.name || ''} ${stream?.title || ''} ${stream?.description || ''}`); // a hash's letters are not a format
   if (/(?<![a-z])(aac|opus|flac)(?![a-z])/i.test(text) && !/true[ ._-]?hd|dts|dd\+|ddp|ac-?3/i.test(text)) return null;
   return SOUNDS.find(([, re]) => re.test(text))?.[0] ?? null;
 }

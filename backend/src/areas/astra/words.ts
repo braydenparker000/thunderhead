@@ -12,6 +12,11 @@ export const NOTE = {
   notOwned: 'It is not in your TorBox account yet, and nothing is added before a tap.',
   owned: 'It was already in your TorBox account.',
   remembered: 'Your server remembered this torrent from the last half hour.',
+  rememberedReady: 'Your server remembered from a press in the last half hour that TorBox has it ready.',
+  notListed: 'TorBox did not add it again, and it is not in your account’s list either.',
+  otherId: "The file's place in TorBox's list was not its id, so its address was asked for again by its id.",
+  setAside: "Asked ahead for the file's place in TorBox's list; set aside, as the listing named another file or none.",
+  otherTorrent: "TorBox's listing was not about this torrent, so it was not used.",
   forgotten: 'TorBox no longer knew the remembered torrent, so it was asked again.',
   saidExisting: 'TorBox said it was already in your account.',
   saidNew: 'TorBox said it added it to your account now.',
@@ -34,9 +39,18 @@ export const NOTE = {
   busy: 'TorBox asked to slow down.',
   refused: 'TorBox refused the request.',
   unreadable: 'TorBox answered in a way the Worker could not read.',
+  tooBig: "TorBox's answer was larger than the Worker reads, so it was not read.",
   budget: 'This request already asked TorBox as often as it may.',
   status: (n: number) => `TorBox answered with status ${n}.`,
   notPublic: 'Only public https addresses are followed.',
+  noServers: 'TorBox listed no test files the phone may be given.',
+  leftOut: (tokened: number, other: number) =>
+    `${tokened + other} of TorBox's test ${tokened + other === 1 ? 'file was' : 'files were'} left out: ${[
+      tokened ? `${tokened} carried a token` : '',
+      other ? `${other} ${other === 1 ? 'was' : 'were'} not public https on a TorBox file server` : '',
+    ]
+      .filter(Boolean)
+      .join(', ')}.`,
   noLocation: 'A redirect named no address.',
   followOff:
     "Astra's server does not open add-on links for the phone, since an add-on may tie a link to the connection that asked for it.",
@@ -62,4 +76,5 @@ export const REASON = {
   tooLong: "The add-on's forward went on too long.",
   torboxLink: "TorBox did not give the file's address.",
   tooMany: 'Too many films were asked for in a minute. Try again shortly.',
+  tooManyChecks: "TorBox's server list was asked for too often in a minute. Try again shortly.",
 } as const;

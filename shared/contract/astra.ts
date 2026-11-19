@@ -19,11 +19,12 @@ export const ASTRA_LIMITS = {
   follow_ms: 20_000,
   /** A 429 or 5xx from TorBox is tried once more, after this long. */
   retry_ms: 500,
-  /** TorBox calls when nothing is retried: a tap 3 (createtorrent, the files, requestdl), a press
-   * 3 (checkcached, the list, requestdl), a film remembered from the last half hour 1 (requestdl).
-   * With retries and exchanges, a request never makes more than `torbox_calls_max`. */
-  torbox_calls: 3,
-  torbox_calls_max: 6,
+  /** TorBox calls when nothing is retried: a tap 3 after a press found it ready (createtorrent, then
+   * requestdl beside the files), 4 without one (checkcached beside createtorrent), a press 3
+   * (checkcached beside the list, requestdl), a film remembered from the last half hour 1
+   * (requestdl). With retries and exchanges, a request never makes more than `torbox_calls_max`. */
+  torbox_calls: 4,
+  torbox_calls_max: 8,
   /** Requests a hop chain may take, the first included. */
   hops: 6,
   /** Taps ("play") and GET /v1/astra/torbox one isolate takes a minute, then 429; presses
@@ -39,6 +40,15 @@ export const ASTRA_LIMITS = {
    * add TorBox refused reads a longer page. */
   list_page_ahead: 100,
   list_page: 1000,
+  /** GET /v1/astra/torbox/servers: asks one isolate takes a minute (its own count), then 429; and
+   * the server groups it hands back at most. */
+  servers_per_minute: 6,
+  servers_max: 30,
+  /** The most the Worker reads of checkcached's answer with its file list, and of the server list,
+   * in bytes (the Free plan gives a request about 10 ms of CPU: 512 KiB is some 5,000 files, about
+   * 1 ms to parse; the server list is a few KiB). Past it the answer is trouble, not read. */
+  cached_bytes: 512 * 1024,
+  servers_bytes: 64 * 1024,
 } as const;
 
 export const ASTRA_MODES = ['play', 'ahead'] as const;
@@ -85,7 +95,28 @@ export interface AstraPlayResponse {
   type: string | null;
   /** Whether the final answer let a web page read it (follow path; null when not checked). */
   readable: boolean | null;
+  /** A press only: TorBox has the film ready and its file was told apart, but the account does not
+   * hold it yet, so there is no address before a tap; the Worker keeps what it learnt for half an
+   * hour, and the tap needs only createtorrent and requestdl. Not a miss. */
+  ready: boolean;
+  /** Each thing tried with its own time; calls made together overlap, so their times need not add
+   * up to `total_ms`, the Worker's whole time for this request. */
   steps: AstraStep[];
+  total_ms: number;
+}
+
+/** GET /v1/astra/torbox/servers: TorBox's public speed-test files, one a server group, for the lab
+ * to time from the phone (a web page may not read TorBox's list itself). The group's label, its
+ * region's name when TorBox gives one, and the test file's address; an address carrying a token, or
+ * not public https, is left out. These are TorBox's own test files, never the owner's films. */
+export interface AstraServer {
+  group: string;
+  region: string | null;
+  url: string;
+}
+export interface AstraServersResponse {
+  servers: AstraServer[];
+  note?: string;
 }
 
 /** GET /v1/astra/torbox: whether the key is set, whether TorBox takes it (null when not set or not
@@ -95,4 +126,57 @@ export interface AstraTorboxResponse {
   ok: boolean | null;
   plan: number | null;
   note?: string;
+}
+
+// --- The owner's copy of Astra's data (ASTRA.md §5.3, SECURITY.md §11; backup.ts) ---
+// The phone's saved add-ons, library, progress, watched list, settings and recent searches, kept on
+// the owner's server so every phone they sign in on holds the same. The owner's device only (agent
+// keys get 403). The Worker checks the outer shape and seals the copy whole (AES-256-GCM under a key
+// derived from AUTH_PEPPER) without reading what is inside: add-on addresses are secrets.
+
+export const ASTRA_BACKUP = {
+  /** The copy's tag; any other is refused. */
+  tag: 'sync/1',
+  /** The keys a copy may hold: Astra's BACKUP_KEYS (frontend/astra/src/app/store.js). */
+  keys: ['addons', 'library', 'progress', 'watched', 'settings', 'recentSearches'],
+  /** A PUT's body (the copy) as sent, in bytes; past it 413 too_large. A full phone's copy is about half of it
+   * (300 progress entries, 500 library titles, 3,000 watched); the Worker's CPU on the Free plan bounds it. */
+  max_bytes: 1024 * 1024,
+  /** GET, PUT and DELETE together, per isolate and minute, then 429. */
+  per_minute: 30,
+  /** Earlier copies kept by hand: the copy as it stood at the start of each of the last 7 UTC days it changed. */
+  days: 7,
+  /** No time in a copy may be later than this far ahead of the reader's clock (a key's `at`: of the Worker's). */
+  ahead_ms: 86_400_000,
+} as const;
+export type AstraBackupKey = (typeof ASTRA_BACKUP.keys)[number];
+
+/** One key of a copy: when it last changed on a phone (ms), the value as the phone's store holds it,
+ * and, for progress, watched, library and add-ons, removed entries with when they were removed (60 days);
+ * for add-ons also when each address was had (`times`). Add-ons' are keyed by a fingerprint of the address. */
+export interface AstraCopyKey {
+  at: number;
+  value: unknown;
+  gone?: Record<string, number>;
+  times?: Record<string, number>;
+}
+export interface AstraCopy {
+  astra: typeof ASTRA_BACKUP.tag;
+  keys: Partial<Record<AstraBackupKey, AstraCopyKey>>;
+}
+
+/** GET /v1/astra/backup[?known=<version>]. All three null when nothing is kept; `copy` null alone when what
+ * is kept could not be opened (damaged, or sealed under another key): a PUT on that `version` replaces it.
+ * With `known` naming the version kept now, `{version, saved_at, same: true}` from the object's head alone
+ * (nothing read or opened): the phone already holds it. */
+export type AstraBackupResponse =
+  | { version: string | null; saved_at: string | null; copy: AstraCopy | null }
+  | { version: string; saved_at: string; same: true };
+/** PUT /v1/astra/backup[?base=<version>]: the body is the copy itself, sealed as sent. `base` is the version the
+ * phone merged with (absent: nothing was kept). Another version kept now is 409 conflict (another phone saved
+ * first): the phone fetches, merges, tries again. A version is an opaque random id. */
+export type AstraBackupPut = AstraCopy;
+export interface AstraBackupSaved {
+  version: string;
+  saved_at: string;
 }

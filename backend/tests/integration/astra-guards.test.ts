@@ -67,7 +67,16 @@ describe('the counts', () => {
     const over = await press();
     expect([over.status, over.body]).toEqual([
       200,
-      { url: null, via: null, size: null, type: null, readable: null, steps: [] },
+      {
+        url: null,
+        via: null,
+        size: null,
+        type: null,
+        readable: null,
+        ready: false,
+        steps: [],
+        total_ms: expect.any(Number),
+      },
     ]);
     const played = await tap();
     expect([played.status, played.body.steps.map((x) => x.step)]).toEqual([200, ['key', 'follow']]);
@@ -94,10 +103,12 @@ describe('a press reads only the newest of the list', () => {
     forget();
     world.hosts.set('api.torbox.app', torbox({ cached: [FILM], owned: account(100) }));
     const far = await press(KEY);
-    expect([far.status, far.body.url, far.body.steps.at(-1)?.step]).toEqual([200, null, 'owned']);
+    expect([far.status, far.body.url, far.body.ready]).toEqual([200, null, true]);
+    expect(far.body.steps).toContainEqual(expect.objectContaining({ step: 'owned', ok: false }));
     expect(torboxCalls().some((a) => a.url.endsWith('/createtorrent'))).toBe(false);
     // The tap that follows finds it through the add, which answers the existing id.
     world.asked = [];
     expect((await tap(KEY)).body.url).toBe(`https://${FILE_SERVER}/dl/77/0`);
+    expect(torboxCalls().some((a) => a.url.includes('/checkcached'))).toBe(false);
   });
 });

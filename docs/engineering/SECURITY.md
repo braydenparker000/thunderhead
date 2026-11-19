@@ -216,7 +216,7 @@ Owner ruling 2026-10-28: Music, Guitar, Podcasts, Astra and My Media are copied 
    **Music (P5) moved through its own service worker instead**, so the page itself is unchanged: it still addresses its library by the old Worker's URLs (its offline copies and song heads are keyed by them), and `music/sw.js` loads `th/music/bridge.js`, which answers those requests from the new Worker with the session read from `th-auth`, and only for a top-level page (a framed copy of the player never gets the session: the worker's own frame guard). Its page reads the session for two things only, both through `th/ported/session.js`, signed in and top-level only: its error reports (the shared `assets/error-report.js`, as on every ported page since P8) and its playback log (`th/music/report.js`, loaded by the player's own `th/music/dj.js`; timings and track ids to `POST /v1/ops/reports`, addresses cut to their host), so its CSP gains the API host at deploy (`MOVED_PAGES`), as Guitar's and My Media's do; the old host leaves it with N5. The bucket gets signed links, never the session. `tests/ported.test.mjs` allows exactly that one `th/` file, and only in `music/sw.js`.
    **Guitar (P6)** follows this rule as written: its page's CSP gains the API host at deploy (`MOVED_PAGES` in `scripts/site-config.mjs`), and its sources module reads the session through `th/ported/session.js` (top-level pages only, never creating the database), asking the new Worker when signed in and the old one otherwise; the test allows that file in `guitar/sources.js` only.
    **Podcasts (P8) moved as Music did**: `podcasts/sw.js` imports `th/podcasts/bridge.js`, which answers the page's requests to the old Worker's `/podcasts/*` (its `<audio>` element and downloads too) from the new Worker with the session from `th-auth`, for a top-level page only. The page holds no token and its CSP is unchanged (it already allows any `https:` host). The test allows that one `th/` file, and only in `podcasts/sw.js`. Since 2026-11-01 (NEXT-BATCH.md part 7) the page itself also loads `th/podcasts/progress.js` (one line in `podcasts/app.js`, the one `th/` file the test allows there), which reads the session through `th/ported/session.js` (signed in, top-level or home's own frame only) to sync the app's positions and follows with `/v1/podcasts/progress` and `/follows`; it writes only the app's own `progress` entries, and only before the app reads them. **The error reports of all five ported pages (P8)**: the shared `assets/error-report.js` reads the session (`th/ported/session.js`, the only `th/` file the test allows in it) and, signed in, sends to `POST /v1/ops/errors`; every address in a message is cut to its host first (Astra's add-on and stream addresses are secrets, ASTRA.md §5.2), and only a frame of the site's own code says where it came from.
-   **Astra (owner ruling 2026-11-18)** moves onto the sign-in under this rule, as Guitar did: its page reads the session through `th/ported/session.js`, which withholds it from a page framed by another site or nested deeper than home's own frame (`framedByOther`), as for Guitar; it does not load the visibility guard. With the session it asks this Worker's `/v1/astra/*` for a film's address (§8.2). Signed out, it plays as before. The TorBox key is a Worker secret; the page gets only TorBox's own file links, which may carry the account's token (§8.2).
+   **Astra (owner ruling 2026-11-18)** moves onto the sign-in under this rule, as Guitar did: its page reads the session through `th/ported/session.js`, which withholds it from a page framed by another site or nested deeper than home's own frame (`framedByOther`), as for Guitar; it does not load the visibility guard. With the session it asks this Worker's `/v1/astra/*` for a film's address (§8.2). Signed out, it plays as before. The TorBox key is a Worker secret; the page gets only TorBox's own file links, which may carry the account's token (§8.2). **Since 2026-11-19** the same session keeps Astra's saved data the same on every phone the owner signs in on (`/v1/astra/backup`, device only; ASTRA.md §5.3): the add-on list, whose addresses are secrets, goes to the owner's Worker in the request body and is stored only sealed (§11, `ASTRA_SEAL_KEY`'s row); signed out, or with the switch in Settings › Your data off, nothing is sent. The page's only other write is to the senses reader's own last look (`th.p.senses.watch`), so merged progress is not reported as watched here.
 5. **Home's own frames** (2026-11-01, the island, HOME.md §12.1): home opens Music and Podcasts in a frame. The frame's page reads the session only when its top page is this site's (reading the top's origin throws across sites: `framedByOther`, `th/ported/session.js`). The app's worker can't see who framed a request, so home first sends it a one-time token (a 128-bit random hex, by `postMessage` from a top-level page of this site, which no other site can do; answered on a `MessageChannel`), then opens the frame at `?th-frame=<token>`; the worker marks the client that navigation creates as trusted (`th/ported/frames.js`), once, within 60 s, and answers that page load from the app's own address (so no token is ever cached and it opens offline). Only home's own page (`/`, top-level) may hand a token. A page that reloads itself in the frame (Music on a day/night switch) asks home for a fresh token and claims its trust back (`th/ported/claim.js`); home hands one only to its own layer's frame. The marks are kept in a `th-frames` cache per app, since browsers stop idle workers, and dropped when their frame is gone. A frame without a fresh token, framed by any other site, or nested more than one level down (`framedByOther`) is untrusted as before. Its second reader (2026-11-01) found no way in for another site; its other findings (the canonical CSP, the offline load, the reload, a shell update stopping the music) were fixed before it shipped. Known: the Music page (its jsdelivr visualiser scripts and `'unsafe-eval'`) now runs unsandboxed inside home while open; a script injected there could reach home's page, as it could already reach the session. A browser test frames the player from another origin, with and without a made-up token, and sees no session used.
 
 | Ported page | Outside hosts it uses today (from its old CSP and code, 2026-10-28) | Notable allowances it keeps |
@@ -368,16 +368,26 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
 - **Who:** the owner's device sessions only (route table `D`: the mind, Muse and CI get 403).
   Counted per isolate in memory (no row written): taps ("play") and `GET /v1/astra/torbox` 30 a
   minute, then `429`; presses ("ahead") 60 a minute on their own count, then no address (never a
-  429), so presses never starve a tap.
+  429), so presses never starve a tap; `GET /v1/astra/torbox/servers` 6 a minute on its own.
 - **What it may fetch:** TorBox's API at its fixed origin with `TORBOX_KEY`. A tap: createtorrent
   with `add_only_if_cached` (TorBox refusing it as not cached is answered `503`, and nothing is
-  followed: following the add-on's link is how an add-on adds an uncached torrent), the torrent's
-  files, requestdl. A press never adds: checkcached, the list's newest 100 items, requestdl. Nothing
-  uncached is ever added, nothing at all before a tap; a cached item added for a file that then
-  cannot be told apart stays in the account, which is harmless and uses no slot. Each TorBox call
-  8 s, one retry on 429/5xx, at most 6 calls; the whole request 25 s. A torrent found is remembered
-  in the isolate's memory (its id and file list, 30 minutes, at most 200), so the next ask for it
-  costs requestdl alone.
+  followed: following the add-on's link is how an add-on adds an uncached torrent), checkcached
+  beside it unless a press left the file list, then requestdl beside the torrent's own listing. A
+  press never adds: checkcached beside the list's newest 100 items, then requestdl when the account
+  holds it. Nothing uncached is ever added, nothing at all before a tap; a cached item added for a
+  file that then cannot be told apart stays in the account, which is harmless and uses no slot. Each
+  TorBox call 8 s, one retry on 429/5xx, at most 8 calls; the whole request 25 s. A torrent found
+  is remembered in the isolate's memory (its id and file list, 30 minutes, at most 200), so the next
+  ask for it costs requestdl alone; so is what a press learnt of a torrent TorBox has ready but the
+  account does not hold (its file list from checkcached, 30 minutes, at most 200). For the lab,
+  `GET /v1/astra/torbox/servers` asks TorBox's speed-test list (GET /speedtest, with the key and
+  the phone's address) and hands back each server group's label, region and public test-file
+  address: only TorBox file servers (a `tb-cdn` label in the host), never its API host; an address
+  carrying the key or a token query, or not public https, is left out. checkcached's answer with its
+  file list is read up to 512 KiB and the server list up to 64 KiB (the Free plan's CPU); past that
+  it is trouble, not read. The
+  phone reads those test files itself; the Worker reads none of them, and changes nothing in the
+  account (TorBox's server choice, `cdn_selection`, is an account setting it never touches).
 - **Add-on links are not opened** (owner's phone, 2026-11-18): an add-on may tie a link to the
   connection that asked for the stream list, and the Worker opening it got the add-on's error clip
   and may spoil the link for the phone. Without a TorBox address the answer is `url: null`, and the
@@ -385,8 +395,9 @@ here (owner rulings 2026-11-18, ASTRA.md §4.4). It is held tight (`backend/src/
   `Range: bytes=0-0`, the site's `Origin`, no cookie, referrer or credential, the body never read;
   each address public https as `linkProblem` checks; at most 6 hops in 20 s) runs only with the
   Worker variable `ASTRA_FOLLOW` set to `on` in `wrangler.jsonc`.
-- **What it answers:** only `url`, `via`, `size`, `type`, `readable` and `steps`, never a body or a
-  header of what it fetched. TorBox's own file links may carry the account's token: such a link goes
+- **What it answers:** only `url`, `via`, `size`, `type`, `readable`, `ready`, `steps` and
+  `total_ms` (and the server list's labels and test-file addresses), never a body or a header of
+  what it fetched. TorBox's own file links may carry the account's token: such a link goes
   only to the owner's signed-in device, in the answer body, never logged or stored, exactly as every
   add-on already hands it to the phone when it plays. The key as a bare secret never leaves: not the
   Worker secret, not the `Authorization` header, not an address on TorBox's API host (a requestdl
@@ -443,7 +454,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `AUTH_SETUP_FP` | Worker secret (`none` except during first setup) | First setup | Set by the Open setup workflow; set back to `none` after setup (never deleted: it is in `secrets.required`) |
 | `AUTH_RESET_FP` | Worker secret (`none` except during a reset) | Reset ticket via GitHub | Request reset workflow; set back to `none` after use |
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
-| `ASTRA_SEAL_KEY` (P1b) | Worker secret | AES-256-GCM key sealing Astra's add-on list and backups ([ASTRA.md §5.3](../product/apps/ASTRA.md)) | Made once by `rotate-secret.yml` with `generate: ASTRA_SEAL_KEY` (32 random bytes, never printed) before the first `/import/` run; while it is `none`, `POST /v1/import/phone` answers `503 unavailable` with `details.reason = "seal_key_missing"` and stores nothing. Rotation re-seals lazily (open with the old key, seal with the new), like the pepper (§14.6) |
+| `ASTRA_SEAL_KEY` (P1b; not made) | Nowhere: **as built (2026-11-19) no separate key is made** | Astra's copy of the owner's data ([ASTRA.md §5.3](../product/apps/ASTRA.md)) is sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `astra.backup`), as the Drive grant's is: a fresh 12-byte nonce each save, the object's name and version as additional data, stored in `thunderhead-private` under `astra/` with only a version (an opaque random id), a time and the name of the pepper as metadata. As safe as a key of its own: that key would be a Worker secret beside the pepper, readable by exactly whoever can read the pepper (the Worker's secrets, §14.5), so it would add a secret for the owner to make and keep without separating anyone; HKDF's own info string makes this key independent of the Drive grant's and of the password hashing (the pepper never keys AES itself); the bucket alone (a leak, an export, the read-only signing token that reaches `thunderhead-private`, §9) holds only sealed bytes. No `/import/` run seals anything | Not rotated on its own: the pepper is never overwritten (above). Were it ever, the copy would no longer open; `GET` answers `copy: null` and the next phone's save replaces it from what the phones hold. The owner removes it in Astra: Settings › Your data › Remove the copy on my server |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (P9, Photos) | Worker secrets (`none` until the owner sets them, SETUP.md §R) | Photos' OAuth client for Google Drive (scope `drive.file`); the redirect is fixed, `WORKER_ORIGIN` + `/v1/photos/drive/callback` | Owner: a new client secret in Google Cloud → Credentials, pasted into the Worker's secrets; Disconnect and Connect again in Settings › Photos |
 | The Drive grant (P9) | `Auth` DO table `drive_grant`: the refresh token and the consenting account's address, each sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `photos.drive.refresh`), a fresh 12-byte nonce each | Minting short-lived Drive access tokens (kept only in the object's memory, handed only to the owner's phone and the Worker's daily pass; never to the mind) | Owner: Disconnect in Settings › Photos (the Worker also asks Google to revoke it, the token in a POST body), or remove the app's access in the Google account |
@@ -525,6 +536,7 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 1. Owner: Settings → Sign-in & devices → **Sign out** that device (or **Sign out everywhere**). Effective ≤60 s.
 2. Check the device list and the ledger for actions in the window.
 3. If the device is still in hand, sign in again.
+4. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.2 An agent key leaked (`thm_`, `ths_`, `thc_`)
 1. Owner: Settings → Agents → **Revoke** the key. Effective ≤60 s.
@@ -536,12 +548,15 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 2. Settings → Sign-in & devices: confirm only this device remains.
 3. Make a new recovery code if the code may have been seen too.
 4. Review Settings → Agents for keys made recently (`agent_key_created` notices).
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.4 The phone is lost or stolen
 1. From any browser: sign in at `/signin/` → Settings → Sign-in & devices → **Sign out** the lost phone (or **Sign out everywhere else**).
 2. If the password isn't available: `/recover/` with the recovery code; that signs out everything.
 3. The phone wipes its private data the next time it reaches the API (or on the `signout` push once Web Push exists). Use Android's own Find My Device erase if needed.
+   Astra's saved data, add-on addresses among it, goes with it when the phone kept Astra in step with the server (ASTRA.md §5.3): the shell's wipe removes it, and Astra removes it itself when the Worker answers 401. A phone that never joined, or had the switch off, keeps it until erased.
 4. Agent keys are not on the phone; leave them.
+5. **Astra's add-ons** (ASTRA.md §5.3): a device session can read Astra's copy on the server, add-on addresses among it, and put an add-on in it. On your phone, check Astra › Settings › Add-ons (an add-on that arrived from another phone was named in a notice, by name and host), change the debrid keys inside any add-on address you no longer trust, and, if in doubt, Astra › Settings › Your data › **Remove the copy on my server**.
 
 ### 14.5 A repository or Worker secret leaked
 | Leaked | Do |
@@ -553,6 +568,8 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 | `VAPID_PRIVATE_JWK` | New key pair; devices re-subscribe at next start. An attacker with it alone can't reach devices without their endpoints. |
 | `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
+
+Rotating `AUTH_PEPPER` (§14.6) re-seals Astra's copy (ASTRA.md §5.3) at its next save, under the newest pepper, and that save removes the copy's daily copies, which were sealed under the old one: once the object's `seal` metadata names the new pepper, the old pepper opens nothing kept. A phone's next change saves it; **Sync now** in Astra's Settings › Your data does it at once.
 
 ### 14.7 A stranger used up the free quota
 Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdog fires at 70% of the daily 100k Worker requests before 18:00 UTC.
@@ -595,7 +612,7 @@ Sections once marked as proposals that are not built and not in PLAN.md; their f
 
 - **§6.4 Fallback: client-side KDF ("server relief").** scrypt on the phone and only a keyed hash on the server, with the same verifier, picked by `AUTH_KDF_WHERE`.
   Not needed: X3 passed on 2026-10-29 (decisions.md), so scrypt runs in the `Auth` object.
-- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper.
+- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper. Astra's copy is opened with the newest pepper, then the older, and sealed with the newest (`placeOf` in `backend/src/areas/astra/backup.ts` takes `AUTH_PEPPER_V2` first once it is declared); drop the old pepper after the copy's next save (§14.5).
   Not built (the Worker has one pepper; `pepper_v` is stored for the day it does) and not in PLAN.md.
 - **§14.10 Start the account over (last resort, ask-first).** A one-shot migration, gated on a fingerprint the owner makes and a 24 h wait, clears `Auth` only.
   Not built and not in PLAN.md; the reset ticket is the built way back in.

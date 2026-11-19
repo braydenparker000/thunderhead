@@ -65,10 +65,12 @@ describe('following the add-on’s forward', () => {
       size: 734_003_200,
       type: 'video/x-matroska',
       readable: true,
+      ready: false,
       steps: [
         { step: 'key', ok: false, ms: expect.any(Number), note: 'No TorBox key is set on your server.' },
         { step: 'follow', ok: true, ms: expect.any(Number), note: 'Reached the film in 4 hops.' },
       ],
+      total_ms: expect.any(Number),
     });
     expect(world.asked.map((a) => a.method)).toEqual(['GET', 'GET', 'GET', 'GET']);
     for (const a of world.asked) {

@@ -15,7 +15,7 @@ import {languageName} from '../engine/languages.js';
 import {installedAddons, searchCatalogs, fetchMeta, fetchStreams} from '../addons/client.js';
 import {linkFacts} from '../addons/link-facts.js';
 import {torboxPanel} from './torbox-panel.js';
-import {scrubSecrets} from './scrub.js';
+import {playbackReport} from '../player/playback-report.js';
 
 const $ = id => document.getElementById(id);
 function h(tag, props = {}, ...children) {
@@ -122,7 +122,7 @@ function renderPlan() {
 }
 
 $('copy-report').addEventListener('click', async () => {
-  const report = scrubSecrets(JSON.stringify(await player.report(), null, 2), {known: [player.url].filter(Boolean)});
+  const report = await playbackReport(player); // the player's own plain-words report: no address, hash, key or file name
   try { await navigator.clipboard.writeText(report); $('copy-hint').textContent = 'Report copied. It contains no links or account details.'; }
   catch { $('copy-hint').textContent = 'Copy failed; long-press to select the report below.'; $('copy-hint').append(h('pre', {}, report)); }
 });

@@ -6,6 +6,7 @@
 import {h} from '../ui/dom.js';
 import {externalPlayerUrl, canOpenExternally} from './external.js';
 import {addressNotice, tryAgain} from './address.js';
+import {copyFromPlayer} from './playback-report.js';
 
 export class Loading {
   constructor(p) {
@@ -100,9 +101,8 @@ export class Loading {
     const p = this.p;
     this.show(false);
     p.noticeEl.hidden = true;
-    const report = h('button', {class: 'ap-chip', type: 'button', onclick: async () => {
-      try { await navigator.clipboard.writeText(JSON.stringify(await p.engine.report(), null, 2)); report.textContent = 'Report copied'; } catch { report.textContent = 'Copy failed'; }
-    }}, 'Copy report');
+    // The playback report in plain words (playback-report.js): no address, hash, key, token or file name in it.
+    const report = h('button', {class: 'ap-chip', type: 'button', onclick: async () => { report.textContent = await copyFromPlayer(p) ? 'Report copied' : 'Copy failed'; }}, 'Copy report');
     // What can help depends on why it stopped: a lost connection is tried again
     // (from where it stopped), a dead link needs another source, and only a file
     // the browser cannot play is worth another app.

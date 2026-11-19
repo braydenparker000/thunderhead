@@ -26,11 +26,19 @@ Ring colour `#8b5cf6`, icon Phosphor `monitor-play`, its own page at `/astra/`, 
    ahead" (on by default) and is off with the data saver. Still in force: nothing plays without a tap;
    Astra never ranks, picks or pre-selects a stream on the list; secrets never leave the phone or
    reach storage (§5).
+   **Owner ruling 2026-11-19 (Continue Watching remembers the stream):** a progress entry keeps the
+   stream the owner tapped, and a tap on its Continue Watching card plays that same stream again from
+   where it stopped, without the stream list; a long press offers "Choose another stream". Only the
+   stream the owner chose plays again: when it cannot be reached and the same file is not offered any
+   more, the sources panel waits for the owner's pick (§4.4).
 3. **Add-on URLs, stream URLs and the debrid token are secrets.** On the server they are stored only
    Worker-encrypted; they never appear in logs, senses, surfaces, errors, the mind's context or the repo.
    **Owner ruling 2026-11-18:** stream addresses may pass through the owner's Worker in transit, for the
    owner's signed-in device only, never stored, never logged; the TorBox API key lives in the Worker as
-   the secret `TORBOX_KEY`. TorBox's own file links may carry the account's token: such a link is passed
+   the secret `TORBOX_KEY`.
+   **Owner ruling 2026-11-19:** the stream a Continue Watching entry remembers (the add-on's link, the
+   torrent's hash, the file's index, name and size, the release group, the add-on's name and the card's
+   label) is a secret at rest on the phone exactly as the add-on list is (§5.2 rule 7). TorBox's own file links may carry the account's token: such a link is passed
    only to the owner's signed-in device, in the answer body, never logged or stored, exactly as every
    add-on already hands it to the phone when it plays. The key as a bare secret (the Worker secret,
    the `Authorization` header, a TorBox API address such as a requestdl permanent link) never leaves.
@@ -124,7 +132,7 @@ the owner agrees.
 | 14 | **Classic import** | The one-time copy from `astra.v1.*` is removed (the new origin has no classic data). Replaced by the migration import (§7). | Static test: no `astra.v1.` string. |
 | 15 | **Software decoding** | Unchanged: libmedia comes over with Astra (owner ruling 2026-10-28). | Existing planner tests pass. |
 | 16 | **Lab** | `/astra/lab/` stays as a developer page, not linked from the UI; its "copy a report" output passes through the scrubber (§5). | Unit test: the report contains no add-on path or token. |
-| 17 | **Server backup** | Astra's `backup/1` is also kept, Worker-encrypted, on the server (§5.3), so a new device restores it after sign-in. | API test. |
+| 17 | **Server backup** | Astra's `backup/1` is also kept, Worker-encrypted, on the server (§5.3), so a new device restores it after sign-in. **As built (2026-11-19):** a `sync/1` copy that every signed-in phone merges with, not restores (§5.3). | API test. |
 
 Expected size: the port is a handful of lines; the later rows together are about 300–600 lines
 changed plus deletions (fonts, SW, classic import).
@@ -231,16 +239,37 @@ How it is enforced:
    on (the group the owner already picked, as Stremio does); otherwise the player opens the episode's
    sources, through the owner's filters (those hidden are counted and can be shown), and loads nothing
    until a tap. The earlier fallback that played the first source when no group matched is gone.
-   **"Plays on this phone" (2026-11-15, `addons/device-facts.js`):** each playable stream card says, on
-   one quiet line, "Plays directly" or "Needs the software decoder (uses more battery)", from its
-   label and the browser's own answer (`navigator.mediaCapabilities.decodingInfo`: smooth and
-   power-efficient), and "Sound converted on the phone" for Dolby Digital or DTS. It informs only:
-   nothing is hidden, ranked or picked by it.
+   **"Plays on this phone" (2026-11-15, `addons/device-facts.js`; one note since 2026-11-19,
+   `addons/stream-note.js`):** a playable stream card carries at most one quiet line, the most
+   important of: "10-bit HEVC: this phone decodes it in software (slow, more battery)" where the
+   browser has no efficient decoder for it; a note that a stream with no hash from its source may open
+   in Chrome's plain player (signed in, a TorBox key not known to be missing, and the link is not a
+   plain file address); "Needs the software decoder (uses more battery)" for any other picture the
+   browser does not decode itself. A stream the phone plays itself carries no note. The facts come
+   from the card's label and the browser's own answer (`navigator.mediaCapabilities.decodingInfo`:
+   smooth and power-efficient). A 40-character hash in an add-on's text is not shown
+   (`addons/stream-text.js`); Astra still reads it. All of it informs only: nothing is hidden, ranked,
+   dimmed or picked by it.
 3. **Playback needs a user gesture**: `PlayerScreen.open()` returns without playing unless
    `navigator.userActivation.isActive`. Check: calling it from a timer does nothing.
 4. **The mind never sees streams**: the Worker stores no stream data (since 2026-11-18 addresses pass
    through `/v1/astra/*` in transit and a torrent's id and file list stay half an hour in its memory,
    for the owner's device only; agent keys get 403); senses carry none (§3).
+
+5. **Continue Watching, as built (owner ruling 2026-11-19, `app/resume.js`, `app/remembered.js`):** when
+   a stream the owner tapped plays, its progress entry remembers it (rule 3; a finished entry keeps only
+   the release group). A tap on a "resume" card opens the player at once and resolves that stream as a
+   tap on the list does (mode "play": with a hash, the Worker hands TorBox's fresh address, so it works on
+   any phone), from the saved time; the title's streams are collected behind it for the Sources panel and
+   never disturb what plays. When the stream cannot be reached (the Worker says it is not on TorBox; its
+   link dead before the first picture), the same stream is looked for in that list (same hash and file,
+   else same link, else same release group and file name) and played; when it is not there, the sources
+   panel waits with "The stream you were watching is no longer offered. Pick another." Nothing else is
+   ever picked. A "Next Up" card follows Next's rule (2026-11-15): the release group the owner watched
+   plays when the episode has it, else the sources panel. Entries from before remember nothing and open
+   the stream list as before. A long press: "Choose another stream" (the list, at the saved time), then
+   "Start from beginning" (the remembered stream from 0:00). A finger coming down on a card asks for its
+   address ahead (mode "ahead", Get ready ahead on, data saver off); nothing is asked while Home is shown.
 
 Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-10-27).
 
@@ -266,7 +295,10 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
 3. **Scrubber** (one function, `scrubSecrets(text)`; as built 2026-11-18 it is `frontend/astra/src/lab/scrub.js`, used by the lab's reports, while error reports use `frontend/ui/scrub.js`): replaces
    every `https?://` URL with `<host>/…` and every query value named `token`, `apikey`, `api_key`, `key`
    with `***`, and any 32+ character hex or base64url run with `***`. Check: unit tests with fixture
-   add-on URLs (invented hosts).
+   add-on URLs (invented hosts). **Owner ruling 2026-11-19:** the player's playback report (`player/playback-report.js`,
+   which now holds `scrubSecrets`) keeps out only links, hashes, tokens and keys, and the stream's own address, host
+   and file name: it may hold the file's own words (track titles and languages, error details, font names, the plan's
+   notes). The lab's TorBox check still also takes out file and release names.
 4. Fixture add-ons in tests use invented hosts (`addon.example`) and invented tokens.
 5. **As built (2026-11-15):** "Check playback in the lab" sends the stream address in the fragment
    (`lab/#src=…`), which never reaches a server or a cache key, and the lab removes it from the address
@@ -284,18 +316,106 @@ Recorded in [decisions.md](../../process/decisions.md) as an owner ruling (2026-
    phone (IndexedDB `astra-films`) are keyed by the file's size and a SHA-256 of its first 64 KiB,
    never by its address; what the device learnt about its decoders (localStorage `astra-routes`) holds
    codec names only.
+7. **Owner ruling 2026-11-19 (amends rule 6's "never storage" for one case):** a Continue Watching
+   entry's remembered stream (§4.4 #5) lives in `localStorage` `astra.v2.progress` beside the add-on
+   list and is treated like it: checked by the store's sanitiser on every read (the link https only and
+   at most 4,096 characters, a 40-hex hash, finite numbers, capped text; a damaged one is dropped and
+   the entry stays), carried in the backup file and in the Worker-encrypted copy (§5.3) as progress is,
+   sent only to the owner's Worker when a tap plays it, and never logged, shown (the label has no hash)
+   or read by the senses reader, which takes refs and times only.
 
-### 5.3 Server copy (Worker-encrypted)
+### 5.3 Server copy (Worker-encrypted), as built (2026-11-19; after the security read)
 
-- `PUT /v1/astra/backup` with the `backup/1` JSON, sent 60 s after the last change to add-ons, library,
-  progress, watched or settings, and on `visibilitychange → hidden`.
-- The Worker seals the whole body with AES-256-GCM under a Worker secret key (see
-  [SECURITY.md](../../engineering/SECURITY.md) for the key name and rotation) and stores the ciphertext
-  in `thunderhead-private/astra/backup.json.enc` plus the last 7 daily versions **[proposal]**.
-- `GET /v1/astra/backup` returns the decrypted JSON **only to a signed-in owner device token**; agent
-  tokens (the mind, Muse) get 403. Check: API test with each token role.
-- The Worker never logs request or response bodies for `/v1/astra/*`. Check: a log-capture test asserts
-  no body text appears (built with the relay: `backend/tests/integration/astra-follow.test.ts`).
+The owner agreed (2026-11-19) that Astra's data follows their sign-in: "any phone I sign in on, nothing
+to set up". The add-on list, whose addresses are secrets, is kept on the owner's server only sealed by
+the Worker (rule 3).
+
+- **Routes** (`backend/src/areas/astra/backup.ts`, shapes in `shared/contract/astra.ts`), the owner's
+  device sessions only (route table `D`: the mind, Muse, reflex and CI get 403), `Cache-Control:
+  no-store`, 30 requests a minute per isolate (then 429):
+  `GET /v1/astra/backup[?known=<version>]` → `{version, saved_at, copy}` (all null when none is kept;
+  `copy` null alone when what is kept does not open), or `{version, saved_at, same: true}` when `known` is
+  the version kept now, answered from the object's head alone (nothing read or opened: a start where
+  nothing changed costs a few hundred bytes of mobile data);
+  `PUT /v1/astra/backup[?base=<version>]`, the body being the copy itself → `{version, saved_at}`, or
+  `409 conflict` when `base` (absent: nothing kept) is not the version kept now (another phone saved
+  first); `DELETE /v1/astra/backup` → 204. A version is an opaque random id (16 bytes, base64url), so a
+  query says nothing, not even when (Cloudflare's own invocation logs record a request's address; the
+  Worker logs none). Without the bucket binding every route answers `503 unavailable` and the page
+  carries on alone. Only a PUT may send more than the Worker's usual 64 KiB.
+- **The copy** is `{"astra": "sync/1", "keys": {<key>: {"at", "value", "gone"?, "times"?}}}` for the
+  `BACKUP_KEYS`: `value` as the store holds it, `at` when the key last changed on a phone (ms), `gone`
+  (progress, watched, library, add-ons) the removed entries with when, `times` (add-ons) when each
+  address was had. The Worker parses it once to check only that outer shape (an object, the tag, known
+  keys, each with a time at most a day ahead of the Worker's clock, a value, objects for `gone` and
+  `times`; `DEVICE_KEYS` never travel), at most 1 MiB as sent (`413 too_large` beyond), seals its bytes
+  as sent and never reads further or logs what the keys hold. Errors name a rule, never a value sent.
+- **Size and the Free plan's CPU** (about 10 ms a request): a full phone's copy (Astra's 300 progress
+  entries, 500 library titles, the newest 3,000 watched marks) is about 0.5 MiB. Measured in workerd
+  (`backend/tests/cost/astra-backup-cpu.test.ts`): a PUT's own work 2, 3–4 and 6 ms for 0.31, 0.57 and
+  0.96 MiB (the first build, which parsed, stringified and encoded again: 4, 7–8, 11–12), a GET's 0–1 ms
+  (first build 2, 3, 5): the opened bytes go back inside the answer built from byte pieces.
+- **At rest** (`backup-seal.ts`, `backup-store.ts`): sealed whole with AES-256-GCM, a fresh 12-byte nonce
+  each time, under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `astra.backup`),
+  as the Drive grant's is; the additional data is the object's name and the version, so a copy opens only
+  where and as what it was written. It lives in `thunderhead-private` at `astra/backup.json.enc`, with only
+  its version, save time and the name of the pepper it was sealed under as metadata. The write is
+  conditional (`If-None-Match: *` when none is kept, else the etag read just before), so two phones saving
+  on the same version, or both saving first, cannot both win.
+- **Daily copies, undone by hand:** the first save of a UTC day first copies the kept object, sealed as it
+  is, to `astra/days/<YYYY-MM-DD>.json.enc`; the newest 7 are kept. Its additional data still names the
+  main object, so it opens only put back there: to undo a bad merge, copy a day's object (with its
+  metadata) over `astra/backup.json.enc`; the phones take it at their next fetch. `DELETE` removes the
+  copy and every daily one.
+- **Pepper rotation** (SECURITY.md §14.5, §14.6): the copy is opened with the pepper its metadata names,
+  then the others, and always sealed with the newest, so the first save after `AUTH_PEPPER_V2` is added
+  re-seals it; that save also removes the daily copies, sealed under the old pepper. Today there is one
+  pepper; `placeOf` in `backup.ts` takes the new one first once it is declared.
+- **The page** (`frontend/astra/src/app/sync.js`; the requests in `sync-wire.js`, the checks of a server
+  copy in `sync-read.js`, the merge in `sync-merge.js` and `sync-addons.js`, the device record in
+  `sync-record.js`): signed out, or with Settings › Your data › "Keep Astra the same on every phone I
+  sign in on" off, nothing is sent. Signed in it fetches (naming the version it holds) and merges shortly
+  after start (never before the first paint), back in front after more than 5 minutes, and before each
+  save; a save goes out a minute after the last change, and as a keepalive request when the page is
+  hidden (when it fits in 63 KiB; else on the next start). Offline, 5xx, 503 and three conflicts in a row
+  stay quiet and are tried again later (1, 2, 5, 10, then 30 minutes); a copy too large for the Worker is
+  not sent, and Your data says so in one line.
+- **The merge:** progress, watched and library entry by entry by their own times (`updated`, the time
+  marked, `added`), removals kept as tombstones for 60 days so they never come back; merged progress is
+  Astra's own 300 newest. Add-ons address by address: each address carries when it was had or added again
+  and a removal is a tombstone (both keyed by a fingerprint of the address, never the address), so an
+  add-on removed on one phone (perhaps because its key leaked) comes back only when added again after the
+  removal; the side whose list changed last gives the order and each one's on/off and name, and addresses
+  only the other side has follow. Settings and recent searches whole, the newer change winning, a change
+  stamped later than the time this phone last saw for the key (so a phone whose clock is behind still
+  wins with a change it made after seeing the other's). A phone's first merge (joining, or its switch
+  turned on again: its own stamps and tombstones are kept while it is off) puts both sides together,
+  minus what was removed; a phone with nothing but defaults takes the server's.
+- **A server copy is checked before use** (`sync-read.js`): every value passes the store's own
+  sanitisers, all or nothing per key; no time is taken as later than 12 hours ahead of the phone's clock
+  (half the Worker's own day, so a stamp made here is never refused there), and a key where a time was
+  brought back is saved back with it fixed, so it falls into the past (a far-future entry would otherwise
+  win every merge and its tombstone never end; the phone's own stamps are capped the same way); a value nested deeper than 6 or holding a string past 2,048 characters is as
+  if not kept, unknown settings larger than 4 KB are dropped, add-ons keep only url, enabled and name, and
+  recent searches are 10 of at most 200 characters, so a damaged or hostile copy cannot bloat or wedge a
+  phone. An add-on address this phone did not have is never taken in silently: a notice names it and its
+  host once ("Added from your other phones: …"), a new phone's first merge included.
+- **On the phone:** merged values are written through the store and announced as another window's write,
+  so every open screen follows; the title playing keeps its own progress. The device record
+  (`localStorage` `astra.sync.v1`) is outside `astra.v2.*`, so a backup never carries it. Merged progress
+  is written into the senses reader's last look as well (`sync-senses.js`), so another phone's watching
+  is never reported as watching here, except where this phone watched the same title since the reader's
+  last look (then that watching is reported). A sign-out removes `astra.v2.*` and the record when this
+  phone kept Astra in step (`th/session.js` wipe, through `th/astra/wipe.js`; Astra itself on a 401 from the Worker; an open page stops
+  writing back): the server holds the copy. Recent searches turned off empties the list on every phone.
+- **Checks:** `backend/tests/integration/astra-backup.test.ts` (each token role, round trip, the copy
+  back byte for byte, `same`, conflict, a race and two first saves, 1 MiB, the shape, a far-future `at`,
+  503, the count), `astra-backup-seal.test.ts` (no plain text of an add-on address in the bucket, a
+  tampered copy refused, a pepper rotation, the daily copies, a log capture),
+  `backend/tests/cost/astra-backup-cpu.test.ts` (CPU), `tests/astra-sync.test.mjs` (the merge and the
+  checks of a copy), `tests/astra-sync-engine.test.mjs` (the engine on the real store),
+  `tests/astra-sync-browser.test.mjs` (two phones in Chromium), `tests/signin-browser.test.mjs` (the
+  sign-out wipe).
 
 ---
 
@@ -449,18 +569,57 @@ how each behaves is in `frontend/astra/README.md`.
 | More files for the software decoder: H.264 in AVI, H.263 in 3GP, Windows Media sound in MKV (three recorded patches to libmedia's readers) | `engine/software.js`, `frontend/assets/libmedia/` (`licenses/libmedia-modifications.txt`) |
 | Dolby Vision profile 5: colours corrected in the picture filter, without the per-frame reshaping (switch in the Picture section, on by default) | `enhance/dolby.js`, `tonemap.js`, `engine/mp4.js`, `player/picture-menu.js` |
 
-## The relay, as built (2026-11-18)
+## The relay, as built (2026-11-18, faster first play 2026-11-19)
 
 `backend/src/areas/astra/`, shapes in `shared/contract/astra.ts`, rules in SECURITY.md §8.2; device
 only, nothing stored or logged.
 
 | Route | What |
 |---|---|
-| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, steps}`. With `TORBOX_KEY` and a hash. A tap: createtorrent with `add_only_if_cached` (refused as not cached: 503), the torrent's files, requestdl for the phone's nearest server: 3 TorBox calls. A press: checkcached, the account's newest 100, requestdl; it never adds. A torrent found is remembered in the Worker's memory for 30 minutes: the next ask costs requestdl alone. The file by name, size or the one video; an index alone only when it names the one video; never a guess. TorBox's file address is handed over (it may carry the account's token); one on TorBox's API is asked again, never handed over. Otherwise `url: null`, and the page plays the add-on's link; following add-on forwards here only with `ASTRA_FOLLOW` `on`. Taps 30 a minute, presses 60 on their own count |
+| `POST /v1/astra/play` | `{link, hash?, fileIndex?, fileName?, fileSize?, mode}` → `{url, via, size, type, readable, ready, steps, total_ms}` (each step its own call's time, calls made together overlapping; `total_ms` the Worker's whole time). With `TORBOX_KEY` and a hash. A press never adds: checkcached (with its file list, read up to 512 KiB) beside the account's newest 100; in the account, requestdl for the phone's nearest server; ready on TorBox but not in the account, `url: null` with `ready: true` (not a miss), and the file list is kept for the tap. A tap: createtorrent with `add_only_if_cached` (refused as not cached, or checkcached saying so for certain while the add gives no id: 503), checkcached beside it unless a press left the list, then requestdl for the file's place beside the torrent's own listing, which confirms its id (another id is asked for at once by that id; a listing about another torrent is trouble): two calls in a row, 3 or 4 in all. Measured in the tests' stub with the live delays: a tap 1.76 s → 1.41 s. A torrent found is remembered in the Worker's memory for 30 minutes: the next ask costs requestdl alone. The file by name, size or the one video; an index alone only when it names the one video; never a guess. TorBox's file address is handed over (it may carry the account's token); one on TorBox's API is asked again, never handed over. Otherwise `url: null`, and the page plays the add-on's link; following add-on forwards here only with `ASTRA_FOLLOW` `on`. Taps 30 a minute, presses 60 on their own count |
 | `GET /v1/astra/torbox` | `{configured, ok, plan}`: whether the key is set and TorBox takes it, and the plan number |
+| `GET /v1/astra/torbox/servers` | `{servers: [{group, region, url}], note?}`: TorBox's public speed-test files, for the lab's Server speed; only TorBox file servers (a `tb-cdn` host, which names the group), none with a token; read up to 64 KiB; 6 a minute |
 
 Without the key (`none`, until the owner sets it: `backend/README.md`), the direct path is skipped and
 the page plays the add-on's own link, as before the relay.
+
+## Next round: look, motion and settings (owner, 2026-11-19)
+
+Agreed after the finishing round ([decisions](../../process/decisions.md), 2026-11-19); nothing here is built yet.
+The owner's words: "I think it needs more customizability and overall more settings, your continuity ideas are
+great. Honestly every part should feel specifically engineered to be the way that it is… I wanna build something
+better than everything else. Novio, Apple TV, Zen Browser… These aren't even perfect yet. I wanna do something
+better than them obviously."
+
+What that fixes for the round:
+
+1. **The bar.** Better than the references, not level with them: Apple TV, Zen Browser and the app the owner
+   calls Novio are starting points, and the owner expects there are good interfaces not yet seen. Every part
+   must look and behave as if it was engineered for its place; nothing generic, nothing left at a default.
+2. **More settings, more of Astra the owner's own.** Today Settings has Appearance (poster size and corners),
+   Home (hero, rows, their order), Add-ons, Playback and Your data. The round adds real customisation across
+   the app; what exactly is decided with the owner from a list, not guessed.
+3. **Continuity** (agreed): things travel instead of appearing. The poster grows into Details; Details, the
+   stream list and the player share one backdrop instead of cutting to black; the player opens out of Play.
+4. **Touch**: springs on sheets and menus, sheets dragged down to dismiss, rows that settle on a poster, small
+   haptic ticks.
+5. **Loading**: posters fade up from their own colour, placeholders match the final layout so nothing jumps,
+   the first picture cross-fades in from the backdrop.
+6. **The stream list** is the least finished screen (the add-on's raw text): a designed card with quality,
+   size, sound and source as tidy labels, and a format for the owner's add-on that Astra reads reliably.
+   Labels only: rule 2 stands, nothing is ranked, hidden or picked.
+7. **Layout and type**: one spacing rhythm and type scale; a tint per title from its artwork.
+8. **Player controls**: how they appear and leave, how seeking and a double tap feel.
+
+How it is run: (a) every transition as it is today is recorded at phone size on a slowed processor, with frame
+times; (b) a one-page feel spec fixes the timings, the springs and the rules (every movement shows where a
+thing came from; nothing delays a tap; 60 frames a second on the owner's phone; reduced motion respected);
+(c) it is built in the layers above and each is shown to the owner as before and after before it ships;
+(d) a check fails when a transition drops frames on a slowed processor, and the playback report gains
+frame-drop counts so the owner's phone says what stutters. It is its own pull request, Astra-only, after the
+finishing round is live.
+
+---
 
 ## Open questions / tests
 

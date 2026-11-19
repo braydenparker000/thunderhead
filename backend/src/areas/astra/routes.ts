@@ -23,8 +23,10 @@ import {
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
-import { direct, NOT_CACHED } from './direct';
+import { backupRoutes } from './backup';
+import { direct, NOT_CACHED, READY } from './direct';
 import { follow } from './follow';
+import { serverList } from './servers';
 import { account } from './torbox';
 import { mark, relayFor } from './upstream';
 import { NOTE, REASON } from './words';
@@ -58,13 +60,14 @@ function capTap(): void {
   const retry_after = waitFor(taps, L.per_minute);
   if (retry_after) throw new ApiError('rate_limited', { reason: REASON.tooMany }, { retry_after, scope: 'account' });
 }
-const NONE = { url: null, via: null, size: null, type: null, readable: null } as const;
+const NONE = { url: null, via: null, size: null, type: null, readable: null, ready: false } as const;
 
 export const astraRoutes = new Hono<AppEnv>()
   .post('/astra/play', guard('POST /v1/astra/play'), async (c) => {
     const body = await json(c, playBody);
-    const answer = (a: Omit<AstraPlayResponse, 'steps'>, steps: AstraPlayResponse['steps']) =>
-      c.json({ ...a, steps } satisfies AstraPlayResponse);
+    const started = Date.now();
+    const answer = (a: Omit<AstraPlayResponse, 'steps' | 'total_ms'>, steps: AstraPlayResponse['steps']) =>
+      c.json({ ...a, steps, total_ms: Date.now() - started } satisfies AstraPlayResponse);
     // A press past its own count gets no address, as when it finds nothing: never a 429.
     if (body.mode === 'ahead' && waitFor(presses, L.ahead_per_minute)) return answer(NONE, []);
     if (body.mode === 'play') capTap();
@@ -76,9 +79,9 @@ export const astraRoutes = new Hono<AppEnv>()
       fileName: body.fileName ?? null,
       fileSize: body.fileSize ?? null,
     });
-    if (found && 'url' in found) return answer({ ...found, via: 'torbox', readable: null }, r.steps);
-    // Before a tap nothing that could add to TorBox is followed: no address yet.
-    if (body.mode === 'ahead') return answer(NONE, r.steps);
+    if (found && 'url' in found) return answer({ ...found, via: 'torbox', readable: null, ready: false }, r.steps);
+    // Before a tap nothing that could add to TorBox is followed: no address yet (ready: TorBox has it).
+    if (body.mode === 'ahead') return answer({ ...NONE, ready: found === READY }, r.steps);
     // Not on TorBox, for certain: following the add-on would let it add an uncached torrent.
     if (found === NOT_CACHED) throw new ApiError('unavailable', { reason: REASON.notOnTorbox, steps: r.steps });
     if (c.env.ASTRA_FOLLOW !== 'on') {
@@ -87,8 +90,13 @@ export const astraRoutes = new Hono<AppEnv>()
     }
     const f = await follow(r, body.link);
     if (!f.ok) throw new ApiError(f.code, { reason: f.reason, steps: r.steps });
-    return answer({ url: f.url, via: 'follow', size: f.size, type: f.type, readable: f.readable }, r.steps);
+    return answer(
+      { url: f.url, via: 'follow', size: f.size, type: f.type, readable: f.readable, ready: false },
+      r.steps,
+    );
   })
+  // TorBox's speed-test files for the lab (servers.ts): its own count, 6 a minute.
+  .get('/astra/torbox/servers', guard('GET /v1/astra/torbox/servers'), async (c) => c.json(await serverList(c)))
   .get('/astra/torbox', guard('GET /v1/astra/torbox'), async (c) => {
     capTap();
     const r = relayFor(c);
@@ -96,3 +104,7 @@ export const astraRoutes = new Hono<AppEnv>()
       return c.json({ configured: false, ok: null, plan: null, note: NOTE.noKey } satisfies AstraTorboxResponse);
     return c.json({ configured: true, ...(await account(r, r.key)) } satisfies AstraTorboxResponse);
   });
+
+// --- The owner's copy of Astra's data (backup.ts; ASTRA.md §5.3): GET, PUT and DELETE /v1/astra/backup,
+// the owner's device only, in their own module so the relay above is unchanged. ---
+astraRoutes.route('/', backupRoutes);

@@ -35,6 +35,8 @@ interface Body {
 export interface Answer {
   status: number;
   body: Body;
+  /** The JSON as sent, for an answer that may not be TorBox's usual envelope (the speed-test list). */
+  json: unknown;
   /** A redirect's Location, as sent. */
   location: string | null;
 }
@@ -53,10 +55,39 @@ export function trouble(a: Answer): string | null {
 
 /** One call: `path` under the API, or a whole TorBox address (a permanent link, which carries its
  * own token). Tried once more on a 429 or 5xx when time allows. */
+/** The body as text, or null when it is longer than `max` bytes (then it is not read further). */
+async function textUpTo(res: Response, max: number): Promise<string | null> {
+  if (Number(res.headers.get('Content-Length') ?? 0) > max) {
+    await res.body?.cancel();
+    return null;
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    parts.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const p of parts) {
+    all.set(p, at);
+    at += p.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 export async function call(
   r: Relay,
   target: string,
-  o: { key?: string; form?: Record<string, string>; until?: number } = {},
+  o: { key?: string; form?: Record<string, string>; until?: number; maxBytes?: number } = {},
 ): Promise<Answer> {
   const t = timesNow();
   const url = target.startsWith('https://') ? target : `${API}${target}`;
@@ -66,7 +97,7 @@ export async function call(
     if (ms <= 0) throw new TorboxTrouble(NOTE.slow);
     if (r.calls >= L.torbox_calls_max) throw new TorboxTrouble(NOTE.budget);
     r.calls++;
-    let answer: Answer;
+    let answer: Answer | null;
     try {
       answer = await timed(ms, async (signal) => {
         const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': UA };
@@ -77,18 +108,25 @@ export async function call(
           for (const [k, v] of Object.entries(o.form)) body.set(k, v);
         }
         const res = await ask(url, { method: body ? 'POST' : 'GET', headers, body, redirect: 'manual', signal });
-        const text = await res.text();
+        const text = o.maxBytes ? await textUpTo(res, o.maxBytes) : await res.text();
+        if (text === null) return null;
         let parsed: unknown = null;
         try {
           parsed = JSON.parse(text);
         } catch {
           // Not JSON (an HTML error page): the status says enough.
         }
-        return { status: res.status, body: record(parsed) as Body, location: res.headers.get('Location') };
+        return {
+          status: res.status,
+          body: record(parsed) as Body,
+          json: parsed,
+          location: res.headers.get('Location'),
+        };
       });
     } catch (e) {
       throw new TorboxTrouble(e instanceof TimedOut ? NOTE.slow : NOTE.unreachable);
     }
+    if (!answer) throw new TorboxTrouble(NOTE.tooBig);
     const again = answer.status === 429 || answer.status >= 500;
     if (!again || attempt > 0 || until - Date.now() < t.retry_ms + 1000) return answer;
     await wait(t.retry_ms);
@@ -112,13 +150,18 @@ function fileOf(v: unknown, at: number): TorrentFile | null {
 }
 const filesOf = (v: unknown): TorrentFile[] =>
   (Array.isArray(v) ? v : []).map(fileOf).filter((f): f is TorrentFile => f !== null);
+/** A file list only when TorBox gave every file its own id (a place in a list is not one). */
+const filesWithIds = (v: unknown): TorrentFile[] => {
+  const list = Array.isArray(v) ? v : [];
+  return list.length && list.every((f) => Number.isSafeInteger(record(f).id)) ? filesOf(list) : [];
+};
 
 /** Whether TorBox has the torrent ready, and its files when it lists them. `data` is an object
  * keyed by hash (format=object), a list (format=list), or empty when nothing is cached: only then
  * is "not cached" definite. Any other shape leaves it unknown, which is trouble, not "not cached". */
 export async function checkCached(r: Relay, key: string, hash: string) {
   const q = new URLSearchParams({ hash, format: 'object', list_files: 'true' });
-  const { body } = must(await call(r, `/torrents/checkcached?${q}`, { key }));
+  const { body } = must(await call(r, `/torrents/checkcached?${q}`, { key, maxBytes: L.cached_bytes }));
   const ours = (e: unknown) => String(record(e).hash).toLowerCase() === hash;
   const data = body.data;
   if (!data || typeof data !== 'object') throw new TorboxTrouble(NOTE.unreadable);
@@ -138,12 +181,15 @@ function said(detail: unknown): 'existing' | 'new' | null {
 }
 
 /** Adds the torrent only if TorBox already has it ready (add_only_if_cached), seeding off, no zip.
- * TorBox refusing it as not cached is the definite "not on TorBox yet". */
+ * TorBox refusing it as not cached is the definite "not on TorBox yet". TorBox's description of
+ * the answer is empty: its files are taken only when it lists them, each with its id. */
 export async function addCached(
   r: Relay,
   key: string,
   hash: string,
-): Promise<{ id: number; said: 'existing' | 'new' | null } | { notCached: true } | { refused: string }> {
+): Promise<
+  { id: number; said: 'existing' | 'new' | null; files: TorrentFile[] } | { notCached: true } | { refused: string }
+> {
   const form = {
     magnet: `magnet:?xt=urn:btih:${hash}`,
     add_only_if_cached: 'true',
@@ -154,7 +200,8 @@ export async function addCached(
   const a = await call(r, '/torrents/createtorrent', { key, form });
   const data = record(a.body.data);
   const id = data.torrent_id ?? data.id;
-  if (!trouble(a) && Number.isSafeInteger(id)) return { id: id as number, said: said(a.body.detail) };
+  if (!trouble(a) && Number.isSafeInteger(id))
+    return { id: id as number, said: said(a.body.detail), files: filesWithIds(data.files) };
   if (a.body.error === 'DOWNLOAD_NOT_CACHED' || /not\s+cached/i.test(String(a.body.detail ?? '')))
     return { notCached: true };
   const why = trouble(a) ?? NOTE.refused;
@@ -173,12 +220,15 @@ export async function findOwned(r: Relay, key: string, hash: string, page: numbe
   return t ? { id: t.id as number, files: filesOf(t.files) } : null;
 }
 
-/** One torrent's files, fresh. */
-export async function torrentFiles(r: Relay, key: string, id: number): Promise<TorrentFile[]> {
+/** One torrent's files, fresh. The answer must be about that torrent: its id, and its hash when it
+ * gives one (a requestdl beside this listing is trusted on its word); anything else is trouble. */
+export async function torrentFiles(r: Relay, key: string, id: number, hash: string): Promise<TorrentFile[]> {
   const q = new URLSearchParams({ id: String(id), bypass_cache: 'true' });
   const { body } = must(await call(r, `/torrents/mylist?${q}`, { key }));
   const one = Array.isArray(body.data) ? body.data.map(record).find((e) => e.id === id) : record(body.data);
-  return filesOf(one?.files);
+  const other = typeof one?.hash === 'string' && one.hash !== '' && one.hash.toLowerCase() !== hash;
+  if (!one || one.id !== id || other) throw new TorboxTrouble(NOTE.otherTorrent);
+  return filesOf(one.files);
 }
 
 /** GET /v1/astra/torbox: whether TorBox takes the key, and the plan number it gives. */

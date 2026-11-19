@@ -14,14 +14,14 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 | --- | --- |
 | `index.html`, `src/main.js` | The app at `/astra/`. Installable (`manifest.webmanifest`); `sw.js` opens it from a saved copy (below). |
 | `src/app/` | `app.js` (tabs, screen stack), `playing.js` (from the tap on a stream to the player playing it, another source or episode, saving progress), `store.js` (saved data under `astra.v2.*`), `content.js` (rows, hero, what Play means), `cache.js` (add-on answers kept between visits), `back-stack.js` (Android back, one history entry per open screen, sheet or menu), `recovery.js` (the card shown when Astra cannot start), `skip.js` (Skip intro's two sources, merged), `intro-store.js` (what Skip intro has learned, in IndexedDB), `ready.js` (getting ready on Streams before a tap) and `next-ready.js` (the next episode made ready before Next). |
-| `src/screens/` | Home, Details, Streams, Catalog ("View all"), Search and Discover, Library, Settings. |
+| `src/screens/` | Home (with its hero, `hero.js`), Details, Streams (a card is built in `stream-card.js`), Catalog ("View all"), Search and Discover, Library, Settings; `logo.js` keeps a title's logo readable on a dark picture. |
 | `lab/`, `src/lab/` | Playback lab at `/astra/lab/`: play a link or a stream from your add-ons, see what the file holds and how it plays, switch audio and subtitles, copy a report; and the TorBox check (`torbox-check.js`, `torbox-panel.js`, with the report's scrubber `scrub.js`; see The playback lab, below). |
 | `src/engine/` | The playback engine (below). `player.js` is `AstraPlayer`; its parts are mixed into it: `player-start.js` (each pipeline), `player-subtitles.js`, `player-libass.js` (styled subtitles), `player-second.js` (the second subtitle), `player-sound.js` (the sound features' engine side), `player-data.js` (data used and the data saver), `player-routes.js` (what a failed route teaches), `player-report.js` (the lab's report), `adaptive.js` with `adaptive-tuning.js` (HLS and DASH). Reading: `probe.js` with `probe-limit.js` (describing bounded); the range reader `http-source.js` with `source-stream.js` (one download), `source-blocks.js` (the bytes held), `source-tuning.js` (read-ahead and cache by bitrate), `source-state.js` (the connection lost and found), `source-gate.js` (three connections at most), `source-renew.js` (a dead link renewed), `side-read.js`, `source-tail.js` (the film's end beside its start) and `film-memory.js` (a film's header and index remembered); `mkv.js`, `mkv-cluster.js`, `mkv-attachments.js` (a film's fonts), `mkv-hide.js` (fonts and tags Void to Mediabunny), Astra's own Matroska packet reader `mkv-packets.js` with `mkv-blocks.js` and `mkv-sink.js`; `mp4.js`, `chapters.js`. Deciding: `plan.js`, `capabilities.js`, `route-memory.js`. Playing: `remux.js`, `remux-audio.js`, `remux-switch.js` (changing the sound), `rebuffer.js` (a link slower than the film), `sound-wait.js` (a converter that does not come), `hold.js`, `preview.js` with `preview-frames.js`, `preview-decode.js` and `player-preview.js` (the key frame where a drag lands), `sound-apart.js` and `sound-worker.js` (converted sound decoded, mixed and encoded in a worker, off the page's thread), `sound-stream.js` (converted sound from Astra's own Matroska reader, on the page), `sound-write.js` (the Opus and FLAC writers both use), `sound-six.js` with `flac-frames.js` (converted surround kept whole for Headphone surround), `fragments.js`, `early.js`, `mse.js`, `downmix.js`, `audio-decoders.js`, `stall-watch.js`; `software.js`, `software-loader.js` (how libmedia reads the film), `software-sound.js` (libmedia) and `software-threads.js` (its threads, switched off). Subtitles inside the file: `embedded-subtitles.js`. Skip intro by sound: `sound-tap.js`, `fingerprint.js`, `fingerprint-match.js`, `intro-finder.js`. Also `file-hash.js`, `labels.js`, `languages.js`. |
 | `src/player/` | The full-screen player (Nuvio's layout and gestures). `player-screen.js` opens, loads and closes; its parts each have `close()`: `view.js` (the elements), `controls.js`, `menus.js` and `subtitle-menu.js`, `surface.js` with `gestures.js` (pure) and `zoom.js`, `timeline.js` (the seek bar) with `seek-preview.js` (the picture in its bubble), `keys.js`, `video-events.js`, `markers.js` (Skip and the next-episode card), `loading.js` (waiting, errors, notices), `address.js` (where the film's address came from, for Stream info and the notice), `system.js` (full screen, picture-in-picture, wake lock, lock-screen controls). `extras.js` gathers the rest: `playback.js`, `sleep.js`, `repeat.js`, `sound-only.js`, `resume.js`, `marks.js`, `frames.js`, `find.js`, `info-extras.js`, `sound-menu.js`, `picture-menu.js`. Pure rules in `rules.js`, saved choices in `prefs.js`, another app in `external.js`; styles in `player.css` and `player-extras.css`. |
 | `src/enhance/` | Sound and picture: `sound.js` and `sound-chain.js` (boost, night mode, dialogue, sound later), `loudness.js` and `leveller.js` (even loudness), `headphone.js` (headphone surround); `picture.js`, `filter.js` and `fsr.js` (sharpening and smoother banding in WebGL2, after AMD FSR 1.0), `anime4k.js` with `anime4k-upscale.js` and `anime4k-restore.js` (Anime4K's shaders), `tonemap.js` (HDR to the screen, BT.2390), `dolby.js` (Dolby Vision profile 5 colours); see `LICENSES.md` there; `origin.js` (whether the page may read what the video shows). |
 | `src/ui/` | Icons drawn for Astra, poster cards, the long-press lift menu, sheets, toasts and small DOM helpers. |
 | `src/subtitles/` | `parse.js` (SRT and WebVTT), `markup.js` (times and inline markup), `ass.js` (ASS and SSA), `charset.js` (old code pages), `renderer.js` (draws cues over the video), `libass.js` (ASS/SSA drawn by libass), `pgs.js` and `vobsub.js` (picture subtitles). |
-| `src/addons/` | The Stremio add-on protocol client (`client.js`), a stream's address from the owner's own server (`debrid.js`, with `worker-api.js`, the signed-in client of the Worker, and `link-facts.js`, what a link says of its file), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`) and how it will likely play here (`device-facts.js`), and the optional skip-times lookup (`skip-times.js`). |
+| `src/addons/` | The Stremio add-on protocol client (`client.js`), a stream's address from the owner's own server (`debrid.js`, with `worker-api.js`, the signed-in client of the Worker, and `link-facts.js`, what a link says of its file), subtitle add-ons (`subtitles.js`), what a stream's label says (`stream-facts.js`), its text as shown, without a hash (`stream-text.js`), how it will likely play here (`device-facts.js`) and the one note a card carries for that (`stream-note.js`), and the optional skip-times lookup (`skip-times.js`). |
 | `src/styles/` | `tokens.css` (colours, type, radii, motion and shared controls) and `app.css`. |
 | `vendor/` | Mediabunny 1.66.0 and its AC-3, DTS and TrueHD decoders, hls.js 1.6.13, dash.js 5.2.0 and JASSUB 2.5.37 (libass), copied by `node scripts/astra/vendor.mjs` from the npm packages pinned in `vendor.json`, which also holds a hash of every file (see `vendor/LICENSES.md`). |
 | `fonts/`, `icons/` | Inter (SIL OFL 1.1, `fonts/LICENSE.md`) and the app's icons. |
@@ -46,8 +46,21 @@ client for browser-only details. Both are GPL; nothing is copied from either.
 - Page headers stay at the top while their page scrolls (Library, Settings
   and its pages, View all, and Streams' add-on chips).
 - **Home**: a hero of up to eight titles with art that turns every 8 s (or
-  by swipe), Continue Watching, then one row per add-on catalog that needs no
-  search text. Long-press any poster to save it or mark it watched.
+  by swipe; `hero.js`), Continue Watching, then one row per add-on catalog
+  that needs no search text. Long-press any poster to save it or mark it
+  watched.
+- **A logo that can be read** (`screens/logo.js`; Home's hero and the
+  Streams header). A title's logo is asked for with CORS and, as it
+  arrives, drawn to a 48-pixel canvas to measure its own lightness: a dark
+  wordmark of little colour (black, dark grey, dark navy) is lifted to
+  light with a filter (`invert(1) hue-rotate(180deg)`), a dark coloured one
+  gives way to the title in text, as when there is no logo, and anything
+  else (light, bright, or drawn on its own opaque box) is left exactly as
+  it was. A host that refuses CORS fails that request; the logo is asked
+  again plainly, that host is not asked with CORS again in the visit, and
+  the logo, which cannot be measured, gets a soft 1px light rim that a
+  light logo absorbs into its own edges and that outlines a dark one. The
+  hero's parallax and reduced motion are untouched.
 - **Details**: Play says what it will do (Play, Resume, Play S1 E2,
   Upcoming). Series open on the season of the next unwatched episode. The
   page draws at once from the card that was tapped (its art, title and, when
@@ -59,8 +72,16 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   the add-ons' own order, with a chip per add-on. Each add-on's section holds
   its place with placeholder cards while it is asked and is filled in place,
   so cards already on screen never move to a new element under the finger.
-  Continue Watching opens Streams at once from what was saved. Nothing is
-  ranked or picked for you. Long-press a stream to copy it, play it in
+  A Continue Watching card plays the stream you picked, again (below); one
+  that remembers none opens Streams at once from what was saved. Nothing is
+  ranked or picked for you. A long list (an add-on can send 300 streams)
+  is drawn ten cards at once, then at most eight a frame, each slice laid
+  out in its own frame and only ever appended, so a card under a finger
+  never moves (`stream-card.js`; measured at 390×844 on a CPU slowed 4× and
+  6×: the longest frame on opening went from 400-660 ms to 80-160 ms, a
+  filter chip's from 370-770 ms to 55-115 ms, and scrolling keeps 238-242
+  of 242 frames; `content-visibility` was tried and left out, as it cost
+  8-12 % of frames while scrolling). Long-press a stream to copy it, play it in
   another app, open it in VLC or check it in the lab (the stream goes to the
   lab in the address's fragment, which never reaches a server or a cache,
   and the lab takes it out of the address bar once read). A stream's address
@@ -90,22 +111,39 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   or the data saver on, nothing is asked of the server, an add-on or a
   film's host before a tap. Either way nothing plays without a tap, and no stream is
   ranked, picked or pre-selected.
-- **What a stream card says.** Its size and, when the title's runtime is
-  known, what an hour of it costs ("710 MB an hour"). Under it, one quiet
-  line on how it will most likely play on this phone (`device-facts.js`):
-  "Plays directly", or "Needs the software decoder (uses more battery)" with
-  a dot. It is read from the label (codec, picture size, 10-bit or HDR) and
+- **What a stream card says.** The add-on's own words, without the
+  torrent's hash (`stream-text.js`): the owner's add-on writes it into its
+  text so Astra can reach TorBox directly, and a line that only gives it
+  (with or without an emoji or a label such as "Hash:" or "btih:") is
+  dropped, a hash inside a longer line is cut out with its label, brackets
+  and one of two separators, and nothing else changes; a 40-hex run inside
+  a longer hex string is no hash and stays. Astra still reads the hash from
+  the stream itself (`link-facts.js`), and a stream's facts are read
+  without it. Its size and, when the title's runtime is
+  known, what an hour of it costs ("710 MB an hour"). Under it, at most one
+  quiet note on how it will play on this phone (`stream-note.js`), the most
+  important of: "10-bit HEVC: this phone decodes it in software (slow, more
+  battery)" (the label says 10-bit, Hi10, Main 10, HDR or Dolby Vision with
+  HEVC, and the browser has no hardware decoder for it); "No hash from this
+  source: may open in Chrome's plain player" (signed in, the owner's server
+  has not said it lacks a TorBox key, and the link carries no hash and is
+  not a plain file address such as a CDN's MKV or an HLS playlist; the key
+  is learnt from the server's own steps when a press asks ahead, nothing is
+  asked for it); and "Needs the software decoder (uses more battery)" for
+  any other codec this phone decodes only in software. Nothing when all is
+  well. The decoding is read from the label (codec, picture size, 10-bit or HDR) and
   the browser's own answer to whether it decodes that smoothly and
   power-efficiently (`navigator.mediaCapabilities.decodingInfo`, asked once
-  per codec and size a visit), never from the browser's name. An MP4 that
+  per codec and size a visit; `device-facts.js`), never from the browser's name. An MP4 that
   names no codec is asked as H.264; an MKV or WebM that names none says
-  nothing; without an answer from the browser only 8-bit H.264 is said to
-  play directly. A second note, "Sound converted on the phone", shows when
+  nothing; without an answer from the browser nothing is guessed. A card is
+  drawn once what its note needs is known (the browser's answers and the
+  sign-in, at most 300 ms; the add-on's placeholders stay till then), so a
+  note never arrives under a finger. A second note, "Sound converted on the phone", shows when
   the label names Dolby Digital or DTS and no AAC, Opus, MP3 or FLAC, unless
   every sound it names is one this phone's browser says it plays as it is
-  and has not failed to here (How a file plays, below). The
-  line's room is held before the answer arrives, so nothing moves under a
-  finger. Both inform only: nothing is hidden, ranked or picked by them.
+  and has not failed to here (How a file plays, below). Both inform only:
+  nothing is reordered, dimmed, hidden, ranked or picked by them.
 - **The owner's filter chips** (a second row under the add-ons'; the
   reading is in `stream-facts.js`): Smallest first, one size limit (under
   700 MB, 1.5 GB or 3 GB), any of 720p, 1080p, 4K and SD, any of HEVC and
@@ -134,6 +172,19 @@ client for browser-only details. Both are GPL; nothing is copied from either.
   Continue Watching offers the next episode instead. A resumed film saves
   nothing until it has reached its saved place (or played a minute), so the
   early times of a resume never overwrite it.
+- **Continue Watching remembers the stream** (owner ruling 2026-11-19;
+  `app/resume.js`, `app/remembered.js`): the entry keeps the stream you tapped
+  (its link, the torrent's hash and file, the release group, the add-on's name
+  and the card's label; checked on every read, in the backup and the server
+  copy; a finished entry keeps only the release group). A tap on the card
+  opens the player at once and resolves that stream as a tap on the list
+  does, from where it stopped; the title's streams are collected behind it
+  for the Sources panel. If it cannot be reached, the same file is looked for
+  in that list; if it is not offered any more, the sources panel says so and
+  waits for your pick. Next Up continues the release group you watched, as
+  Next does. Hold a card for "Choose another stream" (the list) and "Start
+  from beginning" (the same stream from 0:00). A finger on a card asks for
+  its address ahead (Get ready ahead). Entries from before open the list.
 - **Settings**: appearance, which catalogs Home shows, add-ons (install,
   enable, reorder, configure, remove), playback and your data (export,
   restore, clear). Install takes what people paste (`stremio://`, a
@@ -176,13 +227,34 @@ host. The page never calls TorBox.
 - **At the tap** the mode is `play`: the server may add a film TorBox
   already holds to the owner's account (never an uncached one). **Before a
   tap** (a press, the next episode) the mode is `ahead`, which never adds
-  anything: it answers only for what is already in the account.
+  anything: it answers with an address only for what is already in the
+  account. A press that finds the film ready on TorBox but not in the
+  account answers `ready: true` (no address yet; not a miss): the server
+  keeps what it learnt for half an hour, so the tap costs only the add and
+  the address.
+- **What the server waits for** (measured in its tests' stub with the live
+  delays, createtorrent 1000 ms, mylist 350, requestdl 400, checkcached 300,
+  2026-11-19): a press asks checkcached and the account's list together
+  (360 ms, or 760 with the address when the account holds it); a tap after
+  it waits for createtorrent, then requestdl beside the listing that
+  confirms the file's id (1410 ms, was 1760); a tap with no press asks
+  checkcached beside the add (1410 ms, was 1760); a film remembered from
+  the last half hour, requestdl alone (400 ms). Each answer carries every
+  step's own time and the server's whole time (`total_ms`).
+- **A tap during a press**: a tap follows the finger by about a tenth of a
+  second, and a press needs a round trip and TorBox's answers, so the press
+  has usually not answered by the tap. The tap gives it 100 ms (`GRACE`),
+  then asks to play itself; whichever address comes first is played.
 - **What is kept**: each answer, in memory only (never stored, gone with
-  the page), per link, for 45 minutes (a TorBox link lives 3 hours); one
-  under way is shared, so a press and its tap ask once. An answer without
-  an address is not kept. Signed out, everything kept is forgotten, and so
-  it is when the add-ons change. The player is also given a way to ask
-  afresh (`renew`) for an address that stops working mid-film.
+  the page), per link, for 45 minutes (a TorBox link lives 3 hours, so the
+  engine always starts with over two left); one under way is shared, so a
+  press and a quick tap ask once. A tap's answer without an address is not
+  kept; a press's is, a minute for a miss and half an hour for a `ready`
+  one. A clock set back counts as expired. A renewed address replaces the
+  kept one, and an older answer arriving late does not put it back. Signed
+  out, everything kept is forgotten, and so it is when the add-ons change.
+  The player is also given a way to ask afresh (`renew`) for an address
+  that stops working mid-film.
 - **When the server cannot help** (signed out, no answer within 30 s for a
   tap or 6 s ahead, an error, no address), the add-on's own link plays as
   it always did, and one plain sentence says why: the server's own reason,
@@ -196,6 +268,29 @@ host. The page never calls TorBox.
   and every link plays as the add-on gave it.
 - Addresses, links, hashes and file names are sent only to the owner's own
   server, and are never stored, logged or put in a report by Astra.
+- **The playback report** (`player/playback-report.js`): "Copy playback
+  report" in Stream info while a film plays, the error card's "Copy
+  report" and the lab's copy all give the same plain text: where the time
+  went from the load to the first picture (the engine's `timing` entries),
+  the route and why, the tracks, this phone's decoders, how the address was
+  found (`via`, each step's time and the server's own, from
+  `debrid.js answerFor`, looked up by the stream's own link or the address
+  played, never another film's), the server group, the link's speed, the
+  stalls so far, the chapter count, and the log as the engine wrote it (a
+  kind it does not know is a plain line). A film that never opened says so,
+  with why. **Owner ruling 2026-11-19: it keeps out only links, hashes,
+  tokens and keys**, so the file's own words stay: each sound's title,
+  language, codec, channels and how it plays and why (a title that claims
+  FLAC over an AAC track shows), each subtitle's title, language and kind
+  (inside the file, from an add-on, from this phone: a file picked from the
+  phone shows its name), the plan's reason and notes, an error's detail in
+  the engine's and libmedia's own words, why a sound was passed through,
+  font names, and which track was chosen (its number and title). Every line
+  is scrubbed whole, then cut to 300 characters: every web address in any
+  form, magnet, hash, token and key goes, and so do the stream's own
+  address, its host and its file's name wherever they appear
+  (`scrubSecrets` with `names: false`). The lab's TorBox check keeps the
+  stricter scrubbing (`names: true`: file and release names go too).
 
 ## When add-ons misbehave
 
@@ -293,6 +388,40 @@ Astra's own data is kept in this browser under `astra.v2.*`
 - When the browser cannot save (storage full, or site data blocked) Astra
   says so once instead of failing silently; with site data blocked it still
   opens.
+- **This phone and your others** (Settings > Your data; `src/app/sync.js`,
+  with `sync-wire.js`, `sync-read.js`, `sync-merge.js`, `sync-addons.js`,
+  `sync-record.js` and `sync-senses.js`; ASTRA.md §5.3). Signed in on the
+  Thunderhead, "Keep Astra the same on every phone I sign in on" is on by
+  default: add-ons, library, Continue Watching, the watched list, settings
+  and recent searches are merged with a copy your own server keeps sealed
+  (`/v1/astra/backup`), shortly after Astra opens (never before Home is
+  drawn), back in front after more than five minutes, a minute after the
+  last change, with **Sync now**, and when the page is hidden. Each time it
+  names the version it already holds, so when nothing changed elsewhere the
+  copy is not downloaded again. Progress, watched and library merge entry by
+  entry (the later save of each wins; a removal is remembered for 60 days so
+  the other phone cannot bring it back); Continue Watching stays at Astra's
+  own 300. Add-ons merge address by address: one removed on any phone stays
+  removed until it is added again, and one that arrives from another phone
+  is named in a notice ("Added from your other phones: …"). Settings and
+  recent searches go to the latest change. The first time, both sides are
+  put together and nothing is lost, and a new phone simply takes what the
+  server has. The film playing keeps its own progress, and progress that
+  came from another phone is not reported to the Thunderhead as watched
+  here. Player choices, Library layout and sort and the last stream filter
+  never travel; the copy carries the newest 3,000 watched marks (older ones
+  stay on the phones that have them). A copy too large for your server
+  (1 MB) is not sent, and Your data says so. Failures stay quiet and are
+  tried again later. Signed out or switched off, nothing is sent at all;
+  signing out of a phone that kept Astra in step removes Astra's data from
+  it (the server has it). **Remove the copy on my server** deletes it, with
+  its daily copies, and switches this phone off. What the phone remembers
+  for this (when each part last changed, removals, the server's version,
+  when it last saved and fetched) is in localStorage `astra.sync.v1`,
+  outside `astra.v2.*`, so no backup carries it. A restore, Clear Continue
+  Watching, Copy again or turning Recent searches off with the switch on is
+  a change like any other: it reaches your other phones, though a title
+  another phone saved later than the backup keeps that phone's place.
 - What Skip intro learns by sound is kept apart, in IndexedDB `astra-intro`
   (`src/app/intro-store.js`; localStorage is too small for fingerprints): at
   most 60 series, the most recently used kept, and eight episodes each. It
@@ -363,7 +492,13 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    times the start: `timing` entries when the file is open, when its index
    is in, for each track that took over 200 ms to describe, at the plan, at
    the first fragment appended and at the first picture, each with the ms
-   since `load()`, the bytes and the requests so far.
+   since `load()`, the bytes and the requests so far. A `memory` entry
+   (`player-memory.js`) comes at each film's first picture and after every
+   60 s of play while the page is visible: the JS heap in MB where the
+   browser gives it (Chrome's, its arrays included), the seconds buffered
+   ahead of the playhead and behind it and about how many MB that is, the
+   reader's cache in MB and the budget in force (its name, its MB and its
+   film MB), so a report from the phone shows what it held.
    **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
    localStorage `astra-routes`, per device, each entry for 30 days so a
    browser update gets another chance). A browser can say it decodes Dolby
@@ -398,15 +533,24 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    cluster only the dropped pipelines were reading is not read again for
    them (`mkv-packets.js` `jumped()`): it began a download at the place
    left, which took half the link from the new place.
-   **How much is held** (`hold.js`). The pipelines read 40 s past the
-   playhead (20 with the data saver) and the browser's buffer keeps 20 s
-   behind it (`mse.js`), and a fast film is held to bytes as well, by its
-   average bitrate: 48 MiB ahead (15 s at 25 Mbit/s, never under 10 s) and
-   24 MiB behind (7 s, never under 4). By time alone a 25 Mbit/s film filled
-   Chrome's video buffer to its own limit (about 150 MB, past which Chrome
-   drops what is behind the playhead itself), and the page held about
-   600 MB (How smoothly, below). A film under about 10 Mbit/s is held as
-   before. Until the film plays at its place (a start, a seek), picture and
+   **How much is held** (`budget.js`, `hold.js`). The pipelines read 40 s
+   past the playhead (20 with the data saver), the browser's buffer keeps
+   20 s behind it (`mse.js`) and the reader's cache 80 s, and a film too
+   fast for those seconds to fit is held to a memory budget, bytes first
+   and seconds second: 112 MiB of film on a phone that says it has 4 GB or
+   more (or says nothing), 56 on 2 GB, 32 on 1 GB, three quarters of that
+   with the data saver. The budget is shared out at the film's average
+   bitrate: what reading needs (the reach and a second behind it), at
+   least 6 s ahead of the playhead and 2 behind, behind up to 12 s (the
+   player's 10 s skip back and a key frame), the cache keeping what is
+   ahead as well (a change of sound track reads it again from there), then
+   more ahead and behind. A 25 Mbit/s film keeps about 8 s ahead and 12
+   behind, a 60 Mbit/s one 6 s on each side; one under about 10 Mbit/s is
+   held as before. By time alone a 25 Mbit/s film filled Chrome's video
+   buffer to its own limit (about 150 MB, past which Chrome drops what is
+   behind the playhead itself) (How smoothly, below; Memory while a film
+   plays, below, for what holds the page's memory and why these numbers).
+   Until the film plays at its place (a start, a seek), picture and
    sound are read at most 4 s past the playhead (`remux.js` `room()`; the
    sound alone was held so before, and the picture followed it, 3 s behind at
    most); then both read on. Text
@@ -538,11 +682,11 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      another download brought), copying them in rather than fetching them
      again, so its block is still made whole. The block cache
      keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
-     40 s and the reach; 55 s with the saver), between 16 and 96 MiB; a film
-     whose 80 s pass 48 MiB (about 5 Mbit/s) keeps 48 MiB, or the reach and
-     4 s more when that is larger (`hold.js`): its back-seek never fitted,
-     and at 25 Mbit/s the 96 MiB held only what the browser's buffer held
-     too.
+     40 s and the reach; 55 s with the saver), between 16 and 96 MiB. A film
+     too fast for that within the memory budget (How much is held, above)
+     keeps what reading needs and, while the budget lasts, what the
+     browser's buffer holds ahead; its reach is at most 15 % of the budget
+     (16.8 MiB on a 4 GB phone, about 5 s of a 25 Mbit/s film).
    - *Both ends at once* (`source-tail.js`). On a film's first open, as soon
      as the first answer gives the size, its last 64 KiB are asked for beside
      its start, in a request of their own: the subtitle hash needs them, and
@@ -633,7 +777,8 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    data). Automatic by default: on when the phone asks to save data or is on
    a mobile network. With it on, the reader reads about 5 s of the film
    ahead instead of 10 (at most 8 MiB instead of 24), the cache keeps 55 s
-   instead of 80, the pipelines keep 20 s ahead instead of 40, HLS and DASH
+   instead of 80, the pipelines keep 20 s ahead instead of 40, the memory
+   budget is three quarters of the phone's, HLS and DASH
    are held to 720p and 20 s ahead, and nothing is got ready before a tap; a
    change applies to the film that is playing. With the earlier fixed
    read-ahead (8 MiB instead of 24), a three-minute 3.3 Mbit/s film, 40 s
@@ -842,7 +987,9 @@ under 250 MB only while the link is slower than the film: at 40 Mbit/s it
 peaks at 380 MB, of which about 120 MB is garbage the collector had not
 taken yet (260 MB with a collection forced before each look), and on the
 fast link near 500 MB (what holds it, and what was tried: A slow link,
-below, Memory on a fast link). For scale, Chrome playing the same picture from a
+below, Memory on a fast link; all these memory figures include the copy
+of every download Playwright's DevTools connection keeps in the page,
+about 190 MB of this film after 90 s: Memory while a film plays, below). For scale, Chrome playing the same picture from a
 plain MP4 by itself, with no Astra, peaks at 175 MB (the lab page alone:
 50 MB). On the fast machine a seek five seconds on, inside the buffer,
 takes 0.35 to 0.9 s where Chrome playing that MP4 itself takes 0.16 s: not
@@ -1124,7 +1271,7 @@ came between a fragment's two boxes (each moof and mdat is appended on its own) 
 and setting its timestampOffset threw (`astra-sound-stream-browser.test.mjs` failed two runs in three); a reset now
 always starts the buffer's parser afresh (`mse.js`), which only a reset during an append did before.
 
-**Memory on a fast link.** Every array of 64 KiB or more the page's scripts made while the heavy film played 37 s on
+**Memory on a fast link** (these figures, read through Playwright, include its copy of every download, up to 190 MB; Memory while a film plays, below, has them without it). Every array of 64 KiB or more the page's scripts made while the heavy film played 37 s on
 the fast link, counted by where it was made (a counter wrapped around `Uint8Array`, `ArrayBuffer` and `slice`): 285
 MiB in Mediabunny's writer, which collects each box it hands over in an array that starts at 1 KiB and doubles, copied
 each time; 121 MiB in the reader's blocks (the film's bytes, once); 15 MiB answering reads from blocks still filling;
@@ -1243,6 +1390,53 @@ them alone stops. DTS so left is converted (as where the browser takes no DTS as
 the track's header holds (Mediabunny would otherwise answer it with the refused read): the film then plays its DTS
 track from 1:05, converted in the worker. A small film is no worse (the 2-minute film of Fonts attached, 5 runs: first
 picture 282 and 284 ms, resumed at 1:00 773 and 770 ms).
+
+### Memory while a film plays (measured 2026-11-19)
+
+`scripts/astra/memory.mjs` plays a film through the engine in Chromium driven over the bare DevTools protocol and
+breaks the renderer down with memory-infra dumps every 3 s. Playwright, which `real.mjs` uses, turns DevTools' Network
+domain on, and the page then keeps a copy of every download: partition_alloc's buffer partition grew to 218 MB in 90 s
+of the heavy film, 8 MB without Playwright. About 190 MB of the "near 500 MB" above was that copy.
+
+**What holds it** (heavy film, fast link, before this change): the renderer 341 MB at its median, 386 at its peak, of
+which Chrome's decoded frames 48 MB (on the phone the hardware decoder's, not the page's), the browser's media buffer
+(the SourceBuffers: 14 s ahead, 7 behind) 66 MB, V8's heaps 25 to 32 MB, and the JS ArrayBuffers 108 MB at the median
+and 153 at the peak: the reader's cache 49 MB, the converted sound's worker about 10 MB, clusters and queues about 13 MB,
+the rest garbage. With a collection forced before each look they held 86 MB. The peak comes at the start and after a
+seek, when the reading runs at the link's speed: Mediabunny's writer collected each fragment in an array doubling from
+1 KiB (2.4 bytes of arrays for each byte of film), and V8 collects arrays only now and then (20 to 70 MB of them waited). The
+lab page alone is 73 MB. "Astra's share" below is V8's heaps, the JS ArrayBuffers and the media buffer: what Astra decides.
+
+**The budget** (`budget.js`, `hold.js`; How a file plays, How much is held). 250 MB of share on a 4 GB phone (the owner's,
+the brief's aim), 180 on 2 GB, 140 on 1 GB; of that the film's own bytes (the media buffer ahead and behind and the
+reader's cache) 112, 56 and 32 MiB, since the rest (the engine, the worker, the garbage) measured 90 to 150 MB on 25 to
+60 Mbit/s films whatever was held. With the data saver three quarters of the film bytes. A 25 Mbit/s film keeps 8 s
+ahead and 12 behind (the 10 s skip back is held) and the cache keeps what is ahead too: without that, a change of sound
+track read the film again over the link (the first change to DTS on a 40 Mbit/s link heard 3.1 s after the tap after a
+silence of 2.0 s, three runs; with it 2.3 s and 1.2 s, two runs, as before). A 60 Mbit/s film keeps 6 s on each side and the cache
+only what reading needs. Picture and sound were never read more than 0.12 s apart (page six times slower too), so the
+cache keeps 1 s behind the reading, not 4. On 2 GB a 25 Mbit/s film keeps 6 s ahead and 7 behind; a 60 Mbit/s one there
+holds its floors (6 s ahead, 2 behind, 96 MiB), past the budget.
+
+| Same sitting, one run each (two more of each after, earlier) | before | after |
+|---|---|---|
+| Heavy (27.8 Mbit/s), fast: share at its peak; median | 241; 196 MB | 197; 180 MB (208 to 238 in two earlier runs) |
+| Heavy, fast: renderer at its peak; media buffer; ahead, behind | 382 MB; 66 MB; 14 s, 8 s | 371 MB; 59 MB; 7 s, 12 s |
+| 60 Mbit/s 4K, fast: share at its peak; median | 311; 277 MB | 256; 201 MB (225 and 241 earlier) |
+| 4K, fast: renderer at its peak (Chrome's 4K frames 180 MB of it) | 607 MB | 517 MB |
+| Heavy, 5.4 Mbit/s and 110 ms (the owner's link): share peak; stalls in 60 s | 135 MB; 4 | 151 MB; 4 |
+| Long (2 h, 0.56 Mbit/s) and the small 3 Mbit/s film, fast: share peak | 55, 91 MB | 68, 88 MB (held as before) |
+| First picture: heavy, 4K, long, small (fast) | 719, 1749, 285, 285 ms | 701, 1717, 247, 225 ms |
+
+Making each fragment's array at its size, read from the moof before it (`fragments.js`), took the arrays' peak on the
+heavy film from 176 and 199 MB to 95 and 158 (two runs each) and the share's median from 185 to 175 MB; tried
+2026-11-18 and dropped because the renderer's PSS did not move, which was Playwright's copy hiding it. The 4K film
+stalls 14 to 16 times a minute here before and after alike: the test browser decodes 4K H.264 in software.
+
+Not measured with the final code: the 2 GB, 1 GB and saver budgets (an earlier version of the same split held the heavy
+film to 142 MB of share on 2 GB), a long sitting with many seeks and track changes, and the start, seek and resume times
+by `real.mjs` (the first picture above is `memory.mjs`'s, one run). Not on a phone at all: Chrome on Android's own media
+buffer limits, its garbage collector under memory pressure, and `navigator.deviceMemory` on the owner's phone.
 
 ### Several cores (present, switched off)
 
@@ -1641,17 +1835,34 @@ lab's own playback, then runs, showing each step as it goes:
 - (g) the film's container and codecs by the engine's own probe, and the
   route the planner would take.
 
+**Server speed** (`src/lab/server-speed.js`), under the check: a tap asks
+the Worker for TorBox's speed-test files (`GET /v1/astra/torbox/servers`:
+each server group's label, its region and a public test file; a page may
+not read TorBox's list itself), then says what it will read: 1 MB from each
+group, 20 groups (20 MB) at most, three at a time. A second tap ends the
+lab's film and reads them; the table is fastest first: group, region,
+Mbit/s, the first byte's time, and the group the last check's film came
+from. **Copy report** carries the table, never an address. Choosing a
+server is not offered: TorBox's only choice is the account-wide
+`cdn_selection` setting, and requestdl takes nothing but `user_ip`.
+
 The Worker is asked through the page's own helper, `src/addons/worker-api.js`
 (`api(path, {method, body, signal})`, the owner's session, a top-level page
 only; it throws "not signed in" without a session), loaded when the check
 runs; without it the check stops at (a). **Copy report** copies plain text:
 the steps' words, which never hold an address, a hash, a key or a file
-name, run through `scrubSecrets` (`src/lab/scrub.js`, ASTRA.md §5.2 rule 3)
-with the link and the film's address named as well, so it is safe to paste
-into a chat. The scrubber turns every address into its host (or, for the
-reports, `[address]`), a key or token named in a query and any run of 32 or
-more hex or base64url characters into `***`, and a video or subtitle file's
-name into `[file]`.
+name, run through `scrubSecrets` (`src/player/playback-report.js`, passed on by
+`src/lab/scrub.js`, ASTRA.md §5.2 rule 3) with the link and the film's
+address named as well, so it is safe to paste into a chat. The scrubber
+turns every address into its host (or, for the reports, `[address]`),
+also one escaped in JSON, percent-encoded or without its scheme; a magnet
+into `[magnet]`; a key, token, password or magnet title named at any word
+(`token=…`, `apikey: …`) and any run of 32 or more hex or base64url
+characters, or 16 or more hex, into `***`; a video, subtitle or font file's
+whole name, spaces and brackets and all (back to the line, a quote, `: `,
+`; `, `, ` or the bracket around it), into `[file]`; and a dotted release
+name into `[name]`. The lab's **Copy playback report** (after Analyse) is the
+player's own report.
 
 ## Tests
 
@@ -1671,15 +1882,16 @@ skip in a browser without it.
 | `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
 | `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
 | `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment (run only once its host is confirmed), and a report with no address, hash, key or file name; the scrubber itself. |
-| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
-| `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
+| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate and the memory budget, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
+| `astra-hold-browser.test.mjs` | A fast film held to the memory budget's bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays; the log's `memory` entry at the first picture. |
+| `astra-budget.test.mjs` | The memory budget by the phone's memory and the saver, how it is shared out at 4, 25, 60 and 100 Mbit/s (what reading needs, the floors, a skip back, the ahead kept twice), and the `memory` log entries: at the first picture, every 60 s of play, none while paused, numbers and fixed words only. |
 | `astra-attachments.test.mjs` | A film with 8 MiB of fonts attached is described from its start, its end and its first cluster; the download at the start stops where the fonts begin, the one past them reads on; the fonts read later in requests that end with the element; a Void header the length of the element's own. |
 | `astra-software-words-browser.test.mjs` | A film the software decoder cannot open (libmedia stood in for by one whose load fails as it did on a phone): one plain sentence on screen, libmedia's own words in the log. |
 | `astra-probe-limit.test.mjs` | A DTS track none of whose blocks is near the start (dts.mkv renumbered) is left unread once describing reaches its limit, converted, and given its header's setup; the limit's reads, counted and refused. |
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
-| `astra-early.test.mjs` | Half-second fragments of picture, and quarter-second ones of sound passed through. |
+| `astra-early.test.mjs` | Half-second fragments of picture, and quarter-second ones of sound passed through; each fragment of picture written into one array at its size, byte for byte as Mediabunny writes it. |
 | `astra-rebuffer.test.mjs` | A link slower than the film: how many seconds are made ready after a stall, the link's speed counted only while a download runs, and a session's stall held and let go with a stand-in buffer (all that was held appended, a seek letting go at once, a fast link never held). |
 | `astra-switch-browser.test.mjs` | Changing sound track without stopping the picture (no seek in place, the new pitch heard); the converter refused, met with another track that needs none and a notice, or with silence until it can be downloaded and the sound coming in then. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
@@ -1692,6 +1904,10 @@ skip in a browser without it.
 | `astra-subtitles-files.test.mjs` | Code pages from a language hint checked against the bytes, and what a subtitle add-on may send. |
 | `astra-subtitles-scan.test.mjs` | A film's own text lines gathered as its blocks land, in order and after a jump, searching byte by byte only the blocks no known cluster covers. |
 | `astra-streams.test.mjs` | What a stream's words say (size, picture size, codec), the filter chips, what an hour costs, and the card's sound note against what this phone plays and what failed here. |
+| `astra-streams-text.test.mjs` | The torrent's hash taken out of what a card shows (a line that only gives it, one inside a longer line, upper case, "btih:", hex that is not a hash), still read from the stream, and never read as a word. |
+| `astra-streams-note.test.mjs` | The card's one note for each kind of stream with three device reports (the owner's phone, a browser that decodes everything, an older phone), the hashless note's conditions, and the wait for its facts. |
+| `astra-streams-browser.test.mjs` | Streams at 390×844, signed in: no hash on a card while a press still sends it, the notes on the owner's phone and on a browser that decodes everything, the add-on's order kept, and 300 streams drawn ten at once then eight a frame, each answering a press. |
+| `astra-logo-browser.test.mjs` | Logos measured from their pixels, and on Home's hero and the Streams header: a black and a grey wordmark lifted, a deep red one as text, white and red ones as they are, one whose host refuses CORS shown with a rim after one plain retry. |
 | `astra-link-facts.test.mjs` | What a link says of its file (hash, index, name, size) in every add-on shape Astra knows and the general case; two hashes; damaged input never throwing. |
 | `astra-debrid.test.mjs` | The address asked of a stand-in for the owner's server: its answers, an answer without an address, its error envelope, the 30 s and 6 s waits, signed out, answers kept 45 minutes and shared while under way, a press's address taken by the tap, renew and forgetting. |
 | `astra-tap.test.mjs` | What is done ahead for a list and a saver state (one connection to the server), a press that asks ahead and the tap that takes it, the next episode made ready only for the same release group and a direct address, and a film's tail asked for beside its start. |

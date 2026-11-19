@@ -1,0 +1,262 @@
+// Astra the same on every phone the owner signs in on (ASTRA.md §5.3, owner 2026-11-19): this phone's
+// add-ons, library, progress, watched list, settings and recent searches are merged with the copy kept
+// on the owner's server (GET/PUT/DELETE /v1/astra/backup, sealed there by the Worker; the requests are in
+// sync-wire.js).
+//
+// Who it talks to: only the owner's own Worker, through worker-api.js with the site's sign-in. Signed
+// out (or framed by another site) nothing is hooked and nothing is sent, ever; with the switch off
+// nothing is sent. When: shortly after start (never before the first paint), back in front after more
+// than 5 minutes, a minute after the last change (each time: fetch, naming the version this phone holds, so
+// an unchanged copy is not sent again; merge; then save if the merge changed anything), "Sync now", and when
+// the page is hidden (a keepalive save of what changed, when it fits in a keepalive's 64 KiB; else it goes on
+// the next start). Failures stay quiet: offline, 5xx, 503, a conflict three times over: tried again later,
+// each wait longer, up to 30 minutes. A copy larger than the Worker takes (1 MiB) is not sent; Settings says so.
+//
+// What stays on this phone: a small record in localStorage `astra.sync.v1` (sync-record.js). Merged values
+// pass the store's sanitisers (sync-merge.js) and are written through the store, then announced as
+// another window's write would be, so every open screen follows; the title playing keeps its own
+// progress; the senses reader is told nothing of merged progress (sync-senses.js). Nothing is logged.
+
+import {BACKUP_KEYS, PREFIX} from './store.js';
+import {ENTRY_KEYS, entryTime, isEmpty, mergeCopies} from './sync-merge.js';
+import {RECORD, fresh, recordOf, stampChange} from './sync-record.js';
+import {addressesOf, arrivedLine} from './sync-addons.js';
+import {CINEMETA} from '../addons/client.js';
+import {hideFromSenses} from './sync-senses.js';
+import {KEEPALIVE_MAX, MAX_COPY, fetchCopy, removeCopy, saveCopy, sizeOf} from './sync-wire.js';
+import {api as workerApi, session as workerSession} from '../addons/worker-api.js';
+
+export {RECORD};
+export const SAVE_AFTER = 60_000;
+export const AWAY = 5 * 60_000;
+const RETRY = [60_000, 120_000, 300_000, 600_000, 1_800_000];
+const TRIES = 3;
+
+/**
+ * Starts keeping this phone in step for `app` (its store, and what it is playing). `deps` replace the
+ * page's own for tests. Returns {state(), onChange(fn), setOn(on), syncNow(), removeCopy(), ready}.
+ */
+export function startSync(app, deps = {}) {
+  const d = {api: workerApi, session: workerSession, now: () => Date.now(), win: globalThis, doc: globalThis.document, toast: null,
+    storage: (() => { try { return globalThis.localStorage; } catch { return null; } })(),
+    later: (fn, ms) => setTimeout(fn, ms), cancel: id => clearTimeout(id), idle: fn => globalThis.requestIdleCallback ? requestIdleCallback(fn, {timeout: 4000}) : setTimeout(fn, 1500),
+    fetch: (...a) => globalThis.fetch(...a), channel: () => new BroadcastChannel('th-auth'), ...deps};
+  // As another window's write is heard (store.js createStorage), so every open screen follows.
+  d.announce ??= key => d.win?.dispatchEvent?.(new StorageEvent('storage', {key: PREFIX + key, storageArea: d.storage}));
+  const store = app.store, listeners = new Set(), snap = {};
+  let signedIn = null, working = null, problem = '', timer = 0, retry = 0, hiddenAt = 0, changes = 0, applying = false;
+  /** This phone's data is a copy of the server's (joined, switch on): what a sign-out must not leave behind. */
+  let inStep = false;
+
+  const record = () => { try { return recordOf(JSON.parse(d.storage?.getItem(RECORD) || 'null')); } catch { return fresh(); } };
+  const keep = rec => { inStep = rec.joined && !rec.off; try { d.storage?.setItem(RECORD, JSON.stringify(rec)); } catch {} };
+  // A copy: a listener may stop and start listening again as it runs (Settings redraws itself).
+  const changed = () => { for (const fn of [...listeners]) fn(); };
+  const schedule = ms => { d.cancel(timer); timer = d.later(() => exchange('timer'), ms); };
+
+  /** What this phone holds of a key now: its stored text and, for entry keys, each entry's time. */
+  function snapshot(k) {
+    const entries = k === 'addons' ? addressesOf(store.get(k, [])) : new Map();
+    if (ENTRY_KEYS.includes(k)) for (const [id, e] of Object.entries(store.get(k, {}))) entries.set(id, entryTime(k, e));
+    snap[k] = {raw: store.raw(PREFIX + k), entries};
+  }
+
+  /** A write this window made: stamps each changed key, keeps tombstones for removed entries, and
+   * schedules a save a minute on. Merged values written by this module are not changes. */
+  function heard(keys) {
+    if (applying) return;
+    const rec = record(), now = d.now();
+    let any = false;
+    for (const k of keys) {
+      if (!BACKUP_KEYS.includes(k)) continue;
+      const was = snap[k];
+      if (was && store.raw(PREFIX + k) === was.raw) continue;
+      snapshot(k);
+      // Stamped with the switch off too (nothing is sent): turned on again, removals and additions made meanwhile count.
+      stampChange(rec, k, was, snap[k], now);
+      if (!rec.off) any = true;
+    }
+    keep(any ? {...rec, owed: true} : rec);
+    if (!any) return;
+    changes++;
+    schedule(Math.max(SAVE_AFTER, retry ? RETRY[retry - 1] : 0));
+  }
+
+  /** Hears the store's three writers; another window's writes only refresh what this one knows. */
+  function hearWrites() {
+    const {set, remove, replace} = store;
+    store.set = (key, value) => { const ok = set(key, value); if (ok) heard([key]); return ok; };
+    store.remove = key => { const ok = remove(key); if (ok) heard([key]); return ok; };
+    store.replace = (values, keepKeys) => { const failed = replace(values, keepKeys); if (!failed) heard(BACKUP_KEYS); return failed; };
+    d.win?.addEventListener?.('storage', e => {
+      const k = e.key?.startsWith(PREFIX) ? e.key.slice(PREFIX.length) : null;
+      if (k && BACKUP_KEYS.includes(k) && !applying) snapshot(k);
+    });
+  }
+
+  /** This phone's side for a merge: each key as stored (undefined when nothing is saved), with the record's stamps. */
+  function mine(rec) {
+    const out = {};
+    for (const k of BACKUP_KEYS) out[k] = {at: rec.at[k] ?? 0, value: store.get(k, undefined), gone: rec.gone[k] ?? {}, ...(k === 'addons' ? {times: rec.added} : {})};
+    return out;
+  }
+
+  /** Writes merged values through the store and announces each as another window's write, so every screen follows. */
+  function apply(values, before) {
+    applying = true;
+    try {
+      for (const [k, v] of Object.entries(values)) {
+        if (!store.set(k, v)) return false;
+        if (k === 'progress') hideFromSenses(before, v, d.storage);
+        snapshot(k);
+        d.announce(k);
+      }
+      return true;
+    } finally { applying = false; }
+  }
+
+  /** This phone's own side as a copy, for a save without a merge (nothing changed on the server meanwhile). */
+  const localCopy = rec => mergeCopies({mine: mine(rec), theirs: {}, now: d.now()}).copy;
+
+  /** Fetch, merge, write here, save there when the merge changed the copy; up to three times on a conflict. */
+  async function run() {
+    for (let tries = 1; ; tries++) {
+      const held = record();
+      const server = await fetchCopy(d.api, held.joined ? held.version : null, d.now());
+      if (server.copy === 'newer') { problem = 'newer'; return; }
+      let rec = record();
+      if (rec.off) return;
+      const now = d.now(), mark = changes;
+      if (server.same) {
+        // The copy there is still the one this phone merged with: nothing to take in; save what changed here.
+        keep({...rec, fetchedAt: now});
+        if (!rec.owed) { problem = ''; return; }
+        if (await save(localCopy(rec), server.version, mark, tries)) return;
+        continue;
+      }
+      const first = !rec.joined, side = mine(rec);
+      // A phone that has data but never merged: its non-empty keys changed now (the brief's first-merge rule).
+      if (first) for (const k of BACKUP_KEYS) if (!isEmpty(k, side[k].value) && !rec.at[k]) side[k].at = now;
+      const merged = mergeCopies({mine: side, theirs: server.copy?.keys ?? {}, first, playing: app.playing?.meta || null, now});
+      if (!apply(merged.apply, side.progress.value)) { problem = 'full'; return; }
+      rec = record();
+      for (const [k, v] of Object.entries(merged.copy.keys)) { rec.at[k] = v.at; if (v.gone) rec.gone[k] = v.gone; if (v.times) rec.added = v.times; }
+      Object.assign(rec, {joined: true, version: server.version, fetchedAt: now, owed: merged.differs});
+      keep(rec);
+      // An add-on this phone did not have is never taken in silently (anyone with a session of the owner's could
+      // have put it in the copy): said once, by name and host. Else, a first merge with data on both sides says so.
+      const arrived = 'addons' in merged.apply ? arrivedLine(side.addons.value, merged.apply.addons, CINEMETA) : '';
+      if (arrived) d.toast?.(arrived);
+      else if (first && server.copy && BACKUP_KEYS.some(k => !isEmpty(k, side[k].value) && server.copy.keys[k]))
+        d.toast?.('Astra on this phone and on your other phones were put together. Nothing was lost.');
+      if (!merged.differs) { problem = ''; return; }
+      if (await save(merged.copy, server.version, changes, tries)) return;
+    }
+  }
+
+  /** Saves `copy` on `base`: true when done (or when it cannot fit, said in Settings), false on a conflict to merge again. */
+  async function save(copy, base, mark, tries) {
+    if (sizeOf(copy) > MAX_COPY) { problem = 'too-big'; return true; }
+    try {
+      const version = await saveCopy(d.api, copy, base);
+      const rec = record();
+      keep({...rec, version, savedAt: d.now(), owed: rec.owed && changes !== mark});
+      problem = '';
+      return true;
+    } catch (error) {
+      if (error?.status !== 409 || tries >= TRIES) throw error;
+      return false;
+    }
+  }
+
+  /**
+   * The session ended. Signed out on this phone, th/session.js wipe() has already removed Astra's data when it
+   * was in step with the server (and says so on its channel); a 401 from the Worker means the server ended the
+   * session (signed out from another device), so the same is done here. Either way, when in step, nothing this
+   * page still holds is written back (the store is frozen until the page is opened again).
+   */
+  function signedOut(byServer) {
+    signedIn = false;
+    d.cancel(timer);
+    if (inStep) {
+      if (byServer) try { for (const k of store.keys()) d.storage.removeItem(PREFIX + k); d.storage.removeItem(RECORD); } catch {}
+      store.freeze();
+    }
+    changed();
+  }
+
+  /** One exchange at a time; a failure is quiet and tried again later, each wait longer. */
+  function exchange() {
+    if (!signedIn || record().off) return Promise.resolve();
+    if (working) return working;
+    d.cancel(timer);
+    working = run().then(() => { retry = 0; }, error => {
+      if (error?.code === 'signed-out' || error?.status === 401) { signedOut(error?.status === 401); return; }
+      if (error?.status === 413) { problem = 'too-big'; return; } // tried again after the next change
+      problem = 'unreached';
+      schedule(RETRY[Math.min(retry++, RETRY.length - 1)]);
+    }).finally(() => { working = null; changed(); });
+    changed();
+    return working;
+  }
+
+  /** The page is going away or out of sight: what changed since the last save, as a keepalive request. */
+  function saveOnLeave() {
+    const rec = record();
+    if (!signedIn || rec.off || !rec.joined || !rec.owed || working) return;
+    const copy = localCopy(rec);
+    if (sizeOf(copy) > KEEPALIVE_MAX) return; // too big to outlive the page: the next start sends it
+    d.cancel(timer);
+    const mark = changes;
+    saveCopy(d.api, copy, rec.version, (url, init) => d.fetch(url, {...init, keepalive: true})).then(version => {
+      const now = record();
+      keep({...now, version, savedAt: d.now(), owed: now.owed && changes !== mark});
+      changed();
+    }, () => {}); // a conflict or a failure: still owed, so the next exchange merges and saves it
+  }
+
+  const ready = (async () => {
+    signedIn = !!(await d.session().catch(() => null));
+    changed();
+    if (!signedIn) return; // signed out: nothing is hooked and nothing is sent
+    inStep = record().joined && !record().off;
+    try { d.channel()?.addEventListener('message', e => { if (e.data === 'signed_out') signedOut(false); }); } catch {}
+    for (const k of BACKUP_KEYS) snapshot(k);
+    hearWrites();
+    d.doc?.addEventListener?.('visibilitychange', () => {
+      if (d.doc.visibilityState === 'hidden') { hiddenAt = d.now(); saveOnLeave(); }
+      else if (hiddenAt && d.now() - hiddenAt > AWAY) { hiddenAt = 0; exchange(); }
+      else hiddenAt = 0;
+    });
+    d.win?.addEventListener?.('online', () => { if (record().owed) schedule(5000); });
+    // After the first paint and whatever the page does first: never in the way of start-up.
+    d.idle(() => exchange());
+  })();
+
+  return {
+    ready,
+    state: () => { const rec = record(); return {signedIn, on: !rec.off, savedAt: rec.savedAt, fetchedAt: rec.fetchedAt, working: !!working, problem}; },
+    onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    /** On again: as a phone that never merged, so both sides are put together and nothing is lost. */
+    setOn(on) {
+      if (on === !record().off) return;
+      d.cancel(timer);
+      // On again: a first merge (both put together), its stamps and tombstones kept so removals still hold.
+      keep({...record(), off: !on, ...(on ? {joined: false, version: null} : {})});
+      problem = '';
+      changed();
+      if (on) { for (const k of BACKUP_KEYS) snapshot(k); exchange(); }
+    },
+    syncNow: () => exchange(),
+    /** Deletes the copy on the server, with its daily copies; this phone stops keeping one. */
+    async removeCopy() {
+      try { await removeCopy(d.api); } catch (error) {
+        return {ok: false, message: error?.message || 'Your server could not be reached.'};
+      }
+      d.cancel(timer);
+      keep({...record(), off: true, joined: false, version: null, savedAt: null, fetchedAt: null, owed: false});
+      changed();
+      return {ok: true};
+    },
+  };
+}

@@ -86,9 +86,10 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   // How the 720p x265 stream will play here (addons/device-facts.js) is this Chromium's own answer,
   // and the mark changes nothing about the list: the same three cards, in the add-on's order.
   const answer = await page.evaluate(() => navigator.mediaCapabilities.decodingInfo({ type: 'media-source', video: { contentType: 'video/mp4; codecs="hvc1.1.6.L120.90"', width: 1280, height: 720, bitrate: 4e6, framerate: 24 } }).then((a) => a.supported && a.smooth && a.powerEfficient));
-  const mark = answer ? 'Plays directly' : 'Needs the software decoder (uses more battery)';
-  await page.waitForFunction(() => document.querySelector('.screen.streams .stream-card:nth-child(2) .stream-plays')?.textContent);
-  assert.equal(await page.locator('.screen.streams .stream-card', { hasText: 'Small' }).locator('.stream-plays').textContent(), mark);
+  // A stream this browser decodes itself carries no note; one it does not says so (addons/stream-note.js).
+  const small = page.locator('.screen.streams .stream-card', { hasText: 'Small' }).locator('.stream-plays');
+  if (answer) assert.equal(await small.count(), 0, 'decoded by the browser: no note');
+  else { await small.waitFor(); assert.equal(await small.textContent(), 'Needs the software decoder (uses more battery)'); }
   assert.equal(await page.locator('.screen.streams .stream-card', { hasText: 'Unknown' }).locator('.stream-plays').count(), 0, 'a label that says nothing: no mark');
   assert.deepEqual(await names(), ['Large', 'Small', 'Unknown']);
   await chip('Smallest first').click();

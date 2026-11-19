@@ -106,6 +106,9 @@ test('Auto flips at the owner’s hours, 07:00 and 22:00 unless set, with a fake
   // read, made as the page opened, must have landed by then: when it landed after this one it brought the old
   // hours back, and the theme stayed as it was. That was this test's failure under load, one run in fifteen.)
   await page.waitForFunction(() => localStorage.getItem('th.p.settings') !== null);
+  // ...and no other read of the settings may still be on its way: one made as the page opened, answered after
+  // the hours move below, carries the old hours and puts them back (seen on CI: 06:00 was still night).
+  await page.waitForLoadState('networkidle');
   Object.assign(w.stored, { 'mind.night_start': '23:00', 'mind.day_start': '06:00' });
   await page.evaluate((s) => import('/th/copy.js').then((m) => m.keepShell(s)), w.stored);
   assert.equal(await theme('light'), 'light', '22:00 with evening from 23:00: day');

@@ -3,6 +3,7 @@
 import {h, clock, reducedMotion, scrollTimelines} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
 import {image, longPress, liftMenu, toast} from '../ui/components.js';
+import {logoImage} from './logo.js';
 import {playTarget, seasonsOf, episodeCode, videoTitle, aired, namesOf, runtimeLabel, releaseLabel} from '../app/content.js';
 
 const validDate = value => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
@@ -84,13 +85,13 @@ export class DetailsScreen {
     const titleKey = (m.logo || '') + '\n' + (m.name || '');
     if (titleKey !== this.hero.titleKey) {
       this.hero.titleKey = titleKey;
-      this.hero.title.replaceChildren(m.logo ? image(m.logo, m.name, 'details-logo', {eager: true}) : h('h1', {class: 'details-title'}, m.name || ''));
+      this.hero.title.replaceChildren(m.logo ? logoImage(m.logo, m.name, 'details-logo', {eager: true, onDark: img => img.replaceWith(h('h1', {class: 'details-title'}, m.name || ''))}) : h('h1', {class: 'details-title'}, m.name || ''));
     }
     const genres = namesOf(m.genres).slice(0, 3).join(' • ');
     this.hero.genres.textContent = genres;
     this.hero.genres.hidden = !genres;
     this.header.replaceChildren(h('button', {class: 'icon-btn', type: 'button', 'aria-label': 'Back', onclick: () => this.app.back()}, icon('back')),
-      m.logo ? image(m.logo, m.name, 'header-logo') : h('b', {class: 'header-title'}, m.name || ''),
+      m.logo ? logoImage(m.logo, m.name, 'header-logo', {onDark: img => img.replaceWith(h('b', {class: 'header-title'}, m.name || ''))}) : h('b', {class: 'header-title'}, m.name || ''),
       this.libraryButton(m, 'icon-btn'));
   }
 

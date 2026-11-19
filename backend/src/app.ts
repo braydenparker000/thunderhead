@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { ASTRA_BACKUP } from '../../shared/contract/astra.ts';
 import { FILE_LIMITS } from '../../shared/contract/files.ts';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
@@ -91,6 +92,10 @@ const PREVIEW = /^\/v1\/photos\/[^/]+\/preview$/;
 // One piece of a file for the workshop (streamed, its exact size checked in the route).
 const workshopPart = bodyLimit({ maxSize: WORKSHOP_LIMITS.part_bytes, onError: tooLarge });
 const WORKSHOP_PART = /^\/v1\/workshop\/[^/]+\/parts\/[^/]+$/;
+// The owner's Astra copy (areas/astra/backup.ts, which counts it again): the larger limit only for a save; any
+// other method on the path keeps the small one.
+const astraSave = bodyLimit({ maxSize: ASTRA_BACKUP.max_bytes, onError: tooLarge });
+const astraCopy: typeof small = (c, next) => (c.req.method === 'PUT' ? astraSave : small)(c, next);
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
     ? chatFile
@@ -118,7 +123,9 @@ const limitFor = (path: string) =>
                           ? preview
                           : WORKSHOP_PART.test(path)
                             ? workshopPart
-                            : small;
+                            : path === '/v1/astra/backup'
+                              ? astraCopy
+                              : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {

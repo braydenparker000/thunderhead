@@ -1987,6 +1987,30 @@
       "status": "built",
       "note": "removes a file, every piece"
     },
+    "GET /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?known=<version>: {version, saved_at, copy}: the copy kept for every phone, opened; all null when none; copy null when it does not open; {version, saved_at, same: true} when known is the version kept"
+    },
+    "PUT /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?base=<version>; the body is the copy (≤ 1 MiB as sent, tagged sync/1, known keys only), sealed as sent in place of the copy base names; another kept now is 409 conflict"
+    },
+    "DELETE /v1/astra/backup": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "removes the copy and its daily copies: 204"
+    },
     "POST /v1/astra/play": {
       "who": [
         "D"
@@ -2002,6 +2026,14 @@
       "phase": "P8",
       "status": "built",
       "note": "whether the TorBox key is set and accepted, and the plan number"
+    },
+    "GET /v1/astra/torbox/servers": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute"
     }
   },
   "verbs": {

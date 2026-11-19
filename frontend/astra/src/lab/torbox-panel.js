@@ -6,8 +6,11 @@
 // pasted here is checked only after a second tap, once the hint has named its host (the host alone).
 // The Worker is asked through the page's own helper (addons/worker-api.js, with the owner's session, for a
 // top-level page of this site only), loaded when the check runs, as are the engine's probe and planner.
+// Below it, "Server speed" (server-speed.js) times TorBox's server groups from this phone; its table joins the report.
 
 import {torboxCheck, checkReport, deviceLine, STEPS} from './torbox-check.js';
+import {speedPanel} from './server-speed.js';
+import {scrubSecrets, serverGroup} from './scrub.js';
 
 const MARK = {run: '…', ok: '✓', bad: '✗', info: '•', skip: '–'};
 
@@ -20,12 +23,16 @@ export async function checkTools() {
   return {api, probe, plan: planPlayback, caps: {mse: caps.mseSupports, native: caps.nativeCanPlay, opusEncode: await caps.canEncodeAudio('opus'), software: typeof WebAssembly === 'object' && typeof MediaStream === 'function', passFailed: c => routes.passFailed(c), failedRoute: c => routes.failedRoute(c)}};
 }
 
+/** The page's Worker helper alone, for the server list (the check's other tools are not needed for it). */
+const workerApi = async () => (await import('../addons/worker-api.js')).api;
+
 /**
  * Wires the panel. `stop()` ends the lab's own playback first, so the connection limit is measured on this check's
  * requests alone; `tools` is checkTools (tests hand their own). Returns {fill(address)} for a handed-over address.
  */
-export function torboxPanel({form, field, button, list, copy, hint, stop = () => {}, tools = checkTools}) {
+export function torboxPanel({form, field, button, list, copy, hint, stop = () => {}, tools = checkTools, api = workerApi}) {
   let steps = null, link = '', running = null, handed = '', asked = false, picked = null; // picked: {address, facts} of a stream from the lab's list
+  const speed = speedPanel({anchor: hint, api, stop, busy: () => !!running, filmGroup: () => serverGroup(steps?.facts?.url || ''), onDone: () => { copy.hidden = false; }});
   field.addEventListener('input', () => { handed = ''; asked = false; picked = null; button.textContent = 'TorBox check'; }); // typed or pasted: the owner's own
   const render = all => {
     list.hidden = false;
@@ -42,6 +49,7 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (running) { running.abort(); return; }
+    if (speed.running()) { hint.textContent = 'Wait for the server speed to finish first.'; return; }
     link = field.value.trim();
     if (!/^https?:\/\//i.test(link)) { hint.textContent = 'Paste a stream’s address first.'; return; }
     if (handed && link === handed && !asked) {
@@ -70,8 +78,10 @@ export function torboxPanel({form, field, button, list, copy, hint, stop = () =>
     }
   });
   copy.addEventListener('click', async () => {
-    if (!steps) return;
-    const report = checkReport(steps, {link, device: deviceLine()});
+    const table = speed.lines();
+    if (!steps && !table.length) return;
+    const head = steps ? checkReport(steps, {link, device: deviceLine()}) : `Astra TorBox server speed, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC, ${deviceLine()}`;
+    const report = scrubSecrets([head, ...table].join('\n'), {hosts: false});
     try { await navigator.clipboard.writeText(report); hint.textContent = 'Report copied. It holds no address, hash, key or file name.'; }
     catch { hint.textContent = 'Copy failed; long-press to select the report below.'; hint.append(Object.assign(document.createElement('pre'), {textContent: report})); }
   });
