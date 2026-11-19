@@ -1,19 +1,13 @@
 {
-  "id": "2026-11-19-astra-feel-2",
+  "id": "2026-11-19-astra-torbox-listing",
   "date": "2026-11-19",
   "lines": [
     {
-      "text": "Astra: a tapped poster flies in whole and stays the same picture. No blink, and no swap to other artwork.",
+      "text": "Astra: a film TorBox has ready no longer falls back to the slow add-on link when TorBox is a moment late listing it.",
       "open": "astra"
     },
     {
-      "text": "The player, menus, stream list and toasts no longer stutter: the movement starts first, the heavy work after."
-    },
-    {
-      "text": "The hero's button always opens the title you tapped, even if the hero was turning at that moment."
-    },
-    {
-      "text": "The feel report now shows your screen's refresh rate and leaves out the noise from ordinary taps."
+      "text": "Your server now asks again, then finds the film in your account by its hash, before giving up on the direct route."
     }
   ]
 }
