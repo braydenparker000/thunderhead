@@ -363,7 +363,13 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    times the start: `timing` entries when the file is open, when its index
    is in, for each track that took over 200 ms to describe, at the plan, at
    the first fragment appended and at the first picture, each with the ms
-   since `load()`, the bytes and the requests so far.
+   since `load()`, the bytes and the requests so far. A `memory` entry
+   (`player-memory.js`) comes at each film's first picture and after every
+   60 s of play while the page is visible: the JS heap in MB where the
+   browser gives it (Chrome's, its arrays included), the seconds buffered
+   ahead of the playhead and behind it and about how many MB that is, the
+   reader's cache in MB and the budget in force (its name, its MB and its
+   film MB), so a report from the phone shows what it held.
    **What a failed route teaches** (`player-routes.js`, `route-memory.js`,
    localStorage `astra-routes`, per device, each entry for 30 days so a
    browser update gets another chance). A browser can say it decodes Dolby
@@ -398,15 +404,24 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    cluster only the dropped pipelines were reading is not read again for
    them (`mkv-packets.js` `jumped()`): it began a download at the place
    left, which took half the link from the new place.
-   **How much is held** (`hold.js`). The pipelines read 40 s past the
-   playhead (20 with the data saver) and the browser's buffer keeps 20 s
-   behind it (`mse.js`), and a fast film is held to bytes as well, by its
-   average bitrate: 48 MiB ahead (15 s at 25 Mbit/s, never under 10 s) and
-   24 MiB behind (7 s, never under 4). By time alone a 25 Mbit/s film filled
-   Chrome's video buffer to its own limit (about 150 MB, past which Chrome
-   drops what is behind the playhead itself), and the page held about
-   600 MB (How smoothly, below). A film under about 10 Mbit/s is held as
-   before. Until the film plays at its place (a start, a seek), picture and
+   **How much is held** (`budget.js`, `hold.js`). The pipelines read 40 s
+   past the playhead (20 with the data saver), the browser's buffer keeps
+   20 s behind it (`mse.js`) and the reader's cache 80 s, and a film too
+   fast for those seconds to fit is held to a memory budget, bytes first
+   and seconds second: 112 MiB of film on a phone that says it has 4 GB or
+   more (or says nothing), 56 on 2 GB, 32 on 1 GB, three quarters of that
+   with the data saver. The budget is shared out at the film's average
+   bitrate: what reading needs (the reach and a second behind it), at
+   least 6 s ahead of the playhead and 2 behind, behind up to 12 s (the
+   player's 10 s skip back and a key frame), the cache keeping what is
+   ahead as well (a change of sound track reads it again from there), then
+   more ahead and behind. A 25 Mbit/s film keeps about 8 s ahead and 12
+   behind, a 60 Mbit/s one 6 s on each side; one under about 10 Mbit/s is
+   held as before. By time alone a 25 Mbit/s film filled Chrome's video
+   buffer to its own limit (about 150 MB, past which Chrome drops what is
+   behind the playhead itself) (How smoothly, below; Memory while a film
+   plays, below, for what holds the page's memory and why these numbers).
+   Until the film plays at its place (a start, a seek), picture and
    sound are read at most 4 s past the playhead (`remux.js` `room()`; the
    sound alone was held so before, and the picture followed it, 3 s behind at
    most); then both read on. Text
@@ -538,11 +553,11 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
      another download brought), copying them in rather than fetching them
      again, so its block is still made whole. The block cache
      keeps 80 s of the film at its bitrate (a 30 s back-seek, the pipelines'
-     40 s and the reach; 55 s with the saver), between 16 and 96 MiB; a film
-     whose 80 s pass 48 MiB (about 5 Mbit/s) keeps 48 MiB, or the reach and
-     4 s more when that is larger (`hold.js`): its back-seek never fitted,
-     and at 25 Mbit/s the 96 MiB held only what the browser's buffer held
-     too.
+     40 s and the reach; 55 s with the saver), between 16 and 96 MiB. A film
+     too fast for that within the memory budget (How much is held, above)
+     keeps what reading needs and, while the budget lasts, what the
+     browser's buffer holds ahead; its reach is at most 15 % of the budget
+     (16.8 MiB on a 4 GB phone, about 5 s of a 25 Mbit/s film).
    - *Both ends at once* (`source-tail.js`). On a film's first open, as soon
      as the first answer gives the size, its last 64 KiB are asked for beside
      its start, in a request of their own: the subtitle hash needs them, and
@@ -633,7 +648,8 @@ how it plays and plays it; it never switches pipeline mid-play. In detail:
    data). Automatic by default: on when the phone asks to save data or is on
    a mobile network. With it on, the reader reads about 5 s of the film
    ahead instead of 10 (at most 8 MiB instead of 24), the cache keeps 55 s
-   instead of 80, the pipelines keep 20 s ahead instead of 40, HLS and DASH
+   instead of 80, the pipelines keep 20 s ahead instead of 40, the memory
+   budget is three quarters of the phone's, HLS and DASH
    are held to 720p and 20 s ahead, and nothing is got ready before a tap; a
    change applies to the film that is playing. With the earlier fixed
    read-ahead (8 MiB instead of 24), a three-minute 3.3 Mbit/s film, 40 s
@@ -842,7 +858,9 @@ under 250 MB only while the link is slower than the film: at 40 Mbit/s it
 peaks at 380 MB, of which about 120 MB is garbage the collector had not
 taken yet (260 MB with a collection forced before each look), and on the
 fast link near 500 MB (what holds it, and what was tried: A slow link,
-below, Memory on a fast link). For scale, Chrome playing the same picture from a
+below, Memory on a fast link; all these memory figures include the copy
+of every download Playwright's DevTools connection keeps in the page,
+about 190 MB of this film after 90 s: Memory while a film plays, below). For scale, Chrome playing the same picture from a
 plain MP4 by itself, with no Astra, peaks at 175 MB (the lab page alone:
 50 MB). On the fast machine a seek five seconds on, inside the buffer,
 takes 0.35 to 0.9 s where Chrome playing that MP4 itself takes 0.16 s: not
@@ -1124,7 +1142,7 @@ came between a fragment's two boxes (each moof and mdat is appended on its own) 
 and setting its timestampOffset threw (`astra-sound-stream-browser.test.mjs` failed two runs in three); a reset now
 always starts the buffer's parser afresh (`mse.js`), which only a reset during an append did before.
 
-**Memory on a fast link.** Every array of 64 KiB or more the page's scripts made while the heavy film played 37 s on
+**Memory on a fast link** (these figures, read through Playwright, include its copy of every download, up to 190 MB; Memory while a film plays, below, has them without it). Every array of 64 KiB or more the page's scripts made while the heavy film played 37 s on
 the fast link, counted by where it was made (a counter wrapped around `Uint8Array`, `ArrayBuffer` and `slice`): 285
 MiB in Mediabunny's writer, which collects each box it hands over in an array that starts at 1 KiB and doubles, copied
 each time; 121 MiB in the reader's blocks (the film's bytes, once); 15 MiB answering reads from blocks still filling;
@@ -1243,6 +1261,53 @@ them alone stops. DTS so left is converted (as where the browser takes no DTS as
 the track's header holds (Mediabunny would otherwise answer it with the refused read): the film then plays its DTS
 track from 1:05, converted in the worker. A small film is no worse (the 2-minute film of Fonts attached, 5 runs: first
 picture 282 and 284 ms, resumed at 1:00 773 and 770 ms).
+
+### Memory while a film plays (measured 2026-11-19)
+
+`scripts/astra/memory.mjs` plays a film through the engine in Chromium driven over the bare DevTools protocol and
+breaks the renderer down with memory-infra dumps every 3 s. Playwright, which `real.mjs` uses, turns DevTools' Network
+domain on, and the page then keeps a copy of every download: partition_alloc's buffer partition grew to 218 MB in 90 s
+of the heavy film, 8 MB without Playwright. About 190 MB of the "near 500 MB" above was that copy.
+
+**What holds it** (heavy film, fast link, before this change): the renderer 341 MB at its median, 386 at its peak, of
+which Chrome's decoded frames 48 MB (on the phone the hardware decoder's, not the page's), the browser's media buffer
+(the SourceBuffers: 14 s ahead, 7 behind) 66 MB, V8's heaps 25 to 32 MB, and the JS ArrayBuffers 108 MB at the median
+and 153 at the peak: the reader's cache 49 MB, the converted sound's worker about 10 MB, clusters and queues about 13 MB,
+the rest garbage. With a collection forced before each look they held 86 MB. The peak comes at the start and after a
+seek, when the reading runs at the link's speed: Mediabunny's writer collected each fragment in an array doubling from
+1 KiB (2.4 bytes of arrays for each byte of film), and V8 collects arrays only now and then (20 to 70 MB of them waited). The
+lab page alone is 73 MB. "Astra's share" below is V8's heaps, the JS ArrayBuffers and the media buffer: what Astra decides.
+
+**The budget** (`budget.js`, `hold.js`; How a file plays, How much is held). 250 MB of share on a 4 GB phone (the owner's,
+the brief's aim), 180 on 2 GB, 140 on 1 GB; of that the film's own bytes (the media buffer ahead and behind and the
+reader's cache) 112, 56 and 32 MiB, since the rest (the engine, the worker, the garbage) measured 90 to 150 MB on 25 to
+60 Mbit/s films whatever was held. With the data saver three quarters of the film bytes. A 25 Mbit/s film keeps 8 s
+ahead and 12 behind (the 10 s skip back is held) and the cache keeps what is ahead too: without that, a change of sound
+track read the film again over the link (the first change to DTS on a 40 Mbit/s link heard 3.1 s after the tap after a
+silence of 2.0 s, three runs; with it 2.3 s and 1.2 s, two runs, as before). A 60 Mbit/s film keeps 6 s on each side and the cache
+only what reading needs. Picture and sound were never read more than 0.12 s apart (page six times slower too), so the
+cache keeps 1 s behind the reading, not 4. On 2 GB a 25 Mbit/s film keeps 6 s ahead and 7 behind; a 60 Mbit/s one there
+holds its floors (6 s ahead, 2 behind, 96 MiB), past the budget.
+
+| Same sitting, one run each (two more of each after, earlier) | before | after |
+|---|---|---|
+| Heavy (27.8 Mbit/s), fast: share at its peak; median | 241; 196 MB | 197; 180 MB (208 to 238 in two earlier runs) |
+| Heavy, fast: renderer at its peak; media buffer; ahead, behind | 382 MB; 66 MB; 14 s, 8 s | 371 MB; 59 MB; 7 s, 12 s |
+| 60 Mbit/s 4K, fast: share at its peak; median | 311; 277 MB | 256; 201 MB (225 and 241 earlier) |
+| 4K, fast: renderer at its peak (Chrome's 4K frames 180 MB of it) | 607 MB | 517 MB |
+| Heavy, 5.4 Mbit/s and 110 ms (the owner's link): share peak; stalls in 60 s | 135 MB; 4 | 151 MB; 4 |
+| Long (2 h, 0.56 Mbit/s) and the small 3 Mbit/s film, fast: share peak | 55, 91 MB | 68, 88 MB (held as before) |
+| First picture: heavy, 4K, long, small (fast) | 719, 1749, 285, 285 ms | 701, 1717, 247, 225 ms |
+
+Making each fragment's array at its size, read from the moof before it (`fragments.js`), took the arrays' peak on the
+heavy film from 176 and 199 MB to 95 and 158 (two runs each) and the share's median from 185 to 175 MB; tried
+2026-11-18 and dropped because the renderer's PSS did not move, which was Playwright's copy hiding it. The 4K film
+stalls 14 to 16 times a minute here before and after alike: the test browser decodes 4K H.264 in software.
+
+Not measured with the final code: the 2 GB, 1 GB and saver budgets (an earlier version of the same split held the heavy
+film to 142 MB of share on 2 GB), a long sitting with many seeks and track changes, and the start, seek and resume times
+by `real.mjs` (the first picture above is `memory.mjs`'s, one run). Not on a phone at all: Chrome on Android's own media
+buffer limits, its garbage collector under memory pressure, and `navigator.deviceMemory` on the owner's phone.
 
 ### Several cores (present, switched off)
 
@@ -1671,15 +1736,16 @@ skip in a browser without it.
 | `astra-renew.test.mjs` | The range reader within a TorBox link's limits: never more than three requests at once, playback first, side reads next, previews last and given up for playback, slots given back at the last byte; a dead link renewed once for every read waiting, a refused one when refused again, side reads too, once a minute; the old failures without `renew`, at the first open, or when renewing fails. |
 | `astra-renew-browser.test.mjs` | On a 40-second VP9 film made with ffmpeg: never more than three requests open on the host over a start, a far seek, a preview drag and a network change; a film playing on through a dead link with `renew`, its position kept and no error; and the reader's error without it. |
 | `astra-torbox-check.test.mjs`, `astra-torbox-check-browser.test.mjs` | The lab's TorBox check against a stubbed Worker helper and the test host: every step's line, a phone signed out, no key in the Worker, the Worker's own failure, a fifth connection refused at a host that allows four, an address the page may not read, one handed over in the fragment (run only once its host is confirmed), and a report with no address, hash, key or file name; the scrubber itself. |
-| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
-| `astra-hold-browser.test.mjs` | A fast film held to bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays. |
+| `astra-bytes.test.mjs` | The range reader: reads answered as their bytes arrive, downloads that stop where describing stopped asking, the reach and the cache by bitrate and the memory budget, bounded requests, side reads that leave playback alone, a network change, waiting for a download by time rather than bytes, and an index larger than the tail fetched once. |
+| `astra-hold-browser.test.mjs` | A fast film held to the memory budget's bytes (`hold.js`): a few seconds read ahead of the playhead and kept behind it, where by time alone the whole small film stays; the log's `memory` entry at the first picture. |
+| `astra-budget.test.mjs` | The memory budget by the phone's memory and the saver, how it is shared out at 4, 25, 60 and 100 Mbit/s (what reading needs, the floors, a skip back, the ahead kept twice), and the `memory` log entries: at the first picture, every 60 s of play, none while paused, numbers and fixed words only. |
 | `astra-attachments.test.mjs` | A film with 8 MiB of fonts attached is described from its start, its end and its first cluster; the download at the start stops where the fonts begin, the one past them reads on; the fonts read later in requests that end with the element; a Void header the length of the element's own. |
 | `astra-software-words-browser.test.mjs` | A film the software decoder cannot open (libmedia stood in for by one whose load fails as it did on a phone): one plain sentence on screen, libmedia's own words in the log. |
 | `astra-probe-limit.test.mjs` | A DTS track none of whose blocks is near the start (dts.mkv renumbered) is left unread once describing reaches its limit, converted, and given its header's setup; the limit's reads, counted and refused. |
 | `astra-probe-reads.test.mjs` | Describing a film with a DTS track the browser cannot take as it is asks nothing of that track's first frame, nor Mediabunny's MIME type. |
 | `astra-film-memory.test.mjs` | A film remembered by its size and first 64 KiB, answered from memory the next time; a damaged entry, another film of the same size or failing storage changing nothing but the cost; a block a seek began inside made whole on the side. |
 | `astra-mkv-packets.test.mjs` | Astra's own Matroska reader against Mediabunny's on every Matroska test film (the same packets, every byte), a cluster read as it arrives, hand-built files (lacing, block groups, header stripping, Void and CRC-32, negative times, a file cut short), stepping aside for what it will not guess at, blocks handed out as views rather than copies, and a cluster only a dropped pipeline held not read again after a jump. |
-| `astra-early.test.mjs` | Half-second fragments of picture, and quarter-second ones of sound passed through. |
+| `astra-early.test.mjs` | Half-second fragments of picture, and quarter-second ones of sound passed through; each fragment of picture written into one array at its size, byte for byte as Mediabunny writes it. |
 | `astra-rebuffer.test.mjs` | A link slower than the film: how many seconds are made ready after a stall, the link's speed counted only while a download runs, and a session's stall held and let go with a stand-in buffer (all that was held appended, a seek letting go at once, a fast link never held). |
 | `astra-switch-browser.test.mjs` | Changing sound track without stopping the picture (no seek in place, the new pitch heard); the converter refused, met with another track that needs none and a notice, or with silence until it can be downloaded and the sound coming in then. |
 | `astra-downmix.test.mjs` | Converted sound mixed to stereo a sample at a time. |
