@@ -7,7 +7,7 @@
 export const SPRINGS = {
   snappy: {stiffness: 420, damping: 34, duration: 220},
   smooth: {stiffness: 240, damping: 27, duration: 380},
-  lively: {stiffness: 320, damping: 19, duration: 420},
+  lively: {stiffness: 320, damping: 22, duration: 420},
 };
 
 const SETTLED = 0.001; // within a thousandth of the target counts as there

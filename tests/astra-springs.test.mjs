@@ -24,7 +24,7 @@ test('a spring starts at rest at 0 and settles on 1, whatever its damping', () =
 test('the three springs keep the character FEEL.md gives them', () => {
   assert.ok(overshoot(SPRINGS.snappy) < 0.01, 'snappy: no visible overshoot');
   assert.ok(overshoot(SPRINGS.smooth) < 0.02, 'smooth: under 2%');
-  assert.ok(overshoot(SPRINGS.lively) > 0.05, 'lively: a visible swing');
+  assert.ok(overshoot(SPRINGS.lively) > 0.07 && overshoot(SPRINGS.lively) < 0.09, 'lively: about 8%');
   for (const s of Object.values(SPRINGS)) assert.ok(s.duration <= 450, 'nothing takes longer than 450 ms');
 });
 
