@@ -85,7 +85,10 @@ export function front() {
   draw();
 
   if (document.documentElement.hasAttribute('data-signed-in')) {
-    import('/th/chat/index.js').then((m) => { chat = m.current; draw(); }, () => {});
+    // (its day comes with its first load: looked for until then, for 20 s at most)
+    let tries = 0;
+    const loaded = () => { if (!alive) return; if (chat?.today?.day || tries++ > 80) draw(); else setTimeout(loaded, 250); };
+    import('/th/chat/index.js').then((m) => { chat = m.current; loaded(); }, () => {});
   }
   const past = new MutationObserver(() => void draw());
   const changed = () => {

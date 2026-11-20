@@ -3,6 +3,8 @@
    conversation (look/home-front.js), the conversation's frame, the ask bar with the kit's round keys,
    and off the record. Values from the approved screens R-Grey / R-Dark, R-Typing-*, R-Off-*. */
 
+/* A lamp is red on every day, Sunday too (R-*-Sunday): the rubric turns gold, the lamps do not. */
+:root[data-look="ink-lamp"]{--lk-lamp:light-dark(#B3121A,#F0453F)}
 /* The header line: the weekday in Jacquard in rubric, the date in the legend face, the time in Doto,
    the rec switch at the right; the classic date line steps aside (the status chip stays). */
 :root[data-look="ink-lamp"] #home>.top #date{visibility:hidden}
@@ -24,8 +26,8 @@
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-rec{top:51px}
 :root[data-look="ink-lamp"] .lk-rec-l{display:block;text-align:right;white-space:pre-line;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-rec-l{color:var(--text-2)}
-:root[data-look="ink-lamp"] .lk-lamp{flex:none;width:6px;height:6px;border-radius:50%;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
-:root[data-look="ink-lamp"][data-theme="dark"] .lk-lamp{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] .lk-lamp{flex:none;width:6px;height:6px;border-radius:50%;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-lamp{box-shadow:0 0 4px var(--lk-lamp),0 0 10px rgba(240,69,63,.55)}
 :root[data-look="ink-lamp"] .lk-track{position:relative;display:block;flex:none;width:34px;height:18px;box-sizing:border-box;border-radius:9px;background:var(--well);box-shadow:inset 0 1.5px 2px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.85)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-track{border-radius:6px;box-shadow:inset 0 2px 3px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.09)}
 :root[data-look="ink-lamp"] .lk-track .lk-thumb{position:absolute;top:2px;left:14px;width:18px;height:14px;transition:transform var(--d-quick) var(--settle)}
@@ -88,7 +90,7 @@
 :root[data-look="ink-lamp"] .ask:is(.listening,.finishing) .mic::before{background-image:var(--down)}
 :root[data-look="ink-lamp"] .ask.listening .mic{animation:none}
 :root[data-look="ink-lamp"] .ask.finishing .mic{animation:none;opacity:1}
-:root[data-look="ink-lamp"] .ask:is(.listening,.finishing) textarea::placeholder{color:var(--key)}
+:root[data-look="ink-lamp"] .ask:is(.listening,.finishing) textarea::placeholder{color:var(--text)}
 /* The + key while the keypad is open: pressed, orange, its cross (only the icon turns). */
 :root[data-look="ink-lamp"] .ask.menu .plusBtn{transform:none}
 :root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"]{--up:url("kit/round-orange-up.webp");--down:url("kit/round-orange-pressed.webp");color:#0A0A0A;box-shadow:none}

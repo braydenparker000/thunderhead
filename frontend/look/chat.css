@@ -13,7 +13,7 @@
 :root[data-look="ink-lamp"] .convo .you{max-width:64%;padding:8px 12px;border-radius:var(--r-bubble);background:var(--glass-flat);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 #FFFFFF;font:400 var(--fs-input)/calc(var(--fs-input) * 1.4) var(--font-own);color:var(--text)}
 :root[data-look="ink-lamp"][data-theme="dark"] .convo .you{border-color:transparent;box-shadow:none}
 :root[data-look="ink-lamp"] .talk .meta{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
-:root[data-look="ink-lamp"] .talk .meta.bad{color:var(--rubric)}
+:root[data-look="ink-lamp"] .talk .meta.bad{color:var(--lk-lamp)}
 :root[data-look="ink-lamp"] .talk :is(.retry,.note .nu){font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text);text-decoration:underline;text-underline-offset:3px;text-transform:lowercase}
 /* His words: EB Garamond 19/26, no bubble. */
 :root[data-look="ink-lamp"] .convo .reply{font:400 var(--fs-reply)/calc(var(--fs-reply) * 26 / 19) var(--font-say);letter-spacing:0;color:var(--text)}
@@ -87,8 +87,8 @@
 /* Its first line: the lamp, "decision", then who asks (the card's own words) to the right, cut short with
    an ellipsis when long. */
 :root[data-look="ink-lamp"] #decision .card .why{position:relative;display:block;height:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3);text-transform:lowercase}
-:root[data-look="ink-lamp"] #decision .card .why .d{position:absolute;left:0;top:3px;width:6px;height:6px;margin:0;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
-:root[data-look="ink-lamp"][data-theme="dark"] #decision .card .why .d{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] #decision .card .why .d{position:absolute;left:0;top:3px;width:6px;height:6px;margin:0;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"][data-theme="dark"] #decision .card .why .d{box-shadow:0 0 4px var(--lk-lamp),0 0 10px rgba(240,69,63,.55)}
 :root[data-look="ink-lamp"] #decision .card .why::before{content:"decision";float:left;padding:0 10px 0 14px;color:var(--text-2)}
 :root[data-look="ink-lamp"] #decision .card .why .of{position:absolute;right:0;top:0;color:var(--text-2)}
 :root[data-look="ink-lamp"] #decision .card .why:has(.of:not(:empty)){padding-right:56px}
@@ -96,7 +96,7 @@
 :root[data-look="ink-lamp"] #decision .card .tg{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2);margin-top:2px}
 :root[data-look="ink-lamp"] #decision .card .dx{display:none}
 :root[data-look="ink-lamp"] #decision .card.decision>.decide{grid-column:2;grid-row:2;gap:6px;margin:3px 0 0 8px}
-:root[data-look="ink-lamp"] #decision .card .err{margin-top:4px;font:500 var(--fs-legend)/14px var(--font-legend);color:var(--rubric)}
+:root[data-look="ink-lamp"] #decision .card .err{margin-top:4px;font:500 var(--fs-legend)/14px var(--font-legend);color:var(--lk-lamp)}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-width:48px;min-height:44px;margin:0 2px;padding:0 12px;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-key)/1 var(--font-legend);letter-spacing:var(--ls-legend);color:#0A0A0A;text-transform:lowercase;transition:none}
 :root[data-look="ink-lamp"][data-theme="dark"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide .yes,.decide button:only-child){--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");min-width:64px;color:#0A0A0A}
@@ -120,7 +120,7 @@
 
 /* The working card: the strip's plate, a lamp for the live dot, Stop a key. */
 :root[data-look="ink-lamp"] #working .card{padding:9px 6px 10px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:var(--e1)}
-:root[data-look="ink-lamp"] .work .d{width:6px;height:6px;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"] .work .d{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
 :root[data-look="ink-lamp"] .work.waking .d{animation:none;opacity:.6}
 :root[data-look="ink-lamp"] .work .wkt{font:600 14px/20px var(--font-own);color:var(--text)}
 :root[data-look="ink-lamp"] .work .wkn{margin-left:14px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
@@ -131,7 +131,7 @@
 /* Cards in the conversation (a notice, What's new, a fallback) and the old conversation's dock. */
 :root[data-look="ink-lamp"] :is(#convo,.fallbacks) .card,:root[data-look="ink-lamp"] #home>.past{border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:var(--e1)}
 :root[data-look="ink-lamp"] #convo .card .why{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
-:root[data-look="ink-lamp"] #convo .card .why .d{width:6px;height:6px;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"] #convo .card .why .d{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
 :root[data-look="ink-lamp"] #convo .card :is(.q,.q li){font-family:var(--font-own);color:var(--text)}
 :root[data-look="ink-lamp"] #convo .card.news ul.q li::before{background:var(--text-3)}
 :root[data-look="ink-lamp"] #home>.past{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}

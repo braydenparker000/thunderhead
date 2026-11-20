@@ -76,7 +76,7 @@ const read = (page) => page.evaluate(() => {
   const ground = getComputedStyle(document.body).backgroundColor;
   const reply = $('#talk .reply.lk-drop');
   const you = $('#talk .you');
-  const size = (el) => { const r = el.getBoundingClientRect(); return Math.min(Math.round(r.width), Math.round(r.height)); };
+  const size = (el) => Math.min(el.offsetWidth, el.offsetHeight); // its own box, not mid-rise
   return {
     faces: {
       day: face($('.lk-day')), time: face($('.lk-time')), verse: face($('.lk-vtext')), reply: face(reply), initial: face(reply.firstElementChild, '::first-letter'),
@@ -118,7 +118,7 @@ test('with the look off, nothing of home\'s part of it is asked for or drawn', o
 for (const theme of ['light', 'dark'])
   test(`on, in ${theme === 'light' ? 'Ink' : 'Lamp'}: the faces, the kit's pictures, 44 px taps and 4.5:1`, opts, async () => {
     const { context, page, errors, asked } = await open({ theme, proposals: [DECISION()] });
-    await page.waitForSelector('.lk-later-b');
+    await page.waitForSelector('#decision .card.armed .lk-later-b');
     const look = await read(page);
     assert.deepEqual(look.faces, { day: 'Jacquard 24', time: 'Doto', verse: 'Lamp Fell', reply: 'EB Garamond', initial: 'Jacquard 24', you: 'Switzer', bar: 'Geist Mono', legend: 'Geist Mono', mark: 'Geist Mono' });
     const rubric = theme === 'light' ? 'rgb(179, 18, 26)' : 'rgb(240, 69, 63)';

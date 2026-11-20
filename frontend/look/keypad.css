@@ -29,7 +29,7 @@
 /* Remind me: the same glass panel, its times as keys, Set the orange key. */
 :root[data-look="ink-lamp"] .remind{left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:calc(30px + var(--ask-h,60px) + env(safe-area-inset-bottom,0px));border-radius:var(--r-xl);background:var(--sheet);border:1px solid var(--hairline);box-shadow:var(--e3)}
 :root[data-look="ink-lamp"] .rhead{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
-:root[data-look="ink-lamp"] .rhead span::before{width:6px;height:6px;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"] .rhead span::before{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
 :root[data-look="ink-lamp"] .rwhat{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
 :root[data-look="ink-lamp"] :is(.rwhat,.rpick) input{border-color:var(--hairline);background:var(--well);font:400 15px var(--font-own);color:var(--text)}
 :root[data-look="ink-lamp"] :is(.rwhat,.rpick) input:focus-visible{border-color:var(--text-2)}
@@ -40,14 +40,14 @@
 :root[data-look="ink-lamp"] :is(.rwhen button,.rset):active{background:none}
 :root[data-look="ink-lamp"] :is(.rwhen button,.rset):active::before{border-image-source:var(--down)}
 
-/* What is picked, in the bar; the voice memo strip in place of the words (its lamp the rubric). */
+/* What is picked, in the bar; the voice memo strip in place of the words (its lamp red). */
 :root[data-look="ink-lamp"] .ti{background:var(--well);font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
 :root[data-look="ink-lamp"] .ti.tmemo svg{fill:var(--text-2)}
 :root[data-look="ink-lamp"] .tix{border-color:var(--plate);background:var(--text)}
 :root[data-look="ink-lamp"] .rec{min-height:44px}
-:root[data-look="ink-lamp"] .rdot{width:6px;height:6px;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"] .rdot{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
 :root[data-look="ink-lamp"] .rtime{font:900 var(--fs-time) var(--font-time);color:var(--text)}
-:root[data-look="ink-lamp"] .rtime.late{color:var(--rubric)}
+:root[data-look="ink-lamp"] .rtime.late{color:var(--lk-lamp)}
 :root[data-look="ink-lamp"] .rlevel i{background:var(--text-2)}
 :root[data-look="ink-lamp"] :is(.rx,.rstop){--up:url("kit/round-light-up.webp");position:relative;isolation:isolate;width:44px;height:44px;border-radius:50%;background:none;color:#0A0A0A}
 :root[data-look="ink-lamp"][data-theme="dark"] .rx{--up:url("kit/round-nearblack-up.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
