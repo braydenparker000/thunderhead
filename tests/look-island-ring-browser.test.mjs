@@ -9,7 +9,6 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
-import sharp from 'sharp';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN as KEY } from './fixtures/mock-api.mjs';
 
@@ -289,10 +288,12 @@ test('turned on, used and off again: home, the menu, Settings and the Briefing a
     assert.deepEqual(used.left, [], 'nothing of the look is left in the DOM');
     assert.deepEqual([never.errors, used.errors], [[], []]);
     // The same to the pixel, but for the raster noise two classic phones show under load (≤ 120 channels, ≤ 16 levels).
+    const page = await browser.newPage(); // (the pictures decoded and compared by the browser's own canvas)
     for (const w of Object.keys(never.shots)) {
-      const [x, y] = await Promise.all([never.shots[w], used.shots[w]].map((b) => sharp(b).raw().toBuffer())), d = x.map((v, i) => Math.abs(v - y[i])).filter(Boolean);
-      assert.ok(x.length === y.length && d.length <= 120 && Math.max(0, ...d) <= 16, `${w}: ${d.length} channels differ, by up to ${Math.max(0, ...d)}`);
+      const d = await page.evaluate(async (pngs) => { const px = await Promise.all(pngs.map(async (b) => { const i = await createImageBitmap(await (await fetch(`data:image/png;base64,${b}`)).blob()); const c = new OffscreenCanvas(i.width, i.height).getContext('2d'); c.drawImage(i, 0, 0); return c.getImageData(0, 0, i.width, i.height).data; })); return px[0].length === px[1].length ? [...px[0].map((v, i) => Math.abs(v - px[1][i])).filter(Boolean)] : [999]; }, [never.shots[w], used.shots[w]].map((b) => b.toString('base64')));
+      assert.ok(d.length <= 120 && Math.max(0, ...d) <= 16, `${w}: ${d.length} channels differ, by up to ${Math.max(0, ...d)}`);
     }
+    await page.close();
     assert.equal(used.dom, never.dom, 'the same DOM');
   } finally { web.close(); }
 });

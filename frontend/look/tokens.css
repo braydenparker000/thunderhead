@@ -67,6 +67,8 @@
 /* Accent intensity is the classic blue's: the look keeps its inks. Flat glass keeps its meaning (no
    blur anywhere, ui/tokens.css) with fills of the look's own; Corners still moves every radius. */
 :root[data-look="ink-lamp"][data-accent-intensity]{--accent-fill:#B3121A;--accent-text:var(--rubric);--accent-icon:var(--rubric);--glow:var(--hairline)}
+/* The focus ring, the shell's own (ui/forms.css), in the rubric: on Lamp's black the deep red is under 3:1. */
+:root[data-look="ink-lamp"][data-theme="dark"] :focus-visible{outline-color:var(--rubric)}
 :root[data-look="ink-lamp"][data-glass="flat"]{--glass:var(--plate);--bar:light-dark(rgba(242,242,238,.94),rgba(27,27,30,.96));--sheet:light-dark(#E4E4E0,#101012);--panel:var(--ground)}
 :root[data-look="ink-lamp"][data-corners="sharper"]{--r-bubble:12px;--r-l:16px;--r-xl:20px}
 :root[data-look="ink-lamp"][data-corners="round"]{--r-bubble:22px;--r-l:28px;--r-xl:34px}

@@ -37,17 +37,18 @@ const talk = () => [
 const DECISION = () => proposal({ question: 'Forget the old address?', options: ['Forget', 'Keep'], created_by: 'mind:chat' });
 
 /** A signed-in phone on home with the look as given. */
-async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [], touch = false } = {}) {
+async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [], touch = false, text = '' } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: touch });
-  await context.addInitScript(([t, l]) => {
+  await context.addInitScript(([t, l, x]) => {
     try {
       if (!localStorage.getItem('th.p.sent')) {
         localStorage.setItem('th.p.sent', '1');
         localStorage.setItem('th-theme', t);
         if (l) localStorage.setItem('th.s.appearance.look', 'ink-lamp');
+        if (x) localStorage.setItem('th-text', x);
       }
     } catch {}
-  }, [theme, look]);
+  }, [theme, look, text]);
   const page = await context.newPage();
   const errors = [], asked = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -259,6 +260,26 @@ test('by touch: a key is pressed the moment a finger is on it and lets go when i
   await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
   assert.equal(await page.$eval('.lk-later-b .lk-dial', (d) => d.style.getPropertyValue('--turn')), '180deg');
   assert.equal(await page.isVisible('#decision .card'), true, 'a turn is not a tap: nothing put off');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('at the smallest Text size each key of the look is 44 px to the finger, and Tab reaches each with its ring', opts, async () => {
+  const { context, page, errors } = await open({ theme: 'dark', proposals: [DECISION()], text: 's' });
+  await page.waitForSelector('#decision .card.armed .lk-later-b');
+  const KEYS = ['#decision .decide .yes', '#decision .decide button:not(.yes)', '.lk-later-b', '#plus', '#mic', '.lk-rec'];
+  const size = (sels) => page.evaluate((ss) => ss.map((s) => [...document.querySelectorAll(s)].map((n) => `${s} ${n.offsetWidth}x${n.offsetHeight}`)).flat(), sels);
+  for (const k of await size(KEYS)) assert.ok(k.split(' ').at(-1).split('x').every((v) => +v >= 44), k);
+  const reached = new Map();
+  for (let i = 0; i < 30 && reached.size < KEYS.length; i++) {
+    await page.keyboard.press('Tab');
+    const [k, ring] = await page.evaluate((ks) => { const a = document.activeElement, s = getComputedStyle(a); return [ks.find((q) => a.matches(q)) ?? '', s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2]; }, KEYS);
+    if (k) reached.set(k, ring);
+  }
+  assert.deepEqual([...reached].filter(([, ring]) => ring).map(([k]) => k).sort(), [...KEYS].sort(), 'each reached by Tab, its ring showing');
+  await page.click('#plus');
+  await page.waitForSelector('#opts.show');
+  for (const k of await size(['#opts button'])) assert.ok(k.split(' ').at(-1).split('x').every((v) => +v >= 44), k);
   assert.deepEqual(errors, []);
   await context.close();
 });
