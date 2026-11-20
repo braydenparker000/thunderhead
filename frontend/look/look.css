@@ -1,0 +1,13 @@
+/* Ink and Lamp, the new look of the shell's main pages (Settings › Appearance › Look; off unless
+   chosen). ui/theme.js loads this sheet, last of all, only while <html data-look="ink-lamp">, and
+   keeps the page unseen until it has loaded (400 ms at most). Every rule under look/ is scoped to
+   :root[data-look="ink-lamp"], so nothing here reaches the classic look.
+
+   Files are named once: stage.mjs and serve.mjs publish this folder as /look/<hash of its files>/
+   (scripts/look-config.mjs) and the service worker keeps each file for good (sw.js), so a change to
+   any file here reaches the phone under a new name. Name a file by a path relative to this one.
+
+   One @import per part, so each stays under 300 lines. */
+@import url("fonts.css");
+@import url("tokens.css");
+@import url("kit.css");
