@@ -5,6 +5,8 @@ Values marked "built" are in the build: every shell page takes its tokens from `
 Scope: the shell (home, Briefing, menu, settings, sign-in) and new apps (Study). The ported apps (Music, Guitar, Podcasts, Astra, My Media) come over **as they are** with their own look, fonts and icons (owner ruling 2026-10-28); the rules and lint tests here apply to one of them only after the owner agrees to bring it into the system.
 Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.md), [BRIEFING](../product/BRIEFING.md), [MENU-AND-SETTINGS](../product/MENU-AND-SETTINGS.md), [PERFORMANCE](../engineering/PERFORMANCE.md), [decisions](../process/decisions.md).
 
+The shell has a second look, **Ink and Lamp** (owner, 2026-11-20; Settings › Appearance › Look, off unless chosen). It is a skin with its own tokens, faces and controls, specified in [INK-AND-LAMP](INK-AND-LAMP.md); everything below describes the classic look, which stays the default and is unchanged by it.
+
 ## Rules at a glance
 
 1. **One typeface.** Switzer, a tall x-height grotesk (owner, 2026-10-31, after Quicksand the same day, which replaced Fraunces and Inter): text 400, controls and labels 500, titles and big numbers 600, nothing lighter or heavier; tighter tracking from 24 px up. His words are told apart by having no bubble (the owner's have one) and his home lines by a tinted card, not by a face.
