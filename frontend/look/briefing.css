@@ -72,7 +72,7 @@
 :root[data-look="ink-lamp"] .brief .tilearr{grid-column:auto;gap:8px;margin:4px 0 6px 76px;animation:none}
 :root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin:0;padding:0 14px;border:0;border-radius:0;background:none;box-shadow:none;color:#0A0A0A;font:500 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden)::before{content:"";position:absolute;z-index:-1;inset:5px 0;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat;pointer-events:none}
-:root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden):active::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden):is(:active,.lk-down)::before{border-image-source:var(--down)}
 :root[data-look="ink-lamp"][data-theme="dark"] .brief :is(.tilearr button,.rundo,.bhidden){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] .brief .tilearr button:last-child{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");color:#0A0A0A}
 :root[data-look="ink-lamp"] .brief .bhidden{margin:14px 0 0 76px}

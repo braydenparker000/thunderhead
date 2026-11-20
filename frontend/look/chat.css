@@ -74,7 +74,7 @@
 :root[data-look="ink-lamp"] .talk :is(.follow,.ractions button){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-height:44px;padding:0 14px;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-key)/1.2 var(--font-legend);letter-spacing:var(--ls-legend);color:#0A0A0A;text-transform:lowercase}
 :root[data-look="ink-lamp"][data-theme="dark"] .talk :is(.follow,.ractions button){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] .talk :is(.follow,.ractions button)::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] .talk :is(.follow,.ractions button):active::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .talk :is(.follow,.ractions button):is(:active,.lk-down)::before{border-image-source:var(--down)}
 :root[data-look="ink-lamp"] .talk .choices .follow{background:none}
 :root[data-look="ink-lamp"] .talk .follows{gap:10px}
 
@@ -101,8 +101,8 @@
 :root[data-look="ink-lamp"][data-theme="dark"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide .yes,.decide button:only-child){--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");min-width:64px;color:#0A0A0A}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try)::before{content:"";position:absolute;z-index:-1;inset:5px 0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):active{transform:none}
-:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):is(:active,.busy)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):is(:active,.lk-down){transform:none}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):is(:active,.lk-down,.busy)::before{border-image-source:var(--down)}
 :root[data-look="ink-lamp"] #decision .card .decide button.busy::after{width:10px;height:10px;margin-left:6px}
 /* The dial for later, in a column of its own 60 px wide (its longest legend, "tomorrow", fits; the
    legend face does not change with Text size), so the keys never touch it and the question gives way

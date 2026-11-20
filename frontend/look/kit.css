@@ -30,7 +30,7 @@
    is named as a zero-size background so it is already here at the first press. */
 :root[data-look="ink-lamp"] .lk-key::before{inset:0;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
 :root[data-look="ink-lamp"] .lk-key--compact::before{inset:5px 0}
-:root[data-look="ink-lamp"] .lk-key:active::before,:root[data-look="ink-lamp"] .lk-key:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .lk-key:is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .lk-key:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{border-image-source:var(--down)}
 /* Ordinary keys: light on Ink, dark on Lamp (near-black and black vanish into #000). */
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-key{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] .lk-key.lk-key--orange{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");color:#0A0A0A}
@@ -42,7 +42,7 @@
 /* Round keys: the picture is 88/64 of the face, offset by 12/64 of it (18.75 %). */
 :root[data-look="ink-lamp"] .lk-round{--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");width:44px;height:44px;padding:0;border-radius:50%}
 :root[data-look="ink-lamp"] .lk-round::before{inset:-18.75%;background:var(--up) center/100% 100% no-repeat,var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] .lk-round:active::before,:root[data-look="ink-lamp"] .lk-round:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{background-image:var(--down)}
+:root[data-look="ink-lamp"] .lk-round:is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .lk-round:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{background-image:var(--down)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-round{--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
 :root[data-look="ink-lamp"] .lk-round.lk-round--orange{--up:url("kit/round-orange-up.webp");--down:url("kit/round-orange-pressed.webp");color:#0A0A0A;box-shadow:none}
 :root[data-look="ink-lamp"] .lk-round.lk-round--light{--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");color:#0A0A0A;box-shadow:none}

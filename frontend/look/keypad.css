@@ -20,7 +20,7 @@
 :root[data-look="ink-lamp"] .opts .oi{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;width:auto;height:64px;margin:3px 3px 11px;border-radius:0;background:none;color:#0A0A0A}
 :root[data-look="ink-lamp"][data-theme="dark"] .opts .oi{color:#FFFFFF}
 :root[data-look="ink-lamp"] .opts .oi::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] .opts button:active .oi::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .opts button:is(:active,.lk-down) .oi::before{border-image-source:var(--down)}
 :root[data-look="ink-lamp"] .opts .oi svg{width:22px;height:22px}
 /* Home held back behind it: no blur, only quieter; the decision strip steps aside (look/chat.css). */
 :root[data-look="ink-lamp"] .home.menuOpen .convo{filter:none;opacity:.3}
@@ -37,8 +37,8 @@
 :root[data-look="ink-lamp"][data-theme="dark"] .rwhen button{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
 :root[data-look="ink-lamp"] .rset{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp")}
 :root[data-look="ink-lamp"] :is(.rwhen button,.rset)::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] :is(.rwhen button,.rset):active{background:none}
-:root[data-look="ink-lamp"] :is(.rwhen button,.rset):active::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset):is(:active,.lk-down){background:none}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset):is(:active,.lk-down)::before{border-image-source:var(--down)}
 
 /* What is picked, in the bar; the voice memo strip in place of the words (its lamp red). */
 :root[data-look="ink-lamp"] .ti{background:var(--well);font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}

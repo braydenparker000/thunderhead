@@ -23,8 +23,8 @@ before(async () => {
 after(async () => { await browser?.close(); server?.close(); });
 
 /** Home, signed in, with `theme` and the look as given. */
-async function open({ theme = 'light', look = 'ink-lamp' } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+async function open({ theme = 'light', look = 'ink-lamp', touch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: touch });
   await context.addInitScript(([t, l]) => {
     try {
       if (localStorage.getItem('th.p.sent')) return;
@@ -249,6 +249,51 @@ test('the fader, the dial and the slide switches set their setting when dragged,
   await page.click('[data-key="appearance.look"] [data-v="classic"]');
   await until(() => page.evaluate(() => !document.querySelector('[class*="lk-"], [data-lk], .lk-stack')), { message: 'the look\'s pieces stayed' });
   assert.equal(await page.evaluate(() => document.querySelector('#set-still .switch-track')?.style.getPropertyValue('--lk-x') ?? ''), '');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+/** A finger (CDP touches in client coordinates: CI's gives no screen position) across `sel` by dx, dy; `lift` false leaves it down. */
+async function finger(page, sel, dx, dy = 0, { from = 0.5, lift = true } = {}) {
+  const b = await page.locator(sel).boundingBox(), x = b.x + b.width * from, y = b.y + b.height / 2;
+  const cdp = await page.context().newCDPSession(page);
+  const t = (type, px, py) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: px, y: py, id: 1 }] });
+  await t('touchStart', x, y);
+  for (let i = 1; i <= 8; i++) await t('touchMove', x + dx * i / 8, y + dy * i / 8);
+  const up = async () => { await t('touchEnd'); await cdp.detach(); }; return lift ? up() : up;
+}
+const ticks = (page) => page.evaluate(() => window.__ticks.length), capAt = (page) => page.$eval('#set-text .lk-fader', (n) => Math.round(new DOMMatrix(getComputedStyle(n).transform).m41));
+
+test('by touch: each control follows the finger, settles on the springs (at once under Reduced), one tick per stop (none with Haptics off); a vertical scroll on one is the page\'s', opts, async () => {
+  const { context, page, errors } = await open({ touch: true });
+  await page.evaluate(() => { window.__ticks = []; Object.defineProperty(navigator, 'vibrate', { value: (p) => window.__ticks.push(p), configurable: true }); });
+  await show(page, 'settings'); const rest = await capAt(page);
+  const up = await finger(page, '#set-text .lk-fader', 60, 0, { lift: false });
+  assert.ok(Math.abs(await capAt(page) - rest - 60) <= 2, 'the cap is under the finger');
+  await up();
+  assert.ok(Math.abs(await capAt(page) - rest - 60) <= 4, 'let go off a stop, it is not there at once: it springs');
+  await resting(page);
+  assert.deepEqual([await page.evaluate(() => localStorage.getItem('th-text')), await ticks(page)], ['l', 1], 'settled on the nearest stop, one tick for the one stop passed');
+  // Reduced: placed at once. Haptics off: no tick.
+  await page.evaluate(() => { document.documentElement.dataset.reducedMotion = 'always'; document.documentElement.dataset.haptics = 'off'; });
+  await finger(page, '#set-text .lk-fader', -60);
+  assert.equal(await capAt(page), rest, 'Reduced: on its stop the moment it is let go');
+  assert.deepEqual([await page.evaluate(() => localStorage.getItem('th-text')), await ticks(page)], [null, 1], 'Haptics off: no tick');
+  await page.evaluate(() => { for (const k of ['reducedMotion', 'haptics']) delete document.documentElement.dataset[k]; });
+  // A vertical swipe that starts on the fader scrolls the page and changes nothing.
+  const top = await page.$eval('.spage.in .sscroll', (n) => n.scrollTop);
+  await finger(page, '#set-text .lk-fader', 0, -240);
+  await until(() => page.$eval('.spage.in .sscroll', (n) => n.scrollTop).then((v) => v > top + 40), { message: 'the page did not scroll' });
+  assert.equal(await page.evaluate(() => localStorage.getItem('th-text')), null);
+  await page.$eval('.spage.in .sscroll', (n) => { n.scrollTop = 0; });
+  await finger(page, '#set-still .switch-track', 24, 0, { from: 0.2 }).then(() => resting(page));
+  assert.deepEqual([await page.getAttribute('#set-still', 'aria-checked'), await ticks(page)], ['true', 2]);
+  await show(page, 'appearance');
+  for (const [key, v, n] of [['appearance.haptics', 'full', 3], ['appearance.motion', 'off', 6]]) {
+    await page.locator(`[data-key="${key}"]`).scrollIntoViewIfNeeded();
+    await finger(page, `[data-key="${key}"] ${key.endsWith('motion') ? '.lk-rot' : '.lk-thumb'}`, 90).then(() => resting(page));
+    assert.deepEqual([await page.evaluate((k) => localStorage.getItem(`th.s.${k}`), key), await ticks(page)], [v, n], `${key}: one tick per stop`);
+  }
   assert.deepEqual(errors, []);
   await context.close();
 });

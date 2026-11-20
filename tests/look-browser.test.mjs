@@ -205,3 +205,29 @@ test('after one visit, a second with the network cut still shows the look whole,
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+// The look moves only what the compositor can move alone: a pure read of its sheets. Every property it
+// transitions, and every property its keyframes set, is transform or opacity (or rotate, scale, translate).
+test('the look\'s sheets transition and animate only transform and opacity', () => {
+  const MOVES = new Set(['transform', 'opacity', 'rotate', 'scale', 'translate']);
+  const dir = new URL('../frontend/look/', import.meta.url);
+  const wrong = [];
+  /** Splits a value at its top-level commas. @param {string} v */
+  const items = (v) => { const out = ['']; let depth = 0; for (const c of v) { depth += c === '(' ? 1 : c === ')' ? -1 : 0; if (c === ',' && !depth) out.push(''); else out[out.length - 1] += c; } return out.map((x) => x.trim()); };
+  const sheets = readdirSync(dir).filter((n) => n.endsWith('.css')).map((f) => [f, readFileSync(new URL(f, dir), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')]);
+  const own = new Set(sheets.flatMap(([, css]) => [...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1])));
+  for (const [f, css] of sheets) {
+    for (const [, prop, value] of css.matchAll(/(?<![\w-])(transition(?:-property)?|animation(?:-name)?)\s*:\s*([^;}]+)/g)) {
+      if (prop.startsWith('animation')) continue; // (named keyframes are read below)
+      for (const item of items(value)) {
+        const first = item.split(/\s+/)[0];
+        if (first !== 'none' && !MOVES.has(first)) wrong.push(`${f}: ${prop}: ${item}`);
+      }
+    }
+    for (const [, name, body] of css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g))
+      for (const [, p] of body.matchAll(/([\w-]+)\s*:/g)) if (!MOVES.has(p) && p !== 'offset') wrong.push(`${f}: @keyframes ${name} sets ${p}`);
+    for (const [, value] of css.matchAll(/(?<![\w-])animation(?:-name)?\s*:\s*([^;}]+)/g))
+      for (const item of items(value)) if (item !== 'none' && !item.split(/\s+/).some((w) => own.has(w))) wrong.push(`${f}: animation ${item}: keyframes not the look's own`);
+  }
+  assert.deepEqual(wrong, []);
+});

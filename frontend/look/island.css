@@ -78,12 +78,12 @@
 /* The transport: the kit's near-black keys (a 52 x 36 face in a 44 px row), the main one orange. */
 :root[data-look="ink-lamp"] .th-island .controls{top:calc(var(--lk-rim) + 127px);gap:12px}
 :root[data-look="ink-lamp"] .th-island .controls button{width:56px;display:flex;align-items:center;justify-content:center;gap:3px;border-radius:0;isolation:isolate;transition:none;font:500 var(--fs-key)/1 var(--font-legend);letter-spacing:var(--ls-legend)}
-:root[data-look="ink-lamp"] .th-island .controls button:active{transform:none;background:none}
+:root[data-look="ink-lamp"] .th-island .controls button:is(:active,.lk-down){transform:none;background:none}
 :root[data-look="ink-lamp"] .th-island .controls button::before{content:"";position:absolute;inset:3px 2px 5px;z-index:-1;border-radius:12px;border-image:url("kit/key-nearblack-up.webp") 78 fill/26px/12px;box-shadow:0 0 0 1px rgba(255,255,255,.10);background:url("kit/key-nearblack-pressed.webp") 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] .th-island .controls button:active::before{border-image-source:url("kit/key-nearblack-pressed.webp")}
+:root[data-look="ink-lamp"] .th-island .controls button:is(:active,.lk-down)::before{border-image-source:url("kit/key-nearblack-pressed.webp")}
 :root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]{width:68px}
 :root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]::before{border-image-source:url("kit/key-orange-up.webp");box-shadow:none;background-image:url("kit/key-orange-pressed.webp")}
-:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]:active::before{border-image-source:url("kit/key-orange-pressed.webp")}
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]:is(:active,.lk-down)::before{border-image-source:url("kit/key-orange-pressed.webp")}
 /* Podcasts' 15 s back and 30 s on, and the timer in the first place, keep their marks beside a legend. */
 :root[data-look="ink-lamp"] .th-island[data-app="podcasts"] .controls :not([data-control="toggle"])>.i,:root[data-look="ink-lamp"] .th-island .controls .zzz .i{display:block;width:14px;height:14px}
 :root[data-look="ink-lamp"] .th-island[data-app="podcasts"] [data-control="previous"] .i{order:-1}

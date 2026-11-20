@@ -8,8 +8,9 @@
 // The page's modules: every shell route (/, /settings/…, /share/) is one document, home's, with the
 // conversation, the + sheet, the island, the ring, the Briefing, the menu and Settings over it, so it
 // loads home.js island.js ring.js briefing.js menu.js controls.js; the plain pages (404) load none.
-// Here: <html data-day> ("sunday", "friday"), the browser bar in the ground's colour, the files kept
-// on the phone (keep.js), then <html data-look-ready>.
+// Here, while the look is on: <html data-day> ("sunday", "friday"), the browser bar in the ground's
+// colour, the files kept on the phone (keep.js), then <html data-look-ready>; off, all of it goes, the
+// look's sheet with it.
 
 import { keep } from './keep.js';
 
@@ -62,8 +63,12 @@ export function today(now = new Date()) {
   midnight.setHours(24, 0, 0, 0);
   next = window.setTimeout(() => today(), midnight.getTime() - now.getTime() + 50);
 }
-today();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) today(); });
+whileOn(() => {
+  today();
+  const seen = () => { if (!document.hidden) today(); };
+  document.addEventListener('visibilitychange', seen);
+  return () => { document.removeEventListener('visibilitychange', seen); clearTimeout(next); delete root.dataset.day; };
+});
 
 // The browser bar in the ground's colour, Ink's grey by day and Lamp's black by night; the page's own
 // colours back when the look goes.
@@ -80,7 +85,12 @@ whileOn(() => {
 const sheet = /** @type {HTMLLinkElement | null} */ (document.querySelector('link[data-look]'));
 if (sheet?.sheet) keep(LOOK);
 else sheet?.addEventListener('load', () => keep(LOOK), { once: true });
-root.dataset.lookReady = '';
+// Ready while on. Off, the sheet goes too (ui/theme.js adds it again when the look comes back), so
+// nothing of the look is left on the page.
+whileOn(() => {
+  root.dataset.lookReady = '';
+  return () => { delete root.dataset.lookReady; document.querySelector('link[data-look]')?.remove(); };
+});
 
 // The page's own modules (the shell's document only), each on its own: a failed one leaves the rest.
 if (document.getElementById('app')) for (const m of MODULES) import(`./${m}`).catch(reportError);

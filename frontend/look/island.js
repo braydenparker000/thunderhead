@@ -59,7 +59,15 @@ function dress(is) {
   };
 }
 
+/** The island sizes its capsule by its title as drawn (th/island/capsule.js, again on a resize): once
+ * the look's type has come, or gone, it measures again. */
+const remeasure = () => { if (document.querySelector('body > .th-island:not([hidden])')) dispatchEvent(new Event('resize')); };
+
 whileOn(() => {
+  let alive = true;
+  const css = /** @type {HTMLLinkElement | null} */ (document.querySelector('link[data-look]'));
+  const sheet = css && !css.sheet ? new Promise((r) => css.addEventListener('load', r, { once: true })) : Promise.resolve();
+  void sheet.then(() => document.fonts.ready).then(() => requestAnimationFrame(() => { if (alive) remeasure(); }));
   /** @type {(() => void) | null} */
   let undress = null;
   const find = () => {
@@ -71,5 +79,5 @@ whileOn(() => {
   const arrive = new MutationObserver(find);
   arrive.observe(document.body, { childList: true });
   find();
-  return () => { arrive.disconnect(); undress?.(); undress = null; };
+  return () => { alive = false; arrive.disconnect(); undress?.(); undress = null; remeasure(); };
 });

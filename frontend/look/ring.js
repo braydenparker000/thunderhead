@@ -59,5 +59,6 @@ whileOn(() => {
     watch.disconnect(); turn.stop(); aim.remove(); lens.remove();
     for (const n of ring.querySelectorAll('.lk-r-em')) n.remove();
     scrim.style.removeProperty('--lk-rx'); scrim.style.removeProperty('--lk-ry');
+    if (scrim.getAttribute('style') === '') scrim.removeAttribute('style');
   };
 });

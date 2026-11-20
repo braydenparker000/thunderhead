@@ -83,5 +83,5 @@
 :root[data-look="ink-lamp"] #side #settings>svg{display:none}
 :root[data-look="ink-lamp"] #side #settings>.lk-dial{--turn:60deg;width:41px;height:41px;margin:3.5px}
 :root[data-look="ink-lamp"] #side #settings>.lk-dial::before{inset:-8.54px}
-:root[data-look="ink-lamp"] #side #settings:active>.lk-dial{--turn:75deg}
+:root[data-look="ink-lamp"] #side #settings:is(:active,.lk-down)>.lk-dial{--turn:75deg}
 :root[data-look="ink-lamp"] #side #settings>.lk-leg{margin-top:2px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}

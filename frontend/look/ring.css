@@ -22,8 +22,8 @@
 :root[data-look="ink-lamp"] .ring .pet svg.ph,:root[data-look="ink-lamp"] .ring .pet .lift{display:none}
 :root[data-look="ink-lamp"] .lk-r-em{position:relative;grid-area:1/1;width:24px;height:24px;color:#0A0A0A}
 :root[data-look="ink-lamp"] .ring .pet.on .lk-r-em:not(.lk-r-up){opacity:1}
-:root[data-look="ink-lamp"] .lk-r-up{position:absolute;left:13px;top:13px;opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast)}
-:root[data-look="ink-lamp"]:not([data-theme="dark"]) .ring.glassy .pet .lk-r-up{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-look="ink-lamp"] .lk-r-up{position:absolute;left:13px;top:13px;opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-look="ink-lamp"]:not([data-theme="dark"]) .ring.glassy .pet .lk-r-up{opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
 :root[data-look="ink-lamp"][data-theme="dark"] .ring .pet::before{display:none}
 :root[data-look="ink-lamp"][data-theme="dark"] .ring .pet .face::before{background:radial-gradient(circle,transparent 21.5px,rgba(255,255,255,.10) 22px 22.5px,transparent 23px),url("kit/round-nearblack-up.webp") center/100% no-repeat}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-r-em{color:#A8A8AD}

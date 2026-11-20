@@ -8,10 +8,12 @@
 //   switches   (.switch)                     the small slide switch's thumb follows a finger,
 // each drawn over the page's own radio group (components.js choice()), whose buttons stay the
 // options: a tap, the arrow keys and a screen reader use them as before. A drag sets the value by
-// clicking the option it settles on (controls-drag.js). A choice whose keys would not fit beside its
+// clicking the option it settles on (controls-drag.js). And on every page, a key looks pressed the
+// moment a finger is on it (press.js). A choice whose keys would not fit beside its
 // name goes under it (.lk-stack).
 import { whileOn } from './look.js';
 import { draggable } from './controls-drag.js';
+import { press } from './press.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const DIAL = [-60, -20, 20, 60];
@@ -130,7 +132,7 @@ function toggle(row, signal) {
     draw: (v) => track.style.setProperty('--lk-x', `${v.toFixed(2)}px`),
     pick: () => row.click(),
   });
-  signal.addEventListener('abort', () => track.style.removeProperty('--lk-x'));
+  signal.addEventListener('abort', () => { track.style.removeProperty('--lk-x'); if (track.getAttribute('style') === '') track.removeAttribute('style'); });
 }
 
 /** Dresses the controls under `root` once each. @param {ParentNode} root @param {AbortSignal} signal @param {WeakSet<Element>} done */
@@ -189,3 +191,5 @@ whileOn(() => {
   }
   return () => { outer.disconnect(); inner.disconnect(); stop.abort(); };
 });
+
+whileOn(press);

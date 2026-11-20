@@ -78,7 +78,7 @@
 /* The round keys (the kit's .lk-round, copied onto the bar's own buttons). */
 :root[data-look="ink-lamp"] :is(.plusBtn,.btns button){--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");isolation:isolate;width:44px;height:44px;margin:0;padding:0;border:0;border-radius:50%;background:none;color:#0A0A0A;box-shadow:none;-webkit-tap-highlight-color:transparent}
 :root[data-look="ink-lamp"] :is(.plusBtn,.btns button)::before{content:"";position:absolute;z-index:-1;inset:-18.75%;border-radius:0;pointer-events:none;background:var(--up) center/100% 100% no-repeat,var(--down) 0 0/0 0 no-repeat}
-:root[data-look="ink-lamp"] :is(.plusBtn,.btns button):active::before,:root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"]::before{background-image:var(--down)}
+:root[data-look="ink-lamp"] :is(.plusBtn,.btns button):is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"]::before{background-image:var(--down)}
 :root[data-look="ink-lamp"][data-theme="dark"] .plusBtn{--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
 :root[data-look="ink-lamp"] .plusBtn svg{width:18px;height:18px;transition:transform calc(var(--d-fast) * 2) var(--pop)}
 :root[data-look="ink-lamp"] .btns{width:44px;height:44px}

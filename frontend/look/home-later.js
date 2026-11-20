@@ -145,6 +145,7 @@ export function later() {
     docks.disconnect();
     document.removeEventListener('visibilitychange', seen);
     slot?.classList.remove('lk-later');
+    if (slot && !slot.classList.length) slot.removeAttribute('class');
     document.querySelectorAll('.lk-later-b').forEach((b) => b.remove());
   };
 }

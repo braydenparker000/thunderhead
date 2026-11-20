@@ -37,8 +37,8 @@ const talk = () => [
 const DECISION = () => proposal({ question: 'Forget the old address?', options: ['Forget', 'Keep'], created_by: 'mind:chat' });
 
 /** A signed-in phone on home with the look as given. */
-async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [] } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [], touch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: touch });
   await context.addInitScript(([t, l]) => {
     try {
       if (!localStorage.getItem('th.p.sent')) {
@@ -227,6 +227,38 @@ test('the + keypad: a kit key for every option, the + key pressed and orange whi
     assert.ok(k.h >= 44 && k.w >= 44, `${k.w}×${k.h}`);
     assert.match(k.face, /Geist Mono/);
   }
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('by touch: a key is pressed the moment a finger is on it and lets go when it slides off or is cancelled; the later dial turns a stop a tick', opts, async () => {
+  const { context, page, errors } = await open({ proposals: [DECISION()], touch: true });
+  await page.waitForSelector('#decision .card.armed .lk-later-b');
+  await page.evaluate(() => { window.__ticks = []; Object.defineProperty(navigator, 'vibrate', { value: (p) => window.__ticks.push(p), configurable: true }); });
+  const cdp = await context.newCDPSession(page);
+  const t = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: /End|Cancel/.test(type) ? [] : [{ x, y, id: 1 }] });
+  const pressed = (sel) => page.$eval(sel, (b) => [b.classList.contains('lk-down'), getComputedStyle(b, '::before').borderImageSource + getComputedStyle(b, '::before').backgroundImage].join(' '));
+  for (const sel of ['#plus', '#mic', '#decision .decide .yes']) {
+    const b = await page.locator(sel).boundingBox(), x = b.x + b.width / 2, y = b.y + b.height / 2;
+    const up = await pressed(sel);
+    await t('touchStart', x, y);
+    assert.match(await pressed(sel), /^true .*pressed\.webp/, `${sel} pressed at once`);
+    await t('touchMove', x - 60, y - 90);
+    assert.equal(await pressed(sel), up, `${sel} let go when the finger slid off`);
+    await t('touchEnd');
+    await t('touchStart', x, y); await t('touchCancel');
+    assert.equal(await pressed(sel), up, `${sel} let go on cancel`);
+  }
+  // The later dial: a finger to the right turns it on a stop each 24 px, one tick each, on the springs.
+  const b = await page.locator('.lk-later-b').boundingBox(), x = b.x + b.width / 2, y = b.y + b.height / 2;
+  await t('touchStart', x, y);
+  for (let i = 1; i <= 6; i++) await t('touchMove', x + i * 10, y);
+  await t('touchEnd');
+  assert.equal(await page.getAttribute('.lk-later-b', 'aria-label'), 'Decide later, tonight');
+  assert.equal(await page.evaluate(() => window.__ticks.length), 2);
+  await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
+  assert.equal(await page.$eval('.lk-later-b .lk-dial', (d) => d.style.getPropertyValue('--turn')), '180deg');
+  assert.equal(await page.isVisible('#decision .card'), true, 'a turn is not a tap: nothing put off');
   assert.deepEqual(errors, []);
   await context.close();
 });
