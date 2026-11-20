@@ -58,6 +58,8 @@ test('a menu group folding slides the groups under it on a transform; its rows n
   await page.click('#convos .cg .ghead');
   assert.equal(await page.$eval('#convos .cg', (g) => g.classList.contains('closed')), true);
   assert.equal(await slides(page, '#convos .cg + .cg'), true, 'the next group slides up');
+  // The slide ends first: opened again before a frame of it was drawn, nothing has moved and nothing slides back.
+  await page.$eval('#convos .cg + .cg', (g) => Promise.all(g.getAnimations().map((a) => a.finished)));
   await page.click('#convos .cg .ghead');
   assert.equal(await slides(page, '#convos .cg + .cg'), true, 'and back down');
   assert.deepEqual(errors, []);
