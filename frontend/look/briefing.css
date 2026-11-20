@@ -1,1 +1,76 @@
-/* Ink and Lamp on the Briefing: builder C's. Every rule scoped to :root[data-look="ink-lamp"]. */
+/* Ink and Lamp on the Briefing (builder C; design S-Briefing-*): a calm page from a book of hours.
+   Every rule scoped to :root[data-look="ink-lamp"]. The head (briefing.js): the back key, the
+   weekday in Jacquard 24 in rubric with the date and time in italic, the day's verse in Lamp Fell with
+   a red drop initial and its reference, j.j.; then the day in one line, and each tile a quiet row:
+   its name a red italic rubric, his words in EB Garamond, a time or a figure in the left column in
+   the secondary colour, details in italic; no panels, lamps or rules; s.d.g. at the foot. The only
+   hardware: the back key, and kit keys on what waits (arranging a tile, Undo, Show). */
+:root[data-look="ink-lamp"] .brief{padding:calc(16px + env(safe-area-inset-top,0px)) 20px calc(40px + env(safe-area-inset-bottom,0px))}
+:root[data-look="ink-lamp"] .brief::after{content:"s.d.g.";display:block;margin-top:22px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
+
+/* The head. */
+:root[data-look="ink-lamp"] .lk-top{display:flex;align-items:center;gap:12px;height:44px}
+:root[data-look="ink-lamp"] .lk-back svg{width:18px;height:18px;fill:currentColor}
+:root[data-look="ink-lamp"] :is(.lk-top .lk-leg,.lk-here){font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .lk-here{display:flex;align-items:center;gap:8px;margin-left:auto;color:var(--text)}
+:root[data-look="ink-lamp"] .lk-here>i{width:6px;height:6px;border-radius:50%;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-here>i{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] .lk-day{display:flex;align-items:baseline;justify-content:space-between;gap:12px;white-space:nowrap}
+:root[data-look="ink-lamp"] .lk-wd{font:400 44px/48px var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-dt{overflow:hidden;font:italic 400 16px/20px var(--font-say);font-variant-numeric:oldstyle-nums;text-overflow:ellipsis;color:var(--text-2)}
+:root[data-look="ink-lamp"] .lk-verse{display:flow-root;margin:10px 0 0;font:italic 400 21px/28px var(--font-verse);color:var(--text)}
+:root[data-look="ink-lamp"] .lk-verse[hidden]{display:none}
+:root[data-look="ink-lamp"] .lk-ini{float:left;height:52px;margin:2px 7px 0 0;font:normal 400 66px/52px var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-ref{float:right;margin:10px 0 0 12px;font:normal 500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-jj{margin-top:6px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
+/* The page's own date line stays, for a screen reader; Back home is the back key's. */
+:root[data-look="ink-lamp"] #bdate{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+:root[data-look="ink-lamp"] #bback{display:none}
+
+/* The day in one line, and its counts. */
+:root[data-look="ink-lamp"] .brief .btitle{margin:7px 0 0;font:400 20px/27px var(--font-say);letter-spacing:0;color:var(--text)}
+:root[data-look="ink-lamp"] .brief .btoday{margin:2px 0 0;font:italic 400 15px/19px var(--font-say);color:var(--text-2)}
+
+/* The tiles, as rows: a rubric, then a left column for a time or a figure and his words beside it. */
+:root[data-look="ink-lamp"] .brief .grid{display:block}
+:root[data-look="ink-lamp"] .brief .tile{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:baseline;gap:0;width:100%;min-height:0;margin:0;padding:0 0 4px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--text);font:inherit;text-align:left;animation:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .brief .tile.gold{box-shadow:none}
+:root[data-look="ink-lamp"] .brief .tile .k{grid-column:1/-1;display:block;margin:18px 0 5px;font:italic 400 16px/20px var(--font-say);color:var(--rubric)}
+:root[data-look="ink-lamp"] .brief .tile .k svg{display:none}
+:root[data-look="ink-lamp"] .brief .tile .v{grid-column:2;padding-top:4px;font:400 var(--fs-say)/24px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] .brief .tile .s{grid-column:2;font:italic 400 15px/18px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] .brief .tile :is(.big,.lk-t){grid-column:1;margin:0;padding-top:4px;font:400 17px/24px var(--font-say);font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:0;color:var(--text-2)}
+:root[data-look="ink-lamp"] .brief .tile .big+.s{padding-top:4px;font:400 var(--fs-say)/24px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] .brief .tile.cal>:is(.v,.s):has(>.lk-t){grid-column:1/-1;display:grid;grid-template-columns:76px minmax(0,1fr);padding-top:0}
+:root[data-look="ink-lamp"] .brief .tile.cal>.s:has(>.lk-t){font:400 var(--fs-say)/24px var(--font-say);color:var(--text)}
+/* What waits on you: a signal lamp in the left column. */
+:root[data-look="ink-lamp"] .brief .tile.gold::after{content:"";grid-area:2/1;align-self:start;width:6px;height:6px;margin-top:13px;border-radius:50%;background:var(--signal);box-shadow:0 0 6px var(--signal)}
+:root[data-look="ink-lamp"] .brief .tile:is(button,.report .ohead):active{background:color-mix(in srgb,var(--text) 5%,transparent)}
+:root[data-look="ink-lamp"] .brief .tile.arranging{box-shadow:none;background:color-mix(in srgb,var(--key) 10%,transparent)}
+
+/* The night's report: its head a row like the rest, its lines indented under it. */
+:root[data-look="ink-lamp"] .brief .tile.report{display:block;padding:0}
+:root[data-look="ink-lamp"] .brief .tile.report .ohead{display:grid;grid-template-columns:76px minmax(0,1fr);gap:0;width:100%;padding:0 0 4px;border-radius:0}
+:root[data-look="ink-lamp"] .brief .tile.report .rlines{gap:0;padding:2px 0 4px 76px}
+:root[data-look="ink-lamp"] .brief .tile.report .rline{min-height:44px;border-top:0;font:400 17px/22px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] .brief .tile.report .rline.undone .rt{color:var(--text-3)}
+:root[data-look="ink-lamp"] .brief .tile.report :is(.rstate,.rcut){font:italic 400 15px/18px var(--font-say);color:var(--text-2)}
+
+/* Skeletons while nothing is on the phone yet: three faint lines under a faint rubric. */
+:root[data-look="ink-lamp"] .brief .tile.skel{display:flex;flex-direction:column;gap:8px;min-height:0;padding:20px 0 6px 76px}
+:root[data-look="ink-lamp"] .brief .tile.skel .bar{height:8px;border-radius:4px;background:var(--hairline);opacity:.55;animation:none}
+:root[data-look="ink-lamp"] .brief .tile.skel .bar:nth-child(1){width:30%;margin-left:-76px;background:var(--rubric);opacity:.25}
+
+/* His notes under the rows, and the line that shows hidden tiles. */
+:root[data-look="ink-lamp"] .brief .bmuse{margin:14px 0 0 76px;font:italic 400 15px/19px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] .brief .pullfind{border:1px solid var(--hairline);background:var(--plate);font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .brief .pullfind.ready{color:var(--rubric)}
+
+/* Keys: arranging a tile, Undo, and Show for hidden tiles (copies of kit.css's .lk-key). */
+:root[data-look="ink-lamp"] .brief .tilearr{grid-column:auto;gap:8px;margin:4px 0 6px 76px;animation:none}
+:root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin:0;padding:0 14px;border:0;border-radius:0;background:none;box-shadow:none;color:#0A0A0A;font:500 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden)::before{content:"";position:absolute;z-index:-1;inset:5px 0;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat;pointer-events:none}
+:root[data-look="ink-lamp"] .brief :is(.tilearr button,.rundo,.bhidden):active::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"][data-theme="dark"] .brief :is(.tilearr button,.rundo,.bhidden){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .brief .tilearr button:last-child{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");color:#0A0A0A}
+:root[data-look="ink-lamp"] .brief .bhidden{margin:14px 0 0 76px}
