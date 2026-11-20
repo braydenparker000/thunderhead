@@ -7,6 +7,9 @@
 :root[data-look="ink-lamp"] .sidescroll{padding:calc(20px + env(safe-area-inset-top,0px)) 20px 24px}
 :root[data-look="ink-lamp"] .sidetitle{margin:0;padding-right:40px;font:500 var(--fs-say-title)/36px var(--font-say);letter-spacing:0;color:var(--text)}
 :root[data-look="ink-lamp"] .lk-lamb{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:20px;width:25.42px;height:30px;color:var(--text)}
+/* The island's capsule over the menu: the title and the Lamb start under it. */
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .sidescroll{padding-top:calc(56px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .lk-lamb{top:calc(54px + env(safe-area-inset-top,0px))}
 :root[data-look="ink-lamp"] .sidelead{margin:4px 0 14px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
 
 /* Now: the one panel, its lamp lit. */
@@ -21,6 +24,8 @@
 :root[data-look="ink-lamp"] #now .lk-sep{display:none}
 :root[data-look="ink-lamp"] #now .sub{display:block;margin-top:6px;overflow:hidden;font:400 var(--fs-say)/26px var(--font-say);color:var(--text);white-space:nowrap;text-overflow:ellipsis}
 :root[data-look="ink-lamp"] #now .lk-n{margin-left:8px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+/* A narrow phone: the count under the date rather than cut off after it. */
+@media (max-width:374px){:root[data-look="ink-lamp"] #now .lk-n{display:block;margin:0}}
 :root[data-look="ink-lamp"] #now .row-value{position:absolute;top:10px;right:36px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
 :root[data-look="ink-lamp"] #now .row-caret{position:absolute;right:12px;top:50%;width:14px;height:14px;margin-top:-7px;fill:var(--text-3)}
 
@@ -70,7 +75,7 @@
 :root[data-look="ink-lamp"] #side :is(#search.field,.sbox>input.field){height:56px;min-height:56px;padding:0 18px 0 46px;border:0;border-radius:28px;background:linear-gradient(180deg,#BABAB5 0%,#C2C2BD 45%,#C8C8C3 100%);box-shadow:inset 0 2px 3px rgba(0,0,0,.24),inset 0 0 0 1px rgba(0,0,0,.05),0 1px 0 rgba(255,255,255,.9);font:400 15px/20px var(--font-legend);color:var(--text-3)}
 :root[data-look="ink-lamp"] #side .sbox>input.field{color:var(--text)}
 :root[data-look="ink-lamp"][data-theme="dark"] #side :is(#search.field,.sbox>input.field){background:linear-gradient(180deg,#08080A 0%,#121214 45%,#1B1B1E 100%);box-shadow:inset 0 3px 5px rgba(0,0,0,1),inset 0 0 0 1px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.06),0 1px 0 rgba(255,255,255,.10)}
-:root[data-look="ink-lamp"] #side #search.field{position:relative;gap:10px}
+:root[data-look="ink-lamp"] #side #search.field{position:relative;gap:10px;padding-right:12px;overflow:hidden;white-space:nowrap}
 :root[data-look="ink-lamp"] #side #search.field>svg{position:absolute;left:18px;width:18px;height:18px;fill:var(--text-2)}
 :root[data-look="ink-lamp"] #side .sbox>svg{left:18px;fill:var(--text-2)}
 :root[data-look="ink-lamp"] #side .sbox>.sclear{right:6px;width:44px;height:44px;color:var(--text-2)}

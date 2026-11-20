@@ -18,10 +18,11 @@ export function known(name) {
   const at = w.findIndex((x, i) => i > 0 && /^(van|von|del|de|da|di|der)$/.test(x));
   return at > 0 ? w.slice(at).join(' ') : w.at(-1) ?? '';
 }
-/** "plate v · doré 1866" @param {{ file?: string, artist: string, year?: string }} p */
+/** "plate v · doré 1866"; a plate's own `short` name, where it has one, over the rule's.
+ * @param {{ file?: string, artist: string, short?: string, year?: string }} p */
 export function legend(p) {
   const n = Number(/(?:^|\/)(\d+)-/.exec(p.file ?? '')?.[1]) || 0;
-  return [n ? `plate ${roman(n)}` : '', [known(p.artist), p.year].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+  return [n ? `plate ${roman(n)}` : '', [p.short || known(p.artist), p.year].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
 }
 /** A day `YYYY-MM-DD` as a local date, or null. @param {unknown} day */
 const local = (day) => {
@@ -84,17 +85,23 @@ export function front() {
   };
   draw();
 
-  if (document.documentElement.hasAttribute('data-signed-in')) {
-    // (its day comes with its first load: looked for until then, for 20 s at most)
+  // Signed in (now, or once the shell has checked, which can be after this starts), today's day is
+  // th/chat's: it comes with its first load, looked for until then, for 20 s at most.
+  let asked = false;
+  const ask = () => {
+    if (asked || !document.documentElement.hasAttribute('data-signed-in')) return;
+    asked = true;
     let tries = 0;
     const loaded = () => { if (!alive) return; if (chat?.today?.day || tries++ > 80) draw(); else setTimeout(loaded, 250); };
     import('/th/chat/index.js').then((m) => { chat = m.current; loaded(); }, () => {});
-  }
+  };
+  ask();
   const past = new MutationObserver(() => void draw());
   const changed = () => {
     const log = document.getElementById('past');
     past.disconnect();
     if (log) past.observe(log, { childList: true, attributes: true, attributeFilter: ['data-day'] });
+    ask();
     draw();
   };
   const pick = (/** @type {Event} */ e) => {

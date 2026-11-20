@@ -6,6 +6,8 @@
    the secondary colour, details in italic; no panels, lamps or rules; s.d.g. at the foot. The only
    hardware: the back key, and kit keys on what waits (arranging a tile, Undo, Show). */
 :root[data-look="ink-lamp"] .brief{padding:calc(16px + env(safe-area-inset-top,0px)) 20px calc(40px + env(safe-area-inset-bottom,0px))}
+/* The island's capsule over the page (fixed, 10 px from the top, 36 px tall): the head starts under it. */
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .brief{padding-top:calc(54px + env(safe-area-inset-top,0px))}
 :root[data-look="ink-lamp"] .brief::after{content:"s.d.g.";display:block;margin-top:22px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
 
 /* The head. */
@@ -15,14 +17,14 @@
 :root[data-look="ink-lamp"] .lk-here{display:flex;align-items:center;gap:8px;margin-left:auto;color:var(--text)}
 :root[data-look="ink-lamp"] .lk-here>i{width:6px;height:6px;border-radius:50%;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-here>i{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
-:root[data-look="ink-lamp"] .lk-day{display:flex;align-items:baseline;justify-content:space-between;gap:12px;white-space:nowrap}
+:root[data-look="ink-lamp"] .lk-bh .lk-day{display:flex;align-items:baseline;justify-content:space-between;gap:12px;white-space:nowrap}
 :root[data-look="ink-lamp"] .lk-wd{font:400 44px/48px var(--font-day);color:var(--rubric)}
 :root[data-look="ink-lamp"] .lk-dt{overflow:hidden;font:italic 400 16px/20px var(--font-say);font-variant-numeric:oldstyle-nums;text-overflow:ellipsis;color:var(--text-2)}
-:root[data-look="ink-lamp"] .lk-verse{display:flow-root;margin:10px 0 0;font:italic 400 21px/28px var(--font-verse);color:var(--text)}
-:root[data-look="ink-lamp"] .lk-verse[hidden]{display:none}
-:root[data-look="ink-lamp"] .lk-ini{float:left;height:52px;margin:2px 7px 0 0;font:normal 400 66px/52px var(--font-day);color:var(--rubric)}
-:root[data-look="ink-lamp"] .lk-ref{float:right;margin:10px 0 0 12px;font:normal 500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric)}
-:root[data-look="ink-lamp"] .lk-jj{margin-top:6px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-bh .lk-verse{display:flow-root;margin:10px 0 0;font:italic 400 21px/28px var(--font-verse);color:var(--text)}
+:root[data-look="ink-lamp"] .lk-bh .lk-verse[hidden]{display:none}
+:root[data-look="ink-lamp"] .lk-bh .lk-ini{float:left;height:52px;margin:2px 7px 0 0;font:normal 400 66px/52px var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-bh .lk-ref{float:right;margin:10px 0 0 12px;font:normal 500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-bh .lk-jj{margin-top:6px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
 /* The page's own date line stays, for a screen reader; Back home is the back key's. */
 :root[data-look="ink-lamp"] #bdate{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 :root[data-look="ink-lamp"] #bback{display:none}
