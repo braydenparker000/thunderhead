@@ -3,6 +3,7 @@
 // sign-in pages (SECURITY.md §4.1). Used by stage.mjs for real and by serve.mjs for the tests.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+export { lookBudgets, lookTag, stageLook, TAGGED, themeJs } from './look-config.mjs';
 
 const UI = fileURLToPath(new URL('../frontend/ui/', import.meta.url));
 const SHELL = readFileSync(`${UI}csp.txt`, 'utf8').trim();
@@ -103,7 +104,8 @@ export function precached(path) {
   // Photos' RAW engine (2.2 MB) loads when a RAW photo is opened with its original, which needs the network anyway.
   if (path.startsWith('photos/engine/')) return false;
   const top = path.split('/')[0];
-  if (top === 'vendor' || PORTED.includes(top)) return false;
+  // (2026-11-20) look/, Ink and Lamp: off unless chosen, and kept for good once loaded (sw.js), as vendor/ is.
+  if (top === 'vendor' || top === 'look' || PORTED.includes(top)) return false;
   if (APP_ROUTES.some((r) => path === `${r}/index.html`)) return false;
   if (['sw.js', 'sw-kill.js', 'precache.json'].includes(path)) return false;
   return !path.endsWith('.txt');

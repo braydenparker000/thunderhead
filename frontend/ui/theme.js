@@ -65,6 +65,7 @@ try {
   // applyPhone keeps them current after this): each one stored is a choice other than the default.
   // tests/settings-depth-browser.test.mjs holds this list equal to the catalogue's.
   for (const [key, attr] of [
+    ['appearance.look', 'data-look'],
     ['appearance.accent', 'data-accent-intensity'], ['appearance.glass', 'data-glass'], ['appearance.corners', 'data-corners'],
     ['appearance.glyphs', 'data-glyphs'], ['appearance.ring', 'data-ring-size'], ['appearance.haptics', 'data-haptics'],
     ['appearance.motion', 'data-reduced-motion'], ['appearance.field', 'data-field'], ['appearance.grain', 'data-grain'],
@@ -80,6 +81,27 @@ try {
     if (v && /^[a-z-]{1,16}$/.test(v)) document.documentElement.setAttribute(attr, v);
   }
 } catch {}
+// The look Ink and Lamp (appearance.look; frontend/look/), on the shell's pages only: its sheet, after
+// <head> so it outweighs the shell's own, with the page unseen until it loads (400 ms at most), and its
+// script after the first paint. Turned on in Settings it comes at once; off, its attribute goes and
+// the sheet lies inert. With the classic look none of this runs. LOOK is rewritten at publish to the
+// folder's hashed name (scripts/look-config.mjs).
+{
+  const LOOK = '/look/';
+  const root = document.documentElement;
+  const look = (first) => {
+    if (root.dataset.look !== 'ink-lamp' || root.querySelector('link[data-look]') || /^\/(signin|setup|recover|import)\//.test(location.pathname)) return;
+    const css = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: `${LOOK}look.css` });
+    css.dataset.look = '';
+    const shown = () => { clearTimeout(wait); root.style.visibility = ''; };
+    const wait = first ? setTimeout(shown, 400) : 0;
+    if (first) { root.style.visibility = 'hidden'; css.onload = css.onerror = shown; }
+    root.append(css);
+    requestAnimationFrame(() => setTimeout(() => import(`${LOOK}look.js`).catch(() => {})));
+  };
+  look(true);
+  document.addEventListener('th:setting', (e) => { if (e.detail?.key === 'appearance.look') look(false); });
+}
 const expected = (fade) => fade?.ready.catch(() => {});
 expected(document.activeViewTransition);
 // A page the browser kept whole (its back/forward cache) shows its last frame at once, so a

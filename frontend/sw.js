@@ -138,7 +138,7 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') { event.respondWith(EDITOR(url) ? isolate(LAB.test(path) ? lab(req, path) : page(req, path), true) : page(req, path)); return; }
   if (req.destination === 'worker' && ENGINE_WORKERS.test(path)) { event.respondWith(isolate(LAB.test(path) ? lab(req, path) : cached(req, path), false)); return; }
   if (FRESH.includes(path)) { event.respondWith(fresh(req, path)); return; }
-  if (path.startsWith('/vendor/')) { event.respondWith(vendor(req)); return; }
+  if (path.startsWith('/vendor/') || path.startsWith('/look/')) { event.respondWith(vendor(req)); return; }   // look/<hash>/: scripts/look-config.mjs
   event.respondWith(LAB.test(path) ? lab(req, path) : cached(req, path));
 });
 

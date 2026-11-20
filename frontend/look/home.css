@@ -1,0 +1,111 @@
+/* Ink and Lamp on home: builder A's. Every rule scoped to :root[data-look="ink-lamp"].
+   The header line (look/home-head.js), the frontispiece with its verse and j.j. at the top of the
+   conversation (look/home-front.js), the conversation's frame, the ask bar with the kit's round keys,
+   and off the record. Values from the approved screens R-Grey / R-Dark, R-Typing-*, R-Off-*. */
+
+/* A lamp is red on every day, Sunday too (R-*-Sunday): the rubric turns gold, the lamps do not. */
+:root[data-look="ink-lamp"]{--lk-lamp:light-dark(#B3121A,#F0453F)}
+/* The header line: the weekday in Jacquard in rubric, the date in the legend face, the time in Doto,
+   the rec switch at the right; the classic date line steps aside (the status chip stays). */
+:root[data-look="ink-lamp"] #home>.top #date{visibility:hidden}
+:root[data-look="ink-lamp"] #home>.top{top:88px;padding-top:0}
+:root[data-look="ink-lamp"] .lk-head{position:absolute;z-index:5;left:0;right:0;top:0;height:106px;pointer-events:none;transition:opacity var(--d-base) var(--ease-default)}
+:root[data-look="ink-lamp"] .lk-veil{position:absolute;left:0;right:0;top:40px;height:66px;background:linear-gradient(180deg,rgba(214,214,210,0) 0%,rgba(214,214,210,.55) 30%,rgba(214,214,210,.55) 72%,rgba(214,214,210,0) 100%)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-veil{left:auto;top:30px;right:-30px;width:200px;height:86px;background:radial-gradient(ellipse 50% 50% at 50% 50%,rgba(0,0,0,.55) 0%,rgba(0,0,0,.3) 45%,rgba(0,0,0,0) 100%)}
+/* Scrolled away from the picture, the ground itself runs under the line (opacity only). */
+:root[data-look="ink-lamp"] .lk-veil.lk-deep{left:0;right:0;top:0;width:auto;height:140px;opacity:0;background:linear-gradient(180deg,var(--ground) 0,var(--ground) 104px,transparent 140px);transition:opacity var(--d-base) var(--ease-default)}
+:root[data-look="ink-lamp"] #home.lk-away .lk-deep{opacity:1}
+:root[data-look="ink-lamp"] .lk-line{position:absolute;top:54px;left:20px;height:32px;margin:0;display:flex;align-items:baseline;white-space:nowrap}
+:root[data-look="ink-lamp"] .lk-line .lk-day{font:400 var(--fs-day)/32px var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-line .lk-day{text-shadow:0 0 12px rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"] .lk-date{margin-left:8px;font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] .lk-time{margin-left:8px;font:900 var(--fs-time) var(--font-time);letter-spacing:.02em;color:var(--text)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-time{letter-spacing:0}
+/* The rec switch: its legend, its lamp, a well with the kit's small thumb (right: on the record). */
+:root[data-look="ink-lamp"] .lk-rec{position:absolute;top:49px;right:14px;height:44px;margin:0;padding:0 6px;border:0;background:transparent;display:flex;align-items:center;gap:8px;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec{top:51px}
+:root[data-look="ink-lamp"] .lk-rec-l{display:block;text-align:right;white-space:pre-line;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec-l{color:var(--text-2)}
+:root[data-look="ink-lamp"] .lk-lamp{flex:none;width:6px;height:6px;border-radius:50%;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-lamp{box-shadow:0 0 4px var(--lk-lamp),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] .lk-rec .lk-track{position:relative;display:block;flex:none;width:34px;height:18px;box-sizing:border-box;border-radius:9px;background:var(--well);box-shadow:inset 0 1.5px 2px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.85)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec .lk-track{border-radius:6px;box-shadow:inset 0 2px 3px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.09)}
+:root[data-look="ink-lamp"] .lk-rec .lk-track .lk-thumb{position:absolute;top:2px;left:14px;width:18px;height:14px;transition:transform var(--d-quick) var(--settle)}
+:root[data-look="ink-lamp"] .lk-rec .lk-track .lk-thumb::before{inset:-6px -6.75px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec .lk-track .lk-thumb{left:15px;width:17px;height:12px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec .lk-track .lk-thumb::before{inset:-5.14px -6.375px}
+:root[data-look="ink-lamp"] .lk-rec[aria-checked="false"] .lk-thumb{transform:translateX(-12px)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-rec[aria-checked="false"] .lk-thumb{transform:translateX(-13px)}
+:root[data-look="ink-lamp"] .lk-rec[aria-checked="false"] .lk-lamp{background:var(--hairline);box-shadow:none}
+:root[data-look="ink-lamp"] .lk-rec[aria-busy="true"]{cursor:progress}
+
+/* The conversation's page: from the very top, the frontispiece first, the turns under it. */
+:root[data-look="ink-lamp"] .convo{top:0;padding:0 max(20px,env(safe-area-inset-right,0px)) 14px max(20px,env(safe-area-inset-left,0px));-webkit-mask-image:none;mask-image:none;bottom:calc(12px + var(--ask-h,60px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px))}
+:root[data-look="ink-lamp"] #convo>.spacer{display:none}
+:root[data-look="ink-lamp"] .lk-front{position:relative;flex:none;margin:0 calc(-1 * max(20px,env(safe-area-inset-left,0px))) 0;padding:0 20px;overflow-x:clip}
+:root[data-look="ink-lamp"] .lk-fig{position:relative;height:280px;margin:0 -20px;overflow:hidden;background:var(--ground);-webkit-mask-image:linear-gradient(180deg,#000 0,#000 200px,transparent 280px);mask-image:linear-gradient(180deg,#000 0,#000 200px,transparent 280px)}
+:root[data-look="ink-lamp"] .lk-fig img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 28%}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-fig{-webkit-mask-image:none;mask-image:none}
+:root[data-look="ink-lamp"] .lk-fig::before,:root[data-look="ink-lamp"] .lk-fig::after{content:none}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-fig::before{content:"";position:absolute;left:0;right:0;top:0;height:104px;background:linear-gradient(180deg,rgba(0,0,0,.16) 0%,rgba(0,0,0,.14) 55%,rgba(0,0,0,0) 100%)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-fig::after{content:"";position:absolute;left:0;right:0;bottom:0;height:80px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.35) 30%,rgba(0,0,0,.78) 62%,#000 100%)}
+/* The warm light the painting lends the page (Lamp only). */
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-front::before{content:"";position:absolute;z-index:-1;top:180px;left:-40px;right:-40px;height:190px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 50% 50%,rgba(214,150,80,.16) 0%,rgba(214,150,80,.09) 35%,rgba(214,150,80,.03) 70%,rgba(214,150,80,0) 100%)}
+:root[data-look="ink-lamp"] .lk-front{isolation:isolate}
+:root[data-look="ink-lamp"] .lk-front .lk-verse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:6px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-front .lk-verse{margin-top:4px}
+:root[data-look="ink-lamp"] .lk-vtext{margin:0;min-width:0;font:italic 400 var(--fs-verse)/22px var(--font-verse);color:var(--text);user-select:text;-webkit-user-select:text}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-vtext{line-height:20px}
+:root[data-look="ink-lamp"] .lk-front .lk-ref{flex:none;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric);white-space:nowrap}
+:root[data-look="ink-lamp"] .lk-legend{margin:0;text-align:right;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .lk-front .lk-jj{margin:16px 0 0;height:14px;text-align:center;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric)}
+:root[data-look="ink-lamp"] .lk-front .lk-jj abbr{text-decoration:none}
+/* No picture to be had (offline before the list was ever kept): j.j. under the header line. */
+:root[data-look="ink-lamp"] .lk-front.lk-bare{padding-top:104px}
+:root[data-look="ink-lamp"] .lk-front.lk-bare :is(.lk-fig,.lk-verse,.lk-legend){display:none}
+:root[data-look="ink-lamp"] #home.pastview:has(#past>.earlier) .lk-front .lk-jj{display:none}
+
+/* The ask bar: the glass pill, the kit's round keys, the typed text in the legend face. */
+:root[data-look="ink-lamp"] .ask{left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));min-height:60px;gap:12px;padding:7px 8px!important;border-radius:30px;align-items:flex-end;
+  background:linear-gradient(180deg,rgba(255,255,255,.50) 0%,rgba(255,255,255,.30) 50%,rgba(255,255,255,.38) 100%);backdrop-filter:blur(10px) saturate(1.4);-webkit-backdrop-filter:blur(10px) saturate(1.4);border:1px solid rgba(255,255,255,.9);
+  box-shadow:inset 0 1px 0 #FFFFFF,inset 0 2px 1px rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.6),0 0 0 .5px rgba(0,0,0,.14),0 10px 26px rgba(0,0,0,.16)}
+:root[data-look="ink-lamp"][data-theme="dark"] .ask{background:linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.04) 48%,rgba(255,255,255,.07) 100%);backdrop-filter:blur(10px) saturate(1.5);-webkit-backdrop-filter:blur(10px) saturate(1.5);border-color:rgba(255,255,255,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.62),inset 0 2px 2px rgba(255,255,255,.10),inset 0 -1px 0 rgba(255,255,255,.08),0 12px 32px rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"][data-glass="flat"] .ask{background:var(--bar);backdrop-filter:none;-webkit-backdrop-filter:none}
+:root[data-look="ink-lamp"] .ask textarea{padding:12px 0;font:400 var(--fs-own)/20px var(--font-legend);color:var(--text);caret-color:var(--text)}
+:root[data-look="ink-lamp"] .ask textarea::placeholder{color:var(--text-2);opacity:1}
+:root[data-look="ink-lamp"][data-theme="dark"] .ask textarea::placeholder{color:var(--text-3)}
+/* The round keys (the kit's .lk-round, copied onto the bar's own buttons). */
+:root[data-look="ink-lamp"] :is(.plusBtn,.btns button){--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");isolation:isolate;width:44px;height:44px;margin:0;padding:0;border:0;border-radius:50%;background:none;color:#0A0A0A;box-shadow:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] :is(.plusBtn,.btns button)::before{content:"";position:absolute;z-index:-1;inset:-18.75%;border-radius:0;pointer-events:none;background:var(--up) center/100% 100% no-repeat,var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] :is(.plusBtn,.btns button):is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"]::before{background-image:var(--down)}
+:root[data-look="ink-lamp"][data-theme="dark"] .plusBtn{--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"] .plusBtn svg{width:18px;height:18px;transition:transform calc(var(--d-fast) * 2) var(--pop)}
+:root[data-look="ink-lamp"] .btns{width:44px;height:44px}
+:root[data-look="ink-lamp"] .btns svg{width:20px;height:20px}
+/* The microphone: black on Ink, light on Lamp; send: the orange key; listening: the orange key, pressed. */
+:root[data-look="ink-lamp"] .btns .mic{--up:url("kit/round-black-up.webp");--down:url("kit/round-black-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"][data-theme="dark"] .btns .mic{--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");color:#0A0A0A}
+:root[data-look="ink-lamp"] .btns .send,:root[data-look="ink-lamp"] .ask:is(.listening,.finishing) .mic{--up:url("kit/round-orange-up.webp");--down:url("kit/round-orange-pressed.webp");background:none;color:#0A0A0A}
+:root[data-look="ink-lamp"] .ask:is(.listening,.finishing) .mic::before{background-image:var(--down)}
+:root[data-look="ink-lamp"] .ask.listening .mic{animation:none}
+:root[data-look="ink-lamp"] .ask.finishing .mic{animation:none;opacity:1}
+:root[data-look="ink-lamp"] .ask:is(.listening,.finishing) textarea::placeholder{color:var(--text)}
+/* The + key while the keypad is open: pressed, orange, its cross (only the icon turns). */
+:root[data-look="ink-lamp"] .ask.menu .plusBtn{transform:none}
+:root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"]{--up:url("kit/round-orange-up.webp");--down:url("kit/round-orange-pressed.webp");color:#0A0A0A;box-shadow:none}
+:root[data-look="ink-lamp"] .plusBtn[aria-expanded="true"] svg{transform:rotate(45deg)}
+/* The line under the bar as the Worker takes a message: the key's orange. */
+:root[data-look="ink-lamp"] .ask .sendline{background:var(--key);bottom:-8px}
+
+/* Off the record: the picture quieter, the legends grey, no red but the day's name and the initials. */
+:root[data-look="ink-lamp"] #home.otr .lk-fig{opacity:.55}
+:root[data-look="ink-lamp"] #home.otr :is(.lk-ref,.lk-jj){color:var(--text-3)}
+:root[data-look="ink-lamp"] #home.otr .otrmark{display:none}
+:root[data-look="ink-lamp"] #home.otr .ask textarea::placeholder{color:var(--text-3)}
+:root[data-look="ink-lamp"] #home.otr .reply a{color:var(--text)}
+@media (prefers-reduced-motion: reduce){:root[data-look="ink-lamp"] :is(.lk-head,.lk-veil.lk-deep,.lk-track .lk-thumb,.plusBtn svg){transition:none}}
+:root[data-look="ink-lamp"][data-motion-level="off"] :is(.lk-head,.lk-veil.lk-deep,.lk-track .lk-thumb,.plusBtn svg){transition:none}
+/* One line of words that runs on to the left, as on the approved screen (a line break still breaks). */
+:root[data-look="ink-lamp"] .ask textarea{flex:1 1 0;white-space:pre;overflow-x:auto}
+:root[data-look="ink-lamp"] .ask.lk-over textarea{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 40px);mask-image:linear-gradient(90deg,transparent 0,#000 40px)}

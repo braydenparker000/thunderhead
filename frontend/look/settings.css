@@ -1,0 +1,214 @@
+/* Ink and Lamp on Settings, its pages, sheets and confirmations (builder C; design S-Settings-*).
+   Every rule scoped to :root[data-look="ink-lamp"]. The page frame (a round back key, the title in
+   EB Garamond, a search slot), section headings in the legend face, rows with the name in EB
+   Garamond and the value in the legend face, hairlines between them, and every choice a kit control:
+   a one-of-a-few choice a row of keys with an orange lamp over the chosen one, a switch the small
+   slide switch, and three of their own (Text size, Motion, Haptics: controls.js).
+   Kit pictures are named relative to this sheet; key rules copy kit.css's .lk-key and .lk-round. */
+
+/* The frame: the ground, a header of the back key, its legend and the title under them. */
+:root[data-look="ink-lamp"] .sheader{flex-wrap:wrap;gap:0 12px;padding:calc(14px + env(safe-area-inset-top,0px)) 20px 8px;background:var(--ground)}
+/* The island's capsule over the page: the back key and its legend start under it. */
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .sheader{padding-top:calc(52px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] .sheader.scrolled{border-bottom-color:var(--hairline)}
+:root[data-look="ink-lamp"] .sheader>.page-title{flex-basis:100%;margin:8px 0 0;font:500 var(--fs-say-title)/36px var(--font-say);letter-spacing:-.005em;color:var(--text)}
+:root[data-look="ink-lamp"] .sscroll{padding:6px 20px calc(40px + env(safe-area-inset-bottom,0px))}
+:root[data-look="ink-lamp"] .sheader>.sback::after{position:absolute;left:56px;top:50%;margin-top:-6px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3);white-space:nowrap;pointer-events:none}
+:root[data-look="ink-lamp"] .sheader>.sback[aria-label="Back to the menu"]::after{content:"menu"}
+:root[data-look="ink-lamp"] .sheader>.sback[aria-label="Back to Settings"]::after{content:"settings"}
+
+/* Round keys: the back key and every small icon key of a page (move, hide, show, mine, remove). */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .sback:not(.field-box>.sback){--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");position:relative;isolation:isolate;box-sizing:border-box;width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:50%;background:none;color:#0A0A0A;box-shadow:none;transform:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .sback:not(.field-box>.sback)::before{content:"";position:absolute;z-index:-1;inset:-18.75%;pointer-events:none;background:var(--up) center/100% 100% no-repeat,var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .sback:not(.field-box>.sback):is(:active,.lk-down,[aria-pressed="true"])::before{background-image:var(--down)}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet) .sback:not(.field-box>.sback){--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .sback svg{width:18px;height:18px}
+
+/* The search slot: pressed into the plate, typed in the legend face. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) :is(input.field,textarea.field,button.field){min-height:44px;border:0;border-radius:22px;background:linear-gradient(180deg,#BDBDB8 0%,#C6C6C1 100%);box-shadow:inset 0 1.5px 2px rgba(0,0,0,.24),inset 0 0 0 1px rgba(0,0,0,.04),0 1px 0 rgba(255,255,255,.85);color:var(--text);font:400 var(--fs-own)/20px var(--font-own)}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet,.side) :is(input.field,textarea.field,button.field){background:linear-gradient(180deg,#141416 0%,#1B1B1E 100%);box-shadow:inset 0 2px 3px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.08)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) textarea.field{border-radius:16px}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) :is(input.field[type="search"],button.field){font:400 15px/20px var(--font-legend);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) :is(input.field,textarea.field)::placeholder{color:#4A4A47}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet,.side) :is(input.field,textarea.field)::placeholder{color:#8A8A90}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) :is(input.field,textarea.field):focus{border:0;outline:2px solid var(--key);outline-offset:2px}
+:root[data-look="ink-lamp"] .spage .field-box>input.field{padding-left:44px}
+:root[data-look="ink-lamp"] .spage .field-box>svg{left:16px;width:18px;height:18px;fill:var(--text-2)}
+:root[data-look="ink-lamp"] .ssearch{margin:0 0 18px}
+
+/* Section headings: a legend and a hairline to the edge. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group-title:not(.btn){display:flex;align-items:center;gap:10px;margin:18px 0 8px;padding:0;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group-title:not(.btn)::after{content:"";flex:1;height:1px;background:var(--hairline)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group-title[hidden]{display:none}
+
+/* Groups lose their panel: rows on the ground, a hairline under each. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group{overflow:visible;border:0;border-radius:0;background:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group>*+*::before{display:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group>*{border-bottom:1px solid var(--hairline)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group>:is(.sform,.line:empty,[hidden]){border-bottom:0}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group-section+.group-section,:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .group+.group{margin-top:6px}
+
+/* Rows: the name in EB Garamond, a line under it in italic, the value in the legend face. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row{grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:48px;padding:0;color:var(--text);font:400 var(--fs-say)/26px var(--font-say);transform:none;box-shadow:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row>.row-icon{display:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row .row-copy{gap:1px;padding:11px 0}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row-title{font:400 var(--fs-say)/26px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row-detail{font:italic 400 15px/19px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row .row-value{font:400 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row>:is(.row-caret,.row-check){width:14px;height:14px;fill:var(--text-3)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row>.row-check{fill:var(--key)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .row.row:active{background:color-mix(in srgb,var(--text) 6%,transparent)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) :is(.row.danger,.row.danger .row-title){color:var(--rubric)}
+:root[data-look="ink-lamp"] .spage .row.row.flash,:root[data-look="ink-lamp"] .spage .flash{animation:none;background:color-mix(in srgb,var(--key) 14%,transparent)}
+
+/* A line under a page's title, notes and empty pages: his words, quiet. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) :is(.slead,.sempty,.alllead){margin:2px 0 14px;font:400 17px/23px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .shelp{margin:10px 0;font:italic 400 15px/20px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .shelp.strong{font-style:normal;color:var(--text)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) :is(.shelp code,.sform code){background:var(--well);font:500 var(--fs-legend) var(--font-legend)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .snow{margin:10px 0;font:400 var(--fs-say)/26px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) .line{font:italic 400 16px/21px var(--font-say);color:var(--rubric)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .line.ok{color:var(--text-2)}
+:root[data-look="ink-lamp"] .spage .swarn{padding:10px 14px;border:1px solid var(--hairline);border-radius:var(--r-l);background:var(--plate);font:italic 400 16px/21px var(--font-say);color:var(--rubric)}
+:root[data-look="ink-lamp"] .spage :is(.st1){gap:8px}
+:root[data-look="ink-lamp"] .spage .st2{font:500 var(--fs-legend)/15px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .spage .st2.gold{color:var(--rubric)}
+:root[data-look="ink-lamp"] .spage .badge{box-sizing:border-box;height:15px;padding:0 6px;border:1px solid var(--hairline);border-radius:999px;background:none;font:500 var(--fs-legend)/13px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .spage .codebox{border:1px solid var(--hairline);border-radius:var(--r-l);background:var(--plate);font-family:var(--font-legend);color:var(--text)}
+:root[data-look="ink-lamp"] .spage :is(.fld label,.lbl){font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] .spage .fld .help{font:italic 400 15px/19px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] .spage .mprofile{font-family:var(--font-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] .spage .xbar{height:6px;border-radius:3px;background:var(--well);box-shadow:inset 0 1.5px 2px rgba(0,0,0,.3)}
+:root[data-look="ink-lamp"] .spage .xbar span{background:var(--key)}
+:root[data-look="ink-lamp"] .spage .mev q{font:italic 400 16px/21px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] .spage :is(.mwhy,.mhist li){font:italic 400 15px/20px var(--font-say);color:var(--text-2)}
+
+/* The preview at the top of Settings: his words as they read, no bubble. */
+:root[data-look="ink-lamp"] .spage .appearance-preview{padding:4px 0 6px;background:none}
+:root[data-look="ink-lamp"] .spage .preview-reply{margin:0;padding:0;border-radius:0;background:none;font:400 var(--fs-reply)/1.37 var(--font-say)}
+:root[data-look="ink-lamp"] .spage .appearance-preview>.row{display:none}
+/* Accent intensity tints the classic blue only: under the look it is not shown. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field[data-key="appearance.accent"]{display:none}
+
+/* Sheets and confirmations: a plate that floats, his title, keys at the foot. */
+:root[data-look="ink-lamp"] :is(.sheet,.csheet){border:1px solid var(--hairline);border-bottom:0;border-radius:var(--r-xl) var(--r-xl) 0 0;background:var(--sheet);box-shadow:var(--e3);color:var(--text)}
+:root[data-look="ink-lamp"] .sheet-grabber{background:var(--text-3)}
+:root[data-look="ink-lamp"] :is(.sheet-title,.csheet h2){margin:0 0 14px;font:500 24px/30px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.sheet,.csheet) p:not(.line){font:400 17px/23px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.sheet,.csheet) .seg-field{padding:0}
+:root[data-look="ink-lamp"] :is(.sheet,.csheet) input.field[type="time"]{font:900 var(--fs-time)/20px var(--font-time);text-align:left}
+
+/* A one-of-a-few choice: the name at the left (or above, .lk-stack: controls.js when it would not
+   fit), a row of keys; the chosen one pressed, its lamp lit. A line under the name goes under all. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field{display:grid;grid-template-columns:104px minmax(0,1fr);grid-template-areas:"t c" "d d";align-items:center;min-height:74px;box-sizing:border-box;padding:10px 0}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field>.seg-label{grid-area:t;margin:0;font:400 var(--fs-say)/26px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field>.seg-label:has(.row-title){display:contents}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field>.seg-label>.row-title{grid-area:t}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field>.seg-label>.row-detail{grid-area:d;margin-top:6px}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field>.seg{grid-area:c}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field.lk-stack{grid-template-columns:minmax(0,1fr);grid-template-areas:"t" "d" "c"}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field.lk-stack>.seg{margin-top:8px}
+:root[data-look="ink-lamp"] .seg-field.lk-stack .seg:not([data-lk]) .seg-option{white-space:normal;line-height:13px;text-align:center}
+:root[data-look="ink-lamp"] .seg.seg{display:flex;gap:8px;height:auto;margin:0;padding:0;border-radius:0;background:none}
+:root[data-look="ink-lamp"] .seg>.seg-thumb{display:none}
+:root[data-look="ink-lamp"] .seg:not([data-lk]) .seg-option{--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;flex:1;min-width:0;height:51px;margin:0;padding:11px 4px 2px;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:none;box-shadow:none;color:#0A0A0A;font:500 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .seg:not([data-lk]) .seg-option::before{content:"";position:absolute;z-index:-1;left:0;right:0;top:11px;height:38px;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat;pointer-events:none}
+:root[data-look="ink-lamp"] .seg:not([data-lk]) .seg-option:is(.on,:active,.lk-down)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .seg:not([data-lk]) .seg-option.on{padding-top:14px}
+:root[data-look="ink-lamp"] .seg .seg-option::after{content:"";position:absolute;inset:auto;top:0;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--hairline);box-shadow:inset 0 1px 1px rgba(0,0,0,.25);pointer-events:none}
+:root[data-look="ink-lamp"] .seg .seg-option.on::after{background:var(--key);box-shadow:0 0 2px #FF4A12,0 0 6px rgba(255,74,18,.7)}
+:root[data-look="ink-lamp"][data-theme="dark"] .seg:not([data-lk]) .seg-option{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"][data-theme="dark"] .seg:not([data-lk]) .seg-option.on{font-weight:600}
+:root[data-look="ink-lamp"][data-theme="dark"] .seg .seg-option::after{background:#2E2E33;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"][data-theme="dark"] .seg .seg-option.on::after{background:var(--key);box-shadow:0 0 4px #FF4A12,0 0 10px rgba(255,74,18,.55)}
+:root[data-look="ink-lamp"] [data-key="briefing.units"] .seg-option{text-transform:none}
+
+/* A switch: the small slide switch, its lamp lit while on (controls.js lets the thumb be dragged). */
+/* A switch row: a sideways drag is its thumb's (controls.js), an up or down one the page's scroll. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch{touch-action:pan-y}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch-track{position:relative;width:34px;height:18px;margin-left:14px;border:0;border-radius:9px;background:#C2C2BD;box-shadow:inset 0 1.5px 2px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.85)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch[aria-checked="true"] .switch-track{background:#C2C2BD}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch-track::after{left:-4.75px;top:-4px;width:31.5px;height:26px;border-radius:0;background:url("kit/thumb-small-light.webp") 0 0/100% 100% no-repeat;box-shadow:none;transform:translateX(var(--lk-x,0px));transition:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch[aria-checked="true"] .switch-track::after{transform:translateX(var(--lk-x,12px))}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch-track::before{content:"";position:absolute;left:-13px;top:6.5px;width:5px;height:5px;border-radius:50%;background:var(--hairline);box-shadow:inset 0 1px 1px rgba(0,0,0,.25)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .switch[aria-checked="true"] .switch-track::before{background:var(--key);box-shadow:0 0 2px #FF4A12,0 0 6px rgba(255,74,18,.7)}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet) .switch-track{border-radius:6px;background:#1B1B1E;box-shadow:inset 0 2px 3px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.09)}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet) .switch-track::after{background-image:url("kit/thumb-small-grey.webp")}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet) .switch-track::before{background:#2E2E33;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet) .switch[aria-checked="true"] .switch-track::before{background:var(--key);box-shadow:0 0 4px #FF4A12,0 0 10px rgba(255,74,18,.55)}
+
+/* Plain actions are keys: the main one orange (a destructive one too, as the Briefing's forget),
+   the rest ordinary; in a sheet they span it. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) .btn:not(.row,.row-title,.group-title){--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");position:relative;isolation:isolate;display:inline-flex;width:auto;min-height:44px;margin:12px 0 0;padding:0 18px;border:0;border-radius:0;background:none;box-shadow:none;color:#0A0A0A;font:500 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;transform:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) .btn:not(.row,.row-title,.group-title)::before{content:"";position:absolute;z-index:-1;inset:0;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat;pointer-events:none}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) .btn:not(.row,.row-title,.group-title):is(:active,.lk-down)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet,.side) .btn:is(.soft,.secondary,.quiet):not(.row,.row-title,.group-title){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");color:#0A0A0A}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(.spage,.sheet,.csheet,.side) .btn:is(.soft,.secondary,.quiet):not(.row,.row-title,.group-title){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] :is(.sheet,.csheet) .btn:not(.row){display:flex;width:100%;min-height:48px}
+:root[data-look="ink-lamp"] .spage :is(.btn.quiet.inline.row-title,.btn.row-title){padding:0;background:none;color:var(--text);font:400 var(--fs-say)/26px var(--font-say);text-transform:none}
+:root[data-look="ink-lamp"] .spage .row.btn{min-height:48px}
+
+/* Reset this page: a black key (dark on Lamp), a dotted leader, the page's name. */
+:root[data-look="ink-lamp"] .scatalog{position:relative}
+:root[data-look="ink-lamp"] .scatalog[aria-busy]{opacity:.55}
+:root[data-look="ink-lamp"] .scatalog>.group:last-child{display:flex;align-items:center;margin-top:22px}
+:root[data-look="ink-lamp"] .scatalog>.group:last-child>*{border:0}
+:root[data-look="ink-lamp"] .scatalog>.group:last-child::after{content:"";flex:1;height:1px;margin-left:10px;background:repeating-linear-gradient(90deg,#A6A6A1 0 2px,transparent 2px 5px)}
+:root[data-look="ink-lamp"][data-theme="dark"] .scatalog>.group:last-child::after{background:repeating-linear-gradient(90deg,#3A3A40 0 2px,transparent 2px 5px)}
+:root[data-look="ink-lamp"] .scatalog::after{content:attr(data-group);position:absolute;right:0;bottom:16px;padding-left:10px;background:var(--ground);font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"]{--up:url("kit/key-black-up.webp");--down:url("kit/key-black-pressed.webp");position:relative;isolation:isolate;display:inline-flex;width:auto;min-height:44px;padding:0 16px;background:none;color:#FFFFFF}
+:root[data-look="ink-lamp"][data-theme="dark"] .spage .row.row[data-action="reset"]{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp")}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"]::before{content:"";position:absolute;z-index:-1;inset:3px 0 4px;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat;pointer-events:none}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"]:is(:active,.lk-down){background:none}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"]:is(:active,.lk-down)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"] .row-copy{padding:0}
+:root[data-look="ink-lamp"] .spage .row.row[data-action="reset"] .row-title{font:500 var(--fs-key)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:#FFFFFF}
+
+/* Text size: a fader. Its options are the three legends over the track (controls.js draws the rest). */
+:root[data-look="ink-lamp"] .seg[data-lk]{touch-action:pan-y;-webkit-user-select:none;user-select:none}
+:root[data-look="ink-lamp"] .seg[data-lk] .seg-option{margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;white-space:nowrap;color:var(--text-3);-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .seg[data-lk] .seg-option.on{color:var(--text)}
+:root[data-look="ink-lamp"] .seg[data-lk="fader"]{position:relative;display:block;height:73px}
+:root[data-look="ink-lamp"] .seg[data-lk="fader"] .seg-option{position:absolute;top:0;width:34%;height:44px;padding-top:9px;display:flex;align-items:flex-start;justify-content:center}
+:root[data-look="ink-lamp"] .seg[data-lk="fader"] .seg-option:nth-of-type(1){left:0;justify-content:flex-start}
+:root[data-look="ink-lamp"] .seg[data-lk="fader"] .seg-option:nth-of-type(2){left:33%}
+:root[data-look="ink-lamp"] .seg[data-lk="fader"] .seg-option:nth-of-type(3){right:0;justify-content:flex-end}
+:root[data-look="ink-lamp"] .seg[data-lk] .seg-option::after{display:none}
+:root[data-look="ink-lamp"] .lk-fd{position:absolute;inset:0;pointer-events:none}
+:root[data-look="ink-lamp"] .lk-fd>i{position:absolute;display:block}
+:root[data-look="ink-lamp"] .lk-tk{top:26px;width:1px;height:12px;background:var(--text-3)}
+:root[data-look="ink-lamp"] .lk-tk.on{top:24px;height:6px;background:var(--text)}
+:root[data-look="ink-lamp"] .lk-tk0{left:12.5px}
+:root[data-look="ink-lamp"] .lk-tk1{left:calc(50% - .5px)}
+:root[data-look="ink-lamp"] .lk-tk2{right:12.5px}
+:root[data-look="ink-lamp"] .lk-fd>.lk-track{top:44px;left:0;right:0;height:6px;border-radius:3px;background:linear-gradient(180deg,#9E9E99 0%,#B4B4AF 60%,#C2C2BD 100%);box-shadow:inset 0 1.5px 2px rgba(0,0,0,.38),inset 0 0 0 .5px rgba(0,0,0,.10),0 1px 0 rgba(255,255,255,.9)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-fd>.lk-track{background:linear-gradient(180deg,#0A0A0B 0%,#1B1B1E 100%);box-shadow:inset 0 2px 2px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.13),0 -1px 0 rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"] .lk-scale{top:58px;left:12px;right:12px;height:2px;background:radial-gradient(circle,#8E8E8A 0 1px,transparent 1.2px) 0 0/11px 2px repeat-x}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-scale{background-image:radial-gradient(circle,#4A4A50 0 1px,transparent 1.2px)}
+:root[data-look="ink-lamp"] .lk-fd>.lk-fader{position:absolute;top:30px;left:0;will-change:transform}
+
+/* Motion: a rotary dial, its four positions printed round it; the options are the legends. */
+:root[data-look="ink-lamp"] .seg[data-lk="rotary"]{display:flex;align-items:center;justify-content:space-between;height:56px}
+:root[data-look="ink-lamp"] .seg[data-lk="rotary"] .seg-option{position:relative;flex:none;height:44px;min-width:20px}
+:root[data-look="ink-lamp"] .seg[data-lk="rotary"] .seg-option::after{display:block;top:11px;width:4px;height:4px;margin-left:-2px}
+:root[data-look="ink-lamp"] .seg[data-lk="rotary"] .seg-option{padding-top:21px;padding-bottom:11px}
+:root[data-look="ink-lamp"] .lk-rot{position:relative;flex:none;width:56px;height:56px;margin-left:-5px;touch-action:pan-y;cursor:grab}
+:root[data-look="ink-lamp"] .lk-rot>svg{position:absolute;inset:0;width:56px;height:56px;fill:var(--text-3)}
+:root[data-look="ink-lamp"] .lk-rot>svg>.on{fill:var(--text)}
+:root[data-look="ink-lamp"] .lk-rot>.lk-dial{position:absolute;left:8px;top:8px;width:40px;height:40px}
+:root[data-look="ink-lamp"] .lk-rot>.lk-dial::before{inset:-8.33px}
+
+/* Haptics: a three-position slide switch, its legends the options over its well. */
+:root[data-look="ink-lamp"] .seg[data-lk="slide"]{position:relative;display:block;width:138px;height:45px}
+:root[data-look="ink-lamp"] .seg[data-lk="slide"] .seg-option{position:absolute;top:0;width:45px;height:45px;padding-bottom:33px;display:block;text-align:center}
+:root[data-look="ink-lamp"] .seg[data-lk="slide"] .seg-option:nth-of-type(1){left:1.5px}
+:root[data-look="ink-lamp"] .seg[data-lk="slide"] .seg-option:nth-of-type(2){left:46.5px}
+:root[data-look="ink-lamp"] .seg[data-lk="slide"] .seg-option:nth-of-type(3){left:91.5px}
+:root[data-look="ink-lamp"] .lk-sw{position:absolute;left:0;top:19px;width:138px;height:26px;box-sizing:border-box;border-radius:13px;overflow:hidden;pointer-events:none;background:linear-gradient(180deg,#B4B4AF 0%,#C4C4BF 100%);box-shadow:inset 0 2px 3px rgba(0,0,0,.30),inset 0 0 0 .5px rgba(0,0,0,.08),0 1px 0 rgba(255,255,255,.9)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-sw{border-radius:9px;background:#1B1B1E;box-shadow:inset 0 2px 3px rgba(0,0,0,.95),inset 0 0 0 1px #050506,0 1px 0 rgba(255,255,255,.09)}
+:root[data-look="ink-lamp"] .lk-sw>i{position:absolute;top:11.5px;width:3px;height:3px;border-radius:50%;background:#8A8A86;box-shadow:0 1px 0 rgba(255,255,255,.6)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-sw>i{background:#4A4A50;box-shadow:none}
+:root[data-look="ink-lamp"] .lk-sw>i:nth-child(1){left:22.5px}
+:root[data-look="ink-lamp"] .lk-sw>i:nth-child(2){left:67.5px}
+:root[data-look="ink-lamp"] .lk-sw>i:nth-child(3){left:112.5px}
+:root[data-look="ink-lamp"] .lk-sw>.lk-thumb{position:absolute;top:2px;left:3px;will-change:transform}

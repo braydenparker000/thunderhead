@@ -1,0 +1,97 @@
+/* Ink and Lamp on the island: builder B's (approved: R-Grey, R-Dark for the capsule; S-Island-Grey,
+   S-Island-Dark for the card). The island (th/island/) is one fixed box clipped to its shape by script;
+   nothing here changes its box, its clip or its movement. The glass rim lies inside the shape: the
+   island's colour is its 1 px edge (the classic hairline), the rest is drawn on the compact row and the
+   card; --lk-rim is the rim's depth (Ink's glass ring, Lamp's edge). The capsule is as wide as its title
+   + 85 px (capsule.js layout()); reels and meter need 110, so the title carries 25 px of padding that
+   its mask gives back, but for a long title (60 % of the screen), which fades and scrolls as ever.
+   The small pictures are one strip, art/island.svg; what turns or blinks is island.js's. */
+:root[data-look="ink-lamp"] .th-island{--lk-rim:4px;--lk-pc:-4px;--lk-glass:light-dark(#E7E7E5,transparent);--lk-dim:light-dark(#3A3A3D,rgba(255,255,255,.25));background:light-dark(#F5F5F4,#424245)}
+:root[data-look="ink-lamp"][data-theme="dark"] .th-island{--lk-rim:1px;--lk-pc:-2px}
+:root[data-look="ink-lamp"] .th-island.lift{background:none}
+:root[data-look="ink-lamp"] .th-island::after{background:var(--signal)}
+:root[data-look="ink-lamp"] .th-island .fill{background:light-dark(#000,#0A0A0B)}
+/* While the app grows out of it or shrinks into it (.lift) the island draws no surface. */
+:root[data-look="ink-lamp"] .th-island.lift :is(.compact,.details)::before,:root[data-look="ink-lamp"] .th-island.lift .details::after{display:none}
+:root[data-look="ink-lamp"] .th-island .art{opacity:0!important}
+:root[data-look="ink-lamp"] .th-island :is(.bars,.glyph,.zz .i,.controls .i){display:none}
+
+/* The capsule: the glass ring (Ink) or the lit edge (Lamp), reels, title, five-dot meter. */
+:root[data-look="ink-lamp"] .th-island .compact{gap:9px;padding:0 15px 0 11px}
+:root[data-look="ink-lamp"] .th-island .compact::before{content:"";position:absolute;inset:1px;border-radius:17px;pointer-events:none;box-shadow:inset 0 0 0 2.5px var(--lk-glass),inset 0 0 0 3px #9A9A98}
+:root[data-look="ink-lamp"][data-theme="dark"] .th-island .compact::before{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08)}
+:root[data-look="ink-lamp"][data-island="bar"] .th-island .compact::before{border-radius:calc(var(--r-m) - 1px)}
+:root[data-look="ink-lamp"] .th-island .title{padding-right:25px;font:600 13px/16px var(--font-own);color:#FFF}
+:root[data-look="ink-lamp"] .th-island .title-mask{margin-right:-25px}
+:root[data-look="ink-lamp"] .th-island.long .title-mask{margin-right:0}
+:root[data-look="ink-lamp"] .th-island.said .title{font:500 15px/16px var(--font-say)}
+:root[data-look="ink-lamp"] .th-island .lk-i-reels{position:relative;flex:none;width:34px;height:18px}
+:root[data-look="ink-lamp"] .th-island .lk-i-reels::after{content:"";position:absolute;left:8px;top:14px;width:18px;height:1px;background:#A8A8AD}
+:root[data-look="ink-lamp"] .th-island :is(.lk-i-reels,.lk-i-deck) i{position:absolute;top:0;left:0;width:16px;height:16px;background:url("art/island.svg") 0 0/102px 22px no-repeat}
+:root[data-look="ink-lamp"] .th-island .lk-i-reels i+i{left:18px}
+:root[data-look="ink-lamp"] .th-island .lk-i-meter{display:flex;flex:none;gap:3px}
+:root[data-look="ink-lamp"] .th-island .lk-i-meter i{position:relative;width:4px;height:4px;border-radius:50%;background:var(--lk-dim)}
+:root[data-look="ink-lamp"] .th-island .lk-i-meter i::after{content:"";position:absolute;inset:0;border-radius:inherit;background:#FFF;opacity:0}
+:root[data-look="ink-lamp"][data-island-bars="false"] .th-island .lk-i-meter{visibility:hidden}
+/* Playing: three lit, or as many as the level (data-level, island.js). */
+:root[data-look="ink-lamp"] .th-island.playing .lk-i-meter:not([data-level]) i:nth-child(-n+3)::after,:root[data-look="ink-lamp"] .th-island.playing :is([data-level="1"] i:nth-child(1),[data-level="2"] i:nth-child(-n+2),[data-level="3"] i:nth-child(-n+3),[data-level="4"] i:nth-child(-n+4),[data-level="5"] i)::after{opacity:1}
+/* The alert: the edge turns the signal's red, and for its moment a lit dot in the 24 px it adds. */
+:root[data-look="ink-lamp"] .th-island.alert-flash .compact{padding-right:39px}
+:root[data-look="ink-lamp"] .th-island .alert-dot{right:23px;top:14px;width:8px;height:8px;background:var(--signal);box-shadow:0 0 4px var(--signal),0 0 10px rgba(215,25,33,.55)}
+
+/* The card: dark glass in its rim; the lamp and the app's name, the deck, the title, the times over a
+   dot meter, the kit's keys. Lamp's numbers from the card's edge, Ink's 3 px further in. */
+:root[data-look="ink-lamp"] .th-island .details::after{content:"";position:absolute;inset:1px;z-index:-2;border-radius:27px;background:var(--lk-glass)}
+:root[data-look="ink-lamp"] .th-island .details::before{content:"";position:absolute;inset:var(--lk-rim);z-index:-1;border-radius:calc(28px - var(--lk-rim));
+  background:linear-gradient(118deg,rgba(255,255,255,.12),rgba(255,255,255,.04) 24%,transparent 25%),linear-gradient(rgba(255,255,255,.06),transparent 30%),linear-gradient(#2D2D2C,#202020 45%,#171716);
+  box-shadow:0 0 0 1px #9A9A98,inset 0 1px 0 rgba(255,255,255,.30),inset 0 0 0 1px rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"][data-theme="dark"] .th-island .details::before{background:linear-gradient(118deg,rgba(255,255,255,.10),rgba(255,255,255,.03) 24%,transparent 25%),linear-gradient(rgba(255,255,255,.06),transparent 30%),linear-gradient(#0E0D0C,#090908 45%,#060606);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08)}
+:root[data-look="ink-lamp"] .th-island :is(.lk-i-head,.zz){font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend)}
+:root[data-look="ink-lamp"] .th-island .lk-i-head{position:absolute;top:calc(var(--lk-rim) + 14px);left:calc(var(--lk-rim) + 18px);display:flex;align-items:center;color:#A8A8AD;white-space:nowrap}
+:root[data-look="ink-lamp"] .th-island .lk-i-lamp{width:6px;height:6px;margin-right:8px;border-radius:50%;background:#3A3A3D}
+:root[data-look="ink-lamp"] .th-island.playing .lk-i-lamp{background:var(--key);box-shadow:0 0 4px var(--key),0 0 10px rgba(255,74,18,.55)}
+:root[data-look="ink-lamp"] .th-island.said .lk-i-app{display:none}
+:root[data-look="ink-lamp"] .th-island .say{top:calc(var(--lk-rim) + 12px);left:calc(var(--lk-rim) + 32px);right:calc(var(--lk-rim) + 100px);translate:none;display:block;white-space:nowrap;text-overflow:ellipsis;font:400 15px/18px var(--font-say);color:#FFF}
+/* The sleep timer, a legend on the card as drawn ("sleep · off"); its button as ever. */
+:root[data-look="ink-lamp"] .th-island .zz{display:flex;top:calc(var(--lk-rim) - 1px);right:calc(var(--lk-rim) + 7px);padding:0 10px;gap:7px;color:#7C7C83}
+:root[data-look="ink-lamp"] .th-island.sleep .zz{color:#FFF}
+:root[data-look="ink-lamp"] .th-island .zz::before{content:"sleep ·"}
+:root[data-look="ink-lamp"] .th-island .zz b{font:inherit}
+:root[data-look="ink-lamp"] .th-island .zz b:empty::before{content:"off"}
+:root[data-look="ink-lamp"] .th-island .zz b:not(:empty)::after{content:" min"}
+:root[data-look="ink-lamp"] .th-island .lk-i-deck{position:absolute;top:calc(var(--lk-rim) + 35px);left:calc(var(--lk-rim) + 14px);width:130px;height:66px;background:url("art/deck.svg");pointer-events:none}
+:root[data-look="ink-lamp"] .th-island .lk-i-deck i{top:19px;left:19px;width:22px;height:22px;rotate:8deg;background-position:-16px 0}
+:root[data-look="ink-lamp"] .th-island .lk-i-deck i+i{left:89px;rotate:52deg}
+:root[data-look="ink-lamp"] .th-island .heading{top:calc(var(--lk-rim) + 46px);left:calc(var(--lk-rim) + 161px);right:calc(var(--lk-rim) + 15px)}
+:root[data-look="ink-lamp"] .th-island .tt{display:block;white-space:nowrap;text-overflow:ellipsis;font:600 17px/22px var(--font-own);color:#FFF}
+:root[data-look="ink-lamp"] .th-island .by{margin-top:2px;font:400 14px/18px var(--font-own);color:#A8A8AD}
+:root[data-look="ink-lamp"] .th-island :is(.elapsed,.left){top:calc(var(--lk-rim) + 105px);font:900 12px/12px var(--font-time);color:#FFF}
+:root[data-look="ink-lamp"] .th-island .elapsed{left:calc(var(--lk-rim) + 19px)}
+:root[data-look="ink-lamp"] .th-island .left{right:calc(var(--lk-rim) + 19px)}
+/* The progress: a meter of 3 px dots edge to edge on the card, a faint line on the capsule. */
+:root[data-look="ink-lamp"] .th-island .progress{width:calc(min(360px,100vw - 24px) - 2 * var(--lk-rim) - 36px);border-radius:0;overflow:visible;
+  translate:0 calc(var(--details,0) * (var(--lk-rim) - 2px) + (1 - var(--details,0)) * var(--lk-pc));
+  background:radial-gradient(circle 1.5px,rgb(58 58 61/var(--details,0)) 92%,transparent) 0 0/7px 3px space no-repeat}
+:root[data-look="ink-lamp"] .th-island .progress i{transform:none;opacity:1;clip-path:inset(0 calc(100% - var(--progress,0) * 100%) 0 0);
+  background:radial-gradient(circle 1.5px,rgb(255 255 255/var(--details,0)) 92%,transparent) 0 0/7px 3px space no-repeat,linear-gradient(rgb(255 255 255/calc((1 - var(--details,0)) * .35)) 0 0)}
+/* The transport: the kit's near-black keys (a 52 x 36 face in a 44 px row), the main one orange. */
+:root[data-look="ink-lamp"] .th-island .controls{top:calc(var(--lk-rim) + 127px);gap:12px}
+:root[data-look="ink-lamp"] .th-island .controls button{width:56px;display:flex;align-items:center;justify-content:center;gap:3px;border-radius:0;isolation:isolate;transition:none;font:500 var(--fs-key)/1 var(--font-legend);letter-spacing:var(--ls-legend)}
+:root[data-look="ink-lamp"] .th-island .controls button:is(:active,.lk-down){transform:none;background:none}
+:root[data-look="ink-lamp"] .th-island .controls button::before{content:"";position:absolute;inset:3px 2px 5px;z-index:-1;border-radius:12px;border-image:url("kit/key-nearblack-up.webp") 78 fill/26px/12px;box-shadow:0 0 0 1px rgba(255,255,255,.10);background:url("kit/key-nearblack-pressed.webp") 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] .th-island .controls button:is(:active,.lk-down)::before{border-image-source:url("kit/key-nearblack-pressed.webp")}
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]{width:68px}
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]::before{border-image-source:url("kit/key-orange-up.webp");box-shadow:none;background-image:url("kit/key-orange-pressed.webp")}
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]:is(:active,.lk-down)::before{border-image-source:url("kit/key-orange-pressed.webp")}
+/* Podcasts' 15 s back and 30 s on, and the timer in the first place, keep their marks beside a legend. */
+:root[data-look="ink-lamp"] .th-island[data-app="podcasts"] .controls :not([data-control="toggle"])>.i,:root[data-look="ink-lamp"] .th-island .controls .zzz .i{display:block;width:14px;height:14px}
+:root[data-look="ink-lamp"] .th-island[data-app="podcasts"] [data-control="previous"] .i{order:-1}
+:root[data-look="ink-lamp"] .th-island .controls [data-control] b{position:static;display:block;font:inherit}
+/* Music's marks and the main key's, drawn as the approved screens draw them (16 px). */
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]::after,:root[data-look="ink-lamp"] .th-island[data-app="music"] .controls [data-control]:not(.zzz)::after{content:"";width:16px;height:16px;background:#FFF;mask:url("art/island.svg") var(--lk-g,0) 0/102px 22px no-repeat}
+:root[data-look="ink-lamp"] .th-island .controls [data-control="toggle"]::after{background:#0A0A0A}
+:root[data-look="ink-lamp"] .th-island [data-control="previous"]{--lk-g:-38px}
+:root[data-look="ink-lamp"] .th-island [data-control="next"]{--lk-g:-54px}
+:root[data-look="ink-lamp"] .th-island [data-control="toggle"]{--lk-g:-70px}
+:root[data-look="ink-lamp"] .th-island.playing [data-control="toggle"]{--lk-g:-86px}

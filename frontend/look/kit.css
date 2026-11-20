@@ -1,0 +1,74 @@
+/* The control kit: 3D-rendered keys, dials, fader caps and switch thumbs (kit/*.webp, 3x, each with
+   its own shadow and the gap round it, so it sits on Ink or Lamp as it is). Design KIT.md.
+
+   .lk-key            a rectangular key: put it on a <button>; its text is the legend (Geist Mono 12).
+                      Any size, at least 44 x 44 (the face is the box). Ordinary colour: light on Ink,
+                      dark on Lamp. Colours: .lk-key--orange (the ONE main key) --light --dark
+                      --nearblack --black.
+     .lk-key--compact (with .lk-key) a 34 px face inside a 44 px tap area (the decision strip's keys).
+   .lk-round          a round key (button), face = the box, at least 44 px; an icon inside takes the
+                      legend colour (currentColor). Ordinary: light on Ink, near-black with a faint rim
+                      on Lamp. Colours: .lk-round--orange --light --nearblack --black.
+     Keys and round keys show the pressed picture on :active, and while "on": aria-pressed="true",
+     aria-checked="true", aria-expanded="true" or .is-on (the chosen theme, the + key while open).
+   .lk-dial           a dial body (60 px and up), square, sized by you; its orange pointer turns with
+                      --turn (an angle, 0 is up; animate it with the springs, transform only).
+     .lk-dial--small  (with .lk-dial) the coarse body for 34 to 48 px. Grey on Ink, dark on Lamp.
+   .lk-fader          a fader cap, 26 x 34 (light on Ink, dark on Lamp); centre it on your slot.
+   .lk-thumb          the three-position switch's thumb, 42 x 22; .lk-thumb--small the two-position's,
+                      16 x 14, with .lk-thumb (light on Ink, grey on Lamp). Wells, slots and tracks stay yours (CSS).
+   Every piece but the keys is a box with no tap area of its own: put it in a 44 px control. */
+:root[data-look="ink-lamp"] .lk-key,:root[data-look="ink-lamp"] .lk-round{
+  --up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");
+  position:relative;isolation:isolate;box-sizing:border-box;min-width:44px;min-height:44px;margin:0;padding:0 14px;
+  display:inline-flex;align-items:center;justify-content:center;border:0;background:none;color:#0A0A0A;
+  font:500 var(--fs-key)/var(--lh-flat) var(--font-legend);letter-spacing:var(--ls-legend);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation
+}
+:root[data-look="ink-lamp"] .lk-key::before,:root[data-look="ink-lamp"] .lk-round::before{content:"";position:absolute;z-index:-1;pointer-events:none}
+/* The face fills the box; the picture's 12 px margin of shadow lies outside it. The pressed picture
+   is named as a zero-size background so it is already here at the first press. */
+:root[data-look="ink-lamp"] .lk-key::before{inset:0;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] .lk-key--compact::before{inset:5px 0}
+:root[data-look="ink-lamp"] .lk-key:is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .lk-key:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{border-image-source:var(--down)}
+/* Ordinary keys: light on Ink, dark on Lamp (near-black and black vanish into #000). */
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-key{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .lk-key.lk-key--orange{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");color:#0A0A0A}
+:root[data-look="ink-lamp"] .lk-key.lk-key--light{--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");color:#0A0A0A}
+:root[data-look="ink-lamp"] .lk-key.lk-key--dark{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .lk-key.lk-key--nearblack{--up:url("kit/key-nearblack-up.webp");--down:url("kit/key-nearblack-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .lk-key.lk-key--black{--up:url("kit/key-black-up.webp");--down:url("kit/key-black-pressed.webp");color:#FFFFFF}
+
+/* Round keys: the picture is 88/64 of the face, offset by 12/64 of it (18.75 %). */
+:root[data-look="ink-lamp"] .lk-round{--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");width:44px;height:44px;padding:0;border-radius:50%}
+:root[data-look="ink-lamp"] .lk-round::before{inset:-18.75%;background:var(--up) center/100% 100% no-repeat,var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] .lk-round:is(:active,.lk-down)::before,:root[data-look="ink-lamp"] .lk-round:is([aria-pressed="true"],[aria-checked="true"],[aria-expanded="true"],.is-on)::before{background-image:var(--down)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-round{--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"] .lk-round.lk-round--orange{--up:url("kit/round-orange-up.webp");--down:url("kit/round-orange-pressed.webp");color:#0A0A0A;box-shadow:none}
+:root[data-look="ink-lamp"] .lk-round.lk-round--light{--up:url("kit/round-light-up.webp");--down:url("kit/round-light-pressed.webp");color:#0A0A0A;box-shadow:none}
+:root[data-look="ink-lamp"] .lk-round.lk-round--nearblack{--up:url("kit/round-nearblack-up.webp");--down:url("kit/round-nearblack-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .lk-round.lk-round--black{--up:url("kit/round-black-up.webp");--down:url("kit/round-black-pressed.webp");color:#FFFFFF}
+
+/* Dials: the body (picture 198/150 of the face, offset 24/150 = 16 %; small 68/48, 10/48) and a
+   pointer from 9 % to 39 % of the height, turning about the centre (41 % below its top = 136.67 % of it). */
+:root[data-look="ink-lamp"] .lk-dial{--body:url("kit/dial-grey.webp");--turn:0deg;position:relative;display:block;width:60px;height:60px;flex:none;pointer-events:none}
+:root[data-look="ink-lamp"] .lk-dial::before{content:"";position:absolute;inset:-16%;background:var(--body) center/100% 100% no-repeat}
+:root[data-look="ink-lamp"] .lk-dial::after{content:"";position:absolute;left:50%;top:9%;width:3px;height:30%;margin-left:-1.5px;border-radius:2px;background:var(--key);transform-origin:50% 136.667%;transform:rotate(var(--turn))}
+:root[data-look="ink-lamp"] .lk-dial--small{--body:url("kit/dial-grey-small.webp");width:34px;height:34px}
+:root[data-look="ink-lamp"] .lk-dial--small::before{inset:-20.833%}
+:root[data-look="ink-lamp"] .lk-dial--small::after{width:2px;margin-left:-1px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-dial{--body:url("kit/dial-dark.webp")}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-dial--small{--body:url("kit/dial-dark-small.webp")}
+
+/* Fader caps and switch thumbs: fixed faces, the picture offset by its margin. */
+:root[data-look="ink-lamp"] .lk-fader,:root[data-look="ink-lamp"] .lk-thumb{position:relative;display:block;flex:none;pointer-events:none}
+:root[data-look="ink-lamp"] .lk-fader::before,:root[data-look="ink-lamp"] .lk-thumb::before{content:"";position:absolute;background:var(--pic) center/100% 100% no-repeat}
+:root[data-look="ink-lamp"] .lk-fader{--pic:url("kit/fader-cap-light.webp");width:26px;height:34px}
+:root[data-look="ink-lamp"] .lk-fader::before{inset:-12px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-fader{--pic:url("kit/fader-cap-dark.webp")}
+:root[data-look="ink-lamp"] .lk-thumb{--pic:url("kit/thumb-light.webp");width:42px;height:22px}
+:root[data-look="ink-lamp"] .lk-thumb::before{inset:-8px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-thumb{--pic:url("kit/thumb-grey.webp")}
+:root[data-look="ink-lamp"] .lk-thumb--small{--pic:url("kit/thumb-small-light.webp");width:16px;height:14px}
+:root[data-look="ink-lamp"] .lk-thumb--small::before{inset:-6px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-thumb--small{--pic:url("kit/thumb-small-grey.webp")}

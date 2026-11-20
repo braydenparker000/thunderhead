@@ -7,7 +7,7 @@ import { extname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
+import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, lookTag, precacheJson, precached, swJs, TAGGED, themeJs, withApi } from './site-config.mjs';
 
 const ROOT = fileURLToPath(new URL('../frontend/', import.meta.url));
 const TYPES = CONTENT_TYPES;
@@ -15,7 +15,9 @@ const TYPES = CONTENT_TYPES;
 /** A file as stage.mjs would publish it for that API address. */
 async function staged(path, api, build) {
   if (path === 'config.js') return Buffer.from(configJs({ api, build }));
-  const body = await readFile(join(ROOT, path));
+  // The look's folder as published, look/<hash>/ (scripts/look-config.mjs), named in ui/theme.js.
+  const body = await readFile(join(ROOT, path.replace(TAGGED, 'look/')));
+  if (path === 'ui/theme.js') return Buffer.from(themeJs(body.toString('utf8'), lookTag(join(ROOT, 'look'))));
   if (path === 'sw.js') return Buffer.from(swJs(body.toString('utf8'), build));
   if (path === 'lab/engine/build.js') return Buffer.from(labBuildJs(body.toString('utf8'), `b${build}`));
   return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api, path)) : body;
@@ -47,7 +49,7 @@ async function labList(api, build) {
 /** `api`: serve the site as staged for that API address (config.js and CSP); `build`: the release
  * number in sw.js, precache.json and config.js (a test serves build A, then B). */
 export function serve(port = 0, { api = '', build = 1 } = {}) {
-  const opts = { api, build, up: true }, asked = /** @type {string[]} */ ([]);
+  const opts = { api, build, up: true }, asked = /** @type {string[]} */ ([]), files = /** @type {Map<string, Buffer>} */ (new Map());
   const server = createServer(async (req, res) => {
     if (!opts.up) { req.socket.destroy(); return; }   // no signal: the connection just drops
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^[/\\]+/, '');
@@ -59,7 +61,7 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
       if (path === 'lab/offline.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await labList(opts.api, opts.build)); return; }
       // like stage.mjs: an app route without its own page gets the shell
       if (!existsSync(join(ROOT, path)) && APP_ROUTES.some(r => path === `${r}/index.html`)) path = 'index.html';
-      const body = await staged(path, opts.api, opts.build);
+      const body = files.get(path.replace(TAGGED, 'look/')) ?? await staged(path, opts.api, opts.build);
       res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404, { 'content-type': TYPES['.html'] }).end(await readFile(join(ROOT, '404.html')));
@@ -72,6 +74,9 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
   /** With `false` every request fails as it does with no signal, for pages and the service worker alike (a browser's
    * own offline switch does not always reach the worker); `true` brings it back. */
   server.signal = (up) => { opts.up = up; };
+  /** Files served as if they were in frontend/ (path → bytes; the look's by their source path, look/…): a
+   * test's own daily pictures and their list, which the repository does not hold yet. */
+  server.files = files;
   return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 

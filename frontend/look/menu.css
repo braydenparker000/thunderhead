@@ -1,0 +1,87 @@
+/* Ink and Lamp on the menu, the list of conversations (builder C; design S-Menu-*). Every rule scoped
+   to :root[data-look="ink-lamp"]. The title in EB Garamond with the Lamb at its right (menu.js), the
+   legend under it, Now as the one panel with its lamp, the groups under red italic rubrics, each
+   conversation a quiet row (title in EB Garamond, detail in the legend face, day in Doto), s.d.g.
+   under the list, and at the foot the search slot and Settings as the kit's small dial (menu.js).
+   All conversations (.allconvos, a page over the menu) shares the rows; settings.css dresses its frame. */
+:root[data-look="ink-lamp"] .sidescroll{padding:calc(20px + env(safe-area-inset-top,0px)) 20px 24px}
+:root[data-look="ink-lamp"] .sidetitle{margin:0;padding-right:40px;font:500 var(--fs-say-title)/36px var(--font-say);letter-spacing:0;color:var(--text)}
+:root[data-look="ink-lamp"] .lk-lamb{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:20px;width:25.42px;height:30px;color:var(--text)}
+/* The island's capsule over the menu: the title and the Lamb start under it. */
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .sidescroll{padding-top:calc(56px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] body:has(>.th-island:not([hidden])) .lk-lamb{top:calc(54px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] .sidelead{margin:4px 0 14px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+
+/* Now: the one panel, its lamp lit. */
+:root[data-look="ink-lamp"] #now.row.row{display:block;position:relative;min-height:68px;margin:0 -4px;padding:10px 36px 9px 14px;border:1px solid var(--hairline);border-radius:22px;background:var(--plate);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 0 rgba(255,255,255,.5),0 3px 8px rgba(0,0,0,.05);color:var(--text);transform:none}
+:root[data-look="ink-lamp"][data-theme="dark"] #now.row.row{background:radial-gradient(ellipse 120px 60px at 18px 16px,rgba(240,69,63,.10) 0%,rgba(240,69,63,.03) 50%,rgba(240,69,63,0) 100%),#101012;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+:root[data-look="ink-lamp"] #now>.row-icon{display:none}
+:root[data-look="ink-lamp"] #now .row-copy{display:block;padding:0}
+:root[data-look="ink-lamp"] #now .tl{display:flex;align-items:center;height:12px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] #now .tl::before{content:"";width:6px;height:6px;margin-right:8px;border-radius:50%;background:var(--rubric);box-shadow:0 0 6px var(--rubric)}
+:root[data-look="ink-lamp"][data-theme="dark"] #now .tl::before{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] .side.searching #now{display:none}
+:root[data-look="ink-lamp"] #now .lk-sep{display:none}
+:root[data-look="ink-lamp"] #now .sub{display:block;margin-top:6px;overflow:hidden;font:400 var(--fs-say)/26px var(--font-say);color:var(--text);white-space:nowrap;text-overflow:ellipsis}
+:root[data-look="ink-lamp"] #now .lk-n{margin-left:8px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+/* A narrow phone: the count under the date rather than cut off after it. */
+@media (max-width:374px){:root[data-look="ink-lamp"] #now .lk-n{display:block;margin:0}}
+:root[data-look="ink-lamp"] #now .row-value{position:absolute;top:10px;right:36px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] #now .row-caret{position:absolute;right:12px;top:50%;width:14px;height:14px;margin-top:-7px;fill:var(--text-3)}
+
+/* The groups: a red italic rubric, a hairline, the count; rows on the ground under it. */
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .ghead.group-title.btn{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:3px 0 -9px;padding:0;border:0;background:none;box-shadow:none;font:italic 400 16px/22px var(--font-say);letter-spacing:0;text-transform:none;color:var(--rubric);transform:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .ghead::after{content:"";order:1;flex:1;height:1px;background:var(--hairline)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .ghead .gl{flex:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .ghead .gn{order:2;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .ghead .chev{order:3;width:12px;height:12px;fill:var(--text-3)}
+:root[data-look="ink-lamp"] #convos{margin-top:4px}
+:root[data-look="ink-lamp"] :is(#convos,.allconvos) .cg{margin-top:0}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .group{border:0;border-radius:0;background:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .group>*+*::before{display:none}
+:root[data-look="ink-lamp"] :is(#convos,.allconvos,.sres)>:is(.thr,.all){margin-top:0;border:0;border-radius:0;background:none}
+
+/* A conversation: its title, then its count or summary in the legend face, its day in Doto. */
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row:is(.thr,.all,.srow){grid-template-columns:minmax(0,1fr) auto auto;gap:12px;min-height:54px;padding:0;border-bottom:1px solid var(--hairline);background:none;color:var(--text);transform:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row:is(.thr,.all,.srow):has(>.pin){grid-template-columns:12px minmax(0,1fr) auto auto}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row>.row-icon:not(.pin){display:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row>.pin{width:12px;height:12px;fill:var(--rubric)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row:active{background:color-mix(in srgb,var(--text) 6%,transparent)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row:is(.thr,.all,.srow) .row-copy{gap:2px;padding:8px 0}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) :is(.thr,.all,.srow) .row-title{overflow:hidden;font:400 18px/22px var(--font-say);color:var(--text);white-space:nowrap;text-overflow:ellipsis}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) :is(.thr,.all,.srow) .row-detail{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .thr .l2{flex-wrap:nowrap;gap:8px;min-width:0;white-space:nowrap}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .thr .sum{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .thr.full .sum{white-space:normal}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row .when{font:900 13px/16px var(--font-time);color:var(--text);text-transform:uppercase}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.row>.row-caret{width:14px;height:14px;fill:var(--text-3)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .tag{flex:none;box-sizing:border-box;height:15px;padding:0 6px;border:1px solid var(--hairline);border-radius:999px;background:none;font:500 var(--fs-legend)/13px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .tag.otr{border-style:dashed}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .row.thr.skelrow{min-height:54px;background:linear-gradient(var(--hairline),var(--hairline)) 0 20px/62% 8px no-repeat,linear-gradient(var(--hairline),var(--hairline)) 0 34px/24% 6px no-repeat;opacity:.6;animation:none}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .rowacts{padding:6px 0 8px}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) .rowacts .btn{margin:0}
+:root[data-look="ink-lamp"] :is(#side,.allconvos) :is(.cline,.alllead){margin:12px 0;font:italic 400 16px/21px var(--font-say);color:var(--text-2)}
+:root[data-look="ink-lamp"] #convos::after,:root[data-look="ink-lamp"] .allconvos .alllist::after{content:"s.d.g.";display:block;margin-top:30px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-align:center;color:var(--rubric)}
+
+/* Search: the results in the list's place under legend headings, the field in the slot. */
+:root[data-look="ink-lamp"] #side .sres>.group-title{display:flex;align-items:center;gap:10px;margin:18px 0 4px;padding:0;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] #side .sres>.group-title::after{content:"";flex:1;height:1px;background:var(--hairline)}
+:root[data-look="ink-lamp"] #side .srow .sn{white-space:normal}
+:root[data-look="ink-lamp"] #side .srow .sn b{font-weight:500;color:var(--text);background:color-mix(in srgb,var(--key) 22%,transparent)}
+:root[data-look="ink-lamp"] #side .srow .src{font:italic 400 14px/18px var(--font-say);letter-spacing:0;color:var(--text-2)}
+
+/* The foot: the search slot, and Settings as the small dial with its legend (menu.js). */
+:root[data-look="ink-lamp"] .side .sidebar{gap:16px;min-height:56px;margin:0;padding:6px 14px calc(20px + env(safe-area-inset-bottom,0px));border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+:root[data-look="ink-lamp"] #side :is(#search.field,.sbox>input.field){height:56px;min-height:56px;padding:0 18px 0 46px;border:0;border-radius:28px;background:linear-gradient(180deg,#BABAB5 0%,#C2C2BD 45%,#C8C8C3 100%);box-shadow:inset 0 2px 3px rgba(0,0,0,.24),inset 0 0 0 1px rgba(0,0,0,.05),0 1px 0 rgba(255,255,255,.9);font:400 15px/20px var(--font-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] #side .sbox>input.field{color:var(--text)}
+:root[data-look="ink-lamp"][data-theme="dark"] #side :is(#search.field,.sbox>input.field){background:linear-gradient(180deg,#08080A 0%,#121214 45%,#1B1B1E 100%);box-shadow:inset 0 3px 5px rgba(0,0,0,1),inset 0 0 0 1px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.06),0 1px 0 rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"] #side #search.field{position:relative;gap:10px;padding-right:12px;overflow:hidden;white-space:nowrap}
+:root[data-look="ink-lamp"] #side #search.field>svg{position:absolute;left:18px;width:18px;height:18px;fill:var(--text-2)}
+:root[data-look="ink-lamp"] #side .sbox>svg{left:18px;fill:var(--text-2)}
+:root[data-look="ink-lamp"] #side .sbox>.sclear{right:6px;width:44px;height:44px;color:var(--text-2)}
+:root[data-look="ink-lamp"] #side #settings.setbtn{position:relative;flex:none;display:flex;flex-direction:column;align-items:center;width:48px;height:62px;min-height:62px;margin:-6px 0 0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;color:var(--text);transform:none}
+:root[data-look="ink-lamp"] #side #settings>svg{display:none}
+:root[data-look="ink-lamp"] #side #settings>.lk-dial{--turn:60deg;width:41px;height:41px;margin:3.5px}
+:root[data-look="ink-lamp"] #side #settings>.lk-dial::before{inset:-8.54px}
+:root[data-look="ink-lamp"] #side #settings:is(:active,.lk-down)>.lk-dial{--turn:75deg}
+:root[data-look="ink-lamp"] #side #settings>.lk-leg{margin-top:2px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}

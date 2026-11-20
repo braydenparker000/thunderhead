@@ -50,12 +50,13 @@ test('stage writes the build into sw.js and a precache list whose sizes match th
     assert.ok(files.some((f) => f.path === page), page);
   assert.ok(!files.some(f => f.path.startsWith('lab/')), 'labs never enter the offline boot cache');
   // Compare every staged path with the pre-T1b membership rule, allowing only lab/ and Photos' RAW
-  // engine (photos/engine/, 2.2 MB, needed only with the network: site-config.mjs) to leave.
+  // engine (photos/engine/, 2.2 MB, needed only with the network: site-config.mjs) to leave, and
+  // (2026-11-20) look/, Ink and Lamp, off unless chosen and kept for good once loaded (sw.js).
   const before = path => !['vendor', ...PORTED].includes(path.split('/')[0])
     && !APP_ROUTES.some(r => path === `${r}/index.html`)
     && !['sw.js', 'sw-kill.js', 'precache.json'].includes(path) && !path.endsWith('.txt');
   const paths = readdirSync(out, { recursive: true }).filter(path => statSync(join(out, path)).isFile());
-  assert.deepEqual(files.map(f => f.path).sort(), paths.filter(path => before(path) && !path.startsWith('lab/') && !path.startsWith('photos/engine/')).sort(), 'all other precache members stay');
+  assert.deepEqual(files.map(f => f.path).sort(), paths.filter(path => before(path) && !path.startsWith('lab/') && !path.startsWith('photos/engine/') && !path.startsWith('look/')).sort(), 'all other precache members stay');
 });
 
 test('an update applies only when nothing plays, nothing is typed and nothing is open', () => {

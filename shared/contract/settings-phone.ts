@@ -13,6 +13,9 @@ const ISLAND = { group: 'island', ...ON_PHONE } as const;
 
 export const PHONE_SETTINGS = [
   // Appearance: each puts its `attr` on <html> while it isn't the default, for CSS to follow.
+  // Ink and Lamp (2026-11-20, frontend/look/): ui/theme.js loads it before the first paint while chosen.
+  { ...LOOK, key: 'appearance.look', label: 'Look', default: 'classic', attr: 'data-look',
+    detail: 'Classic, or Ink and Lamp: grey metal by day and black by night, with red lettering and keys you press.', options: o('classic:Classic', 'ink-lamp:Ink and Lamp') },
   { ...LOOK, key: 'appearance.accent', label: 'Accent intensity', default: 'calm', attr: 'data-accent-intensity',
     detail: 'How strongly the blue shows on buttons, switches and links.', options: o('soft:Soft', 'calm:Calm', 'vivid:Vivid') },
   { ...LOOK, key: 'appearance.glass', label: 'Glass', default: 'frosted', attr: 'data-glass',

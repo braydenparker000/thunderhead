@@ -1,0 +1,50 @@
+/* Ink and Lamp on the ring: builder B's (approved: S-Ring-Grey, the hand; S-Ring-Dark, the light).
+   Home's ring keeps its size, places and movement (apps/home/home.css, home.js); here each disc is the
+   kit's round key (a 44 px face in its 50 px place) with its woodcut emblem (ring.js), the chosen one
+   the orange key, the name in EB Garamond over "release to open", and the hand or the light (.lk-r-aim,
+   ring.js) shows the choice. Home's hub (a dot at the finger) gives way to them. */
+:root[data-look="ink-lamp"]{--lk-veil:196px;--lk-gr:214 214 210}
+:root[data-look="ink-lamp"][data-theme="dark"]{--lk-gr:0 0 0}
+:root[data-look="ink-lamp"][data-ring-size="compact"]{--lk-veil:169px}
+:root[data-look="ink-lamp"][data-ring-size="large"]{--lk-veil:227px}
+/* Behind the ring the page falls back to the ground, most round the ring (ring.js puts it there).
+   "Dim behind the ring": Light halves it (home's own rule), Deep takes the page away. */
+:root[data-look="ink-lamp"] .scrim{background:radial-gradient(circle var(--lk-veil) at var(--lk-rx,50%) var(--lk-ry,50%),rgb(var(--lk-gr)/.94) 70%,rgb(var(--lk-gr)/.66) 88%,rgb(var(--lk-gr)/0)),rgb(var(--lk-gr)/.93)}
+:root[data-look="ink-lamp"][data-ring-dim="deep"] .scrim{background:rgb(var(--lk-gr)/.98)}
+:root[data-look="ink-lamp"] .ring .hub,:root[data-look="ink-lamp"] :is(.lk-r-beam,.lk-r-lens){display:none}
+
+/* The keys: the picture behind the face (::before, which home fades), and on Ink the same picture in
+   the glass layer (with a second emblem, .lk-r-up) so the six not chosen stay whole; Lamp lets them
+   sit in shadow, and lights the chosen one with a warm glow. */
+:root[data-look="ink-lamp"] .ring .pet::before,:root[data-look="ink-lamp"] .ring .pet .face::before{inset:-5.25px;border-radius:0;background:url("kit/round-light-up.webp") center/100% no-repeat;box-shadow:none;backdrop-filter:none}
+:root[data-look="ink-lamp"] .ring.glassy .pet .face::before{opacity:1}
+:root[data-look="ink-lamp"] .ring .pet .fill{margin:-5.25px;border-radius:0;background:url("kit/round-orange-up.webp") center/100% no-repeat}
+:root[data-look="ink-lamp"] .ring .pet svg.ph,:root[data-look="ink-lamp"] .ring .pet .lift{display:none}
+:root[data-look="ink-lamp"] .lk-r-em{position:relative;grid-area:1/1;width:24px;height:24px;color:#0A0A0A}
+:root[data-look="ink-lamp"] .ring .pet.on .lk-r-em:not(.lk-r-up){opacity:1}
+:root[data-look="ink-lamp"] .lk-r-up{position:absolute;left:13px;top:13px;opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-look="ink-lamp"]:not([data-theme="dark"]) .ring.glassy .pet .lk-r-up{opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring .pet::before{display:none}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring .pet .face::before{background:radial-gradient(circle,transparent 21.5px,rgba(255,255,255,.10) 22px 22.5px,transparent 23px),url("kit/round-nearblack-up.webp") center/100% no-repeat}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-r-em{color:#A8A8AD}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring .pet.on .lk-r-em{color:#0A0A0A}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring .pet .lift{display:block;inset:3px;box-shadow:0 0 22px rgba(255,150,70,.45),0 0 50px rgba(255,140,60,.22)}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring .pet.on .lift{opacity:1}
+
+/* The name, and what letting go does. */
+:root[data-look="ink-lamp"] .ring .lbl{padding:0;border:0;border-radius:0;background:none;box-shadow:none;text-align:center;font:500 26px/32px var(--font-say);color:var(--text)}
+:root[data-look="ink-lamp"] .ring .lbl::after{content:"release to open";display:block;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+
+/* The choice: one box at the ring's centre, turned to the chosen key (0 is up). Ink: the hand, ink on
+   the metal, its fingertip 5 px short of the key. Lamp: a lens at the finger and a warm beam from it,
+   a 34 degree wedge to just past the key. */
+:root[data-look="ink-lamp"] .lk-r-aim{position:absolute;left:0;top:0;opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-look="ink-lamp"] .lk-r-aim.on{opacity:1}
+:root[data-look="ink-lamp"] .lk-r-hand{position:absolute;left:-1.15px;top:-56.14px;width:100px;height:54.31px;max-width:none;transform-origin:1.15px 24.14px;rotate:90deg;filter:drop-shadow(0 0 0 rgba(10,10,10,.7));mask:linear-gradient(90deg,#000 58%,transparent 88%)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-r-hand{display:none}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-r-beam{display:block;position:absolute;left:-98px;top:-98px;width:196px;height:196px;filter:blur(3px);
+  background:radial-gradient(circle 98px,rgba(255,205,140,.85),rgba(255,205,140,.7) 30%,rgba(255,205,140,.45) 62%,rgba(255,205,140,.18) 84%,rgba(255,205,140,0));
+  mask:conic-gradient(from -17deg,transparent,rgba(0,0,0,.35) 6deg,rgba(0,0,0,.8) 12deg,#000 17deg,rgba(0,0,0,.8) 22deg,rgba(0,0,0,.35) 28deg,transparent 34deg)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-r-lens{display:block;position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;box-sizing:border-box;border:1px solid rgba(255,244,228,.85);border-radius:50%;opacity:0;transition:opacity var(--d-fast) var(--ease-out);
+  background:radial-gradient(circle at 50% 40%,#FFF4E2,rgba(255,214,160,.85) 50%,rgba(255,200,130,.35));box-shadow:inset 0 1px 0 #FFF,0 0 12px rgba(255,200,130,.85),0 0 30px rgba(255,170,90,.45)}
+:root[data-look="ink-lamp"][data-theme="dark"] .ring.glassy .lk-r-lens{opacity:1}

@@ -1,0 +1,85 @@
+/* Ink and Lamp: the shell's tokens (ui/tokens.css) redefined for the look, and the look's own.
+   Ink is data-theme="light" (light aluminium grey), Lamp is data-theme="dark" (true black): one
+   definition for both through light-dark(), as ui/tokens.css does. Values from the approved screens
+   and their token table (design SYSTEM6.md). This sheet comes last of all (ui/theme.js puts it after
+   <head>), so an attribute rule here outweighs its twin in ui/tokens.css at the same specificity.
+
+   The look's own tokens, for the pages built on it:
+     surfaces   --ground --plate (a raised or separate area) --well (pressed in) --hairline (1 px)
+                --display (a display window, dark in both themes) --display-ink --display-ink-2
+     text       --text --text-2 --text-3 (the shell's --ink, --ink-2, --ink-3 follow them)
+     two inks   --rubric (what the Thunderhead says in a special voice; gold on Sundays)
+                --key (what you press or turn) --key-ink (a legend on it) --signal (a waiting or live dot)
+     type       --font-say (EB Garamond: his words, screen titles) --font-day (Jacquard 24: a weekday,
+                an initial) --font-verse (IM Fell English italic, as "Lamp Fell": verses)
+                --font-legend (Geist Mono: legends and values) --font-time (Doto black: times)
+                --font-own (Switzer: the owner's words, control text)
+                --fs-say/--lh-say 19/26 px, --fs-say-title 30 px, --fs-own/--lh-own 15/21 px,
+                --fs-legend 11 px with --ls-legend .04em, --fs-key 12 px (a key's legend), --fs-day 28 px, --fs-time 15 px, --fs-verse 16 px */
+:root[data-look="ink-lamp"]{
+  --ground:light-dark(#D6D6D2,#000000); --plate:light-dark(#E4E4E0,#101012); --well:light-dark(#C2C2BD,#1B1B1E);
+  --hairline:light-dark(#A6A6A1,#2E2E33);
+  --text:light-dark(#0A0A0A,#FFFFFF); --text-2:light-dark(#3F3F3C,#A8A8AD); --text-3:light-dark(#5A5A56,#7C7C83);
+  --display:#050506; --display-ink:#FFFFFF; --display-ink-2:#A8A8AD;
+  --rubric:light-dark(#B3121A,#F0453F); --key:#FF4A12; --key-ink:#0A0A0A; --signal:#D71921;
+  --font-say:"EB Garamond",Georgia,"Times New Roman",serif;
+  --font-day:"Jacquard 24","EB Garamond",serif;
+  --font-verse:"Lamp Fell","EB Garamond",Georgia,serif;
+  --font-legend:"Geist Mono",ui-monospace,"Roboto Mono",monospace;
+  --font-time:"Doto","Geist Mono",ui-monospace,monospace;
+  --font-own:"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fs-say:19px; --lh-say:26px; --fs-say-title:30px; --fs-own:15px; --lh-own:21px;
+  --fs-legend:11px; --ls-legend:.04em; --fs-key:12px; --fs-day:28px; --fs-time:15px; --fs-verse:16px;
+
+  /* The shell's tokens, taken over. */
+  --bg:var(--ground);
+  --ink:var(--text); --ink-2:var(--text-2); --ink-3:var(--text-3);
+  --accent-fill:#B3121A; --accent-text:var(--rubric); --accent-icon:var(--rubric);
+  --gold:var(--key); --gold-ink:var(--key-ink); --gold-text:var(--rubric);
+  --alarm:light-dark(#B3121A,#F0453F);
+  --glow:var(--hairline);
+  /* No pastel field, no drifting lights: the ground is one colour. */
+  --field-1:var(--ground); --field-2:var(--ground); --field-3:var(--ground);
+  --blob-1:transparent; --blob-2:transparent; --blob-opacity:0;
+  /* Panels are solid plates with a hairline; glass stays only on what floats (the ask bar, a sheet). */
+  --glass:var(--plate); --glass-line:var(--hairline); --glass-flat:light-dark(#F2F2EE,#1B1B1E);
+  --bar:light-dark(rgba(255,255,255,.42),rgba(255,255,255,.08)); --bar-line:light-dark(rgba(255,255,255,.9),rgba(255,255,255,.18));
+  --sheet:light-dark(rgba(228,228,224,.96),rgba(16,16,18,.96));
+  --panel:var(--ground);
+  --disc:light-dark(#EDEDE8,#1B1B1E); --disc-line:var(--hairline);
+  --dim:rgba(0,0,0,.30); --scrim:light-dark(rgba(214,214,210,.55),rgba(0,0,0,.55));
+  --voice:var(--font-say); --ui:var(--font-own); --mono:var(--font-legend);
+  --fs-reply:var(--fs-say); --lh-reply:1.37; --fs-input:var(--fs-own);
+  /* Shape: panels and display windows 30, the decision strip 24, bubbles 18; keys are the kit's. */
+  --r-bubble:18px; --r-l:24px; --r-xl:30px;
+  /* Elevation: a white top edge on Ink, a faint one on Lamp, and short soft shadows. */
+  --e1:inset 0 1px 0 light-dark(rgba(255,255,255,.85),rgba(255,255,255,.06));
+  --e2:var(--e1),0 10px 26px -16px light-dark(rgba(0,0,0,.16),#000);
+  --e3:0 24px 50px -22px light-dark(rgba(0,0,0,.28),#000);
+  /* Only the weights that ship (EB Garamond and Geist Mono 400 to 500): never a faked bold. */
+  font-synthesis:none;
+}
+/* Sunday's rubric is gold (look.js sets data-day from the phone's date). */
+:root[data-look="ink-lamp"][data-day="sunday"]{--rubric:light-dark(#7A5A0E,#D9B45A)}
+/* The owner's text size moves his words and theirs, as ui/tokens.css does for the classic look. */
+:root[data-look="ink-lamp"][data-text="s"]{--fs-reply:17px;--fs-input:14px}
+:root[data-look="ink-lamp"][data-text="l"]{--fs-reply:21px;--fs-input:17px}
+/* Accent intensity is the classic blue's: the look keeps its inks. Flat glass keeps its meaning (no
+   blur anywhere, ui/tokens.css) with fills of the look's own; Corners still moves every radius. */
+:root[data-look="ink-lamp"][data-accent-intensity]{--accent-fill:#B3121A;--accent-text:var(--rubric);--accent-icon:var(--rubric);--glow:var(--hairline)}
+/* The focus ring, the shell's own (ui/forms.css), in the rubric: on Lamp's black the deep red is under 3:1. */
+:root[data-look="ink-lamp"][data-theme="dark"] :focus-visible{outline-color:var(--rubric)}
+:root[data-look="ink-lamp"][data-glass="flat"]{--glass:var(--plate);--bar:light-dark(rgba(242,242,238,.94),rgba(27,27,30,.96));--sheet:light-dark(#E4E4E0,#101012);--panel:var(--ground)}
+:root[data-look="ink-lamp"][data-corners="sharper"]{--r-bubble:12px;--r-l:16px;--r-xl:20px}
+:root[data-look="ink-lamp"][data-corners="round"]{--r-bubble:22px;--r-l:28px;--r-xl:34px}
+
+/* Switched off under the look (the approved screens have none): the drifting lights behind the field,
+   the edge light at the bottom of home, the coloured glows and pulses round cards (home's working and
+   decision cards, the Briefing's waiting tile, the menu's Now), and the frost of the panels that are
+   now solid (home's cards, the menu's and Settings' layers). --glow is a hairline for what still tints. */
+:root[data-look="ink-lamp"] .edge{display:none}
+:root[data-look="ink-lamp"] #working .card,:root[data-look="ink-lamp"] #decision .card,:root[data-look="ink-lamp"] #now{box-shadow:var(--e2)}
+:root[data-look="ink-lamp"] .tile.gold{box-shadow:inset 0 0 0 1px var(--hairline)}
+:root[data-look="ink-lamp"] .card.pulse,:root[data-look="ink-lamp"] #decision .card.pulse{animation:none}
+:root[data-look="ink-lamp"] .field::before,:root[data-look="ink-lamp"] .field::after{display:none}
+:root[data-look="ink-lamp"] .card,:root[data-look="ink-lamp"] #app .side>.field,:root[data-look="ink-lamp"] #app .spage>.field{backdrop-filter:none;-webkit-backdrop-filter:none}

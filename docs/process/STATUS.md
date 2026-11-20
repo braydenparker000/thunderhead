@@ -5,7 +5,7 @@ At most 80 lines ([RUNTIME.md §14](../mind/RUNTIME.md#14-statusmd-upkeep)): old
 history. October's narrative and the whole deploy log are in
 [archive/STATUS-2026-10.md](../archive/STATUS-2026-10.md).
 
-## Now (2026-11-19)
+## Now (2026-11-20)
 
 The owner enjoys the product; the agent leads, and work lands as pull requests the owner merges
 (AGENTS.md). The plan is [PLAN.md](PLAN.md); fixed decisions are [decisions.md](decisions.md). Owner,
@@ -17,16 +17,16 @@ were tidied on 2026-11-02: history moved to [docs/archive/](../archive/README.md
 **Photos → LightCraft (owner, 2026-11-08; decisions.md):** step 1, the test page `/lab/lightcraft/`
 (engine/lightcraft-web/README.md) for the owner's phone; step 2 is export and 1:1 memory (measured there).
 
-**Astra finished (2026-11-12 to 19; PRs #206 to #212, live):** TorBox direct play, sync of the
-library sealed on the owner's server, remembered streams on Continue Watching, the look, motion and
-settings round, a feel report with what froze (`docs/product/apps/ASTRA.md`). Owner: "pretty set".
+**Astra finished (2026-11-12 to 19; PRs #206 to #212, live):** TorBox direct play, sealed library
+sync, remembered streams, the look and settings round, a feel report (`docs/product/apps/ASTRA.md`).
 
-**The main pages' feel round (2026-11-19, one PR):** the island remade as one shape that follows
-the finger; apps open from the ring in one movement; Back restores home whole; card folds, menu
-groups and Settings slide without layout animation; Settings gains search, Motion Off and Reset this
-page; a feel report for the shell (Settings → About). Left: the ring's per-frame style work
-(compositor springs), the re-rise on leaving an old conversation (owner's call), cold start. Music:
-audited read-only; its look and behaviour change only after talking with the owner.
+**The main pages' feel round (2026-11-19, PR #213, live).** Left: the ring's per-frame style work,
+the re-rise on leaving an old conversation (owner's call). Music: audited read-only; its look and
+behaviour change only after talking with the owner.
+
+**Ink and Lamp (2026-11-20, one PR):** a second look for the main pages behind Settings › Appearance
+› Look, off unless chosen ([INK-AND-LAMP.md](../design/INK-AND-LAMP.md); decisions.md), all in
+`frontend/look/`, kept on the phone after one load. Waiting on the owner: whether it becomes the default.
 
 ## Current phase: what is live
 

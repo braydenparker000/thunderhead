@@ -4,6 +4,8 @@ Home is the one screen the Thunderhead lives on: a quiet chat, the mind's cards 
 This file specifies every element and state on it, with exact values and an acceptance check for each behaviour. Numbers come from the locked prototype (`proto/thunderhead-prototype.html`, v11) and the first build (`frontend/apps/home/`), unless marked **[proposal]**.
 Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIGN-SYSTEM.md), [COPY](../design/COPY.md), [BRIEFING](BRIEFING.md), [MENU-AND-SETTINGS](MENU-AND-SETTINGS.md), [SIGN-IN](SIGN-IN.md), [mind BEHAVIOR](../mind/BEHAVIOR.md), [API](../engineering/API.md), [decisions](../process/decisions.md).
 
+With the look **Ink and Lamp** chosen (Settings › Appearance › Look; [INK-AND-LAMP](../design/INK-AND-LAMP.md)) home keeps every behaviour below and is drawn differently: a header line with the day's name and the `rec` switch, the day's picture and verse opening the conversation, the decision as a slim strip with a dial that hides it on this phone for a while ("later"), and no hint line.
+
 ## Rules at a glance
 
 1. **One screen** (owner ruling). Top to bottom: date line (with the status chip only when something is off), today's conversation with the mind's cards in it, hint (only while learning), the working card (docked, only while a reply is on its way, §4.13), decision card (docked, only when one waits), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
