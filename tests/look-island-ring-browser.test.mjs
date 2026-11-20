@@ -11,6 +11,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN as KEY } from './fixtures/mock-api.mjs';
+import { island, settle } from './fixtures/look-island.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 120_000 };
@@ -63,24 +64,6 @@ async function phone(theme, look, reducedMotion = 'no-preference') {
   return { context, page, errors, asked };
 }
 
-const settle = (page) => page.evaluate(() => import('/th/island/island.js').then((m) => m.whenResting()));
-/** Music opened and shrunk into the island, an invented song playing at 0:07 of 0:59. */
-async function island(page) {
-  await page.evaluate(() => new Promise((resolve) => { document.addEventListener('th:app-ready', resolve, { once: true }); import('/th/island/island.js').then((m) => m.openApp('music')); }));
-  await settle(page);
-  await page.evaluate(() => import('/th/island/island.js').then((m) => m.collapse('test')));
-  await settle(page);
-  await page.evaluate(() => {
-    const p = document.querySelector('iframe[data-app=music]').contentWindow.__cp.player, a = p.audio;
-    p.queue = [{ id: 'one', title: 'An invented tone', artist: 'An invented band' }]; p.index = 0;
-    Object.defineProperty(a, 'paused', { get: () => false, configurable: true });
-    Object.defineProperty(a, 'duration', { value: 59, configurable: true });
-    Object.defineProperty(a, 'currentTime', { value: 7, configurable: true, writable: true });
-  });
-  await page.waitForSelector('.th-island.playing');
-  await page.waitForFunction(() => document.querySelector('.th-island .title').textContent === 'An invented tone');
-  await settle(page);
-}
 /** The ring held open at the screen's middle, Music (straight up) chosen. */
 async function ring(page) {
   await page.mouse.move(195, 520); await page.mouse.down();
@@ -285,7 +268,7 @@ test('turned on, used and off again: home, the menu, Settings and the Briefing a
   };
   try {
     const [never, used] = [await run(false), await run(true)];
-    assert.deepEqual(used.left, [], 'nothing of the look is left in the DOM');
+    assert.deepEqual(used.left, ['HTML[data-look=classic]'], 'nothing of the look is left in the DOM but which look it is');
     assert.deepEqual([never.errors, used.errors], [[], []]);
     // The same to the pixel, but for the raster noise two classic phones show under load (≤ 120 channels, ≤ 16 levels).
     const page = await browser.newPage(); // (the pictures decoded and compared by the browser's own canvas)

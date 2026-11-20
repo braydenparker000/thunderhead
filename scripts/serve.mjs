@@ -12,23 +12,28 @@ import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, look
 const ROOT = fileURLToPath(new URL('../frontend/', import.meta.url));
 const TYPES = CONTENT_TYPES;
 
+/** The tests' phone has chosen a look, Classic unless a test says otherwise: most of them were written on
+ * it, and the default is Ink and Lamp. Once per storage (a later choice in Settings stands), and not where
+ * a test sets `th.t.look` itself to be a phone that has chosen nothing. @param {string} look */
+const chosen = (look) => look ? `try{if(!localStorage.getItem('th.t.look')){localStorage.setItem('th.t.look','1');if(!localStorage.getItem('th.s.appearance.look'))localStorage.setItem('th.s.appearance.look','${look}')}}catch{}\n` : '';
+
 /** A file as stage.mjs would publish it for that API address. */
-async function staged(path, api, build) {
+async function staged(path, api, build, look = '') {
   if (path === 'config.js') return Buffer.from(configJs({ api, build }));
   // The look's folder as published, look/<hash>/ (scripts/look-config.mjs), named in ui/theme.js.
   const body = await readFile(join(ROOT, path.replace(TAGGED, 'look/')));
-  if (path === 'ui/theme.js') return Buffer.from(themeJs(body.toString('utf8'), lookTag(join(ROOT, 'look'))));
+  if (path === 'ui/theme.js') return Buffer.from(chosen(look) + themeJs(body.toString('utf8'), lookTag(join(ROOT, 'look'))));
   if (path === 'sw.js') return Buffer.from(swJs(body.toString('utf8'), build));
   if (path === 'lab/engine/build.js') return Buffer.from(labBuildJs(body.toString('utf8'), `b${build}`));
   return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api, path)) : body;
 }
 
-async function precacheList(api, build) {
+async function precacheList(api, build, look) {
   const list = [];
   for (const e of await readdir(ROOT, { recursive: true, withFileTypes: true })) {
     if (!e.isFile()) continue;
     const path = relative(ROOT, join(e.parentPath, e.name)).replaceAll('\\', '/');
-    if (precached(path)) list.push({ path, size: (await staged(path, api, build)).length });
+    if (precached(path)) list.push({ path, size: (await staged(path, api, build, look)).length });
   }
   return precacheJson(build, list);
 }
@@ -47,9 +52,10 @@ async function labList(api, build) {
 }
 
 /** `api`: serve the site as staged for that API address (config.js and CSP); `build`: the release
- * number in sw.js, precache.json and config.js (a test serves build A, then B). */
-export function serve(port = 0, { api = '', build = 1 } = {}) {
-  const opts = { api, build, up: true }, asked = /** @type {string[]} */ ([]), files = /** @type {Map<string, Buffer>} */ (new Map());
+ * number in sw.js, precache.json and config.js (a test serves build A, then B); `look`: the look the
+ * phone has chosen (`chosen` above), '' for none. */
+export function serve(port = 0, { api = '', build = 1, look = 'classic' } = {}) {
+  const opts = { api, build, look, up: true }, asked = /** @type {string[]} */ ([]), files = /** @type {Map<string, Buffer>} */ (new Map());
   const server = createServer(async (req, res) => {
     if (!opts.up) { req.socket.destroy(); return; }   // no signal: the connection just drops
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^[/\\]+/, '');
@@ -57,11 +63,11 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
     if (path === '' || path.endsWith('/')) path += 'index.html';
     asked.push(path);
     try {
-      if (path === 'precache.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await precacheList(opts.api, opts.build)); return; }
+      if (path === 'precache.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await precacheList(opts.api, opts.build, opts.look)); return; }
       if (path === 'lab/offline.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await labList(opts.api, opts.build)); return; }
       // like stage.mjs: an app route without its own page gets the shell
       if (!existsSync(join(ROOT, path)) && APP_ROUTES.some(r => path === `${r}/index.html`)) path = 'index.html';
-      const body = files.get(path.replace(TAGGED, 'look/')) ?? await staged(path, opts.api, opts.build);
+      const body = files.get(path.replace(TAGGED, 'look/')) ?? await staged(path, opts.api, opts.build, opts.look);
       res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404, { 'content-type': TYPES['.html'] }).end(await readFile(join(ROOT, '404.html')));
@@ -81,6 +87,6 @@ export function serve(port = 0, { api = '', build = 1 } = {}) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const server = await serve(Number(process.env.PORT) || 8080);
+  const server = await serve(Number(process.env.PORT) || 8080, { look: '' });
   console.log(`http://127.0.0.1:${server.address().port}`);
 }

@@ -84,12 +84,13 @@ export function phoneValue(key) {
   return valid(s, v) ? v : s.default;
 }
 
-/** Puts each phone setting that has an attribute on <html>, while it is not at its default. */
+/** Puts each phone setting that has an attribute on <html>, while it is not at its default; the look's
+ * always (ui/theme.js too): its sheet and scripts go by its name. */
 export function applyPhone(root = document.documentElement) {
   for (const s of ALL) {
     if (s.scope !== 'phone' || !s.attr) continue;
     const v = phoneValue(s.key);
-    if (same(v, s.default)) root.removeAttribute(s.attr);
+    if (same(v, s.default) && s.key !== 'appearance.look') root.removeAttribute(s.attr);
     else root.setAttribute(s.attr, String(v));
   }
 }

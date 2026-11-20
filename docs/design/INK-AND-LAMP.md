@@ -1,10 +1,12 @@
 # Ink and Lamp
 
-The second look of the Thunderhead's main pages (home and the conversation, the island, the ring,
-the Briefing, the menu, Settings, the `+` sheet). It is chosen in Settings › Appearance › Look
-(`appearance.look`: `classic`, the default, or `ink-lamp`) and is a skin over the same pages: no
-behaviour of theirs changes, and with the look off nothing of it is requested or shown. Music,
-Podcasts, Astra, Guitar, Study, Photos, My Media and the sign-in pages keep their own looks.
+The look of the Thunderhead's main pages (home and the conversation, the island, the ring, the
+Briefing, the menu, Settings, the `+` sheet), and the default since the owner chose it on 2026-11-20
+("It's very good… then we make it the default"). It is set in Settings › Appearance › Look
+(`appearance.look`: `ink-lamp`, the default, or `classic`, the look before it) and is a skin over the
+same pages: no behaviour of theirs changes, and with Classic chosen nothing of it is requested or
+shown. Music, Podcasts, Astra, Guitar, Study, Photos, My Media and the sign-in pages keep their own
+looks: the look is loaded on the shell's pages only.
 
 Day is **Ink** (a grey page, dark ink, engravings); night is **Lamp** (true black, light, paintings).
 The existing Theme setting chooses between them, Auto included.
@@ -71,8 +73,11 @@ code, a number, an emoji or a link takes no initial.
   hides that decision on this phone for the time the dial shows (1 h, 3 h, tonight, tomorrow; kept in
   `localStorage`, nothing sent to the Worker; it comes back when the time is up or the look is
   turned off). The ask bar is a glass pill with round keys; the send key is orange.
-- **The island.** A black capsule in a glass rim with two tape reels in place of the artwork, and a
-  dot meter. Expanded: reels, a dot progress meter, kit keys for the transport.
+- **The island.** A black capsule in a glass rim: the artwork of what plays (the owner, 2026-11-20:
+  "The island photo should show the content that's being played"), the title and a dot meter.
+  Expanded: the artwork with the title beside it and the times at its foot, a dot progress meter, kit
+  keys for the transport. Where what plays has no artwork, or Island › Artwork is off, two tape reels
+  stand in on the capsule and a tape deck on the card.
 - **The ring.** The same size and behaviour as the classic ring. Each app is a round key carrying a
   woodcut emblem (harp, trumpet, star, lute, book, arched picture, chest). The choice is shown on
   Ink by a pointing hand that turns to the chosen app, on Lamp by a beam of light that falls on it.
@@ -103,9 +108,13 @@ and the Book of Mormon (Project Gutenberg #17).
 
 Everything is under `frontend/look/`, with its own size limits (`scripts/look-config.mjs`).
 
-- `ui/theme.js` copies the setting to `<html data-look>` before the first paint and, only when it is
-  `ink-lamp`, adds `look/look.css` (the page stays unseen until it has loaded, 400 ms at most) and
-  loads `look/look.js` after the first paint. Turning the look on or off in Settings applies at once.
+- `ui/theme.js` puts the look on `<html data-look>` before the first paint (always: `classic` where
+  the phone has chosen it, `ink-lamp` otherwise) and, only when it is `ink-lamp` and the page is the
+  shell's, adds `look/look.css` (the page stays unseen until it has loaded, 400 ms at most) and
+  loads `look/look.js` after the first paint. Changing the look in Settings applies at once.
+- The browser tests' server (`scripts/serve.mjs`) serves a phone that has chosen Classic, which most
+  suites were written on; the look's own suites choose it, and `tests/look-default-browser.test.mjs`
+  holds the default.
 - Every rule is scoped under `:root[data-look="ink-lamp"]`. Each page's part is its own sheet and its
   own module; a module adds what it adds through `whileOn()` and takes all of it away when the look
   goes off. No existing page file carries any of the look.

@@ -49,11 +49,12 @@ export async function stageLook(out) {
 /** The look's size limits, each as measured. @param {{ path: string, size: number }[]} list */
 export function lookBudgets(list) {
   const sum = (re) => list.filter((f) => f.path.startsWith('look/') && re.test(f.path.replace(TAGGED, '').replace(/^look\//, ''))).reduce((n, f) => n + f.size, 0);
-  // (2026-11-20) Ink and Lamp, off unless chosen and loaded only then; the owner: "That's fine because it
-  // should get cached after one load anyways". Each limit is what was measured, with no room.
+  // (2026-11-20) Ink and Lamp, the default since that day and loaded only while it is the look; the owner:
+  // "That's fine because it should get cached after one load anyways". Each limit is what was measured,
+  // with no room.
   return [
-    ['look CSS bytes', sum(/\.css$/), 125_245],
-    ['look JS bytes', sum(/\.js$/), 69_380],
+    ['look CSS bytes', sum(/\.css$/), 126_556],
+    ['look JS bytes', sum(/\.js$/), 70_085],
     ['look font bytes', sum(/\.woff2$/), 129_576],
     ['look kit bytes', sum(/^kit\//), 204_168],
     ['look emblem bytes', sum(/^emblems\.svg$/), 6_160],

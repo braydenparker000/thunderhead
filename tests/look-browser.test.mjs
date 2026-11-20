@@ -83,11 +83,11 @@ const drawn = (page) => page.evaluate(async () => {
   return { ground: getComputedStyle(document.body).backgroundColor, plate, faces, ready: document.documentElement.hasAttribute('data-look-ready') };
 });
 
-test('with the look off, home asks for nothing of it and <html> has no look attribute', opts, async () => {
+test('with Classic chosen, home asks for nothing of the look and <html> says classic', opts, async () => {
   const { context, page, errors, asked } = await phone();
   await home(page);
   await outlast(page, 600); // a negative read: past the first paint, when the look's script would load
-  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-look')), false);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'classic');
   assert.deepEqual(asked.filter((p) => p.startsWith('/look/')), []);
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), CLASSIC_DAY);
   assert.deepEqual(errors, []);
@@ -134,8 +134,9 @@ test('Settings › Appearance › Look turns it on and off at once', opts, async
     window.__runs = [];
     whileOn(() => { window.__runs.push('start'); return () => window.__runs.push('stop'); });
   });
+  assert.equal(await page.evaluate(() => localStorage.getItem('th.s.appearance.look')), null, 'the default is not stored');
   await page.click('[data-key="appearance.look"] [data-v="classic"]');
-  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-look')), false);
+  assert.deepEqual(await page.evaluate(() => [document.documentElement.dataset.look, localStorage.getItem('th.s.appearance.look')]), ['classic', 'classic']);
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), CLASSIC_DAY);
   assert.deepEqual(await bar(), own, 'the page\'s own browser bar colours come back');
   await page.click('[data-key="appearance.look"] [data-v="ink-lamp"]');

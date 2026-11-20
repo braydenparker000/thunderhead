@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-20-ink-and-lamp",
+  "id": "2026-11-20-ink-and-lamp-default",
   "date": "2026-11-20",
   "lines": [
     {
-      "text": "A new look, Ink and Lamp, is in Settings › Appearance › More appearance › Look. Classic stays until you choose it."
+      "text": "Ink and Lamp is now the look everywhere you are signed in. Classic is still in Settings › More appearance › Look."
     },
     {
-      "text": "Each day opens with a picture and a verse; my messages begin with a red initial."
+      "text": "The island shows the picture of what is playing; the tape reels stay for anything without one."
     },
     {
-      "text": "Keys, dials and faders you can press and drag; the ring points a hand by day and a light by night."
-    },
-    {
-      "text": "It is kept on the phone after one load, pictures included."
+      "text": "Photos and Study keep their own look: they were picking up Ink and Lamp's colours by mistake."
     }
   ]
 }
