@@ -81,8 +81,8 @@
 /* The docked decision: the slim strip. Its lamp and legend, the question on one line, the kit's keys
    (the affirmative orange), and the dial for later (look/home-later.js). */
 :root[data-look="ink-lamp"] #home>.dock{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(8px + var(--ask-h,60px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
-:root[data-look="ink-lamp"] #decision .card.decision{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:0;min-height:80px;max-height:none;margin:0;padding:9px 48px 12px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 0 rgba(255,255,255,.5)}
-:root[data-look="ink-lamp"][data-theme="dark"] #decision .card.decision{padding:8px 50px 12px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+:root[data-look="ink-lamp"] #decision .card.decision{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:0;min-height:80px;max-height:none;margin:0;padding:9px 66px 12px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 0 rgba(255,255,255,.5)}
+:root[data-look="ink-lamp"][data-theme="dark"] #decision .card.decision{padding:8px 72px 12px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 :root[data-look="ink-lamp"] #decision .card.decision>:not(.lk-later-b){grid-column:1/-1;margin:0}
 /* Its first line: the lamp, "decision", then who asks (the card's own words) to the right, cut short with
    an ellipsis when long. */
@@ -104,18 +104,18 @@
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):active{transform:none}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):is(:active,.busy)::before{border-image-source:var(--down)}
 :root[data-look="ink-lamp"] #decision .card .decide button.busy::after{width:10px;height:10px;margin-left:6px}
-/* The dial for later: Ink's beside the strip's right edge with its legend under it; Lamp's at the end
-   of the keys, ringed with ticks, its legend on the strip's first line. */
+/* The dial for later, in a column of its own 60 px wide (its longest legend, "tomorrow", fits; the
+   legend face does not change with Text size), so the keys never touch it and the question gives way
+   first: Ink's with its legend under it; Lamp's ringed with ticks, its legend on the first line. */
 :root[data-look="ink-lamp"] #decision.lk-later,:root[data-look="ink-lamp"] #home:has(.ask:is(.typing,.menu)) #decision{display:none}
-:root[data-look="ink-lamp"] .lk-later-b{position:absolute;top:5px;right:2px;width:44px;height:52px;margin:0;padding:0;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .lk-later-b{position:absolute;top:5px;right:2px;width:60px;height:52px;margin:0;padding:0;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
 :root[data-look="ink-lamp"] .lk-ring{position:relative;display:grid;place-items:center;width:34px;height:34px}
 :root[data-look="ink-lamp"] .lk-ring .lk-ticks{display:none;position:absolute;inset:0;width:34px;height:34px;stroke:#8E8E8A}
 :root[data-look="ink-lamp"] .lk-lh{display:block;margin-top:2px;white-space:nowrap;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
-:root[data-look="ink-lamp"] .lk-later-b.lk-long .lk-lh{align-self:flex-end;margin-right:2px}
-:root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b{top:20px;right:8px;width:44px;height:44px;justify-content:center}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b{top:20px;right:8px;width:60px;height:44px;justify-content:center}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-ticks{display:block}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-dial--small{width:26px;height:26px}
-:root[data-look="ink-lamp"][data-theme="dark"] .lk-lh,:root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b.lk-long .lk-lh{position:absolute;top:-12px;right:5px;min-width:34px;margin:0;text-align:center;color:#FFFFFF}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-lh{position:absolute;top:-12px;left:0;right:0;margin:0;text-align:center;color:#FFFFFF}
 :root[data-look="ink-lamp"] #home.otr #decision .card .why .d{background:var(--hairline);box-shadow:none}
 
 /* The working card: the strip's plate, a lamp for the live dot, Stop a key. */
@@ -149,10 +149,10 @@
 :root[data-look="ink-lamp"] .toast .tact{font:500 var(--fs-key) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text);text-decoration:underline;text-underline-offset:3px}
 :root[data-look="ink-lamp"] .status[data-kind]{color:var(--text-2)}
 :root[data-look="ink-lamp"] .status[data-kind="wake"] svg{fill:var(--signal)}
-:root[data-look="ink-lamp"] .timechip{top:calc(96px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] .timechip{z-index:6;top:calc(100px + env(safe-area-inset-top,0px))}
 :root[data-look="ink-lamp"] #cmdhint{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
 :root[data-look="ink-lamp"] .pullfind{top:calc(96px + env(safe-area-inset-top,0px));background:var(--plate);border-color:var(--hairline);font:500 var(--fs-legend) var(--font-legend);color:var(--text-2)}
 :root[data-look="ink-lamp"] .pullfind.ready{color:var(--text)}
-/* The gesture hint, while it still shows: a legend. */
-:root[data-look="ink-lamp"] .hint{margin-top:18px;font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
-:root[data-look="ink-lamp"] .hint i{width:12px;height:12px;border-width:1px}
+/* The gesture hint is not part of this design (owner): gone, and its room with it. */
+:root[data-look="ink-lamp"] #hint{display:none}
+

@@ -13,7 +13,7 @@
 :root[data-look="ink-lamp"] .lk-veil{position:absolute;left:0;right:0;top:40px;height:66px;background:linear-gradient(180deg,rgba(214,214,210,0) 0%,rgba(214,214,210,.55) 30%,rgba(214,214,210,.55) 72%,rgba(214,214,210,0) 100%)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-veil{left:auto;top:30px;right:-30px;width:200px;height:86px;background:radial-gradient(ellipse 50% 50% at 50% 50%,rgba(0,0,0,.55) 0%,rgba(0,0,0,.3) 45%,rgba(0,0,0,0) 100%)}
 /* Scrolled away from the picture, the ground itself runs under the line (opacity only). */
-:root[data-look="ink-lamp"] .lk-veil.lk-deep{left:0;right:0;top:0;width:auto;height:118px;opacity:0;background:linear-gradient(180deg,var(--ground) 0,var(--ground) 84px,transparent 118px);transition:opacity var(--d-base) var(--ease-default)}
+:root[data-look="ink-lamp"] .lk-veil.lk-deep{left:0;right:0;top:0;width:auto;height:140px;opacity:0;background:linear-gradient(180deg,var(--ground) 0,var(--ground) 104px,transparent 140px);transition:opacity var(--d-base) var(--ease-default)}
 :root[data-look="ink-lamp"] #home.lk-away .lk-deep{opacity:1}
 :root[data-look="ink-lamp"] .lk-line{position:absolute;top:54px;left:20px;height:32px;margin:0;display:flex;align-items:baseline;white-space:nowrap}
 :root[data-look="ink-lamp"] .lk-day{font:400 var(--fs-day)/32px var(--font-day);color:var(--rubric)}

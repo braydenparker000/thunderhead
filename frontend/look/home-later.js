@@ -74,7 +74,6 @@ export function later() {
     const show = (/** @type {boolean} */ moving) => {
       const s = STOPS[stop];
       lh.textContent = s.legend;
-      b.classList.toggle('lk-long', s.legend.length > 4);
       b.setAttribute('aria-label', `Decide later, ${s.words}`);
       if (moving) turn.to(s.turn, { spring: springs.pop });
       else turn.set(s.turn);
