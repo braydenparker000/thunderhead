@@ -146,6 +146,7 @@
 
 /* Reset this page: a black key (dark on Lamp), a dotted leader, the page's name. */
 :root[data-look="ink-lamp"] .scatalog{position:relative}
+:root[data-look="ink-lamp"] .scatalog[aria-busy]{opacity:.55}
 :root[data-look="ink-lamp"] .scatalog>.group:last-child{display:flex;align-items:center;margin-top:22px}
 :root[data-look="ink-lamp"] .scatalog>.group:last-child>*{border:0}
 :root[data-look="ink-lamp"] .scatalog>.group:last-child::after{content:"";flex:1;height:1px;margin-left:10px;background:repeating-linear-gradient(90deg,#A6A6A1 0 2px,transparent 2px 5px)}

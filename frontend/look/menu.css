@@ -19,10 +19,9 @@
 :root[data-look="ink-lamp"][data-theme="dark"] #now .tl::before{box-shadow:0 0 4px var(--rubric),0 0 10px rgba(240,69,63,.55)}
 :root[data-look="ink-lamp"] .side.searching #now{display:none}
 :root[data-look="ink-lamp"] #now .lk-sep{display:none}
-:root[data-look="ink-lamp"] #now .sub{display:block;margin-top:6px;padding-right:92px;overflow:hidden;font:400 var(--fs-say)/26px var(--font-say);color:var(--text);white-space:nowrap;text-overflow:ellipsis}
-:root[data-look="ink-lamp"] #now .lk-n,:root[data-look="ink-lamp"] #now .row-value{position:absolute;right:36px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
-:root[data-look="ink-lamp"] #now .lk-n{top:13px}
-:root[data-look="ink-lamp"] #now .row-value{top:33px;color:var(--text-2)}
+:root[data-look="ink-lamp"] #now .sub{display:block;margin-top:6px;overflow:hidden;font:400 var(--fs-say)/26px var(--font-say);color:var(--text);white-space:nowrap;text-overflow:ellipsis}
+:root[data-look="ink-lamp"] #now .lk-n{margin-left:8px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] #now .row-value{position:absolute;top:10px;right:36px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
 :root[data-look="ink-lamp"] #now .row-caret{position:absolute;right:12px;top:50%;width:14px;height:14px;margin-top:-7px;fill:var(--text-3)}
 
 /* The groups: a red italic rubric, a hairline, the count; rows on the ground under it. */

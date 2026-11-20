@@ -3,7 +3,7 @@
 // on (whileOn) and, turned off, takes away all it added. The Lamb, the Thunderhead's own mark, at the
 // right of the title line; Settings' key as the kit's small dial with its legend; Now's count of
 // messages set apart from its date ("Thursday 29 October · 6 messages": the date in his face, the
-// count in the legend face at the right), kept so as the menu redraws it (convos/menu.js drawNow).
+// count after it in the legend face), kept so as the menu redraws it (convos/menu.js drawNow).
 import { LOOK, whileOn } from './look.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
