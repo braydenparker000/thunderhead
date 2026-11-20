@@ -109,7 +109,8 @@ const budgets = [
   // page's wasm too (lab/engine/, its own budget below), for the same reason.
   // (2026-11-10) Less Astra's software decoders too (assets/libmedia/, their own budget below): each is fetched
   // only when a film needs that decoder, never with the shell or offline.
-  ['total bytes', total - sum(/^lab\/lightcraft\//) - sum(/^lab\/engine\/.*\.wasm$/) - sum(/^assets\/libmedia\//), 40_000_000],
+  // (2026-11-20) Less Ink and Lamp's daily pictures (look/pictures/): fetched only with that look on, with their own limit (look picture bytes).
+  ['total bytes', total - sum(/^lab\/lightcraft\//) - sum(/^lab\/engine\/.*\.wasm$/) - sum(/^assets\/libmedia\//) - sum(/^look\/pictures\//), 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().

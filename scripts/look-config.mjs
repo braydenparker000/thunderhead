@@ -53,11 +53,14 @@ export function lookBudgets(list) {
   // should get cached after one load anyways". Each limit is what was measured, with no room.
   return [
     ['look CSS bytes', sum(/\.css$/), 18_493],
-    ['look JS bytes', sum(/\.js$/), 10_179],
+    ['look JS bytes', sum(/\.js$/), 12_618],
     ['look font bytes', sum(/\.woff2$/), 129_576],
     ['look kit bytes', sum(/^kit\//), 204_168],
     ['look emblem bytes', sum(/^emblems\.svg$/), 6_160],
-    // The daily pictures (look/pictures/): none yet.
-    ['look picture bytes', sum(/^pictures\//), 0],
+    // The ring's pointing hand, as ink (look/art/).
+    ['look art bytes', sum(/^art\//), 18_256],
+    // The daily pictures (look/pictures/; their sources: docs/design/LOOK-PICTURES.md) and their list.
+    ['look picture bytes', sum(/^pictures\//), 2_691_228],
+    ['look list bytes', sum(/^plates\.json$/), 5_435],
   ];
 }
