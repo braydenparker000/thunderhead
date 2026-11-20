@@ -171,10 +171,10 @@ test('with the look off the island and the ring ask for and draw nothing of it',
     await island(page); await page.evaluate(() => import('/th/island/island.js').then((m) => m.wide(true)));
     await settle(page);
     await ring(page);
-    await page.mouse.up();
     assert.deepEqual(asked.filter((p) => p.startsWith('/look/')), []);
     assert.equal(await page.evaluate(() => document.querySelectorAll('[class^="lk-"]').length), 0);
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.th-island .art')).opacity), '1');
+    await page.mouse.up(); // (last: letting go opens the chosen app, and the island's own morph fades its artwork)
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

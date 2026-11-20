@@ -46,22 +46,22 @@ async function open({ messages = [say(1, 'owner', 'A calm start, please.')], red
   return { page, context, errors, api };
 }
 
-/** Whether `sel` has a running animation of its transform. */
-const slides = (page, sel) => page.$eval(sel, (e) => e.getAnimations().some((a) => a.playState === 'running' && a.effect.getKeyframes().some((k) => /translate/.test(k.transform ?? ''))));
-
 test('a menu group folding slides the groups under it on a transform; its rows never animate their height', opts, async () => {
   const { page, context, errors } = await open();
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
   await page.waitForSelector('#convos .cg + .cg .ghead');
   await page.waitForTimeout(800);
   assert.doesNotMatch(await page.$eval('.gbody', (b) => getComputedStyle(b).transitionProperty), /grid/);
+  // Whether the next group slides is read in the page as each click is handled (a read from here, after the
+  // click, measures the runner: on a busy one the slide can be over by then).
+  await page.evaluate(() => { window.__slid = []; document.addEventListener('click', () => queueMicrotask(() => window.__slid.push(document.querySelector('#convos .cg + .cg').getAnimations().some((a) => a.playState === 'running' && a.effect.getKeyframes().some((k) => /translate/.test(k.transform ?? '')))))); });
   await page.click('#convos .cg .ghead');
   assert.equal(await page.$eval('#convos .cg', (g) => g.classList.contains('closed')), true);
-  assert.equal(await slides(page, '#convos .cg + .cg'), true, 'the next group slides up');
+  assert.deepEqual(await page.evaluate(() => window.__slid), [true], 'the next group slides up');
   // The slide ends first: opened again before a frame of it was drawn, nothing has moved and nothing slides back.
   await page.$eval('#convos .cg + .cg', (g) => Promise.all(g.getAnimations().map((a) => a.finished)));
   await page.click('#convos .cg .ghead');
-  assert.equal(await slides(page, '#convos .cg + .cg'), true, 'and back down');
+  assert.deepEqual(await page.evaluate(() => window.__slid), [true, true], 'and back down');
   assert.deepEqual(errors, []);
   await context.close();
 });

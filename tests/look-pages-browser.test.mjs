@@ -270,9 +270,9 @@ test('by touch: each control follows the finger, settles on the springs (at once
   await show(page, 'settings'); const rest = await capAt(page);
   const up = await finger(page, '#set-text .lk-fader', 60, 0, { lift: false });
   assert.ok(Math.abs(await capAt(page) - rest - 60) <= 2, 'the cap is under the finger');
-  await up();
-  assert.ok(Math.abs(await capAt(page) - rest - 60) <= 4, 'let go off a stop, it is not there at once: it springs');
-  await resting(page);
+  await page.$eval('#set-text .lk-fader', (n) => { const p = window.__cap = []; const f = () => { p.push(new DOMMatrix(getComputedStyle(n).transform).m41); if (window.__cap === p) requestAnimationFrame(f); }; f(); }); // its place on each frame, read in the page: a read from here measures the runner
+  await up(); await resting(page);
+  assert.ok(await page.evaluate(() => { const p = window.__cap; window.__cap = null; return p.some((v) => Math.abs(v - p[0]) > 2 && Math.abs(v - p.at(-1)) > 2); }), 'let go off a stop, it is not there at once: it springs');
   assert.deepEqual([await page.evaluate(() => localStorage.getItem('th-text')), await ticks(page)], ['l', 1], 'settled on the nearest stop, one tick for the one stop passed');
   // Reduced: placed at once. Haptics off: no tick.
   await page.evaluate(() => { document.documentElement.dataset.reducedMotion = 'always'; document.documentElement.dataset.haptics = 'off'; });

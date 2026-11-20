@@ -39,16 +39,17 @@ async function phone({ theme = 'light', look = '', workers = 'block' } = {}) {
       }
     } catch {}
     // Each frame until the page is first on screen and the look's sheet has come: the attribute, the
-    // ground if anything shows, and whether the sheet had come or ui/theme.js's 400 ms had passed.
+    // ground if anything shows, and whether the sheet had come (whole: what it imports too) or
+    // ui/theme.js's 400 ms had passed.
     const frames = (window.__frames = []);
-    let added = 0;
-    new MutationObserver(() => { if (!added && document.querySelector('link[data-look]')) added = performance.now(); }).observe(document, { childList: true, subtree: true });
+    let added = 0, sheet = false;
+    new MutationObserver(() => { const link = document.querySelector('link[data-look]'); if (!added && link) { added = performance.now(); link.addEventListener('load', () => { sheet = true; }); } }).observe(document, { childList: true, subtree: true });
     const look = () => {
-      const root = document.documentElement, body = document.body, sheet = document.querySelector('link[data-look]')?.sheet;
+      const root = document.documentElement, body = document.body;
       const shown = root && body && getComputedStyle(root).visibility === 'visible' && getComputedStyle(body).visibility === 'visible';
       const waited = Boolean(added) && performance.now() - added >= 390;
       frames.push({ look: root?.getAttribute('data-look') ?? null, shown: Boolean(shown), ground: shown ? getComputedStyle(body).backgroundColor : '', due: Boolean(sheet) || !waited });
-      if (!shown || (added && !sheet && !waited)) requestAnimationFrame(look);
+      if (!shown || (added && !sheet)) requestAnimationFrame(look); // (on past the 400 ms, to the frames that have the sheet)
     };
     requestAnimationFrame(look);
   }, [theme, look]);
@@ -105,7 +106,7 @@ for (const [theme, ground, plate] of [['light', INK, 'rgb(228, 228, 224)'], ['da
     assert.equal(frames[0].look, 'ink-lamp', 'the attribute is on <html> at the first frame');
     const shown = frames.filter((f) => f.shown && f.due);
     assert.ok(shown.length, 'the page came on screen');
-    // (a frame shown after the 400 ms without the sheet is ui/theme.js's own way out, not a fault)
+    // (a frame shown after the 400 ms and before the sheet is ui/theme.js's own way out on a slow load, not a fault)
     assert.deepEqual([...new Set(shown.map((f) => f.ground))], [ground], 'no frame shows another ground');
     const look = await drawn(page);
     assert.equal(look.ground, ground);
