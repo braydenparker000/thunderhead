@@ -74,6 +74,7 @@ export function later() {
     const show = (/** @type {boolean} */ moving) => {
       const s = STOPS[stop];
       lh.textContent = s.legend;
+      b.classList.toggle('lk-long', s.legend.length > 4);
       b.setAttribute('aria-label', `Decide later, ${s.words}`);
       if (moving) turn.to(s.turn, { spring: springs.pop });
       else turn.set(s.turn);
@@ -90,6 +91,7 @@ export function later() {
     let drag = null;
     let turned = false;
     b.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); // a turn of the dial is never the page's swipe
       drag = { x: e.clientX, y: e.clientY, moved: false, steps: 0 };
       turned = false;
       try { b.setPointerCapture(e.pointerId); } catch {}

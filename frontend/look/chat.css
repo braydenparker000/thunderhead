@@ -111,10 +111,11 @@
 :root[data-look="ink-lamp"] .lk-ring{position:relative;display:grid;place-items:center;width:34px;height:34px}
 :root[data-look="ink-lamp"] .lk-ring .lk-ticks{display:none;position:absolute;inset:0;width:34px;height:34px;stroke:#8E8E8A}
 :root[data-look="ink-lamp"] .lk-lh{display:block;margin-top:2px;white-space:nowrap;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
+:root[data-look="ink-lamp"] .lk-later-b.lk-long .lk-lh{align-self:flex-end;margin-right:2px}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b{top:20px;right:8px;width:44px;height:44px;justify-content:center}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-ticks{display:block}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-dial--small{width:26px;height:26px}
-:root[data-look="ink-lamp"][data-theme="dark"] .lk-lh{position:absolute;top:-12px;right:5px;width:34px;margin:0;text-align:center;color:#FFFFFF}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-lh,:root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b.lk-long .lk-lh{position:absolute;top:-12px;right:5px;min-width:34px;margin:0;text-align:center;color:#FFFFFF}
 :root[data-look="ink-lamp"] #home.otr #decision .card .why .d{background:var(--hairline);box-shadow:none}
 
 /* The working card: the strip's plate, a lamp for the live dot, Stop a key. */
