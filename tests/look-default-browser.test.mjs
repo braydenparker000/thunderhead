@@ -44,7 +44,7 @@ async function phone({ look = '', session = true } = {}) {
   page.on('request', (r) => asked.push(new URL(r.url()).pathname));
   await mockApi(page, {});
   await page.route(`${API}/v1/music/catalog`, (r) => r.fulfill({ headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify({ version: 1, kind: 'r2-library', complete: true, count: 0, generatedAt: '2026-11-01T00:00:00.000Z', tracks: [] }) }));
-  await page.goto(`${base}/no-such-file.txt`);
+  await page.goto(`${base}/icon.svg`); // (a page of this origin that is not the shell: its storage, and none of its requests)
   if (session) await page.evaluate((token) => new Promise((resolve) => { const req = indexedDB.open('th-auth', 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'); tx.oncomplete = () => { req.result.close(); resolve(); }; }; }), TOKEN);
   asked.length = 0;
   return { context, page, errors, asked };
