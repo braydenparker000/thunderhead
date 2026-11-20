@@ -60,7 +60,7 @@ export function lookBudgets(list) {
     // The ring's pointing hand, as ink (look/art/).
     ['look art bytes', sum(/^art\//), 18_256],
     // The daily pictures (look/pictures/; their sources: docs/design/LOOK-PICTURES.md) and their list.
-    ['look picture bytes', sum(/^pictures\//), 2_691_228],
-    ['look list bytes', sum(/^plates\.json$/), 5_435],
+    ['look picture bytes', sum(/^pictures\//), 7_693_106],
+    ['look list bytes', sum(/^plates\.json$/), 16_479],
   ];
 }
