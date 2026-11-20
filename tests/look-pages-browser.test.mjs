@@ -280,12 +280,12 @@ test('by touch: each control follows the finger, settles on the springs (at once
   assert.equal(await capAt(page), rest, 'Reduced: on its stop the moment it is let go');
   assert.deepEqual([await page.evaluate(() => localStorage.getItem('th-text')), await ticks(page)], [null, 1], 'Haptics off: no tick');
   await page.evaluate(() => { for (const k of ['reducedMotion', 'haptics']) delete document.documentElement.dataset[k]; });
-  // A vertical swipe that starts on the fader scrolls the page and changes nothing.
   const top = await page.$eval('.spage.in .sscroll', (n) => n.scrollTop);
-  await finger(page, '#set-text .lk-fader', 0, -240);
+  await finger(page, '#set-text .lk-fader', 0, -240); // a vertical swipe that starts on the fader scrolls the page and changes nothing
   await until(() => page.$eval('.spage.in .sscroll', (n) => n.scrollTop).then((v) => v > top + 40), { message: 'the page did not scroll' });
   assert.equal(await page.evaluate(() => localStorage.getItem('th-text')), null);
-  await page.$eval('.spage.in .sscroll', (n) => { n.scrollTop = 0; });
+  // The swipe's glide ends first (six frames at rest): a finger put down on a page still gliding only stops it.
+  await page.$eval('.spage.in .sscroll', async (n) => { for (let last = -1, same = 0; same < 6; same = n.scrollTop === last ? same + 1 : 0, last = n.scrollTop) await new Promise(requestAnimationFrame); n.scrollTop = 0; });
   await finger(page, '#set-still .switch-track', 24, 0, { from: 0.2 }).then(() => resting(page));
   assert.deepEqual([await page.getAttribute('#set-still', 'aria-checked'), await ticks(page)], ['true', 2]);
   await show(page, 'appearance');
