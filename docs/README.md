@@ -35,6 +35,7 @@ and win over any other page here. Historical pages are in [archive/](archive/REA
 - [DESIGN-SYSTEM.md](design/DESIGN-SYSTEM.md): tokens, type, motion, components.
 - [GESTURES.md](design/GESTURES.md): hold, swipe, ring, back.
 - [COPY.md](design/COPY.md): how the Thunderhead speaks, and every fixed string.
+- [INK-AND-LAMP.md](design/INK-AND-LAMP.md): the second look of the main pages (Settings › Appearance › Look), its rules, tokens, pages and daily pictures; the pictures' sources in [LOOK-PICTURES.md](design/LOOK-PICTURES.md).
 - [EDITOR.md](design/EDITOR.md): the new photo editor: the camera plate, the dial, every screen; boards and assets in [design/editor/](design/editor/).
 
 ## The mind
