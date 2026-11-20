@@ -37,7 +37,7 @@
   --accent-fill:#B3121A; --accent-text:var(--rubric); --accent-icon:var(--rubric);
   --gold:var(--key); --gold-ink:var(--key-ink); --gold-text:var(--rubric);
   --alarm:light-dark(#B3121A,#F0453F);
-  --glow:var(--key);
+  --glow:var(--hairline);
   /* No pastel field, no drifting lights: the ground is one colour. */
   --field-1:var(--ground); --field-2:var(--ground); --field-3:var(--ground);
   --blob-1:transparent; --blob-2:transparent; --blob-opacity:0;
@@ -66,12 +66,18 @@
 :root[data-look="ink-lamp"][data-text="l"]{--fs-reply:21px;--fs-input:17px}
 /* Accent intensity is the classic blue's: the look keeps its inks. Flat glass keeps its meaning (no
    blur anywhere, ui/tokens.css) with fills of the look's own; Corners still moves every radius. */
-:root[data-look="ink-lamp"][data-accent-intensity]{--accent-fill:#B3121A;--accent-text:var(--rubric);--accent-icon:var(--rubric);--glow:var(--key)}
+:root[data-look="ink-lamp"][data-accent-intensity]{--accent-fill:#B3121A;--accent-text:var(--rubric);--accent-icon:var(--rubric);--glow:var(--hairline)}
 :root[data-look="ink-lamp"][data-glass="flat"]{--glass:var(--plate);--bar:light-dark(rgba(242,242,238,.94),rgba(27,27,30,.96));--sheet:light-dark(#E4E4E0,#101012);--panel:var(--ground)}
 :root[data-look="ink-lamp"][data-corners="sharper"]{--r-bubble:12px;--r-l:16px;--r-xl:20px}
 :root[data-look="ink-lamp"][data-corners="round"]{--r-bubble:22px;--r-l:28px;--r-xl:34px}
 
-/* Switched off under the look: the drifting lights behind the field, and the frost of the panels
-   that are now solid (home's cards, the menu's and Settings' layers). */
+/* Switched off under the look (the approved screens have none): the drifting lights behind the field,
+   the edge light at the bottom of home, the coloured glows and pulses round cards (home's working and
+   decision cards, the Briefing's waiting tile, the menu's Now), and the frost of the panels that are
+   now solid (home's cards, the menu's and Settings' layers). --glow is a hairline for what still tints. */
+:root[data-look="ink-lamp"] .edge{display:none}
+:root[data-look="ink-lamp"] #working .card,:root[data-look="ink-lamp"] #decision .card,:root[data-look="ink-lamp"] #now{box-shadow:var(--e2)}
+:root[data-look="ink-lamp"] .tile.gold{box-shadow:inset 0 0 0 1px var(--hairline)}
+:root[data-look="ink-lamp"] .card.pulse,:root[data-look="ink-lamp"] #decision .card.pulse{animation:none}
 :root[data-look="ink-lamp"] .field::before,:root[data-look="ink-lamp"] .field::after{display:none}
 :root[data-look="ink-lamp"] .card,:root[data-look="ink-lamp"] #app .side>.field,:root[data-look="ink-lamp"] #app .spage>.field{backdrop-filter:none;-webkit-backdrop-filter:none}
