@@ -11,3 +11,13 @@
 @import url("fonts.css");
 @import url("tokens.css");
 @import url("kit.css");
+/* The pages, one sheet each, by their builders (A: home, chat, keypad; B: island, ring; C: briefing,
+   menu, settings). */
+@import url("home.css");
+@import url("chat.css");
+@import url("keypad.css");
+@import url("island.css");
+@import url("ring.css");
+@import url("briefing.css");
+@import url("menu.css");
+@import url("settings.css");
