@@ -52,13 +52,13 @@ export function lookBudgets(list) {
   // (2026-11-20) Ink and Lamp, off unless chosen and loaded only then; the owner: "That's fine because it
   // should get cached after one load anyways". Each limit is what was measured, with no room.
   return [
-    ['look CSS bytes', sum(/\.css$/), 18_493],
-    ['look JS bytes', sum(/\.js$/), 12_618],
+    ['look CSS bytes', sum(/\.css$/), 125_245],
+    ['look JS bytes', sum(/\.js$/), 69_380],
     ['look font bytes', sum(/\.woff2$/), 129_576],
     ['look kit bytes', sum(/^kit\//), 204_168],
     ['look emblem bytes', sum(/^emblems\.svg$/), 6_160],
-    // The ring's pointing hand, as ink (look/art/).
-    ['look art bytes', sum(/^art\//), 18_256],
+    // The ring's pointing hand, as ink, and the island's reels and tape (look/art/).
+    ['look art bytes', sum(/^art\//), 21_667],
     // The daily pictures (look/pictures/; their sources: docs/design/LOOK-PICTURES.md) and their list.
     ['look picture bytes', sum(/^pictures\//), 7_693_106],
     ['look list bytes', sum(/^plates\.json$/), 16_479],
