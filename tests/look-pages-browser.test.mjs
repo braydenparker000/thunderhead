@@ -72,6 +72,28 @@ const look = (page, probes) => page.evaluate((ps) => {
   }));
 }, probes);
 
+/** Each key's legend against its own face: the face read from the kit picture the key shows now
+ * (its ::before), at the middle of the picture, as the phone draws it. */
+const legends = (page, sel) => page.evaluate(async (q) => {
+  const lum = (c) => { const [r, g, b] = c.slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const out = [];
+  for (const n of document.querySelectorAll(q)) {
+    const src = getComputedStyle(n, '::before').borderImageSource.match(/url\("?([^")]+)"?\)/)?.[1];
+    if (!src) { out.push([n.textContent, 0, 'no picture']); continue; }
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const c = Object.assign(document.createElement('canvas'), { width: img.naturalWidth, height: img.naturalHeight }).getContext('2d');
+    c.drawImage(img, 0, 0);
+    const d = c.getImageData(img.naturalWidth / 2 - 6, img.naturalHeight / 2 - 6, 13, 13).data;
+    const face = [0, 1, 2].map((i) => { let t = 0; for (let j = i; j < d.length; j += 4) t += d[j]; return t / (d.length / 4); });
+    const ink = getComputedStyle(n).color.match(/[\d.]+/g).map(Number);
+    const [x, y] = [lum(face), lum(ink)].sort((a, b) => b - a);
+    out.push([n.textContent.trim(), Math.round((x + 0.05) / (y + 0.05) * 100) / 100, src.split('/').pop()]);
+  }
+  return out;
+}, sel);
+
 test('with the look off, Settings, the menu and the Briefing load and add nothing of it', opts, async () => {
   const { context, page, errors, asked } = await open({ look: '' });
   await show(page, 'settings');
@@ -104,6 +126,7 @@ for (const theme of ['light', 'dark'])
     assert.match(home.still.pic, /kit\/thumb-small-(light|grey)\.webp/, 'a switch is the small slide switch');
     for (const k of ['theme', 'back', 'fader']) assert.ok(home[k].h >= 44 && home[k].w >= 44, `${k}: ${home[k].w}×${home[k].h}`);
     for (const k of ['title', 'row']) assert.ok(home[k].contrast >= 4.5, `${k} contrast ${home[k].contrast}`);
+    const keys = [...await legends(page, '#set-theme .seg-option')];
     await show(page, 'appearance');
     const more = await look(page, {
       dial: '[data-key="appearance.motion"] .lk-dial', motion: '[data-key="appearance.motion"] .seg-option', thumb: '[data-key="appearance.haptics"] .lk-thumb',
@@ -116,6 +139,17 @@ for (const theme of ['light', 'dark'])
     for (const k of ['motion', 'haptics', 'lookKey', 'reset']) assert.ok(more[k].h >= 44, `${k}: ${more[k].h}`);
     assert.ok(more.detail.contrast >= 4.5, `detail contrast ${more.detail.contrast}`);
     assert.equal(await page.isVisible('[data-key="appearance.accent"]'), false, 'Accent intensity is not shown under the look');
+    keys.push(...await legends(page, '[data-key="appearance.look"] .seg-option, [data-key="appearance.glass"] .seg-option, .spage.in [data-action="reset"]'));
+    await page.locator('.spage.in [data-action="reset"]').scrollIntoViewIfNeeded();
+    await page.waitForFunction(async () => !(await import('/th/ui.js')).tooSoon());
+    await page.click('.spage.in [data-action="reset"]');
+    await page.waitForSelector('.csheet.on .btn:not(.soft)');
+    await resting(page);
+    keys.push(...await legends(page, '.csheet.on .btn'));
+    console.log(`key legends against their faces (${theme === 'light' ? 'Ink' : 'Lamp'}): ${keys.map(([t, r, f]) => `${t} ${r} on ${f}`).join('; ')}`);
+    for (const [t, r, f] of keys) assert.ok(r >= 4.5, `"${t}" on ${f}: ${r}:1`);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.csheet'));
     await page.click('.spage.in .sheader .sback');
     await page.waitForFunction(() => !document.querySelector('.spage'));
     await go(page, 'side');
@@ -129,6 +163,21 @@ for (const theme of ['light', 'dark'])
     assert.match(menu.dial.pic, /kit\/dial-(grey|dark)-small\.webp/, 'Settings is the small dial');
     assert.ok(menu.settings.h >= 44 && menu.settings.w >= 44);
     for (const k of ['title', 'row', 'detail']) assert.ok(menu[k].contrast >= 4.5, `${k} contrast ${menu[k].contrast}`);
+    // Now's date never runs under its detail or its caret: at every menu width and the largest text, it
+    // ends in an ellipsis inside its own box.
+    for (const width of ['narrow', 'regular', 'full']) {
+      const now = await page.evaluate((w) => {
+        const root = document.documentElement;
+        root.setAttribute('data-menu-width', w);
+        root.dataset.text = 'l';
+        const box = (q) => document.querySelector(q).getBoundingClientRect();
+        const sub = document.querySelector('#now .sub'), s = getComputedStyle(sub);
+        const [t, v, c] = [box('#now .sub'), box('#now .row-value'), box('#now .row-caret')];
+        const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        return { clipped: s.overflow === 'hidden' && s.textOverflow === 'ellipsis' && s.whiteSpace === 'nowrap', value: meets(t, v), caret: t.right > c.left };
+      }, width);
+      assert.deepEqual(now, { clipped: true, value: false, caret: false }, `Now at the ${width} width`);
+    }
     await go(page, 'brief');
     await page.waitForFunction(() => !document.querySelector('#brief').inert);
     await page.waitForSelector('#brief .lk-verse:not([hidden]) .lk-ini');
