@@ -74,7 +74,10 @@ test('a tap before the player has loaded: the veil is on screen, fading in, befo
     await new Promise((r) => { const wait = () => (app.player?.isOpen ? r() : setTimeout(wait, 20)); wait(); });
     const veilGone = !document.querySelector('.ap-veil');
     app.player.close('test');
-    return { sync, seen, started, veilGone, feel: (await import('/astra/src/ui/feel-log.js')).feelEntries().map((e) => e.name) };
+    // The veil's entry is written when its fade ends (220 ms), which the player's loading may beat: wait for it.
+    const log = await import('/astra/src/ui/feel-log.js'), names = () => log.feelEntries().map((e) => e.name);
+    for (let i = 0; i < 250 && !names().includes('player:veil'); i++) await new Promise((r) => setTimeout(r, 20));
+    return { sync, seen, started, veilGone, feel: names() };
   });
   assert.deepEqual(got.sync, { veil: true, asked: false }, 'the veil in the tap\'s frame; the code not asked for yet');
   assert.ok(got.seen.frames - got.started >= 1, `asked for after the veil's first frame (${got.seen.frames - got.started} frames)`);

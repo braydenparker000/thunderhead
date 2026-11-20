@@ -29,11 +29,14 @@ const selectors = (list) => {
   return out.map((s) => s.trim());
 };
 
-test('the setting: Look, Classic by default, Ink and Lamp on <html data-look>, kept on the phone', () => {
+test('the setting: Look, Ink and Lamp by default (ui/theme.js too), on <html data-look>, kept on the phone', () => {
   const s = SETTINGS.find((x) => x.key === 'appearance.look');
   assert.ok(s, 'appearance.look is in the catalogue');
-  assert.deepEqual([s.group, s.scope, s.kind, s.default, s.attr, s.label], ['appearance', 'phone', 'choice', 'classic', 'data-look', 'Look']);
-  assert.deepEqual(s.options.map((o) => [o.value, o.label]), [['classic', 'Classic'], ['ink-lamp', 'Ink and Lamp']]);
+  assert.deepEqual([s.group, s.scope, s.kind, s.default, s.attr, s.label], ['appearance', 'phone', 'choice', 'ink-lamp', 'data-look', 'Look']);
+  assert.deepEqual(s.options.map((o) => [o.value, o.label]), [['ink-lamp', 'Ink and Lamp'], ['classic', 'Classic']]);
+  // ui/theme.js runs before the catalogue is read: anything but Classic is the default there, by name.
+  const theme = readFileSync(new URL('../frontend/ui/theme.js', import.meta.url), 'utf8');
+  assert.match(theme, new RegExp(`if \\(root\\.dataset\\.look !== 'classic'\\) root\\.dataset\\.look = '${s.default}';`));
 });
 
 test('every file the look names exists, and every picture of the kit is named', () => {

@@ -81,16 +81,19 @@ try {
     if (v && /^[a-z-]{1,16}$/.test(v)) document.documentElement.setAttribute(attr, v);
   }
 } catch {}
-// The look Ink and Lamp (appearance.look; frontend/look/), on the shell's pages only: its sheet, after
-// <head> so it outweighs the shell's own, with the page unseen until it loads (400 ms at most), and its
-// script after the first paint. Turned on in Settings it comes at once; off, its attribute goes and
-// the sheet lies inert. With the classic look none of this runs. LOOK is rewritten at publish to the
-// folder's hashed name (scripts/look-config.mjs).
+// The look Ink and Lamp (appearance.look; frontend/look/), the default (the owner, 2026-11-20): a phone
+// that has chosen nothing, or nothing we know, has it, and <html data-look> always says which look it is
+// (the one setting whose attribute rides at its default too). It is drawn on the shell's pages only,
+// never on sign-in, Photos, Study or the lab's: its sheet, after <head> so it outweighs the shell's own,
+// with the page unseen until it loads (400 ms at most), and its script after the first paint. Chosen in
+// Settings it comes at once; with Classic chosen its sheet lies inert and none of this runs. LOOK is
+// rewritten at publish to the folder's hashed name (scripts/look-config.mjs).
 {
   const LOOK = '/look/';
   const root = document.documentElement;
+  if (root.dataset.look !== 'classic') root.dataset.look = 'ink-lamp';
   const look = (first) => {
-    if (root.dataset.look !== 'ink-lamp' || root.querySelector('link[data-look]') || /^\/(signin|setup|recover|import)\//.test(location.pathname)) return;
+    if (root.dataset.look !== 'ink-lamp' || root.querySelector('link[data-look]') || /^\/(signin|setup|recover|import|photos|study|lab)\//.test(location.pathname)) return;
     const css = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: `${LOOK}look.css` });
     css.dataset.look = '';
     const shown = () => { clearTimeout(wait); root.style.visibility = ''; };

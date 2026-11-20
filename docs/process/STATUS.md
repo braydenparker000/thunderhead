@@ -24,9 +24,9 @@ sync, remembered streams, the look and settings round, a feel report (`docs/prod
 the re-rise on leaving an old conversation (owner's call). Music: audited read-only; its look and
 behaviour change only after talking with the owner.
 
-**Ink and Lamp (2026-11-20, one PR):** a second look for the main pages behind Settings › Appearance
-› Look, off unless chosen ([INK-AND-LAMP.md](../design/INK-AND-LAMP.md); decisions.md), all in
-`frontend/look/`, kept on the phone after one load. Waiting on the owner: whether it becomes the default.
+**Ink and Lamp (2026-11-20, PR #214 live, then the default):** the main pages' look, in Settings ›
+Appearance › Look with Classic as the other choice ([INK-AND-LAMP.md](../design/INK-AND-LAMP.md);
+decisions.md), all in `frontend/look/`, kept on the phone after one load; the island shows the artwork.
 
 ## Current phase: what is live
 
