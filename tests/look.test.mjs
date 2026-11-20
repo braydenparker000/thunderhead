@@ -4,11 +4,13 @@
 // kept out of the release's precache.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SETTINGS } from '../shared/contract/settings.ts';
-import { lookTag, precached, themeJs } from '../scripts/site-config.mjs';
+import { lookTag, precached, stageLook, themeJs } from '../scripts/site-config.mjs';
 
 const LOOK = fileURLToPath(new URL('../frontend/look/', import.meta.url));
 const all = readdirSync(LOOK, { recursive: true, withFileTypes: true }).filter((e) => e.isFile())
@@ -47,6 +49,10 @@ test('every file the look names exists, and every picture of the kit is named', 
     assert.ok(named.has(p), `${p} is named by a sheet`);
   for (const p of all.filter((f) => f.endsWith('.js')))
     for (const [, ref] of text(p).matchAll(/from '(\.[^']+)'/g)) assert.ok(existsSync(join(dirname(join(LOOK, p)), ref)), `${p} imports missing ${ref}`);
+  // the page modules look.js loads by name
+  const modules = /const MODULES = \[([^\]]+)\]/.exec(text('look.js'))[1].match(/'[^']+'/g).map((m) => m.slice(1, -1));
+  assert.deepEqual(modules, ['home.js', 'island.js', 'ring.js', 'briefing.js', 'menu.js', 'controls.js']);
+  for (const m of modules) assert.ok(all.includes(m), `look.js loads missing ${m}`);
 });
 
 test('every typeface has its licence beside it', () => {
@@ -83,6 +89,45 @@ test("every rule of the look's sheets is scoped to the look; each file stays und
       if (/^@(media|supports|container|layer)\b/.test(head)) continue;
       for (const sel of selectors(head)) assert.ok(sel.startsWith(':root[data-look="ink-lamp"]'), `${p}: "${sel}" is not scoped to the look`);
     }
+  }
+});
+
+test('every daily picture carries the hash of its own bytes in its name, and is left out of the folder\'s', () => {
+  for (const p of all.filter((f) => f.startsWith('pictures/'))) {
+    const m = /^pictures\/(ink|lamp)\/\d\d-[a-z0-9-]+\.([0-9a-f]{8})\.webp$/.exec(p);
+    assert.ok(m, `${p} is named pictures/{ink,lamp}/NN-name.<8 hex>.webp`);
+    assert.equal(m[2], createHash('sha256').update(readFileSync(join(LOOK, p))).digest('hex').slice(0, 8), `${p} names its own bytes`);
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'look-'));
+  try {
+    writeFileSync(join(dir, 'look.css'), '/* */');
+    const tag = lookTag(dir);
+    mkdirSync(join(dir, 'pictures/ink'), { recursive: true });
+    writeFileSync(join(dir, 'pictures/ink/01-a.00000000.webp'), 'x');
+    assert.equal(lookTag(dir), tag, 'a picture does not rename the folder');
+    writeFileSync(join(dir, 'plates.json'), '[]');
+    assert.notEqual(lookTag(dir), tag, 'its list does');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('staging publishes the folder as look/<tag>/ and the pictures unmoved at look/pictures/', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'look-out-'));
+  try {
+    mkdirSync(join(out, 'look/pictures/lamp'), { recursive: true });
+    mkdirSync(join(out, 'ui'));
+    writeFileSync(join(out, 'look/look.css'), '/* */');
+    writeFileSync(join(out, 'look/pictures/lamp/01-a.00000000.webp'), 'x');
+    writeFileSync(join(out, 'ui/theme.js'), "{\n  const LOOK = '/look/';\n}\n");
+    const tag = lookTag(join(out, 'look'));
+    await stageLook(out);
+    assert.deepEqual(readdirSync(join(out, 'look')).sort(), [tag, 'pictures'].sort());
+    assert.ok(existsSync(join(out, `look/${tag}/look.css`)));
+    assert.ok(existsSync(join(out, 'look/pictures/lamp/01-a.00000000.webp')));
+    assert.match(readFileSync(join(out, 'ui/theme.js'), 'utf8'), new RegExp(`const LOOK = '/look/${tag}/';`));
+  } finally {
+    rmSync(out, { recursive: true, force: true });
   }
 });
 

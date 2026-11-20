@@ -1,11 +1,14 @@
 // Ink and Lamp in Chromium at 390×844 against the mocked Worker (frontend/look/, ui/theme.js): off, home
 // asks for nothing of it and <html> carries no attribute; on, the attribute is there before the first
 // paint and no classic frame shows, the ground is the Ink grey by day and black by night, the
-// typefaces load; Settings turns it on and off at once; and a second visit with the network cut
-// still shows it whole, from the service worker's lasting cache.
+// typefaces load, the browser bar takes the ground; Settings turns it on and off at once, and what
+// the pages start with whileOn stops and starts with it; a second visit with the network cut still
+// shows it whole, a daily picture never shown included, from the service worker's lasting cache,
+// and an older folder's files are gone from that cache.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
@@ -35,13 +38,17 @@ async function phone({ theme = 'light', look = '', workers = 'block' } = {}) {
         if (l) localStorage.setItem('th.s.appearance.look', l);
       }
     } catch {}
-    // Each frame until the page is first on screen: the attribute, and the ground if anything shows.
+    // Each frame until the page is first on screen and the look's sheet has come: the attribute, the
+    // ground if anything shows, and whether the sheet had come or ui/theme.js's 400 ms had passed.
     const frames = (window.__frames = []);
+    let added = 0;
+    new MutationObserver(() => { if (!added && document.querySelector('link[data-look]')) added = performance.now(); }).observe(document, { childList: true, subtree: true });
     const look = () => {
-      const root = document.documentElement, body = document.body;
+      const root = document.documentElement, body = document.body, sheet = document.querySelector('link[data-look]')?.sheet;
       const shown = root && body && getComputedStyle(root).visibility === 'visible' && getComputedStyle(body).visibility === 'visible';
-      frames.push({ look: root?.getAttribute('data-look') ?? null, shown: Boolean(shown), ground: shown ? getComputedStyle(body).backgroundColor : '' });
-      if (!shown) requestAnimationFrame(look);
+      const waited = Boolean(added) && performance.now() - added >= 390;
+      frames.push({ look: root?.getAttribute('data-look') ?? null, shown: Boolean(shown), ground: shown ? getComputedStyle(body).backgroundColor : '', due: Boolean(sheet) || !waited });
+      if (!shown || (added && !sheet && !waited)) requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
   }, [theme, look]);
@@ -96,8 +103,9 @@ for (const [theme, ground, plate] of [['light', INK, 'rgb(228, 228, 224)'], ['da
     await page.waitForSelector('html[data-look-ready]');
     const frames = await page.evaluate(() => window.__frames);
     assert.equal(frames[0].look, 'ink-lamp', 'the attribute is on <html> at the first frame');
-    const shown = frames.filter((f) => f.shown);
+    const shown = frames.filter((f) => f.shown && f.due);
     assert.ok(shown.length, 'the page came on screen');
+    // (a frame shown after the 400 ms without the sheet is ui/theme.js's own way out, not a fault)
     assert.deepEqual([...new Set(shown.map((f) => f.ground))], [ground], 'no frame shows another ground');
     const look = await drawn(page);
     assert.equal(look.ground, ground);
@@ -113,21 +121,58 @@ test('Settings › Appearance › Look turns it on and off at once', opts, async
   await home(page);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'appearance' } })));
   await page.waitForSelector('.spage.in .scatalog[data-group="appearance"]:not([aria-busy])');
+  const bar = () => page.evaluate(() => [...document.querySelectorAll('meta[name="theme-color"]')].map((m) => m.content));
+  const own = await bar();
   await page.click('[data-key="appearance.look"] [data-v="ink-lamp"]');
   await page.waitForFunction(() => document.querySelector('link[data-look]')?.sheet && document.documentElement.hasAttribute('data-look-ready'));
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), INK);
+  assert.deepEqual(await bar(), ['#D6D6D2', '#D6D6D2'], 'the browser bar takes Ink\'s ground');
+  // a page's part, started and stopped with the look
+  await page.evaluate(async () => {
+    const { whileOn } = await import(document.querySelector('link[data-look]').href.replace(/look\.css$/, 'look.js'));
+    window.__runs = [];
+    whileOn(() => { window.__runs.push('start'); return () => window.__runs.push('stop'); });
+  });
   await page.click('[data-key="appearance.look"] [data-v="classic"]');
   assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('data-look')), false);
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), CLASSIC_DAY);
+  assert.deepEqual(await bar(), own, 'the page\'s own browser bar colours come back');
+  await page.click('[data-key="appearance.look"] [data-v="ink-lamp"]');
+  await page.waitForFunction(() => window.__runs.length === 3);
+  assert.deepEqual(await page.evaluate(() => window.__runs), ['start', 'stop', 'start']);
   assert.deepEqual(errors, []);
   await context.close();
 });
 
-test('after one visit, a second with the network cut still shows the look whole', opts, async () => {
+test('after one visit, a second with the network cut still shows the look whole, its pictures too; older files go', opts, async () => {
+  // Two daily pictures and their list, as the lead will add them (each named by its own bytes).
+  const picture = (set, kit) => {
+    const bytes = readFileSync(new URL(`../frontend/look/kit/${kit}`, import.meta.url));
+    const name = `${set}/01-test.${createHash('sha256').update(bytes).digest('hex').slice(0, 8)}.webp`;
+    server.files.set(`look/pictures/${name}`, bytes);
+    return name;
+  };
+  const pictures = [picture('ink', 'key-light-up.webp'), picture('lamp', 'key-dark-up.webp')];
+  server.files.set('look/plates.json', Buffer.from(JSON.stringify({ ink: [pictures[0]], lamp: [pictures[1]] })));
   const { context, page, errors } = await phone({ look: 'ink-lamp', workers: 'allow' });
   await home(page);
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 15000 });
-  await page.waitForSelector('html[data-look-kept]', { timeout: 15000 });
+  await page.waitForSelector('html[data-look-plates-kept]', { timeout: 20000 });
+  // An older release's folder and a picture no longer listed, in the worker's lasting cache: the next
+  // keep clears them and leaves the current ones.
+  await page.evaluate(async () => {
+    const cache = await caches.open('th-vendor');
+    await cache.put('/look/0123456789/look.css', new Response('/* an older look */'));
+    await cache.put('/look/pictures/ink/00-gone.0badf00d.webp', new Response('x'));
+    localStorage.removeItem('th.look.plates');
+  });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('html[data-look-plates-kept]', { timeout: 20000 });
+  const kept = await page.evaluate(async () => (await (await caches.open('th-vendor')).keys()).map((r) => new URL(r.url).pathname));
+  assert.ok(!kept.includes('/look/0123456789/look.css'), 'an older folder is cleared');
+  assert.ok(!kept.includes('/look/pictures/ink/00-gone.0badf00d.webp'), 'a picture no longer listed is cleared');
+  for (const p of pictures) assert.ok(kept.includes(`/look/pictures/${p}`), `${p} is kept`);
+  assert.ok(kept.some((p) => /^\/look\/[0-9a-f]{10}\/look\.css$/.test(p)), 'the current folder stays');
   server.signal(false);
   try {
     const again = await context.newPage();
@@ -146,8 +191,16 @@ test('after one visit, a second with the network cut still shows the look whole'
       return all.filter((_, i) => !got[i]);
     }, KIT);
     assert.deepEqual(missing, [], 'every picture of the kit and the emblems come from the phone');
+    // Lamp's picture was never shown (the phone is on Ink): it shows with no signal.
+    const width = await again.evaluate((src) => new Promise((resolve) => {
+      const img = Object.assign(new Image(), { src });
+      img.onload = () => resolve(img.naturalWidth);
+      img.onerror = () => resolve(0);
+    }), `/look/pictures/${pictures[1]}`);
+    assert.ok(width > 0, 'a daily picture never shown comes from the phone');
   } finally {
     server.signal(true);
+    server.files.clear();
   }
   assert.deepEqual(errors, []);
   await context.close();
