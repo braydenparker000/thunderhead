@@ -1,1 +1,158 @@
-/* Ink and Lamp on the conversation: builder A's. Every rule scoped to :root[data-look="ink-lamp"]. */
+/* Ink and Lamp on the conversation: builder A's. Every rule scoped to :root[data-look="ink-lamp"].
+   The turns (his words in EB Garamond with a Jacquard initial, the owner's in small quiet bubbles),
+   the marks, the docked decision as the slim strip, the working card, and every other thing the
+   conversation can show (rich text, lines, cards, the pill, the toast), dressed in the same manner.
+   Values from the approved screens R-Grey / R-Dark / R-Off-*; the rest after them (builder A's report). */
+:root[data-look="ink-lamp"] .convo .turn{margin-top:14px;gap:14px}
+:root[data-look="ink-lamp"] .convo .turns .turn:first-child{margin-top:20px}
+:root[data-look="ink-lamp"] .talk .mine{gap:4px}
+/* The time over a turn after an hour's quiet, as a legend (the day's first: the header line says it). */
+:root[data-look="ink-lamp"] .talk .turn[data-time]::before{margin:2px 0 0;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .talk .turn:first-child[data-time]::before{content:none}
+/* The owner's words: small quiet bubbles in Switzer. */
+:root[data-look="ink-lamp"] .convo .you{max-width:64%;padding:8px 12px;border-radius:var(--r-bubble);background:var(--glass-flat);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 #FFFFFF;font:400 var(--fs-input)/calc(var(--fs-input) * 1.4) var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"][data-theme="dark"] .convo .you{border-color:transparent;box-shadow:none}
+:root[data-look="ink-lamp"] .talk .meta{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .talk .meta.bad{color:var(--lk-lamp)}
+:root[data-look="ink-lamp"] .talk :is(.retry,.note .nu){font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text);text-decoration:underline;text-underline-offset:3px;text-transform:lowercase}
+/* His words: EB Garamond 19/26, no bubble. */
+:root[data-look="ink-lamp"] .convo .reply{font:400 var(--fs-reply)/calc(var(--fs-reply) * 26 / 19) var(--font-say);letter-spacing:0;color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply.progress{color:var(--text-2);font-style:italic}
+/* The initial (look/home-turns.js says which): a drop two lines tall, or raised on a one-line message. */
+:root[data-look="ink-lamp"] .convo .reply.lk-drop>p:first-child{display:flow-root}
+:root[data-look="ink-lamp"] .convo .reply.lk-drop>p:first-child::first-letter{float:left;margin:0 6px 0 0;font:400 calc(var(--fs-reply) * 58 / 19)/calc(var(--fs-reply) * 46 / 19) var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"][data-theme="dark"] .convo .reply.lk-drop>p:first-child::first-letter{margin:2px 6px 0 0;font-size:calc(var(--fs-reply) * 68 / 19);line-height:calc(var(--fs-reply) * 48 / 19)}
+:root[data-look="ink-lamp"] .convo .reply.lk-raise>p:first-child::first-letter{margin-right:1px;font:400 calc(var(--fs-reply) * 34 / 19)/calc(var(--fs-reply) * 24 / 19) var(--font-day);color:var(--rubric)}
+:root[data-look="ink-lamp"][data-theme="dark"] .convo .reply.lk-raise{padding-top:12px}
+:root[data-look="ink-lamp"][data-theme="dark"] .convo .reply.lk-raise>p:first-child::first-letter{margin-right:0;font-size:calc(var(--fs-reply) * 51 / 19);line-height:0}
+/* A reply whose words fade up: its first word stays inline, so the initial reaches it. */
+:root[data-look="ink-lamp"] .convo .reply:is(.lk-drop,.lk-raise)>p:first-child>.w:first-child,:root[data-look="ink-lamp"] .convo .reply:is(.lk-drop,.lk-raise)>p:first-child>:first-child>.w:first-child{display:inline}
+/* Rich text in his voice: no colour but the ink; code, tables and figures in the legend face. */
+:root[data-look="ink-lamp"] .convo .reply :is(b,strong,h3){font-weight:500}
+:root[data-look="ink-lamp"] .convo .reply h3{font:500 calc(var(--fs-reply) * 22 / 19)/1.2 var(--font-say);letter-spacing:0}
+:root[data-look="ink-lamp"] .convo .reply li::marker{color:var(--text-3)}
+:root[data-look="ink-lamp"] .convo .reply ol>li::marker{font:500 .7em var(--font-legend)}
+:root[data-look="ink-lamp"] .convo .reply blockquote{border-left:1px solid var(--hairline);color:var(--text-2)}
+:root[data-look="ink-lamp"] .convo .reply code{font:400 .8em var(--font-legend);border-radius:4px;background:var(--well);color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply pre{padding:10px 12px;border-radius:12px;border:1px solid var(--hairline);background:var(--plate);font:400 12px/18px var(--font-legend);color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply pre code{font:inherit;background:none;padding:0}
+:root[data-look="ink-lamp"] .convo .reply table{font:400 14px/20px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply th{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .convo .reply :is(th,td){border-bottom-color:var(--hairline)}
+:root[data-look="ink-lamp"] .convo .reply hr{border-top-color:var(--hairline)}
+:root[data-look="ink-lamp"] .convo .reply a{color:var(--text);text-decoration-color:var(--text-3);text-decoration-thickness:1px}
+:root[data-look="ink-lamp"] .convo .reply a.cite{background:var(--well);color:var(--text);font:500 var(--fs-legend)/1 var(--font-legend);text-decoration:none}
+:root[data-look="ink-lamp"] .convo .reply .study{font:400 14px/20px var(--font-own)}
+:root[data-look="ink-lamp"] .convo .reply .sthead{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] .convo .reply .study a{text-decoration:none;border-bottom-color:var(--hairline)}
+:root[data-look="ink-lamp"] .convo .reply .blocks{font-family:var(--font-own);--bt:var(--text)}
+/* Very long words break rather than run off the page. */
+:root[data-look="ink-lamp"] .convo :is(.reply,.you,.sys){overflow-wrap:anywhere}
+
+/* The marks: s.d.g. under the last turn while the conversation is at rest; off the record, its line. */
+:root[data-look="ink-lamp"] #talk:has(.reply)::after,:root[data-look="ink-lamp"] #past:has(.reply)::after{content:"s.d.g." / "";display:block;align-self:center;margin-top:14px;height:14px;text-align:center;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric)}
+:root[data-look="ink-lamp"] #home.otr #talk:has(.reply)::after{content:"nothing from here is kept";padding:0 50px;white-space:nowrap;color:var(--text-3);background:linear-gradient(var(--hairline),var(--hairline)) left center/40px 1px no-repeat,linear-gradient(var(--hairline),var(--hairline)) right center/40px 1px no-repeat}
+:root[data-look="ink-lamp"] #talk:is(:has(>.turn:last-child>.mine:last-child),:has(>.turn:last-child>.reply.progress:last-child),:has(.slot))::after,:root[data-look="ink-lamp"] #home:has(#working .card:not(.fold)) #talk::after{content:none}
+:root[data-look="ink-lamp"] .talk{display:flex;flex-direction:column}
+
+/* Lines and notes in the chat. */
+:root[data-look="ink-lamp"] .talk .sys{font:400 13px/18px var(--font-own);color:var(--text-3)}
+:root[data-look="ink-lamp"] .talk .sys.reminder{border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);font:400 14px/20px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .talk .sys.reminder svg{fill:var(--rubric)}
+:root[data-look="ink-lamp"] .talk .note{border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:var(--e1)}
+:root[data-look="ink-lamp"] .talk .note .nh{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .talk .note .nh svg{fill:var(--rubric)}
+:root[data-look="ink-lamp"] .talk .note .nt{font:400 15px/21px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .talk .note .nt+.nt{border-top-color:var(--hairline)}
+:root[data-look="ink-lamp"] .talk .wait{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .talk .more,:root[data-look="ink-lamp"] .how .howt,:root[data-look="ink-lamp"] .pastlog .earlier{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .pastlog .earlier{align-self:center;min-height:44px;border:0;background:none}
+:root[data-look="ink-lamp"] .talk .chip{border-color:var(--hairline);background:var(--plate);border-radius:var(--r-bubble);font:500 14px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .talk .chip .ic{fill:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.work,.how) .wkchip{background:var(--well);font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+/* A reply's choice and follow-ups, and its actions when tapped: the kit's keys with printed legends. */
+:root[data-look="ink-lamp"] .talk :is(.follow,.ractions button){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-height:44px;padding:0 14px;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-key)/1.2 var(--font-legend);letter-spacing:var(--ls-legend);color:#0A0A0A;text-transform:lowercase}
+:root[data-look="ink-lamp"][data-theme="dark"] .talk :is(.follow,.ractions button){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .talk :is(.follow,.ractions button)::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] .talk :is(.follow,.ractions button):active::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .talk .choices .follow{background:none}
+:root[data-look="ink-lamp"] .talk .follows{gap:10px}
+
+/* The docked decision: the slim strip. Its lamp and legend, the question on one line, the kit's keys
+   (the affirmative orange), and the dial for later (look/home-later.js). */
+:root[data-look="ink-lamp"] #home>.dock{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(8px + var(--ask-h,60px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
+:root[data-look="ink-lamp"] #decision .card.decision{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:0;min-height:80px;max-height:none;margin:0;padding:9px 66px 12px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 0 rgba(255,255,255,.5)}
+:root[data-look="ink-lamp"][data-theme="dark"] #decision .card.decision{padding:8px 72px 12px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+:root[data-look="ink-lamp"] #decision .card.decision>:not(.lk-later-b){grid-column:1/-1;margin:0}
+/* Its first line: the lamp, "decision", then who asks (the card's own words) to the right, cut short with
+   an ellipsis when long. */
+:root[data-look="ink-lamp"] #decision .card .why{position:relative;display:block;height:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3);text-transform:lowercase}
+:root[data-look="ink-lamp"] #decision .card .why .d{position:absolute;left:0;top:3px;width:6px;height:6px;margin:0;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"][data-theme="dark"] #decision .card .why .d{box-shadow:0 0 4px var(--lk-lamp),0 0 10px rgba(240,69,63,.55)}
+:root[data-look="ink-lamp"] #decision .card .why::before{content:"decision";float:left;padding:0 10px 0 14px;color:var(--text-2)}
+:root[data-look="ink-lamp"] #decision .card .why .of{position:absolute;right:0;top:0;color:var(--text-2)}
+:root[data-look="ink-lamp"] #decision .card .why:has(.of:not(:empty)){padding-right:56px}
+:root[data-look="ink-lamp"] #decision .card.decision>.q{grid-column:1;margin-top:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 14px/20px var(--font-own);letter-spacing:-.01em;color:var(--text)}
+:root[data-look="ink-lamp"] #decision .card .tg{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2);margin-top:2px}
+:root[data-look="ink-lamp"] #decision .card .dx{display:none}
+:root[data-look="ink-lamp"] #decision .card.decision>.decide{grid-column:2;grid-row:2;gap:6px;margin:3px 0 0 8px}
+:root[data-look="ink-lamp"] #decision .card .err{margin-top:4px;font:500 var(--fs-legend)/14px var(--font-legend);color:var(--lk-lamp)}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-width:48px;min-height:44px;margin:0 2px;padding:0 12px;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-key)/1 var(--font-legend);letter-spacing:var(--ls-legend);color:#0A0A0A;text-transform:lowercase;transition:none}
+:root[data-look="ink-lamp"][data-theme="dark"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide .yes,.decide button:only-child){--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp");min-width:64px;color:#0A0A0A}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try)::before{content:"";position:absolute;z-index:-1;inset:5px 0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):active{transform:none}
+:root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try):is(:active,.busy)::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] #decision .card .decide button.busy::after{width:10px;height:10px;margin-left:6px}
+/* The dial for later, in a column of its own 60 px wide (its longest legend, "tomorrow", fits; the
+   legend face does not change with Text size), so the keys never touch it and the question gives way
+   first: Ink's with its legend under it; Lamp's ringed with ticks, its legend on the first line. */
+:root[data-look="ink-lamp"] #decision.lk-later,:root[data-look="ink-lamp"] #home:has(.ask:is(.typing,.menu)) #decision{display:none}
+:root[data-look="ink-lamp"] .lk-later-b{position:absolute;top:5px;right:2px;width:60px;height:52px;margin:0;padding:0;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"] .lk-ring{position:relative;display:grid;place-items:center;width:34px;height:34px}
+:root[data-look="ink-lamp"] .lk-ring .lk-ticks{display:none;position:absolute;inset:0;width:34px;height:34px;stroke:#8E8E8A}
+:root[data-look="ink-lamp"] .lk-lh{display:block;margin-top:2px;white-space:nowrap;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-later-b{top:20px;right:8px;width:60px;height:44px;justify-content:center}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-ticks{display:block}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-ring .lk-dial--small{width:26px;height:26px}
+:root[data-look="ink-lamp"][data-theme="dark"] .lk-lh{position:absolute;top:-12px;left:0;right:0;margin:0;text-align:center;color:#FFFFFF}
+:root[data-look="ink-lamp"] #home.otr #decision .card .why .d{background:var(--hairline);box-shadow:none}
+
+/* The working card: the strip's plate, a lamp for the live dot, Stop a key. */
+:root[data-look="ink-lamp"] #working .card{padding:9px 6px 10px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:var(--e1)}
+:root[data-look="ink-lamp"] .work .d{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"] .work.waking .d{animation:none;opacity:.6}
+:root[data-look="ink-lamp"] .work .wkt{font:600 14px/20px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .work .wkn{margin-left:14px;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] .work .wkuse{margin-left:14px}
+:root[data-look="ink-lamp"] .work .wkstop{margin:-6px 0}
+:root[data-look="ink-lamp"] .work .wkstop.stopping{opacity:.6}
+
+/* Cards in the conversation (a notice, What's new, a fallback) and the old conversation's dock. */
+:root[data-look="ink-lamp"] :is(#convo,.fallbacks) .card,:root[data-look="ink-lamp"] #home>.past{border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:var(--e1)}
+:root[data-look="ink-lamp"] #convo .card .why{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] #convo .card .why .d{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"] #convo .card :is(.q,.q li){font-family:var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] #convo .card.news ul.q li::before{background:var(--text-3)}
+:root[data-look="ink-lamp"] #home>.past{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] #home>.past :is(.ptl){font:600 14px/20px var(--font-own);letter-spacing:0;color:var(--text)}
+:root[data-look="ink-lamp"] #home>.past button{--up:url("kit/key-light-up.webp");position:relative;isolation:isolate;min-height:44px;margin:-6px 0;padding:0 14px;border-radius:0;background:none;color:#0A0A0A;font:500 var(--fs-key) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase}
+:root[data-look="ink-lamp"][data-theme="dark"] #home>.past button{--up:url("kit/key-dark-up.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] #home>.past button::before{content:"";position:absolute;z-index:-1;inset:5px 0;border-image:var(--up) 78 fill / 26px / 12px}
+:root[data-look="ink-lamp"] #home>.past .tag{background:var(--well);color:var(--text-2)}
+
+/* What floats: the "New reply" pill, the toast, the status and time chips, the quote over the bar. */
+:root[data-look="ink-lamp"] :is(.newpill,.toast,.status,.timechip,#about,.findbar){border-color:var(--hairline);background:var(--plate);box-shadow:var(--e2)}
+:root[data-look="ink-lamp"] :is(.newpill,.status,.timechip){font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .newpill{bottom:calc(32px + var(--ask-h,60px) + var(--dock-h,0px) + env(safe-area-inset-bottom,0px))}
+:root[data-look="ink-lamp"] .toast{font:400 14px/20px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] .toast .tact{font:500 var(--fs-key) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text);text-decoration:underline;text-underline-offset:3px}
+:root[data-look="ink-lamp"] .status[data-kind]{color:var(--text-2)}
+:root[data-look="ink-lamp"] .status[data-kind="wake"] svg{fill:var(--signal)}
+:root[data-look="ink-lamp"] .timechip{z-index:6;top:calc(100px + env(safe-area-inset-top,0px))}
+:root[data-look="ink-lamp"] #cmdhint{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] .pullfind{top:calc(96px + env(safe-area-inset-top,0px));background:var(--plate);border-color:var(--hairline);font:500 var(--fs-legend) var(--font-legend);color:var(--text-2)}
+:root[data-look="ink-lamp"] .pullfind.ready{color:var(--text)}
+/* The gesture hint is not part of this design (owner): gone, and its room with it. */
+:root[data-look="ink-lamp"] #hint{display:none}
+

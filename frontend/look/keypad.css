@@ -1,1 +1,63 @@
-/* Ink and Lamp on the + sheet's keypad: builder A's. Every rule scoped to :root[data-look="ink-lamp"]. */
+/* Ink and Lamp on the + sheet's keypad: builder A's. Every rule scoped to :root[data-look="ink-lamp"].
+   The options sheet (#opts) as the glass panel of the approved screens S-More-*: a printed legend,
+   then one key of the kit for each option the sheet has (six, in two rows of three; the screens show
+   four), each with its icon on the cap and its legend printed under it. The + key (look/home.css)
+   is pressed, orange and a cross while it is open; home behind it is held back. Also what the sheet
+   leads to: the Remind me sheet, the memo strip and what is picked, in the bar. */
+:root[data-look="ink-lamp"] .opts{left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:calc(30px + var(--ask-h,60px) + env(safe-area-inset-bottom,0px));min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px;padding:14px;border-radius:var(--r-xl);
+  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.36) 50%,rgba(255,255,255,.42) 100%);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);border:1px solid rgba(255,255,255,.75);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.5),0 10px 26px rgba(0,0,0,.16);transform-origin:30px 100%}
+:root[data-look="ink-lamp"][data-theme="dark"] .opts{background:linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.04) 48%,rgba(255,255,255,.07) 100%);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);border-color:rgba(255,255,255,.20);box-shadow:inset 0 1px 0 rgba(255,255,255,.50),inset 0 -1px 0 rgba(255,255,255,.06),0 12px 32px rgba(0,0,0,.6)}
+:root[data-look="ink-lamp"][data-glass="flat"] .opts{background:var(--sheet);backdrop-filter:none;-webkit-backdrop-filter:none}
+/* Its printed legend and the four dots at the right. */
+:root[data-look="ink-lamp"] .opts::before{content:"add to your message";grid-column:1/-1;grid-row:1;height:12px;padding:0 3px;font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .opts::after{content:"";grid-column:3;grid-row:1;justify-self:end;align-self:center;width:25px;height:4px;margin-right:3px;background:radial-gradient(circle 2px,var(--hairline) 98%,transparent) 0 0/7px 4px repeat-x}
+/* Each option: the key (its icon on the cap) and its legend under it. */
+:root[data-look="ink-lamp"] .opts button{--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:0;margin:0;padding:0;border:0;border-radius:0;background:none;
+  font:500 var(--fs-legend)/12px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text);text-transform:lowercase;text-align:center;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+:root[data-look="ink-lamp"][data-theme="dark"] .opts button{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp")}
+:root[data-look="ink-lamp"] .opts button:hover{background:none}
+:root[data-look="ink-lamp"] .opts .oi{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;width:auto;height:64px;margin:3px 3px 11px;border-radius:0;background:none;color:#0A0A0A}
+:root[data-look="ink-lamp"][data-theme="dark"] .opts .oi{color:#FFFFFF}
+:root[data-look="ink-lamp"] .opts .oi::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] .opts button:active .oi::before{border-image-source:var(--down)}
+:root[data-look="ink-lamp"] .opts .oi svg{width:22px;height:22px}
+/* Home held back behind it: no blur, only quieter; the decision strip steps aside (look/chat.css). */
+:root[data-look="ink-lamp"] .home.menuOpen .convo{filter:none;opacity:.3}
+:root[data-look="ink-lamp"] .home.menuOpen .lk-head{opacity:.3}
+
+/* Remind me: the same glass panel, its times as keys, Set the orange key. */
+:root[data-look="ink-lamp"] .remind{left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:calc(30px + var(--ask-h,60px) + env(safe-area-inset-bottom,0px));border-radius:var(--r-xl);background:var(--sheet);border:1px solid var(--hairline);box-shadow:var(--e3)}
+:root[data-look="ink-lamp"] .rhead{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] .rhead span::before{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"] .rwhat{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.rwhat,.rpick) input{border-color:var(--hairline);background:var(--well);font:400 15px var(--font-own);color:var(--text)}
+:root[data-look="ink-lamp"] :is(.rwhat,.rpick) input:focus-visible{border-color:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-height:44px;padding:0 14px;border:0;border-radius:0;background:none;font:500 var(--fs-key) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:#0A0A0A}
+:root[data-look="ink-lamp"][data-theme="dark"] .rwhen button{--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
+:root[data-look="ink-lamp"] .rset{--up:url("kit/key-orange-up.webp");--down:url("kit/key-orange-pressed.webp")}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset)::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;border-image:var(--up) 78 fill / 26px / 12px;background:var(--down) 0 0/0 0 no-repeat}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset):active{background:none}
+:root[data-look="ink-lamp"] :is(.rwhen button,.rset):active::before{border-image-source:var(--down)}
+
+/* What is picked, in the bar; the voice memo strip in place of the words (its lamp red). */
+:root[data-look="ink-lamp"] .ti{background:var(--well);font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text)}
+:root[data-look="ink-lamp"] .ti.tmemo svg{fill:var(--text-2)}
+:root[data-look="ink-lamp"] .tix{border-color:var(--plate);background:var(--text)}
+:root[data-look="ink-lamp"] .rec{min-height:44px}
+:root[data-look="ink-lamp"] .rdot{width:6px;height:6px;background:var(--lk-lamp);box-shadow:0 0 6px var(--lk-lamp)}
+:root[data-look="ink-lamp"] .rtime{font:900 var(--fs-time) var(--font-time);color:var(--text)}
+:root[data-look="ink-lamp"] .rtime.late{color:var(--lk-lamp)}
+:root[data-look="ink-lamp"] .rlevel i{background:var(--text-2)}
+:root[data-look="ink-lamp"] :is(.rx,.rstop){--up:url("kit/round-light-up.webp");position:relative;isolation:isolate;width:44px;height:44px;border-radius:50%;background:none;color:#0A0A0A}
+:root[data-look="ink-lamp"][data-theme="dark"] .rx{--up:url("kit/round-nearblack-up.webp");color:#FFFFFF;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
+:root[data-look="ink-lamp"] .rstop{--up:url("kit/round-orange-up.webp")}
+:root[data-look="ink-lamp"] :is(.rx,.rstop)::before{content:"";position:absolute;z-index:-1;inset:-18.75%;pointer-events:none;background:var(--up) center/100% 100% no-repeat}
+/* Photos, files and memos in the chat: plates, no colour. */
+:root[data-look="ink-lamp"] :is(.frow,.vrow){background:var(--plate);border:1px solid var(--hairline)}
+:root[data-look="ink-lamp"] .frow svg{fill:var(--text-2)}
+:root[data-look="ink-lamp"] .frow{font:500 14px var(--font-own)}
+:root[data-look="ink-lamp"] :is(.fsize,.vlen){font:500 var(--fs-legend) var(--font-legend);color:var(--text-3)}
+:root[data-look="ink-lamp"] .vplay{background:var(--text);color:var(--ground)}
+:root[data-look="ink-lamp"] .vwave i.on{background:var(--text)}
+:root[data-look="ink-lamp"] .pic{border-radius:var(--r-bubble);background:var(--well)}
