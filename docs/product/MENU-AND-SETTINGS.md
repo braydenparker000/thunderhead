@@ -272,6 +272,7 @@ intensity only says how strongly.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
+| `appearance.look` | segments: Classic / Ink and Lamp (2026-11-20) | phone | `classic` | `ui/theme.js`: Ink and Lamp puts `data-look="ink-lamp"` on `<html>` before the first paint, loads `look/look.css` (the page unseen until it has, 400 ms at most) and then `look/look.js`; the Theme above picks Ink (Day) or Lamp (Night). Chosen in Settings it applies at once; Classic loads nothing |
 | `appearance.accent` | segments: soft / calm / vivid | phone | `calm` | `ui/tokens.css`: `--accent-fill`, `--accent-text`, `--accent-icon`, `--glow` (each keeps 4.5:1) |
 | `appearance.glass` | segments: frosted / flat | phone | `frosted` | `ui/tokens.css`: flat drops every `backdrop-filter` and makes the glass, bar, sheet and panel fills opaque enough to read |
 | `appearance.corners` | segments: sharper / soft / rounder | phone | `soft` | `ui/tokens.css`: every `--r-*` token but the full pill |

@@ -6,6 +6,7 @@ export const SETTING_GROUPS = Object.freeze({"appearance":{"title":"Appearance",
 
 /** @type {typeof import('../../../shared/contract/settings.ts').SETTINGS} */
 export const SETTINGS = Object.freeze([
+  {"group":"appearance","kind":"choice","scope":"phone","mind":false,"key":"appearance.look","label":"Look","default":"classic","attr":"data-look","detail":"Classic, or Ink and Lamp: grey metal by day and black by night, with red lettering and keys you press.","options":[{"value":"classic","label":"Classic"},{"value":"ink-lamp","label":"Ink and Lamp"}]},
   {"group":"appearance","kind":"choice","scope":"phone","mind":false,"key":"appearance.accent","label":"Accent intensity","default":"calm","attr":"data-accent-intensity","detail":"How strongly the blue shows on buttons, switches and links.","options":[{"value":"soft","label":"Soft"},{"value":"calm","label":"Calm"},{"value":"vivid","label":"Vivid"}]},
   {"group":"appearance","kind":"choice","scope":"phone","mind":false,"key":"appearance.glass","label":"Glass","default":"frosted","attr":"data-glass","detail":"Frosted blurs what is behind a panel; flat is plainer and easier on the battery.","options":[{"value":"frosted","label":"Frosted"},{"value":"flat","label":"Flat"}]},
   {"group":"appearance","kind":"choice","scope":"phone","mind":false,"key":"appearance.corners","label":"Corners","default":"soft","attr":"data-corners","detail":"How round cards, bubbles and buttons are.","options":[{"value":"sharper","label":"Sharper"},{"value":"soft","label":"Soft"},{"value":"round","label":"Rounder"}]},
