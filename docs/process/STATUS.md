@@ -26,8 +26,7 @@ behaviour change only after talking with the owner.
 
 **Ink and Lamp (2026-11-20, one PR):** a second look for the main pages behind Settings › Appearance
 › Look, off unless chosen ([INK-AND-LAMP.md](../design/INK-AND-LAMP.md); decisions.md), all in
-`frontend/look/` and kept on the phone after one load. Waiting on the owner: their first use on the
-phone, and whether it becomes the default.
+`frontend/look/`, kept on the phone after one load. Waiting on the owner: whether it becomes the default.
 
 ## Current phase: what is live
 
