@@ -550,12 +550,8 @@ export class ListWidget extends FastLayout {
       reserved: () => this.reservedSpace(),
       inset: () => this.ctx.windowInsets.bottom,
     } : null;
-    this.lyricsPage = new LyricsPage(ctx, this);
-    this.lyricsPage.el.style.willChange = 'transform, opacity';
-    this.lyricsPage.visibility = GONE;
-    this.lyricsPage.interceptible = true; // the widget takes side swipes and a pull at the top
-    this.lyricsPage.lp = this.generateLayoutParams(null);
-    this.addView(this.lyricsPage);
+    // The lyrics page is built the first time it is wanted (lyricsPage), not at start (MUSIC.md §5.11).
+    this._lyricsPage = null;
     this.stack = [];
     this.aaFx = null; // page transition zoom of the art items {f, R}
     this.aaShift = 0; // elastic vertical shift of the current art item (px)
@@ -944,7 +940,8 @@ export class ListWidget extends FastLayout {
   toStart() {
     const depth = this.stack.length;
     this.trans?.complete();
-    if (this.mode !== 'list' || this.searching) { this.stack = []; return; }
+    // (The start built ahead, prepareLibrary, is the start: it stays.)
+    if (this.mode !== 'list' || this.searching) { if (!(this.preparedLib && this.stack.length === 1 && this.stack[0] === this.preparedLib)) this.stack = []; return; }
     if (this.stack[depth - 1] === this.startSource) { this.libList.scrollTo(0); return; }
     const reopen = () => { this.stack = []; this.openStart(); };
     if (depth > 1) {
@@ -1211,7 +1208,7 @@ export class ListWidget extends FastLayout {
     // The art and the lyrics are no list layout: the toolbar shows (yv0.A).
     if (list) this.libList.levelChanged = true;
     else this.toolbar?.showNow();
-    this.lyricsPage.show(lyrics);
+    if (lyrics || this._lyricsPage) this.lyricsPage.show(lyrics);
     for (const v of this.items.values()) v.visibility = list || lyrics ? GONE : VISIBLE;
     if (list && !this.stack.length && !this.searching) this.openStart();
     if (mode === 'aa') this.schedulePrepare();
@@ -1541,8 +1538,11 @@ export class ListWidget extends FastLayout {
       }
       nav = 'nav_lib';
     } else if (target === 'library') {
+      const top = this.stack[this.stack.length - 1], built = this.preparedLib;
+      this.preparedLib = null;
       if (!this.stack.length) this.openStart();
-      else this.libList.setSource(this.stack[this.stack.length - 1]);
+      // The library's start built ahead (prepareLibrary): its rows stay as they were built.
+      else if (!(built && built === top && this.libList.source === top)) this.libList.setSource(top);
       nav = 'nav_lib';
     } else if (target === 'lyrics') {
       if (!this.ctx.player?.track) return null;
@@ -2129,8 +2129,8 @@ export class ListWidget extends FastLayout {
     g.setBounds(this.width, this.height + this.ctx.transientBarHeight, this.paddingLeft, this.paddingTop, this.paddingRight, this.paddingBottom);
     this.placeItems();
     // The lyrics page takes the current album-art item's frame (scene_lyrics keeps the player around it).
-    const lp = this.lyricsPage;
-    if (lp.visibility !== GONE) {
+    const lp = this._lyricsPage;
+    if (lp && lp.visibility !== GONE) {
       const b = g.itemBounds(0, 0);
       const w = b.right - b.left, h = b.bottom - b.top;
       lp.measure(MeasureSpec.make(w, MeasureSpec.EXACTLY), MeasureSpec.make(h, MeasureSpec.EXACTLY));
@@ -2140,6 +2140,18 @@ export class ListWidget extends FastLayout {
       lp.el.style.overflow = 'hidden';
       lp.invalidate();
     }
+  }
+
+  /** The lyrics page, built on first use (at start it cost a long task on a slow phone), just above the list. */
+  get lyricsPage() {
+    if (this._lyricsPage) return this._lyricsPage;
+    const page = this._lyricsPage = new LyricsPage(this.ctx, this);
+    page.el.style.willChange = 'transform, opacity';
+    page.visibility = GONE;
+    page.interceptible = true; // the widget takes side swipes and a pull at the top
+    page.lp = this.generateLayoutParams(null);
+    this.addView(page, this.children.indexOf(this.libList) + 1);
+    return page;
   }
 
   layoutLibList() {
@@ -2183,6 +2195,32 @@ export class ListWidget extends FastLayout {
     ll.noScroller = noScroller;
     ll.visibility = GONE;
     this.prepared = {track: t, stack};
+  }
+
+  /**
+   * While the art shows and before the library was ever opened, its start (the home, when no start
+   * category is set) is built, bound, laid out and written hidden, as prepareTrackList does for the
+   * playing track's list (view/prebuild.js runs it in idle time): the first library transition then
+   * takes those rows instead of binding and drawing them in its first frame. Rows now carry their own
+   * icon mask ids (icons.js), so a hidden row's mask never hides a shown one.
+   */
+  prepareLibrary() {
+    const ll = this.libList;
+    if (this.mode !== 'aa' || this.trans || this.menuItem || this.searching || !this.width || ll.visibility !== GONE || this.stack.length) return false;
+    // A start category would open a second level with its own history entry: built when opened, as before.
+    if (homeCategory(+(this.ctx.pref('library_home') ?? -1))) return false;
+    const home = new HomeSource(this.ctx, ll, this.nav);
+    this.stack = [home];
+    ll.setSource(home);
+    ll.visibility = INVISIBLE;
+    const noScroller = ll.noScroller;
+    ll.noScroller = true;
+    this.layoutLibList();
+    ll.sync();
+    ll.noScroller = noScroller;
+    ll.visibility = GONE;
+    this.preparedLib = this.startSource = home;
+    return true;
   }
 
   placeItems() {

@@ -1,5 +1,6 @@
 // Boot: load the reference model, resolve the device configuration, compose
 // the skin theme, inflate the main scene layout and start the frame loop.
+import {mark} from './ui/startup.js';
 import {Resources} from './res/resources.js';
 import {makeConfig} from './res/qualifiers.js';
 import {Context} from './context.js';
@@ -45,6 +46,7 @@ import {installScreenPrefs} from './widgets/screen.js';
 import {installSession, readSession, restore} from './player/session.js';
 import {installCategoryRestore} from './list/category-ref.js';
 import {prebuildLikely} from './view/prebuild.js';
+import {topViewport, visibleHeight} from './ui/viewport-top.js';
 import './list/list-widget.js';
 import './list/selection.js';
 
@@ -127,7 +129,9 @@ function followNightMode(stored, skins, night) {
 export async function boot() {
   const stored = loadStoredSettings();
   const settings = runtimeSettings(stored);
+  mark('boot');
   const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts()]);
+  mark('model');
   installDjMode(model);
   const {dpr, config} = deviceConfig();
   const res = new Resources(model, config, {density: dpr, scaledDensity: dpr, xdpi: 160 * dpr});
@@ -137,6 +141,7 @@ export async function boot() {
   const skin = skins[skinIndex] ?? skins[0];
   const {theme, applied} = composeTheme(res, skin, prefs, {settings});
   const ctx = new Context({res, theme, dpr});
+  mark('theme');
   Object.assign(ctx.settings, settings);
   ctx.prefDefaults = prefDefaults(res);
   // The first run's time (b40.G1, set once at the first launch).
@@ -144,7 +149,7 @@ export async function boot() {
     ctx.firstRunAt = +localStorage.getItem('cp-first-run') || 0;
     if (!ctx.firstRunAt) localStorage.setItem('cp-first-run', String(ctx.firstRunAt = Date.now()));
   } catch { ctx.firstRunAt = Date.now(); }
-  // The layout's height (ui/layout-height.js): inside home's frame the keyboard resizes the window.
+  // The layout's height (ui/layout-height.js): with a field focused, the space above the keyboard.
   const layoutHeight = new LayoutHeight(window.innerHeight, window.innerWidth);
   /** Applies the viewport at layout height h; returns whether anything the layout uses changed. */
   const applyViewport = (h = window.innerHeight) => {
@@ -182,9 +187,11 @@ export async function boot() {
   const container = document.getElementById('cp-root');
   ctx.setRoot(decor, container);
   inflater.inflate('activity_main', decor);
+  mark('inflate');
   installInput(ctx, container);
   player.installMediaSession();
   const library = await new Library(ctx).open();
+  mark('library');
   installHelp(ctx);
   installMetaInfo(ctx);
   installSubAAEditor(ctx);
@@ -237,6 +244,7 @@ export async function boot() {
     if (ctx.listWidget?.back()) return;
     if (tn && tn.nav !== h) tn.navigate(h);
   });
+  mark('restore');
   ctx.scheduleLayout();
   // The likely next screens are built in idle time, before any transition shows them (view/prebuild.js).
   prebuildLikely(ctx);
@@ -258,8 +266,16 @@ export async function boot() {
   };
   const isField = el => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
   const fieldFocused = () => isField(document.activeElement);
-  const windowSize = () => layoutHeight.next(window.innerHeight, window.innerWidth, fieldFocused(), performance.now());
+  // With a field focused, the space above the keyboard (ui/viewport-top.js): the window keeps its
+  // height at /music and in home's frame, and the visual viewport (home's, in its frame) shrinks.
+  const windowSize = () => {
+    const field = fieldFocused();
+    return layoutHeight.next(field ? visibleHeight() : window.innerHeight, window.innerWidth, field, performance.now());
+  };
   window.addEventListener('resize', () => relayout(windowSize()));
+  const vvTop = topViewport(), vvResized = () => { if (fieldFocused()) relayout(windowSize()); };
+  vvTop?.addEventListener('resize', vvResized);
+  if (vvTop && vvTop !== window.visualViewport) window.addEventListener('pagehide', () => vvTop.removeEventListener('resize', vvResized), {once: true});
   // A field let go (a tap elsewhere, Enter, leaving search): the full height at once; the window's own
   // height again once the keyboard has had time to close, and a taller one once it has lasted.
   let closing = [];
@@ -271,6 +287,8 @@ export async function boot() {
   }, true);
   ctx.leaveField = () => { const f = document.activeElement; if (isField(f) && container.contains(f)) f.blur(); };
   document.getElementById('cp-boot')?.remove();
+  mark('ready');
+  requestAnimationFrame(() => requestAnimationFrame(() => mark('firstFrame')));
   // ?diag opens the playback diagnostics (Settings › Audio Outputs Detection Log).
   if (params.has('diag')) ctx.settingsUi?.open('audio_platform_log');
   const diag = {skin: skin.name, applied, unknown: [...unknownClasses], missingIcons: [...ctx.drawables.missingIcons], config};

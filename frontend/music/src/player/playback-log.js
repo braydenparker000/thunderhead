@@ -39,7 +39,7 @@ export class PlaybackLog {
     this.hidden = {count: 0, ms: 0, since: document.hidden ? performance.now() : null};
     this.level = null;
     // The engine's meters, summed over the session (dsp.js forwards each report).
-    this.meters = {frames: 0, inPeak: 0, inOvers: 0, outPeak: 0, clamps: 0, minGain: 1, recent: []};
+    this.meters = {frames: 0, inPeak: 0, inOvers: 0, outPeak: 0, clamps: 0, minGain: 1, recent: [], decodedPeak: 0, decodedOvers: 0, minTrim: 1, minHeadroom: 1, netMinGain: 1};
     this.context = null;
     ctx.playbackLog = this;
     for (const el of ctx.player?.decks ?? []) this.watchDeck(el);
@@ -148,12 +148,23 @@ export class PlaybackLog {
     t.outPeak = Math.max(t.outPeak, m.outPeak);
     t.clamps += m.clamps;
     t.minGain = Math.min(t.minGain, m.minGain);
+    // The safety net (the limiter on samples over full scale only, while the owner's limiter is off): how far it went.
+    if (m.net) t.netMinGain = Math.min(t.netMinGain, m.minGain);
     t.recent.push(m.outPeak);
     if (t.recent.length > 100) t.recent.shift();
     if (!m.clamps) return;
     // A run of clipping is one event (updated), so it cannot flood the log.
     const last = this.events.at(-1), now = this.now();
     if (last?.type === 'clipped' && now - last.until < 2000) { last.samples += m.clamps; last.until = now; } else this.log('clipped', {samples: m.clamps, until: now});
+  }
+
+  /** The decoded input's meter from the engine (before ReplayGain, trim and the equaliser), every 100 ms. */
+  inputMeter(m) {
+    const t = this.meters;
+    t.decodedPeak = Math.max(t.decodedPeak, m.inPeak);
+    t.decodedOvers += m.inOvers;
+    t.minHeadroom = Math.min(t.minHeadroom, m.headroom);
+    t.minTrim = Math.min(t.minTrim, ...m.trim);
   }
 
   /**
@@ -211,8 +222,16 @@ export class PlaybackLog {
 
   /** The engine's level figures: every sample of the session. */
   engineLevel() {
-    const t = this.meters, sr = this.ctx.dsp?.ac?.sampleRate || 48000;
-    return {meteredSeconds: round(t.frames / sr, 1), peakDb: db(t.outPeak), recentPeakDb: db(Math.max(0, ...t.recent)), inputPeakDb: db(t.inPeak), limiterMaxDb: round(db(t.minGain) ?? 0, 1), limiterNowDb: round(this.ctx.dsp?.limiterReductionDb?.() ?? 0, 1), clippedSamples: t.clamps, oversCaught: t.inOvers};
+    const t = this.meters, dsp = this.ctx.dsp, sr = dsp?.ac?.sampleRate || 48000;
+    return {meteredSeconds: round(t.frames / sr, 1), peakDb: db(t.outPeak), recentPeakDb: db(Math.max(0, ...t.recent)), inputPeakDb: db(t.inPeak), limiterMaxDb: round(db(t.minGain) ?? 0, 1), limiterNowDb: round(this.ctx.dsp?.limiterReductionDb?.() ?? 0, 1), clippedSamples: t.clamps, oversCaught: t.inOvers,
+      // Clipping: where it comes from and what the chain does about it (MUSIC.md §5, "Clipping and headroom").
+      // inputPeakDb above is the output stage's input (after preamp, equaliser, tone, width, volume);
+      // decoded* is the songs' own audio before any gain; chainBoostDb the most the settings add.
+      decodedPeakDb: db(t.decodedPeak), decodedOvers: t.decodedOvers,
+      clippedAt: t.clamps || t.inOvers ? (t.decodedOvers ? 'input' : 'chain') : null,
+      chainBoostDb: round(dsp?.chainBoostDb ?? 0, 1), autoHeadroom: !!dsp?.autoHeadroom, headroomDb: round(dsp?.headroomDb ?? 0, 1),
+      headroomMaxDb: round(-(db(t.minHeadroom) ?? 0), 1), inputTrimMaxDb: round(-(db(t.minTrim) ?? 0), 1),
+      safetyNetMaxDb: round(db(t.netMinGain) ?? 0, 1)};
   }
 
   /** Fills the settings screen with the log (rows refresh every second while shown). */
@@ -280,7 +299,7 @@ export class PlaybackLog {
       rows.get('underruns').textContent = s.underruns.supported === false ? 'Not reported by this browser' : `${s.underruns.events} in ${round(s.underruns.playedSeconds / 60, 1)} min played (${round(s.underruns.seconds * 1000, 0)} ms of silence)`;
       const l = s.level;
       rows.get('level').textContent = !l ? 'Starts with the first played track' : l.meteredSeconds !== undefined
-        ? `Peak ${l.peakDb ?? '-∞'} dBFS, last 10 s ${l.recentPeakDb ?? '-∞'} dBFS · limiter now ${l.limiterNowDb} dB, at most ${l.limiterMaxDb} dB\n${l.clippedSamples} clipped samples in ${round(l.meteredSeconds / 60, 1)} min (the limiter caught ${l.oversCaught} over full scale)`
+        ? `Peak ${l.peakDb ?? '-∞'} dBFS, last 10 s ${l.recentPeakDb ?? '-∞'} dBFS · limiter now ${l.limiterNowDb} dB, at most ${l.limiterMaxDb} dB\n${l.clippedSamples} clipped samples in ${round(l.meteredSeconds / 60, 1)} min (the limiter caught ${l.oversCaught} over full scale)\nHeadroom ${l.autoHeadroom ? `${l.headroomDb} dB` : 'off'} (the settings and later stages add ${l.chainBoostDb} dB) · songs over full scale: ${l.decodedOvers} samples, turned down at most ${l.inputTrimMaxDb} dB · safety net at most ${l.safetyNetMaxDb} dB`
         : `Peak ${l.peakDb ?? '-∞'} dBFS since shown, last 10 s ${l.recentPeakDb ?? '-∞'} dBFS\nClipping in ${l.clippedReads} of ${l.reads} reads`;
       const t = s.track, cur = s.decks.find(d => d.current) ?? s.decks[0];
       rows.get('track').textContent = t.format ? `${t.format} ${t.kbps ? t.kbps + ' kbps' : ''} ${t.rate ? round(t.rate / 1000, 1) + ' kHz' : ''} (${t.source})` : '—';

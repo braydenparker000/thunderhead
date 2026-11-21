@@ -54,6 +54,12 @@ const FLUSH_FADE = Math.round(sampleRate * 0.008);
 // the frames either side of the ringing's modelled length searched for the smoothest join.
 const RING_EDGE = 1e-3, RING_SEARCH = 6;
 const DIRECT = 0, HELD = 1, DELAYED = 2;
+// Headroom (MUSIC.md §5 "Clipping and headroom"): the automatic headroom glides over about 50 ms, and
+// never lets the gain overshoot during a change: when the settings boost more, the headroom goes down
+// first and the new bands, preamp and matrix follow once it is there (within HR_NEAR); when they boost
+// less, they change first and the headroom comes back up once they have settled. Each deck's input trim is
+// the page's (dsp/trim.js, set at a song's start). The meters go to the page every 100 ms of audio.
+const HR_GLIDE = coef(12), HR_NEAR = 1.004;
 
 /** A deck's ring: every input frame is written; the mix reads `delay` frames behind the newest. */
 class Ring {
@@ -192,6 +198,12 @@ class EqProcessor extends AudioWorkletProcessor {
     super();
     this.bank = new EqBank(sampleRate);
     this.pre = 1; this.preT = 1;
+    this.hr = 1; this.hrT = 1;
+    // Each deck's input headroom (its song's known peak, or overs seen), whether the peak was known,
+    // and the decoded input's meters: its peak and the samples over full scale.
+    this.trim = new Float64Array([1, 1]); this.trimT = new Float64Array([1, 1]); this.deckPeak = new Float64Array(2);
+    this.waiting = null; this.raiseTo = null;
+    this.inPeak = 0; this.inOvers = 0; this.metered = 0;
     this.m = new Float64Array([1, 0, 0, 1]); this.mT = new Float64Array([1, 0, 0, 1]);
     this.rg = new Float64Array([1, 1]); this.rgT = new Float64Array([1, 1]);
     this.fades = [new Fade(), new Fade()];
@@ -213,15 +225,28 @@ class EqProcessor extends AudioWorkletProcessor {
 
   message(m) {
     if (m.type === 'state') {
-      this.preT = m.preamp;
-      this.mT.set(m.matrix);
       if (m.rg) this.rgT.set(m.rg);
       if (m.send) this.sendT.set(m.send);
-      this.bank.set(m.bands);
+      const hr = m.headroom ?? 1;
+      this.raiseTo = null;
+      if (hr < this.hrT) {
+        // More headroom: down first, the rest when it is there (settle()).
+        this.hrT = hr;
+        this.waiting = m;
+      } else {
+        this.waiting = null;
+        this.apply(m);
+        if (hr > this.hrT) this.raiseTo = hr;
+      }
     } else if (m.type === 'fade') this.fades[m.deck].start(m);
     else if (m.type === 'set') this.fades[m.deck].rest(m.value);
     else if (m.type === 'hold') this.fades[m.deck].rest();
-    else if (m.type === 'rg') this.rgT[m.deck] = m.value;
+    else if (m.type === 'rg') {
+      // A song loads on the deck: its ReplayGain and its input trim (set at its start, dsp/trim.js).
+      this.rgT[m.deck] = m.value;
+      this.trimT[m.deck] = m.trim ?? 1;
+      this.deckPeak[m.deck] = 0;
+    }
     else if (m.type === 'splice') {
       // endIn: seconds until the outgoing track's end is heard (its delay included), so it reaches the watch point then.
       const b = this.rings[m.deck];
@@ -235,6 +260,22 @@ class EqProcessor extends AudioWorkletProcessor {
       if (this.splice?.to === m.deck) this.splice = null;
       this.rings[m.deck].clear(this.rg[m.deck] * this.fades[m.deck].value, !!m.end);
     } else if (m.type === 'ping') this.port.postMessage({type: 'pong', id: m.id});
+  }
+
+  /** The bands, preamp and matrix of a state message. */
+  apply(m) {
+    this.preT = m.preamp;
+    this.mT.set(m.matrix);
+    this.bank.set(m.bands);
+  }
+
+  /** A change waiting on the headroom: applied once the headroom is down; the headroom raised once the change has settled. */
+  settle() {
+    if (this.waiting && this.hr <= this.hrT * HR_NEAR) { this.apply(this.waiting); this.waiting = null; }
+    if (this.raiseTo !== null && !this.waiting && !this.bank.moving() && Math.abs(this.preT - this.pre) < 1e-6 && this.mT.every((t, k) => Math.abs(t - this.m[k]) < 1e-6)) {
+      this.hrT = this.raiseTo;
+      this.raiseTo = null;
+    }
   }
 
   /**
@@ -408,10 +449,19 @@ class EqProcessor extends AudioWorkletProcessor {
     }
     for (let d = 0; d < 2; d++) {
       const f = this.fades[d], il = this.ml[d], ir = this.mr[d];
-      let rg = this.rg[d];
+      let rg = this.rg[d], trim = this.trim[d];
       const rgT = this.rgT[d];
       for (let i = 0; i < n; i++) {
         rg += (rgT - rg) * GLIDE;
+        if (il) {
+          // The decoded input: its meters, and each deck's song's peak (the page learns its album's trim).
+          const al = il[i] < 0 ? -il[i] : il[i], ar = ir[i] < 0 ? -ir[i] : ir[i], a = al > ar ? al : ar;
+          if (a > this.inPeak) this.inPeak = a;
+          if (al > 1) this.inOvers++;
+          if (ar > 1) this.inOvers++;
+          if (a > this.deckPeak[d]) this.deckPeak[d] = a;
+        }
+        trim += (this.trimT[d] - trim) * GLIDE;
         if (f.wait === 0 && f.pos < f.len && i >= (f.began < 0 ? 0 : f.began)) {
           f.pos++;
           const x = f.pos / f.len;
@@ -420,17 +470,30 @@ class EqProcessor extends AudioWorkletProcessor {
           f.value = v;
           if (f.pos >= f.len) this.port.postMessage({type: 'done', id: f.id});
         }
-        if (il) { const g = rg * f.value; wl[i] += il[i] * g; wr[i] += ir[i] * g; }
+        if (il) { const g = rg * trim * f.value; wl[i] += il[i] * g; wr[i] += ir[i] * g; }
       }
       this.rg[d] = rg;
+      this.trim[d] = trim;
       f.began = -1;
       this.tail(d, wl, wr, n);
     }
-    // Preamp, equalizer, then the stereo matrix.
-    let pre = this.pre;
-    const preT = this.preT;
-    for (let i = 0; i < n; i++) { pre += (preT - pre) * GLIDE; wl[i] *= pre; wr[i] *= pre; }
-    this.pre = pre;
+    this.settle();
+    // Preamp and automatic headroom, equalizer, then the stereo matrix. (Both at 1 multiply by 1: exact.)
+    let pre = this.pre, hr = this.hr;
+    const preT = this.preT, hrT = this.hrT;
+    for (let i = 0; i < n; i++) {
+      pre += (preT - pre) * GLIDE; hr += (hrT - hr) * HR_GLIDE;
+      if (Math.abs(hrT - hr) < 1e-9) hr = hrT;
+      if (Math.abs(preT - pre) < 1e-12) pre = preT;
+      const g = pre * hr;
+      wl[i] *= g; wr[i] *= g;
+    }
+    this.pre = pre; this.hr = hr;
+    this.metered += n;
+    if (this.metered >= sampleRate / 10) {
+      this.port.postMessage({type: 'inmeter', frames: this.metered, inPeak: this.inPeak, inOvers: this.inOvers, headroom: hr, trim: [this.trim[0], this.trim[1]], deckPeaks: [this.deckPeak[0], this.deckPeak[1]]});
+      this.inPeak = 0; this.inOvers = 0; this.metered = 0;
+    }
     this.bank.process(wl, wr, n);
     const m = this.m, t = this.mT, ol = out[0], or = out[1] ?? out[0];
     for (let i = 0; i < n; i++) {
@@ -459,13 +522,16 @@ class OutProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.limiter = new TruePeakLimiter(sampleRate);
+    this.net = false;
     this.g = new Float64Array([1, 0, 0, 1]); this.gT = new Float64Array([1, 0, 0, 1]);
     this.wl = new Float64Array(128); this.wr = new Float64Array(128);
     this.frames = 0;
     this.period = Math.round(sampleRate / 10);
     this.port.onmessage = e => {
       const m = e.data;
-      if (m.type === 'state') { this.gT[0] = m.dry; this.gT[1] = m.wet[0]; this.gT[2] = m.wet[1]; this.gT[3] = m.volume; this.limiter.enabled = m.limiter; }
+      // The limiter switch: on, the owner's −1 dBTP limiter; off, the safety net, which acts only on
+      // samples over full scale (it replaces the hard clip there) and passes all others exactly.
+      if (m.type === 'state') { this.gT[0] = m.dry; this.gT[1] = m.wet[0]; this.gT[2] = m.wet[1]; this.gT[3] = m.volume; this.net = !m.limiter; this.limiter.setNet(!m.limiter); }
       else if (m.type === 'ping') this.port.postMessage({type: 'pong', id: m.id});
     };
   }
@@ -487,7 +553,7 @@ class OutProcessor extends AudioWorkletProcessor {
     this.frames += n;
     if (this.frames >= this.period) {
       const m = this.limiter.meter();
-      this.port.postMessage({type: 'meter', frames: this.frames, gain: this.limiter.applied, ...m});
+      this.port.postMessage({type: 'meter', frames: this.frames, gain: this.limiter.applied, net: this.net, ...m});
       this.frames = 0;
     }
     return true;

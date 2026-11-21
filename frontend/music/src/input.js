@@ -169,6 +169,8 @@ export function installInput(ctx, container) {
       return;
     }
     const a = active = {id: e.pointerId, view: v, start: p, downTime: e.timeStamp, custom: false, longFired: false, timer: 0, pressTimer: 0, interceptors};
+    // What a tap would need is asked for now (a song row's link: player/sign-ahead.js).
+    v.onPress?.();
     // Ripple hotspot (drawableHotspotChanged) in the view's coordinates.
     v.hotspot = toLocal(v, p.x, p.y);
     a.pressTimer = setTimeout(() => v.setPressed(true), TAP_TIMEOUT_MS);

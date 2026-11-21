@@ -240,7 +240,10 @@
     const ref = `music:${id}${art ? '#art' : ''}`;
     const headers = {};
     for (const h of ['Range', 'If-Range']) if (req.headers.get(h)) headers[h] = req.headers.get(h);
-    const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit' }, cap.signal, t.bytes);
+    // Never through the browser's HTTP cache: a read cut short (a skip, a head stopped) left part of a
+    // range there, and the next read of it went out as a conditional request first (If-Range), one more
+    // round trip before the first byte (MUSIC.md §6.1). Heads and offline copies keep what is kept.
+    const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes);
     let url = await within(sign(base, auth, ref, false, t.sign), cap.signal);
     if (!url) return new Response(null, { status: 404 });
     let r = await get(url);

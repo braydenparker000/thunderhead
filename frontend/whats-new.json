@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-21-music-library",
+  "id": "2026-11-21-music-sound",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music: Albums now lists real albums; one- and two-song releases have their own Singles section."
+      "text": "Music makes room for your equaliser so boosts no longer clip; a flat equaliser plays exactly as before."
     },
     {
-      "text": "Album and artist pages show year, song count and length, and no longer repeat the same name on every row."
+      "text": "Opened from the ring, Music is no longer resized by the keyboard, so search to player moves cleanly."
     },
     {
-      "text": "Artists lists artists with a body of work; All artists and a Possible duplicates list sit at the end."
+      "text": "A tapped song starts sooner on a slow connection."
     },
     {
-      "text": "On a slow connection a song no longer waits on the old server; icons keep their symbols."
+      "text": "Copy report now says where clipping comes from and what the library screens really show."
     }
   ]
 }
