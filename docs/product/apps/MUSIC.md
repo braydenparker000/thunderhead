@@ -192,7 +192,7 @@ Layout on a 390 × 844 viewport, top to bottom:
 | Why chip | Only when the track came from the mind. Under the cover, left aligned (§10.4) |
 | Title | Inter 600 22/28, two lines max, then ellipsis |
 | Artist · album | Inter 400 15/20, ink-2. Tap artist → artist page |
-| Seek bar | The track's waveform (RMS bars from the catalog), played part in accent, rest in ink-3 at 40 %. Plain 4 px line when there is no waveform. Times under it in tabular figures: elapsed left, remaining right (`−1:12`). **Bar rule (the Poweramp reference behaviour):** 100 bars, each the RMS of an equal span of the stored bins; every bar divided by `sqrt(max² + 0.01)`, then raised to the power 1.35. Never draw the stored bytes directly: they are square-root coded (`round(255·sqrt(rms))`) and look flat. A loud, limited master stays fairly even by design; quiet intros and breaks drop. Acceptance: a test renders a fixture with a quiet intro and a break and checks those bars are below 0.7 while the loud sections reach ≥ 0.9 |
+| Seek bar | The track's waveform (RMS bars from the catalog), played part in accent, rest in ink-3 at 40 %. Plain 4 px line when there is no waveform. Times under it in tabular figures: elapsed left, remaining right (`−1:12`). **Bar rule (the Poweramp reference behaviour):** 100 bars, each the RMS of an equal span of the stored bins; every bar divided by `sqrt(max² + 0.01)`, then raised to the power 1.35. Never draw the stored bytes directly: they are square-root coded (`round(255·sqrt(rms))`) and look flat. A loud, limited master stays fairly even by design; quiet intros and breaks drop. Acceptance: a test renders a fixture with a quiet intro and a break and checks those bars are below 0.7 while the loud sections reach ≥ 0.9. **The bytes:** 1,000 bins of the uploaded Opus file's mean square over all channels, `round(255·ms^(1/4))`, kind `rms`, exactly as [MUSE-WAVEFORMS.md](../../engineering/MUSE-WAVEFORMS.md) hands to Muse (`tests/music-waveform-recipe.test.mjs`); the drawing was checked (2026-11-21) and the fault is in the data |
 | Transport | Previous (48 px), Play/Pause (72 px filled circle, ink on day / white on night), Next (48 px) |
 | Second row | Shuffle mode (Off / Shuffle / DJ), Heart (rating), Queue, Repeat (Off / All / One) |
 
@@ -234,8 +234,10 @@ cover advances exactly one track; long-press opens home with the track attached.
 - **Recently added:** the 200 newest by `added_at`.
 - **Most played:** top 200 by plays (imported plus new).
 - Tapping a song plays it in the context of the list it is in (the list becomes the queue context).
-- A row's long-press menu: Play next · Add to queue · Add to playlist · Go to album · Go to
-  artist · Keep offline · Ask about this.
+- A hold (450 ms) on a song or an entry does what the Select button does: selection mode with that
+  row selected, one haptic tick (none with Haptics off, or on a phone that cannot vibrate). It never
+  plays the song or opens a menu; a move past the touch slop (8 px, where a scroll starts) cancels it.
+  Already selecting, a hold selects the row. (`onItemLongClick` in `frontend/music/src/list/power-list.js`.)
 
 ### 2.7 Detail pages
 
@@ -547,6 +549,15 @@ event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 
 | `lost`, `dropped` | Whether the log (300 events) let some go before a batch took them; how many old ones were left out to stay under 30 KB |
 | `events` | The log's events the Worker hasn't taken, oldest first, each with its number in this page load (`n`), its time (`t`) and its type's own fields only: deck events (`loadstart` with where it played from, `playing`, `waiting` and `stalled` with the position, `error` with its kind and code), `first sound`, the recoveries (`stall`, `reload`, `recovered`, `skip`), `underrun`, `clipped`, `long task`, `hidden`/`visible`, `track` (id, format, bitrate, rate, channels, source), `play`/`pause` |
 | `state` | The log's counters (the snapshot that **Copy report** copies), without its events and the browser's name: output, dropouts, level and limiter, each deck's waits, stalls, errors and start times, recovery, offline copies, long tasks, time hidden |
+
+**Movement and layout** (`frontend/music/src/ui/feel-log.js`, modelled on Astra's feel log): **Copy
+report** also carries `movement`, kept in memory with a cap on each list and never sent to the Worker:
+every view transition (its scene or page names, ms, frames, worst gap between frames; frames are
+counted only while one runs); every open of the player (`innerHeight`, `visualViewport.height`, whether
+a text field had focus in the last second, the layout's height, the player's box height); 600 ms after
+each song change and play/pause, the play and pause buttons (in the page, visible, box size); and each
+search (viewport before and after the keyboard, the results list's height, scroll jumps over 40 px no
+finger or fling made). Numbers and layout names only: no titles, artists, file names or search text.
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a

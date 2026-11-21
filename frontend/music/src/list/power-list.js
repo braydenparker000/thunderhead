@@ -42,6 +42,13 @@ export const SUBHEAD = -103;
 
 // A touch during a fling faster than this stops it without a click (the scroller's 13.75 dp/s).
 const CLICK_STOP_DP = 13.75;
+// A hold this long on a row selects it (MUSIC.md §3.2); a move past the touch slop is a scroll and cancels it.
+export const HOLD_SELECT_MS = 450;
+
+/** One haptic tick: none with the owner's Haptics off (Settings › Appearance) or where the phone cannot vibrate. */
+function tick() {
+  try { if (localStorage.getItem('th.s.appearance.haptics') !== 'off') navigator.vibrate?.(10); } catch { /* no vibration */ }
+}
 
 // Overscroll (PowerScroller hc over the h0 layouter; notebook F80). A drag
 // past an end moves the content on by a rubber band, (P / 4)·ln(1 + C / P)
@@ -297,9 +304,19 @@ export class PowerList extends FastLayout {
     v.useThumb = true;
     v.clickable = true;
     v.onClick = () => v.parent.onItemClick(v);
+    // A hold on a song or an entry selects it, as the Select button does (onItemLongClick).
+    if (type === 'track' || type === 'text') {
+      v.longClickable = true;
+      v.longPressMs = HOLD_SELECT_MS;
+      v.onLongClick = () => v.parent?.onItemLongClick?.(v) ?? false;
+    }
     // Line 2 is clickable in the item style (for the cover's line 2 actions);
-    // in a list it acts as the row, so the whole row plays or opens.
-    withView(v, 'line2', l2 => { l2.onClick = () => v.onClick(); l2.onLongClick = () => v.onLongClick?.() ?? false; });
+    // in a list it acts as the row, so the whole row plays, opens or is held.
+    withView(v, 'line2', l2 => {
+      l2.onClick = () => v.onClick();
+      l2.onLongClick = () => v.onLongClick?.() ?? false;
+      if (v.longClickable) { l2.longClickable = true; l2.longPressMs = HOLD_SELECT_MS; }
+    });
     withView(v, 'menu', menu => { menu.onClick = () => { const l = v.parent; if ((v.listIndex === -1 || v === l.toolbarView) && l.source?.menuLayout) l.host?.openItemMenu?.(v, l.source.menuLayout); }; });
     return v;
   }
@@ -386,6 +403,23 @@ export class PowerList extends FastLayout {
     else this.source.onItemClick?.(v.listIndex);
   }
 
+  /**
+   * A hold on a row (HOLD_SELECT_MS): what the Select button does
+   * (cmd_list_toggle_selection_mode), with this row selected, and one tick.
+   * Already selecting, it selects the row. Never plays it or opens a menu:
+   * the input layer skips the click once this returns true.
+   */
+  onItemLongClick(v) {
+    const s = this.source, i = v.listIndex;
+    if (!this.selectable || !s || !(i >= 0) || s.isSeparator?.(i) || s.menuOnlyToolbar) return false;
+    if (Math.abs(this.velocity) > CLICK_STOP_DP * this.ctx.dpr) return false;
+    if (this.ctx.selectionOwner && this.ctx.selectionOwner !== this) return false;
+    if (!this.selection) this.setSelectionMode(true);
+    if (!this.selection.has(i)) this.toggleSelected(i);
+    tick();
+    return true;
+  }
+
   onMeasure(wSpec, hSpec) {
     this.setMeasuredDimension(MeasureSpec.getSize(wSpec), MeasureSpec.getSize(hSpec));
   }
@@ -405,6 +439,8 @@ export class PowerList extends FastLayout {
     const s = this.source;
     if (!s) return;
     this.scrollY = Math.max(0, Math.min(this.scrollY, this.maxScroll()));
+    // The movement recorder, while search is open (ui/feel-log.js): scroll jumps.
+    this.feelWatch?.(this);
     this.syncScroller();
     // A drag reorder places the rows itself.
     if (this.reorder) { this.reorder.place(); return; }

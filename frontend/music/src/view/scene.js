@@ -167,6 +167,11 @@ function collect(group, scene, out) {
 
 const frameOf = v => [v.left + Math.round(v.translationX), v.top + Math.round(v.translationY), v.right + Math.round(v.translationX), v.bottom + Math.round(v.translationY)];
 
+// The movement recorder's hook (ui/feel-log.js): told when an animated or dragged scene change starts
+// and when any ends. Unset, nothing runs.
+let sceneWatch = null;
+export const watchScenes = fn => { sceneWatch = fn; };
+
 /** Scene controller attached to a SceneFastLayout. */
 export class SceneController {
   constructor(root) {
@@ -216,6 +221,7 @@ export class SceneController {
       return;
     }
     this.running = {clock: animClock(), from: 0, target: 1, duration: sceneDuration(duration, velocity) * 1000, onEnd};
+    sceneWatch?.(this, true);
     this.ratio = 0;
     this.apply(0, true);
     this.root.ctx.animate(this);
@@ -237,6 +243,7 @@ export class SceneController {
       this.prepare();
       this.targetSize = null;
       this.running = {manual: true, from: 0, target: 1, duration: 0};
+      sceneWatch?.(this, true);
       // A layout pass while the drag holds would leave the frames at the target layout: re-applied after it.
       (this.root.ctx.manualScenes ??= new Set()).add(this);
     }
@@ -472,6 +479,7 @@ export class SceneController {
   }
 
   notify(kind) {
+    if (kind === 'end') sceneWatch?.(this, false);
     for (const l of this.listeners) l(kind, this);
   }
 }
