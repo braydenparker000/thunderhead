@@ -11,9 +11,11 @@
 // links are signed together in one request before their turn, so a skip doesn't wait for one. A
 // link asked for twice at once is signed once. The session is read again after a minute.
 // Until the new Worker can answer (signed out, no catalog imported yet, no signing key, the bucket
-// refusing a fresh link), the request goes to the old Worker as before, and the new one is asked
-// again 5 minutes later. A network failure, or a signature or the bucket not answering within
-// UPSTREAM_MS, sends that one request to the old Worker and nothing else. A framed copy of the
+// refusing a fresh link: a REFUSED status), the request goes to the old Worker as before, and the new
+// one is asked again 5 minutes later. Nothing else ever goes to the old Worker (it lacks newer songs:
+// its 404 would make the player skip). A network failure or a slow answer is tried once more with
+// longer waits (a signature 8 s, a first byte 12 s; a link already signed is reused), then answered
+// with a network error, which the player treats as a stall and tries again: within ANSWER_MS. A framed copy of the
 // player never gets the owner's session, unless home opened that frame itself (the island,
 // th/ported/frames.js: a one-time token home gives this worker before it opens the frame).
 // Classic script: it runs in a classic worker, and loads frames.js the classic way. The player's worker names the old
@@ -31,8 +33,13 @@
   const CATALOG_KEY = '/music/th-catalog.json';
   const RETRY_MS = 5 * 60_000;
   const RESIGN_MS = 20 * 60_000;
-  /** A signature, or the bucket's first byte of an answer, waits this long at most. */
+  /** A signature, or the first byte of an answer (the bucket's, the catalog's, a waveform's), waits this long at most. */
   const UPSTREAM_MS = 4000;
+  /** The one try again after a timeout or network failure (a slow connection): a signature, a first byte. */
+  const SIGN_RETRY_MS = 8000;
+  const BYTES_RETRY_MS = 12_000;
+  /** The player hears a failure (a network error) or the answer starts within this: 4 s + 8 s to sign, then 12 s for the first byte. */
+  const ANSWER_MS = UPSTREAM_MS + SIGN_RETRY_MS + BYTES_RETRY_MS;
   /** The session read from IndexedDB is used this long before it is read again. */
   const TOKEN_MS = 60_000;
   /** Refs in one POST /v1/media/sign (MUSIC_LIMITS.sign_refs in shared/contract/music.ts). */
@@ -117,15 +124,19 @@
     return { signal, done: () => clearTimeout(timer) };
   }
 
-  /** A fetch whose answer must start within UPSTREAM_MS; its body then streams as long as `outer` lives. */
-  async function upstream(url, init, outer) {
-    const d = deadline(UPSTREAM_MS, outer);
+  /** A fetch whose answer must start within ms; its body then streams as long as `outer` lives. */
+  async function upstream(url, init, outer, ms = UPSTREAM_MS) {
+    const d = deadline(ms, outer);
     try {
       return await deps.fetch(url, { ...init, signal: d.signal });
     } finally {
       d.done();
     }
   }
+
+  /** p, or the reason `signal` aborts first (a wait that can't be aborted itself, kept within ANSWER_MS). */
+  const within = (p, signal) =>
+    Promise.race([p, new Promise((_, no) => (signal.aborted ? no(signal.reason) : signal.addEventListener('abort', () => no(signal.reason), { once: true })))]);
 
   const tokenOf = () => {
     if (deps.now() - tokenAt > TOKEN_MS) {
@@ -155,13 +166,18 @@
   };
 
   /** One POST /v1/media/sign for refs. Each ref's link (null: no such file) waits in `signing` meanwhile. */
-  function signMany(base, auth, refs) {
+  function signMany(base, auth, refs, ms = UPSTREAM_MS) {
     const asked = (async () => {
-      const r = await upstream(`${base}/v1/media/sign`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refs }),
-      });
+      const r = await upstream(
+        `${base}/v1/media/sign`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refs }),
+        },
+        undefined,
+        ms,
+      );
       if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('sign');
       const body = await r.json();
       for (const item of body.items ?? []) links.set(item.ref, item);
@@ -180,10 +196,10 @@
     return asked;
   }
 
-  /** A ref's link: the one kept, the one on its way, or a new one (`again`: always new). */
-  async function sign(base, auth, ref, again) {
+  /** A ref's link: the one kept, the one on its way, or a new one (`again`: always new) within ms. */
+  async function sign(base, auth, ref, again, ms) {
     if (!again && fresh(ref)) return fresh(ref).url;
-    if (again || !signing.has(ref)) signMany(base, auth, [ref]).catch(() => {});
+    if (again || !signing.has(ref)) signMany(base, auth, [ref], ms).catch(() => {});
     return (await signing.get(ref))?.url ?? null;
   }
 
@@ -193,12 +209,15 @@
     return new Response(r.body, { status, headers });
   };
 
-  async function catalog(req, base, auth) {
+  // Each takes the try's waits (`t`: first byte, sign) and the request's clock (`cap`, see answer()).
+  async function catalog(base, auth, t, cap) {
     const cache = await deps.caches().open(CATALOG_CACHE);
     const had = await cache.match(CATALOG_KEY);
     const headers = { Authorization: `Bearer ${auth}` };
     if (had?.headers.get('ETag')) headers['If-None-Match'] = had.headers.get('ETag');
-    const r = await deps.fetch(`${base}/v1/music/catalog`, { headers, signal: req.signal });
+    const r = await upstream(`${base}/v1/music/catalog`, { headers }, cap.signal, t.bytes);
+    // Its answer has started: the download takes as long as it takes.
+    cap.done();
     if (r.status === 304 && had) return copy(had, 200);
     if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('catalog');
     const keep = new Response(await r.arrayBuffer(), {
@@ -208,8 +227,8 @@
     return copy(keep);
   }
 
-  async function waveform(req, base, auth, id) {
-    const r = await deps.fetch(`${base}/v1/music/waveforms/${id}`, { headers: { Authorization: `Bearer ${auth}` }, signal: req.signal });
+  async function waveform(base, auth, id, t, cap) {
+    const r = await upstream(`${base}/v1/music/waveforms/${id}`, { headers: { Authorization: `Bearer ${auth}` } }, cap.signal, t.bytes);
     if (r.status === 404) return new Response(null, { status: 404 });
     if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('waveform');
     const { bars } = await r.json();
@@ -217,18 +236,18 @@
     return new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream' } });
   }
 
-  async function media(req, base, auth, id, art) {
+  async function media(req, base, auth, id, art, t, cap) {
     const ref = `music:${id}${art ? '#art' : ''}`;
     const headers = {};
     for (const h of ['Range', 'If-Range']) if (req.headers.get(h)) headers[h] = req.headers.get(h);
-    const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit' }, req.signal);
-    let url = await sign(base, auth, ref, false);
+    const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit' }, cap.signal, t.bytes);
+    let url = await within(sign(base, auth, ref, false, t.sign), cap.signal);
     if (!url) return new Response(null, { status: 404 });
     let r = await get(url);
     // An expired link (a paused song past its hour): sign once more. Refused again, the bucket isn't
     // open to this site (or the key is wrong). (Without its CORS rule, SETUP.md N2, it fails as a network would.)
     if (r.status === 403) {
-      url = await sign(base, auth, ref, true);
+      url = await within(sign(base, auth, ref, true, t.sign), cap.signal);
       if (!url) return new Response(null, { status: 404 });
       r = await get(url);
       if (r.status === 403) throw NOT_READY;
@@ -236,29 +255,49 @@
     return copy(r);
   }
 
-  async function fromNew(req) {
+  async function fromNew(req, t, cap) {
     const url = new URL(req.url);
     const m = PATH.exec(url.pathname);
-    const auth = await tokenOf();
+    const auth = await within(tokenOf(), cap.signal);
     if (!auth) throw NOT_READY;
-    const base = await apiOf();
+    const base = await within(apiOf(), cap.signal);
     if (!base) throw NOT_READY;
-    if (!m[1]) return catalog(req, base, auth);
-    if (m[1] === 'waveform') return waveform(req, base, auth, m[2]);
-    return media(req, base, auth, m[2], m[1] === 'art');
+    if (!m[1]) return catalog(base, auth, t, cap);
+    if (m[1] === 'waveform') return waveform(base, auth, m[2], t, cap);
+    return media(req, base, auth, m[2], m[1] === 'art', t, cap);
   }
+
+  /** The two tries' waits: the first, then the one try again on a slow connection. */
+  const TRIES = [
+    { sign: UPSTREAM_MS, bytes: UPSTREAM_MS },
+    { sign: SIGN_RETRY_MS, bytes: BYTES_RETRY_MS },
+  ];
 
   /** The answer to one of the player's library requests. */
   async function answer(req, event) {
     const url = new URL(req.url);
     if (req.method !== 'GET' || url.search || !PATH.test(url.pathname)) return deps.fetch(req);
     if (deps.now() >= offUntil && (await deps.topLevel(event))) {
+      // The whole answer starts, or fails, within ANSWER_MS; once it has started its body streams on.
+      const cap = deadline(ANSWER_MS, req.signal);
       try {
-        return await fromNew(req);
-      } catch (e) {
-        if (e === NOT_READY) offUntil = deps.now() + RETRY_MS;
-        // The player let go of the request: there is no one to answer.
-        if (req.signal?.aborted) throw e;
+        for (const t of TRIES) {
+          try {
+            return await fromNew(req, t, cap);
+          } catch (e) {
+            // Only "not for this site yet" goes to the old Worker.
+            if (e === NOT_READY) {
+              offUntil = deps.now() + RETRY_MS;
+              break;
+            }
+            // The player let go of the request: there is no one to answer.
+            if (req.signal?.aborted) throw e;
+            // Twice failed or slow: a network error, which the player waits out and tries again (a 404 would skip the song).
+            if (t === TRIES.at(-1) || cap.signal.aborted) return Response.error();
+          }
+        }
+      } finally {
+        cap.done();
       }
     }
     return deps.fetch(req);

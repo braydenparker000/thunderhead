@@ -17,6 +17,12 @@ the old system is ask-first; `jarvis-music` is shared and never deleted from (AG
 
 **Gate:** zero requests to the old Worker for **7 consecutive days**, then the owner's approval (a tap or their own words).
 
+Music's bridge (`frontend/th/music/bridge.js`) no longer sends a request to the old Worker after a
+timeout or a network failure (the calls about once a minute, 2026-11-21): it tries the new Worker once
+more with longer waits, then answers with a network error. It still asks the old Worker while the new
+one refuses (signed out, no catalog imported, no signing key, the bucket refusing a fresh link), so
+those calls count against the gate until the owner is signed in on the phone.
+
 | Step | Exact rule | Ask first? |
 |---|---|---|
 | 1. Evidence | Daily: the request count of the old Worker for the previous day, from the Cloudflare dashboard (owner glance) or from Workers Logs. Logs keep 3 days on Free until 2026-12-01 and 7 days after, so the count is read daily and written to STATUS (counts only). No Cloudflare credential ever goes into a session (decisions); if no automatic source exists, the owner reads the dashboard number once on day 7. [proposal] | No |

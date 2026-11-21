@@ -61,8 +61,13 @@ for the owner's yes.
    `GET /v1/music/waveforms/:id` (`frontend/th/music/bridge.js`). It uses the owner's session on
    this site; until the new Worker can answer (signed out, no catalog imported, no signing key, the
    bucket refusing a fresh link) it asks the old Worker as before and tries the new one again 5
-   minutes later, so music never stops during the move (SETUP.md N). A network failure, or a
-   signature or the bucket not answering within 4 s, sends only that one request to the old Worker.
+   minutes later, so music never stops during the move (SETUP.md N). Nothing else goes to the old
+   Worker: it lacks newer songs, and its 404 made the player skip. A network failure or a slow answer
+   (a signature, or the first byte of the bucket, the catalog or a waveform, not within 4 s) is tried
+   once more with longer waits (a signature 8 s, a first byte 12 s; a link already signed is reused, so
+   a signed song starts its bytes with no extra round trip). If that fails too, the player gets a
+   network error, not a 404, so it waits and tries again rather than skipping: within 24 s of the
+   request at most (`ANSWER_MS`).
    The page names the current song and the next 3, and the worker signs their links together in one
    request before their turn.
 
@@ -777,10 +782,11 @@ named every blob URL that is not an offline copy "device". It now names it `stre
 try again, `frontend/th/music/stream/track.js`); what it waits on before that is not in the log, so it now
 notes the feed's tries again after a network failure, a timeout or a 5xx (`stream retry`, with the code
 and the try: 0.5, 1, 2 and 4 s apart) and a wait of 100 ms or more for the song's head before the first
-request (`stream head wait`). Not found on the page: a path that waits 14 s for a 404. Left to check
-there: the service worker's bridge (`frontend/th/music/bridge.js`) waits up to 4 s for a signature and
-4 s for the bucket's first byte, and after a timeout sends the request to the old Worker, whose 404 for
-a song it does not have would read the same.
+request (`stream head wait`). Not found on the page: a path that waits 14 s for a 404. Found in the
+service worker's bridge (`frontend/th/music/bridge.js`): it waited up to 4 s for a signature and 4 s for
+the bucket's first byte, and after a timeout sent the request to the old Worker, whose 404 for a song it
+does not have was the one in the log. Fixed (§5 step 5): a timeout is tried again on the new path, then
+answered with a network error within 24 s; the old Worker only answers "not for this site yet".
 
 ### 6.4 CORS prerequisites
 

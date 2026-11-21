@@ -3,7 +3,8 @@
 // catalog with its ETag, audio and art by signed links signed again near their end or on a 403, a
 // waveform as bytes) and go to the old Worker as before while the new one can't answer (signed out,
 // no catalog yet, no signing key, the bucket refusing a fresh link, a framed player), asking again 5
-// minutes later; a network failure or a slow answer sends only that request there. The next songs'
+// minutes later. A network failure or a slow answer never goes there: it is tried once more with longer
+// waits (reusing a link already signed), then answered with a network error within ANSWER_MS. The next songs'
 // links are signed ahead in one request, a link asked twice at once is signed once, and the session
 // is read once a minute. Run in a plain VM with stubbed fetch, caches and session (and its clocks
 // 100 times faster); no network.
@@ -39,16 +40,19 @@ function load({ token = 'th1_session', top = true } = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const headers = new Headers(typeof input === 'string' ? init.headers : input.headers);
     calls.push({ url, method: init.method ?? (typeof input === 'string' ? 'GET' : input.method), headers, body: init.body, signal: init.signal });
+    const hang = () => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
     if (url.startsWith(OLD)) return new Response('old', { status: 200, headers: { 'Content-Type': 'text/plain' } });
     if (url === `${API}/v1/music/catalog`) {
+      if (state.catalog === 'hang') return hang();
       if (state.catalog !== 200) return new Response('{}', { status: state.catalog });
       if (headers.get('If-None-Match') === '"m1-x"') return new Response(null, { status: 304, headers: { ETag: '"m1-x"' } });
       return new Response('{"version":1,"tracks":[]}', { status: 200, headers: { ETag: '"m1-x"', 'Content-Type': 'application/json' } });
     }
     if (url === `${API}/v1/media/sign`) {
-      if (state.sign === 'down') throw new TypeError('Failed to fetch');
-      if (state.sign === 'hang') return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
-      if (state.sign !== 200) return new Response('{}', { status: state.sign });
+      const sign = state.signs?.shift() ?? state.sign;
+      if (sign === 'down') throw new TypeError('Failed to fetch');
+      if (sign === 'hang') return hang();
+      if (sign !== 200) return new Response('{}', { status: sign });
       const { refs } = JSON.parse(init.body);
       if (state.signGate) await state.signGate;
       const out = { items: [], errors: [] };
@@ -59,12 +63,14 @@ function load({ token = 'th1_session', top = true } = {}) {
       return Response.json(out);
     }
     if (url.startsWith(`${API}/v1/music/waveforms/`)) {
+      if (state.waveform === 'hang') return hang();
       if (state.waveform) return new Response('{}', { status: state.waveform });
       return url.endsWith(ID) ? Response.json({ id: ID, bars: btoa('\x01\x02\x03') }) : new Response('{}', { status: 404 });
     }
     if (url.startsWith('https://r2.example.test/')) {
       const next = state.r2.shift() ?? 206;
       if (next === 'cors') throw new TypeError('Failed to fetch');
+      if (next === 'hang') return hang();
       return new Response(next === 206 ? 'bytes' : null, {
         status: next,
         headers: next === 206 ? { 'Content-Type': 'audio/ogg', 'Content-Range': 'bytes 0-4/100', 'Accept-Ranges': 'bytes', 'X-Other': 'dropped' } : {},
@@ -151,12 +157,11 @@ test('until the new Worker can answer, the old one does, and the new one is aske
   }
 });
 
-test('a bucket that refuses the site (no CORS rule yet) falls back; a framed player never uses the session', async () => {
+test('a bucket that refuses a fresh link falls back; one that fails as a network would is asked again; a framed player never uses the session', async () => {
   const a = load();
-  a.state.r2.push('cors');
-  assert.equal(await (await a.get(`/music/library/audio/${ID}`)).text(), 'old');
-  // (A failure without an answer is not a refusal: the next request asks the bucket again.)
-  assert.equal((await a.get(`/music/library/audio/${ID}`)).status, 206);
+  a.state.r2.push('cors', 'cors');
+  assert.equal((await a.get(`/music/library/audio/${ID}`)).type, 'error', 'a failure without an answer is not a refusal: a network error');
+  assert.equal((await a.get(`/music/library/audio/${ID}`)).status, 206, 'the next request asks the bucket again');
   a.state.r2.push(403, 403);
   assert.equal(await (await a.get(`/music/library/audio/${ID}`)).text(), 'old', 'refused a fresh link: the old Worker');
   const asked = a.calls.length;
@@ -202,14 +207,15 @@ test('a link asked for twice at once is signed once; the session is read once a 
   assert.equal(state.apiReads, 1, 'the API address read once');
 });
 
-test('a network failure, a slow signature or a failed waveform sends only that request to the old Worker', async () => {
+test('a network failure, a slow signature or a failed waveform is a network error, never the old Worker', async () => {
   const { calls, get, state } = load();
   state.sign = 'down';
-  assert.equal(await (await get(`/music/library/audio/${ID}`)).text(), 'old');
+  assert.equal((await get(`/music/library/audio/${ID}`)).type, 'error');
   state.sign = 'hang';
-  assert.equal(await (await get(`/music/library/audio/${ID}`)).text(), 'old', 'no signature in time');
+  assert.equal((await get(`/music/library/audio/${ID}`)).type, 'error', 'no signature in time');
   state.waveform = 500;
-  assert.equal(await (await get(`/music/library/waveform/${ID}`)).text(), 'old');
+  assert.equal((await get(`/music/library/waveform/${ID}`)).type, 'error');
+  assert.ok(onlyNew(calls), 'no old-Worker call');
   state.sign = 200;
   state.waveform = 0;
   assert.equal((await get(`/music/library/audio/${ID}`)).status, 206, 'the new Worker straight after');
@@ -217,10 +223,11 @@ test('a network failure, a slow signature or a failed waveform sends only that r
   // The API address that couldn't be read is read again.
   const next = load();
   next.state.api = new Error('offline');
-  assert.equal(await (await next.get('/music/library.json')).text(), 'old');
+  assert.equal((await next.get('/music/library.json')).type, 'error');
+  assert.ok(onlyNew(next.calls));
   next.state.api = API;
   assert.equal((await next.get('/music/library.json')).status, 200);
-  assert.equal(next.state.apiReads, 2);
+  assert.equal(next.state.apiReads, 3, 'once per try, then again');
   assert.ok(calls.some((c) => c.url.startsWith('https://r2.example.test/')));
 });
 
@@ -234,4 +241,59 @@ test('the bucket’s answer must start in time, then streams as long as the play
   assert.equal(bucket.signal.aborted, false, 'past the deadline, the body still streams');
   player.abort();
   assert.equal(bucket.signal.aborted, true, 'the player letting go ends the bucket request');
+});
+
+// The clocks run 100 times faster here: 4 s is 40 ms.
+const elapsed = async (f) => {
+  const t0 = performance.now();
+  const out = await f();
+  return [out, performance.now() - t0];
+};
+
+test('a slow signature is tried once more with a longer wait, then plays: no old-Worker request', async () => {
+  const { calls, get, state } = load();
+  state.signs = ['hang', 200];
+  const r = await get(`/music/library/audio/${ID}`, { Range: 'bytes=0-' });
+  assert.equal(r.status, 206);
+  assert.equal(signCalls(calls).length, 2);
+  assert.ok(onlyNew(calls));
+});
+
+test('a slow bucket is asked once more with the link already signed', async () => {
+  const { calls, get, state } = load();
+  state.r2.push('hang', 206);
+  const [r, ms] = await elapsed(() => get(`/music/library/audio/${ID}`, { Range: 'bytes=0-' }));
+  assert.equal(r.status, 206);
+  assert.equal(signCalls(calls).length, 1, 'no second signature');
+  assert.equal(calls.filter((c) => c.url.startsWith('https://r2.example.test/')).length, 2);
+  assert.ok(ms >= 35, 'the first try waited its 4 s');
+  assert.ok(onlyNew(calls));
+  // A song already signed starts its bytes with no extra round trip.
+  const before = calls.length;
+  await get(`/music/library/audio/${ID}`, { Range: 'bytes=5-' });
+  assert.deepEqual(calls.slice(before).map((c) => new URL(c.url).host), ['r2.example.test']);
+});
+
+test('both tries failing is a network error within the bound, never the old Worker', async () => {
+  for (const [why, set, path] of [
+    ['signature', (s) => (s.sign = 'hang'), `/music/library/audio/${ID}`],
+    ['bucket', (s) => s.r2.push('hang', 'hang'), `/music/library/audio/${ID}`],
+    ['signature then bucket', (s) => ((s.signs = ['hang', 200]), s.r2.push('hang')), `/music/library/audio/${ID}`],
+    ['catalog', (s) => (s.catalog = 'hang'), '/music/library.json'],
+    ['waveform', (s) => (s.waveform = 'hang'), `/music/library/waveform/${ID}`],
+  ]) {
+    const { calls, get, state } = load();
+    set(state);
+    const [r, ms] = await elapsed(() => get(path));
+    assert.equal(r.type, 'error', `${why}: a network error (the player retries it), not a 404`);
+    assert.ok(onlyNew(calls), `${why}: no old-Worker request`);
+    assert.ok(ms < 240 + 150, `${why}: heard within ANSWER_MS (24 s), took ${Math.round(ms * 100)} ms`);
+  }
+});
+
+test('a refusal still falls back to the old Worker at once, with no try again', async () => {
+  const { calls, get, state } = load();
+  state.sign = 401;
+  assert.equal(await (await get(`/music/library/audio/${ID}`)).text(), 'old');
+  assert.equal(signCalls(calls).length, 1);
 });
