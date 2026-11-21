@@ -26,6 +26,8 @@ import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session 
 // What the owner uses (P9, EVALS.md M-16, M-18): this app opening, signed in, is one event (th/senses/send.js),
 // sent when the page is shown to the owner, not when home preloads it in a hidden frame (shown.js).
 if (location.origin === SITE) whenShown(window, () => import('/th/senses/send.js').then(m => m.sense(`${app}.open`)).catch(() => {}));
+// The data meter counts this page's bytes on the phone (th/data/page.js, Settings › Data use).
+import('/th/data/page.js').catch(() => {});
 // The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a
 // stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).
 const where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];

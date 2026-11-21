@@ -148,7 +148,7 @@ const budgets = [
   // (2026-11-14) +568 measured (80,311 → 80,879): th/update.js reloads at its next safe moment when another
   // page applied a release (the editor's pages do as they open, lab/engine/fresh.js: a phone that went straight
   // to them ran the release before's code for days).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_178], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_411], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.

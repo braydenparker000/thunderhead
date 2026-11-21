@@ -1589,7 +1589,7 @@
    "adjustments": []
   },
   "assets/error-report.js": {
-   "sha256": "e89a6eebc6c0f6699f6d781581ccc072c16037d5d79d52300649e8337d7070b3",
+   "sha256": "738a5e99b4790bf0d8c09c1d9a4e5c752b1c5c8c9304524c07c53d906762ba62",
    "old_sha256": "b2a4592c32d082d05fe6cc9222bacf56db172603b39eb6b46d541dae6b3e960e",
    "adjustments": [
     "api-address",
@@ -1597,6 +1597,10 @@
     "improvement"
    ],
    "edits": [
+    [
+     "if (location.origin === SITE) whenShown(window, () => import('/th/senses/send.js').then(m => m.sense(`${app}.open`)).catch(() => {}));\n// The data meter counts this page's bytes on the phone (th/data/page.js, Settings › Data use).\nimport('/th/data/page.js').catch(() => {});\n",
+     "if (location.origin === SITE) whenShown(window, () => import('/th/senses/send.js').then(m => m.sense(`${app}.open`)).catch(() => {}));\n"
+    ],
     [
      "const SITE = 'https://thunderhead.z13.web.core.windows.net';",
      "const SITE = 'https://missionarytube.z13.web.core.windows.net';"

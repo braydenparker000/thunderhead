@@ -26,6 +26,7 @@ const ALSO = /** @type {Record<string, string>} */ ({
   memory: 'memory facts forget',
   deleted: 'trash bin restore undelete',
   privacy: 'data senses errors',
+  data: 'usage mobile data wifi wi-fi cellular megabytes gigabytes download',
   appearance: 'look style',
   'appearance.look': 'theme style classic ink lamp',
   'appearance.haptics': 'sound vibration vibrate',

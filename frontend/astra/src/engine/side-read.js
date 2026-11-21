@@ -47,6 +47,7 @@ export async function sideRead(source, start, end, signal, {into = null, onBytes
           .finally(() => clearTimeout(stall));
         if (done) throw new SourceError('network', 'The host ended its answer early.');
         source.bytesFetched += value.length;
+        globalThis.thData?.add('astra', value.length, source.url); // the phone's data meter (th/data/page.js)
         const n = Math.min(value.length, out.length - filled); // a host that sends past the range: the rest is not kept
         out.set(value.subarray(0, n), filled); filled += n;
         onBytes?.(filled);

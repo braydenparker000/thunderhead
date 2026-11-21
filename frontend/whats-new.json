@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-21-music-steady",
+  "id": "2026-11-21-data-use",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music: the playing song gets the connection first, and a stalled song recovers instead of waiting."
+      "text": "Settings has a Data use page: what this site downloaded today and this month, by Wi-Fi and mobile data."
     },
     {
-      "text": "Background preparation no longer runs while you touch the screen or a screen is moving."
+      "text": "It lists each part (Music's songs and covers, Astra, Photos, updates) and what it cannot count."
     },
     {
-      "text": "Opened from the ring, Music's frame keeps its height when the keyboard comes and goes."
-    },
-    {
-      "text": "Artists show their albums and songs; a loud song's peak is remembered so it plays clean next time."
+      "text": "The numbers are counted on this phone and never leave it."
     }
   ]
 }

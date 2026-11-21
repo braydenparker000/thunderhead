@@ -13,6 +13,8 @@ import { collector, itemOf } from './error-items.js';
 
 // A preview build (not the live app) says so, small, on every shell page.
 if (CONFIG.preview) import('/ui/preview.js').catch(() => {});
+// The data meter counts this page's bytes on the phone (th/data/page.js, Settings › Data use).
+import('/th/data/page.js').catch(() => {});
 
 const app = /** @type {HTMLScriptElement | null} */ (document.querySelector('script[src="/ui/errors.js"]'))?.dataset.app || 'home';
 /** @type {string | null} */
