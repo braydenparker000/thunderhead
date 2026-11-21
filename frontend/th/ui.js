@@ -4,6 +4,7 @@
 // on access buttons (SECURITY.md §4.3, item 4).
 
 import { confirmsLastFive, groupCode } from './codes.js';
+import { open as layer } from './layers.js';
 
 /**
  * @template {keyof HTMLElementTagNameMap} K
@@ -93,8 +94,11 @@ export function confirmSheet(o) {
       sheet.classList.add('on');
     });
     keep.focus({ preventScroll: true });
+    // Back chooses Keep (GESTURES.md §7).
+    const shut = layer('confirm', () => done(false));
     /** @param {boolean} answer */
     const done = (answer) => {
+      shut();
       document.removeEventListener('keydown', onKey, true);
       dim.remove();
       sheet.remove();

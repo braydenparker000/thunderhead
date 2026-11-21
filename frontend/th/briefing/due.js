@@ -4,6 +4,7 @@
 // the counts and the next time). Escape, the dim or Close shut it. Text is set with textContent.
 import { clock as hhmm } from '../pref.js';
 import { el } from '../ui.js';
+import { open as layer } from '../layers.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').DueTile} DueTile */
 
@@ -35,7 +36,9 @@ export function openDue(t) {
     sheet.classList.add('on');
   });
   close.focus({ preventScroll: true });
+  const shut = layer('due', () => done());
   const done = () => {
+    shut();
     document.removeEventListener('keydown', onKey, true);
     dim.remove();
     sheet.remove();

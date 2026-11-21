@@ -9,6 +9,7 @@
 import { api, signedIn } from '../client.js';
 import { toast } from '../ui.js';
 import { clock, size } from './state.js';
+import { open as layer } from '../layers.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Attachment} Attachment */
 /** @typedef {import('./state.js').LocalFile} LocalFile */
@@ -259,6 +260,7 @@ function view(i) {
   pictureOf(i.id).then((src) => (img.src = src), () => toast("Couldn't fetch that photo."));
   const back = /** @type {HTMLElement | null} */ (document.activeElement);
   const close = () => {
+    shut();
     v.classList.remove('in');
     setTimeout(() => v.remove(), 180);
     removeEventListener('keydown', onKey, true);
@@ -272,6 +274,7 @@ function view(i) {
   v.addEventListener('click', close);
   addEventListener('keydown', onKey, true);
   document.body.append(v);
+  const shut = layer('photo', close);
   requestAnimationFrame(() => v.classList.add('in'));
   x.focus();
 }
