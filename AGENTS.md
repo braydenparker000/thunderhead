@@ -46,8 +46,9 @@ when it helps, update it when you change what it describes, but it is not law.
 - **Every source file stays under 300 lines** (`backend/tests/unit/static.test.ts` counts a trailing
   newline, so 299 by `wc -l`): a change that adds to a file near the cap moves the new piece to its
   own module in the same area, since the mind's, the conversation's and the contract's files sit at it.
-- **Schema steps** only ever add, and run in number order: a step numbered below one already applied
-  never runs, so two branches with new steps ship in number order.
+- **Schema steps** only ever add, and run in number order. Every step an object has not applied runs
+  at its next start, also one numbered below a step already applied (since 2026-11-21), and health
+  lists any still missing; two branches with new steps should still ship in number order.
 - **The phone** (`frontend/`): plain ES modules, no build. `music/` `guitar/` `podcasts/` `astra/`
   `media/` came from the old site and are our code now: change them like any other file.
 - **The mind** (`mind/`): the `th` CLI, the roles and the skills (`mind/skills/`, each ≤ 2,500 characters). Its laws are `mind/CONSTITUTION.md`; keep

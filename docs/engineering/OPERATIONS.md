@@ -183,7 +183,7 @@ The `api` job runs when `backend/**`, `shared/**` or `package-lock.json` changed
    - `npx wrangler deploy --config backend/wrangler.jsonc --var SITE_ORIGINS:<the environment variable> --tag <sha12> --message "deploy <sha>" [--secrets-file <file>]`; the file is deleted right after.
 6. Smoke:
    1. Poll `GET /v1/health` until `version.tag == <sha12>` (every 5 s, 60 s max).
-   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every object's `schema` and `expected` equal the newest migration step in the repo (`node scripts/schema-version.mjs --ready`; every 15 s, 6 min max, because DOs may run old code for a few minutes). Skipped with a notice while `TH_CI_TOKEN` is not set (the deploys before first setup). After a rollback the old code reports `ok` too (`schema >= expected`; migrations are expand-only).
+   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every object's `schema` and `expected` equal the newest migration step in the repo (`node scripts/schema-version.mjs --ready`; every 15 s, 6 min max, because DOs may run old code for a few minutes). Skipped with a notice while `TH_CI_TOKEN` is not set (the deploys before first setup). After a rollback the old code reports `ok` too (`schema >= expected`; migrations are expand-only). Each object runs every step whose version its `_migrations` doesn't hold, in number order, so a step merged after a higher one still runs; an object that lacks a step this code has reports it in its health's `missing` and deep health says not `ok`.
    3. `node --test tests/live-api.test.mjs` (read-only: health shape, CORS preflight, 401 without a token, 403 from a foreign origin).
 7. Watch 10 minutes **[proposal]**: every 60 s, `GET /v1/ops/errors?status=open` counts server errors (`source` in `worker`, `do`) with `last_at` after the deploy. Fail at ≥ 5 of them, or at any error whose code is `internal` on an auth route.
 8. On failure after step 5, when no class change happened: `npx wrangler rollback "$PREV" --config backend/wrangler.jsonc --message "auto rollback from <sha>" --yes`. Then re-run step 6.1 expecting the previous tag. A bootstrap run has nothing to roll back to.
@@ -286,7 +286,7 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `quota.rows_written` | Rows written today across the five objects ≥ 40,800 (60% of the 68,000 the Free plan's 100,000 leaves after the old Worker's 32,000) | S3; from 80% the heavy work waits (below) |
 | `quota.rows_read` | Rows read today ≥ 2,880,000 (60% of the 4,800,000 the Free plan's 5,000,000 leaves after the old Worker's 200,000) | S3; from 80% the heavy work waits (below) |
 | `quota.do_calls` (not built) | Object calls today ≥ 60,000 | S3 |
-| `errors.spike` | ≥ 20 new server errors in 60 min, or ≥ 5 of one fingerprint in 15 min | S2 if on auth or messages, else S3 |
+| `errors.spike` | ≥ 20 new server errors in 60 min, or ≥ 5 of one fingerprint in 15 min (the Worker's `onError` records each unexpected 500 in the error inbox as source `worker`, fingerprinted by route and error name, never the message, at most 5 an isolate in a minute: `http/report.ts`) | S2 if on auth or messages, else S3 |
 | `client.errors` | ≥ 50 client error reports in 60 min | S3 |
 | `backup.stale` | Newest complete backup > 8 days | S3 |
 | `drill.failed`, `drill.overdue` | Last drill failed, or none for 35 days | S3 |

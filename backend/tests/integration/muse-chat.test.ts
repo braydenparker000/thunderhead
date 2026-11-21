@@ -6,9 +6,10 @@
 // mind, off the record, with files or over 500 characters; words holding a password make no order.
 // An order the mind places says nothing in the chat. Muse's signed uploads gather into one task.
 import { runInDurableObject } from 'cloudflare:test';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Message, TodayResponse } from '../../../shared/contract/api';
 import type { WorkOrder } from '../../../shared/contract/work.ts';
+import { forgetPolls } from '../../src/areas/work/poll';
 import { uuidv7 } from '../../src/lib/ids';
 import { DAY, MINUTE } from '../../src/lib/time';
 import type { Core } from '../../src/objects/core';
@@ -41,6 +42,8 @@ beforeAll(async () => {
   p = await principals();
   M = await makeAgent(p.D, 'muse');
 });
+// Each case claims as if Muse's 5-minute wait after an empty claim had passed (poll.ts).
+beforeEach(() => forgetPolls());
 
 describe('@muse in the chat', () => {
   it("makes a muse.request under the owner's authority, answered by a line naming it; the mind is not asked", async () => {

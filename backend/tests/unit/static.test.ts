@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { LIBRARY_MIGRATIONS } from '../../src/objects/library.migrations';
 import { MUSIC_MIGRATIONS } from '../../src/objects/music';
+import { SENSES_MIGRATIONS } from '../../src/objects/senses';
 
 const raw = (files: Record<string, unknown>) => files as Record<string, string>;
 const objectCode = raw(
@@ -90,7 +92,7 @@ describe('source rules', () => {
   });
 
   it('migrations are expand-only, numbered 1…n, never DROP, RENAME, DELETE or UPDATE', () => {
-    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS]) {
+    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS, SENSES_MIGRATIONS, LIBRARY_MIGRATIONS]) {
       const versions = list.map((m) => m.version);
       const top = Math.max(...versions);
       expect(versions).toEqual(

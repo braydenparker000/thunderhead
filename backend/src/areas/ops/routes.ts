@@ -70,7 +70,9 @@ export const opsRoutes = new Hono<AppEnv>()
       Object.entries({ core, auth, music, senses, library }).map(([k, h]) => [
         k,
         {
-          ok: h.schema >= h.expected,
+          // A step this code has but the object skipped is not ok (an object on the release before
+          // `missing` reports none).
+          ok: h.schema >= h.expected && !(h.missing ?? []).length,
           schema: h.schema,
           expected: h.expected,
           db_bytes: h.db_bytes,

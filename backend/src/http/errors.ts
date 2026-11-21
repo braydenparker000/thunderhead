@@ -3,6 +3,7 @@
 import type { Context } from 'hono';
 import type { ErrorBody, ErrorCode, ErrorDetails } from '../../../shared/contract/api';
 import { CODES } from './codes';
+import { reportServerError } from './report';
 
 export interface RateInfo {
   retry_after?: number;
@@ -38,13 +39,15 @@ export function errorResponse(c: Context, err: ApiError): Response {
   return c.json(body, status);
 }
 
-/** Hono onError: known errors keep their code; anything else is logged by name only. */
+/** Hono onError: known errors keep their code; anything else is logged and recorded by name only. */
 export function onError(err: Error, c: Context): Response {
   if (err instanceof ApiError) return errorResponse(c, err);
   // The name only: messages can carry request data, and auth bodies must never reach logs.
   console.error(
     JSON.stringify({ evt: 'error', route: c.req.routePath, name: err.name, request_id: c.get('requestId') }),
   );
+  // And into Core's error inbox for the errors.spike watchdog (http/report.ts), capped, after the response.
+  reportServerError(c, err.name);
   return errorResponse(c, new ApiError('internal'));
 }
 

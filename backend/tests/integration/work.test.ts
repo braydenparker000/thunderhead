@@ -7,8 +7,9 @@
 // as `legacy` and is never handed out. The owner's `@muse` and the lines in the chat are in
 // muse-chat.test.ts; Muse's thread in muse.test.ts.
 import { runInDurableObject } from 'cloudflare:test';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { MuseNote, WorkHello, WorkOrder } from '../../../shared/contract/work.ts';
+import { forgetPolls } from '../../src/areas/work/poll';
 import { uuidv7 } from '../../src/lib/ids';
 import { HOUR, MINUTE } from '../../src/lib/time';
 import type { Core } from '../../src/objects/core';
@@ -52,6 +53,8 @@ beforeAll(async () => {
   // about the orders themselves, so the owner lets the mind make them and say so.
   await api('PATCH', '/v1/settings', { token: p.D, body: { 'mind.permit.muse': 'tell' } });
 });
+// Each case claims as if Muse's 5-minute wait after an empty claim had passed (poll.ts).
+beforeEach(() => forgetPolls());
 
 describe('work orders', () => {
   it('the mind places one; Muse says hello, claims, posts progress and returns a valid result', async () => {
