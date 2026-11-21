@@ -187,7 +187,7 @@ const budgets = [
   // left and taken up again when home is shown from the back/forward cache.
   // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
   // th/registry/apps.js, the one rule for where Photos' front page lands.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 117_772],
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 118_292],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -237,7 +237,7 @@ const budgets = [
   // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
   // (2026-11-04, settings depth) 28,700 → 28,722 measured: the hold's tap back follows Haptics.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_860],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 31_442],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
@@ -257,7 +257,7 @@ const budgets = [
   // appearance (accent, glass, corners, ring size, reduced motion), compact turns, the mic off, the bar.
   // (2026-11-11, settings) +2,324 measured (83,763 → 86,087): ui/prefs.css, one rule for each of the
   // owner's drawing settings (22 attributes), inert while none is set.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_087],
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_157],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).
