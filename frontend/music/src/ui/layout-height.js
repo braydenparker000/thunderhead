@@ -6,8 +6,11 @@
 //   (a 731 → 759 → 424 opening) is not taken: one relayout per keyboard change;
 // - when the field lets go, the full height comes back at once and the keyboard's steps down while it
 //   closes are not taken (CLOSE_MS at most): the next screen never lays out squeezed;
+// - a height above the full height while the keyboard closes (home's toolbar for a moment, 731 → 759) is
+//   taken only when it lasts: still there TALL_MS after the closing time;
 // - with no field, the window's height is the full height (a real resize, a turn of the phone).
 export const CLOSE_MS = 1000;
+export const TALL_MS = 300;
 
 export class LayoutHeight {
   constructor(h, w) {
@@ -28,6 +31,8 @@ export class LayoutHeight {
     }
     if (field) return (this.h = Math.min(innerH, this.full));
     if (now < this.closingUntil && innerH < this.full) return (this.h = this.full);
+    // (Taken here before, it became the full height: the player opened at 759 where the screen is 731.)
+    if (now < this.closingUntil + TALL_MS && innerH > this.full) return (this.h = this.full);
     this.closingUntil = 0;
     this.full = innerH;
     return (this.h = innerH);

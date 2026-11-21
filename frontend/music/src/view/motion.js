@@ -1,8 +1,10 @@
 // Transitions in motion (MUSIC.md §5.11 "Transitions at the screen's rate"). While a scene transition of the
 // player's screens or a page transition of the list widget moves:
 // - a frame writes only the views that changed since the last one (Context.dirty: invalidate and visibility),
-//   not the whole tree; a view that shows again after display:none writes its subtree, as the whole-tree
-//   write would; the frame after the last transition ends writes the whole tree again;
+//   not the whole tree; a view marked stays marked until a write reaches it (one under a gone view, or out
+//   of the tree for a moment, is written once it is reached again); a view that shows again after
+//   display:none writes its subtree, as the whole-tree write would; the frame after the last transition
+//   ends writes the whole tree again;
 // - work that is not the transition (whenStill) waits until no transition moves, then runs in a task after
 //   the next frame, so neither the transition's frames nor its last one carry it.
 import {GONE} from '../res/values.js';
@@ -19,8 +21,9 @@ export function endMove(ctx, source) {
   if (!waiting?.size) return;
   ctx.stillWork = null;
   const run = () => {
-    // Another transition began meanwhile: the work waits for that one.
-    if (ctx.moving.size) { for (const [k, fn] of waiting) whenStill(ctx, fn, k); return; }
+    // Another transition began meanwhile: the work waits for that one. What was asked again meanwhile
+    // (the same key) is the newer request and stays.
+    if (ctx.moving.size) { for (const [k, fn] of waiting) if (!ctx.stillWork?.has(k)) whenStill(ctx, fn, k); return; }
     for (const fn of waiting.values()) fn();
   };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(run, 0));
@@ -53,7 +56,9 @@ export function syncMoving(ctx) {
   const list = [...ctx.dirty];
   ctx.dirty.clear();
   for (const v of list) {
-    if (!reached(ctx, v)) continue;
+    // Not reached now (under a gone view, or out of the tree for a moment): it stays marked until a write
+    // reaches it, so a change made meanwhile is never lost.
+    if (!reached(ctx, v)) { ctx.dirty.add(v); continue; }
     // Shown again after display:none: its subtree takes the writes it missed while hidden.
     if (v.syncSelf() && v.children) for (const c of v.children) c.sync();
   }

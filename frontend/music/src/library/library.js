@@ -6,6 +6,7 @@ import {makeSplitter, GENRE_DEFAULT_SPLIT} from './split.js';
 import {Playlists} from './playlists.js';
 import {ListMemory} from './list-memory.js';
 import {cueTracks} from './cue.js';
+import {buildShelves} from './shelves.js';
 import {fetchR2Library, r2Tracks, R2_LIBRARY_URL, fetchWaveform, peaksToBars, decodeWave} from './r2.js';
 import {barsFromMeanSquares, rmsBytesToMeanSquares, loudnessFromPeaks, waveSteps, MIN_WAVE_STEPS} from './waveform.js';
 
@@ -177,7 +178,7 @@ export class Library {
     const idle = globalThis.requestIdleCallback;
     if (!idle || this._warmQueued) return;
     this._warmQueued = true;
-    const kinds = ['albums', 'artists', 'albumArtists', 'genres', 'composers', 'folders'];
+    const kinds = ['albums', 'artists', 'shelves', 'albumArtists', 'genres', 'composers', 'folders'];
     const step = deadline => {
       while (kinds.length && deadline.timeRemaining() > 4) this[kinds.shift()]();
       if (kinds.length) idle(step, {timeout: 5000});
@@ -639,6 +640,11 @@ export class Library {
 
   artists() {
     return this.grouped('artists', () => this.namedGroups('artist', 'artist', 'unknown_artist_name', 'Unknown artist'));
+  }
+
+  /** Albums, Singles, Artists and Possible duplicates as the library lists show them (shelves.js). */
+  shelves() {
+    return this.grouped('shelves', () => buildShelves({albumGroups: this.albums(), artistGroups: this.artists(), names: s => this.namesOf({albumArtist: s}, 'albumArtist').names}));
   }
 
   albumArtists() {

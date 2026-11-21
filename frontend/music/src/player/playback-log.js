@@ -17,6 +17,16 @@ const MEDIA_ERRORS = {1: 'aborted', 2: 'network', 3: 'decode', 4: 'not supported
 const round = (x, d = 1) => (Number.isFinite(x) ? Math.round(x * 10 ** d) / 10 ** d : null);
 const db = x => (x > 0 ? round(20 * Math.log10(x), 1) : null);
 
+/**
+ * Where a deck's load comes from: a song streamed through the feed plays from a blob URL too (its Media
+ * Source), and is the stream, not a file on the device; another blob URL is an offline copy or a stored file.
+ */
+export function deckSource(el, cache) {
+  if (el._stream) return 'stream';
+  if (!/^blob:/.test(el.currentSrc)) return 'stream';
+  return cache?.sourceOf?.(el.currentSrc) ? 'offline copy' : 'device';
+}
+
 export class PlaybackLog {
   constructor(ctx) {
     this.ctx = ctx;
@@ -87,7 +97,7 @@ export class PlaybackLog {
     }
     for (const k of ['startMs', 'seekMs']) if (d[k].length > 50) d[k].splice(0, d[k].length - 50);
     if (type === 'canplaythrough' || type === 'loadedmetadata' || type === 'seeking' || type === 'seeked') return;
-    const from = type === 'loadstart' ? {from: /^blob:/.test(el.currentSrc) ? (this.ctx.audioCache?.sourceOf?.(el.currentSrc) ? 'offline copy' : 'device') : 'stream'} : {};
+    const from = type === 'loadstart' ? {from: deckSource(el, this.ctx.audioCache)} : {};
     if (type !== 'playing' || current) this.log(type, {deck: d.index, ...from, ...(type === 'error' ? d.lastError : {}), ...(type === 'waiting' ? {at: round(el.currentTime, 2)} : {})});
   }
 

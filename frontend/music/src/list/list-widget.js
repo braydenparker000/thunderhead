@@ -62,7 +62,7 @@ export class AAItemView extends SceneFastLayout {
       else if (msg === 'msg_data_art_changed' && this.track && d?.tracks?.some(x => x.id === this.track.id)) {
         const t = this.track;
         this.track = undefined;
-        this.bind(t);
+        this.bind(t, this.numbered, this.aaList, this.labels);
       }
     });
   }
@@ -142,12 +142,14 @@ export class AAItemView extends SceneFastLayout {
   /**
    * The track's labels (library/labels.js): title, line 2 and meta with the
    * track_num_type numbers; numbered is true in album and folder track lists.
+   * A list's own labels ({title, line2, meta, num}, each optional) replace the track's.
    */
-  bind(track, numbered = this.numbered ?? false, albumArtistList = false) {
-    if (this.track === track && this.numbered === numbered && this.aaList === albumArtistList && this.labelsKey === labelsKey(this.ctx)) return;
+  bind(track, numbered = this.numbered ?? false, albumArtistList = false, labels = null) {
+    if (this.track === track && this.numbered === numbered && this.aaList === albumArtistList && this.labels === labels && this.labelsKey === labelsKey(this.ctx)) return;
     this.track = track;
     this.numbered = numbered;
     this.aaList = albumArtistList;
+    this.labels = labels;
     this.labelsKey = labelsKey(this.ctx);
     this.syncLyricsButton();
     this.syncRating();
@@ -167,6 +169,7 @@ export class AAItemView extends SceneFastLayout {
       this.line2?.setText(trackLine2(this.ctx, track, albumArtistList));
       this.meta?.setText(track ? n.meta(track.meta ?? '') : '');
       this.num?.setText(n.num ?? '');
+      if (labels) for (const k of ['title', 'line2', 'meta', 'num']) if (labels[k] != null) this[k]?.setText(labels[k]);
     }
     // List rows use cached thumbnails; the player's cover items the full image.
     const field = this.useThumb ? 'thumb' : 'art';
@@ -804,7 +807,7 @@ export class ListWidget extends FastLayout {
    */
   targetSearch() {
     const src = this.mode === 'list' && !this.searching && !this.searchShown ? this.stack[this.stack.length - 1] : null;
-    const target = src && !(src instanceof HomeSource) && src.kind !== 'queue' && !src.rows && (src.groups || src.tracks || src.folders) ? src : null;
+    const target = src && !(src instanceof HomeSource) && src.kind !== 'queue' && !src.rows && (src.groups || src.tracks || src.folders) ? src.searchAll?.() ?? src : null;
     if (target) {
       this.pendingTarget = true;
       this.setSearchTarget({src: target, label: this.targetLabel(target)});

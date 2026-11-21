@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-21-music-feel",
+  "id": "2026-11-21-music-library",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music: tapping a song from search no longer opens the player squished by the keyboard."
+      "text": "Music: Albums now lists real albums; one- and two-song releases have their own Singles section."
     },
     {
-      "text": "Moving into the player, album art, search and the equaliser is smoother; the look is the same."
+      "text": "Album and artist pages show year, song count and length, and no longer repeat the same name on every row."
     },
     {
-      "text": "Two quick taps on play no longer leave both buttons showing for a second."
+      "text": "Artists lists artists with a body of work; All artists and a Possible duplicates list sit at the end."
     },
     {
-      "text": "Copy report now adds a numbers-only summary of your library's tags, with no titles or names."
+      "text": "On a slow connection a song no longer waits on the old server; icons keep their symbols."
     }
   ]
 }

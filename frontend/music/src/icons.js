@@ -297,6 +297,11 @@ G.badge_recently_played = {svg: `<path d="${poly([[7.6, 5.6], [19, 12.1], [7.6, 
   '<path d="M10.4 9.4V13.6H13.2" fill="none" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'};
 G.badge_recently_added = rect(10.4, 5.8, 3.4, 12.4, 0.6) + rect(5.8, 10.3, 12.6, 3.4, 0.6);
 G.badge_long_files = [5.7, 9.97, 14.23, 18.5].map(x => circle(x, 12.1, 1.1)).join('');
+// Singles (one note) and Possible duplicates (two cards, one over the other; as folders_hier draws its two).
+G.badge_singles = {svg: ellipse(9.6, 16.4, 3.1, 2.3, -22) + `<path d="${rect(11.5, 5, 1.9, 11.6, 0.4)}"/>` + stroke('M12.6 5.6C13.4 8.2 17.2 8.4 16.9 12', 1.9)};
+G.badge_possible_duplicates = {svg:
+  `<path d="${rect(5, 8.4, 10, 11, 1.2)}"/>` +
+  `<path d="${rect(9, 4.6, 10, 11, 1.2)}" stroke="#fff" stroke-width="1.6" paint-order="stroke"/>`};
 // Micro category icons (*_12dp) use the badge glyphs, enlarged to fill the
 // box: a mask turns the glyph's cut-outs and knock-ins around.
 function micro(key, scale = 1.05) {
@@ -354,7 +359,7 @@ function fit(glyph, sx, sy, dx = 0) {
 
 // Reference drawable name -> glyph mapping (ordered; first match wins).
 const RULES = [
-  [/^(all_songs|folders_hier|folders|albums_by_artist|albums|artists|album_artists|genres|years|composers|playlists|streams|queue|bookmarks|most_played|top_rated|low_rated|recently_played|recently_added|long_files)(_thumb)?_alt$/, m => badge(m[1] === 'albums_by_artist' ? 'albums' : m[1])],
+  [/^(all_songs|folders_hier|folders|albums_by_artist|albums|artists|album_artists|genres|years|composers|playlists|streams|queue|bookmarks|most_played|top_rated|low_rated|recently_played|recently_added|long_files|singles|possible_duplicates)(_thumb)?_alt$/, m => badge(m[1] === 'albums_by_artist' ? 'albums' : m[1])],
   [/^settings_close/, () => 'close'],
   [/^(equ|hamburger|lists)(_rounded)?_stroke/, m => 'stroke_' + m[1] + (m[2] ?? '')],
   [/^search(_rounded)?_stroke/, () => 'stroke_search'],
@@ -571,9 +576,21 @@ export function hasIcon(name) {
 }
 
 const svgCache = new Map();
+let copies = 0;
 
-/** SVG markup for a reference drawable name in the given CSS colour. */
+/**
+ * SVG markup for a reference drawable name in the given CSS colour, for one copy in the page. Its mask
+ * ids are its own: a `url(#id)` resolves to the first element with that id in the document, and when
+ * that one sits in a hidden copy (a screen built ahead, a pooled row) the shown icon loses its cut-out.
+ */
 export function iconSvg(name, color, mono = true) {
+  const svg = iconMarkup(name, color, mono);
+  if (!svg.includes(' id="')) return svg;
+  const own = '-' + (++copies).toString(36);
+  return svg.replace(/( id="|url\(#)(cpm_[\w-]+)/g, (m, a, id) => a + id + own);
+}
+
+function iconMarkup(name, color, mono) {
   const key = name + '|' + color + '|' + mono;
   const hit = svgCache.get(key);
   if (hit) return hit;
@@ -589,7 +606,6 @@ export function iconSvg(name, color, mono = true) {
     // Round buttons: tinted -> knocked-out glyph; untinted -> dark disc with light glyph.
     const g = G[r.glyph];
     const glyph = typeof g === 'object' ? `<g transform="${r.transform}">${g.svg}</g>` : `<path transform="${r.transform}" d="${g}"/>`;
-    // Mask content depends only on the glyph, so one id per glyph is safe to share.
     const id = 'cpm_' + r.glyph;
     if (mono) body = `<mask id="${id}"><rect width="24" height="24" fill="#fff"/><g fill="#000">${glyph}</g></mask><circle cx="12" cy="12" r="12" fill="${color}" mask="url(#${id})"/>`;
     else body = `<circle cx="12" cy="12" r="12" fill="${color}"/><g fill="#fff">${glyph}</g>`;

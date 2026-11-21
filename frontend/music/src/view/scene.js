@@ -15,6 +15,16 @@ export const decelerate2 = t => 1 - Math.pow(1 - t, 4);
 /** Quadratic ease-out (DecelerateInterpolator(1.0)). */
 export const decelerate1 = t => 1 - (1 - t) * (1 - t);
 
+/**
+ * The time (ms) a running change took to reach `ratio` on its way from `r.from` to `r.target`: the
+ * inverse of its decelerating curve over its duration.
+ */
+export function travelledMs(r, ratio) {
+  const span = r.target - r.from;
+  const e = span ? Math.max(0, Math.min(1, (ratio - r.from) / span)) : 1;
+  return (1 - Math.pow(1 - e, 1 / 4)) * r.duration;
+}
+
 /** Scene transition duration (s): base time shortened by a velocity term clamped to [0, 10]. */
 export function sceneDuration(baseSeconds, velocity = 0) {
   const v = Math.min(10, Math.max(0, velocity));
@@ -199,16 +209,22 @@ export class SceneController {
     if (reversing) {
       // Reverse in place: animate the ratio back towards the previous scene.
       const r = this.running;
+      const travelled = r.manual ? 0 : travelledMs(r, this.ratio);
       [this.scene, this.prevScene] = [this.prevScene, this.scene];
       r.target = r.target === 1 ? 0 : 1;
       r.clock = animClock();
       r.from = this.ratio;
       r.onEnd = onEnd;
-      // Turned back before it moved (two taps before a frame): it is already where it goes. (A zero
-      // time here read as sceneDuration's 1 s default: a second with both play and pause shown.)
-      const left = Math.abs(r.target - this.ratio);
-      if (!r.manual && !(duration * left > 0)) { this.finish(r.target === 1); return; }
-      r.duration = sceneDuration(duration * left, velocity) * 1000;
+      if (r.manual) {
+        r.duration = sceneDuration(duration * Math.abs(r.target - this.ratio), velocity) * 1000;
+        return;
+      }
+      // Back over at most the time it took to get here, and never longer than the whole change: taps in
+      // quick succession (play, pause, play …) each turn back a shorter way, and the last one ends soon
+      // after it. Turned back before it moved (two taps before a frame), it is already where it goes.
+      const ms = Math.min(travelled, sceneDuration(duration, velocity) * 1000);
+      if (!(duration > 0 && ms > 0)) { this.finish(r.target === 1); return; }
+      r.duration = ms;
       return;
     }
     if (this.running) this.finish(true);

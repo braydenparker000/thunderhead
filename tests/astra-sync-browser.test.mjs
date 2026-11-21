@@ -211,7 +211,12 @@ test('signed out: the server is never asked, and Your data says how to keep phon
 test('Home’s first paint does not wait for a slow server', opts, async (t) => {
   const paint = async (signedIn) => {
     const p = await phone(t, { signedIn, saved: { addons: [{ url: ADDON, enabled: true, name: 'Example' }] } });
-    return p.page.evaluate(() => performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null);
+    // Waited for in the page: read straight away, the entry was sometimes not there yet (null on CI, 2026-11-21).
+    return p.page.evaluate(() => new Promise((resolve) => {
+      const had = performance.getEntriesByName('first-contentful-paint')[0];
+      if (had) return resolve(had.startTime);
+      new PerformanceObserver((l) => { const e = l.getEntriesByName('first-contentful-paint')[0]; if (e) resolve(e.startTime); }).observe({ type: 'paint', buffered: true });
+    }));
   };
   worker.delay = 0;
   const out = await paint(false);

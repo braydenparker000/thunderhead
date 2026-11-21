@@ -176,9 +176,8 @@ export class PowerList extends FastLayout {
   itemRect(i) {
     const s = this.source;
     if (!s || i < 0 || i >= s.count) return null;
-    const g = this.geometry();
-    const c = i % g.cols;
-    return {left: g.left + c * (g.colW + g.gap), top: g.top + g.headerH - this.scrollY + this.over + this.itemTop(g, i), width: g.colW, height: this.itemHeightAt(g, i)};
+    const g = this.geometry(), col = this.itemColumn(g, i);
+    return {left: col.x, top: g.top + g.headerH - this.scrollY + this.over + this.itemTop(g, i), width: col.w, height: this.itemHeightAt(g, i)};
   }
 
   /** Where the items start (below the header) in the list's coordinates (h0's content top). */
@@ -233,11 +232,14 @@ export class PowerList extends FastLayout {
     const colW = Math.floor((contentW - gap * (cols - 1)) / cols);
     // Grid zoom levels: square art plus the text's extra space (itemHeight -1).
     const itemH = s.itemHeight >= 0 ? s.itemHeight : Math.round(colW * (s.aaRatio ?? 1)) + (s.gridExtra ?? 0);
-    // Separator rows (search subheaders) in a one-column list: their own height.
-    const seps = cols === 1 && s.separators?.length ? s.separators : null;
+    // A grid then rows (an artist's page): the first gridEnd items in the grid, the rest one-column
+    // rows of rowHeight under it.
+    const split = s.gridEnd != null ? {n: s.gridEnd, top: Math.ceil(s.gridEnd / cols) * itemH, rows: Math.ceil(s.gridEnd / cols), rowH: s.rowHeight, rowW: contentW} : null;
+    // Separator rows (search subheaders) in a one-column list or under a split's grid: their own height.
+    const seps = (cols === 1 || split) && s.separators?.length ? s.separators : null;
     // The header and, under it, a subhead row (y62: the "All ... Songs" row) before the items.
     const headH = s.header ? s.headerHeight : 0, subH = s.subhead ? s.subhead.height : 0;
-    return {cols, colW, gap, itemH, seps, sepH: seps ? s.separatorHeight : 0, headH, subH, headerH: headH + subH, top: this.paddingTop, left: pl};
+    return {cols, colW, gap, itemH, seps, split, sepH: seps ? s.separatorHeight : 0, headH, subH, headerH: headH + subH, top: this.paddingTop, left: pl};
   }
 
   /** Separator rows before item i (g.seps is sorted). */
@@ -249,21 +251,35 @@ export class PowerList extends FastLayout {
 
   /** Item i's top below the header. */
   itemTop(g, i) {
-    if (!g.seps) return Math.floor(i / g.cols) * g.itemH;
+    const sp = g.split;
+    if (sp && i >= sp.n) {
+      const k = g.seps ? PowerList.sepsBefore(g.seps, i) : 0;
+      return sp.top + (i - sp.n - k) * sp.rowH + k * g.sepH;
+    }
+    if (!g.seps || sp) return Math.floor(i / g.cols) * g.itemH;
     const k = PowerList.sepsBefore(g.seps, i);
     return (i - k) * g.itemH + k * g.sepH;
   }
 
   itemHeightAt(g, i) {
+    if (g.split && i < g.split.n) return g.itemH;
+    if (g.split && !g.seps) return g.split.rowH;
     if (!g.seps) return g.itemH;
     const k = PowerList.sepsBefore(g.seps, i);
-    return g.seps[k] === i ? g.sepH : g.itemH;
+    return g.seps[k] === i ? g.sepH : g.split ? g.split.rowH : g.itemH;
+  }
+
+  /** Item i's column and width (a split's rows take the whole width). */
+  itemColumn(g, i) {
+    if (g.split && i >= g.split.n) return {x: g.left, w: g.split.rowW};
+    return {x: g.left + (i % g.cols) * (g.colW + g.gap), w: g.colW};
   }
 
   /** The first item of the row at y below the header (rows above count; past the end, the count). */
   indexAtY(g, y) {
-    if (!g.seps) return Math.floor(y / g.itemH) * g.cols;
-    let lo = 0, hi = this.source.count;
+    if (g.split && y < g.split.top) return Math.floor(y / g.itemH) * g.cols;
+    if (!g.seps && !g.split) return Math.floor(y / g.itemH) * g.cols;
+    let lo = g.split ? g.split.n : 0, hi = this.source.count;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (this.itemTop(g, m) <= y) lo = m; else hi = m - 1; }
     return lo;
   }
@@ -272,7 +288,7 @@ export class PowerList extends FastLayout {
     const s = this.source;
     if (!s) return 0;
     const g = this.geometry();
-    const end = g.seps ? this.itemTop(g, s.count) : Math.ceil(s.count / g.cols) * g.itemH;
+    const end = g.seps || g.split ? this.itemTop(g, s.count) : Math.ceil(s.count / g.cols) * g.itemH;
     return g.top + g.headerH + end + this.paddingBottom;
   }
 
@@ -488,11 +504,12 @@ export class PowerList extends FastLayout {
         if (fresh || v._boundKey !== 's') { s.bindSubhead(v); v._boundKey = 's'; }
         if (this.selectable) v.setSelection?.(false, false, false);
       } else {
-        const c = i % g.cols;
-        x = g.left + c * (g.colW + g.gap); y = y0 + this.itemTop(g, i); w = g.colW; h = this.itemHeightAt(g, i); scene = s.itemScene;
+        const col = this.itemColumn(g, i), row = !!g.split && i >= g.split.n;
+        x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = row ? s.rowScene : s.itemScene;
         if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; }
         // A row without a second line takes the level's one-line scene (z62.L).
-        if (s.itemScene1 && v.line2 && !v.line2.text) scene = s.itemScene1;
+        const scene1 = row ? s.rowScene1 : s.itemScene1;
+        if (scene1 && v.line2 && !v.line2.text) scene = scene1;
         if (PLAIN_TYPES.has(v.listItemType)) {
           v.left = 0; v.top = 0;
           v.measure(MeasureSpec.make(w, MeasureSpec.EXACTLY), MeasureSpec.make(h, MeasureSpec.EXACTLY));
@@ -818,7 +835,7 @@ export class PowerList extends FastLayout {
     const o = this.over, P = this.overMax;
     // Pulled past the top, or pushed past the end of a list that scrolls.
     if (!o || !P || last < first || (o < 0 && this.maxScroll() <= 0)) return null;
-    const row = i => (g.seps ? i : Math.floor(i / g.cols));
+    const row = i => (g.split ? (i < g.split.n ? Math.floor(i / g.cols) : g.split.rows + i - g.split.n) : g.seps ? i : Math.floor(i / g.cols));
     const r0 = row(first), n = row(last) - r0 + 1;
     const f2 = o / P, abs = Math.abs(f2) * SPREAD_SCALE, gap = Math.round(SPREAD_DP * this.ctx.dpr);
     return i => {
