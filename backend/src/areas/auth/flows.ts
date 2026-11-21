@@ -149,16 +149,29 @@ export interface RecoverInput {
   device: DeviceHints;
 }
 
+/** `noticed` (never sent): this call opened the GitHub path's reset ticket, so the route writes a
+ * `notice` change whether the recovery itself worked or not. */
+export type Opened = { noticed?: true };
+
 /** Recovery code or ready reset ticket: new password, every session signed out, this device
  * signed in, a new recovery code (SIGN-IN.md §8, §10.3). */
 export async function recover(
   d: AuthDeps,
   input: RecoverInput,
   meta: RequestMeta,
+): Promise<Result<SignedInWithCode & Revoked> & Opened> {
+  if (!store.hasCredential(d.db)) return fail('setup_required');
+  const opened = syncResetFp(d, Date.now());
+  const r = await recoverWith(d, input, meta);
+  return opened ? { ...r, noticed: true } : r;
+}
+
+async function recoverWith(
+  d: AuthDeps,
+  input: RecoverInput,
+  meta: RequestMeta,
 ): Promise<Result<SignedInWithCode & Revoked>> {
   const now = Date.now();
-  if (!store.hasCredential(d.db)) return fail('setup_required');
-  syncResetFp(d, now);
   const refs: CounterRef[] = [
     ['recover', source(d, meta, now)],
     ['recover', 'acct'],

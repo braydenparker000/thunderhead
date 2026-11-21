@@ -5,7 +5,6 @@ import * as z from 'zod/mini';
 import type {
   AgentRole,
   BreakglassCancelRequest,
-  BreakglassRequest,
   DeviceHints,
   LoginRequest,
   NewAgentRequest,
@@ -82,10 +81,6 @@ export const recoveryConfirmBody = z.object({
 export const fingerprintParam = z.optional(z.string().check(z.regex(FINGERPRINT_RE)));
 
 export const stateQuery = z.object({ fp: fingerprintParam, reset_fp: fingerprintParam });
-
-export const breakglassBody = z.object({
-  fingerprint: z.string().check(z.regex(FINGERPRINT_RE)),
-}) satisfies z.ZodMiniType<BreakglassRequest>;
 
 export const cancelBody = z.object({ ticket_id: z.uuid() }) satisfies z.ZodMiniType<BreakglassCancelRequest>;
 

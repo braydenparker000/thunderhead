@@ -1,14 +1,8 @@
-// The reset ticket (SIGN-IN.md §10 acceptance): the mind's break-glass request and the GitHub
-// path through AUTH_RESET_FP, the 24 h wait, cancel from any device, and use.
+// The reset ticket (SIGN-IN.md §10 acceptance): the GitHub path through AUTH_RESET_FP (the only
+// way to open one: no key can, owner 2026-11-21), the 24 h wait, cancel from any device, and use.
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type {
-  AuthStateResponse,
-  BreakglassResponse,
-  DeviceMe,
-  ErrorBody,
-  SignedInWithCode,
-} from '../../../shared/contract/api';
+import type { AuthStateResponse, DeviceMe, ErrorBody, SignedInWithCode } from '../../../shared/contract/api';
 import { fingerprint, newRecoveryCode, normalizeCode } from '../../src/areas/auth/crypto';
 import { noBreachCheck } from '../../src/areas/auth/passwords';
 import * as reset from '../../src/areas/auth/reset';
@@ -23,8 +17,26 @@ const use = (c: string, ip = '192.0.2.150') =>
     ip,
     body: { username: USERNAME, code: c, new_password: NEW_PASSWORD, device: DEVICE },
   });
-const breakglass = (token: string, fp: string) =>
-  apiJson<BreakglassResponse & ErrorBody>('POST', '/v1/auth/breakglass', { token, body: { fingerprint: fp } });
+type Ticket = { ticket_id: string; usable_after: number; expires_at: number };
+const deps = (s: DurableObjectState, resetFp: string) => ({
+  db: new Db(s.storage.sql, new Meter()),
+  storage: s.storage,
+  pepper: env.AUTH_PEPPER,
+  ipKey: env.IP_HASH_KEY,
+  setupFp: null,
+  resetFp,
+  breached: noBreachCheck,
+});
+/** The GitHub path as the cron runs it: AUTH_RESET_FP set to `fp`. The ticket it opened, or null. */
+async function github(fp: string): Promise<Ticket | null> {
+  const opened = await inAuth((_o, s) => reset.prune(deps(s, fp)).reset_opened);
+  if (!opened) return null;
+  const [t] = await authSql<{ id: string; usable_after: number; expires_at: number }>(
+    'SELECT id, usable_after, expires_at FROM tickets WHERE fingerprint = ?',
+    fp,
+  );
+  return { ticket_id: t.id, usable_after: t.usable_after, expires_at: t.expires_at };
+}
 const state = (fp: string) => apiJson<AuthStateResponse>('GET', `/v1/auth/state?reset_fp=${fp}`);
 /** Moves a ticket `ms` into the past. */
 const age = (id: string, ms: number) =>
@@ -37,21 +49,22 @@ const age = (id: string, ms: number) =>
   );
 
 let owner: SignedInWithCode;
-let mind: string;
+const minds: [string, string][] = [];
 beforeAll(async () => {
   owner = await setupOwner();
-  mind = await makeAgent(owner.token, 'mind:chat');
+  for (const role of ['mind:chat', 'mind:night', 'mind:reflex', 'muse', 'ci'] as const)
+    minds.push([role, await makeAgent(owner.token, role)]);
 });
 
-describe('reset ticket from the mind', () => {
+describe('reset ticket from the GitHub path', () => {
   const A = code();
-  let ticket: BreakglassResponse;
+  let ticket: Ticket;
 
   it('opens a ticket usable after 24 h, expiring 72 h later, with a notice on every device', async () => {
     const t0 = Date.now();
-    const r = await breakglass(mind, fingerprint(A));
-    expect(r.status).toBe(201);
-    ticket = r.body;
+    const opened = await github(fingerprint(A));
+    expect(opened).not.toBeNull();
+    ticket = opened as Ticket;
     expect(Math.abs(ticket.usable_after - (t0 + 24 * HOUR))).toBeLessThan(5000);
     expect(ticket.expires_at - ticket.usable_after).toBe(72 * HOUR);
     const me = await apiJson<DeviceMe>('GET', '/v1/auth/me', { token: owner.token });
@@ -64,9 +77,10 @@ describe('reset ticket from the mind', () => {
     expect((await state(fingerprint(code()))).body).toEqual({ setup: 'done', reset: 'none' });
   });
 
-  it('refuses a second ticket while one is open', async () => {
-    const r = await breakglass(mind, fingerprint(code()));
-    expect([r.status, r.body.error.code]).toEqual([409, 'reset_already_pending']);
+  it('opens no second ticket while one is open', async () => {
+    const other = fingerprint(code());
+    expect(await github(other)).toBeNull();
+    expect((await state(other)).body.reset).toBe('none');
   });
 
   it('at 23 h 59 min the code gets 425 reset_not_ready with usable_after; at 24 h it works', async () => {
@@ -90,13 +104,13 @@ describe('reset ticket from the mind', () => {
 describe('cancel and the GitHub path', () => {
   it('a cancel from any session voids the ticket and its fingerprint for good', async () => {
     const B = code();
-    const t = (await breakglass(mind, fingerprint(B))).body;
+    const t = (await github(fingerprint(B))) as Ticket;
     expect(
       (await api('POST', '/v1/auth/breakglass/cancel', { token: owner.token, body: { ticket_id: t.ticket_id } }))
         .status,
     ).toBe(204);
     expect((await use(B, '192.0.2.160')).body.error.code).toBe('reset_cancelled');
-    expect((await breakglass(mind, fingerprint(B))).body.error.code).toBe('reset_cancelled');
+    expect(await github(fingerprint(B))).toBeNull();
     expect((await state(fingerprint(B))).body.reset).toBe('cancelled');
     const again = await apiJson<ErrorBody>('POST', '/v1/auth/breakglass/cancel', {
       token: owner.token,
@@ -111,34 +125,22 @@ describe('cancel and the GitHub path', () => {
 
   it('a new AUTH_RESET_FP opens a ticket the first time Auth sees it', async () => {
     const C = code();
-    const out = await inAuth((_o, s) =>
-      reset.state(
-        {
-          db: new Db(s.storage.sql, new Meter()),
-          storage: s.storage,
-          pepper: env.AUTH_PEPPER,
-          ipKey: env.IP_HASH_KEY,
-          setupFp: null,
-          resetFp: fingerprint(C),
-          breached: noBreachCheck,
-        },
-        null,
-        fingerprint(C),
-      ),
-    );
-    expect(out).toMatchObject({ setup: 'done', reset: 'pending' });
+    const out = await inAuth((_o, s) => reset.state(deps(s, fingerprint(C)), null, fingerprint(C)));
+    expect(out).toMatchObject({ setup: 'done', reset: 'pending', noticed: true });
     expect(
       await authSql("SELECT source FROM tickets WHERE kind = 'reset' AND fingerprint = ?", fingerprint(C)),
     ).toEqual([{ source: 'github' }]);
     await authSql('UPDATE tickets SET cancelled_at = 1 WHERE fingerprint = ?', fingerprint(C));
   });
 
-  it('allows 3 mind-requested tickets in 30 days, then 429', async () => {
-    // Tickets so far from the mind: A and B (both counted).
-    const D = code();
-    const t = (await breakglass(mind, fingerprint(D))).body;
-    await api('POST', '/v1/auth/breakglass/cancel', { token: owner.token, body: { ticket_id: t.ticket_id } });
-    const r = await breakglass(mind, fingerprint(code()));
-    expect([r.status, r.body.error.code]).toEqual([429, 'rate_limited']);
+  it('no key or session can start a reset: the mind route is gone for every principal', async () => {
+    for (const [role, key] of [...minds, ['device', owner.token] as [string, string]]) {
+      const r = await apiJson<ErrorBody>('POST', '/v1/auth/breakglass', {
+        token: key,
+        body: { fingerprint: fingerprint(code()) },
+      });
+      expect([r.status, r.body.error.code], role).toEqual([404, 'not_found']);
+    }
+    expect(await authSql("SELECT count(*) AS n FROM tickets WHERE source = 'mind'")).toEqual([{ n: 0 }]);
   });
 });

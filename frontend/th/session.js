@@ -19,6 +19,21 @@ const tabs = () => {
 };
 /** Code-only caches that survive a sign-out: `th-<build>`, `th-vendor`. */
 const CODE_CACHE = /^th-(\d+|vendor)$/;
+/** The ported apps' stores the account also holds (SIGN-IN.md §11.3): Podcasts' positions and follows
+ * (and its feeds; Up Next goes with them and is not kept anywhere else), Guitar's library and practice
+ * (th/guitar/progress.js; its ladder is `th.p.guitar.ladder`), Music's taste weights. What lives only on
+ * this phone stays: `claude-player`, `cp-*`, `th.music.dj`, `mymedia.*`, `th-report`, `th-setup`,
+ * `th-recover`. */
+const SYNCED_KEYS = ['jarvis.podcasts.v1', 'jarvis.guitar.library.v1', 'th.music.taste'];
+/** Guitar's store loses its songs, practice log and searches; its preferences (instrument, sound, tab
+ * size, this phone's latency) are settings of the phone, like `th.s.*`, and stay. */
+const GUITAR = 'jarvis.guitar.v2';
+function wipeGuitar() {
+  let prefs;
+  try { prefs = JSON.parse(localStorage.getItem(GUITAR) || 'null')?.prefs; } catch {}
+  if (prefs && typeof prefs === 'object') localStorage.setItem(GUITAR, JSON.stringify({ prefs }));
+  else localStorage.removeItem(GUITAR);
+}
 
 const top = () => {
   try {
@@ -74,8 +89,9 @@ export async function wipe() {
     await sub?.unsubscribe();
   } catch {}
   // 3. IndexedDB.
-  // `th-study`: Study's covers, places and uploads (STUDY.md §2.1); `th-photos`: the shelf kept offline.
-  await Promise.all([auth.drop(), kv('th-data').drop(), kv('th-study').drop(), kv('th-photos').drop()]);
+  // `th-study`: Study's covers, places and uploads (STUDY.md §2.1); `th-photos`: the shelf kept offline;
+  // `jarvis-podcasts`: Podcasts' feeds.
+  await Promise.all([auth.drop(), ...['th-data', 'th-study', 'th-photos', 'jarvis-podcasts'].map((n) => kv(n).drop())]);
   // 4. Cache Storage, except code caches.
   try {
     for (const name of await caches.keys()) if (!CODE_CACHE.test(name)) await caches.delete(name);
@@ -88,9 +104,10 @@ export async function wipe() {
     for await (const name of /** @type {any} */ (root).keys()) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
   } catch {}
-  // 6. Personal localStorage keys, and Astra's (astra/wipe.js).
+  // 6. Personal localStorage keys, the ported apps' synced ones, and Astra's (astra/wipe.js).
   try {
-    for (const key of Object.keys(localStorage)) if (key.startsWith('th.p.')) localStorage.removeItem(key);
+    for (const key of Object.keys(localStorage)) if (key.startsWith('th.p.') || SYNCED_KEYS.includes(key)) localStorage.removeItem(key);
+    wipeGuitar();
     (await import('./astra/wipe.js')).wipeAstra();
   } catch {}
   // 7. Other tabs and the service worker.

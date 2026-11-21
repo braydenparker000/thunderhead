@@ -176,6 +176,12 @@ export abstract class CoreBase extends OwnerObject {
     return this.hub.revoke(sessionIds);
   }
 
+  /** The Auth object created or cleared a notice: one `notice` change, so an open home reloads
+   * /v1/auth/me and shows or folds its card (SIGN-IN.md §11.4). */
+  noticeChanged(): void {
+    this.write((w) => w.change('notice'));
+  }
+
   /** What a push waits on (BEHAVIOR.md §3.4): the owner's zone and quiet hours, whether a phone shows
    * Thunderhead, and when the owner last wrote. */
   pushContext(): PushContext {

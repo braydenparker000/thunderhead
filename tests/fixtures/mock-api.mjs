@@ -174,6 +174,8 @@ function chatControls(c) {
     presence: (s) => { c.presence = { state: s, note: null, since: Date.now() }; changed(c, 'mind_status'); },
     surface: (s) => { c.surfaces = [s]; changed(c, 'surface'); },
     verb: (v) => { c.verbs.push(v); changed(c, 'verb'); },
+    /** Auth made or cleared a notice: the Worker's one `notice` change. */
+    notice: () => changed(c, 'notice'),
     get state() { return c; },
   };
 }

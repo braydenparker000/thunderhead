@@ -308,18 +308,12 @@ For when the owner has neither the password nor the recovery code. It is the one
 - The page makes a reset code (same format as §7.1), keeps it in IndexedDB `th-recover` on this device, and shows:
   - "Reset fingerprint" `thfp_…` + "Copy"
   - "Reset code (write it down if you might switch devices)" — hidden behind "Show".
-- "Start it one of these ways:"
-  1. "**Ask the mind in Claude Code**: open a Claude Code session and say: *Start a Thunderhead reset with fingerprint thfp_…*"
-  2. "**GitHub**: add a repository secret `TH_RESET_FINGERPRINT` with this value and run the **Request reset** workflow."
+- "Start it on GitHub: add a repository secret `TH_RESET_FINGERPRINT` with this value and run the **Request reset** workflow."
 - The page then calls `GET /v1/auth/state?reset_fp=<fp>` every 30 s while open and shows the state (§10.3).
 
-**Path 1: the mind's endpoint** — `POST /v1/auth/breakglass {fingerprint}`
-- Accepted only with an agent key of role `chat` (403 for every other principal, owner sessions included).
-- The mind may call it **only** when the owner asks for it in a live Claude Code session and gives the fingerprint in their own words. It never calls it on its own, from a wake, from the Thunderhead chat, or because any other text asks. This rule belongs in [../mind/CONSTITUTION.md](../mind/CONSTITUTION.md).
-- The mind never sees the reset code, only its hash, so even a hijacked session can't use a ticket it starts.
-- Responses: `201 {ticket_id, usable_after, expires_at}`; `409 reset_already_pending`; `429` if 3 tickets were requested in the last 30 days **[proposal]**; `409 setup_required`.
+**The one path: GitHub** — `.github/workflows/auth-reset.yml` (`workflow_dispatch`, `environment: worker`) pipes `TH_RESET_FINGERPRINT` into the Worker secret `AUTH_RESET_FP`, exactly like Open setup. `Auth` notices a new `AUTH_RESET_FP` value on its next `GET /v1/auth/state?reset_fp=`, recovery attempt (failed or not) or 15-minute cron, and opens a ticket with `requested_at` = the moment it first saw it. Whichever of these opened it then writes one `notice` change in Core's feed, so an open Home shows the card within seconds (§11.4).
 
-**Path 2: GitHub** — `.github/workflows/auth-reset.yml` (`workflow_dispatch`, `environment: worker`) pipes `TH_RESET_FINGERPRINT` into the Worker secret `AUTH_RESET_FP`, exactly like Open setup. `Auth` notices a new `AUTH_RESET_FP` value on its next call or on the 15-minute cron, and opens a ticket with `requested_at` = the moment it first saw it. **[proposal]**
+**No key can start a reset** (owner, 2026-11-21). The mind's endpoint `POST /v1/auth/breakglass` is gone: every principal gets `404 not_found`. A hijacked mind session could otherwise open a ticket that blocks the owner's own reset for up to 96 h.
 
 ### 10.2 The wait and cancel
 - `usable_after = requested_at + 24 h`; `expires_at = usable_after + 72 h`.
@@ -333,7 +327,7 @@ For when the owner has neither the password nor the recovery code. It is the one
 The `/recover/` page, reset tab, shows by state:
 | State | Copy |
 |---|---|
-| Not seen yet | "Waiting for the ticket. Ask the mind, or run the workflow." |
+| Not seen yet | "Waiting for the ticket. Run the workflow." |
 | Pending | "Your reset will be ready {weekday} {HH:MM} ({N} h {M} min). Any signed-in device can cancel it." |
 | Cancelled | "This reset was cancelled from a signed-in device. If that wasn't you, start again." |
 | Ready | The form: Username, Reset code (filled from `th-recover` if present), New password. Button "Reset password". |
@@ -344,8 +338,8 @@ Using it follows §8 exactly (sign everyone out, new recovery code, notice to ch
 ### 10.4 Acceptance
 - A ticket used at 23 h 59 min returns `425 reset_not_ready` with `usable_after`; at 24 h 00 min it works.
 - A cancel from any session makes later use return `410 reset_cancelled`.
-- A `night`, `reflex`, `muse` or `ci` key, or an owner session, calling `POST /v1/auth/breakglass` gets `403 forbidden`.
-- The `reset_pending` notice appears on every active session within one request.
+- Any key or session calling `POST /v1/auth/breakglass` gets `404 not_found`; no ticket opens.
+- The `reset_pending` notice appears on every active session within one request, and on an open Home within seconds (the `notice` change).
 
 ---
 
@@ -386,20 +380,20 @@ Any API response `401` with code `session_expired`, `session_revoked` or `unauth
 Run in this order, for owner sign-out on this device and for any revocation the device learns about:
 1. Stop audio and capture; clear Media Session; revoke object URLs.
 2. Unsubscribe the push subscription.
-3. Delete IndexedDB `th-auth` and `th-data` (conversation cache, briefing, surfaces, outbox, personal settings, the music index and play state).
+3. Delete IndexedDB `th-auth` and `th-data` (conversation cache, briefing, surfaces, outbox, personal settings, the music index and play state), `th-study`, `th-photos`, and Podcasts' `jarvis-podcasts` (its feeds).
 4. Delete every Cache Storage cache except code caches (`th-<release>`, `th-vendor`).
 5. Empty the Origin Private File System (offline songs, podcast downloads, Study PDFs).
-6. Remove `localStorage` keys starting `th.p.`. Keep `th.ui.` keys (theme and other non-personal UI choices).
+6. Remove `localStorage` keys starting `th.p.`, and the ported apps' keys whose data the account also holds: `jarvis.podcasts.v1` (positions and follows sync), `jarvis.guitar.v2` (its songs, practice log and searches; its preferences are the phone's settings and stay) and `jarvis.guitar.library.v1` (Guitar's library; its ladder is `th.p.guitar.ladder`), `th.music.taste` (weights from the Worker); Astra's `astra.v2.*` when it is kept in step (ASTRA.md §5.3). Keep `th.ui.` keys (theme and other non-personal UI choices).
 7. Post `signed_out` on BroadcastChannel `th-auth` so other tabs wipe and go to `/signin/`; tell the service worker to drop its in-memory token.
 
 - **Owner sign-out with things pending:** if the outbox has unsent items or offline files exist, a confirm sheet first: "Sign out of this phone? {N} unsent messages and {size} of offline files will be removed." · "Sign out" · "Cancel". Built for the outbox in P2 with COPY.md `set.account.unsent` ("2 messages haven't sent yet. Sign out anyway?"), which wins; the offline-files half joins it when offline files can block a sign-out.
 - **Offline sign-out:** the wipe happens at once; the token is kept in a `pending_signout` record (and nothing else) until the revoke request succeeds, then deleted.
 - **Remote revocation while the phone is off or offline:** the private data stays on the phone until it next reaches the API. Once Web Push exists, revocation also sends `{"k":"signout"}`; the service worker runs the wipe on receipt and shows "You were signed out of Thunderhead." **[proposal]**
-- Not wiped: app code, fonts, the `th.ui.` keys, and the browser's password-manager entry (the browser owns it).
-- Acceptance (Playwright): after sign-out, `indexedDB.databases()` has neither `th-auth` nor `th-data`; `caches.keys()` contains only code caches; the OPFS root has no entries; a second open tab lands on `/signin/` within 1 s.
+- Not wiped: app code, fonts, the `th.ui.` keys, and the browser's password-manager entry (the browser owns it). Nor what exists only on this phone (owner, 2026-11-21: a sign-out wipes what has a copy on the account): Music's `claude-player` (library, play counts, playlists, songs added from the phone) and `cp-*` settings, the DJ's learning `th.music.dj`, My Media's `mymedia.*`, the editor's reports `th-report`, and the setup and reset codes in `th-setup` and `th-recover` (a reset finishes signed out).
+- Acceptance (Playwright): after sign-out, `indexedDB.databases()` has neither `th-auth` nor `th-data` nor `jarvis-podcasts`, and the synced keys above are gone while the phone-only stores remain (`tests/wipe-browser.test.mjs`); `caches.keys()` contains only code caches; the OPFS root has no entries; a second open tab lands on `/signin/` within 1 s.
 
 ### 11.4 Notices on Home
-Notices are created by `Auth`, never by the mind, and only owner sessions can acknowledge them. They appear on Home as a system card in the conversation, with the bottom edge glowing gold (a decision is waiting) until acknowledged. The exact card styling is in [HOME.md](HOME.md). **[proposal: card form]**
+Notices are created by `Auth`, never by the mind, and only owner sessions can acknowledge them. Every route that creates or clears one (sign-in, recovery, password change, a new agent key, an answer, a cancel; the state route or cron that opens the GitHub reset ticket) writes one `notice` change in Core's feed; an open Home hears it, reloads `GET /v1/auth/me`, shows new cards and folds ones answered elsewhere. Only devices see `notice` changes: for an agent key `GET /v1/changes`, a take of `/v1/live/wait` and the wait socket's frames leave them out (the cursor still moves past them), so no key learns when a sign-in, a password change, a recovery or a reset happened (`areas/feed/device-only.ts`). They appear on Home as a system card in the conversation, with the bottom edge glowing gold (a decision is waiting) until acknowledged. The exact card styling is in [HOME.md](HOME.md). **[proposal: card form]**
 
 | Kind | Who sees it | Card text | Buttons | Ends |
 |---|---|---|---|---|
@@ -488,7 +482,6 @@ All under `/v1/auth/`. Public = no token. Full shapes go in [API.md](../engineer
 | `GET agents` | owner | → `{items:[{id, name, role, created_at, last_used_at, last_country, created_on}]}` |
 | `POST agents` | owner | `{name, role, current_password}` → `{id, token}` (shown once) |
 | `DELETE agents/:id` | owner | → `204` |
-| `POST breakglass` | agent `chat` | `{fingerprint}` → `{ticket_id, usable_after, expires_at}` |
 | `POST breakglass/cancel` | owner | `{ticket_id}` → `204` |
 
 ## 17. Agent keys (Settings → Agents)
@@ -530,7 +523,6 @@ Every error body is `{"error": {"code", "message", "details"?, "request_id"}}` (
 | `setup_done` | 410 | setup | redirect to `/signin/` |
 | `username_invalid` | 422 | setup | "Use 3–32 letters, numbers, dots, dashes or underscores." |
 | `password_too_short` / `password_too_long` / `password_guessable` / `password_breached` / `password_same` | 422 | setup, password, recover | §9.2 |
-| `reset_already_pending` | 409 | breakglass | (the mind tells the owner) "A reset is already waiting. Cancel it first or wait for it." |
 | `reset_not_ready` | 425 | recover | §10.3 Pending copy |
 | `reset_cancelled` / `reset_expired` / `reset_used` | 410 | recover | §10.3 |
 | `agent_name_taken` | 409 | agents | "You already have a key with that name." |

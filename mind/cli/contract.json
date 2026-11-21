@@ -135,13 +135,6 @@
       "phase": "P1",
       "status": "built"
     },
-    "POST /v1/auth/breakglass": {
-      "who": [
-        "C"
-      ],
-      "phase": "P1",
-      "status": "built"
-    },
     "GET /v1/settings": {
       "who": [
         "D",

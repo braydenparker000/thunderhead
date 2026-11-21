@@ -1,11 +1,12 @@
-// Setup state and the reset ticket (SIGN-IN.md §4, §10): GET /v1/auth/state, the mind's
-// break-glass request, the GitHub path through AUTH_RESET_FP, and cancel from any device.
+// Setup state and the reset ticket (SIGN-IN.md §4, §10): GET /v1/auth/state, the GitHub path
+// through AUTH_RESET_FP (the only way to open a ticket: the mind can't, owner 2026-11-21), and
+// cancel from any device.
 
-import type { AuthStateResponse, BreakglassResponse } from '../../../../shared/contract/api';
+import type { AuthStateResponse } from '../../../../shared/contract/api';
 import { uuidv7 } from '../../lib/ids';
 import { DAY, HOUR } from '../../lib/time';
 import { pruneOld } from '../push/store';
-import { type AuthDeps, type Failure, fail, notice, type Result, reserve, throttled } from './flows';
+import { type AuthDeps, type Failure, fail, notice, type Result } from './flows';
 import * as store from './store';
 import * as keys from './store-keys';
 
@@ -40,11 +41,13 @@ function openTicket(d: AuthDeps, fp: string, source: keys.TicketRow['source'], n
 }
 
 /** The GitHub path: a new AUTH_RESET_FP value opens a ticket the first time Auth sees it,
- * unless that fingerprint was ever used or a reset is already open. */
-export function syncResetFp(d: AuthDeps, now: number): void {
-  if (!d.resetFp || !store.hasCredential(d.db)) return;
-  if (keys.ticketByFingerprint(d.db, d.resetFp) || keys.openResetTicket(d.db, now)) return;
+ * unless that fingerprint was ever used or a reset is already open. True when it opened one, so
+ * the caller writes a `notice` change and an open home shows the card at once. */
+export function syncResetFp(d: AuthDeps, now: number): boolean {
+  if (!d.resetFp || !store.hasCredential(d.db)) return false;
+  if (keys.ticketByFingerprint(d.db, d.resetFp) || keys.openResetTicket(d.db, now)) return false;
   d.storage.transactionSync(() => openTicket(d, d.resetFp as string, 'github', now));
+  return true;
 }
 
 /** For /recover with a reset code: the ready ticket, a failure saying why it can't be used, or
@@ -58,13 +61,16 @@ export function resetTicketFor(d: AuthDeps, fp: string, now: number): ({ ok: tru
   return fail(state === 'cancelled' ? 'reset_cancelled' : state === 'used' ? 'reset_used' : 'reset_expired');
 }
 
-export function state(d: AuthDeps, fp: string | null, resetFp: string | null): AuthStateResponse {
+/** `noticed` (never sent) says this call opened the GitHub path's ticket. */
+export type StateResult = AuthStateResponse & { noticed?: true };
+
+export function state(d: AuthDeps, fp: string | null, resetFp: string | null): StateResult {
   const now = Date.now();
   const done = store.hasCredential(d.db);
-  const out: AuthStateResponse = { setup: done ? 'done' : 'open' };
+  const out: StateResult = { setup: done ? 'done' : 'open' };
   if (fp && !done) out.setup_fp = !d.setupFp ? 'missing' : d.setupFp === fp ? 'ready' : 'mismatch';
   if (resetFp && done) {
-    syncResetFp(d, now);
+    if (syncResetFp(d, now)) out.noticed = true;
     const t = keys.ticketByFingerprint(d.db, resetFp);
     if (t?.kind === 'reset') {
       out.reset = ticketState(t, now);
@@ -72,22 +78,6 @@ export function state(d: AuthDeps, fp: string | null, resetFp: string | null): A
     } else out.reset = 'none';
   }
   return out;
-}
-
-/** POST /v1/auth/breakglass from `mind:chat`, with the fingerprint the owner gave in words. */
-export async function breakglass(d: AuthDeps, fp: string): Promise<Result<BreakglassResponse>> {
-  const now = Date.now();
-  if (!store.hasCredential(d.db)) return fail('setup_required');
-  syncResetFp(d, now);
-  if (keys.openResetTicket(d.db, now)) return fail('reset_already_pending');
-  const old = keys.ticketByFingerprint(d.db, fp);
-  if (old) return fail(old.cancelled_at ? 'reset_cancelled' : old.used_at ? 'reset_used' : 'reset_expired');
-  const refs: [['reset', 'acct']] = [['reset', 'acct']];
-  const limited = throttled(d, refs, now);
-  if (limited) return limited;
-  await reserve(d, refs, now); // counts tickets: 3 in 30 days
-  const t = d.storage.transactionSync(() => openTicket(d, fp, 'mind', now));
-  return { ok: true, ticket_id: t.id, usable_after: t.usable_after ?? 0, expires_at: t.expires_at ?? 0 };
 }
 
 /** Cancel from any signed-in device: the ticket and its fingerprint are void for good. */
@@ -106,11 +96,21 @@ export function cancel(d: AuthDeps, ticketId: string, label: string, sessionId: 
   return { ok: true };
 }
 
+/** What the cron's tidy-up did; `reset_opened` 1 when it opened the GitHub path's ticket. */
+export interface Pruned {
+  reset_opened: number;
+  sessions: number;
+  counters: number;
+  notices: number;
+  pushes: number;
+}
+
 /** Housekeeping for the cron: pick up AUTH_RESET_FP; forget rows that can no longer matter. */
-export function prune(d: AuthDeps): { sessions: number; counters: number; notices: number; pushes: number } {
+export function prune(d: AuthDeps): Pruned {
   const now = Date.now();
-  syncResetFp(d, now);
+  const reset_opened = syncResetFp(d, now) ? 1 : 0;
   return d.storage.transactionSync(() => ({
+    reset_opened,
     sessions: store.deleteOldSessions(d.db, now - 30 * DAY),
     counters: store.deleteStaleCounters(d.db, now - 2 * DAY),
     notices: keys.deleteOldNotices(d.db, now - 30 * DAY),

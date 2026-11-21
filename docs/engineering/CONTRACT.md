@@ -29,7 +29,6 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/auth/agents` | D | P1 | built |  |
 | `DELETE /v1/auth/agents/:id` | D | P1 | built |  |
 | `GET /v1/auth/me` | D C N R M I | P1 | built |  |
-| `POST /v1/auth/breakglass` | C | P1 | built |  |
 | `GET /v1/settings` | D C N R | P1 | built |  |
 | `PATCH /v1/settings` | D | P1 | built |  |
 | `POST /v1/ops/errors` | D C N R | P1 | built |  |

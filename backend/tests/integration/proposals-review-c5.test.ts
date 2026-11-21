@@ -48,8 +48,9 @@ describe('the eval sandbox and the Auth object', () => {
   it('refuses TH-Sandbox on every /v1/auth/ route, even ones the key may call outside it', async () => {
     expect((await api('GET', '/v1/auth/me', { token: P.C })).status).toBe(200);
     expect((await api('GET', '/v1/auth/me', sandbox(P.C))).status).toBe(403);
+    // The mind's reset route is gone (owner, 2026-11-21): no key reaches it, sandbox or not.
     const glass = await api('POST', '/v1/auth/breakglass', { ...sandbox(P.C), body: {} });
-    expect(glass.status).toBe(403);
+    expect(glass.status).toBe(404);
   });
 
   it('a revoke card raised there names the id it was given, not the key Auth knows', async () => {

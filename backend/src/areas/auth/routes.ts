@@ -5,7 +5,6 @@ import type {
   AgentMe,
   AgentsResponse,
   AuthStateResponse,
-  BreakglassResponse,
   DeviceMe,
   NewAgentResponse,
   PasswordResponse,
@@ -40,6 +39,17 @@ function ok<T extends object>(result: ({ ok: true } & T) | Failure): T {
 
 const auth = (c: Context<AppEnv>) => authObject(c.env);
 
+/** A notice was created or cleared: one `notice` change in Core's feed after the response, so an
+ * open home reloads /v1/auth/me within seconds (SIGN-IN.md §11.4). A Core still on the previous
+ * release has no such method; home then sees it at its next start, as before. */
+function noticed(c: Context<AppEnv>): void {
+  c.executionCtx.waitUntil(
+    coreObject(c.env)
+      .noticeChanged()
+      .catch(() => {}),
+  );
+}
+
 /** Signed-out sessions: dropped from this isolate's cache at once, and their live sockets are
  * closed with 4401 (API.md §12) after the response. `ids` is missing while the Auth object still
  * runs the previous release's code during a deploy; sign-in must keep working then. */
@@ -53,7 +63,10 @@ export const authRoutes = new Hono<AppEnv>()
   // --- public ----------------------------------------------------------------------------------
   .get('/state', async (c) => {
     const q = parse(s.stateQuery, c.req.query());
-    return c.json((await auth(c).state(q.fp ?? null, q.reset_fp ?? null)) satisfies AuthStateResponse);
+    // The GitHub path's ticket opens the first time Auth sees AUTH_RESET_FP, here or in the cron.
+    const { noticed: opened, ...out } = await auth(c).state(q.fp ?? null, q.reset_fp ?? null);
+    if (opened) noticed(c);
+    return c.json(out satisfies AuthStateResponse);
   })
   .post('/setup', async (c) => {
     const body = await json(c, s.setupBody);
@@ -64,14 +77,19 @@ export const authRoutes = new Hono<AppEnv>()
     // A sign-in past the device limit revokes the idlest session; its socket closes too.
     const { revoked, ...out } = ok<SignedIn & Revoked>(await auth(c).login(body, meta(c)));
     revoke(c, revoked);
+    noticed(c); // a new-device notice for the other phones
     return c.json(out satisfies SignedIn);
   })
   .post('/recover', async (c) => {
     const body = await json(c, s.recoverBody);
-    const { revoked, ...out } = ok<SignedInWithCode & Revoked>(await auth(c).recover(body, meta(c)));
+    const result = await auth(c).recover(body, meta(c));
+    // A failed attempt can still be the call that opened the GitHub path's ticket.
+    if (result.noticed) noticed(c);
+    const { revoked, noticed: _opened, ...out } = ok<SignedInWithCode & Revoked & { noticed?: true }>(result);
     // Recovery ended every session: drop this isolate's cached ones and close their sockets.
     forget();
     revoke(c, revoked);
+    if (!result.noticed) noticed(c);
     return c.json(out satisfies SignedInWithCode);
   })
   // --- this device -----------------------------------------------------------------------------
@@ -89,12 +107,14 @@ export const authRoutes = new Hono<AppEnv>()
     const { id } = parse(s.idParam, c.req.param());
     const { answer } = await json(c, s.ackBody);
     revoke(c, ok<{ forget: string[] }>(await auth(c).ackNotice(deviceOf(c).session_id, id, answer)).forget);
+    noticed(c);
     return c.body(null, 204);
   })
   // --- password and recovery code --------------------------------------------------------------
   .post('/password', guard('POST /v1/auth/password'), async (c) => {
     const body = await json(c, s.passwordBody);
     revoke(c, ok<{ forget: string[] }>(await auth(c).changePassword(deviceOf(c).session_id, body)).forget);
+    noticed(c);
     return c.json({} satisfies PasswordResponse);
   })
   .post('/recovery-code', guard('POST /v1/auth/recovery-code'), async (c) => {
@@ -107,14 +127,11 @@ export const authRoutes = new Hono<AppEnv>()
     return c.body(null, 204);
   })
   // --- reset ticket ----------------------------------------------------------------------------
-  .post('/breakglass', guard('POST /v1/auth/breakglass'), async (c) => {
-    const { fingerprint } = await json(c, s.breakglassBody);
-    return c.json(ok<BreakglassResponse>(await auth(c).breakglass(fingerprint)), 201);
-  })
   .post('/breakglass/cancel', guard('POST /v1/auth/breakglass/cancel'), async (c) => {
     const { ticket_id } = await json(c, s.cancelBody);
     const me = deviceOf(c);
     ok(await auth(c).cancelReset(me.session_id, me.label, ticket_id));
+    noticed(c);
     return c.body(null, 204);
   })
   // --- sessions (devices) ----------------------------------------------------------------------
@@ -138,7 +155,9 @@ export const authRoutes = new Hono<AppEnv>()
   })
   .post('/agents', guard('POST /v1/auth/agents'), async (c) => {
     const body = await json(c, s.agentBody);
-    return c.json(ok<NewAgentResponse>(await auth(c).createAgent(deviceOf(c).session_id, body)), 201);
+    const out = ok<NewAgentResponse>(await auth(c).createAgent(deviceOf(c).session_id, body));
+    noticed(c);
+    return c.json(out, 201);
   })
   .delete('/agents/:id', guard('DELETE /v1/auth/agents/:id'), async (c) => {
     const { id } = parse(s.idParam, c.req.param());
