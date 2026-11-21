@@ -26,6 +26,10 @@
     try {
       importScripts('/th/ported/frames.js');
     } catch {}
+    // The phone's data meter (th/data/worker.js): what this worker fetches, counted from its headers.
+    try {
+      importScripts('/th/data/worker.js');
+    } catch {}
   }
   let OLD = '';
   const PATH = /^\/music\/library(?:\.json|\/(audio|art|waveform)\/(r2_[A-Za-z0-9_-]{10,200}))$/;
@@ -49,6 +53,10 @@
   const PASS = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified'];
   /** "The new Worker can't answer yet": fall back, and ask again later. */
   const NOT_READY = Symbol('not ready');
+  /** The data meter's part for a library address: a song, a cover, or the rest (the catalog, waveforms, links). */
+  const partOf = (url) => ({ audio: 'music.songs', art: 'music.covers' })[PATH.exec(new URL(url).pathname)?.[1]] ?? 'music.rest';
+  /** An answer from the network, counted by its headers for the page that asked (th/data/worker.js). */
+  const counted = (r, part, client) => (self.thData?.count(part, r, client), r);
 
   const deps = {
     fetch: (...a) => fetch(...a),
@@ -178,6 +186,7 @@
         undefined,
         ms,
       );
+      counted(r, 'music.rest');
       if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('sign');
       const body = await r.json();
       for (const item of body.items ?? []) links.set(item.ref, item);
@@ -215,7 +224,7 @@
     const had = await cache.match(CATALOG_KEY);
     const headers = { Authorization: `Bearer ${auth}` };
     if (had?.headers.get('ETag')) headers['If-None-Match'] = had.headers.get('ETag');
-    const r = await upstream(`${base}/v1/music/catalog`, { headers }, cap.signal, t.bytes);
+    const r = counted(await upstream(`${base}/v1/music/catalog`, { headers }, cap.signal, t.bytes), 'music.rest', cap.client);
     // Its answer has started: the download takes as long as it takes.
     cap.done();
     if (r.status === 304 && had) return copy(had, 200);
@@ -228,7 +237,7 @@
   }
 
   async function waveform(base, auth, id, t, cap) {
-    const r = await upstream(`${base}/v1/music/waveforms/${id}`, { headers: { Authorization: `Bearer ${auth}` } }, cap.signal, t.bytes);
+    const r = counted(await upstream(`${base}/v1/music/waveforms/${id}`, { headers: { Authorization: `Bearer ${auth}` } }, cap.signal, t.bytes), 'music.rest', cap.client);
     if (r.status === 404) return new Response(null, { status: 404 });
     if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('waveform');
     const { bars } = await r.json();
@@ -243,7 +252,7 @@
     // Never through the browser's HTTP cache: a read cut short (a skip, a head stopped) left part of a
     // range there, and the next read of it went out as a conditional request first (If-Range), one more
     // round trip before the first byte (MUSIC.md §6.1). Heads and offline copies keep what is kept.
-    const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes);
+    const get = async (url) => counted(await upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes), art ? 'music.covers' : 'music.songs', cap.client);
     const signedAt = deps.now();
     let url = await within(sign(base, auth, ref, false, t.sign), cap.signal);
     // The signature's wait, for the player's report (0: signed ahead): music/src/player/song-net.js.
@@ -284,10 +293,13 @@
   /** The answer to one of the player's library requests. */
   async function answer(req, event) {
     const url = new URL(req.url);
-    if (req.method !== 'GET' || url.search || !PATH.test(url.pathname)) return deps.fetch(req);
+    // The old Worker (not ready yet, or not a library file): counted too, by the address's part.
+    const old = async () => counted(await deps.fetch(req), partOf(req.url), event?.clientId);
+    if (req.method !== 'GET' || url.search || !PATH.test(url.pathname)) return old();
     if (deps.now() >= offUntil && (await deps.topLevel(event))) {
       // The whole answer starts, or fails, within ANSWER_MS; once it has started its body streams on.
       const cap = deadline(ANSWER_MS, req.signal);
+      cap.client = event?.clientId;
       try {
         for (const t of TRIES) {
           try {
@@ -308,7 +320,7 @@
         cap.done();
       }
     }
-    return deps.fetch(req);
+    return old();
   }
 
   /** The next songs' links, signed in one request ahead of their turn (urls: the player's song addresses). */

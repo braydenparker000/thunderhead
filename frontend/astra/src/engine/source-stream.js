@@ -170,6 +170,7 @@ export async function runStream(source, stream, response) {
         if (piece.done) throw new SourceError('network', 'The host ended its answer early.');
         value = piece.value;
         source.bytesFetched += value.length; stream.received += value.length; stream.lastAt = Date.now();
+        globalThis.thData?.add('astra', value.length, source.url); // the phone's data meter (th/data/page.js)
         if (stream.received >= PIECE && (source.failures || source.failingSince)) source.calm(); // the host is sending again
       }
       let ended = false;

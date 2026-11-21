@@ -21,9 +21,10 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'],
   'astra/src/addons/worker-api.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
- * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does). */
+ * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does;
+ * th/data/page.js counts the page's bytes on the phone for Settings › Data use). */
 const IMPROVED = {
-  'assets/error-report.js': ['/th/senses/send.js'],
+  'assets/error-report.js': ['/th/senses/send.js', '/th/data/page.js'],
   'music/src/app.js': ['/th/music/dj.js'],
   'music/src/player/player.js': ['/th/music/dj.js', '/th/music/stream/deck.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],

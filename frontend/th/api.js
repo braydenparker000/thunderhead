@@ -73,6 +73,8 @@ export class ApiError extends Error {
  *   `<build>.<sha7>` from config.js.
  */
 export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
+  /** The answer's Content-Length for the phone's data meter, which its timeline does not give (th/data/page.js). @param {Response} res */
+  const held = (res) => (/** @type {any} */ (globalThis).thData?.held(res), res);
   /**
    * @template T
    * @param {string} path
@@ -84,7 +86,7 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     const headers = { 'TH-Client': client };
     if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-    const res = await fetch(base + path, {
+    const res = held(await fetch(base + path, {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
@@ -93,7 +95,7 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
       // A write sent while the page goes away (a pending Forget) must still arrive.
       keepalive: opts.keepalive ?? false,
       signal: AbortSignal.timeout(timeoutMs),
-    });
+    }));
     const text = await res.text();
     /** @type {any} */
     let data = null;
@@ -113,12 +115,12 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
   /** A file the Worker streams (the export's ZIP), as a Blob; errors as `call`'s.
    * @param {string} path @param {string} token @returns {Promise<Blob>} */
   async function download(path, token) {
-    const res = await fetch(base + path, {
+    const res = held(await fetch(base + path, {
       headers: { 'TH-Client': client, Authorization: `Bearer ${token}` },
       credentials: 'omit',
       cache: 'no-store',
       signal: AbortSignal.timeout(DOWNLOAD_MS),
-    });
+    }));
     if (res.ok) return res.blob();
     /** @type {any} */
     const data = await res.json().catch(() => null);
@@ -230,11 +232,11 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
      * sign-out on disk; th/attach/show.js keeps them in memory while the page is open.
      * @param {string} token @param {string} id @returns {Promise<Blob>} */
     file: async (token, id) => {
-      const res = await fetch(`${base}/v1/files/${encodeURIComponent(id)}`, {
+      const res = held(await fetch(`${base}/v1/files/${encodeURIComponent(id)}`, {
         headers: { 'TH-Client': client, Authorization: `Bearer ${token}` },
         credentials: 'omit',
         signal: AbortSignal.timeout(DOWNLOAD_MS),
-      });
+      }));
       if (res.ok) return res.blob();
       /** @type {any} */
       const data = await res.json().catch(() => null);

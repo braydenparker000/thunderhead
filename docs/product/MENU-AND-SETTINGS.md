@@ -124,10 +124,10 @@ of Settings, with the running short commit and Check for update.
 Navigation (2026-11-21, `apps/settings/pages.js`), under headings: **Look** (Theme, Text size,
 Still background, More appearance) · **Home and gestures** (Home and chat, Ring and gestures) ·
 **Apps** (Music, Photos, Island, Briefing) · **The mind** (The mind, What I remember,
-Notifications) · **Account and data** (Password, Devices, Privacy and data, Export, Recently deleted,
-Files for the workshop) · **About** (About and diagnostics, Check for update). Agents is not listed
-(§4.7). The catalogue's pages (§6), Files for the workshop and About open over Settings like
-the others. Connected apps stays hidden until it has a working surface.
+Notifications) · **Account and data** (Password, Devices, Privacy and data, Data use, Export,
+Recently deleted, Files for the workshop) · **About** (About and diagnostics, Check for update). Agents
+is not listed (§4.7). The catalogue's pages (§6), Data use, Files for the workshop and About open over
+Settings like the others. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours
 
@@ -513,3 +513,17 @@ goes. A file that stopped part way says how many pieces are in, and the same fil
 sends only the rest. Below, what is there: the name, the size and the day, Remove (asked first),
 and the room used of 4 GB. A file over 512 MB, or one there is no room for, is refused in words.
 Files stay until the owner removes them. `/settings/workshop/` opens this page.
+
+### 6.10 Data use (`data.js`)
+
+No catalogue keys (owner, 2026-11-21: "wifi or mobile data usage ... across the entire site"). What this
+browser reported downloading for this site, counted and kept only on this phone
+([DATA-METER.md](../engineering/DATA-METER.md)): Today and This month, each split Wi-Fi / Mobile data /
+Unknown; then This month by part, largest first (Home and the shell, Music, Podcasts, Astra, Photos,
+Study, Guitar, Updates, Talking to Thunderhead), a tap opening its split, Music's also as Songs, Covers
+and The rest. Sizes are KB, MB or GB with one decimal. Not counted lists what the meter cannot see
+(what the phone sends, films the browser plays straight from their host, the live connection, apps
+keeping their own files, and how many answers gave no size); a line says since when it counts. Reset
+asks first and starts again from now. The lead line says the phone's own data screen also counts other
+apps and sites. Search finds it by data, usage, mobile data, wifi, megabytes. It changes nothing about
+what the site downloads.

@@ -28,11 +28,20 @@ const ENGINE_WORKERS = /^\/(apps\/photos\/edit|photos\/engine|lab\/lightcraft|la
 try { importScripts('/th/report/fields.js', '/th/report/send.js'); } catch { /* a release without them */ }
 const report = () => (self.thReportSend ? self.thReportSend().then((r) => { if (r.why === 'not sent') throw new Error('to be tried again'); return r; }) : Promise.resolve(null));
 self.addEventListener('sync', (event) => { if (event.tag === 'th-report') event.waitUntil(report()); });
+// The phone's data meter (th/data/worker.js): what this worker fetches is counted from its headers and posted to a
+// page, a release's files as Updates, everything else by its path (Settings › Data use).
+try { importScripts('/th/data/worker.js'); } catch { /* a release without it */ }
+/** fetch, counted. @param {RequestInfo} req @param {RequestInit} [init] @param {string} [id] the part, else by its path */
+async function net(req, init, id) {
+  const r = await fetch(req, init);
+  self.thData?.count(id ?? self.thData.partOf(new URL(typeof req === 'string' ? req : req.url, self.location.href).pathname), r);
+  return r;
+}
 
 const LIST = '/precache.json';
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const res = await fetch(LIST, { cache: 'no-store' });
+    const res = await net(LIST, { cache: 'no-store' }, 'updates');
     if (!res.ok) throw new Error(`precache.json: ${res.status}`);
     const { build, files } = await res.clone().json();
     // A worker never caches a release other than its own (a deploy still uploading).
@@ -52,7 +61,7 @@ self.addEventListener('install', (event) => {
       let r = hash && had.get(path) === hash ? await caches.match(`/${path}`, { cacheName: from }) : undefined;
       if (r && (await r.clone().arrayBuffer()).byteLength !== size) r = undefined;
       if (!r) {
-        r = await fetch(`/${path}`, { cache: 'reload' });
+        r = await net(`/${path}`, { cache: 'reload' }, 'updates');
         const body = await r.clone().arrayBuffer();
         if (!r.ok || body.byteLength !== size) throw new Error(`/${path}: ${r.status}, ${body.byteLength} of ${size} bytes`);
       }
@@ -92,7 +101,7 @@ async function keptLab() {
 async function keepEditor() {
   const name = `th-lab-${BUILD}`;
   if (await caches.match(LAB_LIST, { cacheName: name })) return { kept: true, fetched: 0 };
-  const res = await fetch(LAB_LIST, { cache: 'no-store' });
+  const res = await net(LAB_LIST, { cache: 'no-store' }, 'photos');
   if (!res.ok) throw new Error(`${LAB_LIST}: ${res.status}`);
   const list = await res.clone().json();
   if (list.build !== BUILD) throw new Error(`the list is release ${list.build}, this worker is ${BUILD}`);
@@ -103,7 +112,7 @@ async function keepEditor() {
     const key = `/${f.path}`;
     let r = old && same.get(f.path) === f.hash ? await caches.match(key, { cacheName: old }) : undefined;
     if (!r) {
-      r = await fetch(key, { cache: 'reload' });
+      r = await net(key, { cache: 'reload' }, 'photos');
       const size = (await r.clone().arrayBuffer()).byteLength;
       if (!r.ok || size !== f.size) throw new Error(`${key}: ${r.status}, ${size} of ${f.size} bytes`);
       fetched += size;
@@ -120,7 +129,7 @@ let carried = /** @type {Promise<{ name: string, same: Set<string> } | null> | n
 const carry = () => (carried ||= (async () => {
   const name = await keptLab();
   if (!name || name === `th-lab-${BUILD}`) return null;
-  const res = await fetch(LAB_LIST, { cache: 'no-store' }), list = res.ok ? await res.json() : null;
+  const res = await net(LAB_LIST, { cache: 'no-store' }, 'photos'), list = res.ok ? await res.json() : null;
   if (list?.build !== BUILD) return null;
   const had = await (await caches.match(LAB_LIST, { cacheName: name })).json(), old = new Map(had.files.map((f) => [f.path, f.hash]));
   return { name, same: new Set(list.files.filter((f) => old.get(f.path) === f.hash).map((f) => `/${f.path}`)) };
@@ -138,7 +147,7 @@ async function lab(req, path) {
   const now = c?.same.has(key) ? await caches.match(key, { cacheName: `th-lab-${BUILD}` }) : undefined;
   if (now) return now;
   try {
-    return await fetch(req);
+    return await net(req);
   } catch (e) {
     const name = await keptLab(), hit = name && (await caches.match(key, { cacheName: name }));
     if (hit) return hit;
@@ -172,7 +181,7 @@ async function isolate(pending, doc) {
 /** The cached copy of a precached file, else the network. */
 async function cached(req, path) {
   const hit = await caches.match(path, { cacheName: CACHE });
-  return hit ?? fetch(req);
+  return hit ?? net(req);
 }
 
 /** A navigation: shell routes get the shell; a precached page (/signin/) its own copy; anything
@@ -182,12 +191,12 @@ async function page(req, path) {
   const key = SHELL.includes(dir) ? '/index.html' : `${dir}index.html`;
   const hit = await caches.match(key, { cacheName: CACHE });
   if (hit) return hit;
-  return fetch(req);
+  return net(req);
 }
 
 async function fresh(req, path) {
   try {
-    const res = await fetch(req, { signal: AbortSignal.timeout(3000) });
+    const res = await net(req, { signal: AbortSignal.timeout(3000) });
     if (res.ok) (await caches.open(CACHE)).put(path, res.clone());
     return res;
   } catch (e) {
@@ -202,7 +211,7 @@ async function vendor(req) {
   const cache = await caches.open(VENDOR);
   const hit = await cache.match(req);
   if (hit) return hit;
-  const res = await fetch(req);
+  const res = await net(req);
   if (res.ok) await cache.put(req, res.clone());
   return res;
 }

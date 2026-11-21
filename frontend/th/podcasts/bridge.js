@@ -15,6 +15,8 @@ import { FeedError, parseFeed, publicURL } from '/th/podcasts/feed.js';
 // Home's own frames (the island) may have the session too (th/ported/frames.js sets self.thFrames).
 import '/th/ported/frames.js';
 import { sessionToken } from '/th/ported/session.js';
+// The phone's data meter (th/data/worker.js): what this worker fetches, counted from its headers.
+import '/th/data/worker.js';
 
 const ROUTES = new Set(['/podcasts/search', '/podcasts/browse', '/podcasts/feed', '/podcasts/audio']);
 const RETRY_MS = 5 * 60_000;
@@ -22,6 +24,8 @@ const KEEP_MS = 10 * 60_000;
 const PASS = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'];
 /** "The new Worker can't answer yet": fall back, and ask again later. */
 const NOT_READY = Symbol('not ready');
+/** An answer from the network, counted for the data meter by its headers. @param {Response} r */
+const counted = (r) => (/** @type {any} */ (self).thData?.count('podcasts', r), r);
 
 const deps = {
   /** @type {typeof fetch} */
@@ -56,7 +60,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 
 /** @param {string} path @param {string} token @param {Record<string, string>} [headers] */
 async function ask(path, token, headers = {}) {
-  const r = await deps.fetch(`${api}/v1/podcasts/${path}`, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  const r = counted(await deps.fetch(`${api}/v1/podcasts/${path}`, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: 'no-store' }));
   if ([401, 403, 503].includes(r.status)) {
     await r.body?.cancel();
     throw NOT_READY;
@@ -154,7 +158,7 @@ export const podcastsBridge = {
         if (e === NOT_READY) offUntil = deps.now() + RETRY_MS;
       }
     }
-    return deps.fetch(req);
+    return counted(await deps.fetch(req));
   },
   deps,
   reset: () => {
