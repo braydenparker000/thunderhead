@@ -603,10 +603,38 @@ event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 
 report** also carries `movement`, kept in memory with a cap on each list and never sent to the Worker:
 every view transition (its scene or page names, ms, frames, worst gap between frames; frames are
 counted only while one runs); every open of the player (`innerHeight`, `visualViewport.height`, whether
-a text field had focus in the last second, the layout's height, the player's box height); 600 ms after
-each song change and play/pause, the play and pause buttons (in the page, visible, box size); and each
-search (viewport before and after the keyboard, the results list's height, scroll jumps over 40 px no
-finger or fling made). Numbers and layout names only: no titles, artists, file names or search text.
+a text field had focus in the last second, the layout's height, the player's box height); after each
+song change and play/pause, once the scene changes have settled (600 ms at least), the play and pause
+buttons (in the page, visible, box size), and in `playPauseMissing` each time neither shows at full
+size (52 px or more) in a player scene that has them, with the scene names; and each search (viewport
+before and after the keyboard, read in the frame of each change after its layout, with home's window
+height when Music is in home's frame, the large-viewport height and the bottom inset; the results
+list's height; scroll jumps over 40 px no finger or fling made, with the list's height, its scroll
+limit and whether its results had just changed). Numbers and layout names only: no titles, artists,
+file names or search text.
+
+**Library** (`frontend/music/src/ui/library-report.js`, loaded and computed only when **Copy report** is
+tapped, never at start or while playing; never sent to the Worker): **Copy report** also carries
+`library`, the library's shape as counts, sizes and percentages, to check its tags without reading it.
+`filled`/`filledPct`: songs with each field (album, albumArtist and how many differ from the artist,
+artist, year, track and disc number, genre, composer, length, cover and covers only in the file,
+waveform, rating, plays); `notCarried`: a field no song has at all. `albums` (the album list's groups):
+count, the unknown row, by size (1, 2–4, 5–9, 10+), with several artists, no year, mixed years,
+complete track numbers (1..n on each disc), with a cover. `artists` (the artist list's groups): count,
+by songs (1, 2–4, 5+) and albums (0, 1, 2+), names that differ only by case, spacing or "feat."/"&"
+forms (`likelySplit`). `duplicates`: same title and artist, case and punctuation left out.
+`placeholders`: empty or "unknown"/"untitled" titles, artists, albums; titles like a file name
+(extension, "Track 01") or the file name itself. `screens`: the fields each row is built from (album
+list, artist list, an album's songs, an artist's albums and songs) and over the library how many rows'
+second lines are blank, unknown, the same as the row above or another row, or repeat the screen's own
+name. `playlists`: count and sizes (min, median, max). Never a title, artist, album, genre, file name
+or id.
+
+**Layout height and the keyboard** (`frontend/music/src/ui/layout-height.js`): at `/music` the keyboard
+does not resize the page. In home's frame it does (home asks for `resizes-content`), so Music lays out
+at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
+is one relayout); the full height at once when the field lets go (leaving search blurs it), while the
+keyboard closes (1 s at most); the window's height otherwise. A resize is laid out in its own frame.
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
@@ -620,6 +648,40 @@ A text (a browser's or the engine's own message) keeps of an address only its ho
 text, and is at most 160 characters.
 
 ---
+
+### 5.11 Transitions at the screen's rate
+
+The owner agreed (2026-11-21) to rebuild the engine's frame work for the transitions into and out of the
+player, the art and search: the same motion, durations and end states, pixel for pixel at rest. Lists and
+menus keep what they did (a row's own scenes and the list's level and zoom changes are theirs).
+
+- **Nothing is built inside a transition** (`frontend/music/src/view/prebuild.js`). In idle time after start, one screen per
+  idle period and never while a transition moves, the player screen's likely next scenes (player, library,
+  search, equaliser) are built: their layouts are inflated, the views they show are laid out at their size
+  there and written while hidden, laid out once by the browser and kept so while gone
+  (`content-visibility: hidden` instead of `display: none`), and their art decoded. A scene not built by
+  then is built in the scene change itself, before its first frame; the animation's clock starts at that
+  frame, so it starts later and does not jump. Not done: the library's rows are still bound and drawn in
+  the first library transition's first frame (built ahead, they came back from the row pool to other rows,
+  and a hidden row's icon mask then hid the shown row's icon: lists are left as they were).
+- **A transition frame writes only what moved** (`frontend/music/src/view/motion.js`). While a scene transition of the player's
+  screens or a page transition of the list widget moves, a frame writes the views changed since the last one
+  (`Context.dirty`: anything invalidated, and any change of visibility), not the whole tree; a view shown
+  again after `display: none` writes its subtree; the frame after the last transition writes the whole tree.
+- **The first frame is cheap** (`frontend/music/src/view/scene-layout.js`). Scene prepare measures only the participants whose
+  scene parameters change and the views above them; every other view keeps its measure (Android's measure
+  cache). Before, prepare, the restore to the start frames and the end each forced a measure of the whole
+  tree. Not done: a cache of target frames per scene pair; the targeted pass already measures only what the
+  scene changes, and a cache could not tell when anything else in the tree changed.
+- **Other work waits** (`whenStill`): the waveform's next step, the blurred art of a new song, the Queue
+  list's rebuild, the playing track's list built ahead and the saved session run once no transition moves,
+  in a task after the next frame. Leaving the page still saves at once.
+
+The guard is `tests/music-transitions-browser.test.mjs`: each named transition at 4x CPU slowdown, its
+frames recorded in the page (a gap over 50 ms is reported, enforced with `TH_STRICT_TIMING=1`), and its end
+state's boxes equal to those the code drew before (`tests/fixtures/music-transition-boxes.json`, taken with
+Playwright's Chromium; text widths move by a pixel on other Chromium builds, so a Playwright upgrade takes
+them again with `TH_CAPTURE_BOXES=<file>` after checking the look by eye).
 
 ## 6. Media URLs and failures
 

@@ -3,6 +3,7 @@
 import {Drawables} from './view/drawables.js';
 import {MeasureSpec} from './view/view.js';
 import {animClock} from './gesture.js';
+import {syncMoving} from './view/motion.js';
 
 export class MessageBus {
   constructor() {
@@ -32,6 +33,10 @@ export class Context {
     this.animations = new Set();
     this.tweens = new Map();
     this.frameCallbacks = new Set();
+    // Views changed since the last write (invalidate, visibility); while a transition moves only these
+    // are written (view/motion.js).
+    this.dirty = new Set();
+    this.moving = new Set();
     this._raf = 0;
     this._layoutPending = false;
     this._renderPending = false;
@@ -147,9 +152,20 @@ export class Context {
       this._layoutPending = false;
       this.layoutRoot();
     }
-    if (this.root) this.root.sync();
+    if (this.root) {
+      if (this.moving.size) syncMoving(this);
+      else { this.dirty.clear(); this.root.sync(); }
+    }
     this._renderPending = false;
     if (this.animations.size || this.tweens.size || this.frameCallbacks.size || this._layoutPending) this.kick();
+  }
+
+  /** Lays out and writes the page now, in this frame (a resize: the browser paints next). */
+  layoutNow() {
+    if (!this.root) return;
+    this._layoutPending = false;
+    this.layoutRoot();
+    this.root.sync();
   }
 
   /** Measures/lays out the root at the container size (device px). */

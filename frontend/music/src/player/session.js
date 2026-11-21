@@ -7,6 +7,7 @@
 // list's song ids and play order, written only when the list or its order changes).
 
 import {groupKey} from '../library/group-key.js';
+import {whenStill} from '../view/motion.js';
 
 const STATE = 'queue', LIST = 'queue-list';
 const SAVE_EVERY_MS = 10000; // the place in the song, while it plays
@@ -101,7 +102,8 @@ export function installSession(ctx, player, library) {
     lastList = at.list; lastOrder = at.order; lastShuffle = at.shuffle;
     db.setState(LIST, listOf(player, library)).catch(() => {});
   };
-  ctx.bus.subscribe('bus_player', m => { if (/^msg_player_(track_changed|playing_state_changed|shuffle_mode_changed|repeat_mode_changed|queue_changed|category_changed)$/.test(m)) save(); });
+  // A change saves once no transition moves (view/motion.js); leaving the page saves at once.
+  ctx.bus.subscribe('bus_player', m => { if (/^msg_player_(track_changed|playing_state_changed|shuffle_mode_changed|repeat_mode_changed|queue_changed|category_changed)$/.test(m)) whenStill(ctx, save, 'session-save'); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
   for (const type of ['pagehide', 'freeze']) addEventListener(type, save);
   setInterval(() => { if (player.playing) save(); }, SAVE_EVERY_MS);

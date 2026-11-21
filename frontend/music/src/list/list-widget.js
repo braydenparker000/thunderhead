@@ -19,6 +19,7 @@ import {HomeSource, currentCategorySource, searchSource, playlistsSource, playli
 import {SEARCH_CATS, searchMask} from '../widgets/search.js';
 import {recordSearch} from '../library/search-history.js';
 import {ListTransition, ZOOM, pageFx} from './list-transition.js';
+import {whenStill} from '../view/motion.js';
 import {VelocityTracker, TOUCH_SLOP_DP, MAX_FLING_DP, cubicOut, elastic, pagerScroll} from '../gesture.js';
 import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
@@ -504,7 +505,8 @@ export class ListWidget extends FastLayout {
       // The shown Queue follows its entries.
       if (msg === 'msg_player_queue_changed') {
         const top = this.stack[this.stack.length - 1];
-        if (top?.kind === 'queue' && !this.libList.reorder) this.replaceTop(top.rebuild?.());
+        // Rebuilt once no transition moves (view/motion.js), from the Queue as it is then.
+        if (top?.kind === 'queue' && !this.libList.reorder) whenStill(this.ctx, () => { const t = this.stack[this.stack.length - 1]; if (t?.kind === 'queue' && !this.libList.reorder) this.replaceTop(t.rebuild?.()); }, 'queue-rebuild');
         this.schedulePrepare();
       }
     });
@@ -2155,7 +2157,7 @@ export class ListWidget extends FastLayout {
     const idle = globalThis.requestIdleCallback;
     if (this._prepQueued || !idle) return;
     this._prepQueued = true;
-    idle(() => { this._prepQueued = false; this.prepareTrackList(); }, {timeout: 3000});
+    idle(() => { this._prepQueued = false; whenStill(this.ctx, () => this.prepareTrackList(), 'prepare-track-list'); }, {timeout: 3000});
   }
 
   /**

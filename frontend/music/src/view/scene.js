@@ -4,6 +4,8 @@ import {MeasureSpec} from './view.js';
 import {FastLayout} from './fast-layout.js';
 import {GONE, VISIBLE, INVISIBLE, parseVisibility} from '../res/values.js';
 import {animClock} from '../gesture.js';
+import {beginMove, endMove} from './motion.js';
+import {markForLayout} from './scene-layout.js';
 
 export const DEFAULT_SCENE = 'defaultScene';
 export const RECALC_ON_END = 0, RECALC_ON_START = 1, RECALC_DYNAMIC = 2, RECALC_FRACTION = 3, RECALC_NONE = 4;
@@ -155,7 +157,7 @@ export function attachStateAnim(view, sa) {
 }
 
 /** Collects participating views (records for the scene), not descending into private scenes. */
-function collect(group, scene, out) {
+export function collect(group, scene, out) {
   for (const c of group.children ?? []) {
     const rec = c.sceneParams?.get(scene);
     // applyEvenIfGone dontApplyIfGone (do1): a gone view keeps out of the scene.
@@ -201,8 +203,12 @@ export class SceneController {
       r.target = r.target === 1 ? 0 : 1;
       r.clock = animClock();
       r.from = this.ratio;
-      r.duration = sceneDuration(duration * Math.abs(r.target - this.ratio), velocity) * 1000;
       r.onEnd = onEnd;
+      // Turned back before it moved (two taps before a frame): it is already where it goes. (A zero
+      // time here read as sceneDuration's 1 s default: a second with both play and pause shown.)
+      const left = Math.abs(r.target - this.ratio);
+      if (!r.manual && !(duration * left > 0)) { this.finish(r.target === 1); return; }
+      r.duration = sceneDuration(duration * left, velocity) * 1000;
       return;
     }
     if (this.running) this.finish(true);
@@ -222,6 +228,7 @@ export class SceneController {
     }
     this.running = {clock: animClock(), from: 0, target: 1, duration: sceneDuration(duration, velocity) * 1000, onEnd};
     sceneWatch?.(this, true);
+    this.moved();
     this.ratio = 0;
     this.apply(0, true);
     this.root.ctx.animate(this);
@@ -244,6 +251,7 @@ export class SceneController {
       this.targetSize = null;
       this.running = {manual: true, from: 0, target: 1, duration: 0};
       sceneWatch?.(this, true);
+      this.moved();
       // A layout pass while the drag holds would leave the frames at the target layout: re-applied after it.
       (this.root.ctx.manualScenes ??= new Set()).add(this);
     }
@@ -351,8 +359,12 @@ export class SceneController {
 
   prepare() {
     const root = this.root;
+    // Only what the scene changes is measured (view/scene-layout.js); a row's own scenes (the list's)
+    // take the whole subtree's pass as before.
+    const targeted = !root.listItemType;
     for (const it of this.items) {
       const v = it.view, rec = it.rec;
+      const lp0 = v.lp, vis0 = v.visibility;
       it.from = frameOf(v);
       it.fromVisibility = v.visibility;
       it.fromAlpha = v.visibility === VISIBLE ? v.alpha : 0;
@@ -370,10 +382,13 @@ export class SceneController {
       // Appearing views take part in the target layout; disappearing ones leave it.
       if (targetVis === GONE && v.visibility !== GONE) v.visibility = GONE;
       else if (targetVis !== GONE && v.visibility === GONE) v.visibility = targetVis;
-      if (rec.applyViewParams && typeof v.applySceneViewParams === 'function') v.applySceneViewParams(rec, it);
+      const params = rec.applyViewParams && typeof v.applySceneViewParams === 'function';
+      if (params) v.applySceneViewParams(rec, it);
+      if (targeted && (params || v.lp !== lp0 || v.visibility !== vis0)) markForLayout(v, root);
     }
     // One layout pass at the current root size (or the target size) produces the target frames.
-    root.forceLayoutTree();
+    if (targeted && root.forceLayout) root.forceLayout();
+    else root.forceLayoutTree();
     const [tw, th] = this.targetSize ?? [root.width, root.height];
     const [l0, t0, r0, b0] = [root.left, root.top, root.right, root.bottom];
     root.measure(MeasureSpec.make(tw, MeasureSpec.EXACTLY), MeasureSpec.make(th, MeasureSpec.EXACTLY));
@@ -397,7 +412,9 @@ export class SceneController {
       if (it.toVisibility === GONE && it.fromVisibility === GONE) v.visibility = GONE;
       const [l, t, r, b] = it.from;
       if (it.recalc === RECALC_ON_END) {
-        v.forceLayoutTree?.();
+        // Laid out at its start frame again: a clean subtree keeps its measure where the size is the same.
+        if (targeted) v.forceLayout?.();
+        else v.forceLayoutTree?.();
         v.measure(MeasureSpec.make(r - l, MeasureSpec.EXACTLY), MeasureSpec.make(b - t, MeasureSpec.EXACTLY));
         v.layout(l, t, r, b);
       } else if (it.recalc === RECALC_ON_START) {
@@ -453,7 +470,9 @@ export class SceneController {
       if (it.toScale !== undefined) v.setScale(it.toScale);
       if (v.visibility !== GONE && it.recalc !== RECALC_NONE) {
         const [l, t, r, b] = it.to;
-        v.forceLayoutTree?.();
+        // At its target frame: a clean subtree keeps its measure where the size is the one it has.
+        if (this.root.listItemType) v.forceLayoutTree?.();
+        else v.forceLayout?.();
         v.measure(MeasureSpec.make(r - l, MeasureSpec.EXACTLY), MeasureSpec.make(b - t, MeasureSpec.EXACTLY));
         v.layout(l, t, r, b);
       }
@@ -478,8 +497,13 @@ export class SceneController {
     onEnd?.(false);
   }
 
+  /** A transition of the player's screens moves (a row's own scenes are the list's: view/motion.js). */
+  moved() {
+    if (!this.root.listItemType) beginMove(this.root.ctx, this);
+  }
+
   notify(kind) {
-    if (kind === 'end') sceneWatch?.(this, false);
+    if (kind === 'end') { sceneWatch?.(this, false); endMove(this.root.ctx, this); }
     for (const l of this.listeners) l(kind, this);
   }
 }
