@@ -4,8 +4,9 @@ import {clientDirectory} from './directory.js';
 import {surfaceMotion,episodeHolds} from './motion.js';
 import {queueReorder} from './queue-motion.js';
 import {coverNavigation} from './navigation-motion.js';
-// NEXT-BATCH.md part 7: where episodes were left on the owner's other phones, written into this app's storage before it is read (th/podcasts/progress.js); at most 1.5 s.
-const thWaitUntil=performance.now()+1500;await Promise.race([import('/th/podcasts/progress.js').then(m=>m.opened(thWaitUntil)),new Promise(r=>setTimeout(r,1500))]).catch(()=>{});
+// NEXT-BATCH.md part 7: where episodes were left on the owner's other phones, written into this app's storage before it is read (th/podcasts/progress.js); at most 400 ms: a later answer comes into the state in memory once the app attaches (end of this file).
+const thWaitUntil=performance.now()+400,thSync=import('/th/podcasts/progress.js');await Promise.race([thSync.then(m=>m.opened(thWaitUntil)),new Promise(r=>setTimeout(r,400))]).catch(()=>{});
+let sync=null,offer=null;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s || '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -66,6 +67,10 @@ function connectionStatus() {$('offline-status').hidden=navigator.onLine;}
 
 const audio = $('audio'), downloads = new Map(), feeds = new Map(), downloadFailures=new Map();
 const episodeRefs = new Map(), showRefs = new Map();
+// The other phone's further place, offered (pulled(), end of this file).
+const offerLine=Object.assign(document.createElement('div'),{className:'toast resume-offer',hidden:true,innerHTML:'<button type="button"></button>'});offerLine.setAttribute('role','status');
+function placeOffer(){if(!offerLine.hidden)($('player').open?$('player'):document.body).append(offerLine);}
+function closeOffer(){offer=null;offerLine.hidden=true;}
 const commit = () => {state.progress=compactProgress(state.progress);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;}catch{notify('Could not save listening data. Device storage may be full.');return false;}};
 function notify(message) { $('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4000); }
 function status(message='',error=false) { $('status').textContent=message;$('status').hidden=!message;$('status').classList.toggle('error',error); }
@@ -97,7 +102,7 @@ function openDialog(d,opener=document.activeElement) {
   if(!d.open)d.showModal();
   d.scrollTop=0;
   d.querySelector('button,input,select')?.focus({preventScroll:true});
-  motions.get(d).enter();
+  motions.get(d).enter();placeOffer();
 }
 function closeDialog(d) {
   if(closingDialog)return closingDialog.promise;
@@ -127,7 +132,7 @@ async function onHistory() {
   await Promise.all(exits);
   if(serial===historyEpoch){
     if(!dialogStack.length){document.documentElement.classList.remove('podcast-overlay-open');if(sameRoute)window.scrollTo({top:overlayScroll,behavior:'instant'});}
-    const top=dialogStack.at(-1)?.dialog,fallback=top?.querySelector('button')||$('content');
+    placeOffer();const top=dialogStack.at(-1)?.dialog,fallback=top?.querySelector('button')||$('content');
     (restore?.isConnected&&!restore.closest('dialog:not([open])')&&(!top||top.contains(restore))?restore:fallback)?.focus({preventScroll:true});
   }
   pending?.resolve();
@@ -236,9 +241,13 @@ async function renderRoute() {
       if(token!==renderToken)return;status();root.innerHTML=resume+topics+(result.shows.length?`<div class="section-title result-heading"><h2>${view==='search'?'Results for “'+esc(query)+'”':category==='popular'?'Explore shows':esc(categories.find(c=>c[0]===category)?.[1])+' shows'}</h2><span>${result.shows.length} shows</span></div>`+showTiles(result.shows,{featured:true}):empty('No shows found','Try a show title, host, or a broader topic. You can also add an RSS feed with the + button.'));if(topics)root.querySelector('.browse-topics').scrollLeft=topicScroll;restoreView(token);return;
     }
     if(view==='show') {
-      window.scrollTo({top:0});status('Opening the podcast…');root.innerHTML='<div class="show-loading" aria-hidden="true"><div></div><span></span><span></span></div>';const data=await feed(showURL,{signal});if(token!==renderToken)return;feedData=data;
-      const directory=showRefs.get(showURL) || state.follows.find(s=>s.feedUrl===showURL);feedData.show={...directory,...feedData.show};
-      status(feedData.stale?'Showing saved episodes. Refresh when you’re online.':'');renderShow();setNav();restoreView(token);return;
+      window.scrollTo({top:0});status('Opening the podcast…');root.innerHTML='<div class="show-loading" aria-hidden="true"><div></div><span></span><span></span></div>';
+      const paint=data=>{feedData=data;const directory=showRefs.get(showURL) || state.follows.find(s=>s.feedUrl===showURL);feedData.show={...directory,...feedData.show};
+        status(feedData.stale?'Showing saved episodes. Refresh when you’re online.':'');renderShow();setNav();restoreView(token);};
+      // A followed show paints its saved feed at once and refreshes behind it, where the owner has scrolled to.
+      const saved=!feeds.has(showURL)&&state.follows.some(s=>s.feedUrl===showURL)?await storedFeed(showURL).catch(()=>null):null;if(token!==renderToken)return;
+      if(saved){paint(saved);feed(showURL,{signal,refresh:true}).then(data=>{if(token!==renderToken||data.stale)return;rememberView();paint(data);},()=>{});return;}
+      const data=await feed(showURL,{signal});if(token!==renderToken)return;paint(data);return;
     }
     renderLocal();restoreView(token);
   } catch(e) {if(token!==renderToken || e.name==='AbortError')return;status(e.message,true);root.innerHTML=empty('Couldn’t load podcasts',navigator.onLine?'Try again, or open one of your downloaded episodes.':'You’re offline. Your downloaded episodes are ready in Downloads.')+'<div class="recovery-actions"><button class="primary" data-retry>Try again</button><a href="#downloads" class="secondary">Open downloads</a></div>';}
@@ -407,7 +416,9 @@ async function reconcileDownloads() {
   if(changed){commit();repaintLocal();notify('Some downloads were cleared by the browser. Download them again when online.');}
 }
 
-function saveProgress(played=audio.ended) {if(!current||!loadedKey||sourceLoading||audio.readyState<1)return;const key=keyOf(current);state.progress[key]=progressEntry(current,audio.currentTime,audio.duration,played);state.current=current;commit();lastSaved=Date.now();}
+function saveProgress(played=audio.ended) {if(!current||!loadedKey||sourceLoading||audio.readyState<1)return;const key=keyOf(current);
+  // While the other phone's further place is offered, this older one is not saved over it (th/podcasts/progress.js), until the listener seeks or plays past it.
+  if(offer?.key===key&&!played){if(audio.currentTime<offer.position)return;closeOffer();}state.progress[key]=progressEntry(current,audio.currentTime,audio.duration,played);state.current=current;commit();lastSaved=Date.now();}
 function setPlayIcons() {
   const playing=sourceLoading?wantPlay:!audio.paused&&!audio.ended,name=playing?'pause':'play';for(const id of ['play','mini-play']){$(id).innerHTML=icon(name);$(id).setAttribute('aria-label',playing?'Pause episode':'Play episode');}
   const detail=$('details-play');if(detail){const active=playing&&current&&detail.dataset.episodeKey===keyOf(current),label=active?'Pause':state.progress[detail.dataset.episodeKey]?.position>0&&!state.progress[detail.dataset.episodeKey]?.played?'Resume':'Play';detail.innerHTML=icon(active?'pause':'play')+label+' episode';}
@@ -442,7 +453,7 @@ async function startSources(e,token,position,index=0) {
     loadedKey='';audio.pause();audio.src=sourceURLs[sourceIndex];audio.load();audio.playbackRate=state.speed;loadedKey=keyOf(e);
     let timeout;
     try {
-      await Promise.race([audio.play(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('The audio host took too long to respond.')),25000);})]);
+      await Promise.race([audio.play(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('The audio host took too long to respond.')),8000);})]);
       if(token!==loadToken||!wantPlay)return;
       sourceLoading=false;state.queue=nextQueued(state.queue,e);commit();playbackStatus();updatePosition();setPlayIcons();repaintLocal();return;
     } catch(err) {
@@ -454,7 +465,9 @@ async function startSources(e,token,position,index=0) {
   loadedKey='';sourceLoading=false;wantPlay=false;audio.pause();playbackStatus('Audio is unavailable right now. Tap Play to retry.',true);notify('This episode could not start. Tap Play to retry.');setPlayIcons();
 }
 async function playEpisode(e) {
+  sync?.refresh();
   if(current&&keyOf(current)===keyOf(e)&&(sourceLoading||loadedKey===keyOf(e))){togglePlay();return;}
+  closeOffer();
   const token=++loadToken;if(current&&loadedKey)saveProgress();loadedKey='';sourceLoading=true;audio.pause();audio.removeAttribute('src');audio.load();wantPlay=true;
   current=e;state.current=e;commit();updateCurrent();updatePosition();playbackStatus('Opening audio…');
   if(currentBlob){URL.revokeObjectURL(currentBlob);currentBlob=null;}
@@ -475,14 +488,14 @@ async function togglePlay() {
   if(audio.paused){wantPlay=true;try{await audio.play();}catch{playbackStatus('Audio could not start. Try opening this episode again.',true);}}else{wantPlay=false;audio.pause();saveProgress();}setPlayIcons();
 }
 function openPlayer() {if(!current)return;updatePosition();openDialog($('player'));}
-const skip = n => {if(!loadedKey)return;audio.currentTime=Math.max(0,Math.min(Number.isFinite(audio.duration)?audio.duration:Infinity,audio.currentTime+n));updatePosition();saveProgress();};
+const skip = n => {if(!loadedKey)return;closeOffer();audio.currentTime=Math.max(0,Math.min(Number.isFinite(audio.duration)?audio.duration:Infinity,audio.currentTime+n));updatePosition();saveProgress();};
 $('open-player').onclick=openPlayer;$('close-player').onclick=()=>closeDialog($('player'));
 for(const id of ['play','mini-play'])$(id).onclick=togglePlay;
 $('mini-back').onclick=$('back-15').onclick=()=>skip(-15);$('forward-30').onclick=()=>skip(30);
 for(const id of ['seek','mini-seek']) {
   const input=$(id);input.addEventListener('pointerdown',()=>seeking=true);
   input.oninput=()=>{seeking=true;input.setAttribute('aria-valuetext',positionText(input.value,input.max));$(id+'-position-text').textContent=input.getAttribute('aria-valuetext');$('mini-elapsed').textContent=clock(Number(input.value));$('elapsed').textContent=clock(Number(input.value));input.style.setProperty('--progress',Number(input.value)/Number(input.max)*100+'%');};
-  input.onchange=()=>{if(loadedKey)audio.currentTime=Number(input.value);seeking=false;updatePosition();saveProgress();};
+  input.onchange=()=>{if(loadedKey){closeOffer();audio.currentTime=Number(input.value);}seeking=false;updatePosition();saveProgress();};
   input.addEventListener('pointercancel',()=>{seeking=false;updatePosition();});input.addEventListener('blur',()=>{seeking=false;updatePosition();});
 }
 $('speed').onclick=()=>sheet('Playback speed',[0.75,1,1.25,1.5,1.75,2,2.5].map(speed=>({label:speed+'×'+(state.speed===speed?' · Selected':''),icon:state.speed===speed?'check':'play',action:()=>{state.speed=speed;audio.playbackRate=speed;audio.preservesPitch=true;commit();$('speed').textContent=speed+'× speed';}})));
@@ -530,6 +543,16 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('/podcasts/sw.j
 const measureChrome=()=>{const nav=document.querySelector('.podcast-nav').getBoundingClientRect().height;const mini=$('mini-player').hidden?0:$('mini-player').getBoundingClientRect().height+12;document.body.style.setProperty('--nav-clearance',nav+'px');document.body.style.setProperty('--bottom-clearance',(nav+mini+24)+'px');};
 const chromeObserver=new ResizeObserver(measureChrome);chromeObserver.observe(document.querySelector('.podcast-nav'));chromeObserver.observe($('mini-player'));measureChrome();
 if(current){updateCurrent();updatePosition();}
+// Home's island and chat play, skip and pause through the app's own calls (th/island/island.js): a restore leaves the player without its audio, which only togglePlay loads.
+window.__podcasts={togglePlay,skip,pause:()=>(sourceLoading?wantPlay:!audio.paused)?togglePlay():undefined};
+// The newest position always wins (th/podcasts/progress.js): positions pulled later come into this state, saved by commit; one further on than where the listener is, by more than 30 s, is offered with one tap instead of seeking under them.
+offerLine.firstChild.onclick=()=>{const o=offer;closeOffer();if(o&&current&&keyOf(current)===o.key&&loadedKey){audio.currentTime=o.position;updatePosition();saveProgress();}};
+function pulled(keys){
+  if(!keys.length)return;repaintLocal();if(!current)return;const key=keyOf(current),p=state.progress[key];if(!keys.includes(key)||!p)return;
+  if(loadedKey!==key){updatePosition();return;}
+  if(!p.played&&sync.resumeOffer(p.position,audio.readyState>=1?audio.currentTime:pendingPosition)){offer={key,position:p.position};offerLine.firstChild.textContent='Resume at '+clock(p.position)+' from your other phone';offerLine.hidden=false;placeOffer();}
+}
+thSync.then(m=>{sync=m;m.attach({state:()=>state,commit,pulled});}).catch(()=>{});
 renderRoute();reconcileDownloads().catch(()=>{});
 // The mind's "next up" (`podcasts/next`): one card on Discover with its why behind a tap and Dismiss; Play plays the episode, from Up Next or the show's saved feed, else opens the show (th/ported/arrangement.js).
 async function playKey(key){const at=key.lastIndexOf('#'),feedUrl=key.slice(0,at),id=key.slice(at+1);let e=episodeRefs.get(key)||state.queue.find(x=>keyOf(x)===key);if(!e){const data=await storedFeed(feedUrl).catch(()=>null),found=data?.episodes?.find(x=>x?.id===id);if(found)e=episode(found,{...state.follows.find(s=>s.feedUrl===feedUrl),...data.show,feedUrl});}if(e)playEpisode(e);else location.hash='#show='+encodeURIComponent(feedUrl);}

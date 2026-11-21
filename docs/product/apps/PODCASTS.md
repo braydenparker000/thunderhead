@@ -278,6 +278,23 @@ stays under 10 ms (measured in the test).
 - No gapless or crossfade for podcasts: an episode ends, 1 s of silence, the next one in Up next
   starts if Autoplay is on (default on, harvested).
 
+**Built for the ported app inside home (2026-11-21):** with Music and Podcasts both in home's layer,
+the one that starts playing pauses the other through its own pause call (Music's `player.pause()`,
+Podcasts' `__podcasts.pause()`), from a `play` listener home puts on each player's media elements
+once the app has started (`th/island/island.js` `oneSound`). The island's and the chat's play,
+skip-forward and skip-back on Podcasts call the app's own `togglePlay` and `skip` (exposed as
+`window.__podcasts` by `podcasts/app.js`), so a play after a restore loads the episode's audio, and
+the answer is what really happened: "Playing." only once it sounds, else "Podcasts didn't start.
+Open it and tap Play." (`control()` returns it as `outcome`; `th/commands/commands.js` waits for it).
+
+**Never waiting on the network to show what it has (2026-11-21):** the app's worker answers its
+page (also home's frame load, `th/ported/frames.js` asking `self.thFramesPage`) and its files from
+its cache first and refreshes them behind (`podcasts/cache-first.js`; the cache still versioned by
+`SHELL`), so a new release shows on the open after the one that fetched it. A followed show paints
+its saved feed at once and refreshes behind it, keeping the scroll, the filter and the order. Each
+source of an episode (the Worker, then the publisher) gives up after 8 s, not 25 s, and the open
+waits at most 400 ms for positions from other phones (a later answer is applied, §5.4).
+
 ### 5.2 Controls
 
 | Control | Values | Default |
@@ -324,10 +341,18 @@ always did), and `frontend/th/podcasts/progress.js` keeps that in step with the 
 - **On open,** before the app reads its storage: what the Worker took since this phone last asked
   (`GET /v1/podcasts/progress?since=`) is merged in, the newer `updated_at` winning each episode;
   the app's own details of an episode stay, and an episode this phone never saw is added, so it
-  resumes when opened. The app's edit waits for this at most 1.5 s; a pull that comes back later is
-  not applied (the app holds its state in memory and writes all of it back on every save, so a
-  later write would be lost), and `since` stays, so the next open brings it. Merging before the read
-  was chosen over a reload after it: no flash, and no reload while something plays.
+  resumes when opened. The app's edit waits for this at most 400 ms. Merging before the read was
+  chosen over a reload after it: no flash, and no reload while something plays.
+- **The newest position always wins (2026-11-21):** a pull that comes back later is applied
+  through the app's state in memory (the app writes all of its state back on every save, so storage
+  alone would be written over): the app hands its state, its save and a callback to the module
+  once it has read its storage (`attach`); a pull that lands before that is held for it. The pull
+  runs again when the page becomes visible (a Podcasts frame kept in home pulls each time home is
+  shown) and before each episode plays (`refresh`). When the pulled position of the episode loaded
+  in the player is further on than where the listener is by more than 30 s, the app does not seek
+  under them: one line, "Resume at 40:00 from your other phone", is a button that seeks there; until
+  it is tapped, the listener seeks themselves or plays past that place, the older place here is not
+  saved over the newer one. An episode not loaded simply takes the newer position.
 - **Up:** the positions the Worker doesn't have go on open, on pause and end, when the page hides
   (keepalive), every 60 s while an episode plays and when the network returns (≤ 100 and under
   60 KB a request). Follows and unfollows since the last look go too, stamped when noticed (the app
@@ -417,6 +442,8 @@ advance the fake clock 24 h → the file is gone and progress remains.
 ### 8.1 Senses
 
 **Built (B1, 2026-11-02):** `podcast.play`, `podcast.finish`, `podcast.skip` (by `podcast:<show id>/<episode id>`, the show's id the hash of its feed, never the address) and `podcast.follow` / `podcast.unfollow` (`podcast:<show id>`; not on a phone's first look at its follows), from `th/podcasts/progress.js`. The list and its fields are `SENSE_TYPES` (CONTRACT.md "Senses"); the table below is the fuller plan.
+
+**A preload is not an open (2026-11-21):** home preloads Podcasts and Music in hidden frames (`th/island/warm.js`). The page's `podcasts.open` / `player.open` sense (`assets/error-report.js`) goes when the page is shown to the owner (`assets/shown.js`): at once for a top-level page; in home's layer, the first time home brings the frame to the front, which it marks by taking `inert` off the frame (`th/island/island.js` `expand`; no new message).
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|

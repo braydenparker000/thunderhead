@@ -316,3 +316,61 @@ test("the mind's pending intents go into the same write, reported once saved; on
     sync.deps.intents = intents;
   }
 });
+
+/** The app as podcasts/app.js hands itself over: its state read from storage once, in memory, and
+ * written back whole by its own save (as it does every 10 s while playing). */
+function liveApp() {
+  const a = { state: app(), commits: 0, pulled: [] };
+  a.live = { state: () => a.state, commit: () => (storage.setItem(sync.APP_KEY, JSON.stringify(a.state)), a.commits++, true), pulled: (keys) => a.pulled.push(keys) };
+  return a;
+}
+
+test('a late pull is applied, through the app’s state in memory, once the app attaches', async () => {
+  setApp({ progress: { [key(1)]: entry(10, NOW - 5000, { episode: { id: 'e1' } }) } });
+  worker.rows.set(key(1), { key: key(1), position_s: 2400, duration_s: 3600, played: false, updated_at: NOW - 1000, synced_at: 10 });
+  const slow = worker.fetch;
+  sync.deps.fetch = async (...a) => {
+    page = BY + 1;
+    return slow(...a);
+  };
+  await sync.open(BY);
+  assert.equal(app().progress[key(1)].position, 10, 'not written under an app that has read its storage');
+  const a = liveApp();
+  sync.attach(a.live);
+  assert.deepEqual(a.state.progress[key(1)], { position: 2400, duration: 3600, played: false, updatedAt: NOW - 1000, episode: { id: 'e1' } });
+  assert.equal(app().progress[key(1)].position, 2400, 'saved by the app’s own save');
+  assert.deepEqual(a.pulled, [[key(1)]]);
+  assert.equal(memory().since.progress, worker.clock, 'since moves on');
+});
+
+test('a stale local resume never overwrites a newer server position', async () => {
+  // This phone's app read its storage (an old place) before the other phone's newer one came in.
+  setApp({ progress: { [key(1)]: entry(10, NOW - 5000) } });
+  const a = liveApp();
+  sync.attach(a.live);
+  worker.rows.set(key(1), { key: key(1), position_s: 2400, duration_s: 3600, played: false, updated_at: NOW - 1000, synced_at: 10 });
+  await sync.refresh();
+  // The app saves its whole state again, then the positions go up: the newer place stays everywhere.
+  a.live.commit();
+  await sync.push();
+  assert.equal(app().progress[key(1)].position, 2400);
+  assert.equal(worker.rows.get(key(1)).position_s, 2400);
+  assert.equal(worker.rows.get(key(1)).updated_at, NOW - 1000);
+  assert.ok(!worker.requests.some((r) => r.method === 'PUT' && r.body.items.some((p) => p.key === key(1))), 'the old place is not sent');
+  // A newer place on this phone still wins.
+  a.state.progress[key(1)] = entry(2500, NOW);
+  a.live.commit();
+  await sync.push();
+  assert.equal(worker.rows.get(key(1)).position_s, 2500);
+});
+
+test('refresh pulls only for an attached app; a jump past 30 s is offered, not taken', async () => {
+  await sync.refresh();
+  assert.deepEqual(worker.requests, [], 'no app yet: the open pull covers it');
+  sync.attach(liveApp().live);
+  await sync.refresh();
+  assert.equal(worker.requests.filter((r) => r.method === 'GET').length, 1);
+  assert.equal(sync.resumeOffer(2400, 10), true);
+  assert.equal(sync.resumeOffer(40, 10), false, 'within 30 s');
+  assert.equal(sync.resumeOffer(10, 2400), false, 'behind');
+});

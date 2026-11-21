@@ -1,12 +1,17 @@
 // P8 data move (MIGRATION.md §7 step 5): the app's requests to the old Worker are answered from the new Worker, the old one while it can't.
 import {podcastsBridge} from '/th/podcasts/bridge.js';
 podcastsBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
+import {cacheFirst as fromCache} from '/podcasts/cache-first.js';
 const SHELL = 'jarvis-podcast-shell-v6';
 const AUDIO = 'jarvis-podcast-audio-v1';
 const ART = 'jarvis-podcast-art-v1';
 const FILES = ['/podcasts/','/podcasts/index.html','/podcasts/app.js?v=20261020-room','/podcasts/motion.js','/podcasts/queue-motion.js','/podcasts/navigation-motion.js','/podcasts/fonts/instrument-sans-latin.woff','/podcasts/core.js','/podcasts/fonts/manrope-latin.woff','/podcasts/directory.js','/podcasts/style.css?v=20261020-room','/assets/shell.css','/assets/premium.css?v=20261003','/assets/config.js'];
 self.addEventListener('install', event => event.waitUntil(caches.open(SHELL).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('jarvis-podcast-shell-')&&key!==SHELL)await caches.delete(key);await self.clients.claim();})()));
+// The page and its files come from the cache first and are refreshed behind it (cache-first.js); the cache stays versioned by SHELL as before.
+const cacheFirst = (event, req, key = req) => fromCache(SHELL, event, req, key);
+// Home's own frame loads the page at ?th-frame=<token> (th/ported/frames.js answers that load): from the cache first too.
+self.thFramesPage = (event, clean) => cacheFirst(event, clean, '/podcasts/');
 export async function ranged(response, range) {
   if (!range) return response;
   const match = /^bytes=(\d*)-(\d*)$/.exec(range), blob = await response.blob(), length = blob.size;
@@ -36,9 +41,9 @@ self.addEventListener('fetch', event => {
     event.respondWith(caches.open(AUDIO).then(cache=>cache.match(url.href)).then(r=>r ? ranged(r,req.headers.get('Range')) : new Response('Download unavailable',{status:404})));return;
   }
   if (req.mode === 'navigate' && url.pathname.startsWith('/podcasts/')) {
-    event.respondWith(fetch(req).catch(()=>caches.open(SHELL).then(cache=>cache.match('/podcasts/'))));return;
+    event.respondWith(cacheFirst(event, req, '/podcasts/'));return;
   }
   if (FILES.some(path=>url.pathname+url.search === path)) {
-    event.respondWith(fetch(req).then(r=>{if(r.ok){const copy=r.clone();event.waitUntil(caches.open(SHELL).then(cache=>cache.put(req,copy)));}return r;}).catch(()=>caches.open(SHELL).then(cache=>cache.match(req))));
+    event.respondWith(cacheFirst(event, req));
   }
 });
