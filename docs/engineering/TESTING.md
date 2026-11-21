@@ -166,6 +166,16 @@ Any logic without DOM lives in its own module and has a `node --test` in `tests/
 | `jobs` | A chunked job resumes from its cursor after a thrown step; pauses at the lane cap; never runs two steps at once |
 | `n-1-client` | **Not built:** the previous build's recorded request shapes all succeed |
 
+### 5.3 Time travel (2026-11-21)
+
+The site runs unattended for six months from December 2026, so everything worked out from the date runs with the clock moved: the year's turn (2026-12-31 23:59 and 2027-01-01 00:01) in the owner's zone (America/Argentina/Buenos_Aires, UTC-3, no daylight saving) and in UTC, the last day of each month to May 2027, 180 days from now, the 04:00 day roll, 00:00 UTC (the quota day), Sundays at 02:30 (the backup) and each month's first Sunday (the drill), and a session 90 and 91 days after its last use.
+
+| File | What it moves the clock through |
+|---|---|
+| `tests/time-travel.test.mjs` | node's mock timers and `TZ`: the Briefing's age line, the daily pictures (`look/plates.js`, every day to May 2027, the same picture in either zone), the data meter's day, month and 62 days (`th/data/tally.js`), Guitar's week and streak, "last used" |
+| `backend/tests/unit/time-travel.test.ts` | the owner's day and the logical day, the roll, holidays (the table covers 2026–2027; its last listed holiday is 2027-12-26, and after 2027-12-31 there is no tile and no error), quiet hours across midnight, routines, the quota's UTC day, the backup's and the drill's schedule, the night's weekly step |
+| `backend/tests/integration/time-travel.test.ts` | vitest's fake Date in the Worker: the Briefing's `day` at 00:01 on 1 January (it is the calendar day, so the phone never paints a fresh answer as yesterday's), the 90-day session, newer-wins across the year |
+
 ---
 
 ## 6. Cost tests
@@ -191,9 +201,9 @@ The starting budgets are in [PERFORMANCE.md §4.3](PERFORMANCE.md#43-rows-and-ca
 
 | Test | Acceptance |
 |---|---|
-| Snapshot | Applying every step to an empty DO gives SQL equal to `backend/tests/migrations/<class>.schema.sql` (from `sqlite_schema`, normalised). Any schema change updates the snapshot in the same commit |
+| Snapshot | Applying every step to an empty DO gives SQL equal to `backend/tests/migrations/<class>.schema.sql` (from `sqlite_schema`, normalised): Auth, Core, Senses and Library (2026-11-21). Any schema change updates the snapshot in the same commit |
 | Upgrade | A fixture DB at schema N-1 (`fixtures/<class>.v<N-1>.jsonl`) migrates to N; every row is still there and unchanged in kept columns |
-| Expand-only lint | An `expand` step containing `DROP`, `RENAME`, or `ALTER … DROP` fails |
+| Expand-only lint | An `expand` step of Auth, Core, Music, Senses or Library containing `DROP`, `RENAME`, `DELETE` or `UPDATE` fails (`backend/tests/unit/static.test.ts`), so the previous Worker always runs on the newer schema |
 | Contract timing | A `contract` step must name the earlier version that stopped using the thing; the test checks that version is at least one deploy older (`_migrations` history in `fixtures/deploys.json`) |
 | Rollback safety | **Not built:** the previous release's store queries, recorded at each release, all run against the new schema without error |
 | Class change alone | **Not built:** a range with a new `migrations` tag plus any other source change fails |

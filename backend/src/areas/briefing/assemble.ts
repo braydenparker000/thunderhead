@@ -255,7 +255,9 @@ export function briefing(
     ...arrange([...(waiting ? [waiting] : []), ...mine.slice(lead.length)], pinsOf(db)),
   ].slice(0, 8);
   return {
-    day: c.day,
+    // The calendar day, as the phone's date is (th/briefing/age.js): from midnight to 04:00 the logical day
+    // (`c.day`, the night's and the report's) is still yesterday's, and the page would read as one kept from then.
+    day: date,
     title: titleLine(Math.floor(wallMinute(c.now, c.tz) / 60), !tiles.length),
     today: todayLine(date, {
       events: cal.today.length,

@@ -278,9 +278,9 @@ jobs:
     needs: [tested, test, api]
     if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.tested.outputs.tested == 'true')) && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
-    # Above the three step limits below together (15 + 10 + 15) and the setup before them, so a slow publish or live
-    # check fails its step and the rollback still has its own 15 minutes.
-    timeout-minutes: 50
+    # Above the three step limits below together (15 + 10 + 25) and the setup before them, so a slow publish or live
+    # check fails its step and the rollback (its own packages, staging, publishing and live check) still has its 25 minutes.
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
@@ -351,20 +351,20 @@ jobs:
           node --test "${checks[@]}" || { sleep 15; node --test "${checks[@]}"; }
       - name: Roll back to the previous live commit
         if: ${{ (failure() || cancelled()) && steps.publish.outcome != 'skipped' && steps.before.outputs.commit != '' }}
-        timeout-minutes: 15
+        timeout-minutes: 25
         env:
           PREV: ${{ steps.before.outputs.commit }}
         run: |
-          # The previous release is built with its own tools: its pages, its staging and publishing (scripts/: stage.mjs,
-          # site-config.mjs, fonts.mjs, astra/files.mjs, deploy.sh, changed.mjs) and the contract (shared/), all
-          # from that commit. A newer stage.mjs can expect files an older release does not have.
-          paths=()
-          for p in frontend scripts shared; do
-            if git cat-file -e "$PREV:$p" 2>/dev/null; then paths+=("$p"); fi
-          done
-          [[ " ${paths[*]} " == *" frontend "* ]] || { echo "::error::$PREV has no frontend/ to put back"; exit 1; }
-          rm -rf "${paths[@]}"
-          git checkout "$PREV" -- "${paths[@]}"
+          # The previous release is built, published and checked with its own tools, in a worktree at that commit:
+          # its pages, its packages, its staging and publishing (scripts/) and the contract (shared/). A newer
+          # stage.mjs can expect files an older release does not have, so nothing of this checkout is used.
+          git cat-file -e "$PREV:frontend" 2>/dev/null || { echo "::error::$PREV has no frontend/ to put back"; exit 1; }
+          wt="${RUNNER_TEMP:?}/previous-release"
+          rm -rf "$wt"
+          git worktree prune
+          git worktree add --detach "$wt" "$PREV"
+          cd "$wt"
+          [[ -f package-lock.json ]] && npm ci --ignore-scripts --no-audit --no-fund
           node scripts/fonts.mjs
           node scripts/stage.mjs "$PREV"
           scripts/deploy.sh "$PREV"
@@ -377,3 +377,11 @@ jobs:
           done
           [[ "$live" == "$PREV" ]] || { echo "::error::after the rollback /release.json names ${live:-nothing}, not $PREV"; exit 1; }
           echo "rolled back; /release.json names $PREV"
+          # And the same live check as a deploy, the previous release's own: a rollback that does not load fails here.
+          export EXPECTED_COMMIT="$PREV"
+          checks=()
+          for t in tests/live.test.mjs tests/home-browser.test.mjs tests/live-browser.test.mjs; do [[ -f "$t" ]] && checks+=("$t"); done
+          # Its own browser build, when its Playwright differs from this checkout's (the system libraries are in already).
+          if (( ${#checks[@]} )) && [[ -x node_modules/.bin/playwright ]]; then node_modules/.bin/playwright install --only-shell chromium; fi
+          if (( ${#checks[@]} )); then node --test "${checks[@]}" || { sleep 15; node --test "${checks[@]}"; }; fi
+          echo "the previous release passes its live check"

@@ -81,7 +81,7 @@ What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `te
 5. `azure/login` with OIDC. If sign-in fails, the next step prints only the token's `sub` claim.
 6. `scripts/deploy.sh <sha>` refuses any account not named `thunderhead*`. It uploads `ui/*`, then `apps/*`, then the rest, then `release.json` last. It reads `release.json` back until it names the commit (10 tries, 3 s apart), then removes stale blobs (at most 50; soft delete keeps them 7 days).
 7. Live checks: `tests/live.test.mjs`, `tests/home-browser.test.mjs` and `tests/live-browser.test.mjs` (the real `config.js` and the service worker: a signed-out visit lands on `/signin/`, no CSP violation, the worker activates) against `SITE_URL`, retried once after 15 s, within 10 minutes.
-8. On failure or cancel after publishing started, the previous commit's `frontend/`, `scripts/` and `shared/` are checked out (its own staging and publishing, since a newer `stage.mjs` can expect files it lacks), staged and published, within 15 minutes; the step fails unless the live `release.json` then names that commit. The job's 50 minutes hold publish (15), the live check (10) and the rollback (15) together.
+8. On failure or cancel after publishing started, the previous commit is checked out in a worktree of its own (`$RUNNER_TEMP/previous-release`) and built entirely with its own tools: its packages (`npm ci`), fonts, `stage.mjs` and `deploy.sh`, since a newer `stage.mjs` can expect files it lacks. The step fails unless the live `release.json` then names that commit and that release's own live checks (step 7's files, those it has) pass, retried once after 15 s; all within 25 minutes. The job's 60 minutes hold publish (15), the live check (10) and the rollback (25) together. `tests/site-rollback.test.mjs` runs the step's script in a scratch repository and stages each of the last five releases on `main` from a worktree with its own `stage.mjs`.
 
 Planned additions (P1): the stage step also writes the route stubs, `config.js`, `precache.json` and the `build` number ([ARCHITECTURE.md §5–6](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)). The live checks add a shell route → 200 with the shell. From P1b, `GET /music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that ported app's own page (§3.4).
 
@@ -91,7 +91,7 @@ Confirm: the run is green, and `<site>/release.json` shows the commit.
 
 | Situation | Who | Steps | Confirm |
 |---|---|---|---|
-| Live check failed | automatic | Step 8 above | The run is red, and `release.json` shows the previous commit |
+| Live check failed | automatic | Step 8 above | The run is red, `release.json` shows the previous commit, and the rollback step's own live check is green |
 | A bad commit got past the checks | agent (or owner) | Actions → Deploy → Run workflow → branch `main` → `ref` = the last good commit → Run | `release.json` shows that commit; reload the phone twice (the SW applies the older build at the next safe moment) |
 | Prefer history to show the fix | agent | `git revert <bad>` on `main` and push | A new deploy run goes green |
 | First deploy ever failed | — | Nothing to go back to; fix forward | — |
