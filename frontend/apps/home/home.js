@@ -138,7 +138,7 @@ function openFromRing(id,color,to){
   function showRing(){ ++ringRun; ground(); pets.forEach(p=>p.classList.remove('go','on','lifted')); ring.classList.remove('glassy'); ring.classList.add('show'); scrim.classList.add('show'); hush() }
   // Start at the hold deadline: all seven share the same frame, without a CSS stagger.
   function openFan(keyboard=false){ fan();if(keyboard&&dir<0)setDir(0) }
-  const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
+  const blocked=(el,e)=>!!el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts')&&document.dispatchEvent(new CustomEvent('th:hold',{cancelable:true,detail:e})); // a look may free a spot (look/home-hold.js)
   // The ring keeps clear of the edges at its overshoot: 1.13 R plus half a disc at 1.06.
   function place(x,y){ const r=app.getBoundingClientRect(); const m=(R+36)*({compact:.86,large:1.16}[root.dataset.ringSize]||1);
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
@@ -239,7 +239,7 @@ function openFromRing(id,color,to){
   app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea,.spage')) return;
     start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target,b:briefMotion.value,s:sideMotion.value,bv:briefMotion.velocity,sv:sideMotion.velocity,paused:!briefMotion.resting||!sideMotion.resting}; swipe=null;
     if(start.paused){takePages();briefMotion.stop();sideMotion.stop()}
-    if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
+    if(view!=='home'||blocked(e.target,e)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
     // The hold's own frame does only what the ring needs; counting it for the hint waits until the ring is out.
     holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },num('gestures.hold_ms',220)) });

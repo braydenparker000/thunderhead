@@ -79,8 +79,9 @@
 :root[data-look="ink-lamp"] .talk .follows{gap:10px}
 
 /* The docked decision: the slim strip. Its lamp and legend, the question on one line, the kit's keys
-   (the affirmative orange), and the dial for later (look/home-later.js). */
-:root[data-look="ink-lamp"] #home>.dock{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(8px + var(--ask-h,60px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
+   (the affirmative orange), and the dial for later (look/home-later.js). It and the working card
+   stand 8 px over the ask bar however tall the bar grows (the bar is 20 px off the foot). */
+:root[data-look="ink-lamp"] #home>.dock{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(28px + var(--ask-h,60px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
 :root[data-look="ink-lamp"] #decision .card.decision{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:0;min-height:80px;max-height:none;margin:0;padding:9px 66px 12px 12px;border-radius:var(--r-l);background:var(--plate);border:1px solid var(--hairline);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 0 rgba(255,255,255,.5)}
 :root[data-look="ink-lamp"][data-theme="dark"] #decision .card.decision{padding:8px 72px 12px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 :root[data-look="ink-lamp"] #decision .card.decision>:not(.lk-later-b){grid-column:1/-1;margin:0}

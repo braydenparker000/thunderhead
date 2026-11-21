@@ -269,3 +269,5 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 /* under the ring, menu and Settings the field holds still: at rest nothing is drawn */
 .app.hush>.field::before,.app.hush>.field::after,.app:has(>.spage)>.field::before,.app:has(>.spage)>.field::after{animation-play-state:paused}
 @media (prefers-reduced-motion: reduce){#app .side>.field,#app .spage>.field,#app .side::before,#app .spage::before{transition:none}}
+/* who speaks, for a screen reader only: a hidden label before each turn's words (nothing is drawn) */
+.talk .you::before{display:block;content:""/"You"}.talk .reply::before{display:block;content:""/"Thunderhead"}

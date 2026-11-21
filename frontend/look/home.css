@@ -40,11 +40,11 @@
 :root[data-look="ink-lamp"] .lk-rec[aria-busy="true"]{cursor:progress}
 
 /* The conversation's page: from the very top, the frontispiece first, the turns under it. */
-:root[data-look="ink-lamp"] .convo{top:0;padding:0 max(20px,env(safe-area-inset-right,0px)) 14px max(20px,env(safe-area-inset-left,0px));-webkit-mask-image:none;mask-image:none;bottom:calc(12px + var(--ask-h,60px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px))}
+:root[data-look="ink-lamp"] .convo{top:0;padding:0 max(20px,env(safe-area-inset-right,0px)) 14px max(20px,env(safe-area-inset-left,0px));-webkit-mask-image:none;mask-image:none;bottom:calc(20px + var(--ask-h,60px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px))}
 :root[data-look="ink-lamp"] #convo>.spacer{display:none}
 :root[data-look="ink-lamp"] .lk-front{position:relative;flex:none;margin:0 calc(-1 * max(20px,env(safe-area-inset-left,0px))) 0;padding:0 20px;overflow-x:clip}
 :root[data-look="ink-lamp"] .lk-fig{position:relative;height:280px;margin:0 -20px;overflow:hidden;background:var(--ground);-webkit-mask-image:linear-gradient(180deg,#000 0,#000 200px,transparent 280px);mask-image:linear-gradient(180deg,#000 0,#000 200px,transparent 280px)}
-:root[data-look="ink-lamp"] .lk-fig img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 28%}
+:root[data-look="ink-lamp"] .lk-fig img{pointer-events:none;-webkit-user-drag:none;display:block;width:100%;height:100%;object-fit:cover;object-position:50% 28%}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-fig{-webkit-mask-image:none;mask-image:none}
 :root[data-look="ink-lamp"] .lk-fig::before,:root[data-look="ink-lamp"] .lk-fig::after{content:none}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-fig::before{content:"";position:absolute;left:0;right:0;top:0;height:104px;background:linear-gradient(180deg,rgba(0,0,0,.16) 0%,rgba(0,0,0,.14) 55%,rgba(0,0,0,0) 100%)}
@@ -54,7 +54,7 @@
 :root[data-look="ink-lamp"] .lk-front{isolation:isolate}
 :root[data-look="ink-lamp"] .lk-front .lk-verse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:6px}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-front .lk-verse{margin-top:4px}
-:root[data-look="ink-lamp"] .lk-vtext{margin:0;min-width:0;font:italic 400 var(--fs-verse)/22px var(--font-verse);color:var(--text);user-select:text;-webkit-user-select:text}
+:root[data-look="ink-lamp"] .lk-vtext{margin:0;min-width:0;font:italic 400 var(--fs-verse)/22px var(--font-verse);color:var(--text)}
 :root[data-look="ink-lamp"][data-theme="dark"] .lk-vtext{line-height:20px}
 :root[data-look="ink-lamp"] .lk-front .lk-ref{flex:none;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--rubric);white-space:nowrap}
 :root[data-look="ink-lamp"] .lk-legend{margin:0;text-align:right;font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-3)}
@@ -106,6 +106,7 @@
 :root[data-look="ink-lamp"] #home.otr .reply a{color:var(--text)}
 @media (prefers-reduced-motion: reduce){:root[data-look="ink-lamp"] :is(.lk-head,.lk-veil.lk-deep,.lk-track .lk-thumb,.plusBtn svg){transition:none}}
 :root[data-look="ink-lamp"][data-motion-level="off"] :is(.lk-head,.lk-veil.lk-deep,.lk-track .lk-thumb,.plusBtn svg){transition:none}
-/* One line of words that runs on to the left, as on the approved screen (a line break still breaks). */
-:root[data-look="ink-lamp"] .ask textarea{flex:1 1 0;white-space:pre;overflow-x:auto}
-:root[data-look="ink-lamp"] .ask.lk-over textarea{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 40px);mask-image:linear-gradient(90deg,transparent 0,#000 40px)}
+/* The words wrap and the bar grows with them up to four lines (20 px each, 12 px above and below),
+   then they scroll inside it; the keys stay at its foot (align-items:flex-end), and --ask-h (home.js)
+   carries its height to the conversation and the docked cards. */
+:root[data-look="ink-lamp"] .ask textarea{flex:1 1 0;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:hidden;overflow-y:auto;max-height:104px}

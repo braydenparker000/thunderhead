@@ -5,10 +5,12 @@
 //   home-front.js   the frontispiece, its verse and j.j.
 //   home-turns.js   the initials that open his messages, the bar's words off the record
 //   home-later.js   the decision strip's "later" dial
+//   home-hold.js    the look's places to hold for the ring
 import { whileOn } from './look.js';
 import { head } from './home-head.js';
 import { front } from './home-front.js';
 import { turns } from './home-turns.js';
 import { later } from './home-later.js';
+import { hold } from './home-hold.js';
 
-for (const part of [head, front, turns, later]) whileOn(part);
+for (const part of [head, front, turns, later, hold]) whileOn(part);

@@ -90,6 +90,12 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
   });
   const cards = el('div', 'fallbacks');
   talk.before(cards);
+  // A reply that arrived while open is said once through one polite line; the conversation painted
+  // at start, the owner's own messages and a redrawn one are not.
+  const said = el('div', 'sr');
+  said.setAttribute('aria-live', 'polite');
+  talk.after(said);
+  const told = new Set();
 
   const nearBottom = () => convo.scrollHeight - convo.scrollTop - convo.clientHeight < 80;
 
@@ -285,7 +291,13 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
             newOwner = true;
             if (m.local && m.state !== 'failed') lifts.push(node);
           }
-          else if (m.author === 'mind') newReply = true; // live, or loaded on the way back from an app
+          else if (m.author === 'mind') {
+            newReply = true; // live, or loaded on the way back from an app
+            if (s.fresh.has(m.id) && !told.has(m.id)) {
+              told.add(m.id);
+              said.textContent = `Thunderhead: ${node.textContent ?? ''}`;
+            }
+          }
           else newLine = true;
           rec = { node, sig, m };
           nodes.set(m.id, rec);

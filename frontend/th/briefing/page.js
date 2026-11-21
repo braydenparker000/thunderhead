@@ -18,6 +18,7 @@ import { kv } from '../idb.js';
 import { buzz } from '../motion.js';
 import { el, toast } from '../ui.js';
 import { reportTile } from './report.js';
+import { age, keeps } from './age.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').BriefingResponse} BriefingResponse */
 
@@ -40,6 +41,8 @@ const icon = (/** @type {string} */ name) => {
 let at = 0;
 let shown = /** @type {BriefingResponse | null} */ (null);
 let loading = /** @type {Promise<void> | null} */ (null);
+/** The last refresh failed: what is shown says its age (age.js). */
+let failed = false;
 
 /** Wires the page once (boot.js, after the first paint). */
 export async function startBriefing() {
@@ -89,11 +92,14 @@ function refresh() {
       /** @type {BriefingResponse} */
       const b = await signedIn((t) => api.call('/v1/briefing', { token: t }));
       at = Date.now();
+      failed = false;
       draw(b);
       db.set(KEY, b).catch(() => {});
     } catch {
       // Offline or the Worker didn't answer: what this phone has stands; with nothing, it says so.
-      if (!shown) $('#brief .grid').replaceChildren(tile({ icon: 'wifi-slash', label: 'Briefing', value: 'Your day didn’t load.', detail: 'Pull down to try again.', cls: 'wide' }));
+      failed = true;
+      if (shown) draw(shown);
+      else $('#brief .grid').replaceChildren(tile({ icon: 'wifi-slash', label: 'Briefing', value: 'Your day didn’t load.', detail: 'Pull down to try again.', cls: 'wide' }));
     } finally {
       loading = null;
     }
@@ -174,13 +180,15 @@ function nightTile(t) {
 /** @param {BriefingResponse} b */
 function draw(b) {
   shown = b;
+  // A day kept from before is never painted as today: today's date stays, what was about that day goes.
+  const aged = age(b.day, new Date(), failed);
   // An arrange row open across a redraw opens again under its tile.
   const arranging = /** @type {HTMLElement | null} */ (document.querySelector('#brief .tilearr'))?.dataset.key;
   /** @type {HTMLElement[]} */
   const tiles = [];
   // An answer kept on this phone from before P8 has no weather.
-  if (b.weather) tiles.push(keyed(weatherTile(b.weather), 'weather'));
-  for (const t of b.tiles) {
+  if (b.weather && !aged.old) tiles.push(keyed(weatherTile(b.weather), 'weather'));
+  for (const t of aged.old ? b.tiles.filter(keeps) : b.tiles) {
     if (t.kind === 'report') tiles.push(keyed(reportTile(t, icon, () => { at = 0; refresh(); }), 'report'));
     else if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
     else if (t.kind === 'due') tiles.push(keyed(dueTile(t), 'due'));
@@ -189,14 +197,14 @@ function draw(b) {
     else if (t.kind === 'waiting') tiles.push(keyed(tile({ icon: 'bell', label: t.label, value: t.value, detail: t.detail, cls: 'gold half', go: 'waiting' }), `waiting:${t.label}`));
   }
   // The date and the day's counts (the Worker's; an answer from before has none).
-  if (b.today?.date) $('#bdate').textContent = b.today.date;
+  if (b.today?.date && !aged.old) $('#bdate').textContent = b.today.date;
   let line = /** @type {HTMLElement | null} */ (document.querySelector('#brief .btoday'));
   if (!line) {
     line = el('p', { class: 'btoday' });
     $('#brief .btitle').after(line);
   }
   line.textContent = b.today?.line ?? '';
-  line.hidden = !b.today?.line;
+  line.hidden = !b.today?.line || aged.old;
   // The owner's arrangement: their order first, the rest as the Worker gave them; hidden ones out.
   const arr = arrangement();
   const place = (/** @type {HTMLElement} */ t) => {
@@ -235,8 +243,9 @@ function draw(b) {
     });
     notes.push(show);
   }
-  for (const old of document.querySelectorAll('#brief .bmuse')) old.remove();
+  for (const n of document.querySelectorAll('#brief .bmuse')) n.remove();
   grid.after(...notes);
+  if (aged.line) grid.before(el('p', { class: 'bmuse bage', text: aged.line }));
   if (arranging) arrange(arranging);
 }
 

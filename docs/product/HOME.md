@@ -429,7 +429,7 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 | **Cold start, cache present** | Paints from IndexedDB within 1 s on the A15 (warm start budget). Voice line rises; edge calm. Live data reconciles silently: changes under 400 ms after paint are applied without animation. |
 | **Cold start, no cache** (first visit after sign-in) | Field, date, hint, ask bar ("Ask anything"). No skeletons. |
 | **Loading older turns** | Nothing visible; they appear above. |
-| **Offline** | Last state; "· Offline" on the date line; edge offline; messages queue (§4.7); decisions can't be answered (§3.2); the briefing shows its cached tiles with "as of" times. |
+| **Offline** | Last state; "· Offline" on the date line; edge offline; messages queue (§4.7); decisions can't be answered (§3.2); the briefing shows its cached tiles with "as of" times. A Briefing kept from another day keeps today's date in its head, says one quiet line, "From yesterday" ("From Tuesday", "From 3 November"), and leaves out what was about that day (the weather now, Due, Today, Holidays, the day's counts); today's that could not be refreshed says "Couldn’t refresh just now" (2026-11-21, `th/briefing/age.js`). |
 | **Server error** (5xx, timeout) | Same as offline for sending (auto-retry); a toast only when the owner's own action failed. |
 | **Signed out or token rejected** | Sign-in replaces home ([SIGN-IN](SIGN-IN.md)). Queued outbox messages stay and send after sign-in. |
 | **Mind can't wake** | Voice line row 3, error edge, system line in the conversation (§4.4). The instant tier still answers what it can. |
@@ -566,7 +566,11 @@ picture-in-picture. The old `/lab/island/` prototype does not demonstrate this v
 |---|---|
 | Ring, briefing, menu without gestures | Visually hidden "Apps", "Briefing", "Menu" buttons first in the focus order ([GESTURES](../design/GESTURES.md) §9) |
 | Opening an app announced | `aria-live`: "Opening Music" |
-| New replies announced | Turns list is `aria-live="polite"`; each reply is announced once, whole |
+| New replies announced | (2026-11-21) Only a reply that arrives while home is open is said, once, whole, through one polite hidden line (`th/chat/view.js`); the conversation painted at start, the owner's own messages and a redrawn reply are not. The turns list is not a live region. |
+| Who speaks | Each of the owner's messages starts with a hidden "You", each reply with a hidden "Thunderhead" (CSS generated text with alternative text, `apps/home/home.css`; nothing is drawn) |
+| The ring by ear | The ring itself is hidden from a screen reader; the app the finger or the arrows are on is said in one polite line (`#ringsay`, `apps/home/heard.js`), empty again once the ring closes |
+| The + sheet | Closed, it is `inert` (out of the reading and Tab order); open, it is not (`apps/home/heard.js`) |
+| Pages and focus | The Briefing's date (a level-1 heading) or the menu's "Conversations" takes the focus as the page opens; the ask bar takes it back as the page closes, if the focus was in it. After a touch the bar takes it without raising the keyboard (`inputmode="none"` until the next tap on the bar), so a swipe home never opens the keyboard (`apps/home/heard.js`). |
 | Voice line changes announced | `#say` is `role="status"` [proposal]; announced only on change, not on load |
 | Decision card | `role="group"` with `aria-labelledby` the question; buttons are real `<button>`s |
 | Edge light meaning | Never the only signal: gold ↔ the docked card; thinking ↔ the reply placeholder; listening ↔ the mic state; error ↔ text |
