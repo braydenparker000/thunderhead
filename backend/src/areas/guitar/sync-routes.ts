@@ -22,10 +22,11 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 
 const ROUTE = 'guitar/progress';
+type GuitarProgressPage = { rows: GuitarPage['items']; more: boolean; last: [number, string] | null; at: number };
 const ms = z.number().check(z.int(), z.gte(1), z.lte(Number.MAX_SAFE_INTEGER));
 const count = z.number().check(z.int(), z.gte(0), z.lte(1_000_000));
 const day = z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/));
-const fewer = (n: number) => z.refine((o: object) => Object.keys(o).length <= n, `at most ${n} entries`);
+const fewer = (n: number) => z.refine((o: unknown) => Object.keys(o as object).length <= n, `at most ${n} entries`);
 const sectionDay = z.strictObject({ day, passes: count, clean: count, ceiling: count });
 const progressItem = z.strictObject({
   key: z.string().check(z.maxLength(L.key_chars), z.regex(GUITAR_KEY)),
@@ -81,7 +82,10 @@ export const guitarSyncRoutes = new Hono<AppEnv>()
     if (k !== null && (k.length !== 2 || !Number.isSafeInteger(k[0]) || typeof k[1] !== 'string'))
       throw new ApiError('bad_request');
     const after: [number, string] = k ? [k[0] as number, k[1] as string] : [q.since ?? 0, ''];
-    const p = await fresh(coreObject(c.env).guitarProgress(after, q.limit ?? L.page_max));
+    // (a record's `song` holds `unknown` fields, which the RPC stub's types cannot carry: the page is typed here)
+    const p = (await fresh(
+      coreObject(c.env).guitarProgress(after, q.limit ?? L.page_max),
+    )) as unknown as GuitarProgressPage;
     return c.json({
       items: p.rows,
       next_since: p.at,

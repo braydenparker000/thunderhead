@@ -78,10 +78,15 @@ describe('a notice change in the feed', () => {
     const seq = await feedSeq();
     const r = await apiJson<{ error: { code: string } }>('POST', '/v1/auth/recover', {
       ip: '192.0.2.170',
-      body: { username: USERNAME, code: normalizeCode(newRecoveryCode()), new_password: 'a fresh long phrase 77', device: DEVICE },
+      body: {
+        username: USERNAME,
+        code: normalizeCode(newRecoveryCode()),
+        new_password: 'a fresh long phrase 77',
+        device: DEVICE,
+      },
     });
     expect([r.status, r.body.error.code]).toEqual([401, 'wrong_username_or_code']);
-    expect(await authSql("SELECT source FROM tickets WHERE fingerprint = ?", fp)).toEqual([{ source: 'github' }]);
+    expect(await authSql('SELECT source FROM tickets WHERE fingerprint = ?', fp)).toEqual([{ source: 'github' }]);
     await noticeAfter(seq);
     await authSql('UPDATE tickets SET cancelled_at = 1 WHERE fingerprint = ?', fp);
   });

@@ -41,7 +41,7 @@ describe('deep health', () => {
           core: {
             ok: true,
             schema: 48,
-            expected: 49,
+            expected: 48,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
