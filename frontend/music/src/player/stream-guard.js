@@ -15,6 +15,12 @@
 // - online, after GIVE_UP failed tries the player pauses and says so; Play tries again.
 // The playback log shows the counts and events.
 export const STALL_MS = 10000;
+// A streamed song (th/music/stream): its stall waits while the feed has any request under way that showed
+// life in the last 15 s (a fill's or a seek's: th/music/stream/track.js linkOf; in the lab a reload at 10 s
+// re-sought the file and played 7 s after the link came back), and acts once the feed has had nothing alive
+// for IDLE_MS. One reload per stall: after one, the next waits RELOAD_GAP_MS times the tries so far (a
+// reload's own seek on a slow link is not met with another reload).
+const IDLE_MS = 2000, RELOAD_GAP_MS = 15000;
 const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 30000];
 // Playing this long without trouble forgets the earlier failures.
 const HEALTHY_MS = 15000;
@@ -118,9 +124,15 @@ export class StreamGuard {
     if (el !== this.p.audio || !this.p.playing || this.stallTimer) return;
     this.goodSince = 0;
     const since = this.now();
+    let idleSince = 0;
     this.stallTimer = setInterval(() => {
       if (el !== this.p.audio || !this.p.playing || el.paused || el.readyState >= 3 || el.error) { clearInterval(this.stallTimer); this.stallTimer = 0; return; }
-      if (this.now() - Math.max(this.lastData, since) < this.stallMs) return;
+      const link = el._stream?.feed?.link?.();
+      if (link) {
+        if (link.busy) { idleSince = 0; return; }
+        if (this.now() - (idleSince ||= this.now()) < IDLE_MS) return;
+        if (this.reloadedAt && this.now() - this.reloadedAt < RELOAD_GAP_MS * Math.max(1, this.attempts)) return;
+      } else if (this.now() - Math.max(this.lastData, since) < this.stallMs) return;
       clearInterval(this.stallTimer);
       this.stallTimer = 0;
       this.counts.stalls++;
@@ -194,7 +206,7 @@ export class StreamGuard {
     }
     this.counts.reloads++;
     this.note('reload', {reason, attempt: this.attempts, atMs: Math.round(this.pos * 1000)});
-    this.lastData = this.now();
+    this.lastData = this.reloadedAt = this.now();
     p.reloadAt(this.pos);
   }
 

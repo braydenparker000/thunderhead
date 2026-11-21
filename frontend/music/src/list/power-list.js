@@ -1,6 +1,7 @@
 // PowerList (library mode): a vertically scrolling list or grid of recycled
 // item views (item_track / item_text) in their item scenes, with an optional
 // header item, momentum scrolling and reference zoom-level geometry.
+import {idleWork} from '../view/idle-work.js';
 import {FastLayout} from '../view/fast-layout.js';
 import {MeasureSpec} from '../view/view.js';
 import {withView} from '../view/inflater.js';
@@ -385,21 +386,15 @@ export class PowerList extends FastLayout {
    * ({type: count} in heads) also load their header and toolbar parts.
    */
   prewarm(counts, heads = {}) {
-    const idle = globalThis.requestIdleCallback;
-    if (!idle) return;
+    if (!globalThis.requestIdleCallback) return;
     const each = (c, head) => Object.entries(c).flatMap(([type, n]) => Array.from({length: n}, () => ({type, head})));
-    const queue = [...each(heads, true), ...each(counts, false)];
-    const step = deadline => {
-      while (queue.length && deadline.timeRemaining() > 8) {
-        const {type, head} = queue.shift();
-        const v = this.create(type, head ? HEAD : ROW);
-        this.adopt(v);
-        if (head) for (const sc of HEAD_SCENES) v.loadBehaviorsFor(sc);
-        this.recycle(-1, v);
-      }
-      if (queue.length) idle(step);
-    };
-    idle(step);
+    // An idle job (view/idle-work.js), a row a piece.
+    idleWork(this.ctx, 'spare-rows', [...each(heads, true), ...each(counts, false)].map(({type, head}) => () => {
+      const v = this.create(type, head ? HEAD : ROW);
+      this.adopt(v);
+      if (head) for (const sc of HEAD_SCENES) v.loadBehaviorsFor(sc);
+      this.recycle(-1, v);
+    }));
   }
 
   recycle(i, v, under = false) {

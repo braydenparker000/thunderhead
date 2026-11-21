@@ -8,7 +8,7 @@
 import {MeasureSpec} from './view.js';
 import {collect} from './scene.js';
 import {markForLayout} from './scene-layout.js';
-import {isMoving} from './motion.js';
+import {idleWork} from './idle-work.js';
 import {GONE} from '../res/values.js';
 
 export const LIKELY_SCENES = ['scene_playing', 'scene_lib', 'scene_search', 'scene_eq'];
@@ -92,34 +92,24 @@ function decodeImages(view) {
 }
 
 /**
- * Builds the likely next scenes of the top container, then the navbar's lines scene (its seekbar and
- * mini player, shown with the library, search and the equaliser), one per idle period after start,
- * never while a transition moves, and only when the page is really idle (no deadline: a build is one
- * long task on a slow phone, and the start-up's own tasks and the first tap come first).
- * ctx.prebuilt.done turns true once all are built (the browser tests wait for it).
+ * Builds the likely next scenes of the top container, then the library's start rows, then the navbar's lines
+ * scene (its seekbar and mini player, shown with the library, search and the equaliser), as one idle job
+ * (idle-work.js): one piece each, none within 300 ms of an input or while a transition, a layout or a
+ * scroll runs. A scene's build is one piece (one layout of the scene; on a slow phone longer than a
+ * slice: the report's `longWork.longestPiece` shows it). ctx.prebuilt.done turns true once all are built
+ * (the browser tests wait for it).
  */
 export function prebuildLikely(ctx, scenes = LIKELY_SCENES) {
   const root = ctx.topNav;
   ctx.prebuilt = {done: false};
   if (!root) { ctx.prebuilt.done = true; return; }
-  const idle = globalThis.requestIdleCallback ?? (fn => setTimeout(() => fn({timeRemaining: () => 8}), 50));
-  const left = scenes.map(scene => () => [root, scene]);
+  const pieces = scenes.map(scene => () => buildScene(root, scene));
   // The library's start rows (list/list-widget.js prepareLibrary), once the library scene is built.
-  left.push(() => { ctx.listWidget?.prepareLibrary?.(); return null; });
+  pieces.push(() => ctx.listWidget?.prepareLibrary?.());
   // (Asked when its turn comes: the navbar's line count follows the settings then.)
-  left.push(() => {
+  pieces.push(() => {
     const bar = ctx.navbar?.container?.();
-    return bar ? [bar, ctx.settings.navbar_seekbar ?? true ? 'scene_navbar_3lines' : 'scene_navbar_2lines'] : null;
+    if (bar) buildScene(bar, ctx.settings.navbar_seekbar ?? true ? 'scene_navbar_3lines' : 'scene_navbar_2lines');
   });
-  const next = () => {
-    if (!left.length) { ctx.prebuilt.done = true; return; }
-    idle(() => {
-      // A transition or a pending layout first: the build measures against the settled screen.
-      if (isMoving(ctx) || ctx._layoutPending || root.scenes.running || ctx.listWidget?.trans || ctx.navbar?.container?.()?.scenes.running) { next(); return; }
-      const job = left.shift()();
-      if (job) buildScene(...job);
-      next();
-    });
-  };
-  next();
+  idleWork(ctx, 'prebuild', pieces).then(() => { ctx.prebuilt.done = true; });
 }

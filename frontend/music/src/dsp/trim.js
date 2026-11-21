@@ -6,6 +6,9 @@
 //   calls for applies from the next song of that album played in album order, and carries on through the
 //   album (taking a larger trim when a later song needs it, never a smaller one) until a change out of
 //   album order or to another album, where it starts again at none.
+// - A song's own kept peak (decodedPeak: the largest decoded peak the phone measured while it played,
+//   kept with its plays, Library.notePeak) trims it from its next start on, whatever came before it;
+//   with the album's carry, the smaller trim wins. The album rule is unchanged.
 // "Album order": the next track of the same album (album and album artist) on the same disc, or the first
 // track of the next disc. Never a gain up. Pure; dsp.js runs it, the tests run it directly.
 
@@ -35,7 +38,8 @@ export function songTrim({t, prev, gain = 1, carry = null}) {
     return {trim: over > 1 ? 1 / over : 1, carry: {key, trim: 1, tagged: true}};
   }
   const trim = follows && carry && carry.key === key ? carry.trim : 1;
-  return {trim, carry: {key, trim}};
+  const kept = num(t?.decodedPeak) * gain;
+  return {trim: kept > 1 ? Math.min(trim, 1 / kept) : trim, carry: {key, trim}};
 }
 
 /** A song's decoded peak (linear) seen while it played at ReplayGain gain: the trim its album's next songs take. */

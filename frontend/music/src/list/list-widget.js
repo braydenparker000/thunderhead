@@ -1,6 +1,7 @@
 // The main list widget in its album-art mode: the current track and its
 // neighbours as track items (item_track) placed by the AA geometry, each in
 // its own item scene (scene_aa when paused, scene_aa_playing when playing).
+import {idleWork} from '../view/idle-work.js';
 import {View, MeasureSpec} from '../view/view.js';
 import {FastLayout} from '../view/fast-layout.js';
 import {SceneFastLayout, SceneRecord} from '../view/scene.js';
@@ -2169,10 +2170,10 @@ export class ListWidget extends FastLayout {
   /** Prepares the playing track's list in idle time (prepareTrackList). */
   schedulePrepare() {
     this.prepared = null;
-    const idle = globalThis.requestIdleCallback;
-    if (this._prepQueued || !idle) return;
+    if (this._prepQueued || !globalThis.requestIdleCallback) return;
     this._prepQueued = true;
-    idle(() => { this._prepQueued = false; whenStill(this.ctx, () => this.prepareTrackList(), 'prepare-track-list'); }, {timeout: 3000});
+    // An idle job (view/idle-work.js): not within 300 ms of an input, nor while a transition or a scroll runs.
+    idleWork(this.ctx, 'prepare-track-list', [() => { this._prepQueued = false; this.prepareTrackList(); }]);
   }
 
   /**

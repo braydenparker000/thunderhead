@@ -24,7 +24,7 @@
 import { aheadOf, append, covered, openSource, remove } from './buffer.js';
 import { RATE } from './ogg.js';
 import { BEHIND_S, CAP_S, RESUME_S, appendRoom, headForMse, nextFetch } from './plan.js';
-import { StreamError, TrackReader } from './track.js';
+import { StreamError, TrackReader, linkOf } from './track.js';
 import { cluster, init, samplesToNs } from './webm.js';
 
 export { MIME, supported } from './buffer.js';
@@ -73,6 +73,8 @@ export class StreamFeed extends EventTarget {
     this.url = '';
     /** @type {Promise<unknown> | null} */
     this.fetching = null;
+    /** @type {TrackReader | null} The reader of the read under way. */
+    this.reading = null;
     /** @type {Promise<unknown>} SourceBuffer jobs run one after another on this chain. */
     this.chain = Promise.resolve();
     /** @type {ReturnType<typeof setTimeout> | undefined} */ this.timer = undefined;
@@ -336,10 +338,18 @@ export class StreamFeed extends EventTarget {
     this.full = plan.full;
     if (!plan.bytes) return;
     const gen = this.gen;
+    this.reading = r;
     this.fetching = r.fill(plan.bytes, () => this.pump(), this.ctrl.signal).then(
       () => gen === this.gen && ((this.fetching = null), this.pump()),
       (e) => gen === this.gen && ((this.fetching = null), this.fail(e, gen, item.index)),
     );
+  }
+
+  /** The link as the stall guard reads it (track.js linkOf): any of its readers' requests under way, a seek's included. */
+  link() {
+    const readers = this.items.map((x) => x.reader);
+    if (this.reading && !readers.includes(this.reading)) readers.push(this.reading);
+    return linkOf(readers, performance.now());
   }
 
   /** Moves the element itself (marked, so a deck that routes other moves through the feed lets it

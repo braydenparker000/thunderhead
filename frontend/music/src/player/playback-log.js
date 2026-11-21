@@ -10,6 +10,7 @@
 // clipboard as JSON, for checking playback on the phone itself.
 
 import {offlineAhead, setOfflineAhead, AHEAD_MODES} from '../library/audio-cache.js';
+import {SongNet} from './song-net.js';
 
 const MAX_EVENTS = 300;
 const DECK_EVENTS = ['loadstart', 'loadedmetadata', 'canplaythrough', 'playing', 'waiting', 'stalled', 'error', 'emptied', 'seeking', 'seeked', 'ended', 'abort'];
@@ -41,6 +42,7 @@ export class PlaybackLog {
     // The engine's meters, summed over the session (dsp.js forwards each report).
     this.meters = {frames: 0, inPeak: 0, inOvers: 0, outPeak: 0, clamps: 0, minGain: 1, recent: [], decodedPeak: 0, decodedOvers: 0, minTrim: 1, minHeadroom: 1, netMinGain: 1};
     this.context = null;
+    this.songNet = new SongNet();
     ctx.playbackLog = this;
     for (const el of ctx.player?.decks ?? []) this.watchDeck(el);
     ctx.bus.subscribe('bus_player', (msg, src, d) => {
@@ -213,6 +215,8 @@ export class PlaybackLog {
       preloaded: this.ctx.player?.preloaded ? {track: this.ctx.player.preloaded.track?.id ?? null, deck: this.decks.get(this.ctx.player.preloaded.el)?.index ?? null} : null,
       offline: this.ctx.audioCache?.summary?.() ?? null,
       recovery: this.ctx.player?.guard?.summary?.() ?? null,
+      // Each streamed song's sign ms, first-byte ms, kbps received and other requests at its start (song-net.js).
+      songs: this.songNet.report(this.t0),
       longTasks: {count: this.longTasks.count, totalMs: Math.round(this.longTasks.totalMs), maxMs: Math.round(this.longTasks.maxMs)},
       hidden: {count: this.hidden.count, seconds: Math.round(hiddenMs / 1000)},
       contextStates: this.context?.states.slice(-20) ?? [],

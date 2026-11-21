@@ -201,7 +201,7 @@ class EqProcessor extends AudioWorkletProcessor {
     this.hr = 1; this.hrT = 1;
     // Each deck's input headroom (its song's known peak, or overs seen), whether the peak was known,
     // and the decoded input's meters: its peak and the samples over full scale.
-    this.trim = new Float64Array([1, 1]); this.trimT = new Float64Array([1, 1]); this.deckPeak = new Float64Array(2);
+    this.trim = new Float64Array([1, 1]); this.trimT = new Float64Array([1, 1]); this.deckPeak = new Float64Array(2); this.deckSeq = [0, 0];
     this.waiting = null; this.raiseTo = null;
     this.inPeak = 0; this.inOvers = 0; this.metered = 0;
     this.m = new Float64Array([1, 0, 0, 1]); this.mT = new Float64Array([1, 0, 0, 1]);
@@ -246,6 +246,7 @@ class EqProcessor extends AudioWorkletProcessor {
       this.rgT[m.deck] = m.value;
       this.trimT[m.deck] = m.trim ?? 1;
       this.deckPeak[m.deck] = 0;
+      this.deckSeq[m.deck] = m.seq ?? 0;
     }
     else if (m.type === 'splice') {
       // endIn: seconds until the outgoing track's end is heard (its delay included), so it reaches the watch point then.
@@ -491,7 +492,7 @@ class EqProcessor extends AudioWorkletProcessor {
     this.pre = pre; this.hr = hr;
     this.metered += n;
     if (this.metered >= sampleRate / 10) {
-      this.port.postMessage({type: 'inmeter', frames: this.metered, inPeak: this.inPeak, inOvers: this.inOvers, headroom: hr, trim: [this.trim[0], this.trim[1]], deckPeaks: [this.deckPeak[0], this.deckPeak[1]]});
+      this.port.postMessage({type: 'inmeter', frames: this.metered, inPeak: this.inPeak, inOvers: this.inOvers, headroom: hr, trim: [this.trim[0], this.trim[1]], deckPeaks: [this.deckPeak[0], this.deckPeak[1]], deckSeqs: [this.deckSeq[0], this.deckSeq[1]]});
       this.inPeak = 0; this.inOvers = 0; this.metered = 0;
     }
     this.bank.process(wl, wr, n);

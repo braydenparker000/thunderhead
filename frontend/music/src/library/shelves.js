@@ -85,6 +85,17 @@ export function artistShelf(tracks, albumOf) {
   };
 }
 
+/**
+ * An artist row's second line in Artists and All artists: "N albums · N songs" (albums as the shelves
+ * count them: the albums holding any of their songs), "N songs" alone when none. songs(n) words a count.
+ */
+export function artistLine2(tracks, albumOf, songs = n => `${n} ${n === 1 ? 'song' : 'songs'}`) {
+  const albums = new Set();
+  for (const t of tracks) { const a = albumOf?.get(t); if (a) albums.add(a); }
+  const n = albums.size;
+  return n ? `${n} ${n === 1 ? 'album' : 'albums'} · ${songs(tracks.length)}` : songs(tracks.length);
+}
+
 /** An album's songs in disc order, with a "Disc N" break before each disc when there are several. */
 export function albumRows(tracks) {
   const sorted = [...tracks].sort(byDiscTrack);

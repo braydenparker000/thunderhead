@@ -95,10 +95,14 @@ test('Albums, Singles, Artists, album and artist pages and Possible duplicates',
   await open(page, { home: 4 });
   s = await shown(page);
   assert.deepEqual(s.rows.map((r) => r.split(' | ')[0]), ['Harbor Lights', 'Juno Park', 'Mira Vale', 'All artists (6)']);
+  // Each artist row's second line: "N albums · N songs" (albums as the shelves count them, a compilation
+  // included, as on the artist's page), "N songs" alone with none.
+  assert.deepEqual(s.rows.slice(0, 3).map((r) => r.split(' | ')[1]), ['3 albums · 12 songs', '3 albums · 9 songs', '1 album · 5 songs']);
   await open(page, { row: 'All artists' });
   s = await shown(page);
   assert.equal(s.header[0], 'All artists');
   assert.deepEqual(s.rows.map((r) => r.split(' | ')[0]), ['Harbor Lights', 'Harbor Lights feat. Mira Vale', 'Juno Park', 'Mira Vale', 'Mira Vale feat. Juno Park', 'Odd Copper']);
+  assert.deepEqual(s.rows.map((r) => r.split(' | ')[1]), ['3 albums · 12 songs', '1 album · 1 song', '3 albums · 9 songs', '1 album · 5 songs', '1 song', '1 album · 1 song']);
 
   // An album's page: name, artist, "year · N songs · length"; numbered rows, a second line only for a guest.
   await open(page, { home: 3 });

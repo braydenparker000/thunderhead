@@ -305,6 +305,8 @@ the lists in `list/sources.js`):
   the songs with no album, by artist then title. Its header counts them.
 - **Artists** lists artists with 5 songs or more or an album of their own (the album's album artist
   is them, split names included); its last row, "All artists (N)", opens every artist as before.
+  Each row in Artists and All artists has a second line "N albums · N songs" (the albums holding any
+  of their songs, as their page counts them), or "N songs" alone when none (`artistLine2`).
   A search from Artists searches every artist.
 - **An album's page:** the cover header names the album, its artist (album artist, else the first
   song's) and "year · N songs · length" (unknown parts left out). Rows: "N. Title" (the
@@ -580,7 +582,13 @@ and no resampling added:
   and the trim its decoded peak calls for applies from the next song of that album in album order, then
   carries on through the album (taking a larger trim if a later song needs it, never a smaller one) until
   a change out of album order or to another album. Chosen over a mid-song drop of 2–3 dB, which is itself
-  audible. Never a gain up.
+  audible. Never a gain up. Each song's own decoded peak, measured while it plays, is kept on the phone with
+  its plays (`decodedPeak`, the larger of the kept and the measured one; `Library.notePeak`, saved at most
+  every 2 s) and trims that song from its next start on, wherever it is played (with the album's carry the
+  smaller trim wins; the album rule is unchanged). The first play of an untagged song still meets the net:
+  a true peak computed at upload (by Muse, `metadata.audioAnalysis.truePeakDbtp`, which the catalog writer
+  already takes; requested in `docs/engineering/MUSE-WAVEFORMS.md` §6a) would make it right from the first
+  play once the phone reads it.
 - **The safety net**: with the Limiter switch off the limiter acts only on samples over full scale (held
   just under it, letting go in 10 ms) and passes every other sample exactly, with no gain change, so a
   master peaking at −0.1 dBFS comes out bit for bit; it replaces the hard clip at full scale. With the
@@ -735,6 +743,16 @@ so the search list ends above the keyboard; the search recorder also notes home'
 phone, check that Chrome takes the changed ask while the page is open (it reads the viewport tag again
 when it changes; if it did not, the recorder would still show `resizes` in search).
 
+**The bar around the keyboard** (the fourth report: home's window still went 731 ↔ 759 at every keyboard
+open and close, Chrome's bar hiding while the keyboard is up, and `resizes: 2` in
+`top_container:scene_search>scene_playing`, 16 frames against 42 without). Reproduced in the browser test:
+the frame, `inset: 0` in its shell, took 759 the moment home did. Now, while an app's frame is in front,
+the frame has a fixed height in px from the settled window (`frontend/th/island/hold-height.js`): it moves
+only on a new width (orientation) or a height that lasts 300 ms with no keyboard over home (home's visual
+viewport more than 150 px under its window); the shell's black fills the rest. Coming to the front with the keyboard up, it takes the height settled last in this orientation (by the window's width), never the other orientation's (`frontHeight`). Back in the island, closed
+or parked, the frame takes its shell's height again. Guard: the same test file (731 → 759 → 731 around a
+keyboard: no resize in Music's window; a lasting 759 with no keyboard moves the frame).
+
 **Layout height and the keyboard** (`frontend/music/src/ui/layout-height.js`): at `/music` the keyboard
 does not resize the page. In home's frame it did (home asked for `resizes-content`), so Music lays out
 at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
@@ -788,6 +806,39 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   library's open (110–190 ms); the first layout and frame (130 ms); then the idle builds above. The lyrics
   page, built at start inside the main layout before, is now built the first time lyrics show
   (`list-widget.js` `lyricsPage`): the first task fell to 205–232 ms. The rest is needed for the first screen.
+- **Idle work** (the fourth report: 63 long tasks, 6,281 ms in 198 s, against 25 and 2,980 ms before the
+  release that added work in idle time; `longTasks: 1, longMs: 54–64` inside `page:list>aa`,
+  `scene_lib>scene_eq`, `page:aa>list`). Lab: the real page against a mock Worker with an invented library
+  of 12,800 songs, Long Animation Frames naming the scripts. After start-up, before: 4x six long tasks
+  (882 ms), 6x seven (1,395 ms); all but the list openings were idle work, in one burst 1.2–3.2 s after the
+  library opened, when the first taps come: the playing track's list built hidden (`prepareTrackList`,
+  498 ms at 4x, 783 at 6x), two screens built ahead (114 and 62 ms; 183 and 96), two category views (52–77
+  ms). The long tasks inside transitions were their own frames (`FrameRequestCallback` in `context.js`) and
+  a list's opening, 50–88 ms at 6x, not idle work. Signing ahead made none: its per-row work is the row's
+  own song (`tracksAt` of one row; group rows are passed before), no scan of the library. Now every idle
+  job is a list of pieces (`frontend/music/src/view/idle-work.js`: the screens built ahead, the category
+  views, the playing track's list, spare rows): none starts within 300 ms of an input (touch, key, wheel)
+  or while a transition, a pending layout or a scroll runs; pieces run back to back only within 8 ms and
+  then yield; a job waits again as soon as one of those begins. Jobs go in order between pieces: the playing track's list (one piece, ahead of the screens as before, so the library's start rows built with them stay the list shown), the screens built ahead (the next transition needs them), the category views, the spare rows last (one queue in arrival order left the screens behind 50 spare rows for 15 s in the demo). Not done: pieces under 8 ms. A piece is one
+  screen's layout, one grouping pass over the library or one list's build, and in the lab still took
+  128–181 ms (screens), 51–61 ms (groups) and 79–162 ms (the track list) at 4x–6x; cutting them needs
+  those builders made resumable. The recorder names them: `longWork` in **Movement and layout** lists each
+  long task after start-up (10 s) with `what` ran in it (`idle:<job>`, else the handler and file the browser
+  names, else `unnamed`) and each idle job's `longestPiece`; a transition's longest task gets `longWhat`
+  (`frontend/music/src/ui/long-work.js`). Guard: `tests/music-idle-work.test.mjs`.
+- **Five seconds before any code ran** (the fourth report: `modules 5,067 ms`, first frame 6,387). `modules` is
+  marked when the first module runs, which is only once the whole static graph is loaded: 106 files,
+  1.5 MB, three levels deep from `src/app.js`. Music's worker served them network first, so every launch
+  asked for each one again (the site sends no Cache-Control; Azure's Last-Modified gives the browser's cache
+  little freshness, none just after a release), over HTTP/1.1's six connections at 300 ms each. Lab (the
+  real page and worker against a site that answers like Azure, a mock Worker, one 1.35 Mbps link with
+  300 ms per request, cache warm, worker started afresh): 69–104 requests and 0.9–1.1 MB before `modules`.
+  Home's ring frame is created at home's idle (`th/island/warm.js`, signed in, no Data Saver) and the
+  worker controls it; the cost was the requests. Not fixed: a worker that served a release kept whole
+  first cut `modules` to about 0.7 s in the lab (4x), but a second reading found it could leave a phone on
+  an old release or mix two releases' modules; it was taken out. A safe one needs the build to write
+  Music's file list (as `precache.json` is written for the shell), a cache per release pinned per page,
+  and a way out through the kill switch. Until then the worker is network first, as before.
 - **A transition frame writes only what moved** (`frontend/music/src/view/motion.js`). While a scene transition of the player's
   screens or a page transition of the list widget moves, a frame writes the views changed since the last one
   (`Context.dirty`: anything invalidated, and any change of visibility), not the whole tree; a view shown
@@ -919,6 +970,39 @@ service worker's bridge (`frontend/th/music/bridge.js`): it waited up to 4 s for
 the bucket's first byte, and after a timeout sent the request to the old Worker, whose 404 for a song it
 does not have was the one in the log. Fixed (§5 step 5): a timeout is tried again on the new path, then
 answered with a network error within 24 s; the old Worker only answers "not for this site yet".
+
+**Stalls and slow starts on 3G** (the fourth report: `stalls: 2, reloads: 1`; a `waiting` 5.31 s into a song,
+`stall` 10 s later; first sounds 765–6,068 ms). Lab: the real page, worker and bridge against a mock Worker
+and bucket on one 1.35 Mbps link with 300 ms per request, a 193 kbps Opus song, 4x CPU, 60 songs whose
+covers are in their files (`artId` `embedded:`). Found:
+- **Covers took the link at a tap.** Each tap read the covers of the songs around it, 64 KB from each song's
+  file (three slots at once), the tapped song's own twice (its cover and its row's thumbnail): 0.40–0.71 MB
+  of other files while the song had less than 10 s on the phone. Now a cover's read waits, before it takes a
+  download slot, until the playing song pauses or sounds with 10 s of its stream ahead, at most 3 s
+  (`Player.linkFree`, `frontend/music/src/player/link-free.js`: read on the deck's own events, one wait for
+  every caller, no polling); past 3 s covers load one at a time at low priority (`Library.lowSlot`). A cover
+  is read once for every caller (`Library.remoteCover`). The tapped song's first 10 s were on the phone after
+  5.0–6.9 s, now 3.0–3.4 s; first sound 708 / 1,278 / 609 ms, now 583–601 / 925–940 / 626 ms (one run each).
+- **A stall reloaded a song whose request was about to deliver.** With the link dead from 3 s to 18 s after
+  a tap, the guard reloaded at 10 s of waiting: the new deck sought the file again (five ranges) and played
+  7 s after the link came back, while the first deck's request was already receiving again. Now a streamed
+  song's stall waits while the feed has any request under way that showed life (its start or a byte) in
+  the last 15 s, a seek's probes included (`feed.link()`, `linkOf` and `TrackReader.pending`/`alive` in
+  `frontend/th/music/stream/track.js`), and acts 2 s after nothing is alive; one reload per stall, the next
+  no sooner than 15 s times the tries so far, so a reload's own seek on a slow link is never met with
+  another reload (`frontend/music/src/player/stream-guard.js`); a plain element keeps the 10 s rule. Same tunnel: playing
+  again 0.25 s after the link came back, no reload.
+- Not found in the lab: a refetch of ranges the song had (the stream feed keeps its own buffer, so the
+  bridge's `cache: 'no-store'` costs nothing there); range sizes as a cause (128 KB at 300 ms used the link
+  for 72 % of the time with nothing else on it, against 14 % the song needs); a reload from zero (it reloads
+  at the stalled position). Sync, senses and the signature posts are a few hundred bytes each. Why the
+  phone's mid-song stall never recovered (and was not reloaded: one reload for two stalls) is not shown
+  by the report; the recorder now has what would show it:
+- **The report's `songs`** (last 12 streamed songs, `frontend/music/src/player/song-net.js`): `signMs` (the
+  bridge's wait for the signature, header `TH-Sign-Ms`; 0 when signed ahead), `firstByteMs` from the song's
+  first request, `kbps` received while its reads ran, `bytes`, `firstRange`, and `othersAtStart` with
+  `othersKinds` (the page's other requests on the link at its start: song bytes, cover, waveform, sync,
+  senses, catalog). Guards: `tests/music-stream-guard.test.mjs`, `tests/music-song-net.test.mjs`.
 
 ### 6.4 CORS prerequisites
 

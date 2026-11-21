@@ -51,7 +51,7 @@ const HOME_HINTS = {album_artists: 'summary_album_artists', albums_by_artist: 's
 /** A library category by id (library_home). */
 export const homeCategory = id => HOME.find(c => c.id === id) ?? null;
 import {applyZoom, homeMask, listOpts, REVERSE, zoomGeometry} from './list-opts.js';
-import {albumRows, albumSongLine2, artistShelf, SHELF_WORDS} from '../library/shelves.js';
+import {albumRows, albumSongLine2, artistLine2, artistShelf, SHELF_WORDS} from '../library/shelves.js';
 import {albumLabel, trackNumbers, trackTitle} from '../library/labels.js';
 import {SEARCH_CATS, searchOrder} from '../widgets/search.js';
 import {GONE} from '../res/values.js';
@@ -525,7 +525,9 @@ export class GroupSource {
   bindItem(v, i) {
     const g = this.groups[i];
     const first = g.tracks[0];
-    v.bind({id: 'group:' + g.kind + ':' + (g.artist ?? '') + ':' + g.title, group: true, title: g.title, artist: groupLine2(this.ctx, g), art: first?.art, thumb: first?.thumb, artId: first?.artId, meta: groupMeta(g), metaIcon: metaIconOf(this.ctx, g, true)});
+    // Artists and All artists: "N albums · N songs" (shelves.js artistLine2).
+    const line2 = this.groupKind === 'artists' && g.kind === 'artist' ? artistLine2(g.tracks, this.ctx.library.shelves().albumOf, n => plural(this.ctx, 'songs_d', n)) : groupLine2(this.ctx, g);
+    v.bind({id: 'group:' + g.kind + ':' + (g.artist ?? '') + ':' + g.title, group: true, title: g.title, artist: line2, art: first?.art, thumb: first?.thumb, artId: first?.artId, meta: groupMeta(g), metaIcon: metaIconOf(this.ctx, g, true)});
   }
 
   onItemClick(i) {
