@@ -6,6 +6,7 @@ import {ViewGroup, MeasureSpec, getDefaultSize, getChildMeasureSpec} from '../vi
 import {register} from '../view/inflater.js';
 import {parseColor} from '../res/values.js';
 import {STATE_PLAYING} from '../player/player.js';
+import {isMoving, whenStill} from '../view/motion.js';
 
 const WAVE_SCROLLING = 0, WAVE_STATIC = 1;
 // While playing, the bar redraws at most this often (each draw moves it a sub-pixel step).
@@ -175,6 +176,12 @@ export class Waveseek extends ViewGroup {
     if (document.hidden) {
       this._follow = 0;
       document.addEventListener('visibilitychange', () => { if (!this._follow && this.ctx.player?.state === STATE_PLAYING) this.follow(); }, {once: true});
+      return;
+    }
+    // The waveform's next step draws once no transition moves (view/motion.js).
+    if (isMoving(this.ctx)) {
+      this._follow = -1;
+      whenStill(this.ctx, () => { if (this._follow === -1) this.follow(); }, this);
       return;
     }
     if (!this.state.pressed) this.syncPosition();

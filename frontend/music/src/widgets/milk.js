@@ -10,6 +10,7 @@ import {register} from '../view/inflater.js';
 import {colorToCss, parseColor} from '../res/values.js';
 import {MilkRenderer} from './vis.js';
 import {STATE_PLAYING} from '../player/player.js';
+import {whenStill} from '../view/motion.js';
 
 export class MilkWidget extends View {
   constructor(ctx, a) {
@@ -32,7 +33,8 @@ export class MilkWidget extends View {
     this.el.style.background = colorToCss(this.bgColor);
     this.art = null;
     ctx.bus.subscribe('bus_player', msg => {
-      if (msg === 'msg_player_track_changed') this.setArt(ctx.player?.track?.art ?? null);
+      // The blurred art (a decode and a filter) changes once no transition moves (view/motion.js).
+      if (msg === 'msg_player_track_changed') whenStill(ctx, () => this.setArt(ctx.player?.track?.art ?? null), this);
       else if (msg === 'msg_player_playing_state_changed') this.syncVis();
     });
     // The backdrop behind the library lists and the lyrics (i22: list_aa_blur_enabled /

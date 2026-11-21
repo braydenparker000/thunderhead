@@ -44,6 +44,7 @@ import {installSubAAEditor} from './widgets/subaa-edit.js';
 import {installScreenPrefs} from './widgets/screen.js';
 import {installSession, readSession, restore} from './player/session.js';
 import {installCategoryRestore} from './list/category-ref.js';
+import {prebuildLikely} from './view/prebuild.js';
 import './list/list-widget.js';
 import './list/selection.js';
 
@@ -237,6 +238,8 @@ export async function boot() {
     if (tn && tn.nav !== h) tn.navigate(h);
   });
   ctx.scheduleLayout();
+  // The likely next screens are built in idle time, before any transition shows them (view/prebuild.js).
+  prebuildLikely(ctx);
   // Installable app: the service worker keeps the app's files offline.
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   // The service worker stays awake while the app is in use: Chrome stops an idle one after about 30 s,

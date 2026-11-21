@@ -11,6 +11,7 @@
 // where f is the page's distance from being shown (progress for the leaving
 // page, 1 - progress for the entering one). A fade transition only fades.
 import {accelDecel, animClock} from '../gesture.js';
+import {beginMove, endMove} from '../view/motion.js';
 
 /** Zoom factors (R) for an entering (zoomIn) or leaving page, per layouter kind. */
 export const ZOOM = {list: {enter: 0.5, leave: 1.5}, aa: {enter: 0.75, leave: 1.25}};
@@ -46,7 +47,12 @@ export class ListTransition {
   }
 
   setProgress(p) {
-    if (!this.watched) { this.watched = true; pageWatch?.(this, true); }
+    if (!this.watched) {
+      this.watched = true;
+      pageWatch?.(this, true);
+      // A page transition moves (the list's own level and zoom changes are the list's: view/motion.js).
+      if (this.name.startsWith('page:')) beginMove(this.ctx, this);
+    }
     this.p = Math.max(0, Math.min(1, p));
     this.render(this.p);
     if (this.scene) this.ctx.topNav?.scenes.drag(this.scene, this.p);
@@ -131,7 +137,7 @@ export class ListTransition {
   end(commit) {
     if (this.done) return;
     this.done = true;
-    if (this.watched) pageWatch?.(this, false, !commit);
+    if (this.watched) { pageWatch?.(this, false, !commit); endMove(this.ctx, this); }
     if (this.scene) this.ctx.topNav?.scenes.release(commit);
     this.finish(commit);
   }

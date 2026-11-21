@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-21-music-keyboard",
+  "id": "2026-11-21-music-feel",
   "date": "2026-11-21",
   "lines": [
     {
       "text": "Music: tapping a song from search no longer opens the player squished by the keyboard."
     },
     {
-      "text": "Music's search list keeps its place and redraws once when the keyboard comes up."
+      "text": "Moving into the player, album art, search and the equaliser is smoother; the look is the same."
     },
     {
       "text": "Two quick taps on play no longer leave both buttons showing for a second."
+    },
+    {
+      "text": "Copy report now adds a numbers-only summary of your library's tags, with no titles or names."
     }
   ]
 }

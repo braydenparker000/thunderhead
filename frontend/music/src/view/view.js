@@ -130,6 +130,14 @@ export class View {
     }
   }
 
+  // Visibility is often set directly: a change marks the view for the next frame's write (Context.dirty).
+  get visibility() { return this._vis; }
+  set visibility(v) {
+    if (this._vis === v) return;
+    this._vis = v;
+    this.ctx.dirty?.add(this);
+  }
+
   get width() { return this.right - this.left; }
   get height() { return this.bottom - this.top; }
 
@@ -227,18 +235,30 @@ export class View {
 
   invalidate() {
     this._dirty = true;
+    this.ctx.dirty?.add(this);
     this.ctx.scheduleRender?.();
   }
 
   /** Writes changed geometry/appearance to the DOM. */
   sync() {
+    this.syncSelf();
+  }
+
+  /** This view's own write (not its children's); true when it was hidden (display none) and shows now. */
+  syncSelf() {
     const d = this._dom, el = this.el, px = this.ctx.px;
     const gone = this.visibility === GONE;
+    const shown = d.gone === true && !gone;
     if (d.gone !== gone) {
       d.gone = gone;
-      el.style.display = gone ? 'none' : '';
+      // A screen built ahead (view/prebuild.js) keeps its rendering while gone: hidden, its content skipped.
+      if (this.keepRendered) {
+        el.style.contentVisibility = gone ? 'hidden' : '';
+        if (gone) el.style.visibility = 'hidden';
+        d.hidden = undefined;
+      } else el.style.display = gone ? 'none' : '';
     }
-    if (gone) return;
+    if (gone) return false;
     const hidden = this.visibility === INVISIBLE;
     if (d.hidden !== hidden) {
       d.hidden = hidden;
@@ -272,6 +292,7 @@ export class View {
       this._dirty = false;
       this.draw();
     }
+    return shown;
   }
 
   /** Appearance (background etc.); subclasses extend. */
@@ -335,6 +356,7 @@ export class ViewGroup extends View {
     this.children.splice(index, 0, child);
     const ref = this.children[index + 1]?.el ?? null;
     this.el.insertBefore(child.el, ref && ref.parentNode === this.el ? ref : null);
+    this.ctx.dirty?.add(child);
     this.requestLayout();
   }
 

@@ -649,6 +649,40 @@ text, and is at most 160 characters.
 
 ---
 
+### 5.11 Transitions at the screen's rate
+
+The owner agreed (2026-11-21) to rebuild the engine's frame work for the transitions into and out of the
+player, the art and search: the same motion, durations and end states, pixel for pixel at rest. Lists and
+menus keep what they did (a row's own scenes and the list's level and zoom changes are theirs).
+
+- **Nothing is built inside a transition** (`frontend/music/src/view/prebuild.js`). In idle time after start, one screen per
+  idle period and never while a transition moves, the player screen's likely next scenes (player, library,
+  search, equaliser) are built: their layouts are inflated, the views they show are laid out at their size
+  there and written while hidden, laid out once by the browser and kept so while gone
+  (`content-visibility: hidden` instead of `display: none`), and their art decoded. A scene not built by
+  then is built in the scene change itself, before its first frame; the animation's clock starts at that
+  frame, so it starts later and does not jump. Not done: the library's rows are still bound and drawn in
+  the first library transition's first frame (built ahead, they came back from the row pool to other rows,
+  and a hidden row's icon mask then hid the shown row's icon: lists are left as they were).
+- **A transition frame writes only what moved** (`frontend/music/src/view/motion.js`). While a scene transition of the player's
+  screens or a page transition of the list widget moves, a frame writes the views changed since the last one
+  (`Context.dirty`: anything invalidated, and any change of visibility), not the whole tree; a view shown
+  again after `display: none` writes its subtree; the frame after the last transition writes the whole tree.
+- **The first frame is cheap** (`frontend/music/src/view/scene-layout.js`). Scene prepare measures only the participants whose
+  scene parameters change and the views above them; every other view keeps its measure (Android's measure
+  cache). Before, prepare, the restore to the start frames and the end each forced a measure of the whole
+  tree. Not done: a cache of target frames per scene pair; the targeted pass already measures only what the
+  scene changes, and a cache could not tell when anything else in the tree changed.
+- **Other work waits** (`whenStill`): the waveform's next step, the blurred art of a new song, the Queue
+  list's rebuild, the playing track's list built ahead and the saved session run once no transition moves,
+  in a task after the next frame. Leaving the page still saves at once.
+
+The guard is `tests/music-transitions-browser.test.mjs`: each named transition at 4x CPU slowdown, its
+frames recorded in the page (a gap over 50 ms is reported, enforced with `TH_STRICT_TIMING=1`), and its end
+state's boxes equal to those the code drew before (`tests/fixtures/music-transition-boxes.json`, taken with
+Playwright's Chromium; text widths move by a pixel on other Chromium builds, so a Playwright upgrade takes
+them again with `TH_CAPTURE_BOXES=<file>` after checking the look by eye).
+
 ## 6. Media URLs and failures
 
 ### 6.1 Signing
