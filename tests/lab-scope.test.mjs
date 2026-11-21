@@ -2,7 +2,7 @@
 // (docs/engineering/TESTING.md §1, "Lab changes"); anything else runs every suite.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ALWAYS, astraChange, astraTests, labPages, labTests } from '../scripts/lab-scope.mjs';
+import { ALWAYS, astraChange, astraTests, labPages, labTests, labVerdict } from '../scripts/lab-scope.mjs';
 
 test('only lab pages and their engine builds count as a lab change', () => {
   assert.deepEqual([...(labPages(['frontend/lab/engine/engine.js', 'engine/raw/src/lib.rs']) ?? [])], ['engine', 'editor'], 'the editor is made of the engine, so its tests run too');
@@ -47,4 +47,13 @@ test("an Astra change is the film app's own files, tests and tools; it runs Astr
   const sources = { 'tests/astra-plan.test.mjs': 'plan', 'tests/ported.test.mjs': "'/astra/index.html'", 'tests/sw.test.mjs': 'precache of /astra/', 'tests/photos-browser.test.mjs': "open('/settings/photos/')", 'tests/lab-editor-menu-browser.test.mjs': '/lab/editor/' };
   assert.deepEqual(astraTests(sources), [...ALWAYS, 'tests/astra-plan.test.mjs', 'tests/ported.test.mjs', 'tests/sw.test.mjs'].sort(), "the labs' and Photos' own tests are not run");
   assert.deepEqual(astraTests(sources, ['frontend/whats-new.json', 'scripts/test-durations.json']), [...ALWAYS, 'tests/astra-plan.test.mjs', 'tests/news-browser.test.mjs', 'tests/ported.test.mjs', 'tests/sw.test.mjs', 'tests/test-part.test.mjs'].sort(), 'a changed note or table runs the test that reads it');
+});
+
+test('the verdict scripts/test-scope.mjs asks for: from git\'s changed lines, a deleted or renamed file runs everything', () => {
+  const sources = { 'tests/lab-engine-x.test.mjs': '/lab/engine/', 'tests/astra-plan.test.mjs': 'plan' };
+  assert.equal(labVerdict(['M\tfrontend/lab/engine/engine.js'], sources), `lab ${[...ALWAYS, 'tests/lab-engine-x.test.mjs'].sort().join(' ')}`);
+  assert.equal(labVerdict(['M\tfrontend/astra/app.js'], sources), `lab ${[...ALWAYS, 'tests/astra-plan.test.mjs'].sort().join(' ')}`);
+  assert.equal(labVerdict(['D\tfrontend/lab/engine/old.js'], sources), 'all');
+  assert.equal(labVerdict(['M\tdocs/engineering/TESTING.md'], sources), 'all', 'a doc is test-scope.mjs\'s to narrow');
+  assert.equal(labVerdict([], sources), 'all');
 });

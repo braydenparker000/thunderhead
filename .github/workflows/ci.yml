@@ -14,13 +14,14 @@ defaults:
   run:
     shell: bash
 jobs:
-  # A branch that changes only lab pages runs the lab checks, not every suite (scripts/lab-scope.mjs;
-  # TESTING.md §1, "Lab changes"). Any doubt, or this job failing, runs everything.
+  # A branch that changes only lab pages, Astra, docs, the Worker or the mind runs the checks those can break, not every
+  # suite (scripts/test-scope.mjs; TESTING.md §2, "Scopes"). Any doubt, or this job failing, runs everything.
   scope:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       lab: ${{ steps.look.outputs.lab }}
+      scope: ${{ steps.look.outputs.scope }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,11 +29,17 @@ jobs:
           fetch-depth: 0
       - id: look
         run: |
-          verdict="$(node scripts/lab-scope.mjs origin/main || echo all)"
+          verdict="$(node scripts/test-scope.mjs origin/main || echo all)"
           echo "scope: $verdict"
-          if [[ "$verdict" == lab\ * ]]; then echo "lab=${verdict#lab }" >> "$GITHUB_OUTPUT"; else echo "lab=" >> "$GITHUB_OUTPUT"; fi
+          word="${verdict%% *}"
+          if [[ "$word" =~ ^(lab|docs|backend|mind)$ && "$verdict" == *' '* ]]; then
+            echo "scope=$word" >> "$GITHUB_OUTPUT"; echo "lab=${verdict#* }" >> "$GITHUB_OUTPUT"
+          else
+            echo "scope=" >> "$GITHUB_OUTPUT"; echo "lab=" >> "$GITHUB_OUTPUT"
+          fi
   # What this run checks, in a job name Deploy reads (scripts/tree-tested.mjs): Deploy skips its own checks only
-  # after a successful run of this tree whose job is named `Scope: full`. The condition is the one `test` passes as `lab`.
+  # after a successful run of this tree whose job is named `Scope: full`. The condition is the one `test` passes as `lab`:
+  # an empty `lab` is every suite, whatever `scope` says.
   record:
     needs: scope
     if: ${{ !cancelled() }}
@@ -47,6 +54,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       lab: ${{ needs.scope.result == 'success' && needs.scope.outputs.lab || '' }}
+      scope: ${{ needs.scope.result == 'success' && needs.scope.outputs.lab && needs.scope.outputs.scope || '' }}
       files: quick
       first_only: true
   # The mind's weekly improvement (EVALS.md §7, RA-P9-02): its evals line must match the Worker's

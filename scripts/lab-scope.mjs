@@ -5,6 +5,7 @@
 // site checks (which read every page, labs included) and each changed page's own tests
 // (tests/<page>-lab*.test.mjs, a test naming /lab/<page>/). Any other path, a deleted file, or any
 // doubt is `all`.
+// Test runs it through scripts/test-scope.mjs, which also narrows doc, Worker and mind changes.
 // Usage: node scripts/lab-scope.mjs <base>   (e.g. origin/main; compared from the merge base)
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -67,19 +68,28 @@ export function astraTests(sources, paths = []) {
   return [...new Set([...ALWAYS, ...own, ...paths.flatMap((p) => WITH_ASTRA[p] || [])])].sort();
 }
 
+/** The verdict for `git diff --name-status` lines: `all`, or `lab` and then the test files to run. A deleted or renamed
+ * file could be one another page loads: everything runs. @param {string[]} lines @param {Record<string, string>} [sources]
+ * test file → text (read from tests/ when not given) */
+export function labVerdict(lines, sources = readSources()) {
+  if (!lines.length || !lines.every((l) => /^[AM]\t/.test(l))) return 'all';
+  const paths = lines.map((l) => l.slice(2)), pages = labPages(paths, sources);
+  if (pages) return `lab ${labTests(pages, sources, paths).join(' ')}`;
+  // the same word, since Test only needs the list: an Astra change runs Astra's checks and the static ones
+  if (astraChange(paths)) return `lab ${astraTests(sources, paths).join(' ')}`;
+  return 'all';
+}
+function readSources() {
+  const files = readdirSync(`${ROOT}tests`).filter((f) => f.endsWith('.test.mjs')).map((f) => `tests/${f}`);
+  return Object.fromEntries(files.filter((f) => !ALWAYS.includes(f)).map((f) => [f, readFileSync(`${ROOT}${f}`, 'utf8')]));
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   let out = 'all';
   try {
     const base = process.argv[2] || 'origin/main';
     const git = (/** @type {string[]} */ ...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
-    const lines = git('diff', '--name-status', `${git('merge-base', base, 'HEAD')}..HEAD`).split('\n').filter(Boolean);
-    // a deleted or renamed file could be one another page loads: run everything
-    const files = readdirSync(`${ROOT}tests`).filter((f) => f.endsWith('.test.mjs')).map((f) => `tests/${f}`);
-    const sources = Object.fromEntries(files.filter((f) => !ALWAYS.includes(f)).map((f) => [f, readFileSync(`${ROOT}${f}`, 'utf8')]));
-    const paths = lines.map((l) => l.slice(2)), pages = lines.every((l) => /^[AM]\t/.test(l)) ? labPages(paths, sources) : null;
-    if (pages) out = `lab ${labTests(pages, sources, paths).join(' ')}`;
-    // the same word, since Test only needs the list: an Astra change runs Astra's checks and the static ones
-    else if (lines.every((l) => /^[AM]\t/.test(l)) && astraChange(paths)) out = `lab ${astraTests(sources, paths).join(' ')}`;
+    out = labVerdict(git('diff', '--name-status', `${git('merge-base', base, 'HEAD')}..HEAD`).split('\n').filter(Boolean));
   } catch (err) { console.error(`lab-scope: ${err}`); }
   console.log(out);
 }
