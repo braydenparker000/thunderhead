@@ -41,7 +41,7 @@ Sign-in screens and flows are in [../product/SIGN-IN.md](../product/SIGN-IN.md).
 | R4 | A thief with the phone | Locked: nothing (the OS lock). Unlocked: the signed-in app | Device list and sign-out from any browser; remote wipe on next contact; inline password for new keys and recovery codes |
 | R5 | A compromised dependency or Action | Code execution in CI or in the page | Pinning, `--ignore-scripts`, tiny dependency set, no third-party script in pages, CSP |
 | R6 | A leaked credential (screenshot, log, paste) | Uses it until revoked | Hash-only storage, prefixes for secret scanning, revocation ≤60 s, runbooks |
-| R7 | The agent itself, mistaken or hijacked | Pushes code, calls the API with its role | Role scopes; Worker-side proposals; ledger + undo; break-glass only with the owner's fingerprint |
+| R7 | The agent itself, mistaken or hijacked | Pushes code, calls the API with its role | Role scopes; Worker-side proposals; ledger + undo; no key can start a password reset (GitHub path only) |
 | R8 | Platform providers (Cloudflare, Microsoft, GitHub, Anthropic, Google push) | Can see what they host | Trusted by necessity; exposure kept minimal ([PRIVACY.md §5](PRIVACY.md)) |
 
 Out of scope: a compromised phone OS, provider insiders, nation-state attackers, physical coercion.
@@ -74,9 +74,9 @@ Phase tags follow [ARCHITECTURE.md](ARCHITECTURE.md). Each line is testable; the
 - [ ] X3 passed and recorded in decisions.md before any auth code ships. [§6.3]
 - [ ] Setup only via installed fingerprint; `410` after setup. [SIGN-IN §4.3]
 - [ ] Recovery code: 125 bits, shown once, confirmed, single use, regenerated after use. [SIGN-IN §7]
-- [ ] Reset ticket: chat-role key or GitHub path only; 24 h delay; cancel from any session. [SIGN-IN §10.4]
+- [ ] Reset ticket: GitHub path only, no key can open one (owner, 2026-11-21); 24 h delay; cancel from any session; the card reaches an open Home through a `notice` change, which no agent key sees. [SIGN-IN §10.4]
 - [ ] Back-off table exactly as SIGN-IN §6.1; one error message; dummy KDF on wrong username; `timingSafeEqual`. [backend tests with fake clock]
-- [ ] Tokens hashed at rest; 90-day idle expiry; revocation ≤60 s; wipe on 401. [backend + Playwright]
+- [ ] Tokens hashed at rest; 90-day idle expiry; revocation ≤60 s; wipe on 401. The hourly last-seen touch never fails a request: once the day's writes are spent it is skipped. [backend + Playwright]
 - [ ] Device list; sign out one / others / all, no password. [Playwright]
 - [ ] Notices for new device, password change, reset; generic push text. [backend tests]
 - [ ] Form markup as SIGN-IN §12. [static test greps the attributes]
@@ -102,7 +102,7 @@ Phase tags follow [ARCHITECTURE.md](ARCHITECTURE.md). Each line is testable; the
 - [ ] `referrer` `no-referrer` and `robots` `noindex,nofollow` meta on every page; no `Disallow` in robots.txt. [static test]
 - [ ] `securitypolicyviolation` listener posts to `POST /v1/ops/errors` when signed in. [Playwright triggers a violation]
 - [ ] No `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`document.write` outside `ui/dom.js`, which only takes trusted templates. **[proposal]** [lint test]
-- [ ] Private data only in IndexedDB `th-data`, OPFS and named caches, all wiped on sign-out. [Playwright]
+- [ ] Private data only in IndexedDB `th-data`, OPFS and named caches, all wiped on sign-out, with every ported app's store that has a copy on the account (SIGN-IN §11.3). [Playwright]
 - [ ] Deployed files have correct `Content-Type` (no `nosniff` possible). [`tests/live.test.mjs`]
 
 **Repo and CI (P0)**
@@ -263,7 +263,7 @@ Rules:
 | Area | owner | chat | night | reflex (P4) | muse | ci |
 |---|---|---|---|---|---|---|
 | `auth/*` sessions, password, recovery, agents, notices | RW | — | — | — | — | — |
-| `auth/breakglass` (start) | — | W (owner-asked only) | — | — | — | — |
+| `auth/breakglass` (start): gone, `404` for all; the GitHub path is the only way to open a reset (owner, 2026-11-21) | — | — | — | — | — | — |
 | `auth/breakglass/cancel` | W | — | — | — | — | — |
 | Conversation, threads | RW | RW | R + home lines | R (last 24 h) + one system notice | own Muse thread | — |
 | Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (provenance rules) | R + observed/inferred facts, day notes | — | — | — |
@@ -497,10 +497,12 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 - `shell: bash` (gives `-eo pipefail`); never `set -x`; never `env`/`printenv`.
 - No `actions/upload-artifact`, no caches with personal content, no job summaries with personal content.
 - `::add-mask::` for any derived value that could be sensitive.
-- Scheduled workflows are avoided (GitHub disables them after 60 days of repo inactivity); the Worker or the agent dispatches jobs.
+- Scheduled workflows are avoided (GitHub disables them after 60 days of repo inactivity); the Worker or the agent dispatches jobs. The one exception (2026-11-21) is `live-watch.yml`: read-only live checks every 30 minutes, with `contents: read` and `issues: write` and no secret.
 - `zizmor` (workflow linter) in CI **[optional]**.
 
 ### 12.4 The listening pass's trust boundary (JOBS.md §3)
+
+**Cut 2026-11-04** ([SETUP.md N6](../process/SETUP.md), which says which pieces to remove): no workflow runs it; the boundary below is kept for the record.
 
 An Actions run is public and anyone who can push a workflow to `main` controls it, so everything it sends back is treated as hostile input, and what it holds is what such a person could take:
 

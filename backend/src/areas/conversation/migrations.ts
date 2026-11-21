@@ -78,6 +78,14 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: ['ALTER TABLE threads ADD COLUMN topic TEXT'],
   },
+  {
+    // A chat session that took an owner message and died before answering (wake.ts `onLapse`): the
+    // times its hand-out and acknowledgement were undone so the mind is woken for it again (≤ 2).
+    version: 48,
+    name: 'messages.refires',
+    kind: 'expand',
+    sql: ['ALTER TABLE messages ADD COLUMN refires INTEGER NOT NULL DEFAULT 0'],
+  },
 ];
 
 // Held threads and their messages are left out of backups and the export (held-store.ts

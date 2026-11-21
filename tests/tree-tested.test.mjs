@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { headOf, passed } from '../scripts/tree-tested.mjs';
+import { fullScope, headOf, matching, passed, SCOPE_JOB } from '../scripts/tree-tested.mjs';
 
 const runs = JSON.parse(readFileSync(new URL('./fixtures/tree-tested-runs.json', import.meta.url), 'utf8'));
 const sha = (c) => c.repeat(40);
@@ -54,4 +54,20 @@ test('the command answers untested on any doubt, before asking GitHub', () => {
   put('c');
   git('merge', '-q', '--no-ff', '--no-edit', 'topic');
   assert.match(cli(), /^untested \(tree-tested: [0-9a-f]{40} has another tree/, 'the merge has files the head never had');
+});
+
+test('only a run that checked every suite lets Deploy skip its checks', () => {
+  assert.equal(fullScope({ jobs: [{ name: SCOPE_JOB, status: 'completed', conclusion: 'success' }, { name: 'test / site 1/5', status: 'completed', conclusion: 'success' }] }), true);
+  assert.equal(fullScope({ jobs: [{ name: 'Scope: narrowed', status: 'completed', conclusion: 'success' }] }), false, 'a lab or Astra run');
+  assert.equal(fullScope({ jobs: [{ name: 'scope', status: 'completed', conclusion: 'success' }] }), false, 'a run from before the scope was recorded');
+  assert.equal(fullScope({ jobs: [{ name: SCOPE_JOB, status: 'completed', conclusion: 'skipped' }] }), false);
+  for (const bad of [null, {}, { jobs: 'x' }, { jobs: [null] }]) assert.equal(fullScope(bad), false);
+  assert.deepEqual(matching(runs, sha('1'), sha('a')), [101], 'the run whose jobs are read');
+});
+
+test('ci.yml names its record job from the same condition it passes to the checks as `lab`', () => {
+  const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const cond = "needs.scope.result == 'success' && needs.scope.outputs.lab";
+  assert.ok(ci.includes(`name: "\${{ (${cond}) && 'Scope: narrowed' || '${SCOPE_JOB}' }}"`), 'the record job is named from the scope');
+  assert.ok(ci.includes(`lab: \${{ ${cond} || '' }}`), 'and the checks get the same scope');
 });

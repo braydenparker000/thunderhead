@@ -28,12 +28,15 @@ async function staged(path, api, build, look = '') {
   return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api, path)) : body;
 }
 
+/** /precache.json as stage.mjs writes it: each file with its size and hash. */
 async function precacheList(api, build, look) {
   const list = [];
   for (const e of await readdir(ROOT, { recursive: true, withFileTypes: true })) {
     if (!e.isFile()) continue;
     const path = relative(ROOT, join(e.parentPath, e.name)).replaceAll('\\', '/');
-    if (precached(path)) list.push({ path, size: (await staged(path, api, build, look)).length });
+    if (!precached(path)) continue;
+    const body = await staged(path, api, build, look);
+    list.push({ path, size: body.length, hash: createHash('sha256').update(body).digest('hex') });
   }
   return precacheJson(build, list);
 }

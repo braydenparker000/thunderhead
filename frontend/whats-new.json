@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-20-ink-and-lamp-default",
-  "date": "2026-11-20",
+  "id": "2026-11-21-ceiling-round",
+  "date": "2026-11-21",
   "lines": [
     {
-      "text": "Ink and Lamp is now the look everywhere you are signed in. Classic is still in Settings › More appearance › Look."
+      "text": "Back now closes the Briefing, the menu, Settings or a sheet, one at a time; it no longer leaves the app."
     },
     {
-      "text": "The island shows the picture of what is playing; the tape reels stay for anything without one."
+      "text": "Podcasts keeps the newest place across phones, and Guitar's progress is saved to your account."
     },
     {
-      "text": "Photos and Study keep their own look: they were picking up Ink and Lamp's colours by mistake."
+      "text": "A decision in the strip opens on a tap to show its reason. Updates no longer interrupt a voice memo."
+    },
+    {
+      "text": "Signing out now clears Podcasts and Guitar from the phone; your account keeps them."
     }
   ]
 }

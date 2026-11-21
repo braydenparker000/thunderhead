@@ -267,3 +267,5 @@ let rerender;
 if (/^#play=/.test(location.hash)) route();
 else show(['songs', 'search', 'practice'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'songs');
 startPlan();
+// The owner's progress on the Worker, one record per song, so it follows them to another phone (GUITAR.md §1.1).
+import('/th/guitar/progress.js').then(m => m.start(store)).catch(() => {});

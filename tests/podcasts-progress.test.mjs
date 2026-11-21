@@ -5,7 +5,9 @@
 // that write when they come in time, and are reported once it is saved. Then this phone's positions the
 // Worker doesn't have go up, in requests of ≤ 100, and its follows and unfollows; a refusal no
 // retry fixes is not sent again, an outage is. Signed out or in another site's frame, nothing is
-// asked. The key check agrees with the Worker's. Synthetic shows and episodes only.
+// asked. The account's follows come down on the same pulls and are only ever added: a phone's own
+// extra show stays, and an unfollow made here is not undone. The key check agrees with the Worker's.
+// Synthetic shows and episodes only.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { PODCAST_LIMITS, progressKeyProblem } from '../shared/contract/podcasts.ts';
@@ -45,23 +47,25 @@ function fakeWorker() {
       });
       return json({ applied, stale: body.items.length - applied - refused.length, refused, at: w.clock });
     }
-    if (u.pathname === '/v1/podcasts/progress') {
+    if (u.pathname === '/v1/podcasts/follows' && init.method === 'PUT') {
+      for (const f of body.items) if (!(w.follows.get(f.feed_url)?.updated_at >= f.updated_at)) w.follows.set(f.feed_url, Object.defineProperty({ ...f }, 'synced_at', { value: w.clock })); // (read by the pages, not compared)
+      return json({ applied: body.items.length, stale: 0, refused: [], at: w.clock });
+    }
+    const pageOf = (map, id) => {
       const cursor = u.searchParams.get('cursor');
       const after = cursor ? JSON.parse(atob(cursor)) : [Number(u.searchParams.get('since')) - 0.5, ''];
-      const all = [...w.rows.values()].filter((r) => r.synced_at > after[0] || (r.synced_at === after[0] && r.key > after[1]))
-        .sort((a, b) => a.synced_at - b.synced_at || (a.key < b.key ? -1 : 1));
+      const all = [...map.values()].filter((r) => r.synced_at > after[0] || (r.synced_at === after[0] && r[id] > after[1]))
+        .sort((a, b) => a.synced_at - b.synced_at || (a[id] < b[id] ? -1 : 1));
       const page = all.slice(0, w.pageSize);
       const last = page.at(-1);
       return json({
         items: page.map(({ synced_at: _, ...p }) => p),
         next_since: w.clock,
-        next: all.length > w.pageSize ? btoa(JSON.stringify([last.synced_at, last.key])) : null,
+        next: all.length > w.pageSize ? btoa(JSON.stringify([last.synced_at, last[id]])) : null,
       });
-    }
-    if (u.pathname === '/v1/podcasts/follows' && init.method === 'PUT') {
-      for (const f of body.items) if (!(w.follows.get(f.feed_url)?.updated_at >= f.updated_at)) w.follows.set(f.feed_url, f);
-      return json({ applied: body.items.length, stale: 0, refused: [], at: w.clock });
-    }
+    };
+    if (u.pathname === '/v1/podcasts/progress') return pageOf(w.rows, 'key');
+    if (u.pathname === '/v1/podcasts/follows') return pageOf(w.follows, 'feed_url');
     return new Response('{}', { status: 404 });
   };
   return w;
@@ -72,6 +76,8 @@ const app = () => JSON.parse(storage.getItem(sync.APP_KEY));
 const memory = () => JSON.parse(storage.getItem(sync.SYNC_KEY));
 const setApp = (s) => storage.setItem(sync.APP_KEY, JSON.stringify({ version: 1, follows: [], queue: [], progress: {}, speed: 1, ...s }));
 const entry = (position, updatedAt, extra = {}) => ({ position, duration: 1800, played: false, updatedAt, ...extra });
+/** The requests to one route. @param {string} route */
+const to = (route) => worker.requests.filter((r) => r.path === `/v1/podcasts/${route}`);
 
 beforeEach(() => {
   storage = memoryStorage();
@@ -112,12 +118,14 @@ test('on open: newer positions written in before the app reads, its episode deta
   assert.deepEqual(p[key(2)], entry(500, NOW - 100), 'the phone’s newer one stays');
   assert.deepEqual(p[key(3)], { position: 0, duration: 900, played: true, updatedAt: NOW - 2000 });
   assert.equal(memory().since.progress, worker.clock);
-  assert.deepEqual(worker.requests.map((r) => r.query.split('=')[0]), ['?since', '?cursor']);
+  assert.deepEqual(to('progress').map((r) => r.query.split('=')[0]), ['?since', '?cursor']);
+  assert.deepEqual(to('follows').map((r) => [r.method, r.query]), [['GET', '?since=0']], 'the follows read once, alongside');
   assert.ok(worker.requests.every((r) => r.auth === 'Bearer th1_session'));
   // Nothing new next time: the same `since`, nothing written.
   worker.requests = [];
   await sync.open(BY);
-  assert.equal(worker.requests[0].query, `?since=${worker.clock}`);
+  assert.equal(to('progress')[0].query, `?since=${worker.clock}`);
+  assert.equal(to('follows')[0].query, `?since=${worker.clock}`);
 });
 
 test('a phone with no Podcasts storage yet gets the positions too', async () => {
@@ -284,7 +292,8 @@ test('the app’s edit asks once a page: one pull, however often it is called', 
   const a = sync.opened(BY);
   assert.equal(sync.opened(BY), a);
   await a;
-  assert.equal(worker.requests.filter((r) => r.method === 'GET').length, 1);
+  assert.equal(to('progress').filter((r) => r.method === 'GET').length, 1);
+  assert.equal(to('follows').filter((r) => r.method === 'GET').length, 1);
 });
 
 test("the mind's pending intents go into the same write, reported once saved; ones that don't come in time wait", async () => {
@@ -315,4 +324,131 @@ test("the mind's pending intents go into the same write, reported once saved; on
   } finally {
     sync.deps.intents = intents;
   }
+});
+
+/** The app as podcasts/app.js hands itself over: its state read from storage once, in memory, and
+ * written back whole by its own save (as it does every 10 s while playing). */
+function liveApp() {
+  const a = { state: app(), commits: 0, pulled: [] };
+  a.live = { state: () => a.state, commit: () => (storage.setItem(sync.APP_KEY, JSON.stringify(a.state)), a.commits++, true), pulled: (keys) => a.pulled.push(keys) };
+  return a;
+}
+
+test('a late pull is applied, through the app’s state in memory, once the app attaches', async () => {
+  setApp({ progress: { [key(1)]: entry(10, NOW - 5000, { episode: { id: 'e1' } }) } });
+  worker.rows.set(key(1), { key: key(1), position_s: 2400, duration_s: 3600, played: false, updated_at: NOW - 1000, synced_at: 10 });
+  const slow = worker.fetch;
+  sync.deps.fetch = async (...a) => {
+    page = BY + 1;
+    return slow(...a);
+  };
+  await sync.open(BY);
+  assert.equal(app().progress[key(1)].position, 10, 'not written under an app that has read its storage');
+  const a = liveApp();
+  sync.attach(a.live);
+  assert.deepEqual(a.state.progress[key(1)], { position: 2400, duration: 3600, played: false, updatedAt: NOW - 1000, episode: { id: 'e1' } });
+  assert.equal(app().progress[key(1)].position, 2400, 'saved by the app’s own save');
+  assert.deepEqual(a.pulled, [[key(1)]]);
+  assert.equal(memory().since.progress, worker.clock, 'since moves on');
+});
+
+test('a stale local resume never overwrites a newer server position', async () => {
+  // This phone's app read its storage (an old place) before the other phone's newer one came in.
+  setApp({ progress: { [key(1)]: entry(10, NOW - 5000) } });
+  const a = liveApp();
+  sync.attach(a.live);
+  worker.rows.set(key(1), { key: key(1), position_s: 2400, duration_s: 3600, played: false, updated_at: NOW - 1000, synced_at: 10 });
+  await sync.refresh();
+  // The app saves its whole state again, then the positions go up: the newer place stays everywhere.
+  a.live.commit();
+  await sync.push();
+  assert.equal(app().progress[key(1)].position, 2400);
+  assert.equal(worker.rows.get(key(1)).position_s, 2400);
+  assert.equal(worker.rows.get(key(1)).updated_at, NOW - 1000);
+  assert.ok(!worker.requests.some((r) => r.method === 'PUT' && r.body.items.some((p) => p.key === key(1))), 'the old place is not sent');
+  // A newer place on this phone still wins.
+  a.state.progress[key(1)] = entry(2500, NOW);
+  a.live.commit();
+  await sync.push();
+  assert.equal(worker.rows.get(key(1)).position_s, 2500);
+});
+
+test('refresh pulls only for an attached app; a jump past 30 s is offered, not taken', async () => {
+  await sync.refresh();
+  assert.deepEqual(worker.requests, [], 'no app yet: the open pull covers it');
+  sync.attach(liveApp().live);
+  await sync.refresh();
+  assert.equal(to('progress').filter((r) => r.method === 'GET').length, 1);
+  assert.equal(to('follows').filter((r) => r.method === 'GET').length, 1);
+  assert.equal(sync.resumeOffer(2400, 10), true);
+  assert.equal(sync.resumeOffer(40, 10), false, 'within 30 s');
+  assert.equal(sync.resumeOffer(10, 2400), false, 'behind');
+});
+
+const show = (n) => ({ feedUrl: `https://feeds.example.org/${n}.xml`, title: `Show ${n}`, author: 'A host', artwork: '' });
+/** A follow row as the Worker keeps it. */
+const followRow = (n, followed, updated_at, synced_at) => ({
+  feed_url: `https://feeds.example.org/${n}.xml`, title: `Show ${n}`, author: 'A host', artwork: '', followed, updated_at, synced_at,
+});
+
+test('a phone with an empty store (signed in again) gets the account’s follows, and sends nothing back for them', async () => {
+  worker.follows.set('https://feeds.example.org/a.xml', followRow('a', true, NOW - 9000, 5));
+  worker.follows.set('https://feeds.example.org/b.xml', followRow('b', true, NOW - 8000, 6));
+  worker.follows.set('https://feeds.example.org/c.xml', followRow('c', false, NOW - 7000, 7));
+  const senses = [];
+  sync.deps.sense = async (type, ref) => void senses.push([type, ref]);
+  await sync.open(BY);
+  assert.deepEqual(app().follows, [show('a'), show('b')], 'followed shows added; an unfollowed one not');
+  assert.equal(memory().since.follows, worker.clock);
+  worker.requests = [];
+  await sync.push();
+  assert.deepEqual(to('follows'), [], 'the Worker has them: nothing goes up');
+  assert.deepEqual(senses, [], 'not this phone’s follows: no senses');
+});
+
+test('a phone’s own extra follow survives a pull, and a show the account has as unfollowed is not removed', async () => {
+  setApp({ follows: [show('mine'), show('c')] });
+  await sync.push();
+  worker.follows.set('https://feeds.example.org/a.xml', followRow('a', true, NOW + 1000, NOW + 1));
+  // Another phone unfollowed c later than this phone followed it.
+  worker.follows.set('https://feeds.example.org/c.xml', followRow('c', false, NOW + 2000, NOW + 2));
+  worker.clock = NOW + 3;
+  const a = liveApp();
+  sync.attach(a.live);
+  await sync.refresh();
+  assert.deepEqual(a.state.follows.map((s) => s.feedUrl), [show('mine'), show('c'), show('a')].map((s) => s.feedUrl));
+  assert.deepEqual(app().follows.map((s) => s.feedUrl), a.state.follows.map((s) => s.feedUrl), 'saved by the app’s own save');
+  assert.deepEqual(a.pulled, [['https://feeds.example.org/a.xml']], 'the app repaints');
+  assert.equal(memory().since.follows, worker.clock);
+});
+
+test('an unfollow made here goes up and is not undone by the next pull', async () => {
+  worker.follows.set('https://feeds.example.org/a.xml', followRow('a', true, NOW - 9000, 5));
+  await sync.open(BY);
+  assert.deepEqual(app().follows, [show('a')]);
+  // Unfollowed in the app; a pull comes before it goes up, and the Worker sends the old row again.
+  const a = liveApp();
+  sync.attach(a.live);
+  a.state.follows = [];
+  a.live.commit();
+  worker.follows.set('https://feeds.example.org/a.xml', followRow('a', true, NOW - 9000, NOW + 1));
+  worker.clock = NOW + 2;
+  await sync.refresh();
+  assert.deepEqual(a.state.follows, [], 'an unfollow not yet sent stands');
+  sync.deps.now = () => NOW + 60_000;
+  await sync.push();
+  assert.equal(worker.follows.get('https://feeds.example.org/a.xml').followed, false, 'the unfollow went up');
+  // The next pull, and one that reads everything again, bring the Worker's unfollow: nothing added.
+  worker.clock = NOW + 60_001;
+  await sync.refresh();
+  storage.setItem(sync.SYNC_KEY, JSON.stringify({ ...memory(), since: { progress: 0, follows: 0 } }));
+  await sync.refresh();
+  assert.deepEqual(a.state.follows, []);
+  assert.deepEqual(app().follows, []);
+  // Followed again on another phone later: it comes back.
+  sync.deps.now = () => NOW + 120_000;
+  worker.follows.set('https://feeds.example.org/a.xml', followRow('a', true, NOW + 120_000, NOW + 120_001));
+  worker.clock = NOW + 120_002;
+  await sync.refresh();
+  assert.deepEqual(a.state.follows, [show('a')]);
 });

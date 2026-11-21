@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Stop hook, bounded (RUNTIME.md §6.2): keeps a chat session from ending while an owner message is
 // unanswered or no background `th wait` is running, and a reflex session while a tripped watchdog
-// that wakes it has no report (`th handled`), at most 3 times per session.
+// that wakes it has no report (`th handled`), at most 3 times in a row: every allowed stop resets
+// the count, so a session that later stalls again can still be held.
 //
 // Format (Claude Code hooks reference, https://code.claude.com/docs/en/hooks, "Stop input" and
 // "Stop decision control", read 2026-10-28):
@@ -14,7 +15,8 @@
 // `unreported` list isn't empty; else allow):
 // 1. allow: role ≠ chat (including TH_ROLE unset: not a mind session, so no output at all); th pending
 //    fails (never trap a session we can't see); stop, day_closed or limited (also the local mark
-//    StopFailure leaves); 3 blocks already used (counted here, in $TMPDIR/th/state/); past the idle
+//    StopFailure leaves); 3 blocks in a row already used (counted here, in $TMPDIR/th/state/,
+//    and reset by every allowed stop); past the idle
 //    cutoff (the Worker's idle_min ≥ idle_cutoff_min) with a session note written.
 // 2. block: an owner message is unanswered.
 // 3. block: no running shell task runs `th wait`, and the idle cutoff hasn't passed.
@@ -25,8 +27,11 @@ import {readInput, runTh} from './lib/hook-io.mjs';
 export const MAX_BLOCKS = 3;
 const input = readInput() || {};
 const env = process.env;
-
-const allow = () => { process.exitCode = 0; };
+const blocksKey = () => `stop_blocks_${String(input.session_id || 'session').replace(/[^A-Za-z0-9_-]/g, '_')}`;
+const allow = () => {
+  if (env.TH_ROLE === 'chat' || env.TH_ROLE === 'reflex') setState(blocksKey(), 0); // consecutive, not per session
+  process.exitCode = 0;
+};
 const block = reason => { process.stdout.write(JSON.stringify({decision: 'block', reason}) + '\n'); process.exitCode = 0; };
 
 /** True if some background shell task is a running `th wait`; null when Claude Code sent no task list. */
@@ -50,8 +55,6 @@ function recentlyLimited() {
   const ttl = ['rate_limit', 'billing_error'].includes(mark.error) ? 6 * 3_600_000 : 5 * 60_000;
   return Date.now() - mark.at < ttl;
 }
-
-const blocksKey = () => `stop_blocks_${String(input.session_id || 'session').replace(/[^A-Za-z0-9_-]/g, '_')}`;
 
 /** Reflex: every tripped watchdog that woke it gets a report before it ends. */
 function reflexStop() {

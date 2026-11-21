@@ -4,11 +4,16 @@
 // phone and new: a tap on the dial hides the decision on show for the time the dial says (1 h at
 // first); turning or dragging it, or its arrow keys, step through 1 h, 3 h, tonight (20:00, or
 // tomorrow 08:00 once past 20:00) and tomorrow (08:00). The decision comes back by itself when the
-// time is up, and at once when the look is turned off. Nothing is sent to the Worker and nothing about
-// how a decision is answered changes; with several waiting, the page shows one at a time as it does,
-// and a hidden one keeps its place (the strip steps aside until it is due). The times are kept on
-// this phone under one key, `th.p.later` ({ [proposal id]: until, in ms }), wiped at sign-out with the
-// rest of th.p.*.
+// time is up, and at once when the look is turned off. A "later" never outlasts the decision: it ends
+// at the decision's own expiry at the latest (`expires_at`, as the card last read the waiting ones).
+// Nothing is sent to the Worker and nothing about how a decision is answered changes; with several
+// waiting, the page shows one at a time as it does, and one put off steps aside for the next: while
+// the look is on, the card's read of the waiting decisions (api.proposals, th/decide/card.js) holds
+// each one put off until its time (its show_from), so the card shows the next and brings the put-off
+// one back by itself when it is due; a put-off one the card read before goes as the card reads again
+// (`th:changed`, proposal). The times are kept on this phone under one key, `th.p.later`
+// ({ [proposal id]: until, in ms }), wiped at sign-out with the rest of th.p.*.
+import { api } from '/th/client.js';
 import { animator, haptic, springs } from '/th/motion.js';
 import { clock } from '/th/pref.js';
 
@@ -46,6 +51,33 @@ export function later() {
   let timer;
   /** @type {HTMLElement | null} */
   let slot = null;
+  /** The waiting decisions' expiries as the card last read them (id → expires_at, ms). */
+  let ends = new Map();
+  /** What the card's last read held (id → until), and the times kept when it was last asked to read. */
+  let given = new Map(), asked = '';
+  /** Has the card read the waiting decisions again (its change feed's word for them). */
+  const reread = () => document.dispatchEvent(new CustomEvent('th:changed', { detail: ['proposal'] }));
+
+  // The card's read of the waiting decisions, while the look is on: each "later" capped at its
+  // decision's expiry, and each decision put off held until its time.
+  const own = api.proposals;
+  /** @type {typeof api.proposals} */
+  const held = async (token) => {
+    const r = await own(token);
+    if (api.proposals !== held) return r; // the look went while it was read
+    ends = new Map(r.items.map((p) => [p.id, p.expires_at]));
+    const kept = read();
+    let capped = false;
+    for (const [id, t] of Object.entries(kept)) {
+      const end = ends.get(id);
+      if (end !== undefined && t > end) { kept[id] = end; capped = true; }
+    }
+    if (capped) write(kept);
+    const items = r.items.map((p) => ((kept[p.id] ?? 0) > p.show_from ? { ...p, show_from: kept[p.id] } : p));
+    given = new Map(items.filter((p, i) => p !== r.items[i]).map((p) => [p.id, p.show_from]));
+    return { ...r, items };
+  };
+  api.proposals = held;
 
   /** The strip steps aside while the decision on show is put off. */
   const apply = () => {
@@ -55,8 +87,13 @@ export function later() {
     const kept = read();
     for (const [id, t] of Object.entries(kept)) if (t <= now) delete kept[id];
     write(kept);
-    const until = card ? kept[card.dataset.id ?? ''] ?? 0 : 0;
+    const id = card?.dataset.id ?? '';
+    const until = card ? kept[id] ?? 0 : 0;
     slot?.classList.toggle('lk-later', until > now);
+    // The card reads again when its last read is out of date: one on show though put off (read before),
+    // or a time that has ended or changed since. Once for each set of times.
+    const stale = (until > now && given.get(id) !== until) || [...given].some(([g, t]) => kept[g] !== t);
+    if (stale && JSON.stringify(kept) !== asked) { asked = JSON.stringify(kept); reread(); }
     const next = Math.min(...Object.values(kept));
     if (Number.isFinite(next)) timer = setTimeout(apply, Math.min(next - now + 50, 2 ** 31 - 1));
     if (card && !card.querySelector('.lk-later-b')) dial(card);
@@ -115,10 +152,11 @@ export function later() {
       const id = card.dataset.id;
       if (!id) return;
       const s = STOPS[stop];
-      const until = s.until(Date.now());
+      const chosen = s.until(Date.now());
+      const until = Math.min(chosen, ends.get(id) ?? Infinity);
       write({ ...read(), [id]: until });
       haptic('commit');
-      import('/th/ui.js').then((u) => u.toast(`Put off on this phone until ${stop > 1 ? `${s.words} at ` : ''}${clock(until)}.`), () => {});
+      import('/th/ui.js').then((u) => u.toast(`Put off on this phone until ${stop > 1 && until === chosen ? `${s.words} at ` : ''}${clock(until)}.`), () => {});
       apply();
     });
     card.append(b);
@@ -140,6 +178,9 @@ export function later() {
   document.addEventListener('visibilitychange', seen);
 
   return () => {
+    if (api.proposals === held) api.proposals = own;
+    // The card reads the waiting decisions again, none held, so a put-off one comes back at once.
+    if (Object.keys(read()).length) reread();
     clearTimeout(timer);
     cards.disconnect();
     docks.disconnect();

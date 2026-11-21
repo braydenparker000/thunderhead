@@ -23,7 +23,10 @@ page is the exact sequence. History: [archive/MUSE.md](../archive/MUSE.md); rout
 1. **Once, at start:** `GET /v1/work/hello` → `{agent: "muse", scopes, server_time}`. A `401`
    means the key is wrong or revoked: stop, and tell the owner through your own channel.
 2. **Every 5 minutes while idle:** `POST /v1/work/claim` with body `{}`.
-   - `204`: nothing to do. Wait 5 minutes.
+   - `204`: nothing to do. Wait the `Retry-After` seconds it carries (300 after an empty answer)
+     before you claim again. The server answers a claim that comes sooner with `204` and the
+     seconds left, without looking: an order placed meanwhile is yours at the first claim after
+     the wait.
    - `200 {order}`: this one is yours. You hold **one at a time**: claiming again gives you the same
      order until you finish it, so a restart just picks it up again.
 3. **Do it.** `order.kind` is `muse.request`; `order.spec` is `{v: 1, words, app?}`: the owner's

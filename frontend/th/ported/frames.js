@@ -99,7 +99,9 @@
     url.searchParams.delete('th-frame');
     const clean = url.href;
     e.respondWith(
-      fetch(clean).catch(async () => (await caches.match(clean, { ignoreSearch: true })) ?? Response.error()),
+      // An app's worker may answer its page from its cache first (podcasts/sw.js `thFramesPage`).
+      sw.thFramesPage?.(e, clean) ??
+        fetch(clean).catch(async () => (await caches.match(clean, { ignoreSearch: true })) ?? Response.error()),
     );
   });
 

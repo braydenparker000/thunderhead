@@ -22,7 +22,7 @@ npx playwright install chromium         # once, if Chromium isn't installed
 npm run serve                           # the site: http://127.0.0.1:8080
 npm run dev                             # the Worker, local workerd: http://127.0.0.1:8787
 npm test                                # everything (site, contract, backend on workerd)
-node scripts/test-part.mjs 1 4          # one of CI's four site-and-mind parts (checks.yml)
+node scripts/test-part.mjs 1 5          # one of CI's five site-and-mind parts (checks.yml)
 node scripts/test-part.mjs --measure    # re-time every file into scripts/test-durations.json (the parts' deal)
 SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the live site
 ```
@@ -52,15 +52,18 @@ The Worker deploys from the same workflow (job `api`, before `site`; off until
 `WORKER_DEPLOY_ENABLED=true`), with a smoke check and `wrangler rollback` on failure; see
 [backend/README.md](backend/README.md). The site:
 
-- **Release:** push to `main`. The Deploy workflow tests (once, in five parallel jobs; skipped when Test already
-  passed on exactly the merged files), publishes `frontend/` to the
+- **Release:** push to `main`. The Deploy workflow tests (once, in six parallel jobs: five site-and-mind parts
+  and the Worker's suite; skipped when Test already passed on exactly the merged files with every suite), publishes `frontend/` to the
   storage account's `$web` container, waits until the live `release.json` names the
   commit, and runs the browser checks against the live site.
-- **Automatic rollback:** if the live check fails, the workflow puts the previous live
-  commit back up and marks the run failed.
+- **Automatic rollback:** if the live check fails, the workflow builds the previous live
+  commit with its own `frontend/`, `scripts/` and `shared/`, puts it back up, checks that
+  `release.json` names it, and marks the run failed.
 - **Manual rollback:** Actions → Deploy → Run workflow, with the commit to put live.
   Or revert the bad commit on `main`.
 - **What's live:** `<site>/release.json`.
+- **Between releases:** `live-watch.yml` runs the read-only live checks every 30 minutes and opens
+  one issue, "The live site check is failing", after two failed runs in a row.
 
 **Rolling the Worker back across Core step 32 (memory provenance, 2026-11-03).** The schema stays (steps
 only add), but a Worker from before it ignores the `provenance` column: its profile and briefing then

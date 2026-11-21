@@ -13,8 +13,11 @@ export function scrub(message: string): string {
     .slice(0, 300);
 }
 
+/** A report as the inbox stores it: a client's, or the Worker's own (`worker`, http/report.ts). */
+export type StoredError = Omit<ErrorReport, 'source'> & { source: ErrorRow['source'] };
+
 /** One row per fingerprint: a repeat adds its count, keeps the newest build and reopens it. */
-export function upsertError(db: Db, fingerprint: string, e: ErrorReport, at: number): void {
+export function upsertError(db: Db, fingerprint: string, e: StoredError, at: number): void {
   db.run(
     `INSERT INTO errors (fingerprint, source, route, code, message, count, first_at, last_at, last_build)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

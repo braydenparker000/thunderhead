@@ -65,11 +65,7 @@
         <div class="codebox" id="rcode" hidden></div>
         <button type="button" class="link" id="reveal">Show</button>
       </div>
-      <p>Start it one of these ways:</p>
-      <ol>
-        <li><b>Ask the mind in Claude Code</b>: open a Claude Code session and say: <i>Start a Thunderhead reset with fingerprint <span id="rfp-say">…</span></i></li>
-        <li><b>GitHub</b>: add a repository secret <code>TH_RESET_FINGERPRINT</code> with this value and run the <b>Request reset</b> workflow.<span id="gh-links" hidden> <a class="link" id="gh-secret" target="_blank" rel="noopener noreferrer">New secret</a> · <a class="link" id="gh-run" target="_blank" rel="noopener noreferrer">Request reset workflow</a></span></li>
-      </ol>
+      <p>Start it on GitHub: add a repository secret <code>TH_RESET_FINGERPRINT</code> with this value and run the <b>Request reset</b> workflow.<span id="gh-links" hidden> <a class="link" id="gh-secret" target="_blank" rel="noopener noreferrer">New secret</a> · <a class="link" id="gh-run" target="_blank" rel="noopener noreferrer">Request reset workflow</a></span></p>
     </div>
     <p class="line ok" id="rstate"></p>
     <form id="reset" method="post" action="/recover/" novalidate hidden>

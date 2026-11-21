@@ -1,14 +1,7 @@
 // The first half of the Core object (see core.ts): the P1 routes' data, the change feed and the
 // live channel's sockets, and the helpers every area uses: `write` (commit.ts: one transaction,
 // then the live channel), `run` (area failures as `{ok:false, code}`) and `schedule` (the alarm).
-import type {
-  ChangeKind,
-  ChangesResponse,
-  ErrorReport,
-  ErrorRow,
-  PerfRequest,
-  Settings,
-} from '../../../shared/contract/api';
+import type { ChangeKind, ChangesResponse, ErrorRow, PerfRequest, Settings } from '../../../shared/contract/api';
 import { SANDBOX_INSTANCE } from '../../../shared/contract/evals.ts';
 import { sha256Hex } from '../areas/auth/crypto';
 import * as day from '../areas/conversation/day';
@@ -112,7 +105,7 @@ export abstract class CoreBase extends OwnerObject {
     });
   }
 
-  reportErrors(items: ErrorReport[]): void {
+  reportErrors(items: ops.StoredError[]): void {
     this.write((w) => {
       for (const e of items)
         ops.upsertError(
@@ -181,6 +174,12 @@ export abstract class CoreBase extends OwnerObject {
 
   liveRevoke(sessionIds: string[]): number {
     return this.hub.revoke(sessionIds);
+  }
+
+  /** The Auth object created or cleared a notice: one `notice` change, so an open home reloads
+   * /v1/auth/me and shows or folds its card (SIGN-IN.md §11.4). */
+  noticeChanged(): void {
+    this.write((w) => w.change('notice'));
   }
 
   /** What a push waits on (BEHAVIOR.md §3.4): the owner's zone and quiet hours, whether a phone shows

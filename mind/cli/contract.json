@@ -135,13 +135,6 @@
       "phase": "P1",
       "status": "built"
     },
-    "POST /v1/auth/breakglass": {
-      "who": [
-        "C"
-      ],
-      "phase": "P1",
-      "status": "built"
-    },
     "GET /v1/settings": {
       "who": [
         "D",
@@ -2034,6 +2027,22 @@
       "phase": "P8",
       "status": "built",
       "note": "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute"
+    },
+    "PUT /v1/guitar/progress": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "1–50 songs, each ≤ 16,000 characters; the newer updated_at wins"
+    },
+    "GET /v1/guitar/progress": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "?since=&cursor=: what changed since, oldest first, ≤ 100 a page"
     }
   },
   "verbs": {
@@ -5709,7 +5718,8 @@
       "night_late_local": "09:00",
       "job_running_h": 2,
       "job_attempts": 5,
-      "db_bytes": 734003200
+      "db_bytes": 734003200,
+      "reply_late_min": 30
     },
     "reflex_procedure": [
       "A watchdog woke you (the briefing's wake: line names it). The tripped ones follow, each with what to do about it.",
@@ -5816,6 +5826,14 @@
         "slo": "Backups: the monthly drill passes",
         "wakes": true,
         "handle": "Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
+      },
+      "reply.late": {
+        "trips": "an owner message unanswered for more than 30 minutes, outside quiet hours",
+        "severity": "S3",
+        "slo": "Chat: every owner message is answered, or the thread says why it isn't",
+        "wakes": true,
+        "handle": "Read th get /v1/mind/wakes (the newest chat wakes: fire_status, fire_error, claimed or not) and th health --deep. Don't answer the owner's message: that is the chat session's. Change nothing. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
         "phase": "P4"
       },
       "events.export.late": {

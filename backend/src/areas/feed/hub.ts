@@ -5,6 +5,7 @@
 // they do not know and pull GET /v1/changes, so features add change kinds, not sockets.
 import type { ChangeKind, LiveFrame } from '../../../../shared/contract/api';
 import { CLOSE_CODES, LIVE_PROTOCOL } from '../../../../shared/contract/feed.ts';
+import { kindsForAgent } from './device-only';
 
 export const TAG_DEVICE = 'device';
 export const TAG_WAIT = 'wait';
@@ -21,10 +22,15 @@ export class Hub {
     send(ws, { t: 'hello', v: LIVE_PROTOCOL, seq, min_client: minClient });
   }
 
-  /** After a commit: every phone and every waiting mind hears the new seq and kinds. */
+  /** After a commit: every phone hears the new seq and kinds; every waiting mind too, without the
+   * device-only kinds, and nothing of a commit that held only those (device-only.ts). */
   changed(seq: number, kinds: ChangeKind[]): void {
     const frame: LiveFrame = { t: 'changed', seq, kinds };
-    for (const ws of this.ctx.getWebSockets()) send(ws, frame);
+    for (const ws of this.ctx.getWebSockets(TAG_DEVICE)) send(ws, frame);
+    const shown = kindsForAgent(kinds);
+    if (!shown.length) return;
+    const forMind: LiveFrame = { t: 'changed', seq, kinds: shown };
+    for (const ws of this.ctx.getWebSockets(TAG_WAIT)) send(ws, forMind);
   }
 
   /** The presence pulse while the mind writes. Phones only. */

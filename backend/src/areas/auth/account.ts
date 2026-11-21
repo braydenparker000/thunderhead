@@ -26,6 +26,16 @@ export type Principal =
 
 const KEEP_REVOKED = 30 * DAY;
 
+/** The hourly renewal is a courtesy: once the day's writes are spent (Free plan) it throws, and
+ * the request must still go ahead; the next hour tries again. */
+function touch(write: () => void): void {
+  try {
+    write();
+  } catch {
+    // Not renewed this time; idle expiry is 90 days away, so an hour or a day lost costs nothing.
+  }
+}
+
 /** The principal behind a token hash, or why not. Renews `last_seen_at`/`last_used_at` at most
  * once an hour, so a busy day costs a handful of writes instead of one per request. */
 export function verify(d: AuthDeps, hash: string, agent: boolean, country: string | null): Result<Principal> {
@@ -34,7 +44,7 @@ export function verify(d: AuthDeps, hash: string, agent: boolean, country: strin
   if (agent) {
     const a = keys.agentByTokenHash(d.db, Buffer.from(hash, 'hex'));
     if (!a) return fail('unauthorized');
-    if ((a.last_used_at ?? 0) < hour) keys.touchAgent(d.db, a.id, hour, country);
+    if ((a.last_used_at ?? 0) < hour) touch(() => keys.touchAgent(d.db, a.id, hour, country));
     return { ok: true, kind: 'agent', agent_id: a.id, role: a.role, name: a.name };
   }
   const s = store.sessionByTokenHash(d.db, hash);
@@ -45,7 +55,7 @@ export function verify(d: AuthDeps, hash: string, agent: boolean, country: strin
       : fail('unauthorized');
   if (s.idle_expires_at <= now)
     return now - s.idle_expires_at <= KEEP_REVOKED ? fail('session_expired') : fail('unauthorized');
-  if (hour > s.last_seen_at) store.touchSession(d.db, hash, hour, now + IDLE_EXPIRY, country);
+  if (hour > s.last_seen_at) touch(() => store.touchSession(d.db, hash, hour, now + IDLE_EXPIRY, country));
   return { ok: true, kind: 'device', session_id: s.id, label: s.label };
 }
 

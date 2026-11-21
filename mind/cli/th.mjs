@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // th: how a mind session (chat, night, reflex) talks to the Worker. Spec: docs/mind/RUNTIME.md §5.
-// `th help` lists every command and, from the contract (mind/cli/contract.json), the routes, verbs
-// and surface kinds this Worker build offers the role. Commands of later phases are here already;
-// th answers exit 8 `not_built` until their routes are built, so the procedure never changes.
+// `th help` is an index of the commands; `th help all` lists every command and, from the contract
+// (mind/cli/contract.json), the routes, verbs and surface kinds this Worker build offers the role.
+// Commands of later phases are here already; th answers exit 8 `not_built` until their routes are
+// built, so the procedure never changes.
 //
 // Environment: TH_API (Worker base URL), TH_ROLE (chat|night|reflex), TH_TOKEN (optional: in cloud
 // sessions the network secret adds Authorization on the way out, so it is normally unset).

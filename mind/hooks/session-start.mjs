@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// SessionStart hook (RUNTIME.md §6.1): brief the session.
+// SessionStart hook (RUNTIME.md §6.1): give the session its laws, then brief it.
 //
 // Claude Code adds a SessionStart hook's plain stdout to the model's context, capped at 10,000
 // characters; over the cap it saves the text to a file and shows only a 2,000-character preview
 // (https://code.claude.com/docs/en/hooks, "SessionStart" and the output cap, read 2026-10-28).
-// So the core is re-capped here at 9,500 characters, cutting only between whole sections.
+// So the whole output is capped here at 9,500 characters: first mind/CONSTITUTION.md and the
+// session's own section of mind/ROLES.md, on every source (so the laws survive compaction), then
+// the core in what is left, cutting only between whole sections.
 //
 // startup            → th brief --claim (binds the wake)
 // resume|clear|compact|fork → th brief (fresh core, no claim)
@@ -15,6 +17,7 @@ import {appendFileSync} from 'node:fs';
 import {CORE_CAP, truncateBriefing} from '../cli/lib/brief.mjs';
 import {writeThFile} from '../cli/lib/state.mjs';
 import {BIN_DIR, readInput, runTh, thErrorCode} from './lib/hook-io.mjs';
+import {lawsText} from './lib/laws.mjs';
 
 const EXIT_ALREADY_LIVE = 11;
 // With TH_ROLE unset this is the owner's or a developer's own Claude Code session, not the mind:
@@ -23,6 +26,7 @@ if (!process.env.TH_ROLE) process.exit(0);
 const input = readInput() || {};
 const source = typeof input.source === 'string' ? input.source : 'startup';
 const claim = source === 'startup';
+const laws = lawsText(process.env.TH_ROLE);
 
 /** @param {string[]} lines */
 function exportEnv(lines) {
@@ -43,7 +47,7 @@ if (r.code === 0) {
   } else if (process.env.TH_ROLE === 'night' && data.night_done) {
     text = `Night work for ${data.day} is already done. End now.`;
   } else {
-    text = truncateBriefing(data.core, CORE_CAP - 1); // stdout is text + '\n' ≤ 9,500
+    text = truncateBriefing(data.core, CORE_CAP - 1 - laws.length); // stdout is laws + text + '\n' ≤ 9,500
     if (typeof data.full === 'string') { try { writeThFile('brief.md', data.full); } catch { /* th wrote it too */ } }
     if (claim) env.push('export TH_SESSION_CLAIMED=1');
     if (data.wake?.id) env.push(`export TH_WAKE_ID=${quote(data.wake.id)}`);
@@ -55,5 +59,5 @@ if (r.code === 0) {
   text = `BRIEFING UNAVAILABLE (${code}). Before answering anything, run: th brief --claim. If that fails, run th status limited --error briefing and end.`;
 }
 exportEnv(env);
-process.stdout.write(`${text}\n`);
+process.stdout.write(`${laws}${text}\n`);
 process.exitCode = 0;

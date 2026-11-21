@@ -5,14 +5,17 @@
 // the controls carry the kit's pictures, every tap area is 44 px or more and body text keeps 4.5:1;
 // a reply takes the right initial or none; s.d.g. only at rest; the rec switch goes off the record
 // and back through th/record; the dial puts a decision off on this phone only, and it comes back when
-// its time is up or the look goes; the + keypad has a key for every option.
+// its time is up or the look goes, never past the decision's expiry, and the next waiting one shows
+// meanwhile; a tap on the question opens the strip to the whole question and its why, odds and "if
+// ignored"; the strip hides only while the owner types or the + sheet is open, not for a kept draft;
+// the + keypad has a key for every option.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { proposal } from './fixtures/mock-proposals.mjs';
-import { outlast } from './fixtures/waits.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -37,18 +40,19 @@ const talk = () => [
 const DECISION = () => proposal({ question: 'Forget the old address?', options: ['Forget', 'Keep'], created_by: 'mind:chat' });
 
 /** A signed-in phone on home with the look as given. */
-async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [], touch = false, text = '' } = {}) {
+async function open({ theme = 'light', look = true, chat = { messages: talk() }, proposals = [], touch = false, text = '', draft = '' } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: touch });
-  await context.addInitScript(([t, l, x]) => {
+  await context.addInitScript(([t, l, x, d]) => {
     try {
       if (!localStorage.getItem('th.p.sent')) {
         localStorage.setItem('th.p.sent', '1');
         localStorage.setItem('th-theme', t);
         if (l) localStorage.setItem('th.s.appearance.look', 'ink-lamp');
         if (x) localStorage.setItem('th-text', x);
+        if (d) localStorage.setItem('th.p.draft', d);
       }
     } catch {}
-  }, [theme, look, text]);
+  }, [theme, look, text, draft]);
   const page = await context.newPage();
   const errors = [], asked = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -210,6 +214,69 @@ test('the dial puts a decision off on this phone only; it comes back when its ti
   await page.evaluate(() => document.documentElement.removeAttribute('data-look'));
   await page.waitForSelector('#decision .card', { state: 'visible' });
   assert.equal(await page.$('.lk-later-b, .lk-head, .lk-front'), null);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the strip opens to the whole question and its details, hides only while typing, and "later" never outlasts a decision but lets the next show', opts, async () => {
+  const soon = proposal({ question: 'Move the dentist reminder from Tuesday morning to Thursday afternoon, after the long meeting with the builders?', options: ['Move', 'Keep'], created_by: 'mind:chat', why: 'Thursday is clear after three.', odds: 0.9, if_ignored: 'It stays on Tuesday.', expires_at: Date.now() + 30 * 60_000 });
+  const next = proposal({ question: 'Forget the old address?', options: ['Forget', 'Keep'], created_by: 'mind:chat' });
+  const { context, page, errors, api } = await open({ proposals: [soon, next], draft: 'A kept draft' });
+  await page.waitForSelector(`#decision .card.armed[data-id="${soon.id}"] .lk-later-b`);
+  // A kept draft does not hide the strip; the bar's field with the focus, or the + sheet, does.
+  assert.equal(await page.inputValue('#q'), 'A kept draft');
+  assert.equal(await page.isVisible('#decision .card'), true, 'a kept draft leaves the strip');
+  await page.focus('#q');
+  await page.waitForSelector('#decision .card', { state: 'hidden' });
+  await page.$eval('#q', (q) => q.blur());
+  await page.waitForSelector('#decision .card', { state: 'visible' });
+  await page.click('#plus');
+  await page.waitForSelector('#decision .card', { state: 'hidden' });
+  await page.click('#plus');
+  await page.waitForSelector('#decision .card', { state: 'visible' });
+  // Closed: the question on one line in a real button 44 px to the finger, the details unseen.
+  const box = () => page.$eval('#decision .card', (c) => {
+    const q = c.querySelector('.lk-q'), dx = [...c.querySelectorAll('.dx')];
+    return { h: c.offsetHeight, qh: c.querySelector('.q').offsetHeight, tap: q.offsetHeight, expanded: q.getAttribute('aria-expanded'), controls: q.getAttribute('aria-controls'), dx: dx.map((d) => [d.textContent, getComputedStyle(d).visibility, getComputedStyle(d).fontFamily.split(',')[0].replace(/"/g, '')]), face: getComputedStyle(q).fontFamily.split(',')[0].replace(/"/g, ''), label: document.getElementById(c.getAttribute('aria-labelledby'))?.textContent };
+  });
+  const closed = await box();
+  assert.equal(await page.$eval('#decision .lk-q', (b) => b.tagName), 'BUTTON');
+  assert.deepEqual([closed.qh, closed.expanded, closed.label], [20, 'false', soon.question]);
+  assert.ok(closed.tap >= 44, `the question's tap area: ${closed.tap} px`);
+  assert.deepEqual(closed.dx.map((d) => d[1]), ['hidden', 'hidden', 'hidden']);
+  assert.equal(closed.controls.split(' ').length, 3);
+  // A tap on the question opens it: the whole question in his face, the why, odds and if-ignored as legends.
+  await page.click('#decision .lk-q');
+  const opened = await box();
+  assert.equal(opened.expanded, 'true');
+  assert.equal(opened.face, 'EB Garamond');
+  assert.ok(opened.qh > 40, `the whole question on its lines: ${opened.qh} px`);
+  assert.deepEqual(opened.dx, [['Thursday is clear after three.', 'visible', 'Geist Mono'], ['About 90% sure.', 'visible', 'Geist Mono'], ['It stays on Tuesday.', 'visible', 'Geist Mono']]);
+  assert.ok(opened.h > closed.h);
+  assert.equal(await page.$eval('#decision .dx', (d) => getComputedStyle(d).transitionProperty), 'opacity, transform', 'moves by opacity and transform only');
+  // A second tap closes it, as it was; the keyboard opens it too.
+  await page.click('#decision .lk-q');
+  assert.deepEqual(await box(), closed);
+  await page.focus('#decision .lk-q');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.getAttribute('#decision .lk-q', 'aria-expanded'), 'true');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal(await page.$eval('#decision .dx', (d) => getComputedStyle(d).transitionDuration), '0s', 'still under reduced motion');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.keyboard.press('Enter');
+  // Put off for an hour, it ends at its own expiry (30 minutes), and the next waiting one shows meanwhile.
+  await page.click('#decision .lk-later-b');
+  const kept = await until(() => page.evaluate((id) => { const k = JSON.parse(localStorage.getItem('th.p.later') || '{}'); return k[id] <= Date.now() + 30 * 60_000 + 1000 && k[id]; }, soon.id), { message: 'the later was capped at the expiry' });
+  assert.equal(kept, soon.expires_at);
+  await page.waitForSelector(`#decision .card.armed[data-id="${next.id}"]`, { state: 'visible' });
+  assert.equal(await page.$(`#decision .card[data-id="${soon.id}"]`), null);
+  // An answer closes the strip.
+  await page.click('#decision .lk-q');
+  assert.equal(await page.getAttribute('#decision .lk-q', 'aria-expanded'), 'true');
+  await page.click('#decision .decide button:not(.yes)');
+  assert.equal(await page.$('#decision .card.lk-open'), null);
+  await until(() => api.calls.some((c) => c.call.includes(`/${next.id}/decide`)), { message: 'the answer was sent' });
+  assert.ok(!api.calls.some((c) => c.call.includes(`/${soon.id}/decide`)), 'nothing sent for the one put off');
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -3,39 +3,82 @@
 // §8.1). With the tempo ladder on, after each pass of a loop a strip asks Clean or Not yet for 3 s
 // (keys C and N; no answer is not counted), and the speed climbs by the ladder (ladder.js). Each
 // section's record stays on this phone (`th.p.guitar.ladder`, cleared on sign-out with the rest of
-// `th.p.*`), so the next day starts near the last ceiling and opens on the bars that went worst.
+// `th.p.*`), so the next day starts near the last ceiling and opens on the bars that went worst;
+// signed in, it goes to the Worker with the song's progress and comes back after a sign-in or on
+// another phone (th/guitar/progress.js, GUITAR.md §1.1). A song's sections are read from storage
+// each time and written over what is stored then, so the sync's writes are never lost.
 // Signed in, each marked pass, each new best and each session go to the Worker as practice senses
-// (numbers and bar ranges only), so the mind's tips and plan come from how the owner plays.
+// (numbers and bar ranges only), so the mind's tips and plan come from how the owner plays. The
+// session is sent once: when the reader closes, or, when the owner leaves the page first, kept on
+// the phone as the page goes (`th.p.guitar.session`: a page going away can't finish a send) and
+// sent when the page comes back or Guitar next opens.
 // Loaded by the ported reader (frontend/guitar/reader.js, a recorded improvement in ported.json).
 import { climb, judge, noted, sectionKey, weakest } from './ladder.js';
 
-const KEY = 'th.p.guitar.ladder';
+export const KEY = 'th.p.guitar.ladder';
 const STRIP_MS = 3000;
 /** @type {import('./ladder.js').LadderPrefs} */
 const PREFS = { on: false, start: 70, step: 4, target: 100 };
 
 /** @typedef {import('./ladder.js').Rec} Rec */
-/** @typedef {{ prefs: import('./ladder.js').LadderPrefs, songs: Record<string, Record<string, Rec>> }} Kept */
+/** @typedef {{ prefs: import('./ladder.js').LadderPrefs }} Kept */
+
+/** What is stored, or null. @param {Storage} storage @returns {{ prefs?: any, songs?: any } | null} */
+function stored(storage) {
+  try {
+    const v = JSON.parse(storage.getItem(KEY) || 'null');
+    return v && typeof v === 'object' ? v : null;
+  } catch {
+    return null;
+  }
+}
+/** One song's sections as stored now ({} for none). @param {Storage} storage @param {string} song
+ * @returns {Record<string, Rec>} */
+export function ladderOf(storage, song) {
+  const r = stored(storage)?.songs?.[song];
+  return r && typeof r === 'object' ? r : {};
+}
+/** Writes the prefs (when given) and one song's sections (when given) over what is stored now.
+ * @param {Storage} storage @param {import('./ladder.js').LadderPrefs | null} prefs
+ * @param {string} [song] @param {Record<string, Rec>} [sections] */
+export function saveLadder(storage, prefs, song, sections) {
+  const v = stored(storage);
+  const songs = v?.songs && typeof v.songs === 'object' ? v.songs : {};
+  if (song && sections) songs[song] = sections;
+  const kept = prefs ?? v?.prefs;
+  try {
+    storage.setItem(KEY, JSON.stringify(kept ? { prefs: kept, songs } : { songs }));
+  } catch {}
+}
 
 /** @param {any} oldTrainer the speed trainer's prefs, which the ladder replaces @returns {Kept} */
 function load(oldTrainer) {
-  try {
-    const v = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (v && typeof v === 'object' && v.prefs) return { prefs: { ...PREFS, ...v.prefs }, songs: v.songs && typeof v.songs === 'object' ? v.songs : {} };
-  } catch {}
+  const v = stored(localStorage);
+  if (v?.prefs && typeof v.prefs === 'object') return { prefs: { ...PREFS, ...v.prefs } };
   // Someone who had the speed trainer on gets the ladder on, up to the same speed.
   const target = Math.min(150, Math.max(50, Number(oldTrainer?.target) || 100));
-  return { prefs: { ...PREFS, on: !!oldTrainer?.on, target }, songs: {} };
-}
-/** @param {Kept} k */
-function save(k) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(k));
-  } catch {}
+  return { prefs: { ...PREFS, on: !!oldTrainer?.on, target } };
 }
 const today = (t = new Date()) => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
 /** @param {string} type @param {string} ref @param {Record<string, unknown> | null} data */
 const sense = (type, ref, data) => import('/th/senses/send.js').then((m) => m.sense(type, ref, data)).catch(() => {});
+
+/** Sessions kept as the page went away, not sent yet. */
+export const PENDING = 'th.p.guitar.session';
+/** Sends the kept sessions, each once: taken out of storage before it is sent. */
+function sendPending() {
+  /** @type {unknown} */
+  let kept = null;
+  try {
+    kept = JSON.parse(localStorage.getItem(PENDING) || 'null');
+    localStorage.removeItem(PENDING);
+  } catch {}
+  for (const p of Array.isArray(kept) ? kept : []) if (typeof p?.ref === 'string' && p.data && typeof p.data === 'object') sense('guitar.session', p.ref, p.data);
+}
+if (typeof window !== 'undefined') {
+  sendPending();
+  addEventListener('pageshow', (e) => e.persisted && sendPending());
+}
 
 /**
  * @param {any} reader the ported reader: song, timeline, root, store, prefs, setLoopBars, clearLoop, updateSpeedLabel, say
@@ -68,7 +111,8 @@ export function practiceLoop(reader, player, ui) {
   const bar = (/** @type {number} */ i) => (player.bars?.[i]?.mb ?? i) + 1;
   const bars = (/** @type {number} */ a, /** @type {number} */ b) => (a === b ? `bar ${bar(a)}` : `bars ${bar(a)}–${bar(b)}`);
   const ref = () => `tab:${reader.song.key}${sec ? `#b${bar(sec.a)}-${bar(sec.b)}` : ''}`;
-  const records = () => (kept.songs[reader.song.key] ??= {});
+  /** This song's sections, as stored now. */
+  const records = () => ladderOf(localStorage, reader.song.key);
   /** Plays at `pct` % from now and remembers it as the song's speed. @param {number} pct */
   const play = (pct) => {
     player.setSpeed(pct / 100);
@@ -88,9 +132,11 @@ export function practiceLoop(reader, player, ui) {
   function mark(clean, pct) {
     hide();
     if (!sec || !c) return;
-    const prev = records()[sec.key];
-    records()[sec.key] = noted(prev, pct, clean, today());
-    save(kept);
+    const recs = records();
+    const prev = recs[sec.key];
+    recs[sec.key] = noted(prev, pct, clean, today());
+    saveLadder(localStorage, kept.prefs, reader.song.key, recs);
+    reader.store.touch?.(reader.song.key);
     marked.add(sec.key);
     sense('guitar.pass', ref(), { bpm: bpm(pct), speed_pct: pct, clean, by: 'owner' });
     if (clean && pct > (prev?.best || 0)) sense('guitar.bpm', ref(), { bpm: bpm(pct) });
@@ -169,7 +215,7 @@ export function practiceLoop(reader, player, ui) {
     const p = kept.prefs;
     const set = (/** @type {Partial<import('./ladder.js').LadderPrefs>} */ patch) => {
       kept.prefs = { ...kept.prefs, ...patch };
-      save(kept);
+      saveLadder(localStorage, kept.prefs);
       if (sec) section(sec.a, sec.b, 'on' in patch);
     };
     return ui.el(
@@ -187,13 +233,31 @@ export function practiceLoop(reader, player, ui) {
     );
   }
 
-  /** The reader closed: one session sense, if anything was played or marked, with the best clean
-   * tempo reached in it (the tempo the session got to; none when no pass was clean). */
+  let sent = false;
+  /** One session sense, if anything was played or marked, with the best clean tempo reached in it
+   * (the tempo the session got to; none when no pass was clean); never twice. As the page goes
+   * (`pagehide`) it is kept to send later (sendPending). @param {Event} [e] */
+  function session(e) {
+    if (sent || !(played >= 5 || marked.size)) return;
+    sent = true;
+    const ref = `tab:${reader.song.key}`;
+    const data = { seconds: Math.round((Date.now() - opened) / 1000), played_seconds: played, sections: [...marked], ...(reached ? { bpm: reached } : {}) };
+    if (e?.type !== 'pagehide') return void sense('guitar.session', ref, data);
+    try {
+      const kept = JSON.parse(localStorage.getItem(PENDING) || '[]');
+      localStorage.setItem(PENDING, JSON.stringify([...(Array.isArray(kept) ? kept : []), { ref, data }].slice(-20)));
+    } catch {}
+  }
+  // The owner leaves the page with the reader open (home, another app, the tab closed):
+  // the session is recorded then, not only when the reader closes.
+  addEventListener('pagehide', session);
+
+  /** The reader closed: the session, unless the page's leaving sent it already. */
   function end() {
     clearInterval(tick);
     hide();
-    if (played >= 5 || marked.size)
-      sense('guitar.session', `tab:${reader.song.key}`, { seconds: Math.round((Date.now() - opened) / 1000), played_seconds: played, sections: [...marked], ...(reached ? { bpm: reached } : {}) });
+    removeEventListener('pagehide', session);
+    session();
   }
 
   return { passed, section, ready, controls, end };

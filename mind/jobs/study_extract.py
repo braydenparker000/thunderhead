@@ -9,8 +9,14 @@ Printed page numbers: the PDF's own /PageLabels; else a number alone in the top 
 the page, kept only where 5 or more pages in a row show the same offset from the PDF page; else
 none. It prints counts only, one JSON line: never page text, a title or a file name.
 
+It stops early, at a page boundary, with the pages it has written kept, and says why in "stopped":
+"time" when --until (Unix ms) has passed before a page (the first page is always read, so every
+run moves), or "ocr_missing" at the first page that needs OCR when OCR is not here (that page is
+not written: an empty page would make the book "ready" with nothing to search). "next" is the
+0-based page to go on from (= the last written page's pdf_page).
+
   python3 study_extract.py BOOK.pdf --count
-  python3 study_extract.py BOOK.pdf --out PAGES.jsonl [--from N] [--lang eng] [--no-ocr]
+  python3 study_extract.py BOOK.pdf --out PAGES.jsonl [--from N] [--until MS] [--lang eng] [--no-ocr]
 
 Exit: 0 done, 2 usage, 3 password-protected, 4 not a readable PDF.
 """
@@ -18,6 +24,7 @@ import argparse
 import json
 import re
 import sys
+import time
 
 MIN_CHARS = 50
 WORDY = re.compile(r"[A-Za-zÀ-ɏ]{2,}")
@@ -148,6 +155,7 @@ def main():
     ap.add_argument("--count", action="store_true")
     ap.add_argument("--out")
     ap.add_argument("--from", dest="start", type=int, default=0)
+    ap.add_argument("--until", type=int, default=0, help="Unix ms; stop before a page once it has passed")
     ap.add_argument("--lang", default="eng")
     ap.add_argument("--no-ocr", action="store_true")
     a = ap.parse_args()
@@ -164,9 +172,12 @@ def main():
         labels = inferred_labels(reader)
         source = "inferred" if labels else "none"
     ocr = Ocr(a.pdf, a.lang, not a.no_ocr)
-    counts = {"pages": total, "done": 0, "ocr": 0, "ocr_missing": 0, "labels": source}
+    counts = {"pages": total, "done": 0, "ocr": 0, "ocr_missing": 0, "labels": source, "next": a.start}
     with open(a.out, "w", encoding="utf-8") as out:
         for i in range(a.start, total):
+            if a.until and counts["done"] and time.time() * 1000 >= a.until:
+                counts["stopped"] = "time"
+                break
             page = reader.pages[i]
             try:
                 text = page.extract_text() or ""
@@ -180,10 +191,14 @@ def main():
                     counts["ocr"] += 1
                 else:
                     counts["ocr_missing"] += 1
+                    counts["stopped"] = "ocr_missing"
+                    break
             label = labels[i] if labels and i < len(labels) else None
             line = {"pdf_page": i + 1, "page_label": label, "text": text[:60000], "ocr": used_ocr, "ocr_conf": conf}
             out.write(json.dumps(line, ensure_ascii=False) + "\n")
+            out.flush()
             counts["done"] += 1
+            counts["next"] = i + 1
     print(json.dumps(counts))
 
 

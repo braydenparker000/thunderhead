@@ -27,6 +27,18 @@ test('an unanswered owner message blocks, at most 3 times per session; the 4th s
   assert.equal(decision(otherSession)?.decision, 'block', 'the count is per session');
 }));
 
+test('blocks are counted in a row: an allowed stop resets the count', withFake({}, async fake => {
+  const e = env(fake);
+  const m = fake.addOwnerMessage('one');
+  for (let i = 1; i <= 2; i++) assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e))?.decision, 'block');
+  await th(['say', 'today', '--reply-to', m.id, 'done'], e);
+  assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e)), null, 'answered: allowed, count back to 0');
+  const n = fake.addOwnerMessage('two');
+  for (let i = 1; i <= 3; i++) assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e))?.decision, 'block', `block ${i} after the reset`);
+  assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e)), null, 'the 4th in a row is allowed');
+  assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e))?.decision, 'block', `${n.id} still waits: a new run of blocks`);
+}));
+
 test('no running th wait blocks; a running one (th or th.mjs) allows; no task list means no wait block', withFake({}, async fake => {
   const e = env(fake);
   const none = await hook('stop', input(), e);

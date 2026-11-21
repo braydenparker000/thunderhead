@@ -6,6 +6,7 @@ import { startPinned } from './pinned.js';
 import { watchFolds } from './fold.js';
 import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
 import { timed } from '/ui/feel/log.js';
+import { place as onTop, toggle as layer } from '/th/layers.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -38,7 +39,7 @@ function openFromRing(id,color,to){
   const known=()=>learnt.ring>=3&&learnt.brief>=1&&learnt.side>=1;
   const learn=k=>{ if(known()) return; learnt[k]=(learnt[k]||0)+1; try{ localStorage.setItem(HINT,JSON.stringify(learnt)) }catch(e){} if(known()) hint.classList.add('gone') };
   if(known()) hint.classList.add('gone');
-  function menu(on){ opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
+  function menu(on){ layer('plus',on,()=>menu(false)); opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
   plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); haptic('open') });
   opts.addEventListener('click',e=>{ if(e.target.closest('button')) menu(false) });
   document.addEventListener('pointerdown',e=>{ if(opts.classList.contains('show')&&!e.target.closest('#opts,#plus')) menu(false) });
@@ -215,7 +216,7 @@ function openFromRing(id,color,to){
   function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
   // Only the place in view takes focus or taps; the others are inert (audit fix 5).
   function inertAll(){ home.inert=view!=='home'; brief.inert=view!=='brief'; side.inert=view!=='side' }
-  function go(v,ms,velocity={}){ const was=view; view=v; takePages(); hush(); const run=pageRun;
+  function go(v,ms,velocity={}){ const was=view; view=v; onTop(v,()=>go('home')); takePages(); hush(); const run=pageRun;
     // Preserve the flick clock; the dim and home scale use these same progress values.
     const timeScale=(ms??(parseFloat(getComputedStyle(root).getPropertyValue('--d-page'))||460))/410;
     briefMotion.to(v==='brief'?1:0,{spring:springs.page,velocity:velocity.b,timeScale});

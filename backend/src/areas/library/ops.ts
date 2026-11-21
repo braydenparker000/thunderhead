@@ -191,7 +191,8 @@ export function update(db: Db, j: store.JobRow, u: IngestUpdate, now: number): v
     store.setState(db, b.id, 'failed', now, { ...facts, reason: u.reason });
     store.updateJob(db, { ...j, state: 'failed', cursor, last_error: 'reported', updated_at: now });
   } else if (u.state === 'paused') {
-    if (u.pdf_pages || u.sha256) store.setState(db, b.id, b.state, now, facts);
+    // A reason (OCR missing) is the line the cover shows while it waits; the next state clears it.
+    if (u.pdf_pages || u.sha256 || u.reason) store.setState(db, b.id, b.state, now, { ...facts, reason: u.reason });
     store.updateJob(db, { ...j, state: 'paused', cursor, claimed_by: null, claimed_at: null, updated_at: now });
   } else {
     store.setState(db, b.id, u.state, now, facts);

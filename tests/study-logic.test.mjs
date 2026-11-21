@@ -71,6 +71,8 @@ test('the lines under a cover, page numbers and the Continue row', () => {
   assert.equal(stateLine(book({ state: 'extracting', read_pages: 120 })), 'Reading… 120 of 512 pages');
   assert.equal(stateLine(book({ state: 'ocr', read_pages: 40 })), 'Reading scanned pages… 40 of 512 pages');
   assert.equal(stateLine(book({ state: 'indexing', paused: true })), 'Indexing… (continues tonight)');
+  const why = "Some pages are scans, and reading scans isn't set up yet. It goes on once it is.";
+  assert.equal(stateLine(book({ state: 'indexing', paused: true, state_reason: why })), why, 'a paused run with a reason says it');
   assert.equal(stateLine(book({ state: 'failed' })), "Couldn't read this book.");
   assert.equal(stateLine(book({ state: 'ready' })), '');
   assert.equal(pageName(230, '212'), 'p. 212');

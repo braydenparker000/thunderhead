@@ -5,7 +5,7 @@
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import type { ChangesResponse, LiveTicket, LiveWaitResponse } from '../../../../shared/contract/api';
-import { type AppEnv, deviceOf, guard } from '../../http/auth';
+import { type AppEnv, deviceOf, guard, principalOf } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { parse } from '../../http/validate';
@@ -14,6 +14,7 @@ import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { tokenHash } from '../auth/crypto';
 import { newLiveTicket } from '../auth/tokens';
+import { changesForAgent, takeForAgent } from './device-only';
 import { waitForChange } from './wait';
 
 const TICKET_MS = 30_000;
@@ -61,12 +62,14 @@ export const feedRoutes = new Hono<AppEnv>()
     const ms = Math.min(q.timeout ?? 25, 25) * 1000;
     const core = coreObject(c.env);
     const who = callerOf(c);
-    let take = await core.liveTake(who, q.after);
+    // The mind never hears of a notice (device-only.ts); a take of only those waits on.
+    let take = takeForAgent(await core.liveTake(who, q.after));
     if (!take.changed && take.signals.length === 0 && (await waitForChange(c.env, take.seq, ms)) === 'changed')
-      take = await core.liveTake(who, take.seq);
+      take = takeForAgent(await core.liveTake(who, take.seq));
     return c.json(take satisfies LiveWaitResponse);
   })
   .get('/changes', guard('GET /v1/changes'), async (c) => {
     const q = parse(changesQuery, c.req.query());
-    return c.json(value(await coreObject(c.env).changes(q.after, q.limit ?? 200)) satisfies ChangesResponse);
+    const page = value(await coreObject(c.env).changes(q.after, q.limit ?? 200));
+    return c.json((principalOf(c).kind === 'device' ? page : changesForAgent(page)) satisfies ChangesResponse);
   });

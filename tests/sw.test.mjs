@@ -6,10 +6,11 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { APP_ROUTES, PORTED, precached, swJs } from '../scripts/site-config.mjs';
 import { buildSprite } from '../scripts/icons.mjs';
-import { checkDue, safeToApply, CHECK_EVERY_MS } from '../frontend/th/update-rules.js';
+import { checkDue, safeNow, safeToApply, safeWhenHidden, CHECK_EVERY_MS } from '../frontend/th/update-rules.js';
 import { loadWorker } from './fixtures/sw-harness.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
@@ -42,9 +43,10 @@ test('stage writes the build into sw.js and a precache list whose sizes match th
   assert.match(readFileSync(join(out, 'sw.js'), 'utf8'), new RegExp(`^const BUILD = ${build};$`, 'm'));
   assert.match(readFileSync(join(out, 'config.js'), 'utf8'), new RegExp(`"build":${build}`));
   assert.ok(files.length > 20);
-  for (const { path, size } of files) {
+  for (const { path, size, hash } of files) {
     assert.ok(precached(path), path);
     assert.equal(statSync(join(out, path)).size, size, path);
+    assert.equal(hash, createHash('sha256').update(readFileSync(join(out, path))).digest('hex'), `${path}: its hash, so a later release copies it unchanged`);
   }
   for (const page of ['index.html', 'signin/index.html', 'setup/index.html', 'recover/index.html', '404.html'])
     assert.ok(files.some((f) => f.path === page), page);
@@ -60,12 +62,44 @@ test('stage writes the build into sw.js and a precache list whose sizes match th
 });
 
 test('an update applies only when nothing plays, nothing is typed and nothing is open', () => {
-  const calm = { visible: true, playing: false, typing: false, overlay: false };
+  const calm = { visible: true, playing: false, typing: false, overlay: false, written: false, busy: false };
   assert.equal(safeToApply(calm), true);
-  for (const key of ['playing', 'typing', 'overlay']) assert.equal(safeToApply({ ...calm, [key]: true }), false, key);
+  for (const key of ['playing', 'typing', 'overlay', 'busy']) assert.equal(safeToApply({ ...calm, [key]: true }), false, key);
   assert.equal(safeToApply({ ...calm, visible: false }), false);
   assert.equal(checkDue(0, CHECK_EVERY_MS - 1), false);
   assert.equal(checkDue(0, CHECK_EVERY_MS), true);
+});
+
+test('out of view is the safest moment, but never over something under way, playing or written', () => {
+  const away = { visible: false, playing: false, typing: false, overlay: false, written: false, busy: false };
+  assert.equal(safeWhenHidden(away), true);
+  assert.equal(safeNow(away), true, 'a page out of view applies the waiting update');
+  assert.equal(safeNow({ ...away, typing: true }), true, 'a field with focus and no text holds nothing to lose');
+  for (const key of ['playing', 'written', 'overlay', 'busy']) {
+    assert.equal(safeWhenHidden({ ...away, [key]: true }), false, key);
+    assert.equal(safeNow({ ...away, [key]: true }), false, key);
+  }
+  assert.equal(safeNow({ ...away, visible: true, typing: true }), false, 'in view, focus in a field still waits');
+});
+
+test('what the shell counts as under way is each place\'s real class: memo, picked files, dictation, Remind, an old conversation, a place but home', () => {
+  const update = readFileSync(join(SITE, 'th/update.js'), 'utf8');
+  const busy = /const BUSY = '([^']+)';/.exec(update)[1].split(',').map((s) => s.trim());
+  assert.deepEqual(busy, ['#ask.recording', '#ask.hasfiles', '#ask.listening', '#ask.finishing', '.remind', '#home.pastview', '#home[inert]']);
+  assert.match(update, /busy: document\.querySelector\(BUSY\) !== null/);
+  const where = {
+    'th/attach/memo.js': /ask\.classList\.add\('recording'\)/,
+    'th/attach/tray.js': /ask\.classList\.toggle\('hasfiles'/,
+    'th/dictate/mic.js': /ask\.classList\.toggle\('listening'[\s\S]*ask\.classList\.toggle\('finishing'/,
+    'th/attach/remind.js': /sheet\.className = 'remind'/,
+    'th/convos/past.js': /home\.classList\.add\('pastview'\)/,
+    'apps/home/home.js': /home\.inert=view!=='home'/,
+  };
+  for (const [file, set] of Object.entries(where)) assert.match(readFileSync(join(SITE, file), 'utf8'), set, file);
+  // a stopped memo becomes a picked file (so #ask.hasfiles holds it until it is sent)
+  assert.match(readFileSync(join(SITE, 'th/attach/memo.js'), 'utf8'), /add\(\[\{ id: uuidv7\(\), name, type/);
+  // the page going out of view tries the waiting update
+  assert.match(update, /visibilityState !== 'visible'\) return void tryApply\(\)/);
 });
 
 test('the kill switch clears th-* caches and unregisters (OPERATIONS.md §3.3)', () => {
@@ -160,4 +194,81 @@ test('a fetch that is not a photo\'s upload is left alone; a tap on its notifica
   assert.equal(w.fetched.length, 0);
   assert.equal(w.told.length, 0);
   assert.ok(w.listeners.has('backgroundfetchclick'));
+});
+
+// A release fetches only what changed (ARCHITECTURE.md §8.2): /precache.json lists each file with its size and
+// hash; a file the release before kept whole has with the same hash is copied from its cache.
+const sha = (s) => createHash('sha256').update(s).digest('hex');
+function release(build, bodies, { short = '' } = {}) {
+  const list = { build, files: Object.entries(bodies).map(([path, body]) => ({ path, size: Buffer.byteLength(body), hash: sha(body) })) };
+  return async (url) => {
+    if (url === '/precache.json') return new Response(JSON.stringify(list));
+    const path = url.slice(1);
+    if (!(path in bodies)) return new Response('missing', { status: 404 });
+    return new Response(path === short ? bodies[path].slice(0, -1) : bodies[path]);
+  };
+}
+const ONE = { 'index.html': '<!doctype html>one', 'th/a.js': 'export const a = 1;', 'config.js': 'export const CONFIG = {"build":1};' };
+const TWO = { ...ONE, 'th/a.js': 'export const a = 2;', 'config.js': 'export const CONFIG = {"build":2};' };
+
+test('a second release fetches only its changed files and copies the rest from the release before', async () => {
+  const first = loadWorker(release(1, ONE), { build: 1 });
+  await first.dispatch('install', {});
+  assert.deepEqual(first.fetched.map((f) => f.url).sort(), ['/config.js', '/index.html', '/precache.json', '/th/a.js']);
+  const second = loadWorker(release(2, TWO), { build: 2 });
+  for (const [name, map] of first.stores) second.stores.set(name, map);
+  await second.dispatch('install', {});
+  assert.deepEqual(second.fetched.map((f) => f.url).sort(), ['/config.js', '/precache.json', '/th/a.js'], 'index.html came from th-1');
+  const kept = second.stores.get('th-2');
+  for (const [path, body] of Object.entries(TWO)) assert.equal(Buffer.from(kept.get(`/${path}`).bytes).toString(), body, path);
+  assert.ok(kept.has('/precache.json'), 'the list goes in last, saying the release is whole');
+});
+
+test('a copy whose bytes are not the listed size is fetched; a half-uploaded file still fails the install whole', async () => {
+  const first = loadWorker(release(1, ONE), { build: 1 });
+  await first.dispatch('install', {});
+  first.stores.get('th-1').get('/index.html').bytes = new TextEncoder().encode('<!doctype html>on');
+  const second = loadWorker(release(2, TWO), { build: 2 });
+  second.stores.set('th-1', first.stores.get('th-1'));
+  await second.dispatch('install', {});
+  assert.ok(second.fetched.some((f) => f.url === '/index.html'), 'the short copy is not trusted');
+  const broken = loadWorker(release(2, TWO, { short: 'th/a.js' }), { build: 2 });
+  broken.stores.set('th-1', first.stores.get('th-1'));
+  await assert.rejects(broken.dispatch('install', {}), /\/th\/a\.js: 200, 18 of 19 bytes/);
+  assert.ok(!broken.stores.get('th-2')?.has('/precache.json'), 'a failed install never says it is whole');
+});
+
+test('config.js comes from the release\'s cache, never waiting on the network; release.json is read fresh', async () => {
+  const w = loadWorker(release(1, ONE), { build: 1 });
+  await w.dispatch('install', {});
+  w.fetched.length = 0;
+  const ask = async (path) => {
+    let answer;
+    w.listeners.get('fetch')({ request: new Request(`https://site.example.test${path}`), respondWith: (p) => { answer = p; } });
+    return answer;
+  };
+  assert.equal(await (await ask('/config.js')).text(), ONE['config.js']);
+  assert.deepEqual(w.fetched, [], 'no network for config.js');
+  await ask('/release.json').catch(() => {});
+  assert.equal(w.fetched[0]?.url, 'https://site.example.test/release.json');
+  assert.doesNotMatch(readFileSync(join(SITE, 'sw.js'), 'utf8'), /FRESH = \[[^\]]*config\.js/);
+});
+
+test('a subscription the push service replaced is made again with the same key and sent with the session', async () => {
+  const w = loadWorker(async (url, init) => {
+    if (url === '/config.js') return new Response('export const CONFIG = {"api":"https://api.example.test"};');
+    return new Response(null, { status: url === 'https://api.example.test/v1/push/subscription' && init.method === 'PUT' ? 204 : 404 });
+  });
+  w.dbs.set('th-auth', new Map([['session', { token: 'th1_example-session' }]]));
+  const key = new Uint8Array([4, 1, 2, 3]).buffer, asked = [];
+  w.self.registration.pushManager = {
+    subscribe: async (o) => { asked.push(o); return { toJSON: () => ({ endpoint: 'https://push.example.test/new', keys: { p256dh: 'BNew', auth: 'fresh' } }) }; },
+  };
+  await w.dispatch('pushsubscriptionchange', { oldSubscription: { options: { applicationServerKey: key } } });
+  assert.equal(asked[0].applicationServerKey, key);
+  assert.equal(asked[0].userVisibleOnly, true);
+  const put = w.fetched.find((f) => f.method === 'PUT');
+  assert.equal(put.url, 'https://api.example.test/v1/push/subscription');
+  assert.equal(put.headers.Authorization, 'Bearer th1_example-session');
+  assert.deepEqual(JSON.parse(put.body), { endpoint: 'https://push.example.test/new', keys: { p256dh: 'BNew', auth: 'fresh' } });
 });

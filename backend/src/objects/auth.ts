@@ -3,8 +3,6 @@
 // password hash never stalls Core, and so sign-in data stays out of Core's exports and backups.
 import type {
   AgentItem,
-  AuthStateResponse,
-  BreakglassResponse,
   DeviceMe,
   NewAgentResponse,
   SessionItem,
@@ -53,7 +51,7 @@ export class Auth extends OwnerObject {
     };
   }
 
-  state(fp: string | null, resetFp: string | null): AuthStateResponse {
+  state(fp: string | null, resetFp: string | null): reset.StateResult {
     return reset.state(this.deps, fp, resetFp);
   }
   setup(input: flows.SetupInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode>> {
@@ -62,7 +60,7 @@ export class Auth extends OwnerObject {
   login(input: flows.LoginInput, meta: flows.RequestMeta): Promise<R<SignedIn & Revoked>> {
     return flows.login(this.deps, input, meta);
   }
-  recover(input: flows.RecoverInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode & Revoked>> {
+  recover(input: flows.RecoverInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode & Revoked> & flows.Opened> {
     return flows.recover(this.deps, input, meta);
   }
   /** Whether a device session is still signed in (the live socket checks it, API.md §12). */
@@ -114,13 +112,10 @@ export class Auth extends OwnerObject {
   revokeAgent(id: string): number {
     return agents.revoke(this.deps, id);
   }
-  breakglass(fp: string): Promise<R<BreakglassResponse>> {
-    return reset.breakglass(this.deps, fp);
-  }
   cancelReset(sessionId: string, label: string, ticketId: string): R<object> {
     return reset.cancel(this.deps, ticketId, label, sessionId);
   }
-  prune(): { sessions: number; counters: number; notices: number; pushes: number } {
+  prune(): reset.Pruned {
     grant.pruneStates(this.db, Date.now());
     return reset.prune(this.deps);
   }

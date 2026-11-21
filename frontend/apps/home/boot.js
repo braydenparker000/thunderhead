@@ -79,12 +79,24 @@ async function start() {
   // Push (SECURITY.md §10): when it is on, the subscription follows a replaced key and a new sign-in.
   if ('Notification' in window && Notification.permission === 'granted')
     requestAnimationFrame(() => setTimeout(() => import('/th/push/phone.js').then((m) => m.recheck()).catch(() => {}), 0));
-  try {
-    const me = await signedIn((t) => api.me(t));
-    notices(me.notices ?? [], open);
-  } catch (e) {
-    if (failure(e).kind === 'api') toast(lineFor(failure(e)));
-  }
+  const show = notices(open);
+  // One /v1/auth/me at a time; a change heard meanwhile asks once more after it.
+  let busy = false, again = false;
+  const load = async (first = false) => {
+    if (busy) { again = true; return; }
+    busy = true;
+    try {
+      do {
+        again = false;
+        try { show((await signedIn((t) => api.me(t))).notices ?? []); } catch (e) { if (first && failure(e).kind === 'api') toast(lineFor(failure(e))); }
+      } while (again);
+    } finally { busy = false; }
+  };
+  // A notice made or answered elsewhere (a reset requested, a new sign-in) comes as a `notice` change.
+  document.addEventListener('th:changed', (e) => {
+    if ((/** @type {CustomEvent<string[]>} */ (e).detail ?? []).includes('notice')) void load();
+  });
+  await load(true);
 }
 
 /** Something shared from another app (the manifest's share target, IDEAS.md HM3): it waits in the ask
@@ -122,17 +134,29 @@ function menuCode() {
 
 const hidden = (id) => { try { return localStorage.getItem(`th.p.hide.${id}`) === '1'; } catch { return false; } };
 
-function notices(items, open) {
+/** Home's notice cards; the returned function shows a fresh list from /v1/auth/me: new cards
+ * join, and ones answered or ended elsewhere fold. */
+function notices(open) {
   const turns = document.querySelector('#turns');
   const edge = document.querySelector('#edge');
-  const shown = items.filter((n) => !hidden(n.id));
+  /** @type {Map<string, HTMLElement>} */
+  const cards = new Map();
   // Gold while any card needs the owner: a notice here, or a decision card (th/decide/card.js).
   const glow = () => edge?.classList.toggle('gold', document.querySelector('#convo .card.notice:not(.gone), #decision .card:not(.gone)') !== null);
-  for (const n of shown) {
+  const fold = (id) => { const card = cards.get(id); cards.delete(id); card?.classList.add('gone'); setTimeout(() => card?.remove(), 600); glow(); };
+  return (items) => {
+    const shown = items.filter((n) => !hidden(n.id));
+    for (const id of [...cards.keys()]) if (!shown.some((n) => n.id === id)) fold(id);
+    for (const n of shown) if (!cards.has(n.id)) add(n);
+    document.querySelector('#hint')?.classList.toggle('gone', cards.size > 0);
+    glow();
+  };
+
+  function add(n) {
     const c = noticeCard(n);
     const buttons = c.buttons.map((b) => {
       const btn = el('button', { type: 'button', class: b.primary ? 'yes' : '', text: b.label });
-      btn.addEventListener('click', () => act(n, b.act, card, btn));
+      btn.addEventListener('click', () => act(n, b.act, btn));
       return btn;
     });
     const card = el('div', { class: 'card notice', role: 'group', 'aria-label': 'Security notice' }, [
@@ -140,24 +164,22 @@ function notices(items, open) {
       el('div', { class: 'q', text: c.text }),
       el('div', { class: 'decide' }, buttons),
     ]);
+    cards.set(n.id, card);
     turns.append(card);
   }
-  document.querySelector('#hint')?.classList.toggle('gone', shown.length > 0);
-  glow();
 
-  async function act(n, what, card, btn) {
+  async function act(n, what, btn) {
     if (tooSoon()) return;
-    const fold = () => { card.classList.add('gone'); setTimeout(() => card.remove(), 600); glow(); };
     if (what === 'hide') {
       try { localStorage.setItem(`th.p.hide.${n.id}`, '1'); } catch {}
-      fold();
+      fold(n.id);
       return;
     }
     btn.disabled = true;
     try {
       if (what === 'cancel_reset') await signedIn((t) => api.cancelReset(t, n.args.ticket_id));
       else await signedIn((t) => api.ackNotice(t, n.id, what === 'agents' ? 'ok' : what));
-      fold();
+      fold(n.id);
       if (what === 'agents') open('agents');
       if (what === 'cancel_reset') toast('Reset cancelled');
       if (what === 'not_me') toast(n.kind === 'agent_key_created' ? 'Key revoked' : 'Signed out');

@@ -1,21 +1,32 @@
 // @ts-check
 // Podcasts' progress on the Worker (NEXT-BATCH.md part 7, PODCASTS.md §5.4), for the ported app,
 // which keeps where each episode was left and the shows it follows in its own storage
-// (`jarvis.podcasts.v1`, podcasts/core.js) and is otherwise unchanged. Its one edit for this loads
-// this module and waits for `opened(by)` before it reads that storage, at most 1.5 s (`by` is when
-// it stops waiting, in the page's time):
+// (`jarvis.podcasts.v1`, podcasts/core.js). Its edit for this loads this module and waits for
+// `opened(by)` before it reads that storage, at most 400 ms (`by` is when it stops waiting, in the
+// page's time), then hands this module its live state (`attach`):
 // - on open, what the Worker took since the last time (GET /v1/podcasts/progress?since=) is merged
 //   into the app's storage before the app reads it, the newer `updatedAt` winning, so an episode
-//   left on another phone resumes where it was. A pull that comes back at `by` or later is not
-//   applied (the app has read its storage then, and would write over it); `since` stays, so the
-//   next open brings it; the mind's pending intents for the shows and Up Next go into the same
-//   write (th/podcasts/intents.js), reported once it is saved;
+//   left on another phone resumes where it was; the mind's pending intents for the shows and Up Next
+//   go into the same write (th/podcasts/intents.js), reported once it is saved. A pull that comes
+//   back at `by` or later goes into the app's state in memory instead (the app rewrites all its
+//   storage from that state on each save, so storage alone would be written over), held until the
+//   app attaches if it has not yet; its intents wait for the next open;
+// - the newest position always wins: the pull runs again when the page becomes visible and before
+//   each episode plays (`refresh`), into the live state the same way; the app offers a jump
+//   further than 30 s rather than seeking under the listener (`resumeOffer`);
 // - then, and on pause, on hiding the page, every 60 s while an episode plays and when the network
 //   returns, the positions the Worker doesn't have yet go up (PUT, ≤ 100 and < 60 KB a request),
 //   and so do the follows and unfollows since the last time (PUT /v1/podcasts/follows), so the night
-//   knows the shows. Follows go up only: a second copy of the app open on this phone (another tab)
-//   can write its older list over the storage, and taking a show missing from it as an unfollow is
-//   right only for what this phone's app shows, never for what came from another phone.
+//   knows the shows;
+// - follows come down too, on the same pulls (GET /v1/podcasts/follows?since=, alongside the
+//   positions: one more read a pull, an empty page when nothing changed), so a phone signed in again
+//   gets its shows back: a show the account follows and the app lacks is added (`applyFollows`). A
+//   pull never removes a show: a show missing from the account, or one it has as unfollowed, stays
+//   (a second copy of the app open on this phone can write its older list over the storage, so a
+//   missing show proves nothing). This phone's own word stands: a show it follows (listed or not: an
+//   unlisted one is an unfollow not yet sent) or unfollowed at least as recently is left alone, so an
+//   unfollow made here goes up and the next pull does not bring the show back (the Worker keeps an
+//   unfollow 30 days, newer wins). Up Next, downloads and speed stay on one phone.
 // Times: the app stamps its saves with the phone's clock, which may be off. Every answer from the
 // Worker carries its own clock (`at`, `next_since`), so this module keeps the difference (`offset`,
 // Worker minus phone, from the middle of each request, always taken) and sends times on the Worker's clock, and
@@ -62,6 +73,14 @@ const PAGES = 6;
 /** The pending intents must be in this long before the app reads its storage, or wait. */
 const INTENTS_SPARE_MS = 50;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
+/** A pull gives up after this long. */
+const PULL_MS = 15_000;
+/** A pulled position further on than the one playing by more than this is offered, not jumped to. */
+export const RESUME_GAP_S = 30;
+/** The app keeps at most this many shows (podcasts/core.js `readState`). */
+const FOLLOWS_MAX = 100;
+/** Whether to offer the pulled position (seconds) instead of the one the listener is at. @param {number} pulled @param {number} here */
+export const resumeOffer = (pulled, here) => Number(pulled) - (Number(here) || 0) > RESUME_GAP_S;
 
 /** @typedef {{ position?: number, duration?: number, played?: boolean, updatedAt?: number, episode?: unknown }} Entry */
 /** @typedef {{ progress: Record<string, Entry>, follows: { feedUrl: string, title?: string, author?: string, artwork?: string }[], [k: string]: unknown }} App */
@@ -69,9 +88,11 @@ const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
 /** `sent`: per key, the app's own `updatedAt` (phone clock) of the version the Worker has. `offset`:
  * the Worker's clock minus the phone's, ms. `looked`: this phone has looked at the follows once (a
  * first look only learns them, so it sends no follow senses).
- * @typedef {{ v: 1, since: { progress: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number, looked?: boolean }} Memory */
+ * @typedef {{ v: 1, since: { progress: number, follows?: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number, looked?: boolean }} Memory */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastProgress} Progress */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastFollow} Follow */
+/** A pull: the positions, and the follows (null when their read failed: `since.follows` stays).
+ * @typedef {{ items: Progress[], next_since: number, follows: { items: Follow[], next_since: number } | null }} Pulled */
 
 export const deps = {
   /** @type {typeof fetch} */
@@ -164,8 +185,8 @@ export function setOffset(mem, at, t0, t1) {
 
 /** Remote positions into the app's state where they are newer than its own (on the Worker's clock);
  * the episode's details the app keeps stay, and its time goes back onto the phone's clock. Returns
- * how many changed. @param {App} app @param {Memory} mem @param {Progress[]} items */
-export function applyProgress(app, mem, items) {
+ * how many changed, their keys added to `moved`. @param {App} app @param {Memory} mem @param {Progress[]} items @param {string[]} [moved] */
+export function applyProgress(app, mem, items, moved = []) {
   const offset = mem.offset ?? 0;
   let n = 0;
   for (const p of items) {
@@ -177,6 +198,7 @@ export function applyProgress(app, mem, items) {
     }
     app.progress[p.key] = { ...here, position: p.position_s, duration: p.duration_s, played: p.played, updatedAt: local };
     mem.sent[p.key] = local;
+    moved.push(p.key);
     n++;
   }
   return n;
@@ -213,6 +235,32 @@ export function noteFollows(app, mem, now) {
   }
   return n;
 }
+/** The account's follows into the app's state: a followed show the app lacks is added, unless this
+ * phone's own word on it stands (followed here, listed or not, or unfollowed at least as recently, on
+ * the Worker's clock); nothing is ever removed. Returns how many shows were added; the addresses this
+ * phone now knows from the account go into `changed`. @param {App} app @param {Memory} mem
+ * @param {Follow[]} rows @param {string[]} [changed] */
+export function applyFollows(app, mem, rows, changed = []) {
+  const offset = mem.offset ?? 0;
+  let n = 0;
+  for (const f of rows) {
+    const url = f?.feed_url;
+    if (!f?.followed || typeof url !== 'string' || feedProblem(url)) continue;
+    const k = mem.follows[url];
+    if (k && (k.followed || k.at + offset >= f.updated_at)) continue;
+    const listed = app.follows.some((s) => s?.feedUrl === url);
+    // Past the app's cap the show is not known either, or its absence would go up as an unfollow.
+    if (!listed && app.follows.length >= FOLLOWS_MAX) continue;
+    const show = { title: text(f.title, L.title_chars), author: text(f.author, L.author_chars), artwork: artwork(f.artwork) };
+    mem.follows[url] = { followed: true, at: Math.round(f.updated_at - offset), sent: true, ...show };
+    changed.push(url);
+    if (listed) continue;
+    app.follows.push({ feedUrl: url, ...show });
+    n++;
+  }
+  return n;
+}
+
 /** The follows not sent yet, their times on the Worker's clock. @param {Memory} mem @returns {Follow[]} */
 export const followsToSend = (mem) =>
   Object.entries(mem.follows)
@@ -270,14 +318,15 @@ async function call(method, path, t, o = {}) {
 }
 
 /** Every page of what changed since `since`, or null; the clock's offset kept from the answers.
- * @param {Memory} mem @param {string} t @param {AbortSignal} signal */
-async function pull(mem, t, signal) {
-  /** @type {Progress[]} */
+ * @param {string} path @param {number} since @param {Memory} mem @param {string} t @param {AbortSignal} signal
+ * @returns {Promise<{ items: any[], next_since: number } | null>} */
+async function pages(path, since, mem, t, signal) {
+  /** @type {any[]} */
   const items = [];
-  let q = `since=${mem.since.progress}`;
+  let q = `since=${since}`;
   for (let page = 0; page < PAGES; page++) {
     const t0 = deps.now();
-    const r = await call('GET', `progress?${q}`, t, { signal });
+    const r = await call('GET', `${path}?${q}`, t, { signal });
     if (!r?.ok) {
       if (r && [401, 403].includes(r.status)) token = null;
       return null;
@@ -290,24 +339,46 @@ async function pull(mem, t, signal) {
   }
   return null;
 }
+/** The positions and the follows changed since this phone last asked, both at once; null when the
+ * positions could not be read. @param {Memory} mem @param {string} t @param {AbortSignal} signal
+ * @returns {Promise<Pulled | null>} */
+async function pull(mem, t, signal) {
+  const [progress, follows] = await Promise.all([
+    pages('progress', mem.since.progress, mem, t, signal),
+    pages('follows', mem.since.follows ?? 0, mem, t, signal),
+  ]);
+  return progress && { ...progress, follows };
+}
 
 /** On open: the Worker's newer positions into the app's storage, if back before `by` (the page's
  * time when the app stops waiting: it reads its storage at `by` or later, never before; the check
- * and the write below run in one go, so nothing of the app runs between them).
+ * and the write below run in one go, so nothing of the app runs between them); a later answer goes
+ * into the live app (`deliver`). Resolves by `by`, the late part going on behind.
  * @param {number} by */
-export async function open(by) {
+export function open(by) {
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  const wait = new Promise((done) => {
+    timer = setTimeout(done, Math.max(0, by - deps.sincePage()));
+  });
+  return Promise.race([merge(by), wait]).finally(() => clearTimeout(timer));
+}
+/** @param {number} by */
+async function merge(by) {
   if (!deps.api() || !deps.online() || deps.sincePage() >= by) return;
   const t = await tokenOf();
   if (!t) return;
   const stop = new AbortController();
-  const timer = setTimeout(() => stop.abort(), Math.max(0, by - deps.sincePage()));
+  // A late answer is still taken (into the live app, `deliver`), within the request's own time.
+  const timer = setTimeout(() => stop.abort(), PULL_MS);
   try {
     const storage = deps.storage();
     const mem = loadMemory(storage);
     const got = await pull(mem, t, stop.signal);
-    if (!got || deps.sincePage() >= by) return;
+    if (!got) return;
+    if (deps.sincePage() >= by) return deliver(mem, got);
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
-    const moved = applyProgress(app, mem, got.items);
+    const moved = applyProgress(app, mem, got.items) + applyFollows(app, mem, got.follows?.items ?? []);
     // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), applied to a
     // copy and kept only if they were all in before `by` (less a moment for the write), into the
     // same write; reported only once it is saved. Late, or no answer: the positions go alone, and
@@ -318,16 +389,79 @@ export async function open(by) {
       new Promise((done) => setTimeout(() => done(null), Math.max(0, by - deps.sincePage() - INTENTS_SPARE_MS))),
     ]);
     const out = intents ? draft : app;
-    if (deps.sincePage() >= by) return;
+    if (deps.sincePage() >= by) return deliver(mem, got);
     if ((moved || intents?.done.length) && !save(storage, APP_KEY, out)) return;
     mem.since.progress = got.next_since;
+    if (got.follows) mem.since.follows = got.follows.next_since;
     save(storage, SYNC_KEY, mem);
     void intents?.send().catch(() => {});
   } catch {
-    // Late or refused: nothing applied, `since` kept for the next open.
+    // Refused or no answer: nothing applied, `since` kept for the next open.
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The app once it runs (podcasts/app.js): its state in memory, its save, and what to do once
+ * positions or follows came in (the keys of the positions, then the addresses of the shows, which
+ * never match a key: any of them repaints). @typedef {{ state: () => App, commit: () => boolean, pulled: (keys: string[]) => void }} Live */
+/** @type {Live | null} */
+let live = null;
+/** A pull that came back before the app attached. @type {{ mem: Memory, got: Pulled } | null} */
+let held = null;
+
+/** A pull into the live app's state (newer wins), saved by the app's own save, `since` moved on;
+ * held until the app attaches. @param {Memory} mem @param {Pulled} got */
+function deliver(mem, got) {
+  if (!live) {
+    held = { mem, got };
+    return;
+  }
+  /** @type {string[]} */
+  const keys = [];
+  /** @type {string[]} */
+  const shows = [];
+  const moved = applyProgress(live.state(), mem, got.items, keys) + applyFollows(live.state(), mem, got.follows?.items ?? [], shows);
+  if (moved && !live.commit()) return;
+  // Onto what is kept now: a send may have written since this pull began.
+  const storage = deps.storage();
+  const latest = loadMemory(storage);
+  for (const [k, at] of Object.entries(mem.sent)) latest.sent[k] = Math.max(latest.sent[k] ?? 0, at);
+  for (const url of shows) {
+    const k = latest.follows[url];
+    if (!k || (!k.followed && k.at < mem.follows[url].at)) latest.follows[url] = mem.follows[url];
+  }
+  latest.since = { ...latest.since, progress: got.next_since, ...(got.follows ? { follows: got.follows.next_since } : {}) };
+  if (mem.offset !== undefined) latest.offset = mem.offset;
+  save(storage, SYNC_KEY, latest);
+  live.pulled([...keys, ...shows]);
+}
+
+/** The app hands over its live state once it has read its storage. @param {Live} app */
+export function attach(app) {
+  live = app;
+  const late = held;
+  held = null;
+  if (late) deliver(late.mem, late.got);
+}
+
+/** @type {Promise<void> | null} */
+let pulling = null;
+/** The Worker's newer positions into the live app now (on becoming visible, before an episode plays). */
+export function refresh() {
+  pulling ??= (async () => {
+    if (!live || !deps.api() || !deps.online()) return;
+    const t = await tokenOf();
+    if (!t) return;
+    const mem = loadMemory(deps.storage());
+    const got = await pull(mem, t, AbortSignal.timeout(PULL_MS));
+    if (got) deliver(mem, got);
+  })()
+    .catch(() => {})
+    .finally(() => {
+      pulling = null;
+    });
+  return pulling;
 }
 
 /** One request's items: the places the Worker refused (those stay unsent), or null to stop (no
@@ -395,6 +529,8 @@ async function pushNow() {
   // Read again: another tab may have written since (the stamps above are this one's).
   const latest = loadMemory(storage);
   for (const [k, at] of Object.entries(latest.sent)) mem.sent[k] = Math.max(mem.sent[k] ?? 0, at);
+  // And the shows a pull learned meanwhile.
+  for (const [u, k] of Object.entries(latest.follows)) mem.follows[u] ??= k;
   mem.since = latest.since;
   mem.offset ??= latest.offset;
   trim(app, mem, deps.now());
@@ -428,6 +564,9 @@ export function reset() {
   opening = null;
   pushing = null;
   again = false;
+  live = null;
+  held = null;
+  pulling = null;
 }
 
 /** After the app's own listeners (it registers them once `opened` lets it run), so its storage holds
@@ -436,7 +575,7 @@ export function wire(doc) {
   const audio = doc.getElementById('audio');
   if (audio instanceof HTMLMediaElement) listening(audio);
   for (const e of ['pause', 'ended']) audio?.addEventListener(e, () => void push());
-  addEventListener('visibilitychange', () => doc.hidden && void push());
+  addEventListener('visibilitychange', () => void (doc.hidden ? push() : refresh()));
   addEventListener('pagehide', () => void push());
   addEventListener('online', () => void push());
   setInterval(() => audio instanceof HTMLMediaElement && !audio.paused && void push(), EVERY_MS);
@@ -479,8 +618,9 @@ export function listening(audio) {
 
 /** @type {Promise<void> | null} */
 let opening = null;
-/** The app's edit calls this before it reads its storage: the open's merge, done or given up before
- * `by`; then the sync's listeners, after the app's own. Once a page. @param {number} by */
+/** The app's edit calls this before it reads its storage: the open's merge into storage, if back
+ * before `by` (else into the live app, `deliver`); then the sync's listeners, after the app's own.
+ * Once a page. @param {number} by */
 export function opened(by) {
   opening ??= open(by).finally(() => {
     if (typeof document !== 'undefined') setTimeout(() => wire(document), 0);

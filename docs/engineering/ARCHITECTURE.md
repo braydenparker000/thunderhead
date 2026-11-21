@@ -17,7 +17,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
 9. **API changes inside `/v1` are additive.** Every client request carries `TH-Client`. `/v1/health` publishes `min_client`.
 10. **Home is the one shell document; the ported apps are their own pages at first.** In P1b each existing app (Music, Guitar, Podcasts, Astra, My Media) is ported **as it is** (owner ruling 2026-10-28) and runs as its own page in its own folder, unchanged; only the new home (with the Briefing, menu, settings and sign-in) is the shell. New apps (Study) are lazily imported shell modules. Folding a ported app into the shell (so audio keeps playing across screens) is a later evolution the owner must agree to first (§7, §11).
 11. **One hand-written service worker** precaches each release as a whole and never applies an update mid-song.
-12. **Heavy work goes to its proper place** (see [JOBS.md](JOBS.md)): audio CPU work runs in Actions, addressed by sha256 only. Personal text runs in the mind's session. Row-heavy work runs as chunked DO alarm jobs. Reasoning runs only in mind sessions.
+12. **Heavy work goes to its proper place** (see [JOBS.md](JOBS.md)): audio CPU work was to run in Actions, addressed by sha256 only (the listening pass; cut 2026-11-04, [SETUP.md N6](../process/SETUP.md)). Personal text runs in the mind's session. Row-heavy work runs as chunked DO alarm jobs. Reasoning runs only in mind sessions.
 13. **No Cloudflare or Azure credential is ever inside a Claude session.** Deploy credentials live only in GitHub Actions secrets.
 14. **$0 extra.** Every design must fit the free tiers in [PERFORMANCE.md](PERFORMANCE.md). Anything that would cost money is asked first.
 15. **Ported apps keep calling the old Worker until their data moves** (Music P5, Guitar P6, Astra, Podcasts and My Media P8). They reach it because the new site's origin is added to the old Worker's allowed origins, a one-line old-Worker deploy that is asked first (§11, [MIGRATION.md §6](../archive/MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
@@ -45,7 +45,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
    ┌───────────────┴──────────────────┐   ┌──────────────┐ ┌──────────────┐                                 │ tokens: read
    │ GitHub Actions (public repo)     │   │ DO Core       │ │ DO Auth      │   later: DO Senses (P5),       │ music, write
    │ ci.yml  deploy.yml (site + api)  │   │ "owner"       │ │ "owner"      │          DO Music  (P5),       │ jobs)
-   │ jobs-audio.yml (P5, sha256 only) ├───┤ chat, ledger, │ │ password,    │          DO Library (P7)       │
+   │ (listening pass: cut 2026-11-04) ├───┤ chat, ledger, │ │ password,    │          DO Library (P7)       │
    │ wrangler deploy / rollback       │   │ proposals,    │ │ sessions,    │                                 │
    └───────────────▲──────────────────┘   │ verbs, memory │ │ agents, push │                                 │
                    │ git push (proxy)     └──────▲────────┘ └──────────────┘                                 │
@@ -93,7 +93,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | Azure OIDC (the old site's app registration, Storage Blob Data Contributor on the `thunderhead*` account) | Federated trust; IDs as GitHub secrets | Write `$web` | Claude sessions |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account) | GitHub secret | Deploy, roll back, set Worker secrets | Claude sessions |
 | R2 sign key (Object Read on `jarvis-music` + `thunderhead-private`) | Worker secrets `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Presign GETs | Actions, sessions |
-| R2 Actions key (read `jarvis-music` only) and the `jobs-audio` `ci` key | GitHub environment `jobs` | Read audio bytes by sha256; send job results through the Worker | The Worker, sessions |
+| R2 Actions key (read `jarvis-music` only) and the `jobs-audio` `ci` key: **cut 2026-11-04** with the listening pass (SETUP.md N6 says what to remove) | GitHub environment `jobs` | Read audio bytes by sha256; send job results through the Worker | The Worker, sessions |
 | Mind fire secrets `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN`, `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` (P4) (names as in [RUNTIME.md §2](../mind/RUNTIME.md)) | Worker secrets | Fire `mind-chat`, `mind-night`, `mind-reflex` with text `wake` | Everywhere else |
 
 The full inventory, with rotation steps, is in [SECURITY.md](SECURITY.md) and [OPERATIONS.md §6](OPERATIONS.md#6-secret-rotation).
@@ -120,7 +120,7 @@ thunderhead/
   AGENTS.md  CLAUDE.md  README.md      rules, entry point, commands
   package.json  package-lock.json      npm workspaces: ".", "backend", "mind"; one `npm test`
   biome.json  tsconfig.json            one lint/format config; tsc checks backend, shared, frontend JSDoc, mind
-  .github/workflows/                   checks.yml (the tests, in 4 parallel jobs), called by ci.yml (non-main pushes) and deploy.yml (test → api → site); jobs-audio.yml (P5)
+  .github/workflows/                   checks.yml (the tests, in 6 parallel jobs), called by ci.yml (non-main pushes) and deploy.yml (test → api → site); live-watch.yml (every 30 min)
   .github/dependabot.yml               monthly, grouped
   .claude/settings.json                mind hooks: SessionStart, Stop (bounded), PreToolUse per TH_ROLE
   shared/contract/                     the contract: types (api.ts refs.ts errors.ts …) and the runtime data and code the Worker, the phone and th share: the route table (routes.ts), zod schemas (verbs, surfaces, proposals, reader), the phrase lint (lint.ts), the report cleaner (reports-clean.ts); index.ts feeds scripts/contract.mjs
@@ -213,6 +213,8 @@ mind-chat session starts ─► SessionStart hook: `th brief --claim` ─► POS
 
 ### 4.4 Actions → R2 jobs → Worker
 
+**Cut 2026-11-04** with the listening pass ([SETUP.md N6](../process/SETUP.md)): there is no `jobs-audio.yml`; the steps below are kept for the record.
+
 1. `mind-night` asks `GET /v1/jobs/next?kind=audio.analysis`. It receives a spec `{job_id, kind, v, shas[]}` with sha256 keys only.
 2. It dispatches `jobs-audio.yml` with the single `workflow_dispatch` input `job_id`. The workflow fetches the spec with `TH_CI_TOKEN`, so no hash ever shows on the public run page.
 3. Actions reads `jarvis-music/native/audio/<sha256>.opus` with a read-only key. It uploads its results through the Worker (`PUT /v1/jobs/:id/files/:name`, the `ci` key), which keeps them under `thunderhead-private/jobs/incoming/<job_id>/` until collected. Logs print counts and durations only.
@@ -288,17 +290,17 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 |---|---|
 | Navigation inside scope `/`, except the ported folders (`/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/`) and `/assets/` | The cached `/index.html` from `th-<build>`; the network if it is missing. Offline still opens the app. |
 | Anything under a ported folder or `/assets/` | **Not intercepted** by the shell worker (network, or the ported app's own service worker, which keeps its own folder scope, e.g. `/music/`, as on the old site) |
-| Same-origin code, CSS, fonts, icons | Cache-first from `th-<build>`. Everything is precached at install. |
+| Same-origin code, CSS, fonts, icons, and `/config.js` | Cache-first from `th-<build>`. Everything is precached at install. `config.js` is written by the same deploy as the release and is in its precache, so a start never waits on the network for it (it is the first import of the first module). |
 | The new photo editor's own files (`/lab/editor/`, `/lab/engine/`: 13 MB, most of it the RAW decoder) | Not precached (every release would fetch them again on every phone). Kept in `th-lab-<build>` once the editor has been opened with a signal (`sw.js` `keepEditor`, from `/lab/offline.json`: each file with its size and hash, so a later release fetches only what changed and takes the rest from the release before). Served from this release's kept copy, else the network, else, with no signal, the newest release kept whole. The owner's `photos.offline` turns the keeping off. |
 | `/vendor/<lib>-<version>/…` | Cache-first from `th-vendor`, shared across builds (paths never change content). |
-| `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
+| `/release.json` | Network-first with a 3 s timeout, then cache. |
 | Worker API, WebSocket | **Not intercepted.** |
 | R2 presigned URLs | Not intercepted by the shell's worker. The ported player's own worker (`music/sw.js` with `th/music/bridge.js`, P5) fetches them for the player's library requests and passes the bytes through unchanged ([MUSIC.md](../product/apps/MUSIC.md), [SECURITY.md §4.4](SECURITY.md)). |
 | `GET /share/?title=&text=&url=` | The share target (P8, built): the shell, which puts "Shared: …" in the ask bar for the owner's words and sets the address back to `/`. Images (a `POST` the worker would take) wait. |
 
 ### 8.2 Install and activate
 
-1. `install`: fetch `/precache.json` (written by `stage.mjs`: every file except `vendor/`, the route stubs, the ported folders and `/assets/`, with sizes) with `cache: 'no-store'`, then `cache.addAll` into `th-<build>`. If any file fails, the install fails and the old worker stays.
+1. `install`: fetch `/precache.json` (written by `stage.mjs`, mirrored by `scripts/serve.mjs`: every file except `vendor/`, the route stubs, the ported folders and `/assets/`, each with its size and SHA-256 hash) with `cache: 'no-store'`. A file whose path and hash match the list of the newest earlier release kept whole (`th-<n>` holding its own `/precache.json`) is copied from that cache once its byte length equals the listed size; every other file is fetched with `cache: 'reload'` and checked against its size. The list goes into `th-<build>` last, saying the release is whole. If any file fails or is short (a half-uploaded release), the install fails and the old worker stays.
 2. `activate`: delete only caches named `th-<n>` where `n` ≠ the current build. It never deletes `th-vendor` or any cache an app created (offline audio, PDFs).
 3. Precaching all app code (not just the shell) is what stops an old shell from lazily loading a new app module.
 
@@ -306,11 +308,15 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 
 1. The shell calls `registration.update()` on `visibilitychange → visible`, at most once an hour.
 2. A new worker installs fully, then waits.
-3. The shell applies it only when **all** hold: nothing is playing, the ask bar is empty, no sheet is open, and the visible screen is home or an idle app. It then posts `{type:'skipWaiting'}`, waits for `controllerchange`, and reloads behind a 150 ms fade.
+3. The shell applies it only when **all** hold: nothing is playing, the ask bar is empty, no sheet is open, nothing the owner is making is under way, and the visible screen is home or an idle app. Under way (`th/update.js` `BUSY`): a voice memo recording (`#ask.recording`), files or a stopped memo picked and not sent (`#ask.hasfiles`), dictation (`#ask.listening`, `#ask.finishing`), the Remind sheet (`.remind`), an old conversation (`#home.pastview`), or any place but home, such as the Briefing (`#home[inert]`). It then posts `{type:'skipWaiting'}`, waits for `controllerchange`, and reloads behind a 150 ms fade. The page going out of view is the safest moment: a waiting worker is applied then, by the same rule except that the owner need not be looking and a focused but empty field holds nothing to lose (`update-rules.js` `safeWhenHidden`), and the page reloads at once.
 4. If that moment never comes, the update applies at the next cold start.
 5. `TH-Min-Client` above the running build makes the update "wanted". The shell shows the update line and applies at the next safe moment.
-6. The editor's pages (`/lab/editor/`, `/lab/engine/`) do not wait for the shell. The worker in charge serves the editor it kept, the release before's, so a phone that goes straight to them would stay on old code. When one opens with a signal it calls `registration.update()`, applies a waiting worker once nothing is open that a reload would lose (`frontend/lab/engine/fresh.js`), and reloads. Their own label is `lab/engine/build.js`, one of the kept files, so it names the code that ran; `/config.js` is always read fresh and cannot.
+6. The editor's pages (`/lab/editor/`, `/lab/engine/`) do not wait for the shell. The worker in charge serves the editor it kept, the release before's, so a phone that goes straight to them would stay on old code. When one opens with a signal it calls `registration.update()`, applies a waiting worker once nothing is open that a reload would lose (`frontend/lab/engine/fresh.js`), and reloads. Their own label is `lab/engine/build.js`, one of the kept files, so it names the code that ran; `/config.js` comes from the release in charge, not the kept editor, and cannot.
 7. When the worker in charge changes under a shell page that did not ask (rule 6), that page reloads at its own next safe moment by rule 3.
+
+### 8.3a Push subscription
+
+The worker handles `pushsubscriptionchange`: it subscribes again with the old subscription's key (or takes the browser's new one) and sends it to the Worker (`PUT /v1/push/subscription`) with this phone's stored session, as `th/push/phone.js` does. At each start `recheck()` also sends the current subscription again when it was last sent more than 24 hours ago (`th/push/due.js`; the time is kept in `localStorage` `th.push.sent`), so a subscription the Worker dropped comes back within a day. Settings' "Send a test" that reaches no phone while the switch reads On sends the subscription again and tries once more; it never asks to turn the switch off and on.
 
 ### 8.4 Kill switch
 
@@ -347,7 +353,7 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 | P2 | Threads, messages, FTS5, live WebSocket, `/v1/live/wait`, mind wakes, `th` CLI, `mind-chat` |
 | P3 | Import from the old Worker, memory v1, ledger undo for memory, `mind-night` |
 | P4 | Proposals approved by a device tap or the owner's own words, role enforcement, `mind-reflex`, watchdogs, weekly backups, restore drill, export, Muse work orders |
-| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml`; the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
+| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml` (cut 2026-11-04); the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
 | P6 | Guitar's data moves to the new Worker (Songsterr stays the tab source) |
 | P7 | `Library` + Study |
 | P8 | Briefing data (weather and app tiles); Astra, Podcasts and My Media data moves; push. Then the old Worker can retire (zero callers for 7 days, then an owner-approved proposal) |

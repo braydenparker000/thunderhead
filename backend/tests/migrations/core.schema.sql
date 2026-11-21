@@ -190,6 +190,15 @@ CREATE TABLE files (
   message_id TEXT
   ) WITHOUT ROWID;
 
+CREATE TABLE guitar_progress (
+  key TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  synced_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX guitar_progress_synced ON guitar_progress (synced_at);
+
 CREATE TABLE import_items (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
@@ -289,7 +298,7 @@ CREATE TABLE messages (
   acked_at INTEGER,
   answered_at INTEGER,
   req_sha256 TEXT
-  );
+  , refires INTEGER NOT NULL DEFAULT 0);
 
 CREATE VIRTUAL TABLE messages_fts USING fts5 (body, content = 'messages', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2');
 

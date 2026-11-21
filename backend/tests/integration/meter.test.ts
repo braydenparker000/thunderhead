@@ -27,7 +27,7 @@ const stored = async (day: string) =>
       (_o, s) => s.storage.sql.exec('SELECT * FROM meter_days WHERE day = ?', day).toArray() as Row[],
     )
   )[0];
-/** A query through the object's own Db, as its handlers make them (it reads its two schema steps),
+/** A query through the object's own Db, as its handlers make them (it reads its three schema steps),
  * and the rows it added to the caller's numbers. */
 const query = () =>
   runInDurableObject(senses(), (o) => {
@@ -54,7 +54,7 @@ describe("an object's own meter", () => {
     for (let s = 0; s <= 15 * 60; s += 30) {
       at(s * SECOND);
       // A query in which the meter writes still adds only its own rows to the caller's numbers.
-      expect(await query()).toBe(2);
+      expect(await query()).toBe(3);
       const row = await stored(DAY_T);
       if (row) writes.add(row.updated_at);
     }

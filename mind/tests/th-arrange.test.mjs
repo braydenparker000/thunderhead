@@ -17,7 +17,7 @@ const VERBS = {
 test('th help lists batch 2 with where each runs, its class and its undo, and the arrangement slots', async () => {
   const fake = await startFake({});
   try {
-    const help = (await th(['help'], env(fake))).stdout;
+    const help = (await th(['help', 'all'], env(fake))).stdout;
     for (const [name, tag] of Object.entries(VERBS)) {
       const line = help.split('\n').find(l => l.startsWith(`  ${name} v1 `));
       assert.ok(line, `${name} is listed`);

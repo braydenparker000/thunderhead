@@ -127,9 +127,31 @@ export async function expand(why) {
 export function close() { return collapse('close'); }
 addEventListener('popstate', () => { if (st.layer?.front) void collapse('Back'); });
 
+/** One sound at a time (PODCASTS.md rule 1): the media elements of a frame's player, Music's two decks
+ * (not in its document) or Podcasts' `<audio>`. @param {string} id @param {any} w @returns {EventTarget[]} */
+const decks = (id, w) => { try { return id === 'music' ? [...(w.__cp?.player?.decks ?? [])] : [...w.document.querySelectorAll('audio')]; } catch { return []; } };
+/** Pauses every other frame's player that is playing (or, Podcasts, starting), through its own pause.
+ * @param {import('./frames.js').Layer} l */
+export function hushOthers(l) {
+  for (const other of frames.values()) {
+    if (other === l) continue;
+    try {
+      const w = /** @type {any} */ (other.frame.contentWindow);
+      if (other.id === 'music') { const p = w.__cp?.player; if (p?.audio && !p.audio.paused) p.pause(); }
+      else w.__podcasts?.pause();
+    } catch {}
+  }
+}
+/** When this frame's player starts, the other one pauses. @param {import('./frames.js').Layer} l @param {any} w */
+export function oneSound(l, w) {
+  for (const el of decks(l.id, w)) el.addEventListener('play', () => hushOthers(l));
+}
+
 /** Reattach on every frame navigation, including the app's own theme reload. @param {import('./frames.js').Layer} l */
 function watch(l) {
   const w = /** @type {any} */ (l.frame.contentWindow), on = { capture:true, passive:true };
+  // Its player exists once the app has started (frames.js `loaded`), not at the frame's load.
+  void l.loaded.then(() => { if (l.frame.contentWindow === w) oneSound(l, w); });
   /** @param {string} kind @param {any} e @param {any} p */
   const send = (kind, e, p) => { if (st.layer === l && l.front) st.h?.pull(kind, w, e, p); };
   try {
@@ -150,19 +172,27 @@ function watch(l) {
 
 /**
  * The phone's commands, on the app playing behind the chat (or in front). `minutes` for 'sleep'.
+ * Podcasts' play can't know at once whether it sounds: its answer then carries `outcome`, the true one.
  * @param {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} cmd @param {number} [minutes]
- * @returns {{ ok: boolean, text: string, undo?: () => void }}
+ * @returns {{ ok: boolean, text: string, undo?: () => void, outcome?: Promise<{ ok: boolean, text: string, undo?: () => void }> }}
  */
 export function control(cmd, minutes = 30) {
   const m = media(), tick = () => st.c?.tick();
   if (!m) return { ok: false, text: 'Nothing is playing here. Open Music or Podcasts first.' };
   st.dir = cmd === 'next' || cmd === 'never' ? 1 : cmd === 'previous' ? -1 : 0;
   if (m.kind === 'podcasts') {
-    const a = m.a;
+    // The app's own calls (podcasts/app.js `__podcasts`): play loads the episode when a restore left
+    // the player without its audio, and only a player that really sounds answers "Playing.".
+    const a = m.a, app = m.w.__podcasts;
     if (cmd === 'pause') a.pause();
-    else if (cmd === 'play') void a.play().catch(() => {});
-    else if (cmd === 'next') a.currentTime = Math.min(a.duration || Infinity, a.currentTime + 30);
-    else if (cmd === 'previous') a.currentTime = Math.max(0, a.currentTime - 15);
+    else if (cmd === 'play') {
+      if (!a.paused && !a.ended) return { ok: true, text: 'Playing.' };
+      const outcome = Promise.resolve(app ? app.togglePlay() : a.play()).catch(() => {})
+        .then(() => (tick(), !a.paused && !a.ended ? { ok: true, text: 'Playing.' } : { ok: false, text: "Podcasts didn't start. Open it and tap Play." }));
+      return { ok: true, text: 'Starting.', outcome };
+    }
+    else if (cmd === 'next') app ? app.skip(30) : a.currentTime = Math.min(a.duration || Infinity, a.currentTime + 30);
+    else if (cmd === 'previous') app ? app.skip(-15) : a.currentTime = Math.max(0, a.currentTime - 15);
     else if (cmd === 'sleep') {
       const before = podSleep ? Math.ceil((podSleep.end - Date.now()) / 60_000) : 0;
       if (podSleep) clearTimeout(podSleep.timer);

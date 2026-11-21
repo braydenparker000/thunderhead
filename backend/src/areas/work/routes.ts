@@ -3,7 +3,7 @@
 // to server with its own key, says hello, claims one order at a time, posts progress lines in its
 // thread naming the order (or heartbeats it), returns its result (checked against the kind's
 // schema; 422 names each problem) or a failure. The sandbox has none of it.
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';
 import type { Page, Permitted } from '../../../../shared/contract/api';
@@ -23,6 +23,7 @@ import { json, parse } from '../../http/validate';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import * as poll from './poll';
 
 const ID = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
 const line = (max: number, min = 1) => z.string().check(z.minLength(min), z.maxLength(max));
@@ -43,6 +44,12 @@ const listQuery = z.object({
 const noteBody = z.strictObject({ id: ID, body: line(WORK_LIMITS.note_body), order_id: z.optional(ID) });
 const tooLarge = (): never => {
   throw new ApiError('too_large');
+};
+
+/** Nothing to do: `204`, and how many seconds to wait before claiming again. */
+const quiet = (c: Context, seconds: number) => {
+  c.header('Retry-After', String(seconds));
+  return c.body(null, 204);
 };
 
 const noSandbox = () => {
@@ -92,8 +99,19 @@ export const workRoutes = new Hono<AppEnv>()
   .get('/work/hello', guard('GET /v1/work/hello'), async (c) => c.json(await fresh(coreObject(c.env).workHello())))
   .post('/work/claim', guard('POST /v1/work/claim'), async (c) => {
     await json(c, z.strictObject({}));
+    // Held to the protocol's period (poll.ts): an early claim waits out its 5 minutes without Core.
+    const p = principalOf(c);
+    const agent = p.kind === 'agent' ? p.agent_id : p.session_id;
+    const now = Date.now();
+    const early = poll.waitLeft(agent, now);
+    if (early) return quiet(c, early);
     const o = (await fresh(coreObject(c.env).workClaim())) as WorkOrder | null;
-    return o ? c.json({ order: o }) : c.body(null, 204);
+    if (!o) {
+      poll.answeredEmpty(agent, now);
+      return quiet(c, poll.POLL_S);
+    }
+    poll.answeredOrder(agent);
+    return c.json({ order: o });
   })
   .post('/work/orders/:id/heartbeat', guard('POST /v1/work/orders/:id/heartbeat'), async (c) => {
     const { note } = await json(c, z.strictObject({ note: z.optional(line(WORK_LIMITS.heartbeat_note, 0)) }));

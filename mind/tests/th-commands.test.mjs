@@ -149,7 +149,7 @@ test('note --day-voice puts the night line on the day note: one line, ≤ 200, t
     assert.equal((await th(['note', ...bad], e)).code, 8, bad.join(' '));
   assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
   assert.equal((await th(['note', '--day-voice', 'A line.', '--day', '2026-11-02'], e)).code, 8, 'no day note there: 404');
-  assert.match((await th(['help'], e)).stdout, /--day-voice/);
+  assert.match((await th(['help', 'all'], e)).stdout, /--day-voice/);
 }));
 
 test('remember, recall, confirm, supersede, forget', withFake({}, async fake => {

@@ -2,7 +2,7 @@
 // no import here, so the registry stays importable on its own. Only the owner's phone calls them;
 // the callback is Google's redirect back with the consent, checked by its one-use state.
 // The workshop's files (workshop.ts, API.md §11.27) and Astra's relay (astra.ts, API.md §11.21) are
-// listed here too: routes.ts is at its length.
+// listed here too: routes.ts is at its length. So is Guitar's progress (guitar.ts, API.md §11.28).
 export const PHOTO_ROUTES = {
   'GET /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'connected or not, the folder by name, a revoked grant' },
   'POST /v1/photos/drive/connect': { who: ['D'], phase: 'P9', note: "Google's consent address, scope drive.file, a state good for 10 minutes" },
@@ -44,4 +44,7 @@ export const PHOTO_ROUTES = {
   'POST /v1/astra/play': { who: ['D'], phase: 'P8', note: "{link, hash?, fileIndex?, fileName?, fileSize?, mode play|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on" },
   'GET /v1/astra/torbox': { who: ['D'], phase: 'P8', note: 'whether the TorBox key is set and accepted, and the plan number' },
   'GET /v1/astra/torbox/servers': { who: ['D'], phase: 'P8', note: "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute" },
+  // Guitar's progress, one record per song (guitar.ts): the owner's phone only; the newer updated_at wins.
+  'PUT /v1/guitar/progress': { who: ['D'], phase: 'P6', note: '1–50 songs, each ≤ 16,000 characters; the newer updated_at wins' },
+  'GET /v1/guitar/progress': { who: ['D'], phase: 'P6', note: '?since=&cursor=: what changed since, oldest first, ≤ 100 a page' },
 } as const;

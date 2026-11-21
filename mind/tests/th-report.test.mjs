@@ -46,7 +46,7 @@ test('th report puts the report for the run\'s day; the same again answers the s
     assert.equal((await th(['report', '--day', '2026-11-03', '--headline', 'Fine!'], e)).code, 8);
     assert.equal(fake.state.requests.filter(q => q.method === 'PUT').length, 2);
     assert.equal((await th(['report', '--day', '2026-11-03', '--headline', 'Fine'], env(fake))).code, 6);
-    assert.match((await th(['help'], e)).stdout, /report --headline/);
+    assert.match((await th(['help', 'all'], e)).stdout, /report --headline/);
   } finally {
     await fake.stop();
   }

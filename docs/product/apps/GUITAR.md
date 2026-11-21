@@ -83,6 +83,28 @@ a take is `take:<uuid>` **[proposal for the take form]**.
 Song status values (harvested): `learning` · `practicing` · `canplay` (shown as Learning ·
 Practising · Can play), plus a star.
 
+### 1.1 Progress with the account (as built, 2026-11-21)
+
+The ported app keeps its library on the phone (`jarvis.guitar.v2`, `frontend/guitar/store.js`: each
+song's status, star, last bar, loop, speed, best, practice seconds, and the practice log by day) and
+the ladder beside it (`th.p.guitar.ladder`, §4.3). Signed in, both follow the owner to another phone
+and come back after a sign-out, through the Worker (`/v1/guitar/progress`, API.md §11.28, Core step 47),
+modelled on Podcasts' positions (`frontend/th/guitar/progress.js`, started by the app with its store):
+
+- **One record per song**: its library entry, its ladder sections, its practice seconds by day, and
+  its own `updated_at` (the store stamps a song whenever it changes, the ladder's marks included).
+- **The newer record wins**, on the phone and on the Worker. A song newer on this phone stays; only
+  ladder sections it lacks are added from the Worker's (a ladder a sign-out cleared). A record this
+  phone saved is known again by its own stamp (`phone_at`), so after a sign-out the same version
+  brings its ladder back.
+- **Push**: the songs changed since the last push (one write each), 20 s after a change, at once when
+  the page hides (`keepalive` for a small body) and when the network returns; never before a pull has
+  come back since this phone's memory of the sync began (`th.p.guitar.sync`, cleared on sign-out).
+- **Pull**: when Guitar opens and when it is shown again, what the Worker took since the last pull,
+  merged into the store; a phone with nothing gets everything.
+- Kept-offline tab files are not synced: they can be fetched again. A song removed on one phone stays
+  on the others. Costs and retention: [DATA.md](../../engineering/DATA.md) (`guitar_progress`).
+
 ---
 
 ## 2. Screens
@@ -202,7 +224,8 @@ that ends shows **Clean** · **Not yet** for 3 s above the transport (keys `C` a
 not counted. Two clean in a row step up, two misses in a row step down 8 % (never below where the climb
 started), and the step doubles once after 10 of 10 clean. "Up to 74 BPM." / "Back to 67 BPM." say so
 in the reader's hint line. Each section (its first and last bar) keeps on the phone, in
-`th.p.guitar.ladder` (cleared on sign-out with the rest of `th.p.*`): today's passes, clean passes and
+`th.p.guitar.ladder` (cleared on sign-out with the rest of `th.p.*`, and back after a sign-in with the
+song's progress, §1.1): today's passes, clean passes and
 ceiling (the fastest clean pass), the best clean speed ever, and the last day played before. A new
 day's climb starts 8 % under the last ceiling (never under Start, never over Up to), and the session
 opens on the section that went worst on the last day played (lowest clean share, at least 3 passes
@@ -448,7 +471,7 @@ fields are `SENSE_TYPES` (CONTRACT.md "Senses"). The rest of the table waits on 
 | Type | When | `ref` | `data` |
 |---|---|---|---|
 | `guitar.open` | Reader opened | `tab:<id>` | `{bar}` |
-| `guitar.session` | Reader closed or 10 min idle | `tab:<id>` | `{seconds, played_seconds, sections: [refs]}` |
+| `guitar.session` | Reader closed, or the page left with the reader open (once) | `tab:<id>` | `{seconds, played_seconds, sections: [refs]}` |
 | `guitar.pass` | A loop pass ends | `tab:<id>#b12-16` | `{bpm, speed_pct, clean: true|false|null, by: 'owner'|'ears', metrics?}` |
 | `guitar.bpm` | A new best clean BPM | `tab:<id>#b12-16` | `{bpm}` |
 | `guitar.tension` | Rest tapped | `tab:<id>#bN-M` | `{minutes_in}` |
@@ -456,6 +479,10 @@ fields are `SENSE_TYPES` (CONTRACT.md "Senses"). The rest of the table waits on 
 | `guitar.ears` | Ears on/off, calibration result | `tab:<id>` | `{on, delay_ms?, sd_ms?, route}` |
 | `guitar.take` | A take is sent | `take:<uuid>` | `{song_ref, seconds}` |
 | `guitar.song` | Status, star, section created/renamed | `tab:<id>` | `{op, value}` |
+
+A session is sent once (2026-11-21): when the reader closes, or, when the owner leaves the page with
+the reader open (`pagehide`), kept on the phone then (`th.p.guitar.session`: a page going away can't
+finish a send) and sent when the page comes back or Guitar next opens.
 
 `metrics` holds numbers only (offsets, SD, shares), never audio. Practice time counts in 5 s steps
 while playing or with a touch, scroll or key in the last 90 s (harvested), and only while visible.
@@ -491,6 +518,10 @@ while playing or with a touch, scroll or key in the last 90 s (harvested), and o
 3. Guitar playback stops when the page is hidden (practice needs the screen); it does not use Media
    Session **[proposal]**. The owner can still play Music in the background before opening Guitar;
    it pauses when Guitar makes sound.
+
+As built (2026-11-21, `frontend/guitar/reader.js` `holdScreen`): any touch, scroll or key in the
+reader, play, pause and the page shown again check the rule; the lock is let go 90 s after the last
+input with nothing playing, when the reader closes, and when the page is hidden.
 
 **Acceptance:** browser test: playing → `wakeLock` held; pause and wait 90 s (fake clock) →
 released; hide → released and the mic (if on) stopped.

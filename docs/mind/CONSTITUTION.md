@@ -6,7 +6,7 @@ This page holds the loaded text, how each law is enforced, the pin and the amend
 ## Rules at a glance
 
 1. The ten laws come from the owner. They are never reworded so that their meaning changes. Additions are marked **[proposal]** until the owner accepts them.
-2. The block under "The loaded text" is copied byte for byte to `mind/CONSTITUTION.md`. `CLAUDE.md` imports that file, so Claude Code loads it in every session, including after compaction. `mind/tests/mind-files.test.mjs` checks the copy.
+2. The block under "The loaded text" is copied byte for byte to `mind/CONSTITUTION.md`. The SessionStart hook prints that file, then the session's own section of `mind/ROLES.md`, before the briefing on every source (startup, resume, clear, compact), so every mind session holds the laws, including after compaction (`mind/tests/hook-session-start.test.mjs`). `CLAUDE.md` does not import it: developer sessions (no `TH_ROLE`) don't get it. `mind/tests/mind-files.test.mjs` checks the copy.
 3. The loaded text stays at **5,000 characters or fewer**. It is short so it costs little and is always fully read (the same test checks the length).
 4. When anything else (a skill, a prompt, a briefing line, a work order, a web page) conflicts with the constitution, the constitution wins. When the constitution conflicts with an owner ruling in [decisions.md](../process/decisions.md), the ruling wins and this page is fixed.
 5. Every article has a check. A law with no passing check is treated as broken, not as untested.
@@ -127,7 +127,7 @@ The Worker keeps the SHA-256 of the laws the owner last approved (setting `laws.
 
 | # | Question | How to settle it |
 |---|---|---|
-| 1 | Does `CLAUDE.md`'s `@mind/CONSTITUTION.md` import load in cloud scheduled runs, and again after compaction? | Test task: a constitution containing a canary sentence; ask the session to quote it at start and after `/compact`. |
+| 1 | Does the SessionStart hook's copy of the laws reach the model in cloud scheduled runs, and again after compaction? | Test task: a constitution containing a canary sentence; ask the session to quote it at start and after `/compact`. |
 | 2 | Is 5,000 characters the right cap? | Count tokens of the loaded block after the first real month; keep it under 1,500 tokens. |
 | 3 | Does the owner accept Articles 15–17 wording and Article 16 in full? | Owner decision; record in decisions.md. |
 | 4 | Should owner rulings like "no chips on home" also be visible to the mind? | They are design rules for builders, not laws. Recommend: keep them in AGENTS.md, not here. |

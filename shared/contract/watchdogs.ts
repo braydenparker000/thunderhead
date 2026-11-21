@@ -35,6 +35,7 @@ export const WATCHDOG_LIMITS = {
   job_running_h: 2,
   job_attempts: 5,
   db_bytes: 700 * 1024 * 1024,
+  reply_late_min: 30,
 } as const;
 
 const REPORT =
@@ -151,6 +152,14 @@ export const WATCHDOGS = {
     slo: 'Backups: the monthly drill passes',
     wakes: true,
     handle: `Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. ${REPORT}.`,
+    phase: 'P4',
+  },
+  'reply.late': {
+    trips: 'an owner message unanswered for more than 30 minutes, outside quiet hours',
+    severity: 'S3',
+    slo: "Chat: every owner message is answered, or the thread says why it isn't",
+    wakes: true,
+    handle: `Read th get /v1/mind/wakes (the newest chat wakes: fire_status, fire_error, claimed or not) and th health --deep. Don't answer the owner's message: that is the chat session's. Change nothing. ${REPORT}.`,
     phase: 'P4',
   },
   'events.export.late': {

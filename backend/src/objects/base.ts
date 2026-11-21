@@ -31,6 +31,8 @@ export interface TableInfo {
 export interface ClassHealth {
   schema: number;
   expected: number;
+  /** Steps this code has that the object hasn't applied (a step merged out of order shows here). */
+  missing: number[];
   db_bytes: number;
   rows_read: number;
   rows_written: number;
@@ -80,14 +82,15 @@ const MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS _migrations (
   bookmark TEXT
 )`;
 
-/** Applies every step after the recorded version, one transaction each, and returns the version
- * now applied. Each step is preceded by a point-in-time-recovery bookmark, so a bad migration can
- * be undone with onNextSessionRestoreBookmark (see MEASUREMENTS.md). */
+/** Applies every step whose version `_migrations` doesn't hold, in number order, one transaction
+ * each (a step merged after a higher one still runs), and returns the highest version now applied.
+ * Each step is preceded by a point-in-time-recovery bookmark, so a bad migration can be undone
+ * with onNextSessionRestoreBookmark (see MEASUREMENTS.md). */
 export async function applyMigrations(storage: DurableObjectStorage, db: Db, migrations: Migration[]): Promise<number> {
   db.run(MIGRATIONS_TABLE);
-  let applied = db.one<{ v: number | null }>('SELECT max(version) AS v FROM _migrations')?.v ?? 0;
+  const done = appliedVersions(db);
   for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
-    if (m.version <= applied) continue;
+    if (done.has(m.version)) continue;
     const bookmark = await storage.getCurrentBookmark();
     storage.transactionSync(() => {
       for (const statement of m.sql) db.run(statement);
@@ -100,9 +103,21 @@ export async function applyMigrations(storage: DurableObjectStorage, db: Db, mig
         bookmark,
       );
     });
-    applied = m.version;
+    done.add(m.version);
   }
-  return applied;
+  return Math.max(0, ...done);
+}
+
+const appliedVersions = (db: Db) =>
+  new Set(db.all<{ version: number }>('SELECT version FROM _migrations').map((r) => r.version));
+
+/** The steps this code has that `_migrations` doesn't hold (none once the schema is current). */
+export function missingVersions(db: Db, migrations: Migration[]): number[] {
+  const done = appliedVersions(db);
+  return migrations
+    .map((m) => m.version)
+    .filter((v) => !done.has(v))
+    .sort((a, b) => a - b);
 }
 
 export abstract class OwnerObject extends DurableObject<Env> {
@@ -110,6 +125,8 @@ export abstract class OwnerObject extends DurableObject<Env> {
   protected readonly db: Db;
   protected migration = 0;
   private readonly expected: number;
+  /** Steps still unapplied after start-up (read once there: the schema only changes then). */
+  private missing: number[] = [];
 
   /** `cls`: the class's name in the meter (`core`, `auth`, `music`, `senses`, `library`). */
   constructor(
@@ -128,6 +145,7 @@ export abstract class OwnerObject extends DurableObject<Env> {
 
   private async migrate(migrations: Migration[]): Promise<void> {
     this.migration = await applyMigrations(this.ctx.storage, this.db, migrations);
+    this.missing = missingVersions(this.db, migrations);
     // The meter keeps its day once the schema has its table.
     if (migrations.some((m) => m.sql.includes(METER_DAYS_SQL))) this.meter.attach(this.db, this.cls);
   }
@@ -139,6 +157,7 @@ export abstract class OwnerObject extends DurableObject<Env> {
     return {
       schema: this.migration,
       expected: this.expected,
+      missing: this.missing,
       db_bytes: this.db.size,
       rows_read: today.rows_read,
       rows_written: today.rows_written,

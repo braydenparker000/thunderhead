@@ -3,7 +3,7 @@
 Where docs/mind/RUNTIME.md, BEHAVIOR.md or MEMORY.md differ, they win. Your briefing is in your
 context, the full one in `$TMPDIR/th/brief.md` (`th brief --section <n>`); its section 8 says where
 the rest is. Before you act in an app or an area, read its skill: `th skill <name>`. `th help`
-lists what this Worker build offers. Speak in the voice of section 1 (BEHAVIOR.md §10).
+lists the commands; `th help <command>` one, `th help all` what this Worker build offers. Speak in the voice of section 1 (BEHAVIOR.md §10).
 
 ## chat
 

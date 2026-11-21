@@ -155,7 +155,7 @@ test('signed in: another phone’s newer position is there before the app reads;
   await page.locator(`[data-feed="${FEED}"]`).first().click();
   await page.locator('.show-actions [data-play]').click();
   // Playing for real, with nothing loading (the status line gone), and well after the sync's
-  // listeners are on (they follow the app's, at most 1.5 s after it starts).
+  // listeners are on (they follow the app's, at most 400 ms after it starts).
   await page.waitForFunction(
     () => {
       const a = /** @type {HTMLAudioElement} */ (document.querySelector('#audio'));
@@ -199,6 +199,42 @@ test('signed in: another phone’s newer position is there before the app reads;
   await outlast(page, 3500); // a negative read: past the senses' 3 s send, on the page's own timers
   assert.equal(seen.senses.filter((e) => e.type === 'podcast.unfollow').length, 1, 'nothing sent with the switch off');
   assert.equal(await page.evaluate(() => (localStorage.getItem('th.p.senses') ?? '[]') === '[]' || !localStorage.getItem('th.p.senses')), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('signed in: another phone’s place further on, pulled while an episode is loaded, is offered with one tap, never saved over', opts, async () => {
+  const now = Date.now();
+  const { context, page, ids, errors } = await opened(true, (ids) => ({
+    version: 1, queue: [], downloads: {}, speed: 1, country: 'us', autoplay: true, follows: [show],
+    current: episode(ids[2], 'Episode two'),
+    progress: { [`${FEED}#${ids[2]}`]: { episode: episode(ids[2], 'Episode two'), position: 0, duration: 30, played: false, updatedAt: now - 60_000 } },
+  }));
+  remote = [];
+  const key = `${FEED}#${ids[2]}`;
+  await page.goto(`${base}/podcasts/`, { waitUntil: 'load' });
+  // The episode's audio comes through the app's worker (the new Worker, mocked), once it controls the page.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller && !!(/** @type {any} */ (window).__podcasts));
+  await page.locator('#mini-play').click();
+  await page.waitForFunction(() => { const a = /** @type {HTMLAudioElement} */ (document.querySelector('#audio')); return !a.paused && a.currentTime > 0.2; }, null, { timeout: 15_000 });
+  await page.evaluate(() => /** @type {HTMLAudioElement} */ (document.querySelector('#audio')).pause());
+  // The other phone left it at 1:40 after this pause (its save stamped after this phone's); the pull
+  // (as on becoming visible) brings it while the episode is loaded here.
+  const pausedAt = await page.evaluate((k) => JSON.parse(localStorage.getItem('jarvis.podcasts.v1')).progress[k].updatedAt, key);
+  remote = [{ key, position_s: 100, duration_s: 30, played: false, updated_at: pausedAt + 1000 }];
+  await page.evaluate(() => import('/th/podcasts/progress.js').then((m) => m.refresh()));
+  await page.locator('.resume-offer:not([hidden])').waitFor({ timeout: 15_000 });
+  assert.equal(await page.locator('.resume-offer button').textContent(), 'Resume at 1:40 from your other phone');
+  assert.ok(await page.evaluate(() => /** @type {HTMLAudioElement} */ (document.querySelector('#audio')).currentTime < 30), 'no seek under the listener');
+  // A save of the older place here (as on pause) does not go over the newer one.
+  await page.evaluate(() => document.querySelector('#audio').dispatchEvent(new Event('pause')));
+  assert.equal(await page.evaluate((k) => JSON.parse(localStorage.getItem('jarvis.podcasts.v1')).progress[k].position, key), 100);
+  // The one tap seeks there and the line goes.
+  await page.locator('.resume-offer button').click();
+  await page.locator('.resume-offer').waitFor({ state: 'hidden' });
+  assert.ok(await page.evaluate(() => /** @type {HTMLAudioElement} */ (document.querySelector('#audio')).currentTime > 0.5));
   assert.deepEqual(errors, []);
   await context.close();
 });

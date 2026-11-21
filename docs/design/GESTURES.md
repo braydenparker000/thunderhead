@@ -212,6 +212,11 @@ Owner-visible rule: **Back closes the thing on top.** At the home root it leaves
 | Keyboard open | Android closes the keyboard (the page does nothing). |
 | Long-press action menu | Closes it. |
 | Confirm sheet (e.g. delete) | Closes it, choosing "Keep". |
+| Any other sheet (a Settings picker, Due, Weather) | Closes it, as Cancel or Close does. |
+| A photo full screen | Closes it. |
+| Find in today | Closes it. |
+| Remind me | Closes it; nothing is set. |
+| Voice memo strip | Stops it and keeps what was recorded, as leaving the page does (Escape and × still throw it away). |
 | `+` sheet | Closes it. |
 | Sub-page inside Settings | Back to the settings list in the menu. |
 | Menu | Closes it (home). |
@@ -220,14 +225,14 @@ Owner-visible rule: **Back closes the thing on top.** At the home root it leaves
 | A filed conversation shown on home | Back to now (same as "Back to now"). |
 | Home root | Leaves the app (Chrome tab: previous page; installed app: Android launcher). Never trapped, never "Press again to exit". |
 
-Implementation rules (`lib/router.js`):
+Implementation rules (built 2026-11-21: `th/layers.js`, one stack; the island, a past conversation and search keep their own entries in `th/island/island.js`, `th/convos/past.js` and `th/convos/search.js`):
 
-1. Briefing, menu, the `+` sheet, sheets, settings sub-pages and each open app are **history entries**, created only inside a user activation (Chrome skips history entries added without one: [Chromium history-manipulation intervention](https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md)).
-2. Closing a layer by tap (dim, ×, swipe) calls `history.back()` so the stack never gets out of step.
+1. Briefing, menu, the `+` sheet, sheets, confirms, Settings pages, Remind me, the memo strip, Find in today and a photo full screen are **history entries** (`history.state.thl`: the page's run, the layer's number, the depth), created only inside a user activation (Chrome skips history entries added without one: [Chromium history-manipulation intervention](https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md)). A layer opened while a finger is still down (a hold's sheet) pushes its entry when the finger lifts. A layer opened by nothing the owner did pushes none, so Back from it goes past it: a Settings page opened by its address (`/settings/` and the other routes), and the Briefing, the menu or a page the mind opens (`th:go`, `th:open` from a shell verb); a memo whose microphone prompt took longer than Chrome's activation window (about 5 s) also has none.
+2. Closing a layer by tap (dim, ×, swipe, Escape) calls `history.back()` once so the stack never gets out of step. Back pops our entry and closes every layer of ours above where it lands, top first; an entry of another module that we push over carries the number of our top layer under it (`thn`). An entry of ours with no layer left (a reload on a layer, or a layer whose closing tap opened the next thing, such as a menu row opening a past conversation) is stepped over at once, so one Back always does one visible thing.
 3. Sheets use `CloseWatcher` when present (feature-detected; Chrome says 120, compatibility tables say Android support came later) and fall back to history entries.
 4. A cold start at a deep link (`/music/`) has no home entry below it. Back from that app's root goes to home (`navigation.navigate('/', {history: 'replace'})`), and the next Back leaves.
 
-Acceptance: test G5 below drives each row with `page.goBack()` and asserts the expected layer state.
+Acceptance: test G5 below drives each row with `page.goBack()` and asserts the expected layer state (`tests/home-back-browser.test.mjs`: one test a row, Back twice from a Settings sub-page, Back with Music in the island, a reload on a layer).
 
 **T1b island implementation:** one `springs.island` scalar interpolates clip insets/radius, swipe-down passes its vertical velocity, and reversing the morph carries its current state; pill/fade durations come from the shared tokens.
 

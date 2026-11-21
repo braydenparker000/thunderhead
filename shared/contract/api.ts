@@ -178,16 +178,6 @@ export interface RecoveryConfirmRequest {
   last5: string;
 }
 
-export interface BreakglassRequest {
-  fingerprint: string;
-}
-
-export interface BreakglassResponse {
-  ticket_id: Id;
-  usable_after: Ms;
-  expires_at: Ms;
-}
-
 export interface BreakglassCancelRequest {
   ticket_id: Id;
 }

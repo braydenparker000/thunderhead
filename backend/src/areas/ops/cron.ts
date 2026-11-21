@@ -17,6 +17,8 @@ import { deliver } from '../push/routes';
 export async function runCron(env: Env): Promise<void> {
   const core = coreObject(env);
   const [pruned, tick] = await Promise.all([authObject(env).prune(), core.tick()]);
+  // The GitHub path's reset ticket opened: an open home shows its card at once (SIGN-IN.md §10.1).
+  if (pruned.reset_opened) await core.noticeChanged().catch(() => {});
   // `night` is the night wake's id (a Core still on the release before P3's night shift has none).
   const night = tick.night ?? null;
   if (pruned.sessions || pruned.counters || pruned.notices || pruned.pushes || tick.rolled || tick.pruned || night)

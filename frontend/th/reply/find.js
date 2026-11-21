@@ -4,6 +4,7 @@
 // changed), says "2 of 5", and steps through them with ↑ ↓ or Enter, newest first; ✕ or Escape
 // closes it. Loaded on the first pull.
 import { motionReduced } from '../motion.js';
+import { open as layer } from '../layers.js';
 
 /** @type {HTMLElement | null} */
 let bar = null;
@@ -84,6 +85,7 @@ export function openFind() {
     show();
   };
   const end = () => {
+    shut();
     if ('highlights' in CSS) {
       CSS.highlights.delete('find');
       CSS.highlights.delete('find-now');
@@ -102,6 +104,7 @@ export function openFind() {
   up.addEventListener('click', () => step(-1));
   down.addEventListener('click', () => step(1));
   close.addEventListener('click', end);
+  const shut = layer('find', end);
   requestAnimationFrame(() => box.classList.add('in'));
   input.focus();
 }

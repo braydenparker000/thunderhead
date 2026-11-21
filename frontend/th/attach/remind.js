@@ -9,6 +9,7 @@ import { api, signedIn } from '../client.js';
 import { uuidv7 } from '../chat/model.js';
 import { toast } from '../ui.js';
 import { choices, when } from './times.js';
+import { open as layer } from '../layers.js';
 
 const MIN = 60_000;
 const two = (/** @type {number} */ n) => String(n).padStart(2, '0');
@@ -114,7 +115,9 @@ export function openRemind() {
     if (!(/** @type {HTMLElement} */ (e.target).closest('.remind'))) close();
   };
   const onKey = (/** @type {KeyboardEvent} */ e) => e.key === 'Escape' && close();
+  const shut = layer('remind', close);
   function close() {
+    shut();
     sheet.classList.remove('in');
     setTimeout(() => sheet.remove(), 200);
     document.removeEventListener('pointerdown', outside, true);

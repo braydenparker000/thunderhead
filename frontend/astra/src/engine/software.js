@@ -59,6 +59,9 @@ export function loadLibmedia() {
     script.async = true;
     script.onload = () => done(true); script.onerror = () => done(false);
     prepareThreads(); // libmedia reads its thread switches as its script runs
+    // libmedia rejects its threads' pending calls with "ipc port close" as they stop, and nothing of its own awaits
+    // them: handled here, or each would be an error on the page.
+    addEventListener('unhandledrejection', e => { if (String(e.reason?.message ?? e.reason) === 'ipc port close') e.preventDefault(); });
     document.head.append(script);
   });
 }

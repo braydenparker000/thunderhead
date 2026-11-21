@@ -1,6 +1,8 @@
 // When the Worker wakes the mind and what it does when a wake goes unanswered (RUNTIME.md §3,
 // §4.4, §11): the fire conditions, the 120 s retry and 240 s give-up, requeues of handed-out
-// messages nobody acknowledged, the usage backoff, and the presence the phone shows. Everything
+// messages nobody acknowledged, a session gone with messages it took unanswered (refired at most
+// twice each), one wake when a usage backoff ends with a message waiting, and the presence the
+// phone shows. Everything
 // here runs inside a commit; the HTTP fire itself happens after it (fire.ts).
 import type { MindPresence, MindRole } from '../../../../shared/contract/api';
 import type { MindUse } from '../../../../shared/contract/feed.ts';
@@ -8,6 +10,7 @@ import { uuidv7 } from '../../lib/ids';
 import { HOUR, MINUTE, SECOND } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import * as lapsed from '../conversation/lapsed';
 import { today } from '../conversation/ops';
 import * as convo from '../conversation/store';
 import * as settings from '../settings/store';
@@ -103,6 +106,8 @@ export function maybeWake(w: Writer, reason: WakeReason, configured: boolean): T
 export function onAlarm(w: Writer, configured: boolean, tz: string): ToFire[] {
   const { db, at } = w;
   const fires: ToFire[] = [];
+  const again = onLapse(w, configured) ?? backoffEnd(w, configured);
+  if (again) fires.push(again);
   if (convo.requeueUnacked(db, at, ACK_MS) > 0 && !leaseLive(db, at)) {
     const f = maybeWake(w, 'requeue', configured);
     if (f) fires.push(f);
@@ -196,10 +201,49 @@ export function clearBackoff(db: Db, at: number): void {
   if (backoff(db).step >= 0) settings.putSetting(db, 'mind.backoff', { until: 0, step: -1 }, 'worker', at);
 }
 
-/** When the alarm must next run: the oldest unacknowledged hand-out, or an open wake's retry or
- * give-up time. Null when nothing waits. */
-export function nextAlarmAt(db: Db): number | null {
+const LIVE = new Set(['working', 'listening', 'stopping']);
+const presenceOf = (db: Db) => (settings.getSetting(db, 'mind.status') as MindPresence | undefined)?.state ?? '';
+
+/** The chat session is gone (its lease lapsed) while the presence still says it is there and an
+ * owner message waits: what it took and acknowledged is handed out again (at most twice per
+ * message) and the mind woken through the usual path; when no wake goes out, the presence says the
+ * reply isn't coming just now (`failed`), so home stops showing "thinking". */
+function onLapse(w: Writer, configured: boolean): ToFire | null {
+  const { db, at } = w;
+  if (leaseLive(db, at) || !LIVE.has(presenceOf(db)) || lapsed.oldestUnanswered(db) === null) return null;
+  const f = lapsed.releaseAcked(db) > 0 ? maybeWake(w, 'requeue', configured) : null;
+  if (!f) setPresence(w, configured ? 'failed' : 'unconfigured');
+  return f;
+}
+
+/** A message sent during a usage backoff was refused a wake: once the backoff ends, one wake for
+ * it, unless something has fired since. */
+function backoffEnd(w: Writer, configured: boolean): ToFire | null {
+  const b = backoff(w.db);
+  if (b.until <= 0 || b.until > w.at || lapsed.oldestUnanswered(w.db) === null) return null;
+  if ((store.lastFireAt(w.db, 'chat', false) ?? 0) >= b.until) return null;
+  return maybeWake(w, 'message', configured);
+}
+
+/** When the alarm must next run: the oldest unacknowledged hand-out, an open wake's retry or
+ * give-up time, the chat lease's end while a message it took waits, or a backoff's end while an
+ * owner message waits. Null when nothing waits. */
+export function nextAlarmAt(db: Db, now = Date.now()): number | null {
   const times: number[] = [];
+  // While a session holds the lease and an owner message waits: the lease's end, should it die.
+  // Without one (or past its end), while the presence still says a session is there and one waits:
+  // then or now (onLapse).
+  // While it says the mind isn't coming (failed or limited: a backoff is on) and one waits: the
+  // backoff's end. Cheapest reads first.
+  const l = store.lease(db, 'chat');
+  const end = l ? l.renewed_at + LEASE_MS : now;
+  const state = end > now ? 'held' : presenceOf(db);
+  if (state === 'held' || LIVE.has(state)) {
+    if (lapsed.oldestUnanswered(db) !== null) times.push(end);
+  } else if (state === 'failed' || state === 'limited') {
+    const b = backoff(db);
+    if (b.until > now && lapsed.oldestUnanswered(db) !== null) times.push(b.until);
+  }
   const unacked = convo.oldestUnacked(db);
   if (unacked !== null) times.push(unacked + ACK_MS);
   for (const wk of store.openWakes(db, 'chat'))

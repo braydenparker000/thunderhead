@@ -9,6 +9,7 @@ import { FILE_LIMITS } from '../contract.js';
 import { uuidv7 } from '../chat/model.js';
 import { toast } from '../ui.js';
 import { add, clock, room } from './state.js';
+import { open as layer } from '../layers.js';
 
 const BARS = 28;
 const LATE_S = FILE_LIMITS.memo_seconds - 30;
@@ -68,6 +69,8 @@ export async function recordMemo() {
   const edge = document.querySelector('#edge');
   edge?.classList.add('listen');
   stop.focus();
+  // Back stops it and keeps what was recorded, as leaving the page does (GESTURES.md §7).
+  const shut = layer('memo', () => end(true));
 
   const started = performance.now();
   const seconds = () => (performance.now() - started) / 1000;
@@ -103,6 +106,7 @@ export async function recordMemo() {
   function end(keep) {
     if (ended) return;
     ended = true;
+    shut();
     cancelAnimationFrame(frame);
     removeEventListener('keydown', onKey, true);
     document.removeEventListener('visibilitychange', onHide);

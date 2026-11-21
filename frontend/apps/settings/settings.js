@@ -16,6 +16,7 @@ import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { animator, haptic, springs } from '/th/motion.js';
 import { timed } from '/ui/feel/log.js';
 import { outbox } from '/th/chat/store.js';
+import { open as layer } from '/th/layers.js';
 import { confirmSheet, icon, row } from './components.js';
 
 const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Devices', agents: 'Agents', account: 'Password', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted', appearance: 'Appearance', chat: 'Home and chat', gestures: 'Ring and gestures', island: 'Island', briefing: 'Briefing', mind: 'The mind', music: 'Music', photos: 'Photos', privacy: 'Privacy and data', about: 'About and diagnostics', workshop: 'Files for the workshop' };
@@ -55,12 +56,14 @@ function forgetsBody(forgets, lead) {
 }
 /** The pages open, bottom first: a page opened from Settings stays over it. @type {HTMLElement[]} */
 const stack = [];
+/** Each page's step off the Back stack (th/layers.js). @type {WeakMap<HTMLElement, () => void>} */
+const layers = new WeakMap();
 
 /** Opens a settings page: over Settings when opened from it (`over`), else in place of what was open.
  * @param {'settings' | 'quiet' | 'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export' | 'deleted'} name
  * @param {{ fromRoute?: boolean, role?: string, over?: boolean, focus?: string }} [opts] */
 export async function openPage(name, opts = {}) {
-  if (!opts.over) for (const p of stack.splice(0)) p.remove();
+  if (!opts.over) for (const p of stack.splice(0)) { layers.get(p)?.(); p.remove(); }
   const under = stack[stack.length - 1] ?? null;
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
   let cleanup = null;
@@ -90,17 +93,20 @@ export async function openPage(name, opts = {}) {
   const close = (velocity = 0, ms = undefined) => {
     if (closed) return;
     closed = true;
+    layers.get(page)?.();
     cleanup?.();
     cleanup = null;
     page.classList.remove('in');
     slide.to(0, velocity, ms).then(() => page.remove());
     const i = stack.indexOf(page);
     if (i >= 0) stack.splice(i, 1);
-    if (location.pathname !== '/') history.replaceState(null, '', '/');
+    if (location.pathname !== '/') history.replaceState(history.state, '', '/'); // keeps a Back entry's mark (th/layers.js)
     const below = stack[stack.length - 1];
     if (below) /** @type {HTMLElement | null} */ (below.querySelector('h1'))?.focus({ preventScroll: true });
     else document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
   };
+  // Back to Settings, or to the menu (GESTURES.md §7).
+  layers.set(page, layer('page', () => close()));
   back.addEventListener('click', () => close());
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   swipeBack(page, slide, close);

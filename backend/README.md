@@ -70,7 +70,6 @@ npm 11 or later.
 | `POST /auth/notices/:id/ack` | device | `{answer: me\|not_me\|ok}`; "not me" undoes what the notice is about |
 | `GET /auth/sessions`, `PATCH`/`DELETE /auth/sessions/:id` | device | the device list, rename, sign out (204 even when gone) |
 | `GET`/`POST /auth/agents`, `DELETE /auth/agents/:id` | device | agent keys: issue (shown once, needs the password), list, revoke |
-| `POST /auth/breakglass` | `mind:chat` | `{fingerprint}` → reset ticket usable after 24 h |
 | `POST /auth/breakglass/cancel` | device | void a reset ticket for good |
 | `GET /ops/health/deep` | device, agents, ci | schema, per-object ok, counts only |
 | `POST /ops/errors`, `GET /ops/errors`, `POST /ops/errors/:fp/resolve` | see API.md §13 | error inbox (≤ 50 items, 32 KB, scrubbed) |

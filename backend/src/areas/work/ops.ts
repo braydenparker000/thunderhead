@@ -29,6 +29,8 @@ import { validate } from './validate';
 
 const LEASE = WORK_LIMITS.lease_min * MINUTE;
 const SEEN_EVERY = 10 * MINUTE;
+/** How stale Muse's last call may get on empty claims, which write nothing (MUSE-PROTOCOL.md §2). */
+const SEEN_IDLE = 60 * MINUTE;
 
 export interface Seen {
   first: number;
@@ -84,6 +86,14 @@ export function hello(w: Writer): WorkHello {
     scopes: ['work.claim', 'work.result', 'work.thread'],
     server_time: w.at,
   };
+}
+
+/** A claim with nothing to take: no order held, none queued, and Muse's last call already noted
+ * within the hour (so the Briefing's "hasn't checked in" stays true to it). Reads only: such a
+ * claim answers without a write. */
+export function nothingToClaim(db: Db, now: number): boolean {
+  const s = seen(db);
+  return !!s && now - s.last < SEEN_IDLE && !store.claimed(db) && !store.nextQueued(db, now);
 }
 
 /** POST /v1/work/claim: the one Muse holds, else the oldest queued one; null when none. */

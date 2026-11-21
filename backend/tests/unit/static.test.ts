@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { LIBRARY_MIGRATIONS } from '../../src/objects/library.migrations';
 import { MUSIC_MIGRATIONS } from '../../src/objects/music';
+import { SENSES_MIGRATIONS } from '../../src/objects/senses';
 
 const raw = (files: Record<string, unknown>) => files as Record<string, string>;
 const objectCode = raw(
@@ -28,8 +30,9 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Migration steps a branch built beside another may skip in the numbering (none: scheduled
- * actions' Core 33, the watches' 34 and what lands' 35 are all in, 2026-11-04). */
+/** Migration steps a branch built beside another may skip in the numbering (scheduled actions'
+ * Core 33, the watches' 34 and what lands' 35 are all in, 2026-11-04). Core 47 and 48 belong to
+ * branches built beside the one with 48 (a refired message's count); empty once all are in. */
 const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -90,7 +93,7 @@ describe('source rules', () => {
   });
 
   it('migrations are expand-only, numbered 1…n, never DROP, RENAME, DELETE or UPDATE', () => {
-    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS]) {
+    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS, SENSES_MIGRATIONS, LIBRARY_MIGRATIONS]) {
       const versions = list.map((m) => m.version);
       const top = Math.max(...versions);
       expect(versions).toEqual(

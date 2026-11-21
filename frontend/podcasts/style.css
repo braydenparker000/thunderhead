@@ -178,6 +178,7 @@ body.podcast-page{--bg:#08090b;--surface:#171b21;--raised:#252b34;--line:#303640
 .podcast-page .recovery-actions{display:flex;gap:12px;flex-wrap:wrap}
 .podcast-page .recovery-actions a{display:flex;align-items:center;min-height:48px;padding:10px 16px;border-radius:12px;background:var(--surface)}
 .podcast-page .toast{bottom:calc(var(--bottom-clearance) + 8px);max-width:calc(100% - 32px);font-size:14px;background:#2a303b;border-color:#454e5e;z-index:20}
+.podcast-page .resume-offer{bottom:calc(var(--bottom-clearance) + 64px);padding:0}.podcast-page .resume-offer button{padding:0 18px;text-decoration:underline}
 .podcast-page .skeleton-tile>div,.podcast-page .show-loading>div{aspect-ratio:1;border-radius:12px;background:var(--surface)}
 .podcast-page .skeleton-tile>span,.podcast-page .show-loading>span{display:block;height:12px;margin-top:12px;width:85%;background:var(--surface);border-radius:4px}
 .podcast-page .skeleton-tile>span:last-child{width:55%}

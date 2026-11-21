@@ -44,7 +44,10 @@ export abstract class CoreWork extends CoreBackups {
     return this.write((w) => work.hello(w));
   }
   workClaim(): WorkOrder | null {
-    return this.write((w) => work.claim(w));
+    // Read first: a claim with nothing to take opens no write (MUSE-PROTOCOL.md §2).
+    const now = Date.now();
+    if (work.nothingToClaim(this.db, now)) return null;
+    return this.write((w) => work.claim(w), now);
   }
   workHeartbeat(id: string, note: string | null): Out<{ lease_until: number }> {
     return this.run((w) => work.heartbeat(w, id, note));

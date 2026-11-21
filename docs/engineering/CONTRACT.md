@@ -29,7 +29,6 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/auth/agents` | D | P1 | built |  |
 | `DELETE /v1/auth/agents/:id` | D | P1 | built |  |
 | `GET /v1/auth/me` | D C N R M I | P1 | built |  |
-| `POST /v1/auth/breakglass` | C | P1 | built |  |
 | `GET /v1/settings` | D C N R | P1 | built |  |
 | `PATCH /v1/settings` | D | P1 | built |  |
 | `POST /v1/ops/errors` | D C N R | P1 | built |  |
@@ -248,6 +247,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/astra/play` | D | P8 | built | {link, hash?, fileIndex?, fileName?, fileSize?, mode play\|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on |
 | `GET /v1/astra/torbox` | D | P8 | built | whether the TorBox key is set and accepted, and the plan number |
 | `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |
+| `PUT /v1/guitar/progress` | D | P6 | built | 1–50 songs, each ≤ 16,000 characters; the newer updated_at wins |
+| `GET /v1/guitar/progress` | D | P6 | built | ?since=&cursor=: what changed since, oldest first, ≤ 100 a page |
 
 ## Verbs
 
@@ -547,6 +548,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
+| `reply.late` | an owner message unanswered for more than 30 minutes, outside quiet hours | S3 | Chat: every owner message is answered, or the thread says why it isn't | yes | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
 
 ## Watches

@@ -7,6 +7,7 @@ import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { clock as hhmm } from '../pref.js';
 import { el } from '../ui.js';
+import { open as layer } from '../layers.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').WeatherTile} WeatherTile */
 
@@ -38,7 +39,9 @@ export function openWeather(w, changed) {
   });
   (w.place ? close : input).focus({ preventScroll: true });
 
+  const shut = layer('weather', () => done());
   const done = () => {
+    shut();
     document.removeEventListener('keydown', onKey, true);
     dim.remove();
     sheet.remove();

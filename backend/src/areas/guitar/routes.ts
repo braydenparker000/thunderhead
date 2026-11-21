@@ -2,13 +2,15 @@
 // through the old Worker, now through this one, for the owner's device only: Songsterr search, a
 // song's tracks and the chosen tracks' revisions, GProTab search and Guitar Pro downloads, and the
 // guitar samples. A source's own words for what went wrong travel in `details.reason`, which the
-// app shows as before. Nothing is logged or stored; the edge may keep a public file for a while.
+// app shows as before. Nothing of these is logged or stored; the edge may keep a public file for a
+// while. The owner's progress, which is stored, is sync-routes.ts's (schema step 47).
 import { Hono } from 'hono';
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { getRevisions, getSong, searchSongs } from './songsterr';
 import { gprotabFile, searchGprotab, sound } from './sources';
+import { guitarSyncRoutes } from './sync-routes';
 import { SourceError } from './upstream';
 
 const CODE: Record<number, ErrorCode> = {
@@ -65,4 +67,6 @@ export const guitarRoutes = new Hono<AppEnv>()
     if (!m) throw new ApiError('not_found');
     const bytes = await answer(() => sound(c.req.param('instrument'), m[1]));
     return c.body(bytes as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'audio/mpeg' });
-  });
+  })
+  // The owner's progress, one record per song (sync-routes.ts): stored, unlike the sources above.
+  .route('/', guitarSyncRoutes);

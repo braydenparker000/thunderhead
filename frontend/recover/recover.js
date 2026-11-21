@@ -102,7 +102,7 @@ function showResetState(s) {
   form.hidden = state !== 'ready';
   $('#reset-start').hidden = state === 'ready' || state === 'pending';
   const lines = {
-    none: 'Waiting for the ticket. Ask the mind, or run the workflow.',
+    none: 'Waiting for the ticket. Run the workflow.',
     pending: s?.usable_after ? `Your reset will be ready ${readyAt(s.usable_after)}. Any signed-in device can cancel it.` : 'Your reset is waiting. Any signed-in device can cancel it.',
     cancelled: LINES.reset_cancelled,
     expired: LINES.reset_expired,
@@ -118,7 +118,6 @@ async function startReset() {
   if (!resetCode) { resetCode = makeCode(); await db.set('code', resetCode).catch(() => {}); }
   resetFp = await fingerprint(resetCode);
   $('#rfp').textContent = resetFp;
-  $('#rfp-say').textContent = resetFp;
   $('#rcode').textContent = groupCode(resetCode);
   if (CONFIG.repo_url) {
     $('#gh-secret').href = `${CONFIG.repo_url}/settings/secrets/actions/new`;

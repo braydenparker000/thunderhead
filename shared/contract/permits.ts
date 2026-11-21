@@ -50,11 +50,10 @@ export interface PermitSpec {
 /** The actions Core runs itself for the mind (verbs are in verbs.ts). Not listed, on purpose: the
  * mind's own bookkeeping (session, day and song notes, open threads, predictions, the night's run,
  * its replies), clearing a surface or cancelling a Muse order (each only takes back the mind's own
- * act), a push (it reaches the owner, under `mind.pushes`), and `POST /v1/auth/breakglass`: keys and
- * access, but the way back in when the owner can reach no signed-in device to answer a card, so its
- * ask is its own: the fingerprint the owner gives in their own words, the 24-hour wait and the notice
- * on every device (SIGN-IN.md). A conversation's title (`PATCH /v1/threads/:id` too), the outside keep
- * and a Muse order with the owner's data are verbs (verbs-mind.ts), gated under their verb names. */
+ * act), and a push (it reaches the owner, under `mind.pushes`). The mind can't start a password reset
+ * at all (owner, 2026-11-21): only the GitHub path opens a reset ticket (SIGN-IN.md §10). A
+ * conversation's title (`PATCH /v1/threads/:id` too), the outside keep and a Muse order with the
+ * owner's data are verbs (verbs-mind.ts), gated under their verb names. */
 export const MIND_ACTIONS = {
   'surface.put': { class: 'tiles', doc: 'A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`).' },
   'reminder.set': { class: 'reminders', doc: 'A reminder the owner asked for (`PUT /v1/reminders/:id`).' },

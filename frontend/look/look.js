@@ -7,7 +7,7 @@
 //   on()            whether the look is on now.   LOOK  this folder's published path (/look/<hash>/).
 // The page's modules: every shell route (/, /settings/…, /share/) is one document, home's, with the
 // conversation, the + sheet, the island, the ring, the Briefing, the menu and Settings over it, so it
-// loads home.js island.js ring.js briefing.js menu.js controls.js; the plain pages (404) load none.
+// loads home.js island.js ring.js briefing.js menu.js controls.js decide.js; the plain pages (404) load none.
 // Here, while the look is on: <html data-day> ("sunday", "friday"), the browser bar in the ground's
 // colour, the files kept on the phone (keep.js), then <html data-look-ready>; off, all of it goes, the
 // look's sheet with it.
@@ -15,7 +15,7 @@
 import { keep } from './keep.js';
 
 export const LOOK = new URL('./', import.meta.url).pathname;
-const MODULES = ['home.js', 'island.js', 'ring.js', 'briefing.js', 'menu.js', 'controls.js'];
+const MODULES = ['home.js', 'island.js', 'ring.js', 'briefing.js', 'menu.js', 'controls.js', 'decide.js'];
 const root = document.documentElement;
 
 /** Whether the look is on now. */

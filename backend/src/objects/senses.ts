@@ -53,7 +53,7 @@ export const SENSES_MIGRATIONS: Migration[] = [
         origin TEXT NOT NULL,
         sensitivity INTEGER NOT NULL DEFAULT 0
       )`,
-      // One index only (DATA.md §6.1): each index entry is a row written per event.
+      // Few indexes (DATA.md §6.1): each index entry is a row written per event.
       'CREATE INDEX events_day_type ON events (day, type)',
       `CREATE TABLE rollups (
         day TEXT NOT NULL,
@@ -77,6 +77,13 @@ export const SENSES_MIGRATIONS: Migration[] = [
     name: 'meter_days',
     kind: 'expand',
     sql: [METER_DAYS_SQL],
+  },
+  {
+    // `lastEvent` (a type's newest event) reads one entry here instead of walking back the table.
+    version: 3,
+    name: 'events_type_seq',
+    kind: 'expand',
+    sql: ['CREATE INDEX events_type_seq ON events (type, seq)'],
   },
 ];
 

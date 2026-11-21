@@ -121,7 +121,9 @@ export function labJson(build, list) {
   return `${JSON.stringify({ build, files: list.filter((f) => keptLab(f.path)).sort((a, b) => (a.path < b.path ? -1 : 1)) })}\n`;
 }
 
-/** @param {number} build @param {{ path: string, size: number }[]} list */
+/** /precache.json: the release's files with their sizes and hashes, so a later release copies the unchanged ones
+ * from the release before's cache and fetches only what changed (sw.js `install`).
+ * @param {number} build @param {{ path: string, size: number, hash: string }[]} list */
 export function precacheJson(build, list) {
   const files = list.filter((f) => precached(f.path)).sort((a, b) => (a.path < b.path ? -1 : 1));
   return `${JSON.stringify({ build, files })}\n`;

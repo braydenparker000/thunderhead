@@ -66,7 +66,7 @@ test('th skill prints one, lists them without a name, and refuses one it does no
   assert.equal(bad.code, 8);
   assert.equal(errCode(bad), 'validation');
   assert.equal((await th(['skill', 'music', 'extra'], e)).code, 8);
-  assert.match((await th(['help'], e)).stdout, /^ {2}th skill \[<name>\]$/m);
+  assert.match((await th(['help', 'all'], e)).stdout, /^ {2}th skill \[<name>\]$/m);
 });
 
 test('ROLES.md points at the skills and stays within its 6,000 characters', () => {

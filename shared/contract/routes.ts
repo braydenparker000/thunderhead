@@ -59,7 +59,6 @@ export const ROUTES = {
   'POST /v1/auth/agents': { who: D, phase: 'P1' },
   'DELETE /v1/auth/agents/:id': { who: D, phase: 'P1' },
   'GET /v1/auth/me': { who: ['D', 'C', 'N', 'R', 'M', 'I'], phase: 'P1' },
-  'POST /v1/auth/breakglass': { who: ['C'], phase: 'P1' },
   'GET /v1/settings': { who: AGENTS_READ, phase: 'P1' },
   'PATCH /v1/settings': { who: D, phase: 'P1' },
   'POST /v1/ops/errors': { who: AGENTS_READ, phase: 'P1' },

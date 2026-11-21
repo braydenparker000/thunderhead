@@ -2,6 +2,7 @@
 import { el, tooSoon } from '/th/ui.js';
 import { animator, restTime, springs } from '/th/motion.js';
 import { timed } from '../../ui/feel/log.js';
+import { open as layer } from '/th/layers.js';
 
 /** @param {string} name */
 export function icon(name) {
@@ -110,10 +111,13 @@ export function sheet({ title, children, onClose, cancel = 'Cancel' }) {
   element.style.transition = 'none'; dim.style.transition = 'none';
   move.to(0, { spring: springs.page, timeScale }); fade.to(1, { spring: springs.page, timeScale });
   timed('sheet:open', move, 0);
+  // Back closes it, as Cancel does (GESTURES.md §7).
+  const shut = layer('sheet', () => void close());
   /** @param {number} [velocity] */
   const close = async (velocity = 0) => {
     if (closing) return;
     closing = true;
+    shut();
     element.inert = true;
     element.style.pointerEvents = 'none'; dim.style.pointerEvents = 'none';
     element.classList.remove('csheet');

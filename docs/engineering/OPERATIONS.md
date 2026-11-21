@@ -58,7 +58,7 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 
 The authoritative list, with who can read each, is [SECURITY.md §11](SECURITY.md). If the two differ, SECURITY.md wins and this table is fixed.
 
-**Setting Worker secrets without a session.** No Claude session holds a Cloudflare credential, so Worker secrets are set either by the owner in the Cloudflare dashboard or by a `workflow_dispatch` workflow in the `worker` environment that pipes values to `wrangler` on stdin and prints only names: `auth-setup.yml` ("Open setup"), `auth-reset.yml` ("Request reset") and the "Rotate secret" workflow `rotate-secret.yml` **[proposal, from SECURITY.md]**. `rotate-secret.yml` takes:
+**Setting Worker secrets without a session.** No Claude session holds a Cloudflare credential, so Worker secrets are set either by the owner in the Cloudflare dashboard or by a `workflow_dispatch` workflow in the `worker` environment that pipes values to `wrangler` on stdin and prints only names: `auth-setup.yml` ("Open setup"), `auth-reset.yml` ("Request reset") and the "Rotate secret" workflow `rotate-secret.yml` **[proposal, from SECURITY.md; not built: there is no such workflow, so until it exists the owner sets these in the Cloudflare dashboard]**. `rotate-secret.yml` takes:
 - `copy`: names of environment secrets to copy into the Worker;
 - `generate`: names to fill with 32 random bytes that are never printed (for `AUTH_PEPPER`, `IP_HASH_KEY`).
 
@@ -72,7 +72,7 @@ Acceptance: a CI test parses `backend/src` for `env.<NAME>` and fails if a name 
 
 ### 3.1 Automatic deploy (every push to `main`)
 
-What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `test` runs every check once (`checks.yml`): five jobs at once, the site and mind suites in four parts dealt by measured time (`scripts/test-part.mjs`, `scripts/test-durations.json`) and the Worker's suite, each with Node 24, `npm ci --ignore-scripts` and, for the site parts, Playwright's Chromium headless shell, with `SITE_URL`, `WORKER_URL` and the Drive settings empty. They are exactly what `npm test` runs, in about two minutes instead of five, and no secret reaches them. Nothing deploys unless all five pass. Then job `site`:
+What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `test` runs every check once (`checks.yml`): six jobs at once, the site and mind suites in five parts dealt by measured time (`scripts/test-part.mjs`, `scripts/test-durations.json`) and the Worker's suite, each with Node 24, `npm ci --ignore-scripts` and, for the site parts, Playwright's Chromium headless shell, with `SITE_URL`, `WORKER_URL` and the Drive settings empty. They are exactly what `npm test` runs, in about two minutes instead of five, and no secret reaches them. Nothing deploys unless all six pass. Then job `site`:
 
 1. Runs only on `main` with `AZURE_DEPLOY_ENABLED=true`, after `test` passed and `api` succeeded or was skipped. Checks out the commit (dispatch `ref` or the pushed SHA) and refuses one that is not an ancestor of `origin/main`.
 2. Node 24, `npm ci --ignore-scripts`, Playwright Chromium headless shell (for the live check's browser test).
@@ -80,8 +80,8 @@ What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `te
 4. `node scripts/stage.mjs <sha>` copies `frontend/` to `.deploy/site/`, writes `release.json`, and fails on any budget ([PERFORMANCE.md §2](PERFORMANCE.md#2-site-budgets)).
 5. `azure/login` with OIDC. If sign-in fails, the next step prints only the token's `sub` claim.
 6. `scripts/deploy.sh <sha>` refuses any account not named `thunderhead*`. It uploads `ui/*`, then `apps/*`, then the rest, then `release.json` last. It reads `release.json` back until it names the commit (10 tries, 3 s apart), then removes stale blobs (at most 50; soft delete keeps them 7 days).
-7. Live checks: `tests/live.test.mjs` and `tests/home-browser.test.mjs` against `SITE_URL`, retried once after 15 s.
-8. On failure or cancel after publishing started, the previous commit is checked out into a clean `frontend/`, staged and published.
+7. Live checks: `tests/live.test.mjs`, `tests/home-browser.test.mjs` and `tests/live-browser.test.mjs` (the real `config.js` and the service worker: a signed-out visit lands on `/signin/`, no CSP violation, the worker activates) against `SITE_URL`, retried once after 15 s, within 10 minutes.
+8. On failure or cancel after publishing started, the previous commit's `frontend/`, `scripts/` and `shared/` are checked out (its own staging and publishing, since a newer `stage.mjs` can expect files it lacks), staged and published, within 15 minutes; the step fails unless the live `release.json` then names that commit. The job's 50 minutes hold publish (15), the live check (10) and the rollback (15) together.
 
 Planned additions (P1): the stage step also writes the route stubs, `config.js`, `precache.json` and the `build` number ([ARCHITECTURE.md §5–6](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)). The live checks add a shell route → 200 with the shell. From P1b, `GET /music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that ported app's own page (§3.4).
 
@@ -183,7 +183,7 @@ The `api` job runs when `backend/**`, `shared/**` or `package-lock.json` changed
    - `npx wrangler deploy --config backend/wrangler.jsonc --var SITE_ORIGINS:<the environment variable> --tag <sha12> --message "deploy <sha>" [--secrets-file <file>]`; the file is deleted right after.
 6. Smoke:
    1. Poll `GET /v1/health` until `version.tag == <sha12>` (every 5 s, 60 s max).
-   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every object's `schema` and `expected` equal the newest migration step in the repo (`node scripts/schema-version.mjs --ready`; every 15 s, 6 min max, because DOs may run old code for a few minutes). Skipped with a notice while `TH_CI_TOKEN` is not set (the deploys before first setup). After a rollback the old code reports `ok` too (`schema >= expected`; migrations are expand-only).
+   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every object's `schema` and `expected` equal the newest migration step in the repo (`node scripts/schema-version.mjs --ready`; every 15 s, 6 min max, because DOs may run old code for a few minutes). Skipped with a notice while `TH_CI_TOKEN` is not set (the deploys before first setup). After a rollback the old code reports `ok` too (`schema >= expected`; migrations are expand-only). Each object runs every step whose version its `_migrations` doesn't hold, in number order, so a step merged after a higher one still runs; an object that lacks a step this code has reports it in its health's `missing` and deep health says not `ok`.
    3. `node --test tests/live-api.test.mjs` (read-only: health shape, CORS preflight, 401 without a token, 403 from a foreign origin).
 7. Watch 10 minutes **[proposal]**: every 60 s, `GET /v1/ops/errors?status=open` counts server errors (`source` in `worker`, `do`) with `last_at` after the deploy. Fail at ≥ 5 of them, or at any error whose code is `internal` on an auth route.
 8. On failure after step 5, when no class change happened: `npx wrangler rollback "$PREV" --config backend/wrangler.jsonc --message "auto rollback from <sha>" --yes`. Then re-run step 6.1 expecting the previous tag. A bootstrap run has nothing to roll back to.
@@ -212,14 +212,14 @@ Notes:
 |---|---|---|---|---|
 | Device session | On suspicion; a lost phone | Owner: Settings → Devices → Sign out (that row), or "Sign out everywhere" | That device sees `401 session_revoked` within 60 s and wipes its private caches | The row is gone from the list |
 | Agent token (`mind:*`, `muse`, `ci`) | Every 180 days **[proposal]**, or on suspicion | Owner: Settings → Agents → New (same role) → copy → paste into the Claude environment (`TH_TOKEN`) or the GitHub environment secret `TH_CI_TOKEN` → revoke the old row | The old token stops within 60 s | Agent: `GET /v1/auth/me` with the new token → 200; with the old → 401 |
-| `AUTH_PEPPER` | Only on suspicion of a leak | Proposal (`access`). Agent: `rotate-secret.yml` with `generate: AUTH_PEPPER_V2`, after a deploy that accepts both peppers and re-hashes lazily at sign-in ([SECURITY.md §14.6](SECURITY.md)) | Hashes move to the new pepper as the owner signs in | Sign-in works; `pepper_v` = 2 on the credential |
-| `IP_HASH_KEY` | Yearly | `rotate-secret.yml` `generate: IP_HASH_KEY` | Throttle counters reset | — |
+| `AUTH_PEPPER` | Only on suspicion of a leak | Proposal (`access`). Agent: `rotate-secret.yml` (not built) with `generate: AUTH_PEPPER_V2`, after a deploy that accepts both peppers and re-hashes lazily at sign-in ([SECURITY.md §14.6](SECURITY.md)) | Hashes move to the new pepper as the owner signs in | Sign-in works; `pepper_v` = 2 on the credential |
+| `IP_HASH_KEY` | Yearly | `rotate-secret.yml` (not built) `generate: IP_HASH_KEY` | Throttle counters reset | — |
 | `AUTH_SETUP_FP`, `TH_SETUP_FINGERPRINT` | Clear after setup | Owner: run Open setup with `clear: true` (sets the Worker secret to `none`; never delete it), then delete the GitHub secret | None (`/v1/auth/setup` already answers 410) | — |
 | Mind fire URL/token (per task) | When the task is recreated or on suspicion | Owner: in the scheduled task's API trigger, regenerate → paste into the Cloudflare dashboard as `ROUTINE_CHAT_TOKEN` and `ROUTINE_CHAT_URL` (or the `_NIGHT_`, `_REFLEX_` pair) | Old fires fail with 401 from the platform | Agent: `POST /v1/mind/typing` from a device fires a wake; the wakes list shows `fired` |
 | `CLOUDFLARE_API_TOKEN` | Yearly (reminder in the October briefing) **[proposal]**, or on suspicion | Owner: Cloudflare → API tokens → Roll → paste into the GitHub secret | Deploys use the new token | Next Deploy run is green |
-| `R2_SIGN_ACCESS_KEY_ID` / `R2_SIGN_SECRET` | On suspicion (rolling revokes every signed URL at once) | Owner: R2 → Manage API tokens → create (Object Read; the two buckets) → paste both into the Cloudflare dashboard (or `rotate-secret.yml copy`) → delete the old token | Old URLs 403 at once; clients re-sign | Media plays after one 403 retry |
+| `R2_SIGN_ACCESS_KEY_ID` / `R2_SIGN_SECRET` | On suspicion (rolling revokes every signed URL at once) | Owner: R2 → Manage API tokens → create (Object Read; the two buckets) → paste both into the Cloudflare dashboard (or `rotate-secret.yml copy`, not built) → delete the old token | Old URLs 403 at once; clients re-sign | Media plays after one 403 retry |
 | Actions R2 keys | Yearly or on suspicion | Owner: create new → GitHub secrets → delete old | — | Next jobs run is green |
-| `VAPID_PRIVATE_JWK` | On suspicion | Proposal; `rotate-secret.yml` with a P-256 JWK step | Every push subscription is dead; devices re-subscribe on next open | A test push arrives |
+| `VAPID_PRIVATE_JWK` | On suspicion | Proposal; `rotate-secret.yml` (not built) with a P-256 JWK step | Every push subscription is dead; devices re-subscribe on next open | A test push arrives |
 | Azure OIDC | Not a stored secret | If the repo is renamed or recreated: Entra → app → Federated credentials → add the new exact subject; the failing run prints it | — | Deploy green |
 
 ---
@@ -270,7 +270,7 @@ Notes:
 | Area | Objective | Measured by |
 |---|---|---|
 | Site | The live Chromium check passes after every deploy; otherwise auto-rollback | `deploy.yml` |
-| API | ≤ 10 server errors (5xx) per day **[proposal]** (counts, because the Worker can't afford to count every request); ≥ 5 in the 10 minutes after a deploy triggers rollback | `Core.errors` |
+| API | ≤ 10 server errors (5xx) per day **[proposal]** (counts, because the Worker can't afford to count every request). **Not built:** no rollback on 5xx after a deploy; what rolls the Worker back is the deploy's own smoke check (§5.1) | `Core.errors` |
 | Chat | Warm reply p90 < 15 s; cold reply p90 < 90 s; an unclaimed wake after 240 s is shown honestly | `messages`, `wakes` ([RUNTIME.md](../mind/RUNTIME.md)) |
 | Night shift | Done by 09:00 local on ≥ 6 nights of 7 | `wakes` (role night) + day note `written_at` |
 | Budgets | No day's Free-plan budget above 60% (the limits less the old Worker's share: 4,800,000 rows read, 68,000 written) | `meter_days` (DATA.md §3) |
@@ -286,12 +286,13 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `quota.rows_written` | Rows written today across the five objects ≥ 40,800 (60% of the 68,000 the Free plan's 100,000 leaves after the old Worker's 32,000) | S3; from 80% the heavy work waits (below) |
 | `quota.rows_read` | Rows read today ≥ 2,880,000 (60% of the 4,800,000 the Free plan's 5,000,000 leaves after the old Worker's 200,000) | S3; from 80% the heavy work waits (below) |
 | `quota.do_calls` (not built) | Object calls today ≥ 60,000 | S3 |
-| `errors.spike` | ≥ 20 new server errors in 60 min, or ≥ 5 of one fingerprint in 15 min | S2 if on auth or messages, else S3 |
+| `errors.spike` | ≥ 20 new server errors in 60 min, or ≥ 5 of one fingerprint in 15 min (the Worker's `onError` records each unexpected 500 in the error inbox as source `worker`, fingerprinted by route and error name, never the message, at most 5 an isolate in a minute: `http/report.ts`) | S2 if on auth or messages, else S3 |
 | `client.errors` | ≥ 50 client error reports in 60 min | S3 |
 | `backup.stale` | Newest complete backup > 8 days | S3 |
 | `drill.failed`, `drill.overdue` | Last drill failed, or none for 35 days | S3 |
 | `roll.stuck` | `day.current` is more than 30 h old | S2 |
 | `night.late` | No day note for yesterday by 09:00 local | S3 |
+| `reply.late` | An owner message unanswered for more than 30 min, outside quiet hours | S3 |
 | `jobs.stuck` | A job `running` > 2 h, or `attempts` ≥ 5 | S3 |
 | `db.size` | Any object > 700 MB | S3 |
 | `events.export.late` (P5) | Day D not archived by D+1 09:00 | S3 |
@@ -311,6 +312,8 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 
 ### 8.4 The listening pass (JOBS.md §3)
 
+**Cut 2026-11-04** ([SETUP.md N6](../process/SETUP.md), which says which pieces to remove): no `Jobs · audio` workflow exists and nothing below runs; kept for the record.
+
 - **Each night** `th music jobs` (night step 6) collects any job issued over 6 hours ago, asks for the next (≤ 500 songs, then the neighbours step) and starts **Actions → Jobs · audio** with the job's id. Its output says how many it collected by state, what it issued and whether GitHub took the dispatch.
 - **Watching it:** the run page (counts and timings only: `spec:`, `analysed: N of M`, `done: N ok, N failed, N s`, `collect:`); `th get /v1/jobs open=1` or `th get /v1/jobs/<id>` (state and counts by reason, never a hash); the job's rows show in the meter as Music's day and on the bulk lane (`GET /v1/ops/meter`); Core's apply job in deep health's `jobs_backlog`, and `jobs.stuck` if it keeps failing.
 - **Re-running:** a run that failed before collecting: nothing to do, the next night collects it or (no manifest) it expires 72 h after issue and its songs are offered again. To run one again at once: Actions → Jobs · audio → **Run workflow** (branch `main`) with the same job id while it is still `issued`; if the first run got as far as its manifest, collect instead (`POST /v1/jobs/<id>/collect`), since parts are refused once a manifest is there. A job whose apply failed for good is rejected by `music.listen.reject` (reason `apply_failed`), its files deleted; one still `validating` 6 hours after its collect is collected again by the night, which queues its apply again (idempotent). Files a failed delete left are swept when the next job is asked for. The night may issue at most three jobs of a kind in 24 hours. A job `rejected`: its songs stay due and go in a later job; look at the run's log for the `fail:` line.
@@ -326,6 +329,7 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 | Every 15 min | Watchdogs; day roll; alarms re-armed | `Core.tick` |
 | Daily | Meter vs caps; errors; wakes claimed/unclaimed; yesterday's `perf_days`; prune jobs | Worker; `mind-night` reads them into the briefing only when something is off |
 | Each deploy | Site and API live checks | `deploy.yml` |
+| Every 30 min | The read-only live checks (`tests/live.test.mjs`, `tests/live-api.test.mjs`); two failed runs in a row open one issue, "The live site check is failing" (names and the run's link only), a pass closes it | `live-watch.yml` (`scripts/live-watch.mjs`) |
 | Weekly (Sunday) | Per-class backup at 02:30 local (built: the tick starts `export.weekly` for Core); profile snapshot; evals ([EVALS.md](../mind/EVALS.md)); a one-line ops summary in Monday's briefing | Worker, `mind-night` |
 | Monthly | Restore drill (first Sunday, started by the tick after the backup; built); Dependabot PRs (grouped) merged when green; owner glances at the Cloudflare dashboard for R2 storage and Class A/B operations (about 1 min) | `mind-night`, agent, owner |
 | Every 180 days | Agent token rotation reminder | briefing |

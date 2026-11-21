@@ -165,7 +165,7 @@ export async function run(c, newId) {
   }
   if (c.kind === 'control') {
     const { control } = await import('../island/island.js');
-    const r = control(c.cmd, c.minutes);
+    const now = control(c.cmd, c.minutes), r = (await now.outcome) ?? now;
     toast(r.text, r.undo ? { label: 'Undo', run: r.undo } : undefined);
     return;
   }

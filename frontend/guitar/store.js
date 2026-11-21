@@ -1,5 +1,8 @@
 // The Guitar library on this device: songs, practice time and preferences.
 // Pure apart from the storage object passed in, so it is tested in Node.
+// Each song carries `updated`, when this phone last changed it (its clock): th/guitar/progress.js
+// sends the songs changed since the last time to the Worker, and puts a newer one from another
+// phone in place of this one's with `take` (GUITAR.md §1.1).
 export const KEY = 'jarvis.guitar.v2';
 const OLD = 'jarvis.guitar.library.v1';
 export const STATUSES = [
@@ -39,7 +42,8 @@ function clean(song) {
     star: !!song.star, added: Number(song.added) || 0, opened: Number(song.opened) || 0, bar: Number.isInteger(song.bar) ? song.bar : 0,
     loop: Array.isArray(song.loop) && song.loop.length === 2 && song.loop.every(Number.isInteger) ? song.loop : null,
     speed: Math.min(150, Math.max(25, Number(song.speed) || 100)), best: Math.min(150, Math.max(0, Number(song.best) || 0)),
-    seconds: Math.max(0, Number(song.seconds) || 0), accent: /^#[0-9a-f]{6}$/i.test(song.accent || '') ? song.accent : ''
+    seconds: Math.max(0, Number(song.seconds) || 0), accent: /^#[0-9a-f]{6}$/i.test(song.accent || '') ? song.accent : '',
+    updated: Math.max(0, Number(song.updated) || 0)
   };
 }
 
@@ -104,7 +108,7 @@ export function createStore(storage, now = () => Date.now()) {
     open(info) {
       const key = songKey(info.source, info.id);
       const prior = state.songs[key];
-      const song = clean({ ...prior, ...info, key, added: prior?.added || now(), opened: now() });
+      const song = clean({ ...prior, ...info, key, added: prior?.added || now(), opened: now(), updated: now() });
       if (!song) return null;
       state.songs[key] = song; changed();
       return song;
@@ -112,8 +116,31 @@ export function createStore(storage, now = () => Date.now()) {
     update(key, patch) {
       const song = state.songs[key];
       if (!song) return null;
-      state.songs[key] = clean({ ...song, ...patch, key }) || song; changed();
+      const next = clean({ ...song, ...patch, key }) || song;
+      if (JSON.stringify(next) !== JSON.stringify(song)) next.updated = now();
+      state.songs[key] = next; changed();
       return state.songs[key];
+    },
+    // The song changed outside this store (its ladder, th/guitar/practice.js): stamped, so it syncs.
+    touch(key) { if (state.songs[key]) { state.songs[key].updated = now(); changed(); } },
+    // A song's practice seconds by day, as its progress record carries them.
+    days: key => Object.fromEntries(Object.entries(state.log).filter(([, e]) => e.songs?.[key] > 0).map(([day, e]) => [day, e.songs[key]])),
+    // A newer record of this song from another phone (th/guitar/progress.js): its entry (null: none)
+    // and its practice days in place of this phone's, stamped `at` (this phone's clock).
+    take(key, song, days, at) {
+      const c = song && clean({ ...song, key, updated: at });
+      if (c && songKey(c.source, c.id) === key) state.songs[key] = c;
+      else if (song === null) delete state.songs[key];
+      for (const entry of Object.values(state.log)) {
+        const s = entry.songs?.[key];
+        if (s) { entry.total = Math.max(0, (entry.total || 0) - s); delete entry.songs[key]; }
+      }
+      for (const [day, s] of Object.entries(days || {})) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !(s > 0)) continue;
+        const entry = state.log[day] ||= { total: 0, songs: {} };
+        (entry.songs ||= {})[key] = Math.min(86400, s); entry.total = (entry.total || 0) + Math.min(86400, s);
+      }
+      changed();
     },
     setStatus(key, status) { return this.update(key, { status }); },
     remove(key) { delete state.songs[key]; changed(true); },
@@ -128,7 +155,7 @@ export function createStore(storage, now = () => Date.now()) {
       const day = dayKey(at), entry = state.log[day] ||= { total: 0, songs: {} };
       entry.total += seconds;
       entry.songs[key] = (entry.songs[key] || 0) + seconds;
-      if (state.songs[key]) state.songs[key].seconds += seconds;
+      if (state.songs[key]) { state.songs[key].seconds += seconds; state.songs[key].updated = now(); }
       changed();
     },
     stats(at = now()) {
