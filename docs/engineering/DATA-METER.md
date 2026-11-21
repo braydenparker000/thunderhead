@@ -21,7 +21,8 @@ meter only counts; it changes nothing about what the site downloads.
 real header size, so it uses the same. A worker counts when an answer's headers arrive: a song the
 player lets go of early is counted for the whole range it asked. Each document counts its own
 timeline; a parent leaves a same-origin frame's load to the frame, so a framed app and the same app
-open on its own never count the same bytes.
+open on its own never count the same bytes. A document's navigation entry counts once: Chrome hands a `buffered`
+observer started before the load ends that entry twice (`tally.js` `firstSight`).
 
 **Parts.** A file on this site goes by its path (`/music/` Music, `/apps/photos/` Photos, release
 files Updates, and so on); anything else by the document that loaded it. Calls to the Worker's API

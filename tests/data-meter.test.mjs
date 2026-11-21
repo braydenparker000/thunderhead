@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { HEADERS, KEY, add, dayOf, empty, entrySize, merge, netOf, parse, prune, sizeOf, totals, words } from '../frontend/th/data/tally.js';
+import { HEADERS, KEY, add, dayOf, empty, entrySize, firstSight, merge, netOf, parse, prune, sizeOf, totals, words } from '../frontend/th/data/tally.js';
 import { find } from '../frontend/apps/settings/finder.js';
 
 const at = (y, m, d, h = 12, min = 0, s = 0) => new Date(y, m - 1, d, h, min, s).getTime();
@@ -29,6 +29,13 @@ test('sizes from the timeline: caches and workers count nothing here, then trans
   assert.equal(entrySize({ transferSize: 0, encodedBodySize: 800, deliveryType: '' }), 800);
   assert.equal(entrySize({ transferSize: 0, encodedBodySize: 0, deliveryType: '' }, 1200), 1200);
   assert.equal(entrySize({ transferSize: 0, encodedBodySize: 0, deliveryType: '' }), null);
+});
+
+test('a page’s own load counts once, though Chrome hands its navigation entry over twice', () => {
+  // What Chrome gives a buffered observer started before the load ends: the entry at once, then again at loadEventEnd.
+  const fresh = firstSight(), nav = { entryType: 'navigation' }, again = { entryType: 'navigation' }, css = { entryType: 'resource' }, css2 = { entryType: 'resource' };
+  assert.deepEqual([nav, css, again, nav, css, css2].map(fresh), [true, true, false, false, false, true], 'the same file fetched twice is two entries, both counted');
+  assert.equal(firstSight()(again), true, 'each document has its own');
 });
 
 test('the network as the browser says, never guessed', () => {

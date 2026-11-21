@@ -116,18 +116,23 @@ test('home, a framed app and a song through the bridge add up to what was served
   // An app in a frame of home: it counts its own load, and home does not count the frame's.
   await page.evaluate(() => document.body.append(Object.assign(document.createElement('iframe'), { id: 'study-frame', src: '/study/', style: 'position:fixed;width:10px;height:10px;opacity:0' })));
   await page.waitForFunction(() => document.querySelector('#study-frame')?.contentWindow?.thData);
-  const own = (page) => page.evaluate(async () => {
+  // Both sides in one read, so no entry lands between them: the frame's whole timeline (and anything home
+  // itself fetched from Study's paths) against the tally, after every page has written what it saw.
+  const counted = await until(() => page.evaluate(async () => {
     const { partOfPath } = await import('/th/data/page.js');
+    const f = document.querySelector('#study-frame').contentWindow;
+    if (f.document.readyState !== 'complete') return false;
     const size = (e) => (e.deliveryType === 'cache' ? 0 : e.transferSize || e.encodedBodySize || 0);
     const mine = (w, keep) => w.performance.getEntriesByType('navigation').concat(w.performance.getEntriesByType('resource'))
       .filter((e) => keep(new URL(e.name), e)).reduce((n, e) => n + size(e), 0);
-    const frame = document.querySelector('#study-frame').contentWindow;
-    const frameEntry = performance.getEntriesByType('resource').find((e) => e.initiatorType === 'iframe' && e.name.endsWith('/study/'));
-    // Study: the frame's whole timeline, and anything home itself fetched from Study's paths.
-    return { frameEntry: frameEntry?.transferSize ?? 0,
-      study: mine(frame, () => true) + mine(window, (u, e) => u.origin === location.origin && e.initiatorType !== 'iframe' && partOfPath(u.pathname) === 'study') };
-  });
-  const counted = await until(async () => { const [o, t] = [await own(page), await today(page)]; return o.study > 0 && t.study === o.study && o; }, { message: 'Study counted its own load once' });
+    const study = mine(f, () => true) + mine(window, (u, e) => u.origin === location.origin && e.initiatorType !== 'iframe' && partOfPath(u.pathname) === 'study');
+    for (const w of [window, f]) w.thData.flush();
+    const t = JSON.parse(localStorage.getItem('th.p.data') || '{"days":{}}'), d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const s = t.days[day]?.study ?? [0, 0, 0], kept = s[0] + s[1] + s[2];
+    const frameEntry = performance.getEntriesByType('resource').find((e) => e.initiatorType === 'iframe' && e.name.endsWith('/study/'))?.transferSize ?? 0;
+    return study > 0 && kept === study && { frameEntry };
+  }), { message: 'Study counted its own load once' });
   assert.ok(counted.frameEntry > 0, 'home’s timeline has the frame’s load with its size: left alone, it is not counted twice');
 
   // Music in home's frame, trusted by its worker; two ranges of a song through the bridge.

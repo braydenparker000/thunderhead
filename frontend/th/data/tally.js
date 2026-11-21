@@ -55,6 +55,22 @@ export function sizeOf({ status, length, range }) {
   return null;
 }
 
+/** A document's filter for its timeline's entries, true the first time an entry is seen. Chrome hands a
+ * `buffered` navigation observer the page's navigation entry at once and again when its load ends, so an
+ * observer started before the load ends saw it twice (the meter counted a page's own load twice): a
+ * document has one navigation, counted once; any entry handed over again is the same object, seen once.
+ * @returns {(e: { entryType: string }) => boolean} */
+export function firstSight() {
+  let navigated = false;
+  const had = new WeakSet();
+  return (e) => {
+    if (had.has(e) || (e.entryType === 'navigation' && navigated)) return false;
+    had.add(e);
+    if (e.entryType === 'navigation') navigated = true;
+    return true;
+  };
+}
+
 /** A Resource Timing entry's bytes: nothing when it came from a cache or a service worker's answer (the
  * worker counts what it fetched); else transferSize; else encodedBodySize (a cross-origin answer without
  * Timing-Allow-Origin); else a Content-Length the code held for it; else null.

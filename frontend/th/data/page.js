@@ -8,7 +8,7 @@
 // (th/data/store.js). A frame's own load is left to the frame, which counts itself, so nothing is
 // counted twice. It sends nothing anywhere.
 import { CONFIG } from '/config.js';
-import { HEADERS, IDS, dayOf, empty, entrySize, netOf } from './tally.js';
+import { HEADERS, IDS, dayOf, empty, entrySize, firstSight, netOf } from './tally.js';
 import { mergeIn } from './store.js';
 
 /** The part a document is, by its path; everything else is home and the shell. */
@@ -61,9 +61,11 @@ function start() {
 
   /** The part an entry is: a release's file, an app's file by its path, the Worker's API from home; else this document. @param {URL} url */
   const partOf = (url) => (url.origin === location.origin ? partOfPath(url.pathname) || doc : url.origin === api && doc === 'home' ? 'api' : doc);
+  const fresh = firstSight();
   /** @param {PerformanceEntryList} list */
   const seen = (list) => {
     for (const e of /** @type {PerformanceResourceTiming[]} */ (list)) {
+      if (!fresh(e)) continue;
       let url;
       try { url = new URL(e.name); } catch { continue; }
       // A frame of this site counts its own load (its navigation entry); an address the code counts is its.
