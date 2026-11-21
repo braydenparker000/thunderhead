@@ -88,10 +88,12 @@ export async function warm() {
 // app's frame is in front, home asks for `resizes-visual` instead, as the app's own page does; the
 // app reads home's visual viewport for the space above the keyboard. Home's own ask comes back as the
 // app leaves the front (into the island, closed or parked).
-const vpMeta = /** @type {HTMLMetaElement|null} */ (document.querySelector('meta[name=viewport]'));
-const homeVp = vpMeta?.content ?? '';
+/** @type {HTMLMetaElement|null|undefined} */ let vpMeta;
+let homeVp = '';
 /** @param {boolean} over */
 export function keyboardOverApp(over) {
+  // (read at first use: this module is also loaded where there is no page, in the fast tests)
+  if (vpMeta === undefined) { vpMeta = /** @type {HTMLMetaElement|null} */ (document.querySelector('meta[name=viewport]')); homeVp = vpMeta?.content ?? ''; }
   if (!vpMeta || !homeVp.includes('interactive-widget=')) return;
   const want = over ? homeVp.replace(/interactive-widget=[a-z-]+/, 'interactive-widget=resizes-visual') : homeVp;
   if (vpMeta.content !== want) vpMeta.content = want;
