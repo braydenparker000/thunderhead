@@ -168,16 +168,32 @@ export const lastOrd = (db: Db) => db.one<{ m: number | null }>('SELECT max(ord)
 
 // --- ratings -------------------------------------------------------------------------------------
 
-/** A song's rating as of `at`: the newest wins, so a late older one changes nothing. 1 row written
- * (2 for a rating of 1, which the partial index holds). */
-export function putRating(db: Db, id: string, rating: number, at: number): number {
+/** A song's rating as of `at`: the newest wins, so a late older one changes nothing. Two sources,
+ * one row: a phone's sync (`syncedAt`, when the Worker took it; `at` on the Worker's clock) and a
+ * `music.rate` sense (`syncedAt` null; `at` on the phone's own clock). A sense never beats a synced
+ * row (the clocks differ): it fills a row no sync has touched (`synced_at` 0), and a real synced
+ * stamp (more than 1, the stamp of a rating from before the sync) replaces such a row. 1 row
+ * written for a sense on a row it has, else 2 (3 for a rating of 1, which the partial index holds). */
+export function putRating(db: Db, id: string, rating: number, at: number, syncedAt: number | null): number {
+  if (syncedAt === null)
+    return db.run(
+      `INSERT INTO track_ratings (track_id, rating, at, synced_at) VALUES (?, ?, ?, 0)
+       ON CONFLICT (track_id) DO UPDATE SET rating = excluded.rating, at = excluded.at
+       WHERE track_ratings.synced_at = 0 AND (excluded.at > track_ratings.at
+         OR (excluded.at = track_ratings.at AND excluded.rating IS NOT track_ratings.rating))`,
+      id,
+      rating,
+      at,
+    );
   return db.run(
-    `INSERT INTO track_ratings (track_id, rating, at) VALUES (?, ?, ?)
-     ON CONFLICT (track_id) DO UPDATE SET rating = excluded.rating, at = excluded.at
-     WHERE excluded.at > track_ratings.at OR (excluded.at = track_ratings.at AND excluded.rating IS NOT track_ratings.rating)`,
+    `INSERT INTO track_ratings (track_id, rating, at, synced_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (track_id) DO UPDATE SET rating = excluded.rating, at = excluded.at, synced_at = excluded.synced_at
+     WHERE excluded.at > track_ratings.at OR (excluded.at = track_ratings.at AND excluded.rating IS NOT track_ratings.rating)
+       OR (track_ratings.synced_at = 0 AND excluded.at > 1)`,
     id,
     rating,
     at,
+    syncedAt,
   );
 }
 

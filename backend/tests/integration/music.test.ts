@@ -103,9 +103,14 @@ describe('the music catalog, imported (I7)', () => {
     const cat = JSON.parse(text) as MusicCatalog;
     expect(cat).toMatchObject({ version: 1, kind: 'r2-library', complete: true, count: 3 });
     expect(Number.isFinite(Date.parse(cat.generatedAt))).toBe(true);
-    // In the old catalog's order, each record exactly as stored; a waveform to fetch is flagged.
+    // In the old catalog's order, each record exactly as stored; a waveform to fetch is flagged, with
+    // its row's last change (a waveform registered again moves it, so the phone fetches it again).
     expect(cat.tracks.map((t) => t.id)).toEqual([B, C, A]);
-    expect(cat.tracks[2]).toEqual({ ...JSON.parse(TRACKS[0][0].record), waveformBars: true });
+    expect(cat.tracks[2]).toEqual({
+      ...JSON.parse(TRACKS[0][0].record),
+      waveformBars: true,
+      waveformAt: expect.any(Number),
+    });
     expect(cat.tracks[0]).toEqual(JSON.parse(TRACKS[0][1].record));
     expect(cat.tracks[1]).not.toHaveProperty('waveformBars');
 

@@ -169,14 +169,24 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
   await cost('PUT /v1/podcasts/queue (a newer version of 10) (Core)', putQueue(at + 1), 200, core());
   const qSince = Date.now() + 1;
   await new Promise((r) => setTimeout(r, 5));
-  await cost('GET /v1/podcasts/queue (nothing new) (Core)', () => api('GET', `/v1/podcasts/queue?since=${qSince}`, d), 200, core());
+  await cost(
+    'GET /v1/podcasts/queue (nothing new) (Core)',
+    () => api('GET', `/v1/podcasts/queue?since=${qSince}`, d),
+    200,
+    core(),
+  );
   await cost(
     'PUT /v1/podcasts/prefs (the speed) (Core)',
     () => api('PUT', '/v1/podcasts/prefs', { ...d, body: { items: [{ name: 'speed', value: 1.5, updated_at: at }] } }),
     200,
     core(),
   );
-  await cost('GET /v1/podcasts/prefs (nothing new) (Core)', () => api('GET', `/v1/podcasts/prefs?since=${qSince}`, d), 200, core());
+  await cost(
+    'GET /v1/podcasts/prefs (nothing new) (Core)',
+    () => api('GET', `/v1/podcasts/prefs?since=${qSince}`, d),
+    200,
+    core(),
+  );
   await coreSql("DELETE FROM settings WHERE key = 'prune.day'");
   await cost(
     'cron tick, the daily prune pass with 1,003 positions (Core)',

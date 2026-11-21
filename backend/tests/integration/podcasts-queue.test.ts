@@ -7,7 +7,12 @@
 // Synthetic shows and episodes only.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { PodcastPage, PodcastPref, PodcastQueueItem, PodcastSyncResponse } from '../../../shared/contract/podcasts.ts';
+import type {
+  PodcastPage,
+  PodcastPref,
+  PodcastQueueItem,
+  PodcastSyncResponse,
+} from '../../../shared/contract/podcasts.ts';
 import type { Core } from '../../src/objects/core';
 import { apiJson, core, coreSql, makeAgent, setupOwner } from '../helpers';
 
@@ -43,7 +48,8 @@ const put = (path: string, items: unknown[], token = D) =>
   apiJson<PodcastSyncResponse>('PUT', `/v1/podcasts/${path}`, { token, body: { items } });
 const queue = (q = 'since=0', token = D) =>
   apiJson<PodcastPage<Omit<PodcastQueueItem, 'base'>>>('GET', `/v1/podcasts/queue?${q}`, { token });
-const prefs = (q = 'since=0', token = D) => apiJson<PodcastPage<PodcastPref>>('GET', `/v1/podcasts/prefs?${q}`, { token });
+const prefs = (q = 'since=0', token = D) =>
+  apiJson<PodcastPage<PodcastPref>>('GET', `/v1/podcasts/prefs?${q}`, { token });
 /** The queue as a phone reads it: the members carrying the newest stamp, by place. */
 const members = (items: Omit<PodcastQueueItem, 'base'>[]) => {
   const v = Math.max(...items.map((q) => q.updated_at));
@@ -67,10 +73,18 @@ describe('Up Next', () => {
     expect(members(g.body.items)).toEqual([1, 2, 3]);
     expect(g.body.items.find((q) => q.key.endsWith(id(2)))?.episode).toEqual(episode(2));
     // Another phone's newer version: 3 first, 1 taken out, 4 added.
-    await put('queue', [member(3, 0, T0 + 10, T0), member(2, 1, T0 + 10, T0), member(4, 2, T0 + 10, T0), removal(1, T0 + 10, T0)]);
+    await put('queue', [
+      member(3, 0, T0 + 10, T0),
+      member(2, 1, T0 + 10, T0),
+      member(4, 2, T0 + 10, T0),
+      removal(1, T0 + 10, T0),
+    ]);
     expect(members((await queue()).body.items)).toEqual([3, 2, 4]);
     // An older version arriving late changes nothing; the same one again neither.
-    expect((await put('queue', [member(1, 0, T0 + 5), member(2, 1, T0 + 5)])).body).toMatchObject({ applied: 0, stale: 2 });
+    expect((await put('queue', [member(1, 0, T0 + 5), member(2, 1, T0 + 5)])).body).toMatchObject({
+      applied: 0,
+      stale: 2,
+    });
     expect((await put('queue', [member(3, 0, T0 + 10, T0)])).body).toMatchObject({ applied: 0 });
     expect(members((await queue()).body.items)).toEqual([3, 2, 4]);
   });
@@ -81,7 +95,11 @@ describe('Up Next', () => {
     expect(r.body).toMatchObject({ applied: 2, stale: 1 });
     expect(members((await queue()).body.items)).toEqual([3, 5]);
     // Added again by a phone that has seen the removal: it is back.
-    await put('queue', [member(1, 0, T0 + 30, T0 + 20), member(3, 1, T0 + 30, T0 + 20), member(5, 2, T0 + 30, T0 + 20)]);
+    await put('queue', [
+      member(1, 0, T0 + 30, T0 + 20),
+      member(3, 1, T0 + 30, T0 + 20),
+      member(5, 2, T0 + 30, T0 + 20),
+    ]);
     expect(members((await queue()).body.items)).toEqual([1, 3, 5]);
   });
 
@@ -139,7 +157,10 @@ describe('playback speed', () => {
   it('the newer wins; only the app’s speeds are taken', async () => {
     expect((await put('prefs', [{ name: 'speed', value: 1.5, updated_at: T0 }])).body).toMatchObject({ applied: 1 });
     expect((await prefs()).body.items).toEqual([{ name: 'speed', value: 1.5, updated_at: T0 }]);
-    expect((await put('prefs', [{ name: 'speed', value: 2, updated_at: T0 - 1 }])).body).toMatchObject({ applied: 0, stale: 1 });
+    expect((await put('prefs', [{ name: 'speed', value: 2, updated_at: T0 - 1 }])).body).toMatchObject({
+      applied: 0,
+      stale: 1,
+    });
     const r = await put('prefs', [
       { name: 'speed', value: 3, updated_at: T0 + 1 },
       { name: 'volume', value: 1, updated_at: T0 + 1 },

@@ -198,7 +198,15 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       sql.exec('ALTER TABLE day_notes DROP COLUMN voice');
       // Step 41 (Photos) added the shelf’s tables, 42 the recipe’s columns on them, 43 the versions, 44 the stacks and the heart, 45 the looks, 46 the info.
       // …and 47 Guitar's progress, 49 Podcasts' Up Next and speed.
-      for (const t of ['photos', 'photos_gone', 'photo_versions', 'photo_looks', 'guitar_progress', 'podcast_queue', 'podcast_prefs'])
+      for (const t of [
+        'photos',
+        'photos_gone',
+        'photo_versions',
+        'photo_looks',
+        'guitar_progress',
+        'podcast_queue',
+        'podcast_prefs',
+      ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       // And step 48's (a refired message's count).
       sql.exec('ALTER TABLE messages DROP COLUMN refires');

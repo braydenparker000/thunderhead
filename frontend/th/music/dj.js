@@ -302,6 +302,8 @@ export function installDj(ctx, player) {
   import('/th/music/report.js').then((m) => m.installReport(ctx)).catch(() => {});
   // The owner's ratings, as senses for the mind's find and mixes (MUSIC.md §10.5).
   import('/th/music/ratings.js').then((m) => m.installRatings(ctx)).catch(() => {});
+  // The owner's ratings, plays and playlists on every phone (th/music/sync.js).
+  import('/th/music/sync.js').then((m) => m.installSync(ctx)).catch(() => {});
   // What the mind queued for the player while Music was closed (pending intents, API.md §11.11).
   import('/th/music/intents.js').then((m) => m.installIntents(ctx, player)).catch(() => {});
   // The mind's "tonight", a mix on the home shelf, played by the owner's tap (th/music/tonight.js).

@@ -2075,6 +2075,38 @@
       "phase": "P6",
       "status": "built",
       "note": "?since=&cursor=: what changed since, oldest first, ≤ 100 a page"
+    },
+    "PUT /v1/music/marks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "1–200 songs' rating (the newer rated_at wins, kept in track_ratings) and plays (the larger kept)"
+    },
+    "GET /v1/music/marks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page"
+    },
+    "PUT /v1/music/playlists": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days"
+    },
+    "GET /v1/music/playlists": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page"
     }
   },
   "verbs": {

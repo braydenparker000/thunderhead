@@ -77,10 +77,10 @@ in archive/MUSE-UPLOADS.md, your upload key, no `Origin`, no bearer token):
 
 ## 5. Before the first batch
 
-The phone keeps a waveform it has already drawn. Songs whose waveform was missing or `"peak"` show
-the new one at once; songs that were already `"rms"` show it only once the phone side is updated to
-fetch them again. Wait for the owner's word that it is in before §4 (the one-song check in §6 can
-use a song that had none or a peak one).
+The phone keeps a waveform it has already drawn, tagged with the catalog's `waveformAt` for it (the
+track row's last change, MUSIC.md §1.4): a waveform registered again moves it, so every redone song,
+`"rms"` before or not, is fetched again and shows the new one. This is in once the release with
+`waveformAt` is live; wait for the owner's word that it is before §4.
 
 ## 6. Check one song before the rest
 

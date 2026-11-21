@@ -989,6 +989,22 @@ own two weeks).
 - Rows (measured, [TESTING.md §6](TESTING.md#6-cost-tests)): a song's record kept 0 read and 2 written (the row and its `synced_at` index entry), a stale one 0 and 0, a first sync of 50 songs 100 written; a read 1 row when nothing changed (of 1,000 kept), else the rows it returns. The daily prune keeps the newest 1,000 by `updated_at`.
 - Song titles and artists travel only in JSON bodies, never a path, a query or a log line.
 
+### 11.29 Music's marks and playlists (P5, 2026-11-21)
+
+[MUSIC.md §1.4](../product/apps/MUSIC.md) (types and `MUSIC_SYNC_LIMITS` in `shared/contract/music-sync.ts`; Music step 6, `areas/music/sync-sql.ts`). The player keeps the owner's ratings, plays and playlists on the phone; `frontend/th/music/sync.js` syncs them, one record per song and one per playlist, so they follow the owner to another phone. A song's rating is kept in `track_ratings`, the table the `music.rate` senses write and find reads: one truth. The owner's device only. None of this touches the catalog or its ETag.
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/music/marks` | D | `{ items: MusicMark[] /* 0–200 */, reset_at? }` (no items only with `reset_at`, a Settings → Reset stats on the Worker's clock, kept if newer), each `{ id, rating, rated_at, plays, last_played, updated_at }`, nothing else: `id` a catalog song id; `rating` 0–5 with `rated_at`, or both null; `plays` ≥ 0; `last_played` ms (0 never) | `200 { applied, stale, refused, at }`: each item checked on its own; one the Worker can't take (malformed, or a time more than an hour ahead of the Worker's clock) is in `refused` as `{ index, issue }`. A rating replaces the song's only when its `rated_at` is newer (or the row has only a sense's rating and the stamp is a real one, more than 1); plays keep the larger count and the later `last_played`, and plays last played at or before the newest reset change nothing (a row of such plays is replaced). `applied` counts the songs where something changed | 413 over 64 KB; 422 not 0–200 items, none without `reset_at`, or a `reset_at` an hour ahead |
+| `GET /v1/music/marks?since=&limit=&cursor=` | D | `since`: ms (0 for everything); `limit` 1–200 (200); then `cursor` from `next` | `200 { items: MusicMark[], next_since, next, reset_at }`: the songs whose rating or plays the Worker took at or after `since`, each whole, oldest first (a song changed in both may come twice); plays from before `reset_at` (the newest reset, 0 none) read as none; a sense's rating on a row no sync has touched comes with `since=0` | 400 another route's cursor; 422 a bad `since` or `limit` |
+| `PUT /v1/music/playlists` | D | `{ items: MusicPlaylist[] /* 1–20 */ }`, each `{ id, name, ids, created, path, deleted, updated_at }`: `id` 4–40 of `a-z0-9`; `name` and `path` ≤ 300 characters; `ids` ≤ 5,000 entries of ≤ 600 characters (song ids, or an imported file's `path:<path>`); the whole item ≤ 450,000 characters | `200 { applied, stale, refused, at }` as above; a record replaces the playlist's only when its `updated_at` is newer. A deleted one is kept as a record marked `deleted` (no name or entries) for 30 days, then pruned (at most 20 a PUT) | 413 over 512 KB; 422 not 1–20 items |
+| `GET /v1/music/playlists?since=&limit=&cursor=` | D | as for marks | `200 { items: MusicPlaylist[], next_since, next }`, deleted ones included | as for marks |
+
+- Nothing here writes the change feed: the phones ask when Music opens and when it is shown again.
+- One clock: a `music.rate` sense's time is the phone's own clock, so the senses route never lets it beat a synced rating (`store-notes.ts` `putRating`); the phone's sync (Worker's clock) decides.
+- Rows (measured, [TESTING.md §6](TESTING.md#6-cost-tests)): a new rating 0 read and 3 written (the row, its `synced_at` entry, the rated-1 partial index for a 1), a newer one 2, a stale one 0; a play 2 (the row and its `synced_at` entry); a first sync of 200 rated and played songs 800 written; a read 6 rows when nothing changed, 23 for 3 new songs (both tables' `synced_at` indexes, then each song by key in both); a playlist made or renamed 3 read (the prune's look at the deleted ones) and 2 written, deleted 3; a read of 1 changed playlist 1. A `music.rate` sense now writes the `synced_at` entry too (100 ratings of 1: 300 written). The catalog's revalidation afterwards is still a 304 of 1 row.
+- Ids, numbers and the owner's playlist names travel only in JSON bodies, never a path, a query or a log line.
+
 ## 12. WebSocket protocol (`/v1/live`)
 
 | Direction | Frame | Meaning |
@@ -1098,6 +1114,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/music/mixes/:id` | D | P5 |
 | `GET /v1/music/notes` | D C N | P5 |
 | `PUT /v1/music/uploads/audio/:file`, `PUT /v1/music/uploads/art/:file`, `POST /v1/music/uploads/:op` | P (no bearer token: each request signed by an upload tool key) | P5 |
+| `PUT /v1/music/marks`, `GET /v1/music/marks`, `PUT /v1/music/playlists`, `GET /v1/music/playlists` (§11.29) | D | P5 |
 | `GET /v1/guitar/search`, `/songs/:id`, `/songs/:id/score`, `/gprotab/search`, `/gprotab/file`, `/sounds/:instrument/:file` | D | P6 |
 | `PUT /v1/guitar/progress`, `GET /v1/guitar/progress` (§11.28) | D | P6 |
 | `POST /v1/astra/play`, `GET /v1/astra/torbox`, `GET /v1/astra/torbox/servers` | D | P8 |

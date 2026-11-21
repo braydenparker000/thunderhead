@@ -13,10 +13,10 @@ import * as z from 'zod/mini';
 import {
   feedProblem,
   PODCAST_LIMITS as L,
+  PODCAST_SPEEDS,
   type PodcastCheckedRequest,
   type PodcastFollow,
   type PodcastNightFollowRow,
-  PODCAST_SPEEDS,
   type PodcastPage,
   type PodcastPref,
   type PodcastProgress,

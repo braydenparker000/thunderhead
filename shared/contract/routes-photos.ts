@@ -2,7 +2,8 @@
 // no import here, so the registry stays importable on its own. Only the owner's phone calls them;
 // the callback is Google's redirect back with the consent, checked by its one-use state.
 // The workshop's files (workshop.ts, API.md §11.27) and Astra's relay (astra.ts, API.md §11.21) are
-// listed here too: routes.ts is at its length. So is Guitar's progress (guitar.ts, API.md §11.28).
+// listed here too: routes.ts is at its length. So is Guitar's progress (guitar.ts, API.md §11.28), and
+// Music's marks and playlists (music-sync.ts, API.md §11.29).
 export const PHOTO_ROUTES = {
   'GET /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'connected or not, the folder by name, a revoked grant' },
   'POST /v1/photos/drive/connect': { who: ['D'], phase: 'P9', note: "Google's consent address, scope drive.file, a state good for 10 minutes" },
@@ -47,4 +48,9 @@ export const PHOTO_ROUTES = {
   // Guitar's progress, one record per song (guitar.ts): the owner's phone only; the newer updated_at wins.
   'PUT /v1/guitar/progress': { who: ['D'], phase: 'P6', note: '1–50 songs, each ≤ 16,000 characters; the newer updated_at wins' },
   'GET /v1/guitar/progress': { who: ['D'], phase: 'P6', note: '?since=&cursor=: what changed since, oldest first, ≤ 100 a page' },
+  // Music's own data, one record per song and per playlist (music-sync.ts): the owner's phone only.
+  'PUT /v1/music/marks': { who: ['D'], phase: 'P5', note: "1–200 songs' rating (the newer rated_at wins, kept in track_ratings) and plays (the larger kept)" },
+  'GET /v1/music/marks': { who: ['D'], phase: 'P5', note: '?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page' },
+  'PUT /v1/music/playlists': { who: ['D'], phase: 'P5', note: '1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days' },
+  'GET /v1/music/playlists': { who: ['D'], phase: 'P5', note: '?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page' },
 } as const;

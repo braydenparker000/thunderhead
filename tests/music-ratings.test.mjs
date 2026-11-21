@@ -91,3 +91,27 @@ test('the catch-up fits the outbox and counts a song sent only once the Worker t
   assert.equal(JSON.parse(s.m.get('th.music.rated')).length, 30 + CATCH_UP);
   assert.deepEqual(await runCatchUp(tracks, null, s), [], 'no outbox where it cannot load');
 });
+
+test('a rating that came by sync from another phone is never sent again: the catch-up counts it as sent', async () => {
+  const subs = [];
+  const ctx = { bus: { subscribe: (_bus, fn) => subs.push(fn) }, library: { tracks: [] } };
+  const store = new Map();
+  const had = globalThis.localStorage;
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  const real = globalThis.setTimeout;
+  globalThis.setTimeout = () => 0;
+  try {
+    installRatings(ctx);
+    subs[0]('msg_data_track_rating_changed', null, { track: { id: 'r2_native_def' }, arg1: 1, synced: true });
+  } finally {
+    globalThis.setTimeout = real;
+    globalThis.localStorage = had;
+  }
+  assert.deepEqual(JSON.parse(store.get('th.music.rated')), ['r2_native_def']);
+  // The catch-up then has nothing to send for it (no outbox call at all).
+  let calls = 0;
+  const out = { room: () => 200, sense: async () => (calls++, true), flush: async () => {}, drained: () => true };
+  const kept = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  assert.deepEqual(await runCatchUp([{ id: 'r2_native_def', rating: 1 }], out, kept), []);
+  assert.equal(calls, 0);
+});

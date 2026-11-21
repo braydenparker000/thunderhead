@@ -82,8 +82,10 @@ export function logBySeq(db: Db, seqs: number[]): LogRow[] {
 }
 
 /** Every track's record in catalog order, and whether it has a waveform. */
-export function catalogRows(db: Db): { record_json: string; w: number }[] {
-  return db.all('SELECT record_json, waveform IS NOT NULL AS w FROM tracks ORDER BY ord');
+/** Each track's record, whether it has a waveform, and when the row last changed (a waveform
+ * registered again moves it, so the phone fetches the new one). */
+export function catalogRows(db: Db): { record_json: string; w: number; u: number }[] {
+  return db.all('SELECT record_json, waveform IS NOT NULL AS w, updated_at AS u FROM tracks ORDER BY ord');
 }
 
 export function waveform(db: Db, id: string): string | null {

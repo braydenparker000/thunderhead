@@ -6,7 +6,8 @@
 // before this, CATCH_UP a page load and never more than the senses outbox has room for (it drops
 // its oldest past 200), each remembered on this phone as sent only once the Worker took it. Ids and
 // numbers only. th/senses/send.js sends them, signed in (it reads the session; nothing here touches
-// it). Loaded by th/music/dj.js `installDj`, which the player runs.
+// it). A rating another phone made (th/music/sync.js marks it `synced`) is not sent again, and the
+// catch-up counts it as sent. Loaded by th/music/dj.js `installDj`, which the player runs.
 
 /** Songs the catch-up sends at most each time the player loads. */
 export const CATCH_UP = 100;
@@ -49,6 +50,17 @@ function sentBefore(store) {
   } catch {
     return new Set();
   }
+}
+
+/** Remembers one song as sent (a rating that came from another phone by sync).
+ * @param {Storage} store @param {string} id */
+export function remember(store, id) {
+  const sent = sentBefore(store);
+  if (sent.has(id)) return;
+  sent.add(id);
+  try {
+    store.setItem(DONE, JSON.stringify([...sent]));
+  } catch {}
 }
 
 /** The senses outbox (th/senses/send.js), or null where it can't load.
@@ -94,6 +106,12 @@ export function installRatings(ctx) {
     const rating = Number(d.arg1 ?? d.track.rating ?? 0);
     const s = rateSense(d.track.id, rating, known.get(d.track.id));
     known.set(d.track.id, rating);
+    // A rating from another phone (th/music/sync.js) is on the Worker already: never sent again, and
+    // a 1 is remembered as sent, so the catch-up never sends it stamped now.
+    if (d.synced) {
+      if (rating === 1) remember(localStorage, d.track.id);
+      return;
+    }
     if (s) void outbox().then((out) => out?.sense(...s)).catch(() => {});
   });
   setTimeout(async () => {

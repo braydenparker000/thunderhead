@@ -100,8 +100,8 @@ Audio and art stay in `jarvis-music` under their content-addressed keys
 | Data | Home | On the phone | Notes |
 |---|---|---|---|
 | Catalog (tags, duration, size, art key, loudness, waveform flag) | `Music` Durable Object | IndexedDB `th-music/catalog` | Catalog writes come only from the upload tools |
-| Track stats (plays, skips, last played, rating) | `Music.track_stats`, rebuilt nightly from senses | IndexedDB `th-music/stats` plus a local overlay of unsent changes | The phone applies its own changes at once |
-| Playlists and mixes | `Core` lists | IndexedDB `th-music/lists` | One list per playlist, with ordered refs |
+| Track marks (rating, which is also the like and "never play this again"; plays, last played) | `Music.track_ratings` (the one rating the mind reads too) and `Music.track_plays`, synced by the phones (§1.4) | `claude-player` `state` `u:<id>` | The phone applies its own changes at once |
+| Playlists | `Music.music_playlists`, synced by the phones (§1.4) | `claude-player` `state` `pl:<id>` | One record per playlist, with ordered ids; mixes are the mind's (§4.2) |
 | Queue and position | Phone only, mirrored to `Core` device state at most every 60 s **[proposal]** | IndexedDB `th-music/session` | So "keep playing on the other device" is possible later |
 | Search index | `thunderhead-private/indexes/music/` | Cache Storage `th-music-index` | **[proposal]** |
 | Audio analysis and DJ features | `Music.analysis` (numbers per audio file, from the Actions listening pass) and `thunderhead-private/music/pack.v1.bin` (the phone's file, §9.1) | the phone's file, revalidated by its ETag | About 2.8 MB at 12k tracks; built |
@@ -127,6 +127,55 @@ imported plays and ratings line up (§11).
 
 **Acceptance:** with a 7,494-track fixture, a second open with no catalog change makes exactly one
 catalog request and receives 304; a fixture change of 3 tracks via `since` transfers ≤ 5 KB.
+
+### 1.4 The owner's data on every phone (2026-11-21)
+
+The owner: "all music data everywhere … likes etc." Music's look and playback do not change: only
+data made on one phone now appears on the other. `frontend/th/music/sync.js` (loaded by
+`th/music/dj.js` `installDj`) syncs it through `PUT/GET /v1/music/marks` and `/v1/music/playlists`
+(API.md §11.29, Music schema step 6), modelled on Guitar's and Podcasts' sync.
+
+| The owner's data on the phone | Where (`claude-player`, localStorage) | Synced |
+|---|---|---|
+| A song's rating (5 the like, 1 "not for me", which home's "never play this again" sets) | `state` `u:<id>` `rating`, with `ratedAt` (when it was set, stamped by the sync) | Yes: the newer `rated_at` wins |
+| A song's play count and last played | `state` `u:<id>` `plays`, `lastPlayed` | Yes: the larger count and the later time |
+| Playlists: name, entries in order, made, the file it came from | `state` `pl:<id>` | Yes: the newer record wins whole; a deleted one is a record marked deleted, kept 30 days |
+| Songs imported from files on this phone (their ratings and plays) | `tracks` | No: they have no Worker id and their files are on this phone only |
+| Pictures picked as covers | `state` `ca:<key>` (images) | No: images, not records; they would need the private bucket |
+| List memory (List Position flags and the entry last played per folder or playlist), the queue and its place | `state` `lm:<key>`, `queue`, `queue-list` | No: where this phone is, and what it plays next, stay this phone's |
+| EQ and reverb presets, the visualizer's preset ratings, search history, list and sort options, settings | `cp-eq-presets`, `cp-reverb-presets`, `cp-milk`, `cp-search-history`, `cp-list-opts`, `cp-settings`, … | No: device settings, and the sound must not change |
+| The DJ's learned moves | `th.music.dj` | No: outside the player's stores; it is how this phone has learned to order |
+
+- **When:** a pull when Music opens (once its library is there) and when it becomes visible; a push
+  20 s after a change, on hiding the page and when the network returns. The first time, every song
+  this phone has rated or played goes up, at most 1,000 a push. Only signed in.
+- **The newer change wins** on the phone and on the Worker, also for a playlist edited on two phones.
+  Times go up on the Worker's clock (the offset from each answer). A rating from before the sync has
+  no stamp and goes up as the oldest, so any stamped rating wins over it.
+- **Three sources of "not for me":** the phone's rating and the `music.rate` sense are the same truth,
+  one row per song in `track_ratings`. One clock decides: the sync's (`rated_at` on the Worker's
+  clock). A sense's time is the phone's own clock, so a sense never beats a synced rating: it only
+  fills a row no sync has touched yet, and the phone's synced stamp replaces it (the phone that sent
+  the sense syncs the same rating). The GET returns that row, so "never play this again" on one phone
+  is a 1 on the other. A rating that came by sync is never sent back as a sense, and the senses'
+  catch-up of songs rated 1 counts it as sent. The mind's
+  never-play rules (`music.never` facts in Core, with their own life and undo) stay rules: find
+  leaves out both, and they are not copied into ratings (that would be a second truth outliving the
+  rule) nor onto the phone (they are not data a phone made).
+- A rating from another phone reaches the rows with the player's own message, marked `synced`, so
+  `th/music/ratings.js` does not send it back as a sense. Plays from another phone change the fields
+  in place and post nothing.
+- A change made while its push is on the way stays queued: a song is cleared only if its change count
+  is still the one sent, a playlist's sent stamp is the `modified` that went up.
+- **Settings → Reset stats** is a record with its own time (`reset_at`, the newest kept): on the
+  Worker, plays last played at or before it read as none and an older count sent later changes
+  nothing; on each phone, every song last played before it goes back to no plays at the next pull.
+  Plays after it count again.
+- **Waveforms made again:** the catalog gives each waveform its row's last change (`waveformAt`); the
+  phone tags a stored waveform with it, so one registered again is fetched again. Any change to that
+  row moves it (a refetch of one small file); the catalog itself is downloaded only when it changes,
+  as before, and grows by about 27 bytes a track with a waveform.
+- The catalog never carries this data: its ETag and size do not move (the cost suite checks the 304).
 
 ---
 

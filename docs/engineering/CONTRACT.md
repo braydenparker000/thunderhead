@@ -253,6 +253,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |
 | `PUT /v1/guitar/progress` | D | P6 | built | 1–50 songs, each ≤ 16,000 characters; the newer updated_at wins |
 | `GET /v1/guitar/progress` | D | P6 | built | ?since=&cursor=: what changed since, oldest first, ≤ 100 a page |
+| `PUT /v1/music/marks` | D | P5 | built | 1–200 songs' rating (the newer rated_at wins, kept in track_ratings) and plays (the larger kept) |
+| `GET /v1/music/marks` | D | P5 | built | ?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page |
+| `PUT /v1/music/playlists` | D | P5 | built | 1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days |
+| `GET /v1/music/playlists` | D | P5 | built | ?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page |
 
 ## Verbs
 

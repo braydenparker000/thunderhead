@@ -61,7 +61,13 @@ export abstract class CorePodcasts extends CoreReports {
   }
 
   podcastQueue(after: [number, string], limit: number): Page<ReturnType<typeof queue.toQueueItem>> {
-    const p = sync.page((a, n) => queue.queuePage(this.db, a, n), (r) => r.key, after, limit, Date.now());
+    const p = sync.page(
+      (a, n) => queue.queuePage(this.db, a, n),
+      (r) => r.key,
+      after,
+      limit,
+      Date.now(),
+    );
     return { ...p, rows: p.rows.map(queue.toQueueItem) };
   }
 
@@ -70,7 +76,13 @@ export abstract class CorePodcasts extends CoreReports {
   }
 
   podcastPrefs(after: [number, string], limit: number): Page<PodcastPref> {
-    const p = sync.page((a, n) => queue.prefsPage(this.db, a, n), (r) => r.name, after, limit, Date.now());
+    const p = sync.page(
+      (a, n) => queue.prefsPage(this.db, a, n),
+      (r) => r.name,
+      after,
+      limit,
+      Date.now(),
+    );
     return { ...p, rows: p.rows.map(queue.toPref) };
   }
 
