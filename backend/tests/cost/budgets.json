@@ -184,7 +184,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 136,
+    "rows_read_max": 148,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -426,6 +426,26 @@
   "PUT /v1/podcasts/follows (1) (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 3
+  },
+  "PUT /v1/podcasts/queue (a version of 10, a first sync) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 20
+  },
+  "PUT /v1/podcasts/queue (a newer version of 10) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 20
+  },
+  "GET /v1/podcasts/queue (nothing new) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/prefs (the speed) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 1
+  },
+  "GET /v1/podcasts/prefs (nothing new) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
   },
   "POST /v1/podcasts/follows/checked (20) (Core)": {
     "rows_read_max": 40,

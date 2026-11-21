@@ -1,4 +1,4 @@
-// Podcasts on the Worker (NEXT-BATCH.md part 7, PODCASTS.md §5.4): schema step 25. Where each
+// Podcasts on the Worker (NEXT-BATCH.md part 7, PODCASTS.md §5.4): schema steps 25 and 49. Where each
 // episode was left (one row per episode, the newest 1,000 kept) and the shows followed (one row per
 // show; an unfollow kept 30 days so the other phones learn it), each with `synced_at`, when the
 // Worker took the row, so a phone asks only for what changed since it last asked (the index on
@@ -7,6 +7,7 @@
 // moves `synced_at`. `show_id` is the show's opaque id (store.ts showId): the night knows a show only
 // by it, never by its address, which its publisher chose.
 import type { Migration, TableInfo } from '../../objects/base';
+import { pruneQueue } from './queue';
 import { pruneFollows, pruneProgress } from './store';
 
 export const PODCASTS_MIGRATIONS: Migration[] = [
@@ -42,6 +43,30 @@ export const PODCASTS_MIGRATIONS: Migration[] = [
       'CREATE INDEX podcast_follows_show ON podcast_follows (show_id)',
     ],
   },
+  {
+    // Up Next and the playback speed (queue.ts): a row per episode that is or was in Up Next (its
+    // place, the episode as JSON, '' for a removal) and a row per preference, each with `synced_at`.
+    version: 49,
+    name: 'podcast_queue, podcast_prefs',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE podcast_queue (
+        key TEXT PRIMARY KEY,
+        pos INTEGER NOT NULL,
+        queued INTEGER NOT NULL,
+        episode TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        synced_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+      'CREATE INDEX podcast_queue_synced ON podcast_queue (synced_at)',
+      `CREATE TABLE podcast_prefs (
+        name TEXT PRIMARY KEY,
+        value REAL NOT NULL,
+        updated_at INTEGER NOT NULL,
+        synced_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+    ],
+  },
 ];
 
 export const PODCASTS_TABLES: Record<string, TableInfo> = {
@@ -56,5 +81,16 @@ export const PODCASTS_TABLES: Record<string, TableInfo> = {
     backup: true,
     export: true,
     prune: pruneFollows,
+  },
+  podcast_queue: {
+    retention: 'the newest version of Up Next; a removal or an older member 30 days; at most 500 rows',
+    backup: true,
+    export: true,
+    prune: pruneQueue,
+  },
+  podcast_prefs: {
+    retention: 'forever (one row: the playback speed)',
+    backup: true,
+    export: true,
   },
 };

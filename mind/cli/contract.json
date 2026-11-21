@@ -1644,6 +1644,38 @@
       "status": "built",
       "note": "the shows the night read: ≤ 20, their newest episode"
     },
+    "PUT /v1/podcasts/queue": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "1–100 Up Next items of one version or more; the newer wins"
+    },
+    "GET /v1/podcasts/queue": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=&cursor=: Up Next rows changed since, oldest first"
+    },
+    "PUT /v1/podcasts/prefs": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "the playback speed; the newer wins"
+    },
+    "GET /v1/podcasts/prefs": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=: the speed if it changed since"
+    },
     "GET /v1/push/key": {
       "who": [
         "D"
@@ -4657,7 +4689,10 @@
       "night_feeds": 20,
       "check_gap_ms": 72000000,
       "fail_backoff_max": 3,
-      "night_feed_reads": 40
+      "night_feed_reads": 40,
+      "queue_max": 100,
+      "episode_chars": 8000,
+      "queue_keep": 500
     }
   },
   "music": {

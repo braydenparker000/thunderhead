@@ -4,6 +4,7 @@
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
 import { PHOTO_ROUTES } from './routes-photos.ts';
+import { PODCAST_SYNC_ROUTES } from './routes-podcasts.ts';
 import { ROUTINE_ROUTES } from './routes-routines.ts';
 
 /** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
@@ -265,12 +266,7 @@ export const ROUTES = {
   'GET /v1/podcasts/directory': { who: D, phase: 'P8', note: '?q=|?category=, &country=' },
   'GET /v1/podcasts/feed': { who: ['D', 'N'], phase: 'P8', note: 'device ?url=: the feed, ≤ 4 MB; night ?show=: counts only' },
   'GET /v1/podcasts/audio': { who: D, phase: 'P8', note: '?feed=&id=; byte ranges' },
-  // NEXT-BATCH.md part 7 (API.md §11.25): positions and follows; the night: counts mode, no titles, its checks.
-  'PUT /v1/podcasts/progress': { who: D, phase: 'P8', note: '1–100 positions; the newer updated_at wins' },
-  'GET /v1/podcasts/progress': { who: ['D', 'N'], phase: 'P8', note: '?since=&cursor=: what changed since, oldest first' },
-  'PUT /v1/podcasts/follows': { who: D, phase: 'P8', note: '1–100 shows followed or unfollowed; the newer wins' },
-  'GET /v1/podcasts/follows': { who: ['D', 'N'], phase: 'P8', note: "?since=&cursor=; night: no titles, its last check" },
-  'POST /v1/podcasts/follows/checked': { who: ['N'], phase: 'P8', note: 'the shows the night read: ≤ 20, their newest episode' },
+  ...PODCAST_SYNC_ROUTES,
   // P8: Web Push (SECURITY.md §10): this phone's subscription, the words a push points at, a test.
   'GET /v1/push/key': { who: D, phase: 'P8', note: 'the VAPID public key; 503 until the key is set' },
   'PUT /v1/push/subscription': { who: D, phase: 'P8', note: "this session's subscription" },

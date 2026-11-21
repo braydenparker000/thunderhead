@@ -512,6 +512,13 @@ CREATE INDEX podcast_follows_show ON podcast_follows (show_id);
 
 CREATE INDEX podcast_follows_synced ON podcast_follows (synced_at);
 
+CREATE TABLE podcast_prefs (
+  name TEXT PRIMARY KEY,
+  value REAL NOT NULL,
+  updated_at INTEGER NOT NULL,
+  synced_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
 CREATE TABLE podcast_progress (
   key TEXT PRIMARY KEY,
   position_s REAL NOT NULL,
@@ -522,6 +529,17 @@ CREATE TABLE podcast_progress (
   ) WITHOUT ROWID;
 
 CREATE INDEX podcast_progress_synced ON podcast_progress (synced_at);
+
+CREATE TABLE podcast_queue (
+  key TEXT PRIMARY KEY,
+  pos INTEGER NOT NULL,
+  queued INTEGER NOT NULL,
+  episode TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  synced_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX podcast_queue_synced ON podcast_queue (synced_at);
 
 CREATE TABLE predictions (
   id TEXT PRIMARY KEY,

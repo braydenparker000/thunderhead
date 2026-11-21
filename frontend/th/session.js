@@ -20,7 +20,7 @@ const tabs = () => {
 /** Code-only caches that survive a sign-out: `th-<build>`, `th-vendor`. */
 const CODE_CACHE = /^th-(\d+|vendor)$/;
 /** The ported apps' stores the account also holds (SIGN-IN.md §11.3): Podcasts' positions and follows
- * (and its feeds; Up Next goes with them and is not kept anywhere else), Guitar's library and practice
+ * (and its feeds, Up Next and speed, which the account keeps too), Guitar's library and practice
  * (th/guitar/progress.js; its ladder is `th.p.guitar.ladder`), Music's taste weights. What lives only on
  * this phone stays: `claude-player`, `cp-*`, `th.music.dj`, `mymedia.*`, `th-report`, `th-setup`,
  * `th-recover`. */

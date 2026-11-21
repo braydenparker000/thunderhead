@@ -43,7 +43,17 @@ export const PODCAST_LIMITS = {
   /** Feeds the night may read through GET /v1/podcasts/feed in a UTC day (its 20, and a try more
    * each), each a followed show's; counted in a stored row, so a restart doesn't reset it. */
   night_feed_reads: 40,
+  /** Up Next: episodes in it, at most (the app's own cap). */
+  queue_max: 100,
+  /** One Up Next episode as the Worker keeps it, in characters of JSON (the phone trims it to fit). */
+  episode_chars: 8000,
+  /** Up Next rows kept: a removal, or a member of an older version, `unfollowed_keep_days`; at most
+   * this many rows in all. */
+  queue_keep: 500,
 } as const;
+
+/** The playback speeds the app offers (podcasts/core.js `readState`). */
+export const PODCAST_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5] as const;
 
 /** Where one episode was left. `played`: finished (PODCASTS.md §5.4 rule 3); it starts again from 0. */
 export interface PodcastProgress {
@@ -122,6 +132,31 @@ export interface PodcastPage<T> {
   items: T[];
   next_since: Ms;
   next: string | null;
+}
+
+/** One episode of Up Next, or its removal (PODCASTS.md §5.4). Each edit of Up Next on a phone is a new
+ * version of the whole queue, stamped `updated_at`: every member goes with that stamp and its place
+ * (`pos`, from 0), and every episode the edit took out as a removal (`queued: false`, `episode:
+ * null`), kept so it does not come back. The queue is the members carrying the newest stamp, so the
+ * newer whole version wins. `base`: the newest version this phone had from the Worker when it made
+ * this one (0: none); a member the Worker holds as removed after `base` (on another phone) stays
+ * removed. */
+export interface PodcastQueueItem {
+  key: string;
+  pos: number;
+  queued: boolean;
+  /** The episode as the app keeps it, its show with it (at most `episode_chars` of JSON); null for a
+   * removal. Its `id` and `show.feedUrl` are the key's. */
+  episode: { id: string; show: { feedUrl: string; [k: string]: unknown }; [k: string]: unknown } | null;
+  base: Ms;
+  updated_at: Ms;
+}
+
+/** One of the app's preferences that follows the account: the playback speed. The newer wins. */
+export interface PodcastPref {
+  name: 'speed';
+  value: (typeof PODCAST_SPEEDS)[number];
+  updated_at: Ms;
 }
 
 /** One show the night read (POST /v1/podcasts/follows/checked). `failed`: its feed could not be

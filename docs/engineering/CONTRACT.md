@@ -199,6 +199,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/podcasts/follows` | D | P8 | built | 1–100 shows followed or unfollowed; the newer wins |
 | `GET /v1/podcasts/follows` | D N | P8 | built | ?since=&cursor=; night: no titles, its last check |
 | `POST /v1/podcasts/follows/checked` | N | P8 | built | the shows the night read: ≤ 20, their newest episode |
+| `PUT /v1/podcasts/queue` | D | P8 | built | 1–100 Up Next items of one version or more; the newer wins |
+| `GET /v1/podcasts/queue` | D | P8 | built | ?since=&cursor=: Up Next rows changed since, oldest first |
+| `PUT /v1/podcasts/prefs` | D | P8 | built | the playback speed; the newer wins |
+| `GET /v1/podcasts/prefs` | D | P8 | built | ?since=: the speed if it changed since |
 | `GET /v1/push/key` | D | P8 | built | the VAPID public key; 503 until the key is set |
 | `PUT /v1/push/subscription` | D | P8 | built | this session's subscription |
 | `DELETE /v1/push/subscription` | D | P8 | built |  |

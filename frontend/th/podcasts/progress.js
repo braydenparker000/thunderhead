@@ -26,7 +26,10 @@
 //   missing show proves nothing). This phone's own word stands: a show it follows (listed or not: an
 //   unlisted one is an unfollow not yet sent) or unfollowed at least as recently is left alone, so an
 //   unfollow made here goes up and the next pull does not bring the show back (the Worker keeps an
-//   unfollow 30 days, newer wins). Up Next, downloads and speed stay on one phone.
+//   unfollow 30 days, newer wins);
+// - Up Next and the playback speed go up and come down on the same pushes and pulls, the newer
+//   winning (th/podcasts/queue.js: a version of the whole queue, a removal kept so it does not come
+//   back), so a phone signed in again gets them back. Downloads are files and stay on the phone.
 // Times: the app stamps its saves with the phone's clock, which may be off. Every answer from the
 // Worker carries its own clock (`at`, `next_since`), so this module keeps the difference (`offset`,
 // Worker minus phone, from the middle of each request, always taken) and sends times on the Worker's clock, and
@@ -45,6 +48,7 @@
 import { CONFIG } from '../../config.js';
 import { framedByOther, sessionToken } from '../ported/session.js';
 import { episodeID } from './feed.js';
+import { applyQueue, applySpeed, newer, noteQueue, noteSpeed, queueToSend, speedToSend } from './queue.js';
 
 /** The Worker's limits this module keeps to (PODCAST_LIMITS in shared/contract/podcasts.ts; kept here,
  * not in th/contract.js, which counts against the shell's size budget; tests/podcasts-progress.test.mjs
@@ -88,11 +92,14 @@ export const resumeOffer = (pulled, here) => Number(pulled) - (Number(here) || 0
 /** `sent`: per key, the app's own `updatedAt` (phone clock) of the version the Worker has. `offset`:
  * the Worker's clock minus the phone's, ms. `looked`: this phone has looked at the follows once (a
  * first look only learns them, so it sends no follow senses).
- * @typedef {{ v: 1, since: { progress: number, follows?: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number, looked?: boolean }} Memory */
+ * `queue`, `speed`: Up Next and the speed as this phone last noted them (th/podcasts/queue.js).
+ * @typedef {{ v: 1, since: { progress: number, follows?: number, queue?: number, prefs?: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number, looked?: boolean, queue?: import('./queue.js').Queue, speed?: import('./queue.js').Speed }} Memory */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastProgress} Progress */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastFollow} Follow */
-/** A pull: the positions, and the follows (null when their read failed: `since.follows` stays).
- * @typedef {{ items: Progress[], next_since: number, follows: { items: Follow[], next_since: number } | null }} Pulled */
+/** @template T @typedef {{ items: T[], next_since: number } | null} Part */
+/** A pull: the positions, and the follows, Up Next and the speed (each null when its read failed: its
+ * `since` stays).
+ * @typedef {{ items: Progress[], next_since: number, follows: Part<Follow>, queue: Part<any>, prefs: Part<any> }} Pulled */
 
 export const deps = {
   /** @type {typeof fetch} */
@@ -343,12 +350,32 @@ async function pages(path, since, mem, t, signal) {
  * positions could not be read. @param {Memory} mem @param {string} t @param {AbortSignal} signal
  * @returns {Promise<Pulled | null>} */
 async function pull(mem, t, signal) {
-  const [progress, follows] = await Promise.all([
+  const [progress, follows, queue, prefs] = await Promise.all([
     pages('progress', mem.since.progress, mem, t, signal),
     pages('follows', mem.since.follows ?? 0, mem, t, signal),
+    pages('queue', mem.since.queue ?? 0, mem, t, signal),
+    pages('prefs', mem.since.prefs ?? 0, mem, t, signal),
   ]);
-  return progress && { ...progress, follows };
+  return progress && { ...progress, follows, queue, prefs };
 }
+
+/** Up Next and the speed: this phone's change noted first (so the newer wins), then the pull's.
+ * Returns how many changed, 'queue' and 'speed' added to `changed`. @param {App} app @param {Memory} mem
+ * @param {Pulled} got @param {string[]} [changed] */
+function upNext(app, mem, got, changed = []) {
+  const now = deps.now() + (mem.offset ?? 0);
+  noteQueue(app, mem, now);
+  noteSpeed(app, mem, now);
+  return applyQueue(app, mem, got.queue?.items ?? [], changed) + applySpeed(app, mem, got.prefs?.items ?? [], changed);
+}
+/** `since` moved on for what the pull read. @param {Memory['since']} since @param {Pulled} got */
+const sinceAfter = (since, got) => ({
+  ...since,
+  progress: got.next_since,
+  ...(got.follows ? { follows: got.follows.next_since } : {}),
+  ...(got.queue ? { queue: got.queue.next_since } : {}),
+  ...(got.prefs ? { prefs: got.prefs.next_since } : {}),
+});
 
 /** On open: the Worker's newer positions into the app's storage, if back before `by` (the page's
  * time when the app stops waiting: it reads its storage at `by` or later, never before; the check
@@ -378,7 +405,7 @@ async function merge(by) {
     if (!got) return;
     if (deps.sincePage() >= by) return deliver(mem, got);
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
-    const moved = applyProgress(app, mem, got.items) + applyFollows(app, mem, got.follows?.items ?? []);
+    const moved = applyProgress(app, mem, got.items) + applyFollows(app, mem, got.follows?.items ?? []) + upNext(app, mem, got);
     // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), applied to a
     // copy and kept only if they were all in before `by` (less a moment for the write), into the
     // same write; reported only once it is saved. Late, or no answer: the positions go alone, and
@@ -391,8 +418,7 @@ async function merge(by) {
     const out = intents ? draft : app;
     if (deps.sincePage() >= by) return deliver(mem, got);
     if ((moved || intents?.done.length) && !save(storage, APP_KEY, out)) return;
-    mem.since.progress = got.next_since;
-    if (got.follows) mem.since.follows = got.follows.next_since;
+    mem.since = sinceAfter(mem.since, got);
     save(storage, SYNC_KEY, mem);
     void intents?.send().catch(() => {});
   } catch {
@@ -403,8 +429,8 @@ async function merge(by) {
 }
 
 /** The app once it runs (podcasts/app.js): its state in memory, its save, and what to do once
- * positions or follows came in (the keys of the positions, then the addresses of the shows, which
- * never match a key: any of them repaints). @typedef {{ state: () => App, commit: () => boolean, pulled: (keys: string[]) => void }} Live */
+ * positions, follows, Up Next or the speed came in (the keys of the positions, then the addresses
+ * of the shows, then 'queue' and 'speed', none of which match a key: any of them repaints). @typedef {{ state: () => App, commit: () => boolean, pulled: (keys: string[]) => void }} Live */
 /** @type {Live | null} */
 let live = null;
 /** A pull that came back before the app attached. @type {{ mem: Memory, got: Pulled } | null} */
@@ -421,7 +447,12 @@ function deliver(mem, got) {
   const keys = [];
   /** @type {string[]} */
   const shows = [];
-  const moved = applyProgress(live.state(), mem, got.items, keys) + applyFollows(live.state(), mem, got.follows?.items ?? [], shows);
+  /** @type {string[]} */
+  const other = [];
+  const moved =
+    applyProgress(live.state(), mem, got.items, keys) +
+    applyFollows(live.state(), mem, got.follows?.items ?? [], shows) +
+    upNext(live.state(), mem, got, other);
   if (moved && !live.commit()) return;
   // Onto what is kept now: a send may have written since this pull began.
   const storage = deps.storage();
@@ -431,10 +462,12 @@ function deliver(mem, got) {
     const k = latest.follows[url];
     if (!k || (!k.followed && k.at < mem.follows[url].at)) latest.follows[url] = mem.follows[url];
   }
-  latest.since = { ...latest.since, progress: got.next_since, ...(got.follows ? { follows: got.follows.next_since } : {}) };
+  latest.since = sinceAfter(latest.since, got);
+  latest.queue = newer(latest.queue, mem.queue);
+  latest.speed = newer(latest.speed, mem.speed);
   if (mem.offset !== undefined) latest.offset = mem.offset;
   save(storage, SYNC_KEY, latest);
-  live.pulled([...keys, ...shows]);
+  live.pulled([...keys, ...shows, ...other]);
 }
 
 /** The app hands over its live state once it has read its storage. @param {Live} app */
@@ -494,7 +527,10 @@ async function pushNow() {
   const known = mem.looked ? new Map(Object.entries(mem.follows).map(([u, k]) => [u, k.followed])) : null;
   // The stamps are kept before sending, so a follow noticed now keeps its time if the send fails.
   const noted = noteFollows(app, mem, deps.now());
-  if (noted || !mem.looked) {
+  const now = deps.now() + (mem.offset ?? 0);
+  const queued = noteQueue(app, mem, now);
+  const listened = noteSpeed(app, mem, now) || queued;
+  if (noted || listened || !mem.looked) {
     mem.looked = true;
     save(storage, SYNC_KEY, mem);
   }
@@ -526,6 +562,8 @@ async function pushNow() {
       if (!refused.has(i) && k && k.at === stamped.get(f.feed_url)) k.sent = true;
     });
   }
+  // Up Next as one version (all its requests taken, or sent again next time), then the speed.
+  if (ok) await sendListening(app, mem, t);
   // Read again: another tab may have written since (the stamps above are this one's).
   const latest = loadMemory(storage);
   for (const [k, at] of Object.entries(latest.sent)) mem.sent[k] = Math.max(mem.sent[k] ?? 0, at);
@@ -533,8 +571,29 @@ async function pushNow() {
   for (const [u, k] of Object.entries(latest.follows)) mem.follows[u] ??= k;
   mem.since = latest.since;
   mem.offset ??= latest.offset;
+  mem.queue = newer(latest.queue, mem.queue);
+  mem.speed = newer(latest.speed, mem.speed);
   trim(app, mem, deps.now());
   save(storage, SYNC_KEY, mem);
+}
+
+/** Up Next's noted version and the speed, if not sent yet; marked sent once the Worker has taken all
+ * of it (an item it refused is not tried again: the next version carries the queue again).
+ * @param {App} app @param {Memory} mem @param {string} t */
+async function sendListening(app, mem, t) {
+  const q = mem.queue;
+  const items = queueToSend(app, mem);
+  if (q && !q.sent) {
+    let all = true;
+    for (const batch of chunks(items)) if (!(await send('queue', batch, t, mem))) {
+      all = false;
+      break;
+    }
+    if (all && mem.queue === q) Object.assign(q, { sent: true, gone: [] });
+  }
+  const s = mem.speed;
+  const speed = speedToSend(mem);
+  if (s && speed.length && (await send('prefs', speed, t, mem)) && mem.speed === s) s.sent = true;
 }
 
 /** @type {Promise<void> | null} */

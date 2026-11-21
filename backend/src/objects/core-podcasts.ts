@@ -1,15 +1,18 @@
 // Podcasts' half of the Core object (areas/podcasts, NEXT-BATCH.md part 7): where each episode was
-// left and the shows followed, synced by the phone (the newer wins), read by the phones by time and
-// by the night with its last check of each show. A code layer of the one Core class. The night may
+// left, the shows followed, Up Next and the playback speed, synced by the phone (the newer wins), read
+// by the phones by time and by the night (positions and follows) with its last check of each show. A code layer of the one Core class. The night may
 // read only followed shows' feeds through the Worker, at most 40 a UTC day, counted in a settings row.
 import type {
   PodcastChecked,
   PodcastFollow,
+  PodcastPref,
   PodcastProgress,
+  PodcastQueueItem,
   PodcastSyncResponse,
 } from '../../../shared/contract/podcasts.ts';
 import { claimedSession, taintedAt } from '../areas/mind/guards';
 import { taint } from '../areas/mind/ops';
+import * as queue from '../areas/podcasts/queue';
 import * as store from '../areas/podcasts/store';
 import * as sync from '../areas/podcasts/sync';
 import { attempt, invalid, type Out } from '../lib/result';
@@ -51,6 +54,24 @@ export abstract class CorePodcasts extends CoreReports {
       Date.now(),
     );
     return { ...p, rows: p.rows.map(sync.toFollow) };
+  }
+
+  putPodcastQueue(items: PodcastQueueItem[], refused: Refused): Out<PodcastSyncResponse> {
+    return this.run((w) => queue.putQueue(w, items, refused));
+  }
+
+  podcastQueue(after: [number, string], limit: number): Page<ReturnType<typeof queue.toQueueItem>> {
+    const p = sync.page((a, n) => queue.queuePage(this.db, a, n), (r) => r.key, after, limit, Date.now());
+    return { ...p, rows: p.rows.map(queue.toQueueItem) };
+  }
+
+  putPodcastPrefs(items: PodcastPref[], refused: Refused): Out<PodcastSyncResponse> {
+    return this.run((w) => queue.putPrefs(w, items, refused));
+  }
+
+  podcastPrefs(after: [number, string], limit: number): Page<PodcastPref> {
+    const p = sync.page((a, n) => queue.prefsPage(this.db, a, n), (r) => r.name, after, limit, Date.now());
+    return { ...p, rows: p.rows.map(queue.toPref) };
   }
 
   podcastsChecked(items: PodcastChecked[]): Out<{ updated: number; at: number }> {
