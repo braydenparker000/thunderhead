@@ -59,3 +59,12 @@ test('a stream that keeps failing online: 6 reloads, probed past the head, then 
     mock.timers.reset();
   }
 });
+
+test('a song streamed through the feed is logged as the stream, not the device (its Media Source is a blob URL too)', async () => {
+  const { deckSource } = await import('../frontend/music/src/player/playback-log.js');
+  const cache = { sourceOf: (u) => u === 'blob:copy' };
+  assert.equal(deckSource({ currentSrc: 'blob:media-source', _stream: { feed: {} } }, cache), 'stream', 'the feed: the network');
+  assert.equal(deckSource({ currentSrc: 'blob:copy' }, cache), 'offline copy');
+  assert.equal(deckSource({ currentSrc: 'blob:file' }, cache), 'device', 'a stored file');
+  assert.equal(deckSource({ currentSrc: SRC }, cache), 'stream');
+});

@@ -602,7 +602,10 @@ event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 
 **Movement and layout** (`frontend/music/src/ui/feel-log.js`, modelled on Astra's feel log): **Copy
 report** also carries `movement`, kept in memory with a cap on each list and never sent to the Worker:
 every view transition (its scene or page names, ms, frames, worst gap between frames; frames are
-counted only while one runs); every open of the player (`innerHeight`, `visualViewport.height`, whether
+counted only while one runs; and what ran during it, `frontend/music/src/ui/frame-work.js`: `relayouts`,
+the whole-page layouts done at once, `resizes`, the window's and visual viewport's resizes such as the
+keyboard's steps, `songAt`, when a song change or play/pause began, and `longTasks`, `longMs`, `longAt`,
+the main thread's tasks of 50 ms or more that began in it); every open of the player (`innerHeight`, `visualViewport.height`, whether
 a text field had focus in the last second, the layout's height, the player's box height); after each
 song change and play/pause, once the scene changes have settled (600 ms at least), the play and pause
 buttons (in the page, visible, box size), and in `playPauseMissing` each time neither shows at full
@@ -610,8 +613,12 @@ size (52 px or more) in a player scene that has them, with the scene names; and 
 before and after the keyboard, read in the frame of each change after its layout, with home's window
 height when Music is in home's frame, the large-viewport height and the bottom inset; the results
 list's height; scroll jumps over 40 px no finger or fling made, with the list's height, its scroll
-limit and whether its results had just changed). Numbers and layout names only: no titles, artists,
-file names or search text.
+limit and whether its results had just changed); and in `iconsMissing`, 600 ms after each change of
+screen has settled, the navbar's icons and the A–Z bar that the views show but the page does not paint
+(`frontend/music/src/ui/icon-check.js`: what hides it, display, visibility, content-visibility or opacity of it
+or an element above; its box; its drawn marks; masked shapes whose mask id resolves elsewhere; the bar's
+alpha), with the scene, the transitions still marked as moving and the work waiting for them. Numbers and
+layout names only: no titles, artists, file names or search text.
 
 **Library** (`frontend/music/src/ui/library-report.js`, loaded and computed only when **Copy report** is
 tapped, never at start or while playing; never sent to the Worker): **Copy report** also carries
@@ -634,7 +641,10 @@ or id.
 does not resize the page. In home's frame it does (home asks for `resizes-content`), so Music lays out
 at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
 is one relayout); the full height at once when the field lets go (leaving search blurs it), while the
-keyboard closes (1 s at most); the window's height otherwise. A resize is laid out in its own frame.
+keyboard closes (1 s at most); the window's height otherwise. A height above the full height while the
+keyboard closes (home's own viewport read 759 for a moment while it moved, where the screen is 731) is
+taken only when it lasts: still there 300 ms after the closing time, read again then. Before, it was taken
+at once and became the full height: the player once laid out at 759. A resize is laid out in its own frame.
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
@@ -668,6 +678,8 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   screens or a page transition of the list widget moves, a frame writes the views changed since the last one
   (`Context.dirty`: anything invalidated, and any change of visibility), not the whole tree; a view shown
   again after `display: none` writes its subtree; the frame after the last transition writes the whole tree.
+  A view marked stays marked until a write reaches it: one changed under a gone view, or while out of the
+  tree for a moment, is written once it is reached again (before, it was dropped until the transition ended).
 - **The first frame is cheap** (`frontend/music/src/view/scene-layout.js`). Scene prepare measures only the participants whose
   scene parameters change and the views above them; every other view keeps its measure (Android's measure
   cache). Before, prepare, the restore to the start frames and the end each forced a measure of the whole
@@ -675,7 +687,39 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   scene changes, and a cache could not tell when anything else in the tree changed.
 - **Other work waits** (`whenStill`): the waveform's next step, the blurred art of a new song, the Queue
   list's rebuild, the playing track's list built ahead and the saved session run once no transition moves,
-  in a task after the next frame. Leaving the page still saves at once.
+  in a task after the next frame. Leaving the page still saves at once. When a second transition starts
+  before the waiting work ran, the work waits for it too, and work asked for again meanwhile runs as last
+  asked (before, the older request took the newer one's place).
+
+**Turning back** (`frontend/music/src/view/scene.js`): a scene change turned back mid-way (play then pause
+before the change ends) goes back over at most the time it took to get there, never longer than the whole
+change, and at once when it had not moved yet. Before, it took the share of the whole time that was left
+of the way, which on a decelerating curve is longer than the way there: taps 150–500 ms apart kept the
+change moving for 1.4 s (a 321 ms change). The guard is in `tests/music-feel-layout.test.mjs` (taps at 0,
+193, 381, 548, 716, 880 and 995 ms).
+
+**Search to the player and back** (the owner's phone, 2026-11-21: `scene_search>scene_playing` 24 fps
+with a 208 ms gap over 4 runs, the way back 23 fps and 126 ms, everything else 50–89 fps). Not found in
+the demo songs: there, at 4x CPU slowdown with the window resized as a keyboard would, the change runs
+with no gap over 50 ms. The tap's own task carries the song's start, the field let go and its relayout
+(one) and the scene's prepare, all before the change's clock starts; what fills a gap after it on the
+phone (the keyboard's steps, the song's start work, the browser's own long tasks) is what the recorder
+now notes per transition (above). No change was made without it.
+
+**Icons that disappeared** (the owner, 2026-11-21, after the release above: "the nav bar icons and the
+library sections symbols … the A–Z scroll bar … entirely disappears"). Found: the round symbols (the
+library's sections, the micro category icons, the equaliser's knob) cut their glyph out with an SVG mask,
+and every copy of a symbol used the same mask id. A `url(#id)` resolves to the first element with that id
+in the page, and with screens and rows built ahead that one could sit in a hidden copy (`display: none`
+or `content-visibility: hidden`), where a mask draws nothing: the shown symbol lost its glyph. Each copy
+now has its own ids (`frontend/music/src/icons.js` `iconSvg`). Not found in the demo songs: a cause for the
+navbar's icons or the A–Z bar (after random runs of 40 quick changes of screen, play and pause at 4x CPU
+slowdown, the page at rest equals a whole-tree write, no transition stays marked as moving and no work
+stays waiting); the recorder now notes it (`iconsMissing` under **Movement and layout**, below). The guard
+is `tests/music-icons-browser.test.mjs`: after the screens were built ahead and opened, a transition turned
+back and interrupted, and rapid changes of screen, every navbar icon, shown section symbol and the A–Z bar
+is painted (its pixels change when its marks are hidden) and drawn as defined (a symbol looks the same with
+its mask given an id nothing else has).
 
 The guard is `tests/music-transitions-browser.test.mjs`: each named transition at 4x CPU slowdown, its
 frames recorded in the page (a gap over 50 ms is reported, enforced with `TH_STRICT_TIMING=1`), and its end
@@ -724,6 +768,19 @@ mid-track 403 resumes within 2 s at the same position (±250 ms).
 | Offline copy arrives for the playing track | Switch to it at once, silently |
 | File will not decode | A bad copy is deleted and the stream tried; a bad stream is skipped |
 | Auth expired (401 from sign) | Pause at the end of the current buffer; the shell shows sign-in; playback resumes after sign-in on Play |
+
+**A 404 seen 14 s late** (the owner's log, 2026-11-21: `loadstart deck 1 from "device"`, then nothing
+until `stream fallback reason http-404` 14 s later, on 3G, with no offline copies). The player had not
+tried the device: a song streamed through the feed plays from its Media Source, a blob URL, and the log
+named every blob URL that is not an offline copy "device". It now names it `stream`
+(`frontend/music/src/player/playback-log.js` `deckSource`). The feed itself gives up at the first 404 (no
+try again, `frontend/th/music/stream/track.js`); what it waits on before that is not in the log, so it now
+notes the feed's tries again after a network failure, a timeout or a 5xx (`stream retry`, with the code
+and the try: 0.5, 1, 2 and 4 s apart) and a wait of 100 ms or more for the song's head before the first
+request (`stream head wait`). Not found on the page: a path that waits 14 s for a 404. Left to check
+there: the service worker's bridge (`frontend/th/music/bridge.js`) waits up to 4 s for a signature and
+4 s for the bucket's first byte, and after a timeout sends the request to the old Worker, whose 404 for
+a song it does not have would read the same.
 
 ### 6.4 CORS prerequisites
 

@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-21-music-feel",
+  "id": "2026-11-21-music-icons",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music: tapping a song from search no longer opens the player squished by the keyboard."
+      "text": "Music: the library's section symbols no longer lose their glyph after a screen was prepared ahead."
     },
     {
-      "text": "Moving into the player, album art, search and the equaliser is smoother; the look is the same."
+      "text": "Quick play and pause taps no longer stretch the button's animation; the player keeps its full height from search."
     },
     {
-      "text": "Two quick taps on play no longer leave both buttons showing for a second."
-    },
-    {
-      "text": "Copy report now adds a numbers-only summary of your library's tags, with no titles or names."
+      "text": "Copy report now notes any icon that fails to draw and what ran during a slow transition."
     }
   ]
 }

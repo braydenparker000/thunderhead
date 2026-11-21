@@ -747,15 +747,25 @@ export class Player {
     // A song from the network streams (at most 15 s ahead, from its head); anything else, or a song whose
     // stream gave up, plays from the element as before.
     if (t && stream?.streamable(t, url) && !this.noStream.has(t.id)) {
-      const heads = this.ctx.audioHeads;
+      const heads = this.ctx.audioHeads, log = (type, data) => this.ctx.playbackLog?.log?.(type, data);
       el._stream = stream.streamInto(el, url, t, {
         lazy: el.preload === 'none',
-        // Its head downloading now (the song the app opened on) finishes first, and serves the start.
-        before: heads?.available ? () => heads.settle(url, START_HEAD_WAIT_MS) : null,
-        log: (type, data) => this.ctx.playbackLog?.log?.(type, data),
+        // Its head downloading now (the song the app opened on) finishes first, and serves the start
+        // (the log notes a wait of 100 ms or more: the time before the first request).
+        before: heads?.available ? () => {
+          const t0 = performance.now();
+          return heads.settle(url, START_HEAD_WAIT_MS).finally(() => {
+            const ms = Math.round(performance.now() - t0);
+            if (ms >= 100) log('stream head wait', {track: String(t.id), ms});
+          });
+        } : null,
+        log,
         onFallback: ({ms}) => this.streamFailed(el, t, ms),
         onLength: () => this.lengthFrom(el),
       });
+      // The feed's own tries again after a network failure, a timeout or a 5xx (0.5, 1, 2, 4 s): a wait
+      // before its fallback that the log did not show.
+      el._stream.feed?.addEventListener?.('error', e => log('stream retry', {track: String(t.id), code: String(e.detail?.code ?? ''), attempt: e.detail?.attempt ?? 0}));
     } else el.src = url;
     // (Not heard yet: its 'loadstart' comes later.)
     el._heard = false;

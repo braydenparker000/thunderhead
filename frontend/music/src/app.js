@@ -14,7 +14,7 @@ import {Settings, loadStoredSettings, runtimeSettings, prefDefaults} from './set
 import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
 import {installFeelLog} from './ui/feel-log.js';
-import {LayoutHeight, CLOSE_MS} from './ui/layout-height.js';
+import {LayoutHeight, CLOSE_MS, TALL_MS} from './ui/layout-height.js';
 import {AudioCache, retireDefaultCopies} from './library/audio-cache.js';
 import {AudioHeads} from './library/heads.js';
 import {installEqPresets} from './widgets/eq-preset-ui.js';
@@ -261,13 +261,13 @@ export async function boot() {
   const windowSize = () => layoutHeight.next(window.innerHeight, window.innerWidth, fieldFocused(), performance.now());
   window.addEventListener('resize', () => relayout(windowSize()));
   // A field let go (a tap elsewhere, Enter, leaving search): the full height at once; the window's own
-  // height again once the keyboard has had time to close.
-  let closing = 0;
+  // height again once the keyboard has had time to close, and a taller one once it has lasted.
+  let closing = [];
   document.addEventListener('focusout', e => {
     if (!isField(e.target) || isField(e.relatedTarget)) return;
     relayout(layoutHeight.leave(performance.now()));
-    clearTimeout(closing);
-    closing = setTimeout(() => { if (!fieldFocused()) relayout(windowSize()); }, CLOSE_MS + 50);
+    for (const t of closing) clearTimeout(t);
+    closing = [CLOSE_MS + 50, CLOSE_MS + TALL_MS + 50].map(ms => setTimeout(() => { if (!fieldFocused()) relayout(windowSize()); }, ms));
   }, true);
   ctx.leaveField = () => { const f = document.activeElement; if (isField(f) && container.contains(f)) f.blur(); };
   document.getElementById('cp-boot')?.remove();

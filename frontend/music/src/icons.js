@@ -571,9 +571,21 @@ export function hasIcon(name) {
 }
 
 const svgCache = new Map();
+let copies = 0;
 
-/** SVG markup for a reference drawable name in the given CSS colour. */
+/**
+ * SVG markup for a reference drawable name in the given CSS colour, for one copy in the page. Its mask
+ * ids are its own: a `url(#id)` resolves to the first element with that id in the document, and when
+ * that one sits in a hidden copy (a screen built ahead, a pooled row) the shown icon loses its cut-out.
+ */
 export function iconSvg(name, color, mono = true) {
+  const svg = iconMarkup(name, color, mono);
+  if (!svg.includes(' id="')) return svg;
+  const own = '-' + (++copies).toString(36);
+  return svg.replace(/( id="|url\(#)(cpm_[\w-]+)/g, (m, a, id) => a + id + own);
+}
+
+function iconMarkup(name, color, mono) {
   const key = name + '|' + color + '|' + mono;
   const hit = svgCache.get(key);
   if (hit) return hit;
@@ -589,7 +601,6 @@ export function iconSvg(name, color, mono = true) {
     // Round buttons: tinted -> knocked-out glyph; untinted -> dark disc with light glyph.
     const g = G[r.glyph];
     const glyph = typeof g === 'object' ? `<g transform="${r.transform}">${g.svg}</g>` : `<path transform="${r.transform}" d="${g}"/>`;
-    // Mask content depends only on the glyph, so one id per glyph is safe to share.
     const id = 'cpm_' + r.glyph;
     if (mono) body = `<mask id="${id}"><rect width="24" height="24" fill="#fff"/><g fill="#000">${glyph}</g></mask><circle cx="12" cy="12" r="12" fill="${color}" mask="url(#${id})"/>`;
     else body = `<circle cx="12" cy="12" r="12" fill="${color}"/><g fill="#fff">${glyph}</g>`;

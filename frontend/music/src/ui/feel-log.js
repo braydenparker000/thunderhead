@@ -4,12 +4,14 @@
 // playback log screen (?diag) adds it under its own heading, `movement`.
 // - every view transition: its name (scene or page names), ms, frames drawn and the worst gap
 //   between two frames; frames are counted by one requestAnimationFrame loop that runs only while
-//   a transition runs;
+//   a transition runs; and what ran during it (ui/frame-work.js);
 // - every open of the player: the window's and the visual viewport's height, whether a text field
 //   had focus in the last second, the height the layout uses and the player's box height;
 // - after every song change and play/pause, once the scene changes have settled (600 ms at least):
 //   whether the play and pause buttons are in the page, visible, and their box sizes; and, apart, each
 //   time neither shows at full size in a scene that has them (`playPauseMissing`, with the scenes);
+// - once each change of screen has settled: the navbar's icons and the A–Z bar that the views show but the
+//   page does not paint, and why (`iconsMissing`, ui/icon-check.js);
 // - each time search is open: the viewport before and after the keyboard, the results list's
 //   height (600 ms in, and in the frame of each viewport change, after its layout), with home's own
 //   window height when Music is in home's frame, the large-viewport height and the bottom inset (what
@@ -19,8 +21,10 @@
 import {watchScenes} from '../view/scene.js';
 import {watchPages} from '../list/list-transition.js';
 import {VISIBLE} from '../res/values.js';
+import {iconStates} from './icon-check.js';
+import {watchFrameWork} from './frame-work.js';
 
-export const CAPS = {runs: 150, opens: 40, buttons: 60, missing: 20, searches: 20, perSearch: 12};
+export const CAPS = {runs: 150, opens: 40, buttons: 60, missing: 20, searches: 20, perSearch: 12, icons: 20};
 // Full size: every theme's play and pause at rest are 56 dp or more (TopPlay_maxSize, TopPause_scene_playing_width,
 // TopPauseMoreButtons_maxSize_scene_playing); mid-change they pass 38 dp (play at 50 dp x 0.75) and 49 dp (pause at 28 dp x 1.75).
 export const FULL_PX = 52;
@@ -46,6 +50,7 @@ export class FeelLog {
     this.buttons = [];
     this.missing = [];
     this.searches = [];
+    this.icons = [];
     this.running = new Map(); // source (scene controller or page transition) -> run
     this.looping = false;
     this.focusedAt = -Infinity;
@@ -59,6 +64,7 @@ export class FeelLog {
       else this.finish(ctl, false);
     });
     watchPages((tr, start, cut) => (start ? this.begin(tr, tr.name) : this.finish(tr, cut)));
+    watchFrameWork(this);
     const isField = el => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
     document.addEventListener('focusin', e => { if (isField(e.target)) this.focusedAt = Infinity; }, true);
     document.addEventListener('focusout', e => { if (isField(e.target)) this.focusedAt = performance.now(); }, true);
@@ -85,7 +91,7 @@ export class FeelLog {
     if (!run) return;
     this.running.delete(source);
     const end = performance.now();
-    push(this.runs, {t: Math.round(run.start - this.t0), name: run.name, ms: Math.round(end - run.start), frames: run.frames, worstGap: Math.round(Math.max(run.worst, end - run.last)), ...(cut ? {cut: true} : {})}, CAPS.runs);
+    push(this.runs, {t: Math.round(run.start - this.t0), name: run.name, ms: Math.round(end - run.start), frames: run.frames, worstGap: Math.round(Math.max(run.worst, end - run.last)), ...(cut ? {cut: true} : {}), ...run.work}, CAPS.runs);
   }
 
   loop() {
@@ -101,6 +107,7 @@ export class FeelLog {
   navChanged(nav) {
     const from = this.nav;
     this.nav = nav;
+    this.checkIcons();
     if (from === nav) return;
     if (from === 'nav_search') this.endSearch();
     if (nav === 'nav_search') this.startSearch();
@@ -177,6 +184,30 @@ export class FeelLog {
     return {id, inDom, visible: shown && onScreen, w: r ? round(r.width) : 0, h: r ? round(r.height) : 0};
   }
 
+  /**
+   * Once a change of screen has settled: the navbar's icons and the A–Z bar that the views show but the
+   * page does not paint (ui/icon-check.js), with the transitions still marked as moving and the work
+   * waiting for them (view/motion.js).
+   */
+  checkIcons() {
+    clearTimeout(this.iconTimer);
+    const asked = performance.now();
+    const settled = () => !this.ctx.topNav?.scenes?.running && !this.ctx.listWidget?.trans && !this.ctx.tweens?.size;
+    const wait = () => {
+      if (settled() || performance.now() - asked > SETTLE_MAX_MS || typeof requestAnimationFrame !== 'function') this.measureIcons();
+      else requestAnimationFrame(wait);
+    };
+    this.iconTimer = setTimeout(wait, BUTTON_WAIT_MS);
+  }
+
+  measureIcons() {
+    if (document.hidden) return;
+    const bad = iconStates(this.ctx).filter(s => s.problem).map(({problem, ...s}) => ({...s, name: cleanName(s.name)}));
+    if (!bad.length) return;
+    const ctx = this.ctx;
+    push(this.icons, {t: this.now(), nav: cleanName(this.nav), scene: cleanName(ctx.topNav?.scenes?.scene), moving: ctx.moving?.size ?? 0, waiting: ctx.stillWork?.size ?? 0, icons: bad}, CAPS.icons);
+  }
+
   // Search: the viewport around the keyboard, the results list, and scroll jumps.
   listOf() { return this.ctx.listWidget?.libList ?? null; }
 
@@ -234,7 +265,7 @@ export class FeelLog {
     return {
       version: 1, sessionSeconds: Math.round(this.now() / 1000), dpr: this.ctx.dpr, ...this.viewport(),
       transitions: summary, lastTransitions: this.runs.slice(-40),
-      playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), playPauseMissing: this.missing.slice(), search: [...this.searches, ...open],
+      playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), playPauseMissing: this.missing.slice(), iconsMissing: this.icons.slice(), search: [...this.searches, ...open],
     };
   }
 }
