@@ -179,7 +179,7 @@ describe('reading', () => {
 });
 
 describe("a book's file, for the phone to keep", () => {
-  it('serves a whole book’s PDF to the device, byte for byte; nothing while it uploads; never a signed link', async () => {
+  it('serves a whole book’s PDF to the device, byte for byte, or a range of it; nothing while it uploads; never a signed link', async () => {
     const res = await exports.default.fetch(
       new Request(`https://api.example.test/v1/library/books/${ID}/file`, {
         headers: { Authorization: `Bearer ${p.D}`, 'CF-Connecting-IP': '192.0.2.10' },
@@ -195,6 +195,32 @@ describe("a book's file, for the phone to keep", () => {
         .map((x) => x.toString(16).padStart(2, '0'))
         .join('');
     expect(await hex(await res.arrayBuffer())).toBe(await hex(file));
+    // One byte range of it, for the reader's first page and a download that goes on (file.ts).
+    const ranged = async (range: string) =>
+      exports.default.fetch(
+        new Request(`https://api.example.test/v1/library/books/${ID}/file`, {
+          headers: { Authorization: `Bearer ${p.D}`, 'CF-Connecting-IP': '192.0.2.10', Range: range },
+        }),
+      );
+    const mid = await ranged('bytes=100-1123');
+    expect([mid.status, mid.headers.get('Content-Range'), mid.headers.get('Content-Length')]).toEqual([
+      206,
+      `bytes 100-1123/${BYTES}`,
+      '1024',
+    ]);
+    expect(new Uint8Array(await mid.arrayBuffer())).toEqual(file.slice(100, 1124));
+    const tail = await ranged(`bytes=${BYTES - 10}-`);
+    expect([tail.status, tail.headers.get('Content-Range')]).toEqual([
+      206,
+      `bytes ${BYTES - 10}-${BYTES - 1}/${BYTES}`,
+    ]);
+    expect(new Uint8Array(await tail.arrayBuffer())).toEqual(file.slice(BYTES - 10));
+    const last = await ranged('bytes=-4');
+    expect(new Uint8Array(await last.arrayBuffer())).toEqual(file.slice(BYTES - 4));
+    const past = await ranged(`bytes=${BYTES}-`);
+    expect([past.status, past.headers.get('Content-Range')]).toEqual([416, `bytes */${BYTES}`]);
+    expect((await ranged('bytes=0-1,5-9')).status).toBe(200);
+    expect(res.headers.get('Accept-Ranges')).toBe('bytes');
     const uploading = uuidv7();
     await apiJson('POST', '/v1/library/books', { token: p.D, body: { id: uploading, title: 'Half', bytes: 10 } });
     expect((await apiJson('GET', `/v1/library/books/${uploading}/file`, { token: p.D })).status).toBe(404);

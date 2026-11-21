@@ -1,6 +1,7 @@
 // @ts-check
 // Study's page (STUDY.md §5.1). The storage website has no rewrites, so its places are queries on
-// /study/: the library (no query), `?q=` a search, `?book=<id>&p=<pdf_page>` the reader, `?verse=`
+// /study/: the library (no query), `?q=` a search, `?book=<id>&p=<pdf_page>` the reader (`&m=` a
+// search hit's words to mark on that page), `?verse=`
 // a verse (`<code>/<ch>[/<v>[-<v>]]`). The page
 // number is the only position in the address. Each place is a history
 // entry, so Android's back closes a sheet, then the reader, then Study (GESTURES.md). Signed out,
@@ -27,7 +28,8 @@ async function render() {
   const bookId = q.get('book');
   if (bookId) {
     const p = Number(q.get('p')) || 0;
-    const done = await (await import('./reader.js')).openReader(box, bookId, p > 0 ? p : null, Number(q.get('b')) || null);
+    const marked = (q.get('m') ?? '').split(' ').filter(Boolean);
+    const done = await (await import('./reader.js')).openReader(box, bookId, p > 0 ? p : null, Number(q.get('b')) || null, marked);
     if (n === drawn) leave = done;
     else done();
   } else if (q.has('verse')) (await import('./verse.js')).verseScreen(box, q.get('verse') ?? '');

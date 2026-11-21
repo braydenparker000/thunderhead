@@ -65,7 +65,7 @@ export const searchQuery = z.object({
   q: text(L.search_q_chars, 2),
   book_id: z.optional(id),
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(L.search_hits))),
-  cursor: z.optional(z.string().check(z.regex(/^o\d{1,5}$/))),
+  cursor: z.optional(z.string().check(z.regex(/^[or]\d{1,5}$/))),
 });
 
 const pageRef = z.strictObject({

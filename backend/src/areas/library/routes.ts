@@ -19,9 +19,9 @@ import { json, parse } from '../../http/validate';
 import { value } from '../../lib/result';
 import { libraryObject } from '../../objects/library';
 import { fresh } from '../../objects/rpc';
+import { serveFile } from './file';
 import { partsFor } from './ops';
 import { checkRefs } from './scripture';
-import { ftsQuery } from './search';
 import { createBody, editBody, highlightBody, positionBody, searchQuery, UUID7 } from './validate';
 
 export const idParam = (c: Context, name = 'id'): string => {
@@ -47,17 +47,13 @@ export const libraryRoutes = new Hono<AppEnv>()
     if (!book) throw new ApiError('not_found');
     return c.json({ book });
   })
-  // The whole PDF for the phone, which keeps it and reads it from there (STUDY.md §2): through the
-  // Worker with the owner's session, so no signed link, signing key or bucket rule is needed.
+  // The PDF for the phone, which keeps it and reads it from there (STUDY.md §2): through the Worker
+  // with the owner's session, so no signed link, signing key or bucket rule is needed; whole, or
+  // one byte range of it (file.ts), so the first page shows before the whole book is here.
   .get('/library/books/:id/file', guard('GET /v1/library/books/:id/file'), async (c) => {
     const [f] = await fresh(libraryObject(c.env).files([idParam(c)]));
-    const obj = f && (await c.env.VAULT.get(f.key));
-    if (!obj) throw new ApiError('not_found');
-    return c.body(obj.body, 200, {
-      'Content-Type': 'application/pdf',
-      'Content-Length': String(obj.size),
-      'Cache-Control': 'private, no-store',
-    });
+    if (!f) throw new ApiError('not_found');
+    return serveFile(c, f.key);
   })
   .patch('/library/books/:id', guard('PATCH /v1/library/books/:id'), async (c) => {
     const id = idParam(c);
@@ -108,13 +104,6 @@ export const libraryRoutes = new Hono<AppEnv>()
   })
   .get('/library/search', guard('GET /v1/library/search'), async (c) => {
     const q = parse(searchQuery, c.req.query());
-    const match = ftsQuery(q.q);
-    const lib = libraryObject(c.env);
-    if (!match) {
-      const empty: LibrarySearchResponse = { items: [], next: null, not_ready: 0 };
-      return c.json(empty);
-    }
-    const offset = q.cursor ? Number(q.cursor.slice(1)) : 0;
-    const r = await fresh(lib.search(match, q.book_id ?? null, q.limit ?? 20, offset));
+    const r = await fresh(libraryObject(c.env).search(q.q, q.book_id ?? null, q.limit ?? 20, q.cursor ?? null));
     return c.json(r satisfies LibrarySearchResponse);
   });

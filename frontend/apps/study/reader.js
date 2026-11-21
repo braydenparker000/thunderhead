@@ -1,8 +1,11 @@
 // @ts-check
-// The reader (STUDY.md §5): the book's pages in one continuous column, read from this phone's copy
-// (downloaded through the Worker the first time, with its progress; copies.js). At most five pages are
-// drawn at once (the one in view and two either side), each at the screen's pixel ratio (at most
-// 2) with its text layer, so selection and screen readers work. The top bar and the page pill hide
+// The reader (STUDY.md §5): the book's pages in one continuous column, read from this phone's copy,
+// or the first time from byte ranges while the whole book is kept in the background (copies.js). At
+// most five pages are drawn at once (the one in view and two either side), each at the screen's
+// pixel ratio (at most 2) with its text layer, so selection and screen readers work; after a pinch
+// settles, the pages in view are drawn again at the zoomed scale, as sharp as memory allows. A
+// search hit's words are marked on its page. After a jump to a search hit or a citation, "Back to
+// p. N" stands for 30 s, and the jump is not saved as the place until the owner reads on. The top bar and the page pill hide
 // after 3 s without a touch and come back on a tap; the pill opens "Go to page". The place is
 // saved on this phone 2 s after the page settles, and to the Worker at most every 30 s and as the
 // page goes away; another device's newer place is used when it is newer by more than a minute.
@@ -13,7 +16,9 @@ import { el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { back, go } from './nav.js';
 import * as copies from './copies.js';
-import { fromBlob, OPTIONS, pdfjs } from './pdf.js';
+import { contentsSheet } from './outline.js';
+import { markWords } from './marks.js';
+import { drawCover, fromBlob, OPTIONS, pdfjs } from './pdf.js';
 import { goTo, pageDetail, pageName } from './words.js';
 
 /** @typedef {import('../../../shared/contract/library.ts').Book} Book */
@@ -23,12 +28,17 @@ const LOCAL_MS = 2_000;
 const SERVER_MS = 30_000;
 const HIDE_MS = 3_000;
 const WAKE_IDLE_MS = 10 * 60_000;
+const BACK_MS = 30_000;
+const ZOOM_SETTLE_MS = 300;
+/** A page's canvas at most this many pixels (about 24 MB), whatever the zoom. */
+const MAX_PX = 6_000_000;
 
 /**
  * @param {HTMLElement} main @param {string} bookId @param {number | null} askedPage @param {number | null} block
+ * @param {string[]} [hitWords] a search hit's matched words, marked on its page
  * @returns {Promise<() => void>} what to do as the reader goes
  */
-export async function openReader(main, bookId, askedPage, block) {
+export async function openReader(main, bookId, askedPage, block, hitWords = []) {
   const pages = el('div', { class: 'pages' });
   const reader = el('div', { class: 'reader' }, [pages]);
   const title = el('h1', { text: '' });
@@ -87,26 +97,42 @@ export async function openReader(main, bookId, askedPage, block) {
     pages.append(errBox);
   };
   /** @type {Blob | null} */
-  let file = await copies.kept(book);
-  if (!file) {
-    const line = el('p', { text: 'Getting your book…' });
-    const status = el('div', { class: 'rerr', role: 'status' }, [line]);
+  const file = await copies.kept(book);
+  /** @type {any} */
+  let range;
+  /** @type {(() => void) | null} */
+  let keepOn = null;
+  let keptHere = Boolean(file);
+  if (file) range = fromBlob(lib, file);
+  else {
+    const status = el('div', { class: 'rerr', role: 'status' }, [el('p', { text: 'Getting your book…' })]);
     pages.append(status);
+    const unreachable = () => showError("Can't reach your library. Pages you've already opened are still here.", () => go(`?book=${bookId}`, { replace: true }));
     try {
-      file = await copies.keep(book, (f) => {
-        line.textContent = `Getting your book… ${Math.floor(f * 100)}%`;
-      });
+      range = await copies.ranges(lib, book, unreachable);
     } catch (e) {
       status.remove();
-      const why = /** @type {any} */ (e)?.why;
-      if (why === 'space') showError("Not enough space on this phone (it needs twice the book's size).", null);
-      else if (why === 'gone') showError("This book isn't in your library any more.", null);
+      if (/** @type {any} */ (e)?.why === 'gone') showError("This book isn't in your library any more.", null);
       else showError("Can't reach your library. Books you've opened before are kept on this phone.", () => go(`?book=${bookId}`, { replace: true }));
       return () => {};
     }
     status.remove();
+    // The whole book, kept in the background; a dropped download goes on when the phone is online.
+    keepOn = () =>
+      copies.keep(book).then(
+        (f) => {
+          if (!f) return;
+          keptHere = true;
+          toast('Kept on this phone. It opens offline now.');
+        },
+        (e) => {
+          if (e?.why === 'space') toast("Not enough space to keep this book on this phone (it needs twice the book's size).");
+        },
+      );
+    keepOn();
+    addEventListener('online', keepOn);
   }
-  const task = lib.getDocument({ ...OPTIONS, range: fromBlob(lib, file) });
+  const task = lib.getDocument({ ...OPTIONS, range });
   /** @type {any} */
   let doc;
   try {
@@ -122,6 +148,13 @@ export async function openReader(main, bookId, askedPage, block) {
   while (labels.length < total) labels.push(null);
   if (labels.every((l, i) => l === String(i + 1))) labels.fill(null);
   data.local.set(`labels:${bookId}`, labels).catch(() => {});
+  // A cover for the shelf, on whichever phone opens the book first.
+  data
+    .cover(bookId)
+    .then(async (had) => {
+      if (!had) await data.saveCover(bookId, await drawCover(doc));
+    })
+    .catch(() => {});
 
   // --- the column of pages ------------------------------------------------------------------
   const first = await doc.getPage(1);
@@ -144,9 +177,13 @@ export async function openReader(main, bookId, askedPage, block) {
 
   /** @type {Map<number, { task: any, canvas: HTMLCanvasElement, text: HTMLElement }>} */
   const drawn = new Map();
-  /** @param {number} n */
-  async function draw(n) {
-    if (drawn.has(n)) return;
+  // The pinch's scale (the visual viewport's), drawn into the canvases once it settles.
+  const zoomNow = () => Math.max(1, window.visualViewport?.scale ?? 1);
+  let zoom = zoomNow();
+  /** @param {number} n @param {boolean} [again] drawn anew at the current zoom, the old canvas shown meanwhile */
+  async function draw(n, again = false) {
+    const had = drawn.get(n);
+    if (had && !again) return;
     const pg = pgs[n - 1];
     const canvas = el('canvas');
     const text = el('div', { class: 'textLayer' });
@@ -157,19 +194,25 @@ export async function openReader(main, bookId, askedPage, block) {
       const own = page.getViewport({ scale: 1 });
       if (Math.abs(own.height / own.width - ratio) > 0.01) pg.style.aspectRatio = `1 / ${own.height / own.width}`;
       const scale = pg.clientWidth / own.width;
-      const dpr = Math.min(devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale });
+      const dpr = Math.min(Math.min(devicePixelRatio || 1, 2) * zoom, Math.sqrt(MAX_PX / Math.max(1, viewport.width * viewport.height)));
       canvas.width = Math.floor(viewport.width * dpr);
       canvas.height = Math.floor(viewport.height * dpr);
       pg.style.setProperty('--total-scale-factor', String(scale));
       pg.style.setProperty('--scale-round-x', '1px');
       pg.style.setProperty('--scale-round-y', '1px');
-      pg.replaceChildren(canvas, text);
+      if (!had) pg.replaceChildren(canvas, text);
       const rendering = page.render({ canvas, viewport: page.getViewport({ scale: scale * dpr }) });
       slot.task = rendering;
       await rendering.promise;
       if (drawn.get(n) !== slot) return;
+      if (had) {
+        pg.replaceChildren(canvas, text);
+        had.canvas.width = 0;
+        had.canvas.height = 0;
+      }
       await new lib.TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport }).render();
+      if (n === askedPage && hitWords.length) markWords(text, hitWords);
     } catch {
       // A page cancelled as it scrolled away, or a range that failed (its error is shown).
     }
@@ -233,8 +276,17 @@ export async function openReader(main, bookId, askedPage, block) {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let settle;
   const place = () => ({ pdf_page: current, scroll_frac: Math.round(fracOf(current) * 1000) / 1000, at: Date.now() });
+  // After a jump to a hit or a citation, the place stays where the owner was until they read on.
+  let hold = 0;
+  const free = () => {
+    if (hold && current !== hold) hold = 0;
+    return !hold;
+  };
+  const saveLocal = () => {
+    if (free()) data.saveLocalPlace(bookId, place()).catch(() => {});
+  };
   const saveServer = (/** @type {boolean} */ keepalive) => {
-    if (current === sentPage && !keepalive) return;
+    if (!free() || (current === sentPage && !keepalive)) return;
     sentAt = Date.now();
     sentPage = current;
     data.putPosition(bookId, place(), keepalive).catch(() => {});
@@ -249,7 +301,7 @@ export async function openReader(main, bookId, askedPage, block) {
     read.pages.add(current);
     clearTimeout(settle);
     settle = setTimeout(() => {
-      data.saveLocalPlace(bookId, place()).catch(() => {});
+      saveLocal();
       if (Date.now() - sentAt >= SERVER_MS) saveServer(false);
     }, LOCAL_MS);
   };
@@ -269,18 +321,22 @@ export async function openReader(main, bookId, askedPage, block) {
 
   // Where to start: the page asked for, else the newer of this phone's place and the Worker's.
   const mine = await data.localPlace(bookId).catch(() => undefined);
+  const theirs = book.position && (!mine || book.position.at - mine.at > 60_000);
+  /** @type {{ pdf_page: number, scroll_frac: number } | null} the owner's place in the book */
+  const saved = (theirs ? book.position : mine) ?? null;
   let start = { pdf_page: 1, scroll_frac: 0 };
   if (askedPage) start = { pdf_page: Math.min(total, askedPage), scroll_frac: 0 };
-  else if (book.position && (!mine || book.position.at - mine.at > 60_000)) {
-    start = book.position;
-    if (mine) toast(`Picked up where you left off on another device, ${pageName(book.position.pdf_page, labels[book.position.pdf_page - 1])}.`);
-  } else if (mine) start = mine;
+  else if (saved) {
+    start = saved;
+    if (theirs && mine) toast(`Picked up where you left off on another device, ${pageName(saved.pdf_page, labels[saved.pdf_page - 1])}.`);
+  }
   const jump = (/** @type {number} */ n, frac = 0) => {
     const pg = pgs[Math.min(total, Math.max(1, n)) - 1];
     reader.scrollTop = pg.offsetTop - 64 + frac * pg.offsetHeight;
     onMove();
   };
   current = Math.min(total, Math.max(1, start.pdf_page));
+  if (askedPage) hold = current;
   showPage();
   jump(current, start.scroll_frac);
   keep();
@@ -290,6 +346,37 @@ export async function openReader(main, bookId, askedPage, block) {
     pgs[current - 1].classList.add('wash');
     pgs[current - 1].style.setProperty('--wash-h', '100%');
   }
+  /** @type {HTMLElement | null} */
+  let backPill = null;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let backTimer;
+  if (askedPage && saved && Math.min(total, saved.pdf_page) !== current) {
+    const to = Math.min(total, Math.max(1, saved.pdf_page));
+    const frac = saved.scroll_frac;
+    const b = el('button', { type: 'button', class: 'pill rback', text: `Back to ${pageName(to, labels[to - 1])}` });
+    backPill = b;
+    main.append(b);
+    b.addEventListener('click', () => {
+      b.remove();
+      hold = 0;
+      jump(to, frac);
+    });
+    backTimer = setTimeout(() => b.remove(), BACK_MS);
+  }
+
+  // A pinch that settles: the pages in view drawn again at its scale.
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let zoomTimer;
+  const onZoom = () => {
+    clearTimeout(zoomTimer);
+    zoomTimer = setTimeout(() => {
+      const z = zoomNow();
+      if (Math.abs(z - zoom) < 0.1) return;
+      zoom = z;
+      for (const n of [...drawn.keys()]) draw(n, true);
+    }, ZOOM_SETTLE_MS);
+  };
+  window.visualViewport?.addEventListener('resize', onZoom);
 
   // --- bars, wake lock, sheets --------------------------------------------------------------
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -324,7 +411,7 @@ export async function openReader(main, bookId, askedPage, block) {
 
   const onHide = () => {
     if (document.visibilityState === 'hidden') {
-      data.saveLocalPlace(bookId, place()).catch(() => {});
+      saveLocal();
       saveServer(true);
       active();
       reportRead();
@@ -341,6 +428,8 @@ export async function openReader(main, bookId, askedPage, block) {
   menuBtn.addEventListener('click', () =>
     bookMenu(book, current, labels, total, {
       goTo: () => goToSheet(labels, total, (n) => jump(n)),
+      contents: () => contentsSheet(sheet, doc, total, labels, (n) => jump(n)),
+      kept: () => (keptHere ? 'Yes' : copies.kept01.has(bookId) ? `Keeping, ${Math.floor((copies.kept01.get(bookId) ?? 0) * 100)}%` : 'Not yet'),
       colours: () => {
         const on = !reader.classList.contains('orig');
         reader.classList.toggle('orig', on);
@@ -365,7 +454,12 @@ export async function openReader(main, bookId, askedPage, block) {
     clearTimeout(settle);
     clearTimeout(hideTimer);
     clearTimeout(idle);
-    data.saveLocalPlace(bookId, place()).catch(() => {});
+    clearTimeout(backTimer);
+    clearTimeout(zoomTimer);
+    backPill?.remove();
+    window.visualViewport?.removeEventListener('resize', onZoom);
+    if (keepOn) removeEventListener('online', keepOn);
+    saveLocal();
     saveServer(false);
     if (document.visibilityState === 'visible') active();
     reportRead();
@@ -446,7 +540,7 @@ function goToSheet(labels, total, to) {
 
 /**
  * @param {Book} book @param {number} current @param {(string | null)[]} labels @param {number} total
- * @param {{ goTo: () => void, colours: () => void, renamed: (b: Book) => void, removed: () => void }} on
+ * @param {{ goTo: () => void, contents: () => void, kept: () => string, colours: () => void, renamed: (b: Book) => void, removed: () => void }} on
  */
 function bookMenu(book, current, labels, total, on) {
   const dim = el('div', { class: 'mdim' });
@@ -465,6 +559,7 @@ function bookMenu(book, current, labels, total, on) {
     menu.remove();
   };
   dim.addEventListener('click', done);
+  item('Contents', on.contents);
   item('Go to page', on.goTo);
   if (document.documentElement.dataset.theme === 'dark')
     item('Original page colours', on.colours, document.querySelector('.reader.orig') ? 'On' : 'Off');
@@ -480,6 +575,7 @@ function bookMenu(book, current, labels, total, on) {
       row('Size', `${(book.bytes / 1024 / 1024).toFixed(1)} MB`);
       row('Added', new Date(book.added_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }));
       row('Search', book.state === 'ready' ? 'Searchable' : 'Not yet: it is still being read');
+      row('On this phone', on.kept());
       const ok = el('button', { type: 'button', class: 'btn soft', text: 'Close' });
       ok.addEventListener('click', close);
       box.append(facts, ok);

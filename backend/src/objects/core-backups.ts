@@ -61,7 +61,8 @@ export abstract class CoreBackups extends CoreWatchdogs {
     if (due) await this.startDrill(due.month, now).catch(() => undefined);
     // Each finished day's events archived, and events past 90 days pruned (the Senses object); from
     // 80% of the day's budget it waits, and the first tick after 00:00 UTC archives every day owed.
-    if (quotaHold(this.db, now) === null) {
+    const held = quotaHold(this.db, now) !== null;
+    if (!held) {
       const d = await sensesObject(this.env)
         .daily(now, logicalDay(now, tz))
         .catch(() => null);
@@ -69,9 +70,10 @@ export abstract class CoreBackups extends CoreWatchdogs {
       const read = d?.rows_read ?? 0;
       if (read) this.ctx.storage.transactionSync(() => addRows(this.db, utcDay(now), 'senses', read, 0, now));
     }
-    // Study's unfinished uploads, lapsed reading runs, deleted highlights (the Library object).
+    // Study's unfinished uploads, lapsed reading runs, deleted highlights, and from 80% no backfill
+    // of its stemmed index (the Library object).
     await libraryObject(this.env)
-      .daily(now)
+      .daily(now, held)
       .catch(() => undefined);
     for (const e of bstore.expiredExports(this.db, now)) {
       const listed = await this.vault.list({ prefix: exportPrefix(e.id) });
