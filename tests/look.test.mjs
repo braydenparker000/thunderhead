@@ -5,12 +5,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SETTINGS } from '../shared/contract/settings.ts';
 import { lookTag, precached, stageLook, themeJs } from '../scripts/site-config.mjs';
+import { joinSheets } from '../scripts/look-config.mjs';
 
 const LOOK = fileURLToPath(new URL('../frontend/look/', import.meta.url));
 const all = readdirSync(LOOK, { recursive: true, withFileTypes: true }).filter((e) => e.isFile())
@@ -54,7 +55,7 @@ test('every file the look names exists, and every picture of the kit is named', 
     for (const [, ref] of text(p).matchAll(/from '(\.[^']+)'/g)) assert.ok(existsSync(join(dirname(join(LOOK, p)), ref)), `${p} imports missing ${ref}`);
   // the page modules look.js loads by name
   const modules = /const MODULES = \[([^\]]+)\]/.exec(text('look.js'))[1].match(/'[^']+'/g).map((m) => m.slice(1, -1));
-  assert.deepEqual(modules, ['home.js', 'island.js', 'ring.js', 'briefing.js', 'menu.js', 'controls.js']);
+  assert.deepEqual(modules, ['home.js', 'island.js', 'ring.js', 'briefing.js', 'menu.js', 'controls.js', 'decide.js']);
   for (const m of modules) assert.ok(all.includes(m), `look.js loads missing ${m}`);
 });
 
@@ -144,4 +145,53 @@ test('the look is published under the hash of its files, left out of the precach
   assert.equal(theme.match(/'\/look\/'/g).length, 1, 'ui/theme.js names the folder in one place');
   const sw = readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /path\.startsWith\('\/look\/'\)\) \{ event\.respondWith\(vendor\(req\)\)/, 'the worker keeps look/ for good, as vendor/');
+});
+
+test("staged, the look's sheet is one file: no @import, the parts in order, every url() naming a staged file", async () => {
+  const out = mkdtempSync(join(tmpdir(), 'look-join-'));
+  try {
+    cpSync(LOOK, join(out, 'look'), { recursive: true, filter: (p) => !p.includes(`${join('look', 'pictures')}`) });
+    mkdirSync(join(out, 'ui'));
+    writeFileSync(join(out, 'ui/theme.js'), "{\n  const LOOK = '/look/';\n}\n");
+    await stageLook(out);
+    const tag = readdirSync(join(out, 'look')).find((d) => /^[0-9a-f]{10}$/.test(d));
+    const dir = join(out, 'look', tag);
+    const css = readFileSync(join(dir, 'look.css'), 'utf8');
+    assert.doesNotMatch(bare(css), /@import/, 'no @import is left');
+    const staged = readdirSync(dir, { recursive: true }).map((p) => String(p).replaceAll('\\', '/'));
+    assert.deepEqual(staged.filter((p) => p.endsWith('.css')), ['look.css'], 'the joined sheets are not published again');
+    // each part's own text, in the order look.css imports them
+    const order = [...text('look.css').matchAll(/@import url\("([^"]+)"\);/g)].map((m) => m[1]);
+    assert.equal(order.length, sheets.length - 1);
+    let at = -1;
+    for (const p of order) {
+      const first = bare(text(p)).trim().split('\n')[0];
+      const i = css.indexOf(first);
+      assert.ok(i > at, `${p} is joined in its place`);
+      at = i;
+    }
+    for (const [, ref] of bare(css).matchAll(/url\(\s*"?([^")]+)"?\s*\)/g))
+      if (!/^data:/.test(ref)) assert.ok(existsSync(join(dir, ref)), `url(${ref}) names a staged file`);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('joining a sheet from a folder of its own names its files from look.css', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'look-join-'));
+  try {
+    mkdirSync(join(dir, 'part'));
+    mkdirSync(join(dir, 'kit'));
+    writeFileSync(join(dir, 'kit/a.webp'), 'x');
+    writeFileSync(join(dir, 'look.css'), '/* top */\n@import url("part/b.css");\n:root{--k:url("kit/a.webp")}\n');
+    writeFileSync(join(dir, 'part/b.css'), ':root{--b:url("../kit/a.webp");--d:url(data:image/png;base64,AA==)}\n');
+    await joinSheets(dir);
+    assert.equal(readFileSync(join(dir, 'look.css'), 'utf8'), '/* top */\n:root{--b:url("kit/a.webp");--d:url(data:image/png;base64,AA==)}\n\n:root{--k:url("kit/a.webp")}\n');
+    assert.equal(existsSync(join(dir, 'part/b.css')), false);
+    writeFileSync(join(dir, 'look.css'), '@import url("c.css") screen;\n');
+    writeFileSync(join(dir, 'c.css'), '');
+    await assert.rejects(joinSheets(dir), /cannot be joined/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

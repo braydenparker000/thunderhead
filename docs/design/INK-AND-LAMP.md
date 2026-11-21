@@ -72,7 +72,13 @@ code, a number, an emoji or a link takes no initial.
   docked decision is a slim strip with keys for its answers and a small dial for **later**: a tap
   hides that decision on this phone for the time the dial shows (1 h, 3 h, tonight, tomorrow; kept in
   `localStorage`, nothing sent to the Worker; it comes back when the time is up or the look is
-  turned off). The ask bar is a glass pill with round keys; the send key is orange.
+  turned off). A "later" never outlasts the decision: it ends at the decision's own expiry at the
+  latest, and while one is put off the next waiting decision shows (`look/home-later.js` holds it
+  in the card's read of the waiting decisions). The question is a button (`look/decide.js`): a tap
+  opens the strip in place to the whole question in EB Garamond and the card's why, odds and "if
+  ignored" in Geist Mono; a second tap, or an answer, closes it. The strip steps aside only while the
+  owner types (the bar's field has the focus) or the + sheet is open, not for a kept draft. The ask
+  bar is a glass pill with round keys; the send key is orange.
 - **The island.** A black capsule in a glass rim: the artwork of what plays (the owner, 2026-11-20:
   "The island photo should show the content that's being played"), the title and a dot meter.
   Expanded: the artwork with the title beside it and the times at its foot, a dot progress meter, kit
@@ -115,6 +121,10 @@ Everything is under `frontend/look/`, with its own size limits (`scripts/look-co
 - The browser tests' server (`scripts/serve.mjs`) serves a phone that has chosen Classic, which most
   suites were written on; the look's own suites choose it, and `tests/look-default-browser.test.mjs`
   holds the default.
+- `look/look.css` is a list of `@import`s, one per part, so each source stays under 300 lines; when
+  published (`stageLook`, `joinSheets` in `scripts/look-config.mjs`) it is one file, each import
+  replaced by its sheet in order with every `url()` named from `look.css`, and the joined sheets are
+  not published again. The tests' server serves the sources as they are.
 - Every rule is scoped under `:root[data-look="ink-lamp"]`. Each page's part is its own sheet and its
   own module; a module adds what it adds through `whileOn()` and takes all of it away when the look
   goes off. No existing page file carries any of the look.

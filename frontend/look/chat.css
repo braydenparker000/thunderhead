@@ -94,8 +94,20 @@
 :root[data-look="ink-lamp"] #decision .card .why:has(.of:not(:empty)){padding-right:56px}
 :root[data-look="ink-lamp"] #decision .card.decision>.q{grid-column:1;margin-top:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 14px/20px var(--font-own);letter-spacing:-.01em;color:var(--text)}
 :root[data-look="ink-lamp"] #decision .card .tg{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2);margin-top:2px}
-:root[data-look="ink-lamp"] #decision .card .dx{display:none}
+:root[data-look="ink-lamp"] #decision .card .dx{position:absolute;top:0;left:12px;right:66px;visibility:hidden;opacity:0;transform:translateY(4px);pointer-events:none;font:500 var(--fs-legend)/16px var(--font-legend);letter-spacing:var(--ls-legend);color:var(--text-2);transition:opacity var(--d-quick) var(--ease-out),transform var(--d-quick) var(--ease-out)}
 :root[data-look="ink-lamp"] #decision .card.decision>.decide{grid-column:2;grid-row:2;gap:6px;margin:3px 0 0 8px}
+/* Closed, the question is a button that looks exactly like the line it was (look/decide.js), 44 px to
+   the finger by padding its own margins take back; a tap opens the strip in place: the whole question
+   in his face, the why, the odds and "if ignored" as legends (closed: out of the flow and unseen, so
+   the strip is as it was), the keys under them. Faded and lifted in by opacity and transform only;
+   still under reduced motion. */
+:root[data-look="ink-lamp"] #decision .card.decision>.q:has(.lk-q){overflow:visible}
+:root[data-look="ink-lamp"] #decision .card .lk-q{display:block;width:100%;margin:-12px 0;padding:12px 0;border:0;border-radius:0;background:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer}
+:root[data-look="ink-lamp"] #decision .card.decision.lk-open>.q{grid-column:1/-1;white-space:normal}
+:root[data-look="ink-lamp"] #decision .card.decision.lk-open .lk-q{white-space:normal;font:400 var(--fs-reply)/1.32 var(--font-say);letter-spacing:0}
+:root[data-look="ink-lamp"] #decision .card.decision.lk-open>.dx{position:static;margin-top:4px;visibility:visible;opacity:1;transform:none;pointer-events:auto}
+:root[data-look="ink-lamp"] #decision .card.decision.lk-open>.decide{grid-column:1/-1;grid-row:auto;justify-self:end;margin:6px 0 0}
+@media (prefers-reduced-motion: reduce){:root[data-look="ink-lamp"] #decision .card .dx{transition:none}}
 :root[data-look="ink-lamp"] #decision .card .err{margin-top:4px;font:500 var(--fs-legend)/14px var(--font-legend);color:var(--lk-lamp)}
 :root[data-look="ink-lamp"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-light-up.webp");--down:url("kit/key-light-pressed.webp");position:relative;isolation:isolate;min-width:48px;min-height:44px;margin:0 2px;padding:0 12px;border:0;border-radius:0;background:none;box-shadow:none;font:500 var(--fs-key)/1 var(--font-legend);letter-spacing:var(--ls-legend);color:#0A0A0A;text-transform:lowercase;transition:none}
 :root[data-look="ink-lamp"][data-theme="dark"] :is(#decision,#convo,#working) .card :is(.decide button,.wkstop,.try){--up:url("kit/key-dark-up.webp");--down:url("kit/key-dark-pressed.webp");color:#FFFFFF}
@@ -107,7 +119,9 @@
 /* The dial for later, in a column of its own 60 px wide (its longest legend, "tomorrow", fits; the
    legend face does not change with Text size), so the keys never touch it and the question gives way
    first: Ink's with its legend under it; Lamp's ringed with ticks, its legend on the first line. */
-:root[data-look="ink-lamp"] #decision.lk-later,:root[data-look="ink-lamp"] #home:has(.ask:is(.typing,.menu)) #decision{display:none}
+/* The strip steps aside while the dial puts it off, and only while the owner types (the bar's field has
+   the focus) or the + sheet is open: a draft kept in the bar does not hide it. */
+:root[data-look="ink-lamp"] #decision.lk-later,:root[data-look="ink-lamp"] #home:has(.ask.menu,.ask #q:focus) #decision{display:none}
 :root[data-look="ink-lamp"] .lk-later-b{position:absolute;top:5px;right:2px;width:60px;height:52px;margin:0;padding:0;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
 :root[data-look="ink-lamp"] .lk-ring{position:relative;display:grid;place-items:center;width:34px;height:34px}
 :root[data-look="ink-lamp"] .lk-ring .lk-ticks{display:none;position:absolute;inset:0;width:34px;height:34px;stroke:#8E8E8A}
