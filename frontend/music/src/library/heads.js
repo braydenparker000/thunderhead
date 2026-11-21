@@ -112,9 +112,21 @@ export class AudioHeads {
     this.keep.add(url);
     this.wanted = this.wanted.filter(w => w.url !== url);
     const b = this.busy;
-    if (b?.url !== url) return;
+    if (!b) return;
+    if (b.url !== url) {
+      // Another song's head would share a slow connection with this song's first bytes: it stops (and is
+      // fetched again later) and the heads wait until the starting song has its stream ahead (Player.wantHeads).
+      this.held = true;
+      if (!this.keep.has(b.url)) b.abort.abort();
+      return;
+    }
+    // Its own head: once bytes arrive, waited for only while what is left would come within ms at the
+    // rate seen; else it stops now and the stream reads the network (before, it waited the whole ms on a
+    // head that could not finish in it, then stopped). Before its first byte the rate is unknown: ms.
+    const left = b.leftMs(performance.now());
+    if (b.got > 0 && left > ms) { b.abort.abort(); return; }
     let timer;
-    const done = await Promise.race([b.done.then(() => true), new Promise(r => { timer = setTimeout(r, ms, false); })]);
+    const done = await Promise.race([b.done.then(() => true), new Promise(r => { timer = setTimeout(r, b.got > 0 ? Math.min(ms, left + 250) : ms, false); })]);
     clearTimeout(timer);
     if (!done && this.busy === b) b.abort.abort();
   }
@@ -143,12 +155,14 @@ export class AudioHeads {
     if (r.status === 206 ? got && (+got[1] !== start || (got[2] !== '*' && +got[2] !== total)) : length !== null && +length !== total) { r.body?.cancel().catch(() => {}); throw new Error('not the indexed file'); }
     const want = end - start + 1, buf = new Uint8Array(want), reader = r.body.getReader();
     let n = 0;
+    const b = this.busy?.abort.signal === signal ? this.busy : null;
     while (n < want) {
       const {done, value} = await reader.read();
       if (done) break;
       const take = Math.min(value.length, want - n);
       buf.set(value.subarray(0, take), n);
       n += take;
+      if (b) b.got += take;
     }
     reader.cancel().catch(() => {});
     if (n !== want) throw new Error('short');
@@ -158,7 +172,10 @@ export class AudioHeads {
   async download(w) {
     const abort = new AbortController();
     let cache = null, finished;
-    this.busy = {url: w.url, abort, done: new Promise(r => { finished = r; })};
+    const t0 = performance.now(), total = w.head + (w.tail || 0);
+    // Bytes read so far, and the ms the rest would take at the rate seen (Infinity before any byte).
+    this.busy = {url: w.url, abort, got: 0, done: new Promise(r => { finished = r; }),
+      leftMs(now) { return this.got > 0 ? (total - this.got) * (now - t0) / this.got : Infinity; }};
     try {
       const head = await this.range(w.url, 0, w.head - 1, w.total, abort.signal);
       const tail = w.tail ? await this.range(w.url, w.total - w.tail, w.total - 1, w.total, abort.signal) : null;

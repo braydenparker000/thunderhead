@@ -39,7 +39,7 @@ function load({ token = 'th1_session', top = true } = {}) {
   b.deps.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     const headers = new Headers(typeof input === 'string' ? init.headers : input.headers);
-    calls.push({ url, method: init.method ?? (typeof input === 'string' ? 'GET' : input.method), headers, body: init.body, signal: init.signal });
+    calls.push({ url, method: init.method ?? (typeof input === 'string' ? 'GET' : input.method), headers, body: init.body, signal: init.signal, cache: init.cache });
     const hang = () => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
     if (url.startsWith(OLD)) return new Response('old', { status: 200, headers: { 'Content-Type': 'text/plain' } });
     if (url === `${API}/v1/music/catalog`) {
@@ -113,6 +113,7 @@ test('audio by a signed link: ranges pass, the link is reused, signed again near
   assert.equal(r.headers.get('X-Other'), null);
   assert.equal(calls.at(-1).headers.get('Range'), 'bytes=0-4');
   assert.equal(calls.at(-1).headers.get('Authorization'), null, 'the bucket never sees the session');
+  assert.equal(calls.at(-1).cache, 'no-store', 'never through the HTTP cache: no If-Range round trip before the bytes');
   await get(`/music/library/audio/${ID}`, { Range: 'bytes=5-9' });
   assert.equal(state.signed, 1, 'the same link while it has time left');
   state.now += 2.7 * 3_600_000;

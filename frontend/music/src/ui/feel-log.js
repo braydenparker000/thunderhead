@@ -23,6 +23,8 @@ import {watchPages} from '../list/list-transition.js';
 import {VISIBLE} from '../res/values.js';
 import {iconStates} from './icon-check.js';
 import {watchFrameWork} from './frame-work.js';
+import {topViewport} from './viewport-top.js';
+import {startupReport} from './startup.js';
 
 export const CAPS = {runs: 150, opens: 40, buttons: 60, missing: 20, searches: 20, perSearch: 12, icons: 20};
 // Full size: every theme's play and pause at rest are 56 dp or more (TopPlay_maxSize, TopPause_scene_playing_width,
@@ -120,10 +122,10 @@ export class FeelLog {
 
   /** What a viewport step is made of: home's window (in its frame), the large viewport, the bottom inset. */
   viewportParts() {
-    let homeH = null;
-    try { if (window.parent !== window) homeH = round(window.parent.innerHeight); } catch { /* another origin */ }
+    let homeH = null, homeVvH = null;
+    try { if (window.parent !== window) { homeH = round(window.parent.innerHeight); homeVvH = round(window.parent.visualViewport?.height ?? NaN); } } catch { /* another origin */ }
     const probe = document.getElementById('cp-probe'), cs = probe ? getComputedStyle(probe) : null;
-    return {homeH, lvh: cs ? round(parseFloat(cs.height)) : null, insetB: cs ? round(parseFloat(cs.paddingBottom)) : null};
+    return {homeH, homeVvH, lvh: cs ? round(parseFloat(cs.height)) : null, insetB: cs ? round(parseFloat(cs.paddingBottom)) : null};
   }
 
   /** CSS px height of a view's box, or null. */
@@ -228,8 +230,11 @@ export class FeelLog {
     };
     // The results list's height once the search screen has settled (its scene change takes 250 ms).
     const settle = setTimeout(() => { s.listH = this.boxH(this.listOf()); }, BUTTON_WAIT_MS);
-    s.stop = () => { clearTimeout(settle); window.visualViewport?.removeEventListener('resize', resize); window.removeEventListener('resize', resize); };
+    // In home's frame the keyboard moves home's visual viewport, not this window (ui/viewport-top.js).
+    const home = topViewport() !== window.visualViewport ? topViewport() : null;
+    s.stop = () => { clearTimeout(settle); window.visualViewport?.removeEventListener('resize', resize); home?.removeEventListener('resize', resize); window.removeEventListener('resize', resize); };
     window.visualViewport?.addEventListener('resize', resize);
+    home?.addEventListener('resize', resize);
     window.addEventListener('resize', resize);
     const list = this.listOf();
     if (list) {
@@ -266,6 +271,7 @@ export class FeelLog {
       version: 1, sessionSeconds: Math.round(this.now() / 1000), dpr: this.ctx.dpr, ...this.viewport(),
       transitions: summary, lastTransitions: this.runs.slice(-40),
       playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), playPauseMissing: this.missing.slice(), iconsMissing: this.icons.slice(), search: [...this.searches, ...open],
+      startup: startupReport(),
     };
   }
 }

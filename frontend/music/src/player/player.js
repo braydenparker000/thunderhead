@@ -184,7 +184,7 @@ export class Player {
     globalThis.navigator?.connection?.addEventListener?.('change', () => this.offlineSoon(1000));
     // ReplayGain settings apply to the playing track at once.
     ctx.bus.subscribe('bus_app', (msg, src, d) => {
-      if (msg === 'msg_app_setting_changed' && /^rg_/.test(d?.key ?? '') && this.audio && this.isMedia(this.track)) this.ctx.dsp?.setReplayGain?.(this.audio, replayGainOf(this.ctx, this.track));
+      if (msg === 'msg_app_setting_changed' && /^rg_/.test(d?.key ?? '') && this.audio && this.isMedia(this.track)) this.ctx.dsp?.setReplayGain?.(this.audio, replayGainOf(this.ctx, this.track), this.track);
       // Data saver on: downloads ahead stop at once; off: they follow the queue again.
       if (msg === 'msg_app_setting_changed' && d?.key === 'cp_data_saver') { this.wantOffline(); this.wantHeads(); }
     });
@@ -593,11 +593,11 @@ export class Player {
       if (pre) this.preloaded = null;
       if (media) {
         const el = this.audio;
-        if (!freed) this.ctx.dsp?.setReplayGain?.(el, replayGainOf(this.ctx, t));
+        if (!freed) this.ctx.dsp?.setReplayGain?.(el, replayGainOf(this.ctx, t), t, prev);
         // Else its offline copy when there is one, or its stream (on a deck that had to fade out first, once it has).
         const ready = pre ? pre.ready : Promise.all([this.sourceFor(t), freed]).then(([url]) => {
           if (!url || token !== this.loadToken) { this.ctx.audioCache?.release(url); return url; }
-          if (freed) this.ctx.dsp?.setReplayGain?.(el, replayGainOf(this.ctx, t));
+          if (freed) this.ctx.dsp?.setReplayGain?.(el, replayGainOf(this.ctx, t), t, prev);
           this.assign(el, url, t);
           return url;
         });
@@ -829,7 +829,7 @@ export class Player {
         return null;
       }
       idle.preload = 'auto';
-      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, next));
+      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, next), next, t);
       this.assign(idle, url, next);
       pre.url = url;
       if (rangeStart(next)) idle.currentTime = rangeStart(next) / 1000;
@@ -867,7 +867,7 @@ export class Player {
       this.unload(idle);
       this.audio = idle;
       this.fader.set(idle, 0);
-      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, t));
+      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, t), t);
       this.assign(idle, url, t);
       if (!this.holdSilent(el)) this.unload(el);
       el = idle;

@@ -23,6 +23,8 @@
 // mode setting: the loaded preset decides (pr.m2841).
 import {paramBand, nextBand, ColorCursor, paramCoefficients, coefficientsDb, MAX_PARAM_BANDS, PARAM_FREQ_MIN, PARAM_FREQ_MAX, PARAM_Q_MIN, PARAM_Q_MAX, PARAM_TYPES} from './param-eq.js';
 import {biquadCoefficients, biquadMagnitude, PEAKING, LOW_SHELF, HIGH_SHELF} from './filters.js';
+import {chainPeakDb, headroomDb, laterGainDb} from './headroom.js';
+import {songTrim, learnTrim} from './trim.js';
 
 export {biquadCoefficients, biquadMagnitude};
 
@@ -162,6 +164,9 @@ export class DSP {
     this.latencyHint = 'playback';
     // Decks (media elements) by input index; engine messages sent before it is ready.
     this.decks = new Map();
+    // Input trims (dsp/trim.js): per song id, set at its start; and what the next song of the album may take.
+    this.trims = new Map();
+    this.trimCarry = null;
     this.queue = [];
     // Fade completions by id, and each deck's latest fade (a superseded fade never completes).
     this.fadeDone = new Map();
@@ -184,6 +189,8 @@ export class DSP {
     ctx.bus.subscribe('bus_app', (msg, src, d) => {
       if (msg === 'msg_app_setting_changed' && /^equ_(bands_num|custom_bands(_num|_first_fr|_last_fr)?)$/.test(d?.key ?? '')) this.relayoutBands();
     });
+    // Automatic headroom switched (Settings › Equalizer).
+    ctx.bus.subscribe('bus_app', (msg, src, d) => { if (msg === 'msg_app_setting_changed' && d?.key === 'cp_auto_headroom') this.update(); });
     // The Tone settings (frequencies and Q factors) apply at once.
     ctx.bus.subscribe('bus_app', (msg, src, d) => {
       if (msg !== 'msg_app_setting_changed' || !/^tone_(bass|treble)_(freq|q)$/.test(d?.key ?? '')) return;
@@ -582,6 +589,7 @@ export class DSP {
       for (const [deck, id] of this.fadeIds) if (id === m.id) this.fadeIds.delete(deck);
       done?.();
     }
+    else if (m.type === 'inmeter') { this.inMeter = m; this.learnTrims(m.deckPeaks); this.ctx.playbackLog?.inputMeter?.(m); }
     else if (m.type === 'meter') { this.meter = m; this.meterAt = performance.now(); this.ctx.playbackLog?.engineMeter?.(m); }
     else if (m.type === 'pong') { this.pongs?.get(m.id)?.(); this.pongs?.delete(m.id); }
   }
@@ -622,7 +630,7 @@ export class DSP {
     const i = this.decks.size;
     this.decks.set(el, i);
     this.ac.createMediaElementSource(el).connect(this.inputs[i]);
-    if (el._rgGain !== undefined) this.post({stage: 'eq', type: 'rg', deck: i, value: el._rgGain});
+    if (el._rgGain !== undefined) this.post({stage: 'eq', type: 'rg', deck: i, value: el._rgGain, trim: el._trim ?? 1});
   }
 
   /** Whether decks can be joined gaplessly (the worklet engine, not plain playback). */
@@ -715,10 +723,32 @@ export class DSP {
   }
 
   /** The ReplayGain of an element's track (linear); kept for a deck connected later. */
-  setReplayGain(el, gain) {
+  /** A deck's ReplayGain (linear) for the song t it loads, after prev (the song before it; undefined: the same
+   * song again, a reload or a setting change, which keeps its trim): the song's input trim is set here, at
+   * its start, and never changes inside it (dsp/trim.js). */
+  setReplayGain(el, gain, t = null, prev = undefined) {
     el._rgGain = gain;
+    let trim = 1;
+    if (t) {
+      const kept = prev === undefined ? this.trims.get(t.id) : undefined;
+      if (kept !== undefined) trim = kept;
+      else {
+        const r = songTrim({t, prev, gain, carry: this.trimCarry});
+        this.trimCarry = r.carry;
+        trim = r.trim;
+      }
+      this.trims.set(t.id, trim);
+      if (this.trims.size > 50) this.trims.delete(this.trims.keys().next().value);
+    }
+    el._trim = trim;
+    el._track = t;
     const deck = this.decks.get(el);
-    if (deck !== undefined) this.post({stage: 'eq', type: 'rg', deck, value: gain});
+    if (deck !== undefined) this.post({stage: 'eq', type: 'rg', deck, value: gain, trim});
+  }
+
+  /** The decoded peaks of each deck's song (the engine's input meter): what its album's next songs take. */
+  learnTrims(peaks) {
+    for (const [el, i] of this.decks) if (peaks?.[i] > 0 && el._track) this.trimCarry = learnTrim(this.trimCarry, el._track, peaks[i], el._rgGain ?? 1);
   }
 
   /** Connects the player's media element (the first play's user gesture starts the context). */
@@ -754,6 +784,11 @@ export class DSP {
     return 20 * Math.log10(Math.max(1e-6, Math.min(m.gain, m.minGain)));
   }
 
+  /** Automatic headroom: on unless switched off (cp_auto_headroom, Settings › Equalizer). */
+  get autoHeadroom() {
+    return this.ctx.pref?.('cp_auto_headroom') !== false;
+  }
+
   /** Pushes the parameter values into the engine. */
   update() {
     this.applyTempo();
@@ -779,8 +814,16 @@ export class DSP {
     const bal = on ? (v.dsp_balance - 0.5) * 2 : 0, gl = Math.min(1, 1 - bal), gr = Math.min(1, 1 + bal);
     const reverb = on && v.dsp_reverb_enabled, mix = v.dsp_reverb_param5;
     this.reverb(reverb);
-    this.post({stage: 'eq', type: 'state', preamp: eq ? dbToGain((v.dsp_preamp - 0.5) * 2 * PREAMP_RANGE_DB) : 1, bands, matrix: [gl * a, gl * c, gr * c, gr * a], send: reverb ? this.wet : [0, 0]});
-    this.post({stage: 'out', type: 'state', dry: reverb ? 1 - mix * 0.5 : 1, wet: reverb ? this.wet.map(k => k * mix) : [0, 0], volume, limiter: on && v.dsp_limiter_enabled});
+    const preDb = eq ? (v.dsp_preamp - 0.5) * 2 * PREAMP_RANGE_DB : 0, fs = this.ac?.sampleRate ?? 48000;
+    const matrix = [gl * a, gl * c, gr * c, gr * a], dry = reverb ? 1 - mix * 0.5 : 1, wet = reverb ? this.wet.map(k => k * mix) : [0, 0];
+    // The gain the settings add at their loudest frequency and in every stage after the equaliser (Stereo X,
+    // the reverb's return, the volume), taken off before the equaliser (dsp/headroom.js).
+    this.laterDb = laterGainDb({matrix, dry, wet, irGain: reverb ? this.irGain ?? 0 : 0, volume});
+    this.chainBoostDb = chainPeakDb(bands, preDb, fs) + this.laterDb;
+    this.headroomDb = this.autoHeadroom ? headroomDb(bands, preDb, fs, this.laterDb) : 0;
+    this.post({stage: 'eq', type: 'state', preamp: dbToGain(preDb), headroom: dbToGain(-this.headroomDb), bands, matrix, send: reverb ? this.wet : [0, 0]});
+    // The limiter switch is the owner's (−1 dBTP); off, the safety net, for samples over full scale only (limiter.js).
+    this.post({stage: 'out', type: 'state', dry, wet, volume, limiter: on && v.dsp_limiter_enabled});
   }
 
   /**
@@ -837,6 +880,8 @@ export class DSP {
         d[pre + i] = lp * Math.pow(1 - x, decay);
       }
     }
+    // Its gain on a broadband signal (root-sum-square), for the headroom (headroom.js laterGainDb).
+    this.irGain = Math.max(...[0, 1].map(ch => Math.sqrt(ir.getChannelData(ch).reduce((sum, x) => sum + x * x, 0))));
     // The new impulse plays from the free convolver, fed by its own send.
     const slot = n.convolvers[0] && !n.convolvers[1] ? 1 : 0, old = n.convolvers[1 - slot];
     if (n.convolvers[slot]) try { n.eq.disconnect(n.convolvers[slot]); n.convolvers[slot].disconnect(); } catch { /* gone */ }

@@ -131,6 +131,11 @@ export class EqBank {
     this.coefficients(b, b.c1);
   }
 
+  /** Whether a band is still gliding (a change not yet settled). */
+  moving() {
+    return this.bands.some(b => b.moving());
+  }
+
   /** Filters n frames of L and R (Float64Arrays) in place. */
   process(L, R, n) {
     let drop = false;

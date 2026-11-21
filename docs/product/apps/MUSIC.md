@@ -549,6 +549,51 @@ All inside the worklet, as one biquad cascade in double precision; every paramet
 | Bass / Treble | Low shelf 100 Hz / high shelf 10 kHz, ±12 dB | 0 |
 | Limiter | True-peak, −1 dBTP ceiling, 4× oversampled detector, 2 ms lookahead, 15 ms hold, 120 ms release, no makeup gain, constant 103-frame latency | Always on (no switch) **[proposal: the old engine had a switch; with hot masters "off" means clipping]** |
 
+**Clipping and headroom** (2026-11-21; the owner's report: `clippedSamples: 196778`, `inputPeakDb: 3.4`,
+limiter off, preamp 0, EQ and tone on, one song clipping for 100 s; the owner: "the best audio quality
+possible"). Measured first, in the code: `inputPeakDb` is the output stage's input, after preamp,
+equaliser, tone, width and volume (the limiter's meter in `limiter.js`), not the decoded song, and
+`clippedSamples` are the hard clamps at full scale at the very end. So the report could not tell where
+the overs came from; the log now says (`level` in **Copy report**, `frontend/music/src/player/playback-log.js`):
+`decodedPeakDb` and `decodedOvers` (the songs' own audio before any gain, metered in `cp-eq`),
+`clippedAt` (`input` when decoded audio was over full scale, else `chain`), `chainBoostDb` (the most the
+equaliser, tone, preamp and the later stages add, at their loudest frequency), `headroomDb`/`headroomMaxDb`,
+`inputTrimMaxDb` and `safetyNetMaxDb`. (They are in **Copy report**; the batch sent to the Worker keeps
+only the contract's `PLAYBACK_STATE` fields, which do not list them yet.) Then, with float all the way
+and no resampling added:
+- **Automatic headroom** (`frontend/music/src/dsp/headroom.js`, Settings › Equalizer › Automatic headroom,
+  on by default, `cp_auto_headroom`): the gain before the equaliser goes down by the peak of the
+  equaliser's, tone's and preamp's combined magnitude response (per channel, at DC and on a 1024-point log
+  grid from 1 Hz, the lowest a band can take, refined around its top and at every band's frequency) plus
+  every stage after the equaliser that can raise the level (`laterGainDb`; checked: the stereo matrix,
+  whose Stereo X adds up to +6 dB on a side-only signal while mono and balance add none; the reverb's
+  return, dry plus its wet send times the impulse's broadband gain, a typical figure rather than a worst
+  case; the master volume; the limiter and ReplayGain add nothing after the equaliser). It never lets the
+  gain overshoot during a change (`engine-worklet.js`): when the boost rises the headroom goes down first
+  (about 50 ms) and the new bands follow; when it falls the bands change first and the headroom comes back
+  once they have settled. With the settings flat it is 0 dB and the chain is bit-exact. A sine never comes
+  out louder than it went in; other signals can still overshoot a little (a filter's time response).
+- **Songs over full scale** (`frontend/music/src/dsp/trim.js`): a song's input trim is set only at its start
+  and never changes inside it. Tagged songs (ReplayGain peaks) take the album's peak when played in album
+  order (the next track of the album, or the first of its next disc), so a gapless album never steps
+  between songs; otherwise the track's peak. Untagged: a song that goes over is caught by the safety net,
+  and the trim its decoded peak calls for applies from the next song of that album in album order, then
+  carries on through the album (taking a larger trim if a later song needs it, never a smaller one) until
+  a change out of album order or to another album. Chosen over a mid-song drop of 2–3 dB, which is itself
+  audible. Never a gain up.
+- **The safety net**: with the Limiter switch off the limiter acts only on samples over full scale (held
+  just under it, letting go in 10 ms) and passes every other sample exactly, with no gain change, so a
+  master peaking at −0.1 dBFS comes out bit for bit; it replaces the hard clip at full scale. With the
+  switch on it is the owner's −1 dBTP true-peak limiter as before. In the tests' material it engaged only
+  on the deliberate overs (+3 and +3.4 dBFS); a +12 dB band stepped up and down on a −0.09 dBFS sine made
+  no limiter action.
+Guards: `tests/music-headroom.test.mjs` (the headroom equals the response's peak for four settings,
+against a 200,000-point sweep; from 1 Hz and DC; the later stages counted; the net transparent below full
+scale and exact again after an over), `tests/music-trim.test.mjs` (album order, tagged and untagged
+trims) and `tests/music-headroom-browser.test.mjs` (the engine in an OfflineAudioContext: a +6 dB boost of
+a full-scale signal has no sample over full scale, its shape within 0.05 dB of the filter's response;
+flat, a −0.1 dBFS signal comes out as it went in, delayed; a +12 dB step up and down makes no limiter action).
+
 **Presets** are our own, written fresh **[proposal]**: Flat · More bass (+5 dB at 62 Hz, +3 at
 125 Hz) · Clear voices (+3 dB at 2 kHz, +2 at 4 kHz, −2 at 250 Hz) · Bright (+3 dB at 8 and
 16 kHz) · Late night (−3 dB below 125 Hz, −2 above 8 kHz, preamp −2 dB) · Small speaker (−6 dB at
@@ -669,14 +714,29 @@ complete track numbers (1..n on each disc), with a cover. `artists` (the artist 
 by songs (1, 2–4, 5+) and albums (0, 1, 2+), names that differ only by case, spacing or "feat."/"&"
 forms (`likelySplit`). `duplicates`: same title and artist, case and punctuation left out.
 `placeholders`: empty or "unknown"/"untitled" titles, artists, albums; titles like a file name
-(extension, "Track 01") or the file name itself. `screens`: the fields each row is built from (album
-list, artist list, an album's songs, an artist's albums and songs) and over the library how many rows'
-second lines are blank, unknown, the same as the row above or another row, or repeat the screen's own
-name. `playlists`: count and sizes (min, median, max). Never a title, artist, album, genre, file name
+(extension, "Track 01") or the file name itself. `shelves` (2026-11-21, the rows the new shelves build,
+`frontend/music/src/library/shelves.js`, `list/sources.js`): albums (releases of 3 songs or more) and
+their songs, singles, listed artists and all artists, possible duplicates (groups, songs). `screens`:
+per shelf screen (Albums, Singles, Artists, All artists, Possible duplicates, an album's page, an
+artist's page's albums and other songs) the screens, rows, rows with a second line, blank, unknown and
+the same as the row above, each second line built as that screen builds it with the settings in effect
+(before, it copied the old screens' rule). `playlists`: count and sizes (min, median, max). Never a title, artist, album, genre, file name
 or id.
 
+**The keyboard over Music in home** (2026-11-21, the owner's phone: every search open went innerH 731 →
+759 → 424, `resizes: 4` in `scene_search>scene_playing`). Home asks for `resizes-content` (its chat's
+composer rides the keyboard); while an app's frame is in front it now asks for `resizes-visual`, as
+`/music` does, and its own ask comes back when the app goes into the island, closes or is parked
+(`frontend/th/island/island.js` `keyboardOverApp`). The frame keeps its size, so no resize reaches
+Music. With a field focused Music lays out at the space above the keyboard, read from the top page's
+visual viewport (home's in the frame, its own at `/music`: `frontend/music/src/ui/viewport-top.js`),
+so the search list ends above the keyboard; the search recorder also notes home's `homeVvH`. Guard:
+`tests/music-frame-keyboard-browser.test.mjs` (the keyboard played as Chrome applies home's ask). On the
+phone, check that Chrome takes the changed ask while the page is open (it reads the viewport tag again
+when it changes; if it did not, the recorder would still show `resizes` in search).
+
 **Layout height and the keyboard** (`frontend/music/src/ui/layout-height.js`): at `/music` the keyboard
-does not resize the page. In home's frame it does (home asks for `resizes-content`), so Music lays out
+does not resize the page. In home's frame it did (home asked for `resizes-content`), so Music lays out
 at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
 is one relayout); the full height at once when the field lets go (leaving search blurs it), while the
 keyboard closes (1 s at most); the window's height otherwise. A height above the full height while the
@@ -709,9 +769,25 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   there and written while hidden, laid out once by the browser and kept so while gone
   (`content-visibility: hidden` instead of `display: none`), and their art decoded. A scene not built by
   then is built in the scene change itself, before its first frame; the animation's clock starts at that
-  frame, so it starts later and does not jump. Not done: the library's rows are still bound and drawn in
-  the first library transition's first frame (built ahead, they came back from the row pool to other rows,
-  and a hidden row's icon mask then hid the shown row's icon: lists are left as they were).
+  frame, so it starts later and does not jump. Since 2026-11-21 (the phone: `page:aa>list` 47 fps,
+  `top_container:scene_playing>scene_lib` 42 fps): the library's start rows are built too, bound, laid out
+  and written hidden while the art shows (`list-widget.js` `prepareLibrary`, the way `prepareTrackList`
+  builds the playing track's list), and the first trip to the library (the navbar's Library button
+  included) shows those rows; rows now have their own icon mask ids, so a hidden row's mask never hides a
+  shown one. Not when a start category is set (its second level has its own history entry). The
+  navbar's lines scene (`scene_navbar_3lines`, its seekbar and mini player) is built the same way: its
+  change runs in the same frames as the library's, whose first frame carried the rows. The builds wait
+  for real idle time (no deadline: each is one long task on a slow phone). In the lab at 4x CPU slowdown
+  the first player → library change's worst gap went from 117 ms to 33 ms (one run each; diagnostics).
+  Guard: `tests/music-prebuild-browser.test.mjs`. Not done: a cache of target frames per scene pair.
+- **Start-up** (the phone: four long tasks of 240–459 ms in the first 2.2 s). The recorder now names them:
+  `startup` in **Movement and layout** gives each boot step's end (`modules`, `boot`, `model`, `theme`,
+  `inflate`, `library`, `restore`, `ready`, `firstFrame`, `firstTap`; `frontend/music/src/ui/startup.js`)
+  and each long task of the first 10 s with the step it began in. In the lab (4x CPU, demo songs) they are:
+  the model's parse, the resources, the theme and the main layout's inflation in one task (284 ms); the
+  library's open (110–190 ms); the first layout and frame (130 ms); then the idle builds above. The lyrics
+  page, built at start inside the main layout before, is now built the first time lyrics show
+  (`list-widget.js` `lyricsPage`): the first task fell to 205–232 ms. The rest is needed for the first screen.
 - **A transition frame writes only what moved** (`frontend/music/src/view/motion.js`). While a scene transition of the player's
   screens or a page transition of the list widget moves, a frame writes the views changed since the last one
   (`Context.dirty`: anything invalidated, and any change of visibility), not the whole tree; a view shown
@@ -776,6 +852,29 @@ them again with `TH_CAPTURE_BOXES=<file>` after checking the look by eye).
 - Each signed URL is stored with `expires_at`. A URL with under 20 minutes left is re-signed
   before any new load, resume-after-pause or head fetch.
 - Signed URLs live only in memory. Caches and OPFS are keyed by ref or sha256.
+
+**A tapped song on a slow connection** (2026-11-21, the owner's phone on 3G: first sound 0.5–4.6 s after
+the tap, 73–95 ms when already loaded). Lab run, `tests/music-tap-start-browser.test.mjs` (300 ms per
+answer, 1.5 Mbps over one link): first sound **1,360 ms after the finger down before, 726 ms after**.
+Where the time went:
+- **The browser's HTTP cache** (the largest): the bridge fetched the bucket's signed links through it. A read
+  cut short (a head stopped, a skip, the feed letting go) left part of a range there, and the next read of
+  it went out first as a conditional request (`If-Range`) and then again in full: two more round trips
+  before the bytes the song starts from. The bridge now fetches song bytes with `cache: 'no-store'`
+  (`frontend/th/music/bridge.js`); heads and offline copies keep what is kept.
+- **The signature**: a song not among the next ones was signed only once its first byte was asked for.
+  Now a finger down on a song's row asks for its link (`frontend/music/src/player/sign-ahead.js`, from
+  `input.js` through `PowerList.onItemPress`; a press that becomes a scroll or a hold leaves only a signed
+  link, no bytes), and a list that has not moved for 150 ms has its shown songs' links signed in one
+  request (at most 50, one post per song per 30 minutes; the Worker reads one row per song).
+- **Heads in the way** (`frontend/music/src/library/heads.js` `settle`): another song's head downloading
+  when a song starts now stops (fetched again later) and the heads wait for the starting song's stream;
+  the song's own head, once its bytes come at a rate that cannot finish within the 1.2 s wait, stops at
+  once instead of after the whole wait.
+- Not changed: the first range (64 KB, 0.35 s at 1.5 Mbps, several seconds of Opus) and the start
+  condition (a streamed deck plays as soon as the element has data: there is no `canplaythrough` wait).
+  Not done: bytes asked for at pointer-down. Seen in the lab and not explained: each range reached the
+  mock bucket twice from the worker.
 
 ### 6.2 403 / expiry mid-track
 

@@ -83,13 +83,27 @@ export async function warm() {
     await Promise.race([retain(id, watch).loaded, new Promise(r => setTimeout(r, 15_000))]);
   }
 }
+// The keyboard over an app in front (MUSIC.md §5.10): home asks for `resizes-content` (its chat's
+// composer rides the keyboard), which would resize the app's frame at every keyboard step. While an
+// app's frame is in front, home asks for `resizes-visual` instead, as the app's own page does; the
+// app reads home's visual viewport for the space above the keyboard. Home's own ask comes back as the
+// app leaves the front (into the island, closed or parked).
+const vpMeta = /** @type {HTMLMetaElement|null} */ (document.querySelector('meta[name=viewport]'));
+const homeVp = vpMeta?.content ?? '';
+/** @param {boolean} over */
+export function keyboardOverApp(over) {
+  if (!vpMeta || !homeVp.includes('interactive-widget=')) return;
+  const want = over ? homeVp.replace(/interactive-widget=[a-z-]+/, 'interactive-widget=resizes-visual') : homeVp;
+  if (vpMeta.content !== want) vpMeta.content = want;
+}
 /** @param {import('./frames.js').Layer} l */
-function park(l) { l.front = false; l.frame.inert = true; l.frame.classList.add('away'); l.shell.classList.remove('launch'); l.shell.classList.add('parked'); }
+function park(l) { keyboardOverApp(false); l.front = false; l.frame.inert = true; l.frame.classList.add('away'); l.shell.classList.remove('launch'); l.shell.classList.add('parked'); }
 /** Into the island, from the full screen or where a drag left it. @param {string} why @param {number[]} [from] @param {number[]} [speed] */
 export async function collapse(why, from, speed) {
   if (!st.layer?.front) return;
   const l = st.layer, current = ++st.flight, { c, s } = st, is = c.ensureIsland();
   l.front = false; l.frame.inert = true;
+  keyboardOverApp(false);
   is.hidden = false; is.inert = false;
   c.tick();
   document.body.dataset.island = l.id;
@@ -115,6 +129,7 @@ export async function expand(why) {
   const l = st.layer, current = ++st.flight, { c, s } = st, is = c.ensureIsland();
   c.hush();
   l.front = true; l.frame.inert = false; l.frame.classList.remove('away'); l.shell.classList.remove('parked');
+  keyboardOverApp(true);
   drop(l.id);
   l.shell.classList.add('launch');
   is.inert = true;

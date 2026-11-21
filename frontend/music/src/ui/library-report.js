@@ -3,7 +3,11 @@
 // an artist, an album, a genre, a file name or an id, so the report can be pasted anywhere.
 // Fields are the library records' own (library/r2.js r2Tracks, library.js USER_FIELDS); the album and
 // artist groups are the lists' own (Library.albums(), Library.artists()) when `describe` gives them.
-import {trackLine2} from '../library/labels.js';
+// `screens` counts the rows the library's shelves build (library/shelves.js, list/sources.js): Albums
+// (releases of 3 songs or more), Singles, the listed artists and All artists, Possible duplicates, an
+// album's page and an artist's page, and per screen how many rows have a second line.
+import {albumLabel, trackLine2} from '../library/labels.js';
+import {albumRows, albumSongLine2, albumYear, artistShelf, buildShelves} from '../library/shelves.js';
 
 const UNKNOWN_ARTIST = 'Unknown artist', UNKNOWN_ALBUM = 'Unknown album';
 const lc = s => String(s ?? '').trim().toLowerCase();
@@ -25,20 +29,27 @@ const FIELDS = {
 };
 const KEYS = {album: ['album'], albumArtist: ['albumArtist'], artist: ['artist'], year: ['year'], trackNumber: ['track'], discNumber: ['disc'], genre: ['genre'], composer: ['composer'], length: ['durationMs'], cover: ['artUrl', 'artId'], waveform: ['waveB64', 'wave', 'waveUrl', 'waveKind']};
 
-// Which fields each screen's rows are built from (list/sources.js, list/list-widget.js, library/labels.js).
-export const SCREEN_FIELDS = {
-  albumList: {title: 'album', line2: 'artist of the first song (albumArtist with use_albumartist_albums)', meta: 'songs | length | earliest year'},
-  artistList: {title: 'artist (split parts)', line2: 'none', meta: 'songs | length'},
-  albumSongs: {title: 'title (fileName with title_filename), track number', line2: 'artist - album (albumArtist with use_albumartist)', meta: 'format, sampleRate, bits or bitrate'},
-  artistAlbums: {subhead: 'All artist songs: song count', title: 'album', line2: 'artist of the album\'s first song by this artist', meta: 'songs | length | earliest year'},
-  artistSongs: {title: 'title', line2: 'artist - album', meta: 'format, sampleRate, bits or bitrate'},
-};
+/** An album's artist on its page (sources.js pageArtist). */
+const pageArtist = g => g.artist || g.tracks.find(t => t.albumArtist)?.albumArtist || g.tracks[0]?.artist || '';
 
-/** The rows' second lines with the default settings (sources.js groupLine2 / albumRowArtist, labels.js trackLine2). */
-export function defaultLine2(screen, item) {
-  if (screen === 'artistList') return '';
-  if (screen === 'albumList' || screen === 'artistAlbums') return item.tracks?.[0]?.artist || UNKNOWN_ARTIST;
-  return trackLine2({}, item);
+/**
+ * Each shelf screen's second line, as list/sources.js builds it with these settings (ctx: pref, res;
+ * none: the defaults). Albums: the album row's artist (groupLine2 / albumRowArtist); Singles: the song
+ * row's line (labels.js trackLine2); artists: none; Possible duplicates: album · format · bitrate ·
+ * length; an album's page: the song's artist only when not the album's (shelves.js albumSongLine2); an
+ * artist's page: "year · N songs" under each album, the release's name under each other song.
+ */
+export function shelfLine2(ctx = {}, unknownArtist = UNKNOWN_ARTIST) {
+  return {
+    albums: g => { const t = g.tracks[0]; return ctx.pref?.('use_albumartist_albums') && t?.albumArtist ? t.albumArtist : t?.artist || unknownArtist; },
+    singles: t => trackLine2(ctx, t),
+    artists: () => '',
+    allArtists: () => '',
+    duplicates: t => [albumLabel(ctx, t), t.format, t.bitrate ? t.bitrate + 'kbps' : '', t.durationMs ? 'length' : ''].filter(Boolean).join(' · '),
+    albumPage: (t, g) => albumSongLine2(t, pageArtist(g)),
+    artistPageAlbums: g => [albumYear(g) ? String(albumYear(g)) : '', `${g.tracks.length} songs`].filter(Boolean).join(' · '),
+    artistPageSingles: t => (t.album ? albumLabel(ctx, t) : ''),
+  };
 }
 
 /** Album groups the way Library.buildAlbums keys them (join_albums on). */
@@ -97,21 +108,17 @@ function sizes(list) {
   return {count: s.length, min: s[0], median: s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2, max: s.at(-1)};
 }
 
-/** Second-line counts over the screens of one kind: blank, unknown, the same as the row above or as another row, the header's name repeated. */
-function screenRows(screens, line2, kind, unknown) {
-  const out = {screens: 0, rows: 0, blank: 0, unknown: 0, sameAsRowAbove: 0, sameOnScreen: 0, repeatsHeader: 0};
-  for (const {header, rows} of screens) {
+/** Rows and second lines over the screens of one kind: with a second line, blank, unknown, the same as the row above. */
+function screenRows(screens, unknown) {
+  const out = {screens: 0, rows: 0, withLine2: 0, blank: 0, unknown: 0, sameAsRowAbove: 0};
+  for (const lines of screens) {
     out.screens++;
-    const lines = rows.map(r => String(line2(kind, r) ?? ''));
-    const seen = new Map();
-    for (const l of lines) seen.set(l, (seen.get(l) ?? 0) + 1);
     lines.forEach((l, i) => {
       out.rows++;
-      if (!l.trim()) { out.blank++; return; }
+      if (!String(l ?? '').trim()) { out.blank++; return; }
+      out.withLine2++;
       if (unknown.some(u => l.includes(u))) out.unknown++;
       if (i && l === lines[i - 1]) out.sameAsRowAbove++;
-      if (seen.get(l) > 1) out.sameOnScreen++;
-      if (header && lc(l).includes(lc(header))) out.repeatsHeader++;
     });
   }
   return out;
@@ -119,10 +126,11 @@ function screenRows(screens, line2, kind, unknown) {
 
 /**
  * The report. tracks: the library's shown records; playlists: playlists (ids or tracks) or their sizes;
- * describe: {albums, artists, line2(screen, item), unknown} from the live library, else the defaults above.
+ * describe: {albums, artists, shelves, line2 (shelfLine2's shape), unknown} from the live library, else
+ * the groups and shelves built here with the default settings.
  */
 export function libraryReport(tracks = [], playlists = [], describe = {}) {
-  const songs = tracks.length, line2 = describe.line2 ?? defaultLine2, unknown = describe.unknown ?? [UNKNOWN_ARTIST, UNKNOWN_ALBUM];
+  const songs = tracks.length, line2 = describe.line2 ?? shelfLine2(), unknown = describe.unknown ?? [UNKNOWN_ARTIST, UNKNOWN_ALBUM];
   const filled = {}, filledPct = {};
   for (const [k, f] of Object.entries(FIELDS)) { filled[k] = tracks.filter(f).length; filledPct[k] = pct(filled[k], songs); }
   filled.albumArtistDiffers = tracks.filter(t => has(t.albumArtist) && has(t.artist) && lc(t.albumArtist) !== lc(t.artist)).length;
@@ -167,23 +175,23 @@ export function libraryReport(tracks = [], playlists = [], describe = {}) {
     album: {empty: songs - filled.album, placeholder: tracks.filter(t => PLACEHOLDER.test(t.album ?? '')).length},
   };
 
-  // An artist's screen: its albums (only its songs of each), then "All artist songs".
-  const subAlbums = g => {
-    const by = new Map();
-    for (const t of g.tracks) { const a = albumOf.get(t); if (a) (by.get(a) ?? by.set(a, {kind: 'album', title: a.title, artist: a.artist, tracks: []}).get(a)).tracks.push(t); }
-    return [...by.values()];
-  };
+  // The shelves' screens as the lists build them (library/shelves.js; list/sources.js).
+  const sh = describe.shelves ?? buildShelves({albumGroups: allAlbums, artistGroups: allArtists});
+  const pages = sh.artists.map(g => artistShelf(g.tracks, sh.albumOf));
   const screens = {
-    fields: SCREEN_FIELDS,
-    albumList: screenRows([{header: '', rows: allAlbums}], line2, 'albumList', unknown),
-    artistList: screenRows([{header: '', rows: allArtists}], line2, 'artistList', unknown),
-    albumSongs: screenRows(allAlbums.map(a => ({header: a.title, rows: a.tracks})), line2, 'albumSongs', unknown),
-    artistAlbums: screenRows(artists.map(g => ({header: g.title, rows: subAlbums(g)})), line2, 'artistAlbums', unknown),
-    artistSongs: screenRows(artists.map(g => ({header: g.title, rows: g.tracks})), line2, 'artistSongs', unknown),
+    albums: screenRows([sh.albums.map(line2.albums)], unknown),
+    singles: screenRows([sh.singles.map(line2.singles)], unknown),
+    artists: screenRows([sh.artists.map(line2.artists)], unknown),
+    allArtists: screenRows([allArtists.map(line2.allArtists)], unknown),
+    duplicates: {...screenRows([sh.duplicates.flatMap(d => d.tracks.map(line2.duplicates))], unknown), groups: sh.duplicates.length},
+    albumPage: screenRows(sh.albums.map(g => albumRows(g.tracks).tracks.map(t => line2.albumPage(t, g))), unknown),
+    artistPage: {albums: screenRows(pages.map(p => p.albums.map(line2.artistPageAlbums)), unknown), singles: screenRows(pages.map(p => p.singles.map(line2.artistPageSingles)), unknown)},
   };
+  const shelves = {albums: sh.albums.length, albumSongs: sh.albums.reduce((n, g) => n + g.tracks.length, 0), singles: sh.singles.length,
+    artists: sh.artists.length, allArtists: allArtists.length, duplicates: {groups: sh.duplicates.length, songs: sh.duplicates.reduce((n, d) => n + d.tracks.length, 0)}};
 
   return {version: 1, songs, filled, filledPct, notCarried, albums: albumReport, artists: artistReport,
-    duplicates: {groups: dupeGroups.length, songs: dupeGroups.reduce((n, c) => n + c, 0)}, placeholders, screens, playlists: sizes(playlists)};
+    duplicates: {groups: dupeGroups.length, songs: dupeGroups.reduce((n, c) => n + c, 0)}, placeholders, shelves, screens, playlists: sizes(playlists)};
 }
 
 /** The report over the live library, with the settings in effect for the rows' second lines. */
@@ -192,13 +200,6 @@ export function reportFor(ctx) {
   if (!lib) return null;
   const str = (name, fallback) => ctx.res?.stringByName(name) ?? fallback;
   const unknown = [str('unknown_artist_name', UNKNOWN_ARTIST), str('unknown_album_name', UNKNOWN_ALBUM)];
-  const line2 = (screen, item) => {
-    if (screen === 'artistList') return '';
-    if (screen === 'albumList' || screen === 'artistAlbums') {
-      const t = item.tracks?.[0];
-      return ctx.pref?.('use_albumartist_albums') && t?.albumArtist ? t.albumArtist : t?.artist || unknown[0];
-    }
-    return trackLine2(ctx, item);
-  };
-  return libraryReport(lib.tracks ?? [], ctx.playlists?.items ?? [], {albums: lib.albums(), artists: lib.artists(), line2, unknown});
+  const line2 = shelfLine2(ctx, unknown[0]);
+  return libraryReport(lib.tracks ?? [], ctx.playlists?.items ?? [], {albums: lib.albums(), artists: lib.artists(), shelves: lib.shelves?.(), line2, unknown});
 }

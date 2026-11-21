@@ -1,7 +1,10 @@
 // The height Music lays out at, from the window's height as it changes (MUSIC.md §5.10).
 // At /music the page asks the keyboard not to resize it (interactive-widget=resizes-visual), so the
 // window keeps its height. Opened from home's ring it sits in home's frame (position:fixed, inset:0)
-// and home asks for resizes-content: every step of home's viewport reaches Music as a resize. Here:
+// and home asks for resizes-content when no app is in front; with Music in front it now asks for
+// resizes-visual too (th/island/island.js), so neither window resizes and app.js passes the visual
+// viewport's height (ui/viewport-top.js) while a field has focus. The rules below still hold for any
+// window that does resize (an older home, a turn of the phone):
 // - while a text field has focus, the keyboard's height counts, but a step above the full height
 //   (a 731 → 759 → 424 opening) is not taken: one relayout per keyboard change;
 // - when the field lets go, the full height comes back at once and the keyboard's steps down while it

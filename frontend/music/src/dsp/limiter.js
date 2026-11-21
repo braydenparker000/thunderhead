@@ -16,6 +16,10 @@
 // Allocation-free after construction.
 
 const HALF = 8, TAPS = 2 * HALF;
+// The safety net's level: just under full scale, so a held sample's product never rounds above 1.
+const NET_CEILING = 1 - 1e-6, NET_RELEASE_MS = 10;
+// A gain this close to 1 is 1 (the release and the running sums approach it without reaching it).
+const UNITY = 1 - 1e-9;
 const besselI0 = x => {
   let sum = 1, term = 1;
   for (let k = 1; k < 64 && term > sum * 1e-17; k++) { term *= (x / (2 * k)) ** 2; sum += term; }
@@ -54,7 +58,10 @@ export class TruePeakLimiter {
     this.b2 = L + 1 - this.b1;
     this.window = L + Math.max(0, Math.round(rate * holdMs / 1000));
     this.delay = HALF + L - 1;
+    this.marginDb = marginDb;
+    this.net = false;
     this.ceiling = Math.pow(10, (ceilingDb - marginDb) / 20);
+    this.releaseMs = releaseMs;
     this.release = 1 - Math.exp(-1 / (rate * releaseMs / 1000));
     this.k = kernels();
     // Sum of absolute taps: no interpolated point exceeds the window's largest sample by more.
@@ -72,6 +79,16 @@ export class TruePeakLimiter {
     this.r2 = new Float64Array(this.b2);
     this.enabled = true;
     this.reset();
+  }
+
+  /** The owner's limiter (true peak, its own ceiling) or, on, the safety net (engine-worklet.js): it acts
+   * only on samples over full scale, held just under it, and below that passes every sample exactly
+   * (no gain change at all; inter-sample peaks are left to the converter, as with no limiter). */
+  setNet(on, ceilingDb = -1) {
+    this.net = !!on;
+    // The net lets go quickly (10 ms): the music around an over is back to exact within a few tens of ms.
+    this.release = 1 - Math.exp(-1 / (this.rate * (on ? NET_RELEASE_MS : this.releaseMs) / 1000));
+    this.ceiling = on ? NET_CEILING : Math.pow(10, (ceilingDb - this.marginDb) / 20);
   }
 
   reset() {
@@ -126,7 +143,11 @@ export class TruePeakLimiter {
       // The gain the sample HALF frames back needs.
       const k = this.n - HALF;
       let need = 1;
-      if (this.enabled && wv[this.wh & wmask] > quiet) { const p = this.peakAt(this.n); if (p > c) need = c / p; }
+      if (this.enabled && this.net) {
+        // The sample HALF frames back, over full scale: held at the ceiling.
+        const o = (this.n - HALF) & mask, p = Math.max(Math.abs(this.xl[o]), Math.abs(this.xr[o]));
+        if (p > 1) need = c / p;
+      } else if (this.enabled && wv[this.wh & wmask] > quiet) { const p = this.peakAt(this.n); if (p > c) need = c / p; }
       // Running minimum over the last W needs (a monotonic deque).
       while (this.tail !== this.head && qv[(this.tail - 1) & qmask] >= need) this.tail--;
       qi[this.tail & qmask] = k; qv[this.tail & qmask] = need; this.tail++;
@@ -134,11 +155,13 @@ export class TruePeakLimiter {
       const held = qv[this.head & qmask];
       // Instant attack to the held minimum, exponential release toward it.
       this.gain = held < this.gain ? held : this.gain + (held - this.gain) * this.release;
+      if (this.gain !== held && held - this.gain < 1e-9) this.gain = held;
       // Two moving averages (running sums).
       this.s1 += this.gain - r1[this.i1]; r1[this.i1] = this.gain; if (++this.i1 === b1) this.i1 = 0;
       const g1 = this.s1 / b1;
       this.s2 += g1 - r2[this.i2]; r2[this.i2] = g1; if (++this.i2 === b2) this.i2 = 0;
-      const g = Math.min(1, this.s2 / b2);
+      let g = Math.min(1, this.s2 / b2);
+      if (g > UNITY) g = 1;
       this.applied = g;
       if (g < this.minGain) this.minGain = g;
       // The delayed sample, limited; a final clamp catches what could still pass.

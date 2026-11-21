@@ -12,6 +12,7 @@ import {VelocityTracker, Fling, FLING_CURVE, TOUCH_SLOP_DP, MIN_FLING_DP, MAX_FL
 import {EdgeGlow} from './edge-glow.js';
 import {colorToCss, argbAlpha} from '../res/values.js';
 import {nestedDragOf} from '../widgets/sheet-drag.js';
+import {signAhead, rowSong, shownSongs, SETTLE_MS} from '../player/sign-ahead.js';
 
 // Header buttons a list leaves out (they stay gone through its scenes):
 // search lists have no search-in-list button (applyEvenIfGone
@@ -320,6 +321,7 @@ export class PowerList extends FastLayout {
     v.useThumb = true;
     v.clickable = true;
     v.onClick = () => v.parent.onItemClick(v);
+    v.onPress = () => v.parent?.onItemPress?.(v);
     // A hold on a song or an entry selects it, as the Select button does (onItemLongClick).
     if (type === 'track' || type === 'text') {
       v.longClickable = true;
@@ -409,6 +411,19 @@ export class PowerList extends FastLayout {
     else pool.push(v);
   }
 
+  /** A finger down on a row: a song's link is signed while it is down (player/sign-ahead.js). */
+  onItemPress(v) {
+    if (Math.abs(this.velocity) > CLICK_STOP_DP * this.ctx.dpr || this.selection) return;
+    const t = rowSong(this, v);
+    if (t) signAhead([t]);
+  }
+
+  /** Once the list has not moved for SETTLE_MS, the links of the songs it shows are signed in one request. */
+  settleSoon() {
+    clearTimeout(this._settle);
+    this._settle = setTimeout(() => { if (this.visibility === VISIBLE && !this._fling && !this.drag?.started) signAhead(shownSongs(this)); }, SETTLE_MS);
+  }
+
   onItemClick(v) {
     if (Math.abs(this.velocity) > CLICK_STOP_DP * this.ctx.dpr) return;
     if (this.source?.isSeparator?.(v.listIndex)) return;
@@ -457,6 +472,7 @@ export class PowerList extends FastLayout {
     this.scrollY = Math.max(0, Math.min(this.scrollY, this.maxScroll()));
     // The movement recorder, while search is open (ui/feel-log.js): scroll jumps.
     this.feelWatch?.(this);
+    this.settleSoon();
     this.syncScroller();
     // A drag reorder places the rows itself.
     if (this.reorder) { this.reorder.place(); return; }

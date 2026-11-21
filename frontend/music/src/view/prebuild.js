@@ -1,5 +1,5 @@
 // Screens built before they move (MUSIC.md §5.11 "Transitions at the screen's rate"): in idle time after
-// start, the player screen's likely next scenes (player, library, search, equaliser) have their layouts
+// start, the player screen's likely next scenes (player, library, search, equaliser) and the navbar's lines have their layouts
 // inflated, the views they show laid out at their size there and written while still hidden, laid out by
 // the browser once and kept so while gone, and their images decoded, so no transition builds a screen in
 // its frames. A scene not built by then is built where it always was, in the scene change itself, before
@@ -92,23 +92,34 @@ function decodeImages(view) {
 }
 
 /**
- * Builds the likely next scenes of the top container one per idle period after start, never while a
- * transition moves. ctx.prebuilt.done turns true once all are built (the browser tests wait for it).
+ * Builds the likely next scenes of the top container, then the navbar's lines scene (its seekbar and
+ * mini player, shown with the library, search and the equaliser), one per idle period after start,
+ * never while a transition moves, and only when the page is really idle (no deadline: a build is one
+ * long task on a slow phone, and the start-up's own tasks and the first tap come first).
+ * ctx.prebuilt.done turns true once all are built (the browser tests wait for it).
  */
 export function prebuildLikely(ctx, scenes = LIKELY_SCENES) {
   const root = ctx.topNav;
   ctx.prebuilt = {done: false};
   if (!root) { ctx.prebuilt.done = true; return; }
   const idle = globalThis.requestIdleCallback ?? (fn => setTimeout(() => fn({timeRemaining: () => 8}), 50));
-  const left = [...scenes];
+  const left = scenes.map(scene => () => [root, scene]);
+  // The library's start rows (list/list-widget.js prepareLibrary), once the library scene is built.
+  left.push(() => { ctx.listWidget?.prepareLibrary?.(); return null; });
+  // (Asked when its turn comes: the navbar's line count follows the settings then.)
+  left.push(() => {
+    const bar = ctx.navbar?.container?.();
+    return bar ? [bar, ctx.settings.navbar_seekbar ?? true ? 'scene_navbar_3lines' : 'scene_navbar_2lines'] : null;
+  });
   const next = () => {
     if (!left.length) { ctx.prebuilt.done = true; return; }
     idle(() => {
       // A transition or a pending layout first: the build measures against the settled screen.
-      if (isMoving(ctx) || ctx._layoutPending || root.scenes.running || ctx.listWidget?.trans) { next(); return; }
-      buildScene(root, left.shift());
+      if (isMoving(ctx) || ctx._layoutPending || root.scenes.running || ctx.listWidget?.trans || ctx.navbar?.container?.()?.scenes.running) { next(); return; }
+      const job = left.shift()();
+      if (job) buildScene(...job);
       next();
-    }, {timeout: 2000});
+    });
   };
   next();
 }

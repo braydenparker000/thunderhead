@@ -23,6 +23,8 @@ export class Navbar extends FastLayout {
     this.lines = 1;
     this.sheet = false;
     this.nav = 'nav_main';
+    // For the screens built ahead (view/prebuild.js): its container's line scenes.
+    ctx.navbar ??= this;
     ctx.bus.subscribe('bus_gui', (msg, src, d) => {
       // A scene change within the same navigation (the temporary UI) keeps the sheet.
       if (msg === 'msg_nav_changed') { const changed = d.nav !== this.nav; this.nav = d.nav; if (changed) this.setSheet(false, false); this.onNav(d.nav); }

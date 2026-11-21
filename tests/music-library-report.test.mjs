@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { libraryReport, reportFor, groupAlbums, groupArtists } from '../frontend/music/src/ui/library-report.js';
+import { buildShelves } from '../frontend/music/src/library/shelves.js';
 
 const song = (n, f) => ({ id: 'r2_invented' + String(n).padStart(4, '0'), remote: true, fileName: `${n} ${f.title}.flac`, path: `Shelf/${f.album || 'Loose'}/${n}.flac`, ...f });
 const art = n => ({ artUrl: `https://music.invalid/art/r2_invented${n}` });
@@ -35,24 +36,36 @@ test('albums, artists, duplicates and placeholders', () => {
   assert.deepEqual(r.playlists, { count: 4, min: 0, median: 2, max: 5 });
 });
 
-test('screens: blank and repeated second lines, as the rows build them', () => {
-  const s = libraryReport(TRACKS, PLAYLISTS).screens;
-  assert.ok(s.fields.albumList.line2 && s.fields.artistSongs.title);
-  assert.deepEqual(s.albumList, { screens: 1, rows: 4, blank: 0, unknown: 0, sameAsRowAbove: 1, sameOnScreen: 2, repeatsHeader: 0 });
-  assert.deepEqual(s.artistList, { screens: 1, rows: 5, blank: 5, unknown: 0, sameAsRowAbove: 0, sameOnScreen: 0, repeatsHeader: 0 });
-  assert.deepEqual(s.albumSongs, { screens: 4, rows: 8, blank: 0, unknown: 2, sameAsRowAbove: 2, sameOnScreen: 3, repeatsHeader: 8 });
-  assert.deepEqual(s.artistAlbums, { screens: 5, rows: 4, blank: 0, unknown: 0, sameAsRowAbove: 1, sameOnScreen: 2, repeatsHeader: 4 });
-  assert.deepEqual(s.artistSongs, { screens: 5, rows: 8, blank: 0, unknown: 2, sameAsRowAbove: 2, sameOnScreen: 3, repeatsHeader: 8 });
+test('the shelves and their screens: the rows the lists build, and how many have a second line', () => {
+  const r = libraryReport(TRACKS, PLAYLISTS);
+  // Albums are releases of 3 songs or more; the rest, and songs with no album, are Singles; an artist is
+  // listed with 5 songs or an album of their own (library/shelves.js).
+  assert.deepEqual(r.shelves, { albums: 1, albumSongs: 3, singles: 5, artists: 1, allArtists: 5, duplicates: { groups: 1, songs: 2 } });
+  const row = (rows, withLine2, unknown = 0) => ({ screens: 1, rows, withLine2, blank: rows - withLine2, unknown, sameAsRowAbove: 0 });
+  assert.deepEqual(r.screens, {
+    albums: row(1, 1),
+    singles: row(5, 5, 2),
+    artists: row(1, 0),
+    allArtists: row(5, 0),
+    duplicates: { ...row(2, 2, 1), groups: 1 },
+    // Every song on the one album is by its album artist: no second lines.
+    albumPage: row(3, 0),
+    // The artist's page: the album with "year · N songs", the other song with its release's name.
+    artistPage: { albums: row(1, 1), singles: row(1, 1) },
+  });
+  assert.equal('fields' in r.screens || 'albumList' in r.screens, false, 'the old screens are gone');
 });
 
 test('the live library: its own groups and settings, built only when asked', () => {
   let built = 0;
-  const lib = { tracks: TRACKS, albums: () => (built++, groupAlbums(TRACKS)), artists: () => groupArtists(TRACKS) };
+  let shelved = 0;
+  const lib = { tracks: TRACKS, albums: () => (built++, groupAlbums(TRACKS)), artists: () => groupArtists(TRACKS), shelves: () => (shelved++, buildShelves({ albumGroups: groupAlbums(TRACKS), artistGroups: groupArtists(TRACKS) })) };
   const ctx = { library: lib, playlists: { items: PLAYLISTS }, pref: k => k === 'use_albumartist_albums' };
   assert.equal(built, 0);
   const r = reportFor(ctx);
   assert.equal(built, 1);
-  assert.equal(r.screens.albumList.sameAsRowAbove, 0, 'the second album row leads with its album artist');
+  assert.equal(shelved, 1, 'the library\'s own shelves are asked for');
+  assert.deepEqual(r.screens.albums, { screens: 1, rows: 1, withLine2: 1, blank: 0, unknown: 0, sameAsRowAbove: 0 });
   assert.equal(reportFor({}), null);
 });
 

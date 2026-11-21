@@ -169,6 +169,7 @@ export class Settings {
   screen(name) {
     if (name === 'oss') return ossScreen();
     const tree = this.ctx.res.entry('xml', name);
+    if (name === 'audio_equ' && tree) return (this._equ ??= withHeadroomSwitch(tree));
     if (name !== 'misc' || !tree) return tree;
     return (this._misc ??= withDataCategory(tree));
   }
@@ -1713,6 +1714,20 @@ function withDataCategory(tree) {
     }],
   ]];
   const copy = [root[0], root[1], [data, ...(root[2] ?? [])]];
+  return nested ? [copy, ...tree.slice(1)] : copy;
+}
+
+/**
+ * The equaliser's Automatic headroom (this app's own, cp_auto_headroom, on unless switched off; dsp.js,
+ * dsp/headroom.js): the music goes down before the equaliser by as much as the settings boost.
+ */
+function withHeadroomSwitch(tree) {
+  const nested = Array.isArray(tree[0]), root = nested ? tree[0] : tree, kids = root[2] ?? [];
+  const row = ['com.maxmpz.audioplayer.preference.MultilineSwitchPreference', {
+    'android:title': 'Automatic headroom', 'android:key': 'cp_auto_headroom', 'android:defaultValue': 'true',
+    'android:summary': 'Turns the music down before the equalizer by as much as the equalizer, tone and preamp boost, so the boost never clips. The amount shows in the Playback log.',
+  }];
+  const copy = [root[0], root[1], [...kids.slice(0, 1), row, ...kids.slice(1)]];
   return nested ? [copy, ...tree.slice(1)] : copy;
 }
 

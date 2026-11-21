@@ -111,3 +111,32 @@ test('let go and given a new list at once, the downloads follow the new list', a
   await heads.pumping;
   assert.deepEqual(f.asked, [`song-2 0-${b.head - 1}`]);
 });
+
+test('a song starting stops another song\'s head and holds the rest; its own head, arriving too slowly to finish in the wait, stops at once', async () => {
+  const f = fakeFetch();
+  const heads = make(f);
+  const b = headOf(song(2), { tail: false });
+  heads.want([b], song(1).src);
+  await tick();
+  assert.equal(heads.busy?.url, b.url);
+  // Song 1 is tapped: song 2's head no longer shares the connection with its first bytes.
+  await heads.settle(song(1).src, 1200);
+  await tick();
+  assert.equal(heads.busy, null, 'the other head stopped');
+  assert.equal(heads.held, true, 'heads wait for the starting song');
+  // Its own head, a tenth read after a second: the rest would take nine seconds, so the stream reads now.
+  const g = fakeFetch();
+  const own = make(g);
+  const a = headOf(song(3), { tail: false });
+  own.want([a]);
+  await tick();
+  const t0 = performance.now();
+  own.busy.got = Math.round((a.head) / 10);
+  const realNow = performance.now.bind(performance);
+  const started = realNow() - 1000;
+  own.busy.leftMs = function (now) { return ((a.head - this.got) * (now - started)) / this.got; };
+  await own.settle(a.url, 1200);
+  assert.ok(performance.now() - t0 < 200, 'no wait for a head that cannot finish in time');
+  await tick();
+  assert.equal(own.busy, null);
+});
