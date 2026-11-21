@@ -25,6 +25,7 @@ import {iconStates} from './icon-check.js';
 import {watchFrameWork} from './frame-work.js';
 import {topViewport} from './viewport-top.js';
 import {startupReport} from './startup.js';
+import {longWorkReport} from './long-work.js';
 
 export const CAPS = {runs: 150, opens: 40, buttons: 60, missing: 20, searches: 20, perSearch: 12, icons: 20};
 // Full size: every theme's play and pause at rest are 56 dp or more (TopPlay_maxSize, TopPause_scene_playing_width,
@@ -272,6 +273,8 @@ export class FeelLog {
       transitions: summary, lastTransitions: this.runs.slice(-40),
       playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), playPauseMissing: this.missing.slice(), iconsMissing: this.icons.slice(), search: [...this.searches, ...open],
       startup: startupReport(),
+      // Each long task after start-up with what ran in it, and each idle job's longest piece (long-work.js).
+      longWork: longWorkReport(),
     };
   }
 }

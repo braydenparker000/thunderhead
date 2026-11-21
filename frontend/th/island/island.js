@@ -4,6 +4,7 @@
 import { appFor } from '../registry/apps.js';
 import { frames, retain } from './frames.js';
 import { drop } from './line.js';
+import { holdHeight } from './hold-height.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 export const layered = (/** @type {string} */ id) => LAYERED.includes(id);
 /** Shared state; c, s, h are the modules. @type {{layer:import('./frames.js').Layer|null,island:HTMLDivElement|null,expanded:boolean,touching:boolean,held:boolean,flight:number,dir:number,from:number,c:any,s:any,h:any}} */
@@ -99,13 +100,13 @@ export function keyboardOverApp(over) {
   if (vpMeta.content !== want) vpMeta.content = want;
 }
 /** @param {import('./frames.js').Layer} l */
-function park(l) { keyboardOverApp(false); l.front = false; l.frame.inert = true; l.frame.classList.add('away'); l.shell.classList.remove('launch'); l.shell.classList.add('parked'); }
+function park(l) { keyboardOverApp(false); holdHeight(null); l.front = false; l.frame.inert = true; l.frame.classList.add('away'); l.shell.classList.remove('launch'); l.shell.classList.add('parked'); }
 /** Into the island, from the full screen or where a drag left it. @param {string} why @param {number[]} [from] @param {number[]} [speed] */
 export async function collapse(why, from, speed) {
   if (!st.layer?.front) return;
   const l = st.layer, current = ++st.flight, { c, s } = st, is = c.ensureIsland();
   l.front = false; l.frame.inert = true;
-  keyboardOverApp(false);
+  keyboardOverApp(false); holdHeight(null);
   is.hidden = false; is.inert = false;
   c.tick();
   document.body.dataset.island = l.id;
@@ -131,7 +132,7 @@ export async function expand(why) {
   const l = st.layer, current = ++st.flight, { c, s } = st, is = c.ensureIsland();
   c.hush();
   l.front = true; l.frame.inert = false; l.frame.classList.remove('away'); l.shell.classList.remove('parked');
-  keyboardOverApp(true);
+  keyboardOverApp(true); holdHeight(l.frame);
   drop(l.id);
   l.shell.classList.add('launch');
   is.inert = true;

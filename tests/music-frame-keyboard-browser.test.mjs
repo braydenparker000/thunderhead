@@ -5,7 +5,10 @@
 // as the phone did: 731 → 424); with `resizes-visual` only the visual viewport shrinks. Checked:
 // - while Music is in front home asks for `resizes-visual`, and its own ask comes back when Music leaves;
 // - no resize reaches Music's window when search takes the keyboard;
-// - the results list ends above the keyboard (its last row reachable there) and the player opens at full height.
+// - the results list ends above the keyboard (its last row reachable there) and the player opens at full height;
+// - the phone's bar: home's window goes 731 → 759 → 731 around the keyboard (its bar hides while the keyboard
+//   is up) and the app's frame keeps the settled window's height in px, so Music's window gets no resize
+//   (th/island/hold-height.js); a height that lasts 300 ms with no keyboard is a real change and moves it.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -117,6 +120,59 @@ test('the keyboard over Music in home: no resize reaches its window, the list en
   // Music leaves the front: home's own ask comes back.
   await page.evaluate(() => { delete window.visualViewport.height; return import('/th/island/island.js').then((m) => m.close()); });
   assert.equal(await ask(), 'resizes-content', 'home\'s chat rides the keyboard again');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("the phone's bar around the keyboard: the frame keeps the settled height, Music's window gets no resize", opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 731 }, serviceWorkers: 'allow' });
+  await context.route(`${OLD}/**`, (route) => route.abort());
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/no-such-page`);
+  await page.evaluate((token) => new Promise((resolve, reject) => {
+    const req = indexedDB.open('th-auth', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session');
+      tx.oncomplete = () => { req.result.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }), TOKEN);
+  await page.goto(`${base}/`);
+  assert.equal(await page.evaluate(() => import('/th/island/island.js').then((m) => m.openApp('music'))), true);
+  await page.waitForFunction(() => document.querySelector('iframe.th-app[data-app=music]')?.dataset.ready === 'true', null, { timeout: 30_000 });
+  const frameH = () => page.evaluate(() => document.querySelector('iframe.th-app').contentWindow.innerHeight);
+  assert.equal(await frameH(), 731);
+  await page.evaluate(() => {
+    const w = document.querySelector('iframe.th-app').contentWindow;
+    w.__resizes = 0;
+    w.addEventListener('resize', () => w.__resizes++);
+  });
+  // The settle checks home has run (each 300 ms after the window last changed), to wait on one.
+  const checks = () => page.evaluate(() => Number(document.querySelector('.th-app-shell')?.dataset.heightChecks ?? 0));
+
+  // The keyboard comes up (home's visual viewport 424) and the bar hides: home's window 759.
+  let seen = await checks();
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport, 'height', { configurable: true, get: () => 424 });
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
+  await page.setViewportSize({ width: 390, height: 759 });
+  await until(async () => (await checks()) > seen, { message: 'home never checked the height after the keyboard came up' });
+  // The keyboard goes and the bar comes back: 731.
+  seen = await checks();
+  await page.evaluate(() => { delete window.visualViewport.height; window.visualViewport.dispatchEvent(new Event('resize')); });
+  await page.setViewportSize({ width: 390, height: 731 });
+  await until(async () => (await checks()) > seen, { message: 'home never checked the height after the keyboard went' });
+  assert.deepEqual({ resizes: await page.evaluate(() => document.querySelector('iframe.th-app').contentWindow.__resizes), innerH: await frameH() }, { resizes: 0, innerH: 731 });
+
+  // A real change (a height that lasts with no keyboard): the frame follows it.
+  seen = await checks();
+  await page.setViewportSize({ width: 390, height: 759 });
+  await until(async () => (await checks()) > seen && (await frameH()) === 759, { message: 'the frame never took a lasting height' });
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -244,7 +244,10 @@
     // range there, and the next read of it went out as a conditional request first (If-Range), one more
     // round trip before the first byte (MUSIC.md §6.1). Heads and offline copies keep what is kept.
     const get = (url) => upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes);
+    const signedAt = deps.now();
     let url = await within(sign(base, auth, ref, false, t.sign), cap.signal);
+    // The signature's wait, for the player's report (0: signed ahead): music/src/player/song-net.js.
+    const signMs = deps.now() - signedAt;
     if (!url) return new Response(null, { status: 404 });
     let r = await get(url);
     // An expired link (a paused song past its hour): sign once more. Refused again, the bucket isn't
@@ -255,7 +258,9 @@
       r = await get(url);
       if (r.status === 403) throw NOT_READY;
     }
-    return copy(r);
+    const out = copy(r);
+    out.headers.set('TH-Sign-Ms', String(signMs));
+    return out;
   }
 
   async function fromNew(req, t, cap) {

@@ -6,7 +6,12 @@
 // - `songAt`: ms after its start that a song change or play/pause began (a song's start work);
 // - `longTasks`, `longMs`, `longAt`: main-thread tasks of 50 ms or more that began inside it, the longest
 //   one's ms, and when it began (ms after the start); read as the browser reports them, a little after.
-// Numbers only. Nothing runs outside a transition except the long task observer's own bookkeeping.
+//   `longWhat` names what ran in the longest (ui/long-work.js: an idle job, or the handler the browser named).
+// Numbers and code names only. Nothing runs outside a transition except the long task observer's own bookkeeping.
+import {idleAt, longWork} from './long-work.js';
+
+/** What ran in a long task: an idle job's piece, else the handler a long animation frame named, else ''. */
+const whatRan = e => idleAt(e.startTime, e.duration) || longWork.tasks.find(t => t.at <= e.startTime + 1 && e.startTime <= t.at + t.ms)?.what || '';
 
 /** @param {import('./feel-log.js').FeelLog} log */
 export function watchFrameWork(log) {
@@ -30,7 +35,7 @@ export function watchFrameWork(log) {
           if (at < 0 || (run.rec && at > run.ms)) continue;
           const w = run.rec ?? (run.work ??= {});
           w.longTasks = (w.longTasks ?? 0) + 1;
-          if (!(w.longMs >= e.duration)) { w.longMs = Math.round(e.duration); w.longAt = Math.round(at); }
+          if (!(w.longMs >= e.duration)) { w.longMs = Math.round(e.duration); w.longAt = Math.round(at); w.longWhat = whatRan(e) || undefined; }
         }
       }
     }).observe({type: 'longtask', buffered: false});

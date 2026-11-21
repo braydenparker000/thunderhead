@@ -7,7 +7,7 @@
 // (releases of 3 songs or more), Singles, the listed artists and All artists, Possible duplicates, an
 // album's page and an artist's page, and per screen how many rows have a second line.
 import {albumLabel, trackLine2} from '../library/labels.js';
-import {albumRows, albumSongLine2, albumYear, artistShelf, buildShelves} from '../library/shelves.js';
+import {albumRows, albumSongLine2, albumYear, artistLine2, artistShelf, buildShelves} from '../library/shelves.js';
 
 const UNKNOWN_ARTIST = 'Unknown artist', UNKNOWN_ALBUM = 'Unknown album';
 const lc = s => String(s ?? '').trim().toLowerCase();
@@ -35,7 +35,7 @@ const pageArtist = g => g.artist || g.tracks.find(t => t.albumArtist)?.albumArti
 /**
  * Each shelf screen's second line, as list/sources.js builds it with these settings (ctx: pref, res;
  * none: the defaults). Albums: the album row's artist (groupLine2 / albumRowArtist); Singles: the song
- * row's line (labels.js trackLine2); artists: none; Possible duplicates: album · format · bitrate ·
+ * row's line (labels.js trackLine2); artists and all artists: "N albums · N songs" (shelves.js artistLine2); Possible duplicates: album · format · bitrate ·
  * length; an album's page: the song's artist only when not the album's (shelves.js albumSongLine2); an
  * artist's page: "year · N songs" under each album, the release's name under each other song.
  */
@@ -43,8 +43,8 @@ export function shelfLine2(ctx = {}, unknownArtist = UNKNOWN_ARTIST) {
   return {
     albums: g => { const t = g.tracks[0]; return ctx.pref?.('use_albumartist_albums') && t?.albumArtist ? t.albumArtist : t?.artist || unknownArtist; },
     singles: t => trackLine2(ctx, t),
-    artists: () => '',
-    allArtists: () => '',
+    artists: (g, albumOf) => artistLine2(g.tracks, albumOf),
+    allArtists: (g, albumOf) => artistLine2(g.tracks, albumOf),
     duplicates: t => [albumLabel(ctx, t), t.format, t.bitrate ? t.bitrate + 'kbps' : '', t.durationMs ? 'length' : ''].filter(Boolean).join(' · '),
     albumPage: (t, g) => albumSongLine2(t, pageArtist(g)),
     artistPageAlbums: g => [albumYear(g) ? String(albumYear(g)) : '', `${g.tracks.length} songs`].filter(Boolean).join(' · '),
@@ -181,8 +181,8 @@ export function libraryReport(tracks = [], playlists = [], describe = {}) {
   const screens = {
     albums: screenRows([sh.albums.map(line2.albums)], unknown),
     singles: screenRows([sh.singles.map(line2.singles)], unknown),
-    artists: screenRows([sh.artists.map(line2.artists)], unknown),
-    allArtists: screenRows([allArtists.map(line2.allArtists)], unknown),
+    artists: screenRows([sh.artists.map(g => line2.artists(g, sh.albumOf))], unknown),
+    allArtists: screenRows([allArtists.map(g => line2.allArtists(g, sh.albumOf))], unknown),
     duplicates: {...screenRows([sh.duplicates.flatMap(d => d.tracks.map(line2.duplicates))], unknown), groups: sh.duplicates.length},
     albumPage: screenRows(sh.albums.map(g => albumRows(g.tracks).tracks.map(t => line2.albumPage(t, g))), unknown),
     artistPage: {albums: screenRows(pages.map(p => p.albums.map(line2.artistPageAlbums)), unknown), singles: screenRows(pages.map(p => p.singles.map(line2.artistPageSingles)), unknown)},

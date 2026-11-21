@@ -1,5 +1,6 @@
 // The music library: the R2 index's tracks, lazily opened media/cover URLs,
 // and category views (albums, artists, genres, folders).
+import {idleWork} from '../view/idle-work.js';
 import {LibraryDb} from './db.js';
 import {readRemotePicture} from './tags.js';
 import {makeSplitter, GENRE_DEFAULT_SPLIT} from './split.js';
@@ -24,7 +25,7 @@ const cacheKey = key => (key.startsWith('embedded:') ? new URL('covers/embedded/
 
 // Per-track listening data for remote tracks (state store, key u:<id>); ratedAt: when the rating
 // was set, for the sync between phones (th/music/sync.js).
-const USER_FIELDS = ['wave', 'waveSrc', 'durationMs', 'plays', 'lastPlayed', 'rating', 'ratedAt'];
+const USER_FIELDS = ['wave', 'waveSrc', 'durationMs', 'plays', 'lastPlayed', 'rating', 'ratedAt', 'decodedPeak'];
 
 export class Library {
   constructor(ctx) {
@@ -173,18 +174,12 @@ export class Library {
     this.warmGroups();
   }
 
-  /** The category views built in idle time, so the first search or category list finds them made. */
+  /** The category views built in idle time (view/idle-work.js, one piece each), so the first search or category list finds them made. */
   warmGroups() {
-    const idle = globalThis.requestIdleCallback;
-    if (!idle || this._warmQueued) return;
+    if (!globalThis.requestIdleCallback || this._warmQueued) return;
     this._warmQueued = true;
     const kinds = ['albums', 'artists', 'shelves', 'albumArtists', 'genres', 'composers', 'folders'];
-    const step = deadline => {
-      while (kinds.length && deadline.timeRemaining() > 4) this[kinds.shift()]();
-      if (kinds.length) idle(step, {timeout: 5000});
-      else this._warmQueued = false;
-    };
-    idle(step, {timeout: 5000});
+    idleWork(this.ctx, 'groups', kinds.map(k => () => this[k]())).then(() => { this._warmQueued = false; });
   }
 
   /** Media URL for a track (object URL over the stored file). */
@@ -332,16 +327,32 @@ export class Library {
       await new Promise(r => setTimeout(r, ROW_SETTLE_MS));
       if (!wanted()) return SKIPPED;
     }
-    const release = await this.coverSlot(priority, wanted);
+    // One read of a cover at a time (the player's cover and its row's thumbnail asked for the same file's bytes twice).
+    this.coverReads ??= new Map();
+    const reading = this.coverReads.get(ck);
+    if (reading) { const r = await reading; if (r !== SKIPPED) return r; }
+    const job = this.readCover(key, ck, store, priority, wanted);
+    this.coverReads.set(ck, job);
+    try { return await job; } finally { if (this.coverReads.get(ck) === job) this.coverReads.delete(ck); }
+  }
+
+  async readCover(key, ck, store, priority, wanted) {
+    // The playing song's stream first (Player.linkFree), before taking a slot: up to 3 s, or until it pauses
+    // or has 10 s ahead. Past that (a link that never gets so far) covers load one at a time, at low priority.
+    const free = (await this.ctx.player?.linkFree?.()) !== false;
+    if (wanted && !wanted()) return SKIPPED;
+    const release = free ? await this.coverSlot(priority, wanted) : await this.lowSlot();
     if (!release) return SKIPPED;
+    const low = free ? {} : {priority: 'low'};
     try {
+      if (wanted && !wanted()) return SKIPPED;
       let blob = null;
       if (key.startsWith('embedded:')) {
         const t = this.byId.get(key.slice(9));
-        const pic = t?.src ? await readRemotePicture(t.src) : null;
+        const pic = t?.src ? await readRemotePicture(t.src, low) : null;
         blob = pic ? new Blob([pic.bytes], {type: pic.mime || 'image/jpeg'}) : null;
       } else {
-        const r = await fetch(key, {mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer'});
+        const r = await fetch(key, {mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', ...low});
         if (r.ok) blob = await r.blob();
         else if (r.status !== 404) return null; // transient: try again another time
       }
@@ -356,6 +367,14 @@ export class Library {
     } finally {
       release();
     }
+  }
+
+  /** The one low-priority slot: covers read while the playing song is short of its stream, one at a time. */
+  lowSlot() {
+    const prev = this.lowTail ?? Promise.resolve();
+    let free;
+    this.lowTail = new Promise(r => { free = r; });
+    return prev.then(() => free);
   }
 
   /** Download slots (COVER_SLOTS at once); the player's cover jumps the line. */
@@ -516,6 +535,21 @@ export class Library {
     t.lastPlayed = Date.now();
     if (this.byId.has(t.id)) this.saveTrack(t);
     this.ctx.bus.post('bus_data', 'msg_data_track_played', this, {track: t});
+  }
+
+  /**
+   * A song's decoded peak (linear) measured while it plays (the engine's input meter): the phone keeps
+   * the larger of what it kept and what it measured, with the song's plays; it trims the song from its
+   * next start (dsp/trim.js). Saved at most once per 2 s per song, the last growth included.
+   */
+  notePeak(t0, peak) {
+    const t = this.byId.get(t0?.id) ?? t0;
+    if (!t || !(peak > (t.decodedPeak ?? 0))) return;
+    t.decodedPeak = Math.ceil(peak * 1e4) / 1e4;
+    if (t0 !== t) t0.decodedPeak = t.decodedPeak;
+    if (!this.byId.has(t.id)) return;
+    this.peakSaves ??= new Map();
+    if (!this.peakSaves.has(t.id)) this.peakSaves.set(t.id, setTimeout(() => { this.peakSaves.delete(t.id); this.saveTrack(t); }, 2000));
   }
 
   /** Settings → Reset stats (hs.H): every track's played times and last played go to zero. */

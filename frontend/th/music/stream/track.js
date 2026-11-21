@@ -46,10 +46,11 @@ const wait = (ms, signal) =>
 export class TrackReader {
   /**
    * @param {StreamTrack} track
-   * @param {{ fetch?: typeof fetch, sleep?: typeof wait, onRetry?: (code: string, attempt: number) => void }} [o]
+   * @param {{ fetch?: typeof fetch, sleep?: typeof wait, onRetry?: (code: string, attempt: number) => void, now?: () => number }} [o]
    */
   constructor(track, o = {}) {
     this.track = track;
+    this.now = o.now ?? (() => performance.now());
     this.fetch = o.fetch ?? ((/** @type {RequestInfo} */ u, /** @type {RequestInit} */ i) => fetch(u, i));
     this.sleep = o.sleep ?? wait;
     this.onRetry = o.onRetry ?? (() => {});
@@ -72,6 +73,12 @@ export class TrackReader {
     this.lastEnd = -1;
     this.audioBytes = 0;
     this.audioSamples = 0;
+    /** When a request last started or a byte last came (this.now()), and the requests under way (a fill's,
+     * a seek's), for the stall guard (linkOf). */
+    this.alive = 0;
+    this.pending = 0;
+    /** The report's figures (music/src/player/song-net.js): first request, first and last byte, bytes, the worker's sign ms. */
+    this.net = { firstAt: 0, firstByteAt: 0, lastByteAt: 0, bytes: 0, signMs: /** @type {number | null} */ (null), firstRange: 0 };
   }
 
   /** Samples waiting for the feeder. */
@@ -105,6 +112,8 @@ export class TrackReader {
       if (this.size && this.pos >= this.size) return this.finish();
       const from = this.pos;
       const to = (this.size ? Math.min(this.size, from + n) : from + n) - 1;
+      this.pending++;
+      let failure = null;
       try {
         const res = await this.request(from, to, signal);
         if (!res) return this.finish();
@@ -113,6 +122,10 @@ export class TrackReader {
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          const net = this.net;
+          net.lastByteAt = this.alive = this.now();
+          net.firstByteAt ||= net.lastByteAt;
+          net.bytes += value.length;
           if (this.consume(value)) onData();
           if (this.done) {
             reader.cancel().catch(() => {});
@@ -122,14 +135,18 @@ export class TrackReader {
         if (!this.done && (this.size ? this.pos >= this.size : this.pos - from < to - from + 1)) this.finish();
         return;
       } catch (e) {
-        if (signal.aborted) throw e;
-        if (e instanceof StreamError || e instanceof OggError) throw e;
-        // A network failure, before or during the body: try again from the byte reached.
-        if (this.pos > from) attempt = 0;
-        if (attempt >= RETRY_MS.length) throw new StreamError(e instanceof Transient ? e.message : 'network');
-        this.onRetry(e instanceof Transient ? e.message : 'network', attempt + 1);
-        await this.sleep(RETRY_MS[attempt++], signal);
+        failure = e;
+      } finally {
+        this.pending--;
       }
+      const e = failure;
+      if (signal.aborted) throw e;
+      if (e instanceof StreamError || e instanceof OggError) throw e;
+      // A network failure, before or during the body: try again from the byte reached.
+      if (this.pos > from) attempt = 0;
+      if (attempt >= RETRY_MS.length) throw new StreamError(e instanceof Transient ? e.message : 'network');
+      this.onRetry(e instanceof Transient ? e.message : 'network', attempt + 1);
+      await this.sleep(RETRY_MS[attempt++], signal);
     }
   }
 
@@ -165,6 +182,8 @@ export class TrackReader {
    * @param {number} from @param {number} to @param {AbortSignal} signal @returns {Promise<Response | null>}
    */
   async request(from, to, signal) {
+    this.alive = this.now();
+    if (!this.net.firstAt) Object.assign(this.net, { firstAt: this.alive, firstRange: to - from + 1 });
     for (let fresh = false; ; fresh = true) {
       let url;
       try {
@@ -179,6 +198,7 @@ export class TrackReader {
         if (signal.aborted) throw e;
         throw new Transient('network');
       }
+      if (this.net.signMs === null && res.headers.has('th-sign-ms')) this.net.signMs = Number(res.headers.get('th-sign-ms'));
       if (res.status === 206) {
         const m = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(res.headers.get('content-range') ?? '');
         if (m && Number(m[1]) !== from) throw new StreamError('bad-range');
@@ -202,19 +222,32 @@ export class TrackReader {
   /** The bytes `from`…`to` whole, tried again like `fill`. @param {number} from @param {number} to @param {AbortSignal} signal */
   async bytes(from, to, signal) {
     for (let attempt = 0; ; ) {
+      let failure = null;
+      this.pending++;
       try {
         const res = await this.request(from, to, signal);
         if (!res) return new Uint8Array(0);
         if (res.status === 200) throw new StreamError('no-range');
-        return new Uint8Array(await res.arrayBuffer());
+        // Read as it comes: each piece is a sign of life for the stall guard (a seek's probes too).
+        const parts = [];
+        let n = 0;
+        const reader = res.body?.getReader();
+        for (let r = await reader?.read(); reader && r && !r.done; r = await reader.read()) { this.alive = this.now(); parts.push(r.value); n += r.value.length; }
+        const out = new Uint8Array(n);
+        for (let at = 0, i = 0; i < parts.length; at += parts[i++].length) out.set(parts[i], at);
+        return out;
       } catch (e) {
-        if (signal.aborted || e instanceof StreamError) throw e;
-        if (attempt >= RETRY_MS.length) throw new StreamError(e instanceof Transient ? e.message : 'network');
-        this.onRetry(e instanceof Transient ? e.message : 'network', attempt + 1);
-        await this.sleep(RETRY_MS[attempt++], signal);
+        failure = e;
+      } finally {
+        this.pending--;
       }
+      if (signal.aborted || failure instanceof StreamError) throw failure;
+      if (attempt >= RETRY_MS.length) throw new StreamError(failure instanceof Transient ? failure.message : 'network');
+      this.onRetry(failure instanceof Transient ? failure.message : 'network', attempt + 1);
+      await this.sleep(RETRY_MS[attempt++], signal);
     }
   }
+
 
   /**
    * Moves the reader to the last page that ends at or before `granule` less the pre-roll, so the next
@@ -293,4 +326,19 @@ function granuleAfter(b) {
     if (found.page.granule >= 0) return found;
   }
   return null;
+}
+
+/** STILL_MS: a request under way with no byte for this long counts as gone (a hung connection). */
+export const STILL_MS = 15_000;
+
+/**
+ * The link as the stall guard reads it, over a song's readers: `busy` while any request (a fill's, a
+ * seek's probes) is under way and showed life (its start or a byte) in the last STILL_MS; `quietMs` since
+ * the last sign of life. @param {TrackReader[]} readers @param {number} now
+ */
+export function linkOf(readers, now) {
+  let alive = 0, pending = false;
+  for (const r of readers) { if (r.pending > 0) pending = true; if (r.alive > alive) alive = r.alive; }
+  const quietMs = alive ? now - alive : Infinity;
+  return { busy: pending && quietMs < STILL_MS, quietMs };
 }

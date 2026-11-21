@@ -589,7 +589,7 @@ export class DSP {
       for (const [deck, id] of this.fadeIds) if (id === m.id) this.fadeIds.delete(deck);
       done?.();
     }
-    else if (m.type === 'inmeter') { this.inMeter = m; this.learnTrims(m.deckPeaks); this.ctx.playbackLog?.inputMeter?.(m); }
+    else if (m.type === 'inmeter') { this.inMeter = m; this.learnTrims(m.deckPeaks, m.deckSeqs); this.ctx.playbackLog?.inputMeter?.(m); }
     else if (m.type === 'meter') { this.meter = m; this.meterAt = performance.now(); this.ctx.playbackLog?.engineMeter?.(m); }
     else if (m.type === 'pong') { this.pongs?.get(m.id)?.(); this.pongs?.delete(m.id); }
   }
@@ -630,7 +630,7 @@ export class DSP {
     const i = this.decks.size;
     this.decks.set(el, i);
     this.ac.createMediaElementSource(el).connect(this.inputs[i]);
-    if (el._rgGain !== undefined) this.post({stage: 'eq', type: 'rg', deck: i, value: el._rgGain, trim: el._trim ?? 1});
+    if (el._rgGain !== undefined) this.post({stage: 'eq', type: 'rg', deck: i, value: el._rgGain, trim: el._trim ?? 1, seq: el._rgSeq});
   }
 
   /** Whether decks can be joined gaplessly (the worklet engine, not plain playback). */
@@ -742,13 +742,19 @@ export class DSP {
     }
     el._trim = trim;
     el._track = t;
+    el._rgSeq = this.rgSeq = (this.rgSeq ?? 0) + 1;
     const deck = this.decks.get(el);
-    if (deck !== undefined) this.post({stage: 'eq', type: 'rg', deck, value: gain, trim});
+    if (deck !== undefined) this.post({stage: 'eq', type: 'rg', deck, value: gain, trim, seq: el._rgSeq});
   }
 
-  /** The decoded peaks of each deck's song (the engine's input meter): what its album's next songs take. */
-  learnTrims(peaks) {
-    for (const [el, i] of this.decks) if (peaks?.[i] > 0 && el._track) this.trimCarry = learnTrim(this.trimCarry, el._track, peaks[i], el._rgGain ?? 1);
+  /** The decoded peaks of each deck's song (the engine's input meter): what its album's next songs take, and
+   * the peak the phone keeps for the song (seqs: the song each deck meters, from its rg message). */
+  learnTrims(peaks, seqs) {
+    for (const [el, i] of this.decks) if (peaks?.[i] > 0 && el._track) {
+      this.trimCarry = learnTrim(this.trimCarry, el._track, peaks[i], el._rgGain ?? 1);
+      // The song's own kept peak, only once the engine meters this song (its rg message arrived).
+      if (seqs?.[i] === el._rgSeq) this.ctx.library?.notePeak?.(el._track, peaks[i]);
+    }
   }
 
   /** Connects the player's media element (the first play's user gesture starts the context). */

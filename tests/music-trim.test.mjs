@@ -46,3 +46,40 @@ test('untagged: no change inside a song; the next song of the album in order sta
   assert.equal(songTrim({ t: d, prev: a, gain: 1, carry }).trim, 1);
   assert.equal(songTrim({ t: song(4, { album: 'Other' }), prev: c, gain: 1, carry }).trim, 1);
 });
+
+test("an untagged song's kept peak trims it from its next start, wherever it is played; the album rule is unchanged", () => {
+  // Never measured: no trim (the net catches it the first time).
+  assert.equal(songTrim({ t: song(7), prev: null, gain: 1 }).trim, 1);
+  // Measured 2.1 dB over full scale on an earlier play: trimmed by that at its start, out of album order too.
+  const kept = song(7, { decodedPeak: Math.pow(10, 2.1 / 20) });
+  const r = songTrim({ t: kept, prev: null, gain: 1 });
+  assert.equal(db(r.trim), -2.1);
+  // The carry its album's next song takes is the album rule's alone (here none).
+  assert.equal(r.carry.trim, 1);
+  // ReplayGain counts: a song turned down 3 dB is not over.
+  assert.equal(songTrim({ t: kept, prev: null, gain: Math.pow(10, -3 / 20) }).trim, 1);
+  // With the album's carry, the smaller trim wins.
+  const carry = { key: r.carry.key, trim: Math.pow(10, -3 / 20) };
+  assert.equal(db(songTrim({ t: song(8, { decodedPeak: kept.decodedPeak }), prev: song(7), gain: 1, carry }).trim), -3);
+  // A song under full scale keeps no trim.
+  assert.equal(songTrim({ t: song(7, { decodedPeak: 0.8 }), prev: null, gain: 1 }).trim, 1);
+});
+
+test('the phone keeps the larger of the kept and the measured peak, with the song, saved once per 2 s', async () => {
+  const { Library } = await import('../frontend/music/src/library/library.js');
+  const saved = [];
+  const t = { id: 'r2_invented0042', remote: true, plays: 3 };
+  const lib = { byId: new Map([[t.id, t]]), saveTrack: (x) => saved.push({ ...x }) };
+  const copy = { id: t.id };
+  Library.prototype.notePeak.call(lib, copy, 1.2);
+  Library.prototype.notePeak.call(lib, copy, 0.9);
+  Library.prototype.notePeak.call(lib, copy, 1.27);
+  assert.equal(t.decodedPeak, 1.27);
+  assert.equal(copy.decodedPeak, 1.27, 'the player’s copy follows');
+  assert.equal(saved.length, 0, 'not saved on every meter');
+  clearTimeout(lib.peakSaves.get(t.id));
+  lib.peakSaves.clear();
+  Library.prototype.notePeak.call(lib, copy, 1.1);
+  assert.equal(t.decodedPeak, 1.27, 'never smaller');
+  assert.equal(lib.peakSaves.size, 0, 'nothing to save when it did not grow');
+});

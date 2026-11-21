@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { libraryReport, reportFor, groupAlbums, groupArtists } from '../frontend/music/src/ui/library-report.js';
-import { buildShelves } from '../frontend/music/src/library/shelves.js';
+import { artistLine2, buildShelves } from '../frontend/music/src/library/shelves.js';
 
 const song = (n, f) => ({ id: 'r2_invented' + String(n).padStart(4, '0'), remote: true, fileName: `${n} ${f.title}.flac`, path: `Shelf/${f.album || 'Loose'}/${n}.flac`, ...f });
 const art = n => ({ artUrl: `https://music.invalid/art/r2_invented${n}` });
@@ -45,8 +45,9 @@ test('the shelves and their screens: the rows the lists build, and how many have
   assert.deepEqual(r.screens, {
     albums: row(1, 1),
     singles: row(5, 5, 2),
-    artists: row(1, 0),
-    allArtists: row(5, 0),
+    // Every artist row has "N albums · N songs", or "N songs" alone with no album (shelves.js artistLine2).
+    artists: row(1, 1),
+    allArtists: { ...row(5, 5), sameAsRowAbove: 3 },
     duplicates: { ...row(2, 2, 1), groups: 1 },
     // Every song on the one album is by its album artist: no second lines.
     albumPage: row(3, 0),
@@ -54,6 +55,14 @@ test('the shelves and their screens: the rows the lists build, and how many have
     artistPage: { albums: row(1, 1), singles: row(1, 1) },
   });
   assert.equal('fields' in r.screens || 'albumList' in r.screens, false, 'the old screens are gone');
+});
+
+test("an artist row's second line: albums by the shelves' meaning, then songs", () => {
+  const sh = buildShelves({ albumGroups: groupAlbums(TRACKS), artistGroups: groupArtists(TRACKS) });
+  const line = name => artistLine2(groupArtists(TRACKS).find(g => g.title === name).tracks, sh.albumOf);
+  // Glass Orchard (3 songs) is an album; Sundial Rooms (2 songs) is not, so its song counts only as a song.
+  assert.equal(line('Vellum Kite'), '1 album · 4 songs');
+  assert.equal(line('Brindle & Fox'), '1 song');
 });
 
 test('the live library: its own groups and settings, built only when asked', () => {

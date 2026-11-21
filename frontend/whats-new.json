@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-21-music-sound",
+  "id": "2026-11-21-music-steady",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music makes room for your equaliser so boosts no longer clip; a flat equaliser plays exactly as before."
+      "text": "Music: the playing song gets the connection first, and a stalled song recovers instead of waiting."
     },
     {
-      "text": "Opened from the ring, Music is no longer resized by the keyboard, so search to player moves cleanly."
+      "text": "Background preparation no longer runs while you touch the screen or a screen is moving."
     },
     {
-      "text": "A tapped song starts sooner on a slow connection."
+      "text": "Opened from the ring, Music's frame keeps its height when the keyboard comes and goes."
     },
     {
-      "text": "Copy report now says where clipping comes from and what the library screens really show."
+      "text": "Artists show their albums and songs; a loud song's peak is remembered so it plays clean next time."
     }
   ]
 }

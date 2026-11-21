@@ -7,6 +7,7 @@ import {listKeyOf, categoryKey, KEEP_TRACK} from '../library/list-memory.js';
 import {offlinePlan, offlineAhead} from '../library/audio-cache.js';
 import {headOf, HEAD_S} from '../library/heads.js';
 import {StreamGuard} from './stream-guard.js';
+import {waitLinkFree} from './link-free.js';
 import {djOrder, DJ_AHEAD, SHUFFLE_DJ, stepOver} from '/th/music/dj.js';
 
 // The streaming path (th/music/stream/deck.js, MUSIC.md §5): loaded on its own, so the player starts
@@ -763,6 +764,7 @@ export class Player {
         onFallback: ({ms}) => this.streamFailed(el, t, ms),
         onLength: () => this.lengthFrom(el),
       });
+      this.ctx.playbackLog?.songNet?.add(String(t.id), el._stream.feed);
       // The feed's own tries again after a network failure, a timeout or a 5xx (0.5, 1, 2, 4 s): a wait
       // before its fallback that the log did not show.
       el._stream.feed?.addEventListener?.('error', e => log('stream retry', {track: String(t.id), code: String(e.detail?.code ?? ''), attempt: e.detail?.attempt ?? 0}));
@@ -943,6 +945,18 @@ export class Player {
       if (x && x !== this.track && !rangeStart(x) && !this.ctx.audioCache?.has(x.src)) list.push(headOf(x, {tail: !this.streams(x)}));
     }
     heads.want(list, this.track?.src ?? null);
+  }
+
+  /**
+   * Whether the link is the playing song's to spare (MUSIC.md §6.3; link-free.js): true once nothing plays,
+   * the deck is paused, or it sounds with HEADS_AFTER_BUFFERED_S of its stream ahead (or all of it); false
+   * after 3 s without. Covers wait on it: on a slow link another file's bytes delayed a tapped song's first ones.
+   */
+  linkFree() {
+    return waitLinkFree(this, () => {
+      const el = this.audio;
+      return this.state !== STATE_PLAYING || !el || el.paused || (el.readyState >= 3 && this.streamAhead(el));
+    });
   }
 
   /** Whether a song will play through the stream feed (it needs no Ogg tail kept: deck.js). */

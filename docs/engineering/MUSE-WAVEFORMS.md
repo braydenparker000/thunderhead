@@ -96,6 +96,18 @@ track row's last change, MUSIC.md §1.4): a waveform registered again moves it, 
 4. Tell the owner the song's id only, and wait for their word that it looks right on the phone
    before you start §4.
 
+## 6a. Requested addition: each song's true peak (2026-11-21)
+
+Not part of the waveform work above; asked so the phone can turn a song down from its first play
+(MUSIC.md §5.5 "Songs over full scale"). For each song, from the same decode as §2: its **true peak in
+dBTP** (4× oversampled, as EBU R 128 / ITU-R BS.1770 measure it), over every channel.
+
+The catalog writer already takes it: `metadata.audioAnalysis.truePeakDbtp` (with the rest of an audio
+analysis: `samplePeakDbfs`, `integratedLufs`, the audio's `sha256` and size, `backend/src/areas/music/validate.ts`
+`validateAnalysis`), in `register` or later with `POST /v1/music/uploads/analysis`. The phone does not
+read it yet; until it does, it keeps the decoded peak it measures while a song plays and trims the song
+from its next start.
+
 ## 7. What never goes anywhere
 
 No titles, artists or file names in your messages to the owner or in work-order lines: ids and
