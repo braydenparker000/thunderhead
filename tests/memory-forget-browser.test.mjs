@@ -28,7 +28,10 @@ function started(context, id) {
 }
 
 for (const [how, leave] of [
-  ['goes Back', (page) => page.goBack({ waitUntil: 'load' })],
+  // Back now closes the Memory page inside the app (th/layers.js), and leaving the page in the app sends what
+  // waits (memory-forget.js `cleanup`): the page's held clock first lets the
+  // closed sheets give their entries back (100 ms), then runs the page's close: 1.1 s of the 10 s.
+  ['goes Back', async (page) => { await page.clock.runFor(100); await page.goBack(); await page.clock.runFor(1_000); }],
   ['opens another page', (page) => page.goto(`${pages.base()}/signin/`, { waitUntil: 'load' })],
 ]) {
   test(`a Forget still goes out when the owner ${how} inside the 10 s undo`, opts, async () => {
