@@ -302,9 +302,9 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
     await page.fill('.sbox input', 'calm');
     await eventually(() => rows('What I remember'), ['Likes calm music in the evening | You said']);
     await shot(page, 'search', theme);
-    // Go to: app and settings names.
+    // Go to: app names, and Settings' results from its one index.
     await page.fill('.sbox input', 'devi');
-    await eventually(() => rows('Go to'), ['Sign-in & devices']);
+    await eventually(() => rows('Go to'), ['Devices']); // Settings' one index (apps/settings/finder.js) names the page as Settings does
     // Show all N.
     await page.fill('.sbox input', 'number');
     await eventually(() => page.$$eval('.sres .showall', (b) => b.map((x) => x.textContent)), ['Show all 50']);
@@ -546,7 +546,7 @@ test('Quiet hours picker cancellation keeps the saved choice and the earliest en
   await page.locator('.sheet').getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.sheet', { state: 'detached' });
   await save.click();
-  assert.equal(await page.locator('.spage .line').textContent(), 'Quiet hours end at 06:30 at the earliest.');
+  assert.equal(await page.locator('#quiet-line').textContent(), 'Quiet hours end at 06:30 at the earliest.');
   assert.equal(await ends.locator('.row-value').textContent(), '06:30');
   assert.deepEqual(patches, [], 'an earlier end never reaches the Worker');
   await save.click();

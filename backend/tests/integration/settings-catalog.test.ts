@@ -78,7 +78,7 @@ describe('the settings catalogue', () => {
       ['briefing.tiles', ['weather', 'horoscope']],
       ['briefing.tiles', 'due'],
       ['briefing.tiles', [...Array(9).keys()].map(String)],
-      ['briefing.holidays', 'ZZ'],
+      ['mind.day_start', '11:00'],
       ['privacy.errors', null],
     ];
     for (const [key, value] of bad) {
@@ -88,7 +88,7 @@ describe('the settings catalogue', () => {
     // An order may hide tiles: any subset, each once, in any order.
     const ok = await apiJson<Settings>('PATCH', '/v1/settings', {
       token: D,
-      body: { 'briefing.tiles': ['report', 'due'], 'briefing.holidays': 'GB' },
+      body: { 'briefing.tiles': ['report', 'due'], 'mind.day_start': '08:00' },
     });
     expect([ok.status, ok.body['briefing.tiles']]).toEqual([200, ['report', 'due']]);
   });

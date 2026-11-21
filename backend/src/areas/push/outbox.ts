@@ -98,7 +98,7 @@ export function queueNudge(
 ): PutPushResponse | ErrorCode {
   const had = store.getPush(db, id);
   if (had) return had.kind === 'nudge' && had.hash === hash ? { queued_until: had.created_at } : 'conflict';
-  const why = refusal(ctx, store.nudgeHistory(db, dayStart(ctx), r.topic_key, ctx.now));
+  const why = refusal(ctx, store.nudgeHistory(db, dayStart(ctx), r.topic_key, ctx.now), r.asked_by !== undefined);
   if (why) return why;
   queue(db, 'nudge', { title: r.title, body: r.body, url: '/' }, ctx.now, r.deadline ?? ctx.now + DEFAULT_DEADLINE_MS, {
     id,

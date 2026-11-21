@@ -1,8 +1,7 @@
 // @ts-check
 // Settings › Photos (PHOTOS.md §3.6): Google Drive first (Connect, or the folder by name and
-// Disconnect; a plain line when Google took the access back), then the catalogue's preview size and
-// what stays on the phone (recent originals come with editing: shown, not yet chosen), and
-// Recently deleted. Connect leaves for Google's consent and comes back to /photos/.
+// Disconnect; a plain line when Google took the access back), then the catalogue's editor and Classic
+// settings, and Recently deleted. Connect leaves for Google's consent and comes back to /photos/.
 import { api, signedIn } from '/th/client.js';
 import { confirmSheet, el, toast } from '/th/ui.js';
 import { renderGroup } from './catalog.js';
@@ -48,12 +47,6 @@ export async function page(body) {
   const box = el('div', { class: 'sphotos' });
   const bin = el('a', { class: 'btn soft', href: '/photos/?deleted=1', text: 'Recently deleted' });
   const out = await renderGroup(body, 'photos', { before: [box], after: [el('h2', { class: 'group-title', text: 'Deleted photos' }), bin] });
-  // Keeping recent originals on the phone comes with editing (P1c): shown, not yet chosen.
-  const later = /** @type {HTMLButtonElement | null} */ (body.querySelector('button[data-v="recent"]'));
-  if (later) {
-    later.disabled = true;
-    later.title = 'Comes with editing';
-  }
   await drive(box);
   return out;
 }

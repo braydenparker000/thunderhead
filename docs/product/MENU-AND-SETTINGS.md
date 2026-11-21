@@ -32,9 +32,14 @@ Presses tint and scale on `--d-fast`; releases use `--pop`. Focus uses the shell
 curves and motion durations come from `tokens.css`; its values are unchanged. Reduced motion
 removes control travel. No native select is rendered. Pickers open sheets with a check on the
 current choice. Legacy sign-in fields share these surfaces without changing sign-in behavior.
-Settings opens with a search field (2026-11-19, `apps/settings/search.js`, loaded on its first focus):
-a word of a setting's name or line finds it; one kept on the phone works where it is found, the
-others and the pages open there. Each catalogue page ends with **Reset this page**, which asks, then
+Settings opens with a search field (2026-11-19, `apps/settings/search.js`, loaded on its first focus).
+It and the menu's search find through one index (2026-11-21, `apps/settings/finder.js`): every
+catalogue setting, every listed page, the controls outside the catalogue (Theme, Text size, Still
+background, Check for update, Quiet hours) and the actions (Sign out, New recovery code, Export,
+Bring data from the old site), each with other words people use (font, dark, night, light, logout,
+log out, password, backup, notifications, sound). Each query word must start a word of the entry;
+the name ranks first. One kept on the phone works where it is found; the rest open their page with
+that row scrolled into view and marked for 2 s (`openPage(page, { focus })`). Each catalogue page ends with **Reset this page**, which asks, then
 puts that page's settings (and no other's) back as they came.
 
 ## 2. Search
@@ -44,9 +49,10 @@ Back exits. Results appear in titled groups: Go to, Conversations and What I rem
 phone answers first; Worker results append after typing pauses. Each group has Show all when
 needed. Accent folding, the two-character minimum, offline results and the error line remain.
 
-Settings names and other words find the same pages: password finds Password · Account, dark
-finds Theme, font finds Text size, backup finds Export. Appearance hits bring the relevant
-control into view. Connected apps and the legacy Agents administration route are not advertised
+Go to lists the apps, then Settings' results from the same index Settings' own field uses (§1),
+without its detail-line matches: password finds Password, dark finds Theme, font finds Text size,
+sign out finds Sign out, backup finds New recovery code and Export. Each opens its page with the row
+marked. Connected apps and the legacy Agents administration route are not advertised
 in navigation or search. App shortcuts still open their existing destinations.
 
 ## 3. Conversations
@@ -115,15 +121,18 @@ preview and shell immediately and keep the existing local preferences. Larger re
 on replies. Auto still follows the existing clock rules. About remains a group at the bottom
 of Settings, with the running short commit and Check for update.
 
-Navigation order (2026-11-02): More appearance, Home and chat, Ring and gestures, Island,
-Briefing, The mind, Quiet hours, Notifications, What I remember, Privacy and data, Password,
-Devices, Export, Recently deleted, Files for the workshop (2026-11-12, §6.9), About and
-diagnostics. The catalogue's pages (§6), Files for the workshop and About open over Settings like
+Navigation (2026-11-21, `apps/settings/pages.js`), under headings: **Look** (Theme, Text size,
+Still background, More appearance) · **Home and gestures** (Home and chat, Ring and gestures) ·
+**Apps** (Music, Photos, Island, Briefing) · **The mind** (The mind, What I remember,
+Notifications) · **Account and data** (Password, Devices, Privacy and data, Export, Recently deleted,
+Files for the workshop) · **About** (About and diagnostics, Check for update). Agents is not listed
+(§4.7). The catalogue's pages (§6), Files for the workshop and About open over Settings like
 the others. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours
 
-The Every day group has Starts and Ends rows. Each opens a time field in a shared sheet.
+A section of Notifications (2026-11-21, §4.3; `home.js` `quietPart`); the old Quiet hours page
+(`openPage('quiet')`) opens Notifications at it. Starts and Ends rows. Each opens a time field in a shared sheet.
 Save keeps the existing `PATCH /v1/settings` behavior, including the 06:30 minimum end time.
 Go quiet now offers 1 hour, Until tomorrow and Until I turn it off, or End now while quiet.
 The status line and held-notification rules are unchanged.
@@ -133,8 +142,13 @@ The status line and held-notification rules are unchanged.
 The phone's permission/subscription status sits above the Notifications on this phone switch.
 Its checked state means notifications are on; Send a test appears while they are on.
 Only the owner's enable tap requests browser permission.
-The existing budget and quiet-hours explanation stays. Per-kind toggles remain deferred;
-all currently supported kinds retain their existing policy.
+The line under it: at most 2 a day from the mind, never in quiet hours; reminders the owner set
+and the usage alarm don't count toward the 2; new sign-ins always reach the owner.
+
+One page for every way of reaching the owner (2026-11-21), under plain headings: **This phone**
+(the above), **What I send** (`mind.pushes` and `mind.speech`, the catalogue's `notifications`
+group, §6.6), **Quiet hours** and **Go quiet now** (§4.2). Each setting keeps its key and its
+behaviour.
 
 ### 4.4 What I remember
 
@@ -268,7 +282,9 @@ these were added, so wiring them is the next step.
 
 Below the Theme, Text size and Still background at the top of Settings (§4.1), which keep their
 own keys (`th-theme`, `th-text`, `th-still`). The accent stays blue (owner, 2026-10-31): the
-intensity only says how strongly.
+intensity only says how strongly. Under Ink and Lamp, Accent intensity, Background and Idle glow do
+nothing (the look keeps its inks and has no glow or edge light), so their rows are not shown there
+(`look/settings.css`), nor found by search (2026-11-21).
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
@@ -350,8 +366,8 @@ intensity only says how strongly.
 ### 6.5 Briefing (`briefing.js`)
 
 Tiles, in order lists the shown tiles top first, each with move up, move down and hide; hidden tiles
-wait in a group below with show. Focus stays with the tile that moved. The holiday countries are
-the ones the Holidays tile has lists for; auto takes the weather place's country. Calendars
+wait in a group below with show. Focus stays with the tile that moved. Due, days ahead and Holiday
+country left the catalogue on 2026-11-21 (nothing read them; a stored value is ignored). Calendars
 (2026-11-02) holds up to three ICS links for the Today tile ([BRIEFING.md](BRIEFING.md) "Today"):
 Add takes a pasted link (a `webcal://` one as `https://`), each row's person button marks it Mine
 (the default) or Shared (someone else's or an organisation's feed: its titles reach the mind as
@@ -362,9 +378,7 @@ devices see them; an agent's `GET /v1/settings` has each link's host and mark on
 |---|---|---|---|---|
 | `briefing.tiles` | order of report, today, due, practice, study, built, notes, holidays (the tiles the Worker places) | worker | `report, today, due, practice, study, built, notes, holidays` | the Worker (`briefing/owner-tiles.ts`, 2026-11-04): unset, its own order; set, a tile left out is not served and the rest go in the owner's order, "Waiting on you" first unless Overnight is, the mind's pins moving within it; the weather stays above them all; the mind (briefing section 13) |
 | `briefing.calendars` | links: up to 3 ICS links, each Mine or Shared | worker | `none` | the Worker (the Today tile, the day's line, the brief's section 1 for Mine links, section 7 for Shared ones); agents see hosts only |
-| `briefing.units` | segments: c / f | worker | `c` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `briefing.due_days` | range (days): 1 / 3 / 7 | worker | `3` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `briefing.holidays` | picker: auto / AU / CA / FR / DE / MX / ES / GB / US | worker | `auto` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `briefing.units` | segments: c / f | worker | `c` | the Worker (`briefing/weather.ts` `weatherTile`, 2026-11-21): with f every temperature on the weather tile is converted before rounding and the one now reads `75°F`; the mind's brief line stays in °C |
 
 ### 6.6 The mind (`mind.js`)
 
@@ -409,8 +423,8 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 | `mind.night_scope` | segments: bookkeeping / arrange / full | worker | `full` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.night_budget` | range (min): 5 / 15 / 30 | worker | `30` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.speech` | segments: as needed / quiet / silent | worker | `as_needed` | the Worker, at each `th surface`, `th propose` and `th push`: quiet takes 1 home line change and 1 card a day and a push only for what the owner asked for, silent none (`422 speech_budget`); as needed holds nothing back ([BEHAVIOR.md §3.7](../mind/BEHAVIOR.md)); the owner's alone (the mind's `settings.set` is refused); the mind (briefing sections 1 and 13) |
+| `mind.pushes` | segments: never / urgent / normal (on Notifications) | worker | `normal` | the Worker (`push/rules.ts`, 2026-11-21): never takes no nudge (`409 push_budget`) and sends none still waiting; urgent takes one only with `asked_by`, an owner's message asking to be told; reminders, sign-in notices, the usage alarm and tests go whatever it says; the mind (briefing section 13) |
+| `mind.speech` | segments: as needed / quiet / silent (on Notifications) | worker | `as_needed` | the Worker, at each `th surface`, `th propose` and `th push`: quiet takes 1 home line change and 1 card a day and a push only for what the owner asked for, silent none (`422 speech_budget`); as needed holds nothing back ([BEHAVIOR.md §3.7](../mind/BEHAVIOR.md)); the owner's alone (the mind's `settings.set` is refused); the mind (briefing sections 1 and 13) |
 | `mind.home_lines` | range (lines): none / 1 / 2 / 3 / 4 | worker | `4` | the Worker, at each `PUT /v1/surfaces/home/line.N`: a slot past the count is `422 validation` on `slot` (`settings/home-lines.ts`); the mind (briefing section 13) |
 | `mind.ask_outside` | switch | worker | `off` | the mind (briefing section 13, and `mind/skills/voice.md`: off, it looks things up unasked; on, it asks first); the Worker does not enforce it |
 | `mind.wake_budget` | range (a day): Off / 6 / 12 / 24 / 40, a sheet picker | worker | `12` | the Worker, at each watch's wake: past it the watch is refused (`over_budget`), Off refuses new watches; the owner's own messages never count ([RUNTIME.md §3, §11](../mind/RUNTIME.md)); the mind (briefing sections 1 and 13) |
@@ -439,8 +453,8 @@ SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts
 
 Google Drive first ([PHOTOS.md §3.6](apps/PHOTOS.md)): Connect (Google's consent for the
 `drive.file` scope, back to `/photos/`), or "Connected as" the Google account, the folder by name and Disconnect; a plain line when
-Google took the access back, and one when the Worker has no OAuth client yet. Then the two keys
-below (recent originals come with editing: shown, not yet chosen), and Recently deleted, which
+Google took the access back, and one when the Worker has no OAuth client yet. Then the keys below
+(What stays on the phone, `photos.keep`, left on 2026-11-21: nothing read it), and Recently deleted, which
 opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this page.
 
 | Key | Control | Scope | Default | Read by |
@@ -457,7 +471,6 @@ opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this pa
 | `photos.haptics` | switch (Editor) | phone | `on` | the new editor's ticks under the finger (`lab/editor/app/haptic.js` `tick`, read at each tick): the dial passing its start or reaching an end (`boards/DialPlate.js`), a section sliding in on the panel (`boards/Barrel.js`) and a tool clicking past on the tool dial (`boards/ToolDial.js`), Undo and Redo (`app/told.js`), an export done (`boards/ExportPlate.js`, `app/save.js`); off, or on a phone set to reduce motion, or with no vibration in the browser, nothing |
 | `photos.export_size` | segments: full size / 2,048 / 1,080 px (Classic shelf and editor) | worker | `2048` | the Export sheet, as the size it starts with (`apps/photos/edit/export.js`, from `th.p.settings`); Classic only: the new editor's Export board keeps its own |
 | `photos.export_format` | segments: JPEG / HEIC where the phone writes it (Classic shelf and editor) | worker | `jpeg` | the Export sheet, as the format it starts with; HEIC only where the browser encodes it, up to 2,048 px; Classic only: the new editor's Export board keeps its own |
-| `photos.keep` | segments: previews only / recent originals too (Classic shelf and editor) | worker | `previews` | nothing yet: previews are kept on every phone; recent originals come with editing (P1c), and that choice is shown but held shut; Classic only |
 
 
 Senses per app and error reports, then Keep conversations, then a read-only group, What leaves this phone, then Your data
@@ -477,7 +490,7 @@ errors routes are the place to honour them.
 | `privacy.senses.media` | switch | worker | `on` | the same, for Astra and My Media (B1) |
 | `privacy.senses.home` | switch | worker | `on` | the same, for home: lines seen, tiles and chips tapped, cards answered |
 | `privacy.senses.shell` | switch | worker | `on` | the same, for the ring, the island, Music and Podcasts in front, settings changed (B1) |
-| `privacy.errors` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.errors` | switch | worker | `on` | the phone (`ui/errors.js`, 2026-11-21: off as it last saw it in `th.p.settings`, it sends nothing) and the Worker (`POST /v1/ops/errors` from a phone keeps nothing while it is off) |
 | `privacy.editor_timings` | switch (Reports) | phone | `on` | **Editor reports** (2026-11-17): the editor's flight recorder (`th/report/journal.js`) goes to the owner's storage from the background worker (`th/report/send.js`): each step's time, how each gesture kept up (a pinch, a turn of a dial, a swipe of the panel, a hold of the tool dial: frames, the worst gap, how it ended), each heavy job begun and ended, a reset and what it blamed, a visit that died, the phone's model and graphics chip, the compare page's verdicts, as numbers and fixed words, one file a phone a day ([API.md §11.27](../engineering/API.md)). Off: nothing leaves the phone. Under it, a line says how many are kept and waiting and when they last went, with **Send now** (`apps/settings/reports.js`) |
 | `privacy.retention` | segments: forever / 1 year / 90 days (Conversations) | worker | `forever` | the prune pass, once a logical day (`areas/conversation/retention.ts`, [DATA.md §10](../engineering/DATA.md)): a conversation unchanged for longer is purged as a deleted one is, with a ledger row; one filed under a topic is kept; the owner's alone |
 

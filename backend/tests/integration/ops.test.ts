@@ -186,3 +186,17 @@ describe('settings, perf and meter', () => {
     expect((await api('GET', '/v1/ops/meter?days=31', { token: ci })).status).toBe(422);
   });
 });
+
+describe('error reports switched off', () => {
+  it('keeps nothing from a phone while Settings › Privacy › Error reports is off, and takes them again once on', async () => {
+    const count = async () =>
+      (await coreSql<{ n: number }>("SELECT count(*) AS n FROM errors WHERE code = 'off_test'"))[0].n;
+    const send = () => api('POST', '/v1/ops/errors', { token: owner, body: { items: [report({ code: 'off_test' })] } });
+    expect((await api('PATCH', '/v1/settings', { token: owner, body: { 'privacy.errors': false } })).status).toBe(200);
+    expect((await send()).status).toBe(204);
+    expect(await count()).toBe(0);
+    expect((await api('PATCH', '/v1/settings', { token: owner, body: { 'privacy.errors': true } })).status).toBe(200);
+    expect((await send()).status).toBe(204);
+    expect(await count()).toBe(1);
+  });
+});

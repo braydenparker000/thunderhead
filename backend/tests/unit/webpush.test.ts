@@ -112,6 +112,19 @@ describe('push rules (VL-3)', () => {
     expect(mayGo('nudge', ctx(at(14, 0), quiet))).toBe(true);
   });
 
+  it('mind.pushes: Never takes and sends no nudge; Urgent only takes one the owner asked for; others still go', () => {
+    const never = { pushes: 'never' };
+    const urgent = { pushes: 'urgent' };
+    expect(refusal(ctx(at(12, 0), never), none, true)).toBe('push_budget');
+    expect(mayGo('nudge', ctx(at(12, 0), never))).toBe(false);
+    for (const kind of ['reminder', 'security', 'quota', 'test']) expect(mayGo(kind, ctx(at(12, 0), never))).toBe(true);
+    expect(refusal(ctx(at(12, 0), urgent), none)).toBe('push_budget');
+    expect(refusal(ctx(at(12, 0), urgent), none, true)).toBeNull();
+    expect(refusal(ctx(at(6, 0), urgent), none, true)).toBe('quiet_hours');
+    expect(mayGo('nudge', ctx(at(12, 0), urgent))).toBe(true);
+    expect(refusal(ctx(at(12, 0), { pushes: 'normal' }), none)).toBeNull();
+  });
+
   it('the day’s quota push is a system alarm: as a sign-in notice, it waits only for quiet hours', () => {
     expect(mayGo('quota', ctx(at(5, 0)))).toBe(false);
     expect(mayGo('quota', ctx(at(12, 0), { looking: true, owner_at: at(11, 59) }))).toBe(true);

@@ -87,8 +87,9 @@
 :root[data-look="ink-lamp"] .spage .appearance-preview{padding:4px 0 6px;background:none}
 :root[data-look="ink-lamp"] .spage .preview-reply{margin:0;padding:0;border-radius:0;background:none;font:400 var(--fs-reply)/1.37 var(--font-say)}
 :root[data-look="ink-lamp"] .spage .appearance-preview>.row{display:none}
-/* Accent intensity tints the classic blue only: under the look it is not shown. */
-:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) .seg-field[data-key="appearance.accent"]{display:none}
+/* Accent intensity tints the classic blue only, Background is the classic glow and Idle glow its edge
+   light (tokens.css switches both off): under the look they are not shown. */
+:root[data-look="ink-lamp"] :is(.spage,.sheet,.csheet) :is(.row,.seg-field):is([data-key="appearance.accent"],[data-key="appearance.field"],[data-key="appearance.idle_glow"]){display:none}
 
 /* Sheets and confirmations: a plate that floats, his title, keys at the foot. */
 :root[data-look="ink-lamp"] :is(.sheet,.csheet){border:1px solid var(--hairline);border-bottom:0;border-radius:var(--r-xl) var(--r-xl) 0 0;background:var(--sheet);box-shadow:var(--e3);color:var(--text)}

@@ -79,6 +79,13 @@ export const SETTING_GROUPS = {
     // The floors no setting lowers (permits.ts PERMIT_FLOORS, in its order; a contract test holds them equal).
     notes: { 'Standing permissions': 'Always asks first: money, deleting your data, keys and access, reaching another person.' },
   },
+  // The mind's notifications and speech, with this phone's push switch and quiet hours around them
+  // (apps/settings/notifications.js): every way of reaching the owner on one page.
+  notifications: {
+    title: 'Notifications',
+    icon: 'bell',
+    lead: 'What I may send you and how much I speak up unasked. I read these every time I wake.',
+  },
   music: {
     title: 'Music',
     icon: 'music-notes-simple',
@@ -124,13 +131,9 @@ export const SETTINGS = [
   // the Briefing opens. Not for the mind: a link is a key to the calendar, so agents see only hosts.
   { key: 'briefing.calendars', group: 'briefing', label: 'Calendars', kind: 'links', ...IN_WORKER, default: [], max: 512, items: 3,
     detail: 'Up to 3 ICS links (https). Mine: your own. Shared: someone else\'s, its titles kept as outside text.' },
+  // The Worker makes the weather tile in these (briefing/weather.ts weatherTile).
   { ...TILE, key: 'briefing.units', label: 'Units', kind: 'choice', default: 'c', options: o('c:°C', 'f:°F'),
     detail: 'Temperatures on the weather tile.' },
-  { ...TILE, key: 'briefing.due_days', label: 'Due, days ahead', kind: 'range', unit: 'days', default: 3, options: stops('days', 1, 3, 7),
-    detail: 'How far ahead the Due tile looks.' },
-  // The countries the Holidays tile has lists for (briefing/holidays.ts); auto: the weather place's.
-  { ...TILE, key: 'briefing.holidays', label: 'Holiday country', kind: 'choice', default: 'auto', detail: 'Auto uses the country of your weather place.',
-    options: o('auto:Auto', 'AU:Australia', 'CA:Canada', 'FR:France', 'DE:Germany', 'MX:Mexico', 'ES:Spain', 'GB:United Kingdom', 'US:United States') },
   // The mind: all in its briefing. Its name, the owner's alone (mind-set.ts ownerOnly), phrase-linted
   // by the Worker's PATCH (settings/catalog.ts); the shell says it wherever it would say "the mind".
   { ...MIND, section: 'How I talk', key: 'mind.name', label: 'Name', kind: 'text', default: '', max: 20, pattern: '^[^\\u0000-\\u001f\\u007f]*$',
@@ -150,10 +153,13 @@ export const SETTINGS = [
     options: stops('min', 5, 15, 30), detail: 'How long the night shift may run.' },
   { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 120,
     options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep. On a busy day I stay up to twice this, never past 4 hours.' },
-  { ...MIND, section: 'Reaching you', key: 'mind.pushes', label: 'Notifications', kind: 'choice', default: 'normal',
-    options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'), detail: 'When I may send one. Normal keeps the budget of 2 a day and quiet hours.' },
+  // On the Notifications page (2026-11-21). The Worker holds the mind's nudges to it (push/rules.ts):
+  // urgent is one the owner asked to be told of. Reminders, sign-in notices and the usage alarm are apart.
+  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'normal',
+    options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'),
+    detail: 'Normal: up to 2 a day, never in quiet hours. Urgent only: only what you asked me to tell you. Never: none from me.' },
   // Speech (BEHAVIOR.md §3.7): as needed is no cap at all; the Worker holds the mind to the other two.
-  { ...MIND, section: 'Reaching you', key: 'mind.speech', label: 'Speaking up', kind: 'choice', default: 'as_needed',
+  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.speech', label: 'Speaking up', kind: 'choice', default: 'as_needed',
     options: o('as_needed:As needed', 'quiet:Quiet', 'silent:Silent'),
     detail: 'As needed: when it helps you. Quiet: a line and a card a day at most. Silent: only when you ask; reminders still ring.' },
   // Home lines (HOME.md §2.2): the Worker refuses a line in a slot past this.
@@ -223,14 +229,10 @@ export const SETTINGS = [
     detail: 'A small tick under your finger when a dial passes its start or reaches an end, a section clicks into place, Undo, and an export is done. Off on a phone set to reduce motion.' },
   // Classic's own (apps/photos/: PHOTOS.md §3.6 and Export): read only by the shelf and editor before. With Photos
   // opening the new editor they do nothing, so their section and their words say whose they are (owner, 2026-11-14:
-  // a control does what it says). `photos.keep` has one choice that can be made: the other is shown and held shut
-  // (apps/settings/photos.js: "Comes with editing"), so it says what it is.
+  // a control does what it says). `photos.keep`, which nothing read, left on 2026-11-21 (a stored value is ignored).
   { key: 'photos.preview_size', group: 'photos', section: 'Classic shelf and editor', label: 'Preview size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),
     detail: 'Classic only. The preview your Worker keeps of each photo, its longest side. Smaller is quicker on a slow line.' },
-  { key: 'photos.keep', group: 'photos', section: 'Classic shelf and editor', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
-    default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
-    detail: 'Classic only. Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
   { key: 'photos.export_size', group: 'photos', section: 'Classic shelf and editor', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
     detail: 'Classic only: the long side its Export sheet starts with. The new editor\'s Export board keeps its own.' },
