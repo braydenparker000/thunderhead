@@ -613,6 +613,23 @@ list's height; scroll jumps over 40 px no finger or fling made, with the list's 
 limit and whether its results had just changed). Numbers and layout names only: no titles, artists,
 file names or search text.
 
+**Library** (`frontend/music/src/ui/library-report.js`, loaded and computed only when **Copy report** is
+tapped, never at start or while playing; never sent to the Worker): **Copy report** also carries
+`library`, the library's shape as counts, sizes and percentages, to check its tags without reading it.
+`filled`/`filledPct`: songs with each field (album, albumArtist and how many differ from the artist,
+artist, year, track and disc number, genre, composer, length, cover and covers only in the file,
+waveform, rating, plays); `notCarried`: a field no song has at all. `albums` (the album list's groups):
+count, the unknown row, by size (1, 2–4, 5–9, 10+), with several artists, no year, mixed years,
+complete track numbers (1..n on each disc), with a cover. `artists` (the artist list's groups): count,
+by songs (1, 2–4, 5+) and albums (0, 1, 2+), names that differ only by case, spacing or "feat."/"&"
+forms (`likelySplit`). `duplicates`: same title and artist, case and punctuation left out.
+`placeholders`: empty or "unknown"/"untitled" titles, artists, albums; titles like a file name
+(extension, "Track 01") or the file name itself. `screens`: the fields each row is built from (album
+list, artist list, an album's songs, an artist's albums and songs) and over the library how many rows'
+second lines are blank, unknown, the same as the row above or another row, or repeat the screen's own
+name. `playlists`: count and sizes (min, median, max). Never a title, artist, album, genre, file name
+or id.
+
 **Layout height and the keyboard** (`frontend/music/src/ui/layout-height.js`): at `/music` the keyboard
 does not resize the page. In home's frame it does (home asks for `resizes-content`), so Music lays out
 at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
