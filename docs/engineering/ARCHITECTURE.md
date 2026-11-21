@@ -288,17 +288,17 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 |---|---|
 | Navigation inside scope `/`, except the ported folders (`/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/`) and `/assets/` | The cached `/index.html` from `th-<build>`; the network if it is missing. Offline still opens the app. |
 | Anything under a ported folder or `/assets/` | **Not intercepted** by the shell worker (network, or the ported app's own service worker, which keeps its own folder scope, e.g. `/music/`, as on the old site) |
-| Same-origin code, CSS, fonts, icons | Cache-first from `th-<build>`. Everything is precached at install. |
+| Same-origin code, CSS, fonts, icons, and `/config.js` | Cache-first from `th-<build>`. Everything is precached at install. `config.js` is written by the same deploy as the release and is in its precache, so a start never waits on the network for it (it is the first import of the first module). |
 | The new photo editor's own files (`/lab/editor/`, `/lab/engine/`: 13 MB, most of it the RAW decoder) | Not precached (every release would fetch them again on every phone). Kept in `th-lab-<build>` once the editor has been opened with a signal (`sw.js` `keepEditor`, from `/lab/offline.json`: each file with its size and hash, so a later release fetches only what changed and takes the rest from the release before). Served from this release's kept copy, else the network, else, with no signal, the newest release kept whole. The owner's `photos.offline` turns the keeping off. |
 | `/vendor/<lib>-<version>/…` | Cache-first from `th-vendor`, shared across builds (paths never change content). |
-| `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
+| `/release.json` | Network-first with a 3 s timeout, then cache. |
 | Worker API, WebSocket | **Not intercepted.** |
 | R2 presigned URLs | Not intercepted by the shell's worker. The ported player's own worker (`music/sw.js` with `th/music/bridge.js`, P5) fetches them for the player's library requests and passes the bytes through unchanged ([MUSIC.md](../product/apps/MUSIC.md), [SECURITY.md §4.4](SECURITY.md)). |
 | `GET /share/?title=&text=&url=` | The share target (P8, built): the shell, which puts "Shared: …" in the ask bar for the owner's words and sets the address back to `/`. Images (a `POST` the worker would take) wait. |
 
 ### 8.2 Install and activate
 
-1. `install`: fetch `/precache.json` (written by `stage.mjs`: every file except `vendor/`, the route stubs, the ported folders and `/assets/`, with sizes) with `cache: 'no-store'`, then `cache.addAll` into `th-<build>`. If any file fails, the install fails and the old worker stays.
+1. `install`: fetch `/precache.json` (written by `stage.mjs`, mirrored by `scripts/serve.mjs`: every file except `vendor/`, the route stubs, the ported folders and `/assets/`, each with its size and SHA-256 hash) with `cache: 'no-store'`. A file whose path and hash match the list of the newest earlier release kept whole (`th-<n>` holding its own `/precache.json`) is copied from that cache once its byte length equals the listed size; every other file is fetched with `cache: 'reload'` and checked against its size. The list goes into `th-<build>` last, saying the release is whole. If any file fails or is short (a half-uploaded release), the install fails and the old worker stays.
 2. `activate`: delete only caches named `th-<n>` where `n` ≠ the current build. It never deletes `th-vendor` or any cache an app created (offline audio, PDFs).
 3. Precaching all app code (not just the shell) is what stops an old shell from lazily loading a new app module.
 
@@ -306,11 +306,15 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 
 1. The shell calls `registration.update()` on `visibilitychange → visible`, at most once an hour.
 2. A new worker installs fully, then waits.
-3. The shell applies it only when **all** hold: nothing is playing, the ask bar is empty, no sheet is open, and the visible screen is home or an idle app. It then posts `{type:'skipWaiting'}`, waits for `controllerchange`, and reloads behind a 150 ms fade.
+3. The shell applies it only when **all** hold: nothing is playing, the ask bar is empty, no sheet is open, nothing the owner is making is under way, and the visible screen is home or an idle app. Under way (`th/update.js` `BUSY`): a voice memo recording (`#ask.recording`), files or a stopped memo picked and not sent (`#ask.hasfiles`), dictation (`#ask.listening`, `#ask.finishing`), the Remind sheet (`.remind`), an old conversation (`#home.pastview`), or any place but home, such as the Briefing (`#home[inert]`). It then posts `{type:'skipWaiting'}`, waits for `controllerchange`, and reloads behind a 150 ms fade. The page going out of view is the safest moment: a waiting worker is applied then, by the same rule except that the owner need not be looking and a focused but empty field holds nothing to lose (`update-rules.js` `safeWhenHidden`), and the page reloads at once.
 4. If that moment never comes, the update applies at the next cold start.
 5. `TH-Min-Client` above the running build makes the update "wanted". The shell shows the update line and applies at the next safe moment.
-6. The editor's pages (`/lab/editor/`, `/lab/engine/`) do not wait for the shell. The worker in charge serves the editor it kept, the release before's, so a phone that goes straight to them would stay on old code. When one opens with a signal it calls `registration.update()`, applies a waiting worker once nothing is open that a reload would lose (`frontend/lab/engine/fresh.js`), and reloads. Their own label is `lab/engine/build.js`, one of the kept files, so it names the code that ran; `/config.js` is always read fresh and cannot.
+6. The editor's pages (`/lab/editor/`, `/lab/engine/`) do not wait for the shell. The worker in charge serves the editor it kept, the release before's, so a phone that goes straight to them would stay on old code. When one opens with a signal it calls `registration.update()`, applies a waiting worker once nothing is open that a reload would lose (`frontend/lab/engine/fresh.js`), and reloads. Their own label is `lab/engine/build.js`, one of the kept files, so it names the code that ran; `/config.js` comes from the release in charge, not the kept editor, and cannot.
 7. When the worker in charge changes under a shell page that did not ask (rule 6), that page reloads at its own next safe moment by rule 3.
+
+### 8.3a Push subscription
+
+The worker handles `pushsubscriptionchange`: it subscribes again with the old subscription's key (or takes the browser's new one) and sends it to the Worker (`PUT /v1/push/subscription`) with this phone's stored session, as `th/push/phone.js` does. At each start `recheck()` also sends the current subscription again when it was last sent more than 24 hours ago (`th/push/due.js`; the time is kept in `localStorage` `th.push.sent`), so a subscription the Worker dropped comes back within a day. Settings' "Send a test" that reaches no phone while the switch reads On sends the subscription again and tries once more; it never asks to turn the switch off and on.
 
 ### 8.4 Kill switch
 

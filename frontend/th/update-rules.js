@@ -15,13 +15,26 @@ export const FADE_MS = 150;
  * @property {boolean} playing  some audio or video is playing
  * @property {boolean} typing   the ask bar holds text, or a text field has focus
  * @property {boolean} overlay  a sheet, the menu, the ring or a settings page is open
+ * @property {boolean} [written] the ask bar, or the field with focus, holds text
+ * @property {boolean} [busy]    something the owner is making or reading that a reload would lose: a voice
+ *   memo recording, files (or a stopped memo) picked and not sent, dictation, the Remind sheet, an old
+ *   conversation, or a place other than home (the Briefing)
  */
 
-/** A safe moment: nothing playing, nothing typed, nothing open, the owner looking at the page.
+/** A safe moment: nothing playing, nothing typed, nothing open or under way, the owner looking at the page.
  * @param {ShellState} s */
 export function safeToApply(s) {
-  return s.visible && !s.playing && !s.typing && !s.overlay;
+  return s.visible && !s.playing && !s.typing && !s.overlay && !s.busy;
 }
+
+/** The page has gone out of view, the safest moment: the same, except that the owner need not be looking and
+ * a field with focus but no text holds nothing to lose. @param {ShellState} s */
+export function safeWhenHidden(s) {
+  return !s.playing && !s.written && !s.overlay && !s.busy;
+}
+
+/** Whichever of the two the page's view calls for. @param {ShellState} s */
+export const safeNow = (s) => (s.visible ? safeToApply(s) : safeWhenHidden(s));
 
 /** Whether to ask the browser for a new worker now. @param {number} lastCheck @param {number} now */
 export function checkDue(lastCheck, now) {

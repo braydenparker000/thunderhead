@@ -41,8 +41,11 @@ export async function notifications(body) {
     if (s === 'on') {
       const testBtn = el('button', { type: 'button', class: 'btn', text: 'Send a test' });
       const off = switchRow('Notifications on this phone', 'bell', true, () => run(() => push.turnOff(), off));
+      // The switch reads On, so a test that reached no phone sends this phone's subscription again and tries
+      // once more; it never asks to flip the switch.
+      const sent = async () => (await push.test()) || (await push.resend(), await push.test());
       testBtn.addEventListener('click', () =>
-        run(async () => toast((await push.test()) ? 'Sent. It should arrive in a moment.' : "This phone isn't set up yet. Turn it off and on again."), testBtn),
+        run(async () => toast((await sent()) ? 'Sent. It should arrive in a moment.' : "Couldn't reach this phone. Try again."), testBtn),
       );
       host.replaceChildren(testBtn, off);
     } else if (s === 'off') {

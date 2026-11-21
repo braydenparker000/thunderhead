@@ -1,6 +1,7 @@
 // The one service worker of the shell, scope / (ARCHITECTURE.md §8). stage.mjs writes the build
 // number into BUILD; each release is precached whole into the cache th-<BUILD> from
-// /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs), and a new worker waits until the shell says it is a safe moment (§8.3).
+// /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs; a file the release
+// before has with the same hash is copied from its cache, not fetched), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
 // their own service workers), and anything that is not a GET. It also shows Web Push notifications
 // and finishes Photos' background uploads, makes Photos' editor cross-origin isolated (`isolate`), and sends the
@@ -12,8 +13,10 @@ const VENDOR = 'th-vendor';
 const PORTED = ['/music/', '/guitar/', '/podcasts/', '/astra/', '/media/', '/assets/'];
 /** Shell routes: a navigation to one of them gets the cached shell (their stubs equal index.html). */
 const SHELL = ['/', '/settings/', '/settings/password/', '/settings/agents/', '/settings/devices/', '/settings/memory/', '/share/'];
-/** Read from the network first (3 s), the cache only when offline. */
-const FRESH = ['/release.json', '/config.js'];
+/** Read from the network first (3 s), the cache only when offline. config.js is not: the same deploy writes it
+ * into the release's precache, so it comes from the release's cache like every other file and a start never
+ * waits on the network for it (the update check is sw.js itself, `registration.update()`, th/update.js). */
+const FRESH = ['/release.json'];
 /** Photos' editor (`/photos/?edit=`) and the LightCraft, engine and editor test pages (`/lab/lightcraft/`, `/lab/engine/`, `/lab/editor/` and its compare page) are cross-origin isolated so their
  * RAW engines can run threads (PHOTOS.md, the isolation shim; SECURITY.md; engine/lightcraft-web/README.md): the page gets
  * COOP and COEP, and the workers it starts (the engine's) COEP. Nothing else does: the Drive picker's frame
@@ -26,22 +29,36 @@ try { importScripts('/th/report/fields.js', '/th/report/send.js'); } catch { /* 
 const report = () => (self.thReportSend ? self.thReportSend().then((r) => { if (r.why === 'not sent') throw new Error('to be tried again'); return r; }) : Promise.resolve(null));
 self.addEventListener('sync', (event) => { if (event.tag === 'th-report') event.waitUntil(report()); });
 
+const LIST = '/precache.json';
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const res = await fetch('/precache.json', { cache: 'no-store' });
+    const res = await fetch(LIST, { cache: 'no-store' });
     if (!res.ok) throw new Error(`precache.json: ${res.status}`);
-    const { build, files } = await res.json();
+    const { build, files } = await res.clone().json();
     // A worker never caches a release other than its own (a deploy still uploading).
     if (build !== BUILD) throw new Error(`precache.json is build ${build}, this worker is ${BUILD}`);
     const cache = await caches.open(CACHE);
-    // Every file is checked against its staged size, so a half-uploaded release fails the
+    // The newest release before kept whole (its list, put last, says so): a file with the same path and hash is
+    // copied from it once its bytes are the listed size; everything else comes from the network.
+    const old = (await caches.keys()).filter((n) => /^th-\d+$/.test(n) && n !== CACHE).sort((a, b) => Number(b.slice(3)) - Number(a.slice(3)));
+    let from = '', had = new Map();
+    for (const n of old) {
+      const l = await caches.match(LIST, { cacheName: n });
+      if (l) { from = n; had = new Map((await l.json()).files.map((f) => [f.path, f.hash])); break; }
+    }
+    // Every file fetched is checked against its staged size, so a half-uploaded release fails the
     // install and the old worker keeps serving the old release whole.
-    await Promise.all(files.map(async ({ path, size }) => {
-      const r = await fetch(`/${path}`, { cache: 'reload' });
-      const body = await r.clone().arrayBuffer();
-      if (!r.ok || body.byteLength !== size) throw new Error(`/${path}: ${r.status}, ${body.byteLength} of ${size} bytes`);
+    await Promise.all(files.map(async ({ path, size, hash }) => {
+      let r = hash && had.get(path) === hash ? await caches.match(`/${path}`, { cacheName: from }) : undefined;
+      if (r && (await r.clone().arrayBuffer()).byteLength !== size) r = undefined;
+      if (!r) {
+        r = await fetch(`/${path}`, { cache: 'reload' });
+        const body = await r.clone().arrayBuffer();
+        if (!r.ok || body.byteLength !== size) throw new Error(`/${path}: ${r.status}, ${body.byteLength} of ${size} bytes`);
+      }
       await cache.put(`/${path}`, r);
     }));
+    await cache.put(LIST, res);   // last: its being there says the release is whole
   })());
 });
 
@@ -217,6 +234,22 @@ self.addEventListener('push', (event) => {
     });
   })());
 });
+
+// The push service replaced or dropped this phone's subscription: subscribe again with the same key and send
+// the new one to the Worker with this phone's session, as th/push/phone.js does, so pushes keep arriving.
+self.addEventListener('pushsubscriptionchange', (event) => event.waitUntil((async () => {
+  const key = event.oldSubscription?.options?.applicationServerKey;
+  const sub = event.newSubscription ?? (key ? await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }) : null);
+  const [token, api] = await Promise.all([session(), apiOrigin()]);
+  if (!sub || !token || !api) return;
+  const j = sub.toJSON();
+  await fetch(`${api}/v1/push/subscription`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: j.endpoint, keys: { p256dh: j.keys?.p256dh, auth: j.keys?.auth } }),
+    cache: 'no-store',
+  });
+})()));
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

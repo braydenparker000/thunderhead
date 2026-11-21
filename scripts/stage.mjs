@@ -80,8 +80,8 @@ const astraList = JSON.stringify(astra);
 await writeFile(join(out, 'astra/files.json'), astraList);
 list.push({ path: 'astra/files.json', size: Buffer.byteLength(astraList) });
 await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString(), components: { astra: { tree: astra.tree } } }) + '\n');
-// The service worker's list, written last so it holds the final sizes (after the CSP edit).
-const manifest = precacheJson(build, list);
+// The service worker's list, written last so it holds the final sizes (after the CSP edit), with a hash a file.
+const manifest = precacheJson(build, await Promise.all(list.filter(f => precached(f.path)).map(async f => ({ ...f, hash: createHash('sha256').update(await readFile(join(out, f.path))).digest('hex') }))));
 await writeFile(join(out, 'precache.json'), manifest);
 list.push({ path: 'precache.json', size: Buffer.byteLength(manifest) });
 // The editor's own list (kept for use with no signal once it has been opened: sw.js `keepEditor`), with a hash a file.
