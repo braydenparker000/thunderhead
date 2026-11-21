@@ -293,6 +293,39 @@ cover advances exactly one track; long-press opens home with the track attached.
   plays the song or opens a menu; a move past the touch slop (8 px, where a scroll starts) cancels it.
   Already selecting, a hold selects the row. (`onItemLongClick` in `frontend/music/src/list/power-list.js`.)
 
+#### 2.6.1 Shelves in the ported player (built 2026-11-21, owner: "Go with all your changes")
+
+The ported player's library lists, in its own row, header, grid and subhead styles
+(`frontend/music/src/library/shelves.js`, grouped once per library change in `Library.shelves()`;
+the lists in `list/sources.js`):
+
+- **Albums** lists albums only: a release (album tag, keyed as before with `join_albums`) of 3 songs
+  or more. Albums by Artist, Album Artists, Genres, Composers, Years and search keep every release.
+- **Singles** (new, beside Albums; badge of the category family): the songs of 1–2 song releases and
+  the songs with no album, by artist then title. Its header counts them.
+- **Artists** lists artists with 5 songs or more or an album of their own (the album's album artist
+  is them, split names included); its last row, "All artists (N)", opens every artist as before.
+  A search from Artists searches every artist.
+- **An album's page:** the cover header names the album, its artist (album artist, else the first
+  song's) and "year · N songs · length" (unknown parts left out). Rows: "N. Title" (the
+  `track_num_type` setting, when set, numbers as it says), the length in the meta line, and a second
+  line only for a song whose artist is not the album's; a row without one takes the zoom level's
+  one-line scene at the same height. In disc order (the default sort) an album with several disc
+  numbers has a "Disc N" subhead (the search's section row) before each disc.
+- **An artist's page:** the header names the artist with "N albums · N songs"; "All Artist Songs"
+  stays the first row; then every album holding their songs as covers in the page's grid (its "View
+  as" level), newest year first and unknown years last, each with "year · N songs" and never the
+  artist; then a "Singles" subhead and their other songs as rows (the All Artist Songs zoom), each
+  with its release's name as the second line. A cover opens the whole album's page. The page has no
+  sort of its own; header Play and Shuffle play every song of the artist.
+- **Possible duplicates** (new, last, shown only when there are any): songs whose title and artist
+  are equal once case, spacing and punctuation are left out ("feat.", "(Live)", "Remastered" still
+  count as different), wherever they are. Each group is a subhead "title · artist · N" over ordinary
+  song rows whose second line is "album · format · bitrate · length". Nothing is merged, hidden or
+  deleted.
+- Singles and Possible duplicates are on for every saved home layout until unticked in List Options
+  (`library_lists` bits 20 and 21; bit 22 marks a layout saved with them).
+
 ### 2.7 Detail pages
 
 Album, artist, genre, playlist and mix pages share one layout: a header (cover or gradient, title,

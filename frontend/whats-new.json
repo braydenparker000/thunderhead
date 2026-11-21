@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-21-music-icons",
+  "id": "2026-11-21-music-library",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Music: the library's section symbols no longer lose their glyph after a screen was prepared ahead."
+      "text": "Music: Albums now lists real albums; one- and two-song releases have their own Singles section."
     },
     {
-      "text": "Quick play and pause taps no longer stretch the button's animation; the player keeps its full height from search."
+      "text": "Album and artist pages show year, song count and length, and no longer repeat the same name on every row."
     },
     {
-      "text": "Copy report now notes any icon that fails to draw and what ran during a slow transition."
+      "text": "Artists lists artists with a body of work; All artists and a Possible duplicates list sit at the end."
+    },
+    {
+      "text": "On a slow connection a song no longer waits on the old server; icons keep their symbols."
     }
   ]
 }

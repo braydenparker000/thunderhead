@@ -14,6 +14,7 @@ import {accelDecel} from '../gesture.js';
 import {FastRadioButton} from '../view/text.js';
 import {searchMask, setSearchMask, searchOrder, setSearchOrder} from '../widgets/search.js';
 import {KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
+import {SHELF_WORDS} from '../library/shelves.js';
 
 const STORE = 'cp-list-opts';
 export const REVERSE = 0x40000000;
@@ -143,7 +144,12 @@ export function applyZoom(src, sub, kind, key, defaultLevel = null) {
   src.aaRatio = sub.fraction?.('aaItemRatio', 1) ?? 1;
 }
 
-const str = (ctx, k) => ctx.res.stringByName(k) ?? k;
+const str = (ctx, k) => ctx.res.stringByName(k) ?? SHELF_WORDS[k] ?? k;
+
+// The home's categories added after the reference (Singles, Possible duplicates: bits 20 and 21)
+// show until they are unticked: a mask saved before them (no bit 22) has them on.
+const NEW_HOME_BITS = (1 << 20) | (1 << 21), HOME_BITS_SEEN = 1 << 22;
+export const homeMask = m => (m & HOME_BITS_SEEN ? m : m | NEW_HOME_BITS | HOME_BITS_SEEN);
 
 /**
  * A hint under an option (ListOptsActivity.y): ?Hint text indented to the
@@ -207,7 +213,7 @@ function libraryCategories(ctx, layout, categories, onChange) {
     cb._attrs = csa;
     cb.lp = layout.generateLayoutParams(csa);
     cb.setText(str(ctx, c.title));
-    const mask = () => +(ctx.pref('library_lists') ?? 0);
+    const mask = () => homeMask(+(ctx.pref('library_lists') ?? 0));
     cb.setChecked((mask() & (1 << c.id)) !== 0);
     cb.onCheckedChanged = on => {
       const m = on ? mask() | (1 << c.id) : mask() & ~(1 << c.id);
