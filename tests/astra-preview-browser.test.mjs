@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (synthetic films)', timeout: 60_000 };
@@ -109,9 +110,10 @@ for (const [name, codec, time] of [['multi.mkv', 'h264', 0.42], ['open.webm', 'v
     const fetched = bounded(before.ranges);
     assert.ok(fetched.length >= 1 && fetched.length <= (name === 'plain.mp4' ? 3 : 2), `side requests: ${JSON.stringify(fetched)}`);
     assert.equal(openEnded(), streams, 'no download was started again');
-    await page.waitForTimeout(400);
-    const now = await page.evaluate(() => ({ t: p.video.currentTime, paused: p.video.paused, used: p.engine.dataUsed() }));
-    assert.ok(now.t > before.t + 0.3 && !now.paused, `the film played on (${before.t} → ${now.t})`);
+    // The film plays on: waited for until it has moved more than 0.3 s and is not paused, however slow the runner.
+    let now;
+    await until(async () => { now = await page.evaluate(() => ({ t: p.video.currentTime, paused: p.video.paused })); return now.t > before.t + 0.3 && !now.paused; },
+      { message: 'the film never played on' }).catch((e) => { e.message += ` (${before.t} → ${now.t}, paused ${now.paused})`; throw e; });
     if (ffmpeg) {
       const d = await difference(page, name);
       assert.ok(d.same < 12 && d.same * 2 < d.other, `the picture is the film's frame at ${d.key}s: ${d.same.toFixed(1)} against ${d.other.toFixed(1)} a second away`);

@@ -72,8 +72,8 @@ test('a quick slide across the ring names nothing until the finger rests', async
   // Two apps inside one dwell: only the one the finger ends on is asked for.
   await page.evaluate(() => { for (const id of ['guitar', 'astra', 'study']) document.dispatchEvent(new CustomEvent('th:ring', { detail: id })); });
   assert.deepEqual(await asked(page), []);
-  await page.waitForTimeout(dwell + 80);
-  assert.deepEqual(await asked(page), ['/study/']);
+  // Once the dwell has passed on the page's clock, exactly the last one is asked for (waited for, not guessed).
+  await asks(page, ['/study/'], dwell + 15_000);
   await page.close();
 });
 

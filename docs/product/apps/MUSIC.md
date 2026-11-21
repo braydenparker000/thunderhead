@@ -100,8 +100,8 @@ Audio and art stay in `jarvis-music` under their content-addressed keys
 | Data | Home | On the phone | Notes |
 |---|---|---|---|
 | Catalog (tags, duration, size, art key, loudness, waveform flag) | `Music` Durable Object | IndexedDB `th-music/catalog` | Catalog writes come only from the upload tools |
-| Track stats (plays, skips, last played, rating) | `Music.track_stats`, rebuilt nightly from senses | IndexedDB `th-music/stats` plus a local overlay of unsent changes | The phone applies its own changes at once |
-| Playlists and mixes | `Core` lists | IndexedDB `th-music/lists` | One list per playlist, with ordered refs |
+| Track marks (rating, which is also the like and "never play this again"; plays, last played) | `Music.track_ratings` (the one rating the mind reads too) and `Music.track_plays`, synced by the phones (§1.4) | `claude-player` `state` `u:<id>` | The phone applies its own changes at once |
+| Playlists | `Music.music_playlists`, synced by the phones (§1.4) | `claude-player` `state` `pl:<id>` | One record per playlist, with ordered ids; mixes are the mind's (§4.2) |
 | Queue and position | Phone only, mirrored to `Core` device state at most every 60 s **[proposal]** | IndexedDB `th-music/session` | So "keep playing on the other device" is possible later |
 | Search index | `thunderhead-private/indexes/music/` | Cache Storage `th-music-index` | **[proposal]** |
 | Audio analysis and DJ features | `Music.analysis` (numbers per audio file, from the Actions listening pass) and `thunderhead-private/music/pack.v1.bin` (the phone's file, §9.1) | the phone's file, revalidated by its ETag | About 2.8 MB at 12k tracks; built |
@@ -127,6 +127,55 @@ imported plays and ratings line up (§11).
 
 **Acceptance:** with a 7,494-track fixture, a second open with no catalog change makes exactly one
 catalog request and receives 304; a fixture change of 3 tracks via `since` transfers ≤ 5 KB.
+
+### 1.4 The owner's data on every phone (2026-11-21)
+
+The owner: "all music data everywhere … likes etc." Music's look and playback do not change: only
+data made on one phone now appears on the other. `frontend/th/music/sync.js` (loaded by
+`th/music/dj.js` `installDj`) syncs it through `PUT/GET /v1/music/marks` and `/v1/music/playlists`
+(API.md §11.29, Music schema step 6), modelled on Guitar's and Podcasts' sync.
+
+| The owner's data on the phone | Where (`claude-player`, localStorage) | Synced |
+|---|---|---|
+| A song's rating (5 the like, 1 "not for me", which home's "never play this again" sets) | `state` `u:<id>` `rating`, with `ratedAt` (when it was set, stamped by the sync) | Yes: the newer `rated_at` wins |
+| A song's play count and last played | `state` `u:<id>` `plays`, `lastPlayed` | Yes: the larger count and the later time |
+| Playlists: name, entries in order, made, the file it came from | `state` `pl:<id>` | Yes: the newer record wins whole; a deleted one is a record marked deleted, kept 30 days |
+| Songs imported from files on this phone (their ratings and plays) | `tracks` | No: they have no Worker id and their files are on this phone only |
+| Pictures picked as covers | `state` `ca:<key>` (images) | No: images, not records; they would need the private bucket |
+| List memory (List Position flags and the entry last played per folder or playlist), the queue and its place | `state` `lm:<key>`, `queue`, `queue-list` | No: where this phone is, and what it plays next, stay this phone's |
+| EQ and reverb presets, the visualizer's preset ratings, search history, list and sort options, settings | `cp-eq-presets`, `cp-reverb-presets`, `cp-milk`, `cp-search-history`, `cp-list-opts`, `cp-settings`, … | No: device settings, and the sound must not change |
+| The DJ's learned moves | `th.music.dj` | No: outside the player's stores; it is how this phone has learned to order |
+
+- **When:** a pull when Music opens (once its library is there) and when it becomes visible; a push
+  20 s after a change, on hiding the page and when the network returns. The first time, every song
+  this phone has rated or played goes up, at most 1,000 a push. Only signed in.
+- **The newer change wins** on the phone and on the Worker, also for a playlist edited on two phones.
+  Times go up on the Worker's clock (the offset from each answer). A rating from before the sync has
+  no stamp and goes up as the oldest, so any stamped rating wins over it.
+- **Three sources of "not for me":** the phone's rating and the `music.rate` sense are the same truth,
+  one row per song in `track_ratings`. One clock decides: the sync's (`rated_at` on the Worker's
+  clock). A sense's time is the phone's own clock, so a sense never beats a synced rating: it only
+  fills a row no sync has touched yet, and the phone's synced stamp replaces it (the phone that sent
+  the sense syncs the same rating). The GET returns that row, so "never play this again" on one phone
+  is a 1 on the other. A rating that came by sync is never sent back as a sense, and the senses'
+  catch-up of songs rated 1 counts it as sent. The mind's
+  never-play rules (`music.never` facts in Core, with their own life and undo) stay rules: find
+  leaves out both, and they are not copied into ratings (that would be a second truth outliving the
+  rule) nor onto the phone (they are not data a phone made).
+- A rating from another phone reaches the rows with the player's own message, marked `synced`, so
+  `th/music/ratings.js` does not send it back as a sense. Plays from another phone change the fields
+  in place and post nothing.
+- A change made while its push is on the way stays queued: a song is cleared only if its change count
+  is still the one sent, a playlist's sent stamp is the `modified` that went up.
+- **Settings → Reset stats** is a record with its own time (`reset_at`, the newest kept): on the
+  Worker, plays last played at or before it read as none and an older count sent later changes
+  nothing; on each phone, every song last played before it goes back to no plays at the next pull.
+  Plays after it count again.
+- **Waveforms made again:** the catalog gives each waveform its row's last change (`waveformAt`); the
+  phone tags a stored waveform with it, so one registered again is fetched again. Any change to that
+  row moves it (a refetch of one small file); the catalog itself is downloaded only when it changes,
+  as before, and grows by about 27 bytes a track with a waveform.
+- The catalog never carries this data: its ETag and size do not move (the cost suite checks the 304).
 
 ---
 
@@ -192,7 +241,7 @@ Layout on a 390 × 844 viewport, top to bottom:
 | Why chip | Only when the track came from the mind. Under the cover, left aligned (§10.4) |
 | Title | Inter 600 22/28, two lines max, then ellipsis |
 | Artist · album | Inter 400 15/20, ink-2. Tap artist → artist page |
-| Seek bar | The track's waveform (RMS bars from the catalog), played part in accent, rest in ink-3 at 40 %. Plain 4 px line when there is no waveform. Times under it in tabular figures: elapsed left, remaining right (`−1:12`). **Bar rule (the Poweramp reference behaviour):** 100 bars, each the RMS of an equal span of the stored bins; every bar divided by `sqrt(max² + 0.01)`, then raised to the power 1.35. Never draw the stored bytes directly: they are square-root coded (`round(255·sqrt(rms))`) and look flat. A loud, limited master stays fairly even by design; quiet intros and breaks drop. Acceptance: a test renders a fixture with a quiet intro and a break and checks those bars are below 0.7 while the loud sections reach ≥ 0.9 |
+| Seek bar | The track's waveform (RMS bars from the catalog), played part in accent, rest in ink-3 at 40 %. Plain 4 px line when there is no waveform. Times under it in tabular figures: elapsed left, remaining right (`−1:12`). **Bar rule (the Poweramp reference behaviour):** 100 bars, each the RMS of an equal span of the stored bins; every bar divided by `sqrt(max² + 0.01)`, then raised to the power 1.35. Never draw the stored bytes directly: they are square-root coded (`round(255·sqrt(rms))`) and look flat. A loud, limited master stays fairly even by design; quiet intros and breaks drop. Acceptance: a test renders a fixture with a quiet intro and a break and checks those bars are below 0.7 while the loud sections reach ≥ 0.9. **The bytes:** 1,000 bins of the uploaded Opus file's mean square over all channels, `round(255·ms^(1/4))`, kind `rms`, exactly as [MUSE-WAVEFORMS.md](../../engineering/MUSE-WAVEFORMS.md) hands to Muse (`tests/music-waveform-recipe.test.mjs`); the drawing was checked (2026-11-21) and the fault is in the data |
 | Transport | Previous (48 px), Play/Pause (72 px filled circle, ink on day / white on night), Next (48 px) |
 | Second row | Shuffle mode (Off / Shuffle / DJ), Heart (rating), Queue, Repeat (Off / All / One) |
 
@@ -234,8 +283,10 @@ cover advances exactly one track; long-press opens home with the track attached.
 - **Recently added:** the 200 newest by `added_at`.
 - **Most played:** top 200 by plays (imported plus new).
 - Tapping a song plays it in the context of the list it is in (the list becomes the queue context).
-- A row's long-press menu: Play next · Add to queue · Add to playlist · Go to album · Go to
-  artist · Keep offline · Ask about this.
+- A hold (450 ms) on a song or an entry does what the Select button does: selection mode with that
+  row selected, one haptic tick (none with Haptics off, or on a phone that cannot vibrate). It never
+  plays the song or opens a menu; a move past the touch slop (8 px, where a scroll starts) cancels it.
+  Already selecting, a hold selects the row. (`onItemLongClick` in `frontend/music/src/list/power-list.js`.)
 
 ### 2.7 Detail pages
 
@@ -547,6 +598,15 @@ event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 
 | `lost`, `dropped` | Whether the log (300 events) let some go before a batch took them; how many old ones were left out to stay under 30 KB |
 | `events` | The log's events the Worker hasn't taken, oldest first, each with its number in this page load (`n`), its time (`t`) and its type's own fields only: deck events (`loadstart` with where it played from, `playing`, `waiting` and `stalled` with the position, `error` with its kind and code), `first sound`, the recoveries (`stall`, `reload`, `recovered`, `skip`), `underrun`, `clipped`, `long task`, `hidden`/`visible`, `track` (id, format, bitrate, rate, channels, source), `play`/`pause` |
 | `state` | The log's counters (the snapshot that **Copy report** copies), without its events and the browser's name: output, dropouts, level and limiter, each deck's waits, stalls, errors and start times, recovery, offline copies, long tasks, time hidden |
+
+**Movement and layout** (`frontend/music/src/ui/feel-log.js`, modelled on Astra's feel log): **Copy
+report** also carries `movement`, kept in memory with a cap on each list and never sent to the Worker:
+every view transition (its scene or page names, ms, frames, worst gap between frames; frames are
+counted only while one runs); every open of the player (`innerHeight`, `visualViewport.height`, whether
+a text field had focus in the last second, the layout's height, the player's box height); 600 ms after
+each song change and play/pause, the play and pause buttons (in the page, visible, box size); and each
+search (viewport before and after the keyboard, the results list's height, scroll jumps over 40 px no
+finger or fling made). Numbers and layout names only: no titles, artists, file names or search text.
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a

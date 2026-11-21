@@ -1,8 +1,10 @@
 // Settings' own page (MENU-AND-SETTINGS.md §4; owner, 2026-10-31: the menu holds only the
-// conversations, Settings opens from its bar): Appearance at the top (theme, text size, a still
-// background), then a row for each page, then About. Each page opens over this one and its back
-// button returns here (settings.js keeps the stack). Quiet hours is its own page here too: when the
-// day's quiet starts and ends (never before 06:30), and "go quiet" for a while (BEHAVIOR.md §8).
+// conversations, Settings opens from its bar): the search field, then the pages under headings (owner,
+// 2026-11-21): Look (theme, text size, a still background, then More appearance), Home and gestures,
+// Apps, The mind, Account and data, About. Each page opens over this one and its back button returns
+// here (settings.js keeps the stack). Quiet hours is a section of Notifications (quietPart below): when
+// the day's quiet starts and ends (never before 06:30), and "go quiet" for a while (BEHAVIOR.md §8).
+// Agents stays reachable by its address (/settings/agents/) but is not listed.
 import { api, signedIn } from '/th/client.js';
 import { quietLine, quietUntil, setQuiet } from '/th/chat/quiet.js';
 import { lineFor, mindName } from '/th/copy.js';
@@ -12,6 +14,7 @@ import { updateLine } from '/th/update-rules.js';
 import { checkForUpdate, waiting } from '/th/update.js';
 import { CONFIG } from '/config.js';
 import { choice, group, icon, row, sheet, switchRow } from './components.js';
+import { PAGES, SECTIONS } from './pages.js';
 
 const root = document.documentElement;
 const stored = (/** @type {string} */ key, /** @type {string} */ def) => {
@@ -22,33 +25,21 @@ const stored = (/** @type {string} */ key, /** @type {string} */ def) => {
   }
 };
 
-/** The pages under Appearance, in order: [page, name, icon]. The catalogue's pages first
- * (catalog.js, shared/contract/settings.ts), About and diagnostics last. */
-export const PAGES = /** @type {const} */ ([
-  ['appearance', 'More appearance', 'palette'],
-  ['chat', 'Home and chat', 'chat-circle'],
-  ['gestures', 'Ring and gestures', 'hand-pointing'],
-  ['island', 'Island', 'music-notes-simple'],
-  ['briefing', 'Briefing', 'newspaper'],
-  ['mind', 'The mind', 'sparkle'],
-  ['music', 'Music', 'music-notes-simple'],
-  ['photos', 'Photos', 'aperture'],
-  ['quiet', 'Quiet hours', 'moon-stars'],
-  ['notifications', 'Notifications', 'bell'],
-  ['memory', 'What I remember', 'brain'],
-  ['privacy', 'Privacy and data', 'shield-check'],
-  ['account', 'Password', 'key'],
-  ['devices', 'Devices', 'devices'],
-  ['agents', 'Agents', 'key'],
-  ['export', 'Export', 'download-simple'],
-  ['deleted', 'Recently deleted', 'trash'],
-  ['workshop', 'Files for the workshop', 'cloud-arrow-up'],
-  ['about', 'About and diagnostics', 'info'],
-]);
+/** Brings a row into view and marks it for 2 s (a search result, a deep link). @param {Element | null | undefined} target */
+export function mark(target) {
+  if (!target) return;
+  requestAnimationFrame(() => {
+    target.scrollIntoView({ block: 'center' });
+    target.classList.add('flash');
+    setTimeout(() => target.classList.remove('flash'), 2000);
+  });
+}
+
+export { PAGES, SECTIONS };
 
 /** Appearance: the theme (Auto follows the clock), the text size of the conversation, and a still
  * background. Kept on this phone; ui/theme.js applies them before the first paint (HOME.md §8). */
-export function appearance() {
+export function appearance(/** @type {HTMLElement[]} */ more = []) {
   const theme = choice('Theme', [['auto', 'Auto'], ['light', 'Day'], ['dark', 'Night']], stored('th-theme', 'auto'), (v) =>
     document.dispatchEvent(new CustomEvent('th:theme', { detail: v })),
   );
@@ -74,18 +65,11 @@ export function appearance() {
       el('span', { class: 'row-detail', text: 'Your theme and text size, as they read.' }),
     ])]),
   ]);
-  return el('div', { class: 'group slist sappear' }, [preview, theme, size, still]);
+  return el('div', { class: 'group slist sappear' }, [preview, theme, size, still, ...more]);
 }
 
 /** Settings' own page. @param {HTMLElement} body @param {(name: string) => void} open @param {string} [focus] a control to bring into view */
 export function settingsHome(body, open, focus) {
-  const rows = [];
-  for (const [page, name, symbol] of PAGES) {
-    const button = row({ title: page === 'mind' ? mindName(true) : name, icon: symbol, open: true, onClick: () => open(page) });
-    button.classList.add('slink');
-    button.dataset.page = page;
-    rows.push(button);
-  }
   const update = row({ title: 'Check for update', icon: 'info', value: CONFIG.commit !== 'dev' ? CONFIG.commit.slice(0, 7) : '' });
   update.classList.add('slink'); update.id = 'set-update';
   update.addEventListener('click', async () => {
@@ -93,31 +77,37 @@ export function settingsHome(body, open, focus) {
     toast(updateLine('checking'));
     toast(updateLine((await checkForUpdate()) || waiting() ? 'waiting' : 'current'));
   });
-  // Search (search.js, loaded on the first focus): any setting by a word of its name or of its line.
+  // Search (search.js, loaded on the first focus): settings, pages, controls and actions (finder.js).
   const find = el('input', { class: 'field', type: 'search', placeholder: 'Search settings', 'aria-label': 'Search settings', autocomplete: 'off', enterkeyhint: 'search' });
   find.addEventListener('focus', () => void import('./search.js').then((m) => m.attach(find, body)), { once: true });
-  body.append(el('div', { class: 'field-box ssearch' }, [icon('magnifying-glass'), find]), el('h2', { class: 'group-title', text: 'Appearance' }), appearance(), group('Yours', rows), group('About', [update]));
-  const target = focus ? /** @type {HTMLElement | null} */ (body.querySelector(`#set-${focus}, [data-page="${focus}"]`)) : null;
-  if (target)
-    requestAnimationFrame(() => {
-      target.scrollIntoView({ block: 'center' });
-      target.classList.add('flash');
-      setTimeout(() => target.classList.remove('flash'), 1600);
+  body.append(el('div', { class: 'field-box ssearch' }, [icon('magnifying-glass'), find]));
+  for (const [heading, pages] of SECTIONS) {
+    const rows = pages.map(([page, name, symbol]) => {
+      const button = row({ title: page === 'mind' ? mindName(true) : name, icon: symbol, open: true, onClick: () => open(page) });
+      button.classList.add('slink');
+      button.dataset.page = page;
+      return button;
     });
+    if (heading === 'Look') body.append(el('h2', { class: 'group-title', text: heading }), appearance(rows));
+    else body.append(group(heading, heading === 'About' ? [...rows, update] : rows));
+  }
+  if (focus) mark(body.querySelector(`#set-${focus}, [data-page="${focus}"]`));
 }
 
 const hhmm = (/** @type {unknown} */ v, /** @type {string} */ def) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : def);
 
-/** Quiet hours (MENU-AND-SETTINGS.md §4.2): from when to when nothing needs the owner (no pushes,
- * decisions held), the end never before 06:30 (owner ruling); and "go quiet" now, for a while.
+/** Quiet hours, a section of Notifications (MENU-AND-SETTINGS.md §4.2): from when to when nothing needs
+ * the owner (no pushes, decisions held), the end never before 06:30 (owner ruling); and "go quiet" now,
+ * for a while. Resolves with what to do as the page closes.
  * @param {HTMLElement} body */
-export async function quietPage(body) {
-  const line = el('p', { class: 'line', role: 'status' });
+export async function quietPart(body) {
+  const line = el('p', { class: 'line', role: 'status', id: 'quiet-line' });
   const start = el('input', { type: 'time', class: 'field', id: 'quiet-start', value: '22:00', step: '300' });
   const end = el('input', { type: 'time', class: 'field', id: 'quiet-end', value: '06:30', min: '06:30', step: '300' });
   const save = el('button', { type: 'button', class: 'btn', text: 'Save', disabled: '' });
   const timeRow = (label, input, detail) => {
     const button = row({ title: label, detail, icon: 'clock', value: input.value, open: true });
+    button.dataset.action = 'quiet';
     button.addEventListener('click', () => {
       const previous = input.value;
       const wasDisabled = save.disabled;
@@ -134,7 +124,7 @@ export async function quietPage(body) {
   };
   const startRow = timeRow('Starts', start);
   const endRow = timeRow('Ends', end, '06:30 at the earliest');
-  const window_ = group('Every day', [startRow, endRow]);
+  const window_ = el('div', { class: 'group' }, [startRow, endRow]);
   const now = el('p', { class: 'snow' });
   const goes = el('div', { class: 'group sactions' });
   const showNow = () => {
@@ -148,6 +138,7 @@ export async function quietPage(body) {
   };
   const btn = (/** @type {string} */ text, /** @type {() => unknown} */ run) => {
     const b = row({ title: text, icon: text === 'End now' ? 'bell' : 'moon-stars' });
+    b.dataset.action = 'quiet';
     b.addEventListener('click', () => {
       run();
       showNow();
@@ -163,7 +154,8 @@ export async function quietPage(body) {
     return d.getTime();
   };
   body.append(
-    el('p', { class: 'slead', text: 'Inside these hours I send nothing and hold anything that needs you until they end.' }),
+    el('h2', { class: 'group-title', id: 'set-quiet', text: 'Quiet hours' }),
+    el('p', { class: 'slead', text: 'Every day inside these hours I send nothing and hold anything that needs you until they end.' }),
     window_, save, line,
     el('h2', { class: 'group-title', text: 'Go quiet now' }), now, goes,
   );

@@ -21,8 +21,9 @@ const isRemoteArt = key => /^(https:|embedded:)/.test(key);
 // Cache Storage needs URL keys: embedded covers get a local pseudo-URL.
 const cacheKey = key => (key.startsWith('embedded:') ? new URL('covers/embedded/' + encodeURIComponent(key.slice(9)), location.href).href : key);
 
-// Per-track listening data for remote tracks (state store, key u:<id>).
-const USER_FIELDS = ['wave', 'waveSrc', 'durationMs', 'plays', 'lastPlayed', 'rating'];
+// Per-track listening data for remote tracks (state store, key u:<id>); ratedAt: when the rating
+// was set, for the sync between phones (th/music/sync.js).
+const USER_FIELDS = ['wave', 'waveSrc', 'durationMs', 'plays', 'lastPlayed', 'rating', 'ratedAt'];
 
 export class Library {
   constructor(ctx) {
@@ -747,7 +748,8 @@ function compareTracks(a, b) {
 
 /** How a served waveform was drawn (stored with the track; another means fetch it again). */
 // 'rms2': rms waveforms stored before cut decodes were refused are fetched again.
-const waveSrcFor = t => (t.waveKind === 'rms' ? 'rms2' : 'peak2');
+// A stored waveform's source: its kind, and the catalog's time for it (waveAt), so one made again is fetched again.
+const waveSrcFor = t => (t.waveKind === 'rms' ? 'rms2' : 'peak2') + (t.waveAt ? ':' + t.waveAt : '');
 
 /** Provisional format line ("FLAC 44.1kHz 16bit"); the reference formatter is not ported yet. */
 export function trackMetaLabel(t) {

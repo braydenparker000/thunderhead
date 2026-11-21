@@ -3,6 +3,7 @@
 // Every query is by key or by an index; none scans a growing table on a request.
 import type { Book, BookState, Highlight, PageIn, Position } from '../../../../shared/contract/library.ts';
 import type { Db } from '../../objects/base';
+import { restem } from './stems';
 
 export interface BookRow {
   id: string;
@@ -240,7 +241,7 @@ export const pruneJobs = (db: Db, before: number, limit: number) =>
 
 // --- pages ------------------------------------------------------------------------------------
 
-/** One page in place of the one stored at its number, with its full-text entry and its refs. */
+/** One page in place of the one stored at its number, with its full-text entries and its refs. */
 export function putPage(db: Db, bookId: string, p: PageIn): number {
   const old = db.one<{ seq: number; text: string }>(
     'SELECT seq, text FROM pages WHERE book_id = ? AND pdf_page = ?',
@@ -264,6 +265,7 @@ export function putPage(db: Db, bookId: string, p: PageIn): number {
     p.text.length,
   )?.seq;
   db.run('INSERT INTO pages_fts (rowid, text) VALUES (?, ?)', seq, p.text);
+  restem(db, old, seq as number, p.text);
   db.run('DELETE FROM verse_refs WHERE book_id = ? AND pdf_page = ?', bookId, p.pdf_page);
   const count = new Map<number, number>();
   for (const r of p.refs) {

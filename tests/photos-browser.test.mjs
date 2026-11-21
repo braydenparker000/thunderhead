@@ -236,11 +236,11 @@ test('on a Galaxy A35-sized phone (360×780 at 3×) the shelf fits, with 44 px t
   await context.close();
 });
 
-test('Settings › Photos: Drive by its folder, Disconnect, Connect to Google’s consent; recent originals not yet', opts, async () => {
+test('Settings › Photos: Drive by its folder, Disconnect, Connect to Google’s consent; no setting that does nothing', opts, async () => {
   const { page, context, errors } = await open('/settings/photos/');
   await page.waitForSelector('.sphotos .btn');
   assert.match(await page.textContent('.sphotos'), /Connected as owner@example\.test\. Originals go to “Thunderhead Photos”/);
-  await page.waitForSelector('button[data-v="recent"][disabled]');
+  assert.equal(await page.locator('[data-key="photos.keep"], button[data-v="recent"]').count(), 0, 'the keep setting, which did nothing, is gone');
   await shot(page, 'settings');
   await page.click('.sphotos .btn');
   await page.click('.csheet .btn.danger');

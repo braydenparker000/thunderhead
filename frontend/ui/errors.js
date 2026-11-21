@@ -21,9 +21,19 @@ const ready = CONFIG.api
   ? store.read().then((s) => { token = s?.token ?? null; }, () => {})
   : null;
 
+/** Settings › Privacy › Error reports (`privacy.errors`, as this phone last saw it in `th.p.settings`):
+ * off, nothing is sent. The Worker keeps nothing from a phone while it is off, too (ops/routes.ts). */
+const allowed = () => {
+  try {
+    return JSON.parse(localStorage.getItem('th.p.settings') || '{}')?.['privacy.errors'] !== false;
+  } catch {
+    return true;
+  }
+};
+
 const inbox = collector((items) => {
   const send = () => {
-    if (!token) return;
+    if (!token || !allowed()) return;
     fetch(`${CONFIG.api}/v1/ops/errors`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

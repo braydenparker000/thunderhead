@@ -1644,6 +1644,38 @@
       "status": "built",
       "note": "the shows the night read: ≤ 20, their newest episode"
     },
+    "PUT /v1/podcasts/queue": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "1–100 Up Next items of one version or more; the newer wins"
+    },
+    "GET /v1/podcasts/queue": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=&cursor=: Up Next rows changed since, oldest first"
+    },
+    "PUT /v1/podcasts/prefs": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "the playback speed; the newer wins"
+    },
+    "GET /v1/podcasts/prefs": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=: the speed if it changed since"
+    },
     "GET /v1/push/key": {
       "who": [
         "D"
@@ -2043,6 +2075,38 @@
       "phase": "P6",
       "status": "built",
       "note": "?since=&cursor=: what changed since, oldest first, ≤ 100 a page"
+    },
+    "PUT /v1/music/marks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "1–200 songs' rating (the newer rated_at wins, kept in track_ratings) and plays (the larger kept)"
+    },
+    "GET /v1/music/marks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page"
+    },
+    "PUT /v1/music/playlists": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days"
+    },
+    "GET /v1/music/playlists": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page"
     }
   },
   "verbs": {
@@ -4657,7 +4721,10 @@
       "night_feeds": 20,
       "check_gap_ms": 72000000,
       "fail_backoff_max": 3,
-      "night_feed_reads": 40
+      "night_feed_reads": 40,
+      "queue_max": 100,
+      "episode_chars": 8000,
+      "queue_keep": 500
     }
   },
   "music": {

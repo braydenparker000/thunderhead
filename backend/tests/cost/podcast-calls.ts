@@ -2,7 +2,7 @@
 // the phone's usual sync while an episode plays (one position, new or newer), a stale one, a first
 // sync of 100, the reads on open with 1,000 positions kept (nothing new, then 3 new: each reads the
 // rows it returns), a follow, the night's check of 20 shows, its feed admission (counted in a
-// stored row), and the daily prune over 1,003.
+// stored row), Up Next (a version of 10) and the speed with their reads, and the daily prune over 1,003.
 
 import { runInDurableObject } from 'cloudflare:test';
 import { episodeID } from '../../../frontend/th/podcasts/feed.js';
@@ -152,6 +152,39 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
       return new Response(null, { status: 204 });
     },
     204,
+    core(),
+  );
+  // Up Next: a version of the whole queue (10 episodes) and the speed, each read back on a pull.
+  const queued = (n: number, v: number) => ({
+    key: `${FEED}#${n.toString(16).padStart(16, '0')}`,
+    pos: n,
+    queued: true,
+    episode: { id: n.toString(16).padStart(16, '0'), title: `Episode ${n}`, show: { feedUrl: FEED, title: 'Cost' } },
+    base: 0,
+    updated_at: v,
+  });
+  const putQueue = (v: number) => () =>
+    api('PUT', '/v1/podcasts/queue', { ...d, body: { items: Array.from({ length: 10 }, (_, i) => queued(i, v)) } });
+  await cost('PUT /v1/podcasts/queue (a version of 10, a first sync) (Core)', putQueue(at), 200, core());
+  await cost('PUT /v1/podcasts/queue (a newer version of 10) (Core)', putQueue(at + 1), 200, core());
+  const qSince = Date.now() + 1;
+  await new Promise((r) => setTimeout(r, 5));
+  await cost(
+    'GET /v1/podcasts/queue (nothing new) (Core)',
+    () => api('GET', `/v1/podcasts/queue?since=${qSince}`, d),
+    200,
+    core(),
+  );
+  await cost(
+    'PUT /v1/podcasts/prefs (the speed) (Core)',
+    () => api('PUT', '/v1/podcasts/prefs', { ...d, body: { items: [{ name: 'speed', value: 1.5, updated_at: at }] } }),
+    200,
+    core(),
+  );
+  await cost(
+    'GET /v1/podcasts/prefs (nothing new) (Core)',
+    () => api('GET', `/v1/podcasts/prefs?since=${qSince}`, d),
+    200,
     core(),
   );
   await coreSql("DELETE FROM settings WHERE key = 'prune.day'");

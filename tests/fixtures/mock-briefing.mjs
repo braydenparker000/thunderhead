@@ -1,6 +1,9 @@
 // The Briefing page of the mocked Worker (BRIEFING.md, API.md): one card waiting and Muse's line.
 
-export const DAY = '2026-10-29';
+/** Today on this machine (the browser's day too): the Worker answers for the owner's today, and a
+ * Briefing of another day says its age and drops what was about that day (th/briefing/age.js). */
+const local = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const DAY = local(new Date());
 
 export function briefingState() {
   return {

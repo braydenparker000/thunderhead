@@ -128,4 +128,22 @@ export const LIBRARY_MIGRATIONS: Migration[] = [
       'CREATE INDEX embeddings_at ON embeddings (at)',
     ],
   },
+  {
+    // Search by word forms (STUDY.md §6): a second index of the same pages, Porter-stemmed with
+    // accents removed, searched first once it holds every page. `stem_fill` is its backfill: pages
+    // up to `until` (the newest when this step ran) go in by `after`, a chunk at a time in the daily
+    // pass while the rows guard allows (areas/library/stems.ts); pages written since go in at once.
+    version: 4,
+    name: 'pages_stem',
+    kind: 'expand',
+    sql: [
+      `CREATE VIRTUAL TABLE pages_stem USING fts5 (text, content = 'pages', content_rowid = 'seq', tokenize = 'porter unicode61 remove_diacritics 2')`,
+      `CREATE TABLE stem_fill (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        after INTEGER NOT NULL,
+        until INTEGER NOT NULL
+      )`,
+      'INSERT INTO stem_fill (id, after, until) SELECT 1, 0, coalesce(max(seq), 0) FROM pages',
+    ],
+  },
 ];

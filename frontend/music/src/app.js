@@ -13,6 +13,7 @@ import {Library} from './library/library.js';
 import {Settings, loadStoredSettings, runtimeSettings, prefDefaults} from './settings/settings.js';
 import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
+import {installFeelLog} from './ui/feel-log.js';
 import {AudioCache, retireDefaultCopies} from './library/audio-cache.js';
 import {AudioHeads} from './library/heads.js';
 import {installEqPresets} from './widgets/eq-preset-ui.js';
@@ -160,6 +161,7 @@ export async function boot() {
   installDj(ctx, player);
   new DSP(ctx);
   new PlaybackLog(ctx);
+  installFeelLog(ctx);
   installEqPresets(ctx);
   new Settings(ctx);
   // Window decor: a plain FastLayout filling the viewport hosts the main layout.

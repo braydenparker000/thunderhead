@@ -7,7 +7,8 @@
 // none unless it opens with a paragraph whose first character, after an opening mark (¿ ¡ « “ ‘ " ',
 // which ::first-letter carries with it), is a Latin letter in plain text or emphasis: a list, a heading, a quotation, code, a
 // table, a number, an emoji or a link opens with no initial. Also the ask bar's words: off the record
-// they say so, and a line longer than the bar fades at its left edge.
+// they say so, and they wrap, the bar growing with them (look/home.css), measured here only where
+// the browser cannot size a text area to its content.
 
 const MARKS = /^[\s¿¡«“‘"']*/u;
 const LETTER = /^\p{Script=Latin}/u;
@@ -75,16 +76,13 @@ export function turns() {
   const ph = new MutationObserver(words);
   if (q) { ph.observe(q, { attributes: true, attributeFilter: ['placeholder'] }); words(); }
 
-  // The words run on to the left on one line; once they do, their left edge fades.
-  const ask = document.getElementById('ask');
-  const over = () => ask?.classList.toggle('lk-over', (q?.scrollLeft ?? 0) > 0);
-  q?.addEventListener('scroll', over, { passive: true });
-  q?.addEventListener('input', over);
+  // A browser without field-sizing: the field takes its words' height (look/home.css caps it at four lines).
+  const fit = () => { if (!q) return; q.style.height = 'auto'; q.style.height = `${q.scrollHeight}px`; };
+  const own = !CSS.supports('field-sizing', 'content');
+  if (own) { q?.addEventListener('input', fit); fit(); }
 
   return () => {
-    q?.removeEventListener('scroll', over);
-    q?.removeEventListener('input', over);
-    ask?.classList.remove('lk-over');
+    if (own) { q?.removeEventListener('input', fit); q?.style.removeProperty('height'); }
     seen.disconnect();
     sized.disconnect();
     ph.disconnect();

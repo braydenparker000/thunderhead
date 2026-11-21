@@ -131,6 +131,22 @@ describe('Web Push', () => {
     expect((await api('PUT', '/v1/pushes/nudge-0003', { token: D, body: nudge() })).status).toBe(403);
   });
 
+  it('Settings › Notifications › mind.pushes: Never and Urgent only refuse an unasked nudge; a notice still goes', async () => {
+    for (const pushes of ['never', 'urgent']) {
+      await apiJson('PATCH', '/v1/settings', { token: D, body: { 'mind.pushes': pushes } });
+      const r = await apiJson<{ error: { code: string } }>('PUT', `/v1/pushes/nudge-${pushes}`, {
+        token: C,
+        body: nudge('Later', `trip.${pushes}`),
+      });
+      expect([pushes, r.status, r.body.error.code]).toEqual([pushes, 409, 'push_budget']);
+    }
+    got = [];
+    await loginOk('192.0.2.21');
+    await deliver(env);
+    expect((await payloads(mine)).map((p) => p.k)).toEqual(['security']);
+    await apiJson('PATCH', '/v1/settings', { token: D, body: { 'mind.pushes': 'normal' } });
+  });
+
   it('a new sign-in pushes its notice in generic words', async () => {
     got = [];
     await loginOk('192.0.2.20');

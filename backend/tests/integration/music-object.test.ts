@@ -12,7 +12,7 @@ const music = () => env.MUSIC.get(env.MUSIC.idFromName('library')) as unknown as
 describe('the Music object', () => {
   it('migrates once to its schema and reports its health', async () => {
     const h = await music().health();
-    expect(h).toMatchObject({ schema: 5, expected: 5 });
+    expect(h).toMatchObject({ schema: 6, expected: 6 });
     const tables = await runInDurableObject(music(), (_o, state) =>
       state.storage.sql
         .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' ORDER BY name")
@@ -28,10 +28,12 @@ describe('the Music object', () => {
       'listen_files',
       'listens',
       'meter_days',
+      'music_playlists',
       'music_state',
       'similar_artists',
       'track_analysis',
       'track_notes',
+      'track_plays',
       'track_ratings',
       'tracks',
     ]);

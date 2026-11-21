@@ -72,7 +72,7 @@
     "rows_written_max": 0
   },
   "POST /v1/ops/errors, 1 item (Core)": {
-    "rows_read_max": 0,
+    "rows_read_max": 1,
     "rows_written_max": 2
   },
   "GET /v1/settings (Core)": {
@@ -184,7 +184,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 136,
+    "rows_read_max": 148,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -427,6 +427,26 @@
     "rows_read_max": 0,
     "rows_written_max": 3
   },
+  "PUT /v1/podcasts/queue (a version of 10, a first sync) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 20
+  },
+  "PUT /v1/podcasts/queue (a newer version of 10) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 20
+  },
+  "GET /v1/podcasts/queue (nothing new) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/prefs (the speed) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 1
+  },
+  "GET /v1/podcasts/prefs (nothing new) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
   "POST /v1/podcasts/follows/checked (20) (Core)": {
     "rows_read_max": 40,
     "rows_written_max": 20
@@ -505,7 +525,7 @@
   },
   "PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Music)": {
     "rows_read_max": 0,
-    "rows_written_max": 200
+    "rows_written_max": 300
   },
   "PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Senses)": {
     "rows_read_max": 0,
@@ -810,5 +830,53 @@
   "PUT /v1/photos/:id/recipe (a look applied) (Core)": {
     "rows_read_max": 3,
     "rows_written_max": 6
+  },
+  "PUT /v1/music/marks (1 rating, new) (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 3
+  },
+  "PUT /v1/music/marks (1 like, newer) (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/music/marks (1 stale) (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "PUT /v1/music/marks (1 play) (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/music/marks (200 played and rated, a first sync) (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 800
+  },
+  "GET /v1/music/marks (nothing new) (Music)": {
+    "rows_read_max": 6,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/marks (3 new) (Music)": {
+    "rows_read_max": 23,
+    "rows_written_max": 0
+  },
+  "PUT /v1/music/playlists (1 new, 50 songs) (Music)": {
+    "rows_read_max": 3,
+    "rows_written_max": 2
+  },
+  "PUT /v1/music/playlists (1 renamed, newer) (Music)": {
+    "rows_read_max": 3,
+    "rows_written_max": 2
+  },
+  "PUT /v1/music/playlists (1 deleted) (Music)": {
+    "rows_read_max": 3,
+    "rows_written_max": 3
+  },
+  "GET /v1/music/playlists (1 changed) (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/catalog, 304 after the marks and playlists synced (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
   }
 }

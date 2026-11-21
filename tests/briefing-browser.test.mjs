@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
-import { briefingState } from './fixtures/mock-briefing.mjs';
+import { briefingState, DAY } from './fixtures/mock-briefing.mjs';
 import { outlast, resting, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -74,7 +74,7 @@ test('the Briefing shows what waits and Muse\'s line, day and night, with nothin
 });
 
 test('with nothing to show, the page is quiet and says what comes later', opts, async () => {
-  const quiet = { page: { day: '2026-10-29', title: 'A quiet day.', tiles: [], muse: null } };
+  const quiet = { page: { day: DAY, title: 'A quiet day.', tiles: [], muse: null } };
   const { page, context, errors } = await open({ briefing: quiet });
   await page.waitForFunction(() => document.querySelector('#brief .btitle .ln')?.textContent === 'A quiet day.');
   assert.equal(await page.$$eval('#brief .grid > *', (t) => t.length), 0);

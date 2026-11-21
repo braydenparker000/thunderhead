@@ -429,7 +429,9 @@ test('the menu: a conversation swiped left offers Pin; pinned ones come first; s
   await page.waitForSelector('.sbox input');
   await page.fill('.sbox input', 'password');
   await page.waitForSelector('.sres .srow');
-  assert.ok((await page.$$eval('.sres .srow', (r) => r.map((x) => x.textContent))).some((t) => t.includes('Account')), 'password finds Account');
+  assert.ok((await page.$$eval('.sres .srow', (r) => r.map((x) => x.textContent))).some((t) => t.includes('Password')), 'password finds the Password page');
+  await page.fill('.sbox input', 'font');
+  await page.waitForFunction(() => [...document.querySelectorAll('.sres .srow')].some((r) => r.textContent.includes('Text size')));
   await page.fill('.sbox input', 'dark');
   await page.waitForFunction(() => [...document.querySelectorAll('.sres .srow')].some((r) => r.textContent.includes('Theme')));
   assert.deepEqual(errors, []);

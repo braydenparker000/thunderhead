@@ -22,6 +22,7 @@ import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { ART_KEY, AUDIO_KEY, SONG_ID } from './shapes';
 import { signKey, signR2 } from './sign';
+import { musicSyncRoutes } from './sync-routes';
 import { tagsRead } from './tags-read';
 
 const BUCKET = 'jarvis-music';
@@ -97,4 +98,6 @@ export const musicRoutes = new Hono<AppEnv>()
       else out.items.push({ ref, ...(await signR2(key, BUCKET, k, now)) });
     }
     return c.json(out);
-  });
+  })
+  // The owner's marks and playlists on every phone (MUSIC.md §1.4): their own routes, never the catalog's.
+  .route('/', musicSyncRoutes);

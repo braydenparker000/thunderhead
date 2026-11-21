@@ -545,10 +545,10 @@ const chromeObserver=new ResizeObserver(measureChrome);chromeObserver.observe(do
 if(current){updateCurrent();updatePosition();}
 // Home's island and chat play, skip and pause through the app's own calls (th/island/island.js): a restore leaves the player without its audio, which only togglePlay loads.
 window.__podcasts={togglePlay,skip,pause:()=>(sourceLoading?wantPlay:!audio.paused)?togglePlay():undefined};
-// The newest position always wins (th/podcasts/progress.js): positions pulled later come into this state, saved by commit; one further on than where the listener is, by more than 30 s, is offered with one tap instead of seeking under them.
+// The newest position always wins (th/podcasts/progress.js): positions, Up Next and the speed pulled later come into this state, saved by commit; one further on than where the listener is, by more than 30 s, is offered with one tap instead of seeking under them.
 offerLine.firstChild.onclick=()=>{const o=offer;closeOffer();if(o&&current&&keyOf(current)===o.key&&loadedKey){audio.currentTime=o.position;updatePosition();saveProgress();}};
 function pulled(keys){
-  if(!keys.length)return;repaintLocal();if(!current)return;const key=keyOf(current),p=state.progress[key];if(!keys.includes(key)||!p)return;
+  if(!keys.length)return;if(keys.includes('speed')){audio.playbackRate=state.speed;$('speed').textContent=state.speed+'× speed';}repaintLocal();if(!current)return;const key=keyOf(current),p=state.progress[key];if(!keys.includes(key)||!p)return;
   if(loadedKey!==key){updatePosition();return;}
   if(!p.played&&sync.resumeOffer(p.position,audio.readyState>=1?audio.currentTime:pendingPosition)){offer={key,position:p.position};offerLine.firstChild.textContent='Resume at '+clock(p.position)+' from your other phone';offerLine.hidden=false;placeOffer();}
 }

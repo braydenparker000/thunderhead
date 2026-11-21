@@ -3,15 +3,17 @@
 // .github/workflows/checks.yml). The test files are dealt by how long each took in one measured full
 // run (scripts/test-durations.json), those that draw on the software GPU first, then largest first, each
 // to the part with the least time so far, so the parts take about as long and share the slow files; a
-// file the table doesn't know yet counts by its size at the table's own rate. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
+// file the table doesn't know yet counts as the table's median file. Every file lands in exactly one part; `npm test` still runs them all in one go. Within a
 // part the files that draw on the software GPU (`heavy`) run after the others, one at a time.
 // Usage: node scripts/test-part.mjs <k> <n> [--quick | --slow] [--only <files>]   (part k of n, from 1)
 //        --quick: all but the software-GPU files (what a merge and a release wait for); --slow: those only (run after a
 //        release: .github/workflows/slow.yml; the owner, 2026-11-18: "better to go live and have a good recording and reporting pipeline")
 //        node scripts/test-part.mjs --measure (runs every file once and rewrites the table)
+//        node scripts/test-part.mjs --paste < log (writes into the table the `test-durations {…}` lines a part printed:
+//        each CI part prints its files' times so, as CI measured them; paste every part's log of one run)
 // As a test reporter (--measure passes it to node --test), it writes each file's time to its destination.
 import { spawn, spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,17 +36,21 @@ export function durations(table = TABLE) {
   return JSON.parse(readFileSync(table, 'utf8')).ms;
 }
 
+/** The table's median file, in milliseconds (one second for an empty table). @param {Record<string, number>} ms */
+export function median(ms) {
+  const v = Object.values(ms).sort((a, b) => a - b), mid = v.length >> 1;
+  return !v.length ? 1000 : v.length % 2 ? v[mid] : Math.round((v[mid - 1] + v[mid]) / 2);
+}
+
 /**
- * Each file's weight: its measured milliseconds, or, for a file the table doesn't have yet, its bytes
- * at the measured files' own milliseconds per byte. The same on every machine (the table and the
- * checked-out files are). @param {string[]} files @param {Record<string, number>} [ms]
- * @returns {{ file: string, weight: number }[]}
+ * Each file's weight: its measured milliseconds, or, for a file the table doesn't have yet, the table's median file
+ * (until 2026-11-21 its bytes at the table's milliseconds per byte, which put 66 unmeasured files far from their real
+ * times and the parts out of balance). The same on every machine (the table is). @param {string[]} files
+ * @param {Record<string, number>} [ms] @returns {{ file: string, weight: number }[]}
  */
-export function weights(files, ms = durations(), root = ROOT) {
-  const bytes = (f) => statSync(join(root, f)).size;
-  const known = files.filter((f) => f in ms);
-  const rate = known.reduce((s, f) => s + ms[f], 0) / Math.max(1, known.reduce((s, f) => s + bytes(f), 0));
-  return files.map((file) => ({ file, weight: file in ms ? ms[file] : Math.round(bytes(file) * rate) }));
+export function weights(files, ms = durations()) {
+  const guess = median(ms);
+  return files.map((file) => ({ file, weight: file in ms ? ms[file] : guess }));
 }
 
 /**
@@ -68,7 +74,11 @@ export function deal(files, n) {
 /** Whether a test file draws on the software GPU (the editor's and the engine's browser tests): each keeps every
  * core busy for minutes, and a test beside one has waited past its own limits (a page's 15 s wait, twice in CI).
  * A part runs these after its other files, one at a time. @param {string} file */
-export const heavy = (file) => /^tests\/lab-.*-browser\.test\.mjs$/.test(file);
+export const heavy = (file) => /^tests\/lab-.*-browser\.test\.mjs$/.test(file) || SOFTWARE_GPU.includes(file);
+/** Browser tests outside the labs that draw on the software GPU too: Photos' export renders on WebGPU over SwiftShader
+ * (about 250 s by the table, the heaviest quick file; slow since 2026-11-21). tests/lightcraft-lab.test.mjs (WebGL, about
+ * 130 s) stays quick: with it the slow files no longer fit a part's seven minutes (the test of `heavy` below). */
+export const SOFTWARE_GPU = ['tests/photos-export-browser.test.mjs'];
 /** The files of a kind: `quick` all but the heavy ones, `slow` the heavy ones, anything else all. @param {string[]} files @param {string} [kind] */
 export const only = (files, kind) => (kind === 'quick' ? files.filter((f) => !heavy(f)) : kind === 'slow' ? files.filter(heavy) : files);
 
@@ -84,6 +94,19 @@ export default async function* reporter(source) {
     }
   }
   yield JSON.stringify(ms);
+}
+
+/** A measured time as the table keeps it: the file's tests plus one second for its process and hooks (a browser's
+ * launch), to the tenth of a second. @param {number} ms */
+export const kept = (ms) => Math.round((ms + 1000) / 100) * 100;
+/** The line a part prints with its files' times (from the reporter's output), for `--paste`. @param {Record<string, number>} measured */
+export const timesLine = (measured) => `test-durations ${JSON.stringify(Object.fromEntries(Object.entries(measured).sort().map(([f, ms]) => [f, kept(ms)])))}`;
+/** The table with the times of every `test-durations {…}` line in `log` written in (the last line wins for a file), for
+ * the test files there are. @param {string} log @param {Record<string, number>} ms @param {string[]} [files] */
+export function paste(log, ms, files = testFiles()) {
+  const out = { ...ms };
+  for (const [, json] of log.matchAll(/test-durations (\{.*\})/g)) for (const [f, v] of Object.entries(JSON.parse(json))) if (files.includes(f) && Number.isInteger(v) && v > 0) out[f] = v;
+  return Object.fromEntries(Object.entries(out).sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 
 /** How long a run may say nothing before a test is taken to have stalled. The longest single test takes about two
@@ -120,11 +143,15 @@ if (isMain && process.argv[2] === '--measure') {
     `--test-reporter=${fileURLToPath(import.meta.url)}`, `--test-reporter-destination=${out}`, ...files], { cwd: ROOT, stdio: 'inherit' });
   const measured = JSON.parse(readFileSync(out, 'utf8'));
   // Each file also costs its process and its hooks (a browser's launch): one second, by the table's rule.
-  const ms = Object.fromEntries(files.filter((f) => f in measured).map((f) => [f, Math.round((measured[f] + 1000) / 100) * 100]));
+  const ms = Object.fromEntries(files.filter((f) => f in measured).map((f) => [f, kept(measured[f])]));
   const note = 'Milliseconds per test file from one full local run (node scripts/test-part.mjs --measure): each file\'s top-level tests plus one second for its process and hooks. scripts/test-part.mjs deals CI\'s parts by these.';
   writeFileSync(TABLE, `${JSON.stringify({ note, ms }, null, 2)}\n`);
   console.log(`measured ${Object.keys(ms).length} of ${files.length} test files into scripts/test-durations.json`);
   process.exit(run.status ?? 1);
+} else if (isMain && process.argv[2] === '--paste') {
+  const before = durations(), ms = paste(readFileSync(0, 'utf8'), before);
+  writeFileSync(TABLE, `${JSON.stringify({ note: JSON.parse(readFileSync(TABLE, 'utf8')).note, ms }, null, 2)}\n`);
+  console.log(`${Object.keys(ms).length} of ${testFiles().length} test files in scripts/test-durations.json (${Object.keys(ms).length - Object.keys(before).length} new)`);
 } else if (isMain) {
   // `--only <files>`: a lab change's tests (scripts/lab-scope.mjs), dealt over the parts like the whole suite
   const args = process.argv.slice(2), at = args.indexOf('--only'), named = at < 0 ? null : new Set(args.slice(at + 1));
@@ -137,7 +164,12 @@ if (isMain && process.argv[2] === '--measure') {
   const all = only(testFiles().filter((f) => !named || named.has(f)), kind);
   const mine = deal(weights(all), n)[k - 1], light = mine.filter((f) => !heavy(f)), slow = mine.filter(heavy);
   console.log(`part ${k} of ${n}${kind === 'all' ? '' : ` (${kind})`}: ${mine.length} of ${all.length} test files (${slow.length} of them on the software GPU, run after the rest, one at a time)`);
-  // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
-  const first = await run(light), second = await run(slow, ['--test-concurrency=1']);
+  // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout. This module also
+  // reports each file's time, printed at the end as a line `--paste` reads back into the table.
+  const out = (/** @type {number} */ i) => join(tmpdir(), `th-test-part-${process.pid}-${i}.json`);
+  const timed = (/** @type {number} */ i) => ['--test-reporter=spec', '--test-reporter-destination=stdout', `--test-reporter=${fileURLToPath(import.meta.url)}`, `--test-reporter-destination=${out(i)}`];
+  const first = await run(light, timed(1)), second = await run(slow, ['--test-concurrency=1', ...timed(2)]);
+  const measured = Object.assign({}, ...[1, 2].map((i) => { try { return existsSync(out(i)) ? JSON.parse(readFileSync(out(i), 'utf8') || '{}') : {}; } catch { return {}; } }));
+  console.log(`\n${timesLine(measured)}`);
   process.exit(first || second);
 }

@@ -199,6 +199,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/podcasts/follows` | D | P8 | built | 1–100 shows followed or unfollowed; the newer wins |
 | `GET /v1/podcasts/follows` | D N | P8 | built | ?since=&cursor=; night: no titles, its last check |
 | `POST /v1/podcasts/follows/checked` | N | P8 | built | the shows the night read: ≤ 20, their newest episode |
+| `PUT /v1/podcasts/queue` | D | P8 | built | 1–100 Up Next items of one version or more; the newer wins |
+| `GET /v1/podcasts/queue` | D | P8 | built | ?since=&cursor=: Up Next rows changed since, oldest first |
+| `PUT /v1/podcasts/prefs` | D | P8 | built | the playback speed; the newer wins |
+| `GET /v1/podcasts/prefs` | D | P8 | built | ?since=: the speed if it changed since |
 | `GET /v1/push/key` | D | P8 | built | the VAPID public key; 503 until the key is set |
 | `PUT /v1/push/subscription` | D | P8 | built | this session's subscription |
 | `DELETE /v1/push/subscription` | D | P8 | built |  |
@@ -249,6 +253,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |
 | `PUT /v1/guitar/progress` | D | P6 | built | 1–50 songs, each ≤ 16,000 characters; the newer updated_at wins |
 | `GET /v1/guitar/progress` | D | P6 | built | ?since=&cursor=: what changed since, oldest first, ≤ 100 a page |
+| `PUT /v1/music/marks` | D | P5 | built | 1–200 songs' rating (the newer rated_at wins, kept in track_ratings) and plays (the larger kept) |
+| `GET /v1/music/marks` | D | P5 | built | ?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page |
+| `PUT /v1/music/playlists` | D | P5 | built | 1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days |
+| `GET /v1/music/playlists` | D | P5 | built | ?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page |
 
 ## Verbs
 

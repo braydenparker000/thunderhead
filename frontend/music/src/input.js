@@ -176,7 +176,7 @@ export function installInput(ctx, container) {
       a.timer = setTimeout(() => {
         a.longFired = v.onLongClick?.() ?? false;
         if (a.longFired) { clearTimeout(a.pressTimer); v.setPressed(false); }
-      }, LONG_PRESS_MS);
+      }, v.longPressMs ?? LONG_PRESS_MS);
     }
   });
   container.addEventListener('pointermove', e => {

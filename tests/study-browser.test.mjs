@@ -1,9 +1,11 @@
 // Study's page in Chromium (STUDY.md §3.1, §5, §6), against a mock API: the empty shelf; adding a
 // PDF (its title and cover read on the phone, the part sent, the upload completed, "Waiting to be
-// read"); the reader downloading the book once through the Worker and keeping it on the phone
-// (OPFS), the printed page numbers in the pill, "Go to page", the place saved, the book opened
-// again with the API unreachable, and removed from the phone; the search, its snippets as text
-// with marks; and a verse (the invented
+// read", its language asked, the picked file kept on the phone); the reader showing the book from
+// byte ranges while it is kept on the phone (OPFS) in the background, its cover drawn and "On this
+// phone" on the shelf, "Contents" as page pictures, the printed page numbers in the pill, "Go to
+// page", the place saved, the book opened again with the API unreachable, and removed from the
+// phone; the search, its snippets as text with marks, "More results"; a hit's words marked on its
+// page, "Back to p. N" and the place kept until the owner reads on; and a verse (the invented
 // table of tests/study/table.json): its card in the search, its page with the owner's copy, the
 // link out with no opener or referrer, "Cited in your books" and a highlight. No CSP or page errors.
 import { test, before, after } from 'node:test';
@@ -23,7 +25,7 @@ const opts = { skip: live && 'local only (mocked API)' };
 const TOKEN = `th1_${'C'.repeat(43)}abcdef`;
 const PDF = makePdf({ pages: 6, filler: 600_000 });
 let site, mock, browser, base, api;
-const state = { books: [], files: new Map(), downloads: 0, positions: [], parts: [], tables: [], down: false, senses: [] };
+const state = { books: [], files: new Map(), downloads: 0, served: 0, whole: 0, positions: [], parts: [], tables: [], down: false, senses: [], languages: [], cursors: [] };
 const TABLE = readFileSync(new URL('./study/table.json', import.meta.url), 'utf8');
 
 const book = (over) => ({
@@ -37,8 +39,8 @@ before(async () => {
     const cors = {
       'Access-Control-Allow-Origin': req.headers.origin ?? '',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, TH-Client, If-None-Match',
-      'Access-Control-Expose-Headers': 'ETag',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, TH-Client, If-None-Match, Range',
+      'Access-Control-Expose-Headers': 'ETag, Content-Range',
       Vary: 'Origin',
     };
     if (state.down) return res.destroy();
@@ -54,6 +56,7 @@ before(async () => {
     if (req.method === 'GET' && path === '/v1/library/books') return json(200, { items: state.books });
     if (req.method === 'POST' && path === '/v1/library/books') {
       const r = JSON.parse(body.toString());
+      state.languages.push(r.language);
       const b = book({ id: r.id, title: r.title, author: r.author, bytes: r.bytes, state: 'uploading', parts: [] });
       state.books.unshift(b);
       return json(201, { book: b, upload: { part_bytes: 50 * 1024 * 1024, parts: 1 } });
@@ -75,6 +78,17 @@ before(async () => {
       const f = state.files.get(m[1]);
       state.downloads++;
       if (!f) return json(404, { error: { code: 'not_found', message: 'x', request_id: '' } });
+      const want = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range ?? '');
+      if (want) {
+        const a = Number(want[1]);
+        const z = Math.min(f.length - 1, Number(want[2]));
+        state.served += z - a + 1;
+        return res
+          .writeHead(206, { ...cors, 'Content-Type': 'application/pdf', 'Content-Length': String(z - a + 1), 'Content-Range': `bytes ${a}-${z}/${f.length}` })
+          .end(Buffer.from(f.subarray(a, z + 1)));
+      }
+      state.whole++;
+      state.served += f.length;
       return res.writeHead(200, { ...cors, 'Content-Type': 'application/pdf', 'Content-Length': String(f.length) }).end(Buffer.from(f));
     }
     if ((m = /^\/v1\/library\/books\/([^/]+)$/.exec(path))) {
@@ -94,14 +108,18 @@ before(async () => {
       state.senses.push(...events);
       return json(200, { accepted: events.length, rejected: [] });
     }
-    if (path === '/v1/library/search')
+    if (path === '/v1/library/search') {
+      state.cursors.push(url.searchParams.get('cursor'));
+      if (url.searchParams.get('cursor') === 'o1')
+        return json(200, { items: [{ book_id: state.books[0]?.id, pdf_page: 5, page_label: '4', snippet: 'more <mark>morning</mark>', score: -0.5 }], next: null, not_ready: 1 });
       return json(200, {
         items: [
           { book_id: state.books[0]?.id, pdf_page: 3, page_label: '2', snippet: 'about the <mark>morning</mark> light &lt;img src=x onerror=alert(1)&gt;', score: -1 },
         ],
-        next: null,
+        next: url.searchParams.get('q') === 'morning' ? 'o1' : null,
         not_ready: 1,
       });
+    }
     if (path === '/v1/library/scripture') {
       state.tables.push(req.headers['if-none-match'] ?? null);
       if (req.headers['if-none-match'] === '"t1"') return res.writeHead(304, { ...cors, ETag: '"t1"' }).end();
@@ -170,7 +188,12 @@ test('the empty shelf, then a PDF added: title and cover from the file, the part
   const file = join(dir, 'Some_file_name.pdf');
   writeFileSync(file, PDF);
   await page.locator('input[type=file]').first().setInputFiles(file);
+  // Its language, the phone's (English here) first.
+  await page.getByRole('dialog', { name: 'What language is this book in?' }).waitFor();
+  assert.equal(await page.locator('.lang .btn').first().textContent(), 'English');
+  await page.getByRole('button', { name: 'Spanish' }).click();
   await page.getByText('Added. It will be read tonight.').waitFor({ timeout: 15_000 });
+  assert.deepEqual(state.languages, ['spa']);
   assert.equal(state.books[0].title, 'A Synthetic Commentary');
   assert.equal(state.books[0].author, 'Nobody');
   assert.deepEqual(state.parts.map((p) => [p[1], p[2], p[3]]), [[1, PDF.length, 'application/octet-stream']]);
@@ -178,23 +201,37 @@ test('the empty shelf, then a PDF added: title and cover from the file, the part
   await page.getByText('Waiting to be read').waitFor();
   // The cover was drawn on the phone from the first page.
   assert.match(await page.locator('.book .cover img').getAttribute('src'), /^data:image\/jpeg;base64,/);
+  // The phone that added it keeps the picked file: it never downloads the book.
+  assert.equal(await page.evaluate(async (id) => (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).getFileHandle(`${id}.pdf`)).getFile()).size, state.books[0].id), PDF.length);
+  assert.equal(state.served, 0);
   assert.deepEqual(errors, []);
   await context.close();
 });
 
-test('the reader: the book downloaded once and kept on the phone, printed page numbers, Go to page, the place saved, offline, removed', opts, async () => {
+test('the reader: shown from ranges and kept on the phone meanwhile, its cover, Contents, printed page numbers, Go to page, the place saved, offline, removed', opts, async () => {
   const b = state.books[0];
   Object.assign(b, { state: 'ready', pdf_pages: 6, read_pages: undefined });
-  const before = state.downloads;
+  const before = state.served;
   const { page, context, errors } = await open('/study/');
   await page.getByText('A Synthetic Commentary').first().click();
   await page.waitForURL(/\/study\/\?book=/);
   await page.waitForFunction(() => document.querySelectorAll('.pg canvas').length >= 3 && [...document.querySelectorAll('.pg canvas')].every((c) => c.width > 0));
   assert.equal(await page.locator('.pg').count(), 6);
   assert.equal(await page.locator('.pill').textContent(), 'p. i');
-  assert.equal(state.downloads - before, 1);
-  // Kept on the phone, whole.
-  assert.equal(await page.evaluate(async (id) => (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).getFileHandle(`${id}.pdf`)).getFile()).size, b.id), PDF.length);
+  // Kept on the phone, whole, in the background, by ranges only, the book's bytes at most twice.
+  const size = () =>
+    page.evaluate(async (id) => (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).getFileHandle(`${id}.pdf`)).getFile()).size, b.id).catch(() => 0);
+  await until(async () => (await size()) === PDF.length).catch(() => {});
+  assert.equal(await size(), PDF.length);
+  assert.equal(state.whole, 0);
+  assert.ok(state.served - before <= 2 * PDF.length, `served ${state.served - before} of ${PDF.length}`);
+  // "Contents": no outline in this book, so its pages as pictures; one goes to its page.
+  await page.locator('.rtop button[aria-label="Book menu"]').click();
+  await page.getByRole('menuitem', { name: 'Contents' }).click();
+  await page.getByRole('dialog', { name: 'Pages' }).waitFor();
+  assert.equal(await page.locator('.thumb').count(), 6);
+  await page.locator('.thumb').nth(3).click();
+  await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 3');
   // The text layer holds the page's words (selection and screen readers).
   await page.waitForFunction(() => document.querySelector('.pg .textLayer')?.textContent.includes('synthetic book'));
   // The canvas is drawn, not blank.
@@ -217,12 +254,20 @@ test('the reader: the book downloaded once and kept on the phone, printed page n
   // With the API unreachable, the kept book still opens, from the phone, at its place.
   state.down = true;
   try {
+    const had = state.served;
     await page.goto(`${base}/study/?book=${b.id}&p=3`);
     await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
-    assert.equal(state.downloads - before, 1);
+    assert.equal(state.served, had);
   } finally {
     state.down = false;
   }
+  // The shelf: its cover drawn on this phone at the first open, and marked kept here.
+  await page.goto(`${base}/study/`);
+  await page.locator('.book .bs.kept').waitFor();
+  assert.match(await page.locator('.book .cover img').getAttribute('src'), /^data:image\/jpeg;base64,/);
+  await page.locator('.book').first().click();
+  await page.waitForURL(/\/study\/\?book=/);
+  await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
   // Removed from the phone: the book stays in the library; the next open downloads it again.
   await page.locator('.rtop button[aria-label="Book menu"]').click();
   await page.getByRole('menuitem', { name: /Remove from this phone/ }).click();
@@ -277,9 +322,35 @@ test('opening again starts at the saved place; search shows snippets as text, gr
   assert.equal(await page.locator('.hit img').count(), 0);
   assert.equal(await page.locator('.hit small').textContent(), 'p. 2');
   await page.getByText("1 book is still being read and isn't searchable yet.").waitFor();
+  // More results: the next page of hits through the cursor.
+  await page.getByRole('button', { name: 'More results' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.hit').length === 2);
+  assert.deepEqual(state.cursors.slice(-1), ['o1']);
   await page.locator('.hit').first().click();
-  await page.waitForURL(/book=.*&p=3/);
+  await page.waitForURL(/book=.*&p=3&m=morning$/);
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('a hit opens with its words marked; Back to the place, which the jump never overwrites', opts, async () => {
+  const id = state.books[0].id;
+  const saved = state.positions.length;
+  const { page, context, errors } = await open(`/study/?book=${id}&p=5&m=morning`);
+  await page.waitForFunction(() => document.querySelector('.pill:not(.rback)')?.textContent === 'p. 4');
+  await page.waitForFunction(() => document.querySelector('.pg[data-n="5"] .textLayer mark.hitw')?.textContent === 'morning');
+  assert.equal(await page.locator('.rback').textContent(), 'Back to p. 2');
+  // Hidden while still on the hit's page: nothing saved as the place.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  });
+  await outlast(page, 2_500); // a negative read: the local place would be saved by now
+  assert.equal(state.positions.length, saved);
+  assert.equal(await page.evaluate(async (id) => (await import('/apps/study/data.js')).localPlace(id), id), undefined);
+  await page.locator('.rback').click();
+  await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2' && !document.querySelector('.rback'));
   assert.deepEqual(errors, []);
   await context.close();
 });

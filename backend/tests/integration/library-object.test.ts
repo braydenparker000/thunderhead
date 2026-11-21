@@ -1,6 +1,7 @@
 // P7 step 1: the Library object exists on its own (STUDY.md §1.1, DATA.md §6.3): it migrates to its
 // schema once, reports its health like the other objects, and holds its tables, empty, with the
-// pages' full-text index kept as an external-content FTS5 table over `pages`.
+// pages' full-text indexes (exact, and stemmed since step 4) kept as external-content FTS5 tables
+// over `pages`.
 
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
@@ -11,12 +12,12 @@ const library = () => env.LIBRARY.get(env.LIBRARY.idFromName('owner')) as unknow
 
 describe('the Library object', () => {
   it('migrates once to its schema and reports its health', async () => {
-    expect(await library().health()).toMatchObject({ schema: 3, expected: 3 });
+    expect(await library().health()).toMatchObject({ schema: 4, expected: 4 });
     const names = (type: string) =>
       runInDurableObject(library(), (_o, state) =>
         state.storage.sql
           .exec(
-            "SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'pages_fts_%' ORDER BY name",
+            "SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'pages_fts_%' AND name NOT LIKE 'pages_stem_%' ORDER BY name",
             type,
           )
           .toArray()
@@ -30,7 +31,9 @@ describe('the Library object', () => {
       'meter_days',
       'pages',
       'pages_fts',
+      'pages_stem',
       'positions',
+      'stem_fill',
       'verse_refs',
     ]);
     expect(await names('index')).toEqual([

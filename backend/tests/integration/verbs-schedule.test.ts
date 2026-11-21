@@ -84,7 +84,7 @@ describe('a scheduled Worker-side verb', () => {
     const put = (b: object) =>
       apiJson<Verb & { shifted?: boolean }>('PUT', `/v1/verbs/${id}`, {
         ...chat(),
-        body: { verb: 'settings.set', schema: 1, args: { key: 'briefing.due_days', value: 3 }, ...b },
+        body: { verb: 'settings.set', schema: 1, args: { key: 'mind.verbosity', value: 'full' }, ...b },
       });
     const r = await put(body);
     expect([r.status, r.body.fire_at]).toEqual([201, zonedMinute(day, 18 * 60, 'Asia/Tokyo')]);
@@ -113,16 +113,16 @@ describe('a scheduled phone intent', () => {
 describe('cancel', () => {
   it('takes one back before it runs (its undo until then); it never runs; once it ran, 409', async () => {
     const at = Date.now() + HOUR;
-    const r = await verb('settings.set', { key: 'briefing.holidays', value: 'GB' }, { fire_at: iso(at) });
+    const r = await verb('settings.set', { key: 'mind.day_start', value: '08:00' }, { fire_at: iso(at) });
     const c = await cancel(r.body.id);
     expect([c.status, c.body.status]).toEqual([200, 'cancelled']);
     expect((await cancel(r.body.id)).body.status).toBe('cancelled');
     await alarmAt(at);
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
     // The mind cancels its own, through the same route.
-    const mine = await verb('settings.set', { key: 'briefing.holidays', value: 'FR' }, { fire_at: iso(at) });
+    const mine = await verb('settings.set', { key: 'mind.day_start', value: '09:00' }, { fire_at: iso(at) });
     expect((await cancel(mine.body.id, chat())).body.status).toBe('cancelled');
-    const now = await verb('settings.set', { key: 'briefing.holidays', value: 'DE' });
+    const now = await verb('settings.set', { key: 'mind.day_start', value: '10:00' });
     expect([(await cancel(now.body.id)).status]).toEqual([409]);
     expect((await cancel('0192f0c4-0000-7000-8000-00000000ffff')).status).toBe(404);
   });
@@ -150,14 +150,22 @@ describe('the limits', () => {
     const ids: string[] = [];
     const waiting = (await scheduled()).length;
     for (let i = waiting; i < 20; i++) {
-      const r = await verb('settings.set', { key: 'briefing.due_days', value: 1 }, { fire_at: iso(Date.now() + DAY) });
+      const r = await verb(
+        'settings.set',
+        { key: 'mind.verbosity', value: 'short' },
+        { fire_at: iso(Date.now() + DAY) },
+      );
       expect(r.status).toBe(201);
       ids.push(r.body.id);
     }
-    const over = await verb('settings.set', { key: 'briefing.due_days', value: 1 }, { fire_at: iso(Date.now() + DAY) });
+    const over = await verb(
+      'settings.set',
+      { key: 'mind.verbosity', value: 'short' },
+      { fire_at: iso(Date.now() + DAY) },
+    );
     expect([over.status, over.body.error.code]).toEqual([429, 'too_many_scheduled']);
     // A verb at once is not counted.
-    expect((await verb('settings.set', { key: 'briefing.due_days', value: 7 })).body.status).toBe('done');
+    expect((await verb('settings.set', { key: 'mind.verbosity', value: 'full' })).body.status).toBe('done');
     for (const id of ids) await cancel(id);
   });
 });

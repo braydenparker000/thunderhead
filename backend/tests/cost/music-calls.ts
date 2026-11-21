@@ -4,9 +4,10 @@
 // packed 500 to a row; the packs' one-off rebuild (after a restore, when they are missing) is
 // measured too. Notes, tags and the untagged page are read by key, so their rows follow the call's
 // size, not the catalog's. In the Senses object, find reads the early skips by the (day, type)
-// index; in Core, the current rules. The phone's ratings go to Music as one row each (two for a 1,
-// with its index), and its one-time catch-up of the songs rated 1 goes 100 a batch. Songs' tags
-// served to a mind session taint it in Core and record a night reader in Music, once a session.
+// index; in Core, the current rules. The phone's ratings go to Music as two rows each (three for a 1,
+// with its indexes), and its one-time catch-up of the songs rated 1 goes 100 a batch. Songs' tags
+// served to a mind session taint it in Core and record a night reader in Music, once a session. Last,
+// the phone's marks and playlists (music-sync-calls.ts).
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
@@ -16,6 +17,7 @@ import { sensesObject } from '../../src/objects/senses';
 import { api, apiJson, coreSql, core as coreStub, PASSWORD } from '../helpers';
 import { brief } from '../memory-helpers';
 import { music, note, seedCatalog } from '../music-helpers';
+import { musicSyncCalls } from './music-sync-calls';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
 
@@ -185,4 +187,6 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     200,
     core,
   );
+  // The owner's marks and playlists on every phone (music-sync-calls.ts).
+  await musicSyncCalls(cost, d.token, m);
 }

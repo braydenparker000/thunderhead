@@ -1135,6 +1135,7 @@ export class ListWidget extends FastLayout {
       enter = {kind: 'zoom', R: back ? ZOOM.list.leave : ZOOM.list.enter};
     }
     const trans = new ListTransition(this.ctx, {
+      name: 'list:level',
       render: p => {
         this.pageMorph(ghost, p, leave);
         this.pageMorph(this.libList, 1 - p, enter);
@@ -1585,6 +1586,7 @@ export class ListWidget extends FastLayout {
     };
     const sub = this.substyle;
     const trans = new ListTransition(this.ctx, {
+      name: `page:${fromPage}>${toPage}`,
       render,
       scene: drag && nav ? this.ctx.topNav?.sceneFor(nav) : null,
       commitTime: sub.int('pageManualCommitAnimTime', 250) / 1000,
@@ -1891,6 +1893,7 @@ export class ListWidget extends FastLayout {
     const leaveR = zoomIn ? ZOOM.list.leave : ZOOM.list.enter, enterR = zoomIn ? ZOOM.list.enter : ZOOM.list.leave;
     const pause = this.substyle.int('pageManualCancelAnimTime', 500) / 1000;
     const trans = new ListTransition(this.ctx, {
+      name: 'list:zoom',
       commitTime: pause, cancelTime: pause,
       render: p => {
         this.pageFx('list', ghost, p, leaveR, null);

@@ -85,11 +85,11 @@ describe('a plan', () => {
 
   it('checks every step first: one bad step, and nothing runs', async () => {
     const r = await plan([
-      step('settings.set', { key: 'briefing.holidays', value: 'GB' }),
+      step('settings.set', { key: 'mind.day_start', value: '08:00' }),
       step('music.queue', { refs: ['not a song'], at: 'end' }),
     ]);
     expect([r.status, r.body.error.details]).toEqual([422, [expect.objectContaining({ path: 'steps.1.args.refs.0' })]]);
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
     expect((await plan([step('app.open', { app: 'music', path: '/music/' }), step('settings.set', {})])).status).toBe(
       422,
     );
@@ -98,7 +98,7 @@ describe('a plan', () => {
 
   it('a step that fails takes the steps before it back with it, and the answer names it', async () => {
     const r = await plan([
-      step('settings.set', { key: 'briefing.holidays', value: 'GB' }),
+      step('settings.set', { key: 'mind.day_start', value: '08:00' }),
       step('briefing.pin_tile', { tile: 'holidays' }),
       step('settings.set', { key: 'mind.permit.music', value: 'quiet' }),
     ]);
@@ -107,7 +107,7 @@ describe('a plan', () => {
       'forbidden',
       expect.objectContaining({ step: 3, verb: 'settings.set' }),
     ]);
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
     expect((await settings())['briefing.pins']).toEqual(['due']);
     expect((await ledger('plan')).length).toBe(1);
   });
@@ -115,15 +115,15 @@ describe('a plan', () => {
   it('its undo reverses the steps last first, takes back intents no app took, and is once', async () => {
     // Two writes of one setting: only last-first puts each back while it holds what it wrote.
     const r = await plan([
-      step('settings.set', { key: 'briefing.due_days', value: 7 }),
+      step('settings.set', { key: 'mind.verbosity', value: 'full' }),
       step('podcasts.follow', { feed_url: FEED, title: 'An invented show' }),
-      step('settings.set', { key: 'briefing.due_days', value: 1 }),
+      step('settings.set', { key: 'mind.verbosity', value: 'short' }),
     ]);
     expect(r.body.status, JSON.stringify(r.body)).toBe('done');
-    expect((await settings())['briefing.due_days']).toBe(1);
+    expect((await settings())['mind.verbosity']).toBe('short');
     const u = await undo(r.body.ledger_id);
     expect([u.status, u.body.status]).toEqual([200, 'undone']);
-    expect((await settings())['briefing.due_days']).toBeUndefined();
+    expect((await settings())['mind.verbosity']).toBeUndefined();
     expect((await intents('podcasts')).some((v) => v.plan_id === r.body.id)).toBe(false);
     expect(await ledgerRow(r.body.ledger_id)).toMatchObject({ status: 'undone' });
     expect((await undo(r.body.ledger_id)).body.error.code).toBe('already_undone');
@@ -207,7 +207,7 @@ describe('a scheduled plan', () => {
   it('waits as one scheduled row and runs at its time, its row naming when it was queued', async () => {
     const at = Date.now() + HOUR;
     const r = await plan(
-      [step('settings.set', { key: 'briefing.holidays', value: 'FR' }), step('briefing.unpin_tile', { tile: 'due' })],
+      [step('settings.set', { key: 'mind.day_start', value: '09:00' }), step('briefing.unpin_tile', { tile: 'due' })],
       { fire_at: fire(at), what: 'Tidy the Briefing.' },
     );
     expect([r.status, r.body.status, r.body.fire_at, r.body.ledger_id, r.body.shifted]).toEqual([
@@ -219,13 +219,13 @@ describe('a scheduled plan', () => {
     ]);
     const waiting = (await apiJson<ScheduledResponse>('GET', '/v1/verbs/scheduled', { token: P.D })).body.items;
     expect(waiting.find((v) => v.id === r.body.id)?.verb).toBe('plan.run');
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
     await alarmAt(at);
-    expect((await settings())['briefing.holidays']).toBe('FR');
+    expect((await settings())['mind.day_start']).toBe('09:00');
     const row = (await ledger('plan')).find((x) => x.what === 'Tidy the Briefing.');
     expect(row?.why).toMatch(/\(queued \d{4}-\d\d-\d\d \d\d:\d\d\)$/);
     expect((await undo(row?.id ?? null)).body.status).toBe('undone');
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
   });
 
   it('never with a now-only step; one whose step fails when it runs is failed, naming it', async () => {
@@ -236,14 +236,14 @@ describe('a scheduled plan', () => {
     ).toBe(422);
     const r = await plan(
       [
-        step('settings.set', { key: 'briefing.holidays', value: 'GB' }),
+        step('settings.set', { key: 'mind.day_start', value: '08:00' }),
         step('settings.set', { key: 'no.such', value: 1 }),
       ],
       { fire_at: fire(at), what: 'A plan that cannot work.' },
     );
     expect(r.body.status).toBe('scheduled');
     await alarmAt(at);
-    expect((await settings())['briefing.holidays']).toBeUndefined();
+    expect((await settings())['mind.day_start']).toBeUndefined();
     const row = (await ledger('plan')).find((x) => x.what.startsWith('A plan that cannot work.'));
     expect(row).toMatchObject({
       status: 'failed',

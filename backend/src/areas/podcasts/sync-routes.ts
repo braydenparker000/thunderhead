@@ -1,6 +1,6 @@
-// /v1/podcasts/progress and /v1/podcasts/follows (NEXT-BATCH.md part 7, API.md §11.25): the phone
-// sends the positions and follows it changed, 1–100 at a time (the newer `updated_at` wins), and
-// asks what changed since it last asked (`?since=`, then `cursor` while there is more), oldest
+// /v1/podcasts/progress, /follows, /queue and /prefs (NEXT-BATCH.md part 7, API.md §11.25): the phone
+// sends the positions, follows, Up Next items and speed it changed (queue.ts: a version of Up Next),
+// 1–100 at a time (the newer `updated_at` wins), and asks what changed since it last asked (`?since=`, then `cursor` while there is more), oldest
 // first. A PUT's items are checked one by one: one that can't be taken (malformed, or its
 // `updated_at` more than an hour ahead of the Worker's clock) is reported by its place in
 // `refused` and the rest are kept. The night reads the follows as show ids with its last check of each
@@ -13,11 +13,14 @@ import * as z from 'zod/mini';
 import {
   feedProblem,
   PODCAST_LIMITS as L,
+  PODCAST_SPEEDS,
   type PodcastCheckedRequest,
   type PodcastFollow,
   type PodcastNightFollowRow,
   type PodcastPage,
+  type PodcastPref,
   type PodcastProgress,
+  type PodcastQueueItem,
   type PodcastSyncResponse,
   progressKeyProblem,
 } from '../../../../shared/contract/podcasts.ts';
@@ -60,6 +63,38 @@ const followItem = z.strictObject({
   followed: z.boolean(),
   updated_at: ms,
 }) satisfies z.ZodMiniType<PodcastFollow>;
+
+const episodeOf = (e: unknown) => e as PodcastQueueItem['episode'];
+/** An Up Next item: a member carries its episode (its `id` and `show.feedUrl` the key's, at most
+ * `episode_chars` of JSON), a removal none. */
+const queueItem = z
+  .strictObject({
+    key: progressItem.shape.key,
+    pos: z.number().check(z.int(), z.gte(0), z.lt(L.queue_max)),
+    queued: z.boolean(),
+    episode: z.nullable(z.record(z.string(), z.unknown())),
+    base: z.number().check(z.int(), z.gte(0), z.lte(Number.MAX_SAFE_INTEGER)),
+    updated_at: ms,
+  })
+  .check(
+    z.refine((q) => {
+      const e = episodeOf(q.episode);
+      if (!q.queued) return e === null;
+      const cut = q.key.lastIndexOf('#');
+      return (
+        e !== null &&
+        e.id === q.key.slice(cut + 1) &&
+        e.show?.feedUrl === q.key.slice(0, cut) &&
+        JSON.stringify(e).length <= L.episode_chars
+      );
+    }, 'a member carries its own episode (≤ episode_chars), a removal none'),
+  ) as unknown as z.ZodMiniType<PodcastQueueItem>;
+
+const prefItem = z.strictObject({
+  name: z.literal('speed'),
+  value: z.union(PODCAST_SPEEDS.map((v) => z.literal(v))),
+  updated_at: ms,
+}) satisfies z.ZodMiniType<PodcastPref>;
 
 /** The items the Worker can take, and the rest by their place with why (the first issue only; never
  * the value). */
@@ -153,6 +188,22 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
       fails: f.fails,
     }));
     return c.json({ items, next_since: p.at, next: null } satisfies PodcastPage<PodcastNightFollowRow>);
+  })
+  .put('/podcasts/queue', guard('PUT /v1/podcasts/queue'), async (c) => {
+    const { ok, refused } = sorted((await json(c, batchBody)).items, queueItem, Date.now());
+    return c.json(value(await fresh(coreObject(c.env).putPodcastQueue(ok, refused))));
+  })
+  .get('/podcasts/queue', guard('GET /v1/podcasts/queue'), async (c) => {
+    const { after, limit } = startOf('podcasts/queue', c.req.query());
+    return c.json(pageOut('podcasts/queue', await fresh(coreObject(c.env).podcastQueue(after, limit))));
+  })
+  .put('/podcasts/prefs', guard('PUT /v1/podcasts/prefs'), async (c) => {
+    const { ok, refused } = sorted((await json(c, batchBody)).items, prefItem, Date.now());
+    return c.json(value(await fresh(coreObject(c.env).putPodcastPrefs(ok, refused))));
+  })
+  .get('/podcasts/prefs', guard('GET /v1/podcasts/prefs'), async (c) => {
+    const { after, limit } = startOf('podcasts/prefs', c.req.query());
+    return c.json(pageOut('podcasts/prefs', await fresh(coreObject(c.env).podcastPrefs(after, limit))));
   })
   .post('/podcasts/follows/checked', guard('POST /v1/podcasts/follows/checked'), async (c) => {
     const r = await json(c, checkedBody);

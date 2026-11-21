@@ -36,12 +36,12 @@ describe('deep health', () => {
       expect(body).toEqual({
         ok: true,
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
-        schema: { core: 48, auth: 4, music: 5, senses: 3, library: 3 },
+        schema: { core: 49, auth: 4, music: 6, senses: 3, library: 4 },
         objects: {
           core: {
             ok: true,
-            schema: 48,
-            expected: 48,
+            schema: 49,
+            expected: 49,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -56,8 +56,8 @@ describe('deep health', () => {
           },
           music: {
             ok: true,
-            schema: 5,
-            expected: 5,
+            schema: 6,
+            expected: 6,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -72,8 +72,8 @@ describe('deep health', () => {
           },
           library: {
             ok: true,
-            schema: 3,
-            expected: 3,
+            schema: 4,
+            expected: 4,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -184,5 +184,19 @@ describe('settings, perf and meter', () => {
     const m = await apiJson<MeterResponse>('GET', '/v1/ops/meter?days=7', { token: ci });
     expect(m.body.items.map((i) => i.class).sort()).toEqual(['auth', 'core', 'library', 'music', 'senses']);
     expect((await api('GET', '/v1/ops/meter?days=31', { token: ci })).status).toBe(422);
+  });
+});
+
+describe('error reports switched off', () => {
+  it('keeps nothing from a phone while Settings › Privacy › Error reports is off, and takes them again once on', async () => {
+    const count = async () =>
+      (await coreSql<{ n: number }>("SELECT count(*) AS n FROM errors WHERE code = 'off_test'"))[0].n;
+    const send = () => api('POST', '/v1/ops/errors', { token: owner, body: { items: [report({ code: 'off_test' })] } });
+    expect((await api('PATCH', '/v1/settings', { token: owner, body: { 'privacy.errors': false } })).status).toBe(200);
+    expect((await send()).status).toBe(204);
+    expect(await count()).toBe(0);
+    expect((await api('PATCH', '/v1/settings', { token: owner, body: { 'privacy.errors': true } })).status).toBe(200);
+    expect((await send()).status).toBe(204);
+    expect(await count()).toBe(1);
   });
 });

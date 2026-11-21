@@ -78,7 +78,16 @@ code, a number, an emoji or a link takes no initial.
   opens the strip in place to the whole question in EB Garamond and the card's why, odds and "if
   ignored" in Geist Mono; a second tap, or an answer, closes it. The strip steps aside only while the
   owner types (the bar's field has the focus) or the + sheet is open, not for a kept draft. The ask
-  bar is a glass pill with round keys; the send key is orange.
+  bar is a glass pill with round keys; the send key is orange. Its words wrap and the bar grows with
+  them up to four lines, then they scroll inside it, the + and send keys at its foot (the owner,
+  2026-11-21: "the ask bar text doesn't wrap"; until then it was one line that ran on to the left).
+  The docked decision, closed or opened, and the working card stand 8 px over the bar at every
+  height, and the conversation ends above them (the owner: "the pop up window literally appears
+  under the ask bar"). A hold opens the ring also on the day's picture and its verse (which is held,
+  not selected), on the header line but its rec switch (also over a message scrolled up under it),
+  in the conversation's outer 16 px each side and in the gaps between messages; a hold on a
+  message's text still selects it and on a button still presses it (`look/home-hold.js`, through
+  home's `th:hold` ask).
 - **The island.** A black capsule in a glass rim: the artwork of what plays (the owner, 2026-11-20:
   "The island photo should show the content that's being played"), the title and a dot meter.
   Expanded: the artwork with the title beside it and the times at its foot, a dot progress meter, kit

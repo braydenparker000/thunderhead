@@ -28,6 +28,7 @@
 <script type="module" src="/apps/home/boot.js"></script>
 <script type="module" src="/apps/home/prewarm.js"></script>
 <script type="module" src="/apps/home/prefs.js"></script>
+<script type="module" src="/apps/home/heard.js"></script>
 <script type="module" src="/th/island/warm.js"></script>
 </head>
 <body>
@@ -45,7 +46,7 @@
     <div class="hint" id="hint"><i></i>Hold for apps · swipe for more</div>
   </div>
 
-  <div class="opts" id="opts" role="menu" aria-label="Add">
+  <div class="opts" id="opts" role="menu" aria-label="Add" inert>
     <button type="button" role="menuitem" style="--i:1;--c:#8b5cf6" data-act="camera" data-toast="Camera comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#camera"/></svg></span>Camera</button><button type="button" role="menuitem" style="--i:2;--c:#2f7df6" data-act="photos" data-toast="Photos comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#image"/></svg></span>Photos</button><button type="button" role="menuitem" style="--i:3;--c:#14a39a" data-act="files" data-toast="Files comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#file-text"/></svg></span>Files</button><button type="button" role="menuitem" style="--i:4;--c:#e0457b" data-act="memo" data-toast="Voice memo comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#waveform"/></svg></span>Voice memo</button><button type="button" role="menuitem" style="--i:5;--c:#e08a1e" data-act="remind" data-toast="Remind me comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#alarm"/></svg></span>Remind me</button><button type="button" role="menuitem" style="--i:6;--c:#64748b" data-act="otr" data-toast="Off the record comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#eye-slash"/></svg></span>Off the record</button>
   </div>
   <form class="ask" id="ask" autocomplete="off">
@@ -59,7 +60,7 @@
   </main>
 
   <section class="page brief" id="brief" aria-label="Briefing">
-    <div class="bhead" id="bdate">Briefing</div>
+    <div class="bhead" id="bdate" role="heading" aria-level="1" tabindex="-1">Briefing</div>
     <div class="voice btitle"><span class="ln">Here's your day.</span></div>
     <div class="grid">
       <div class="tile wide">
@@ -76,7 +77,7 @@
     <div class="field" aria-hidden="true"></div>
     <div class="grain" aria-hidden="true"></div>
     <div class="sidescroll" id="sidescroll">
-      <h2 class="sidetitle">Conversations</h2>
+      <h2 class="sidetitle" tabindex="-1">Conversations</h2>
       <p class="sidelead">A fresh one starts on its own each morning. Nothing to start or name.</p>
       <button class="row cur" id="now" type="button" data-toast="This is the current conversation"><span class="live" aria-hidden="true"></span><span class="t">Now</span><small></small></button>
       <div id="convos"></div>
@@ -91,6 +92,7 @@
   <div class="scrim" id="scrim"></div>
   <div class="press" id="press"></div>
   <div class="ring" id="ring" aria-hidden="true"><div class="hub" id="hub"></div><div class="lbl" id="lbl"></div></div>
+  <div class="sr" id="ringsay" aria-live="polite"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
 </body>

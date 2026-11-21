@@ -23,7 +23,8 @@ import { page, type Row } from '../areas/backups/rows';
 import { candidatesOf } from '../areas/library/cite';
 import * as ops from '../areas/library/ops';
 import { placeOf } from '../areas/library/place';
-import { search } from '../areas/library/search';
+import { searchBooks } from '../areas/library/search';
+import { fill as fillStems } from '../areas/library/stems';
 import * as store from '../areas/library/store';
 import * as vectors from '../areas/library/vectors';
 import * as verses from '../areas/library/verses';
@@ -161,14 +162,8 @@ export class Library extends OwnerObject {
     return store.highlightsOf(this.db, bookId);
   }
 
-  search(match: string, bookId: string | null, limit: number, offset: number): LibrarySearchResponse {
-    const items = search(this.db, match, bookId, limit + 1, offset);
-    const more = items.length > limit;
-    return {
-      items: items.slice(0, limit),
-      next: more ? `o${offset + limit}` : null,
-      not_ready: store.notReady(this.db),
-    };
+  search(q: string, bookId: string | null, limit: number, cursor: string | null): LibrarySearchResponse {
+    return searchBooks(this.db, q, bookId, limit, cursor);
   }
 
   /** A book's stored page text from `from` on, for the mind; null when there's no such book. */
@@ -258,8 +253,12 @@ export class Library extends OwnerObject {
 
   /** Core's tick: uploads unfinished after a day are aborted and their record removed (it never
    * held a file), lapsed claims and paused runs wait again, deleted highlights go after 30 days,
-   * finished runs after 90. */
-  async daily(now = Date.now()): Promise<{ aborted: number; released: number; purged: number }> {
+   * finished runs after 90; and while the rows guard allows (`held` false), a chunk of the stemmed
+   * index's backfill (areas/library/stems.ts). */
+  async daily(
+    now = Date.now(),
+    held = false,
+  ): Promise<{ aborted: number; released: number; purged: number; stemmed: number }> {
     let aborted = 0;
     for (const b of store.staleUploads(this.db, now - L.upload_ms)) {
       if (b.upload_id)
@@ -275,7 +274,7 @@ export class Library extends OwnerObject {
       const purged =
         store.purgeHighlights(this.db, now - L.deleted_highlight_days * DAY, STEP) +
         store.pruneJobs(this.db, now - L.ingest_days * DAY, STEP);
-      return { released, purged };
+      return { released, purged, stemmed: held ? 0 : fillStems(this.db) };
     });
     if (!out.ok) throw new Error(out.code);
     return { aborted, ...out.value };

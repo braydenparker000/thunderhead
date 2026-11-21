@@ -46,7 +46,7 @@ export async function startChat() {
   const talk = document.createElement('div');
   talk.id = 'talk';
   talk.className = 'turns talk';
-  talk.setAttribute('aria-live', 'polite');
+  // Not a live region: only a new reply is said, through the view's own line (view.js).
   $('#turns').after(talk);
 
   const state = {

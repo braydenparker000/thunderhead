@@ -147,6 +147,8 @@ export interface LibrarySearchResponse {
   next: string | null;
   /** Books not ready yet, so not searched. */
   not_ready: number;
+  /** No page had every word, so these have some of them (and `next` keeps to that). */
+  any?: true;
 }
 
 /** POST /v1/library/ingest/claim: the oldest waiting book, leased for an hour. */

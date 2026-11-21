@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { timing } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (invented add-on and pictures)', timeout: 120_000 };
@@ -90,13 +91,25 @@ async function open({ hero = false } = {}) {
       return { shown, op, src: img ? img.currentSrc || img.src : '', whole: !!img && img.complete && img.naturalWidth > 0, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
         fading: !!img && img.getAnimations().some((a) => a.animationName === 'img-in' && a.playState === 'running') };
     };
-    window.__flight = { card: null, key: '', dest: '.screen.details .details-poster', samples: [], on: false };
+    // At rest, on the page's own frames: no flying copy, no finite animation running on the clock (scroll-linked
+    // parallax is not on it), and the move's end reached
+    // (Details built from its full details; home with no screen; the Library tab shown).
+    const still = () => !document.querySelector('body > [aria-hidden="true"][style*="fixed"]')
+      && document.getAnimations().every((a) => a.playState !== 'running' || a.timeline !== document.timeline || a.effect?.getComputedTiming().endTime === Infinity);
+    const rests = {
+      open: () => { const top = window.astra.stack.at(-1)?.screen; return still() && top?.el.matches('.screen.details') && top.meta && !top.loading && !!document.querySelector(window.__flight.dest); },
+      back: () => still() && !document.querySelector('.screen-layer'),
+      tab: () => still() && !!document.querySelector('.tab-view[data-tab=library]:not(.off)'),
+    };
+    window.__flight = { card: null, key: '', dest: '.screen.details .details-poster', samples: [], on: false, armed: false, rest: 'open', calm: 0 };
     const loop = () => {
       const f = window.__flight;
       if (f.on) {
         const copy = [...document.querySelectorAll('body > [aria-hidden="true"][style*="fixed"]')].at(-1) || null;
         const card = f.card?.isConnected ? f.card : f.key ? document.querySelector(`.tab-view:not(.off) [data-item="${f.key}"] .poster-art`) : null;
         f.samples.push({ t: Math.round(performance.now()), card: state(card, true), copy: state(copy), details: state([...document.querySelectorAll(f.dest)].at(-1)) });
+        // Sampling ends ten frames after the move is at rest (frames, not milliseconds: a slow runner samples as far).
+        if (f.armed && rests[f.rest]()) { if (++f.calm >= 10) f.on = false; } else f.calm = 0;
       }
       requestAnimationFrame(loop);
     };
@@ -105,13 +118,26 @@ async function open({ hero = false } = {}) {
   return { context, page, cdp, errors };
 }
 
-/** Samples every frame while `act` runs and for `ms` after. */
-async function sampled(page, act, ms = 1300) {
-  await page.evaluate(() => { window.__flight.samples = []; window.__flight.on = true; });
+/** Samples every frame while `act` runs and on until the move is at rest (`rest`: open, back or tab), then ten frames more. */
+async function sampled(page, act, rest = 'back') {
+  await page.evaluate((rest) => Object.assign(window.__flight, { samples: [], on: true, armed: false, rest, calm: 0 }), rest);
   await act();
-  await page.waitForTimeout(ms);
-  return page.evaluate(() => { window.__flight.on = false; return window.__flight.samples; });
+  await page.evaluate(() => { window.__flight.armed = true; });
+  await page.waitForFunction(() => !window.__flight.on, null, { timeout: 60_000 });
+  return page.evaluate(() => window.__flight.samples);
 }
+/** The first flying copy appended to the page, seen in the page as it is added; `then` runs there at once. */
+const onFirstCopy = async (page, then) => {
+  await page.evaluate(`window.__onCopy = ${then}`);
+  await page.evaluate(() => {
+    const ob = new MutationObserver((list) => {
+      if (!list.some((m) => [...m.addedNodes].some((n) => n.matches?.('[aria-hidden="true"][style*="fixed"]')))) return;
+      ob.disconnect();
+      window.__onCopy();
+    });
+    ob.observe(document.body, { childList: true });
+  });
+};
 const watch = (page, sel, dest) => page.evaluate(([sel, dest]) => {
   const el = document.querySelector(sel);
   Object.assign(window.__flight, { card: el, key: el.closest('[data-item]')?.dataset.item || '', ...(dest ? { dest } : {}) });
@@ -120,7 +146,9 @@ const watch = (page, sel, dest) => page.evaluate(([sel, dest]) => {
 
 // At every frame one of the pictures is painted whole and opaque, and every painted one shows `src`.
 function assertAlwaysPictured(samples, src, label) {
-  assert.ok(samples.length > 20, `${label}: ${samples.length} frames sampled`);
+  // Sampled from the act until ten frames after rest; how many frames that is depends on the runner.
+  assert.ok(samples.length >= 10, `${label}: ${samples.length} frames sampled`);
+  timing(samples.length > 20, `${label}: ${samples.length} frames sampled`);
   for (const s of samples) {
     const painted = ['card', 'copy', 'details'].filter((k) => s[k]?.shown && s[k].whole && s[k].op > 0.98);
     assert.ok(painted.length, `${label} at ${s.t}: no picture on screen ${JSON.stringify(s)}`);
@@ -144,7 +172,7 @@ test('a poster flies into Details and home again with its own picture on screen 
   const card = '.tab-view[data-tab=home] .rows .row .poster-card:nth-child(2) .poster-art';
   const src = await watch(page, card);
   for (const round of ['first', 'again']) {
-    const opened = await sampled(page, () => tap(page, cdp, card), 1800);
+    const opened = await sampled(page, () => tap(page, cdp, card), 'open');
     assertAlwaysPictured(opened, src, `open (${round})`);
     assert.ok(opened.some((s) => s.copy?.shown && s.copy.op > 0.98), 'the poster flies');
     // The full details name another poster file: it is never shown, then or after.
@@ -166,13 +194,13 @@ test('a poster flies into Details and home again with its own picture on screen 
   // picture (the copy, then Details'), and Back finds the card by its title. (The redrawn card is a new element
   // under the flight; what is checked here is the picture that flies.)
   await page.evaluate(() => { window.__flight.card = null; window.__flight.key = ''; });
-  const redrawn = await sampled(page, async () => {
-    await tap(page, cdp, card);
-    await page.waitForTimeout(120);
-    await redrawRow();
-  }, 1800);
+  // The row is redrawn under the flight: in the page, as the flying copy is added.
+  await onFirstCopy(page, () => { const home = window.astra.screens.home, slot = home.rows.querySelector('.row'); slot.signature = null; const it = slot.entry.items; [it[0], it[1]] = [it[1], it[0]]; home.renderRow(slot, slot.entry); window.__redrawnUnder = true; });
+  const redrawn = await sampled(page, () => tap(page, cdp, card), 'open');
+  assert.equal(await page.evaluate(() => window.__redrawnUnder), true, 'the row was redrawn under the flight');
   const flown = redrawn.filter((s) => s.copy?.op > 0.98 || (s.details?.shown && s.details.op > 0.98));
-  assert.ok(flown.length > 20 && flown.at(-1).details?.shown, 'it flies and lands');
+  assert.ok(flown.length && flown.some((s) => s.copy?.op > 0.98) && flown.at(-1).details?.shown, 'it flies and lands');
+  timing(flown.length > 20, `${flown.length} frames of the flight sampled`);
   assertAlwaysPictured(flown, src, 'open with the row redrawn');
   await page.evaluate(() => { window.__flight.key = 'movie:tt0000710'; });
   const home = await sampled(page, () => page.evaluate(() => window.astra.back()));
@@ -185,15 +213,19 @@ test('a poster flies into Details and home again with its own picture on screen 
   await page.evaluate(() => window.astra.openTitle(window.astra.screens.home.previewItems().find((m) => m.id === 'tt0000770')));
   await page.waitForFunction((s) => document.querySelector('.screen.details .details-poster img')?.complete && document.querySelector(s).complete, offscreen, { timeout: 10_000 });
   await page.evaluate(() => window.astra.back());
-  await page.waitForTimeout(800);
-  assert.equal(await page.locator(offscreen).evaluate((i) => i.complete && i.naturalWidth > 0), true, 'seen once, the card off screen has its picture');
+  await page.waitForFunction(() => !document.querySelector('.screen-layer'));
+  await page.waitForFunction((s) => { const i = document.querySelector(s); return i.complete && i.naturalWidth > 0; }, offscreen, { timeout: 10_000 })
+    .catch(() => assert.fail('seen once, the card off screen has its picture'));
   // Library redrawn under Details (a library change): Back flies home to the redrawn card, its art opaque at once.
   noStore = false;
   await page.evaluate(() => { for (const m of window.astra.screens.home.previewItems().slice(0, 3)) window.astra.library.toggle(m); window.astra.selectTab('library', true); });
-  await page.waitForTimeout(1500);
   const lib = '.tab-view[data-tab=library] .poster-card[data-item="movie:tt0000710"] .poster-art';
+  await page.waitForSelector(lib);
+  // The tab shown and at rest: its card's picture arrived from the slow host and its arrival fade over.
+  await page.waitForFunction((lib) => { const i = document.querySelector(lib + ' img'); return i?.complete && i.naturalWidth > 0; }, lib, { timeout: 10_000 });
+  await page.waitForFunction(() => !document.querySelector('.screen-layer') && document.getAnimations().every((a) => a.playState !== 'running' || a.timeline !== document.timeline || a.effect?.getComputedTiming().endTime === Infinity));
   const libSrc = await watch(page, lib);
-  assertAlwaysPictured(await sampled(page, () => tap(page, cdp, lib), 1800), libSrc, 'open from Library');
+  assertAlwaysPictured(await sampled(page, () => tap(page, cdp, lib), 'open'), libSrc, 'open from Library');
   await page.evaluate(() => window.astra.library.toggle(window.astra.screens.home.previewItems()[5]));
   await page.waitForTimeout(300);
   // (wherever the redraw put the card, it is brought on screen: Back to a card off screen is a drop by design)
@@ -204,7 +236,7 @@ test('a poster flies into Details and home again with its own picture on screen 
   // A tab left and returned to: its art is shown at once, never faded in again.
   await page.evaluate(() => window.astra.selectTab('home', true));
   await page.waitForTimeout(400);
-  const tab = await sampled(page, () => page.evaluate(() => window.astra.selectTab('library', true)), 600);
+  const tab = await sampled(page, () => page.evaluate(() => window.astra.selectTab('library', true)), 'tab');
   assert.ok(tab.every((s) => !s.card?.shown || (s.card.whole && !s.card.fading)), 'Library shows its art at once');
   assert.deepEqual(errors, []);
   await context.close();
@@ -218,11 +250,12 @@ test('a second title opened as the first flies, and a hero turning at the tap, f
   await page.waitForTimeout(300);
   const srcA = await watch(page, a), srcB = await page.locator(b + ' img').evaluate((i) => i.currentSrc);
   const at = await page.locator(b).evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  const both = await sampled(page, async () => {
-    await tap(page, cdp, a);
-    await page.waitForTimeout(150);
-    await page.evaluate((s) => { const art = document.querySelector(s), m = window.astra.screens.home.previewItems()[0]; window.astra.push(new window.astra.screenTypes.details(window.astra, m, { from: art })); }, b);
-  }, 1800);
+  // The second title is opened in the page on the first frame of the first one's flight.
+  await onFirstCopy(page, () => requestAnimationFrame(() => {
+    const art = document.querySelector('.tab-view[data-tab=home] .rows .row .poster-card:nth-child(1) .poster-art'), m = window.astra.screens.home.previewItems()[0];
+    window.astra.push(new window.astra.screenTypes.details(window.astra, m, { from: art }));
+  }));
+  const both = await sampled(page, () => tap(page, cdp, a), 'open');
   const firstB = both.find((s) => s.copy?.shown && s.copy.op > 0.98 && s.copy.src === srcB);
   assert.ok(firstB, 'the second title flies');
   assert.ok(Math.hypot(firstB.copy.x - at.x, firstB.copy.y - at.y) < 24, `it starts on its own card, not from the first one's copy (${JSON.stringify(firstB.copy)}, card at ${JSON.stringify(at)})`);
@@ -239,7 +272,7 @@ test('a second title opened as the first flies, and a hero turning at the tap, f
     const c = window.astra.screens.home.carousel;
     c.go(1);
     c.slides[0].querySelector('.hero-cta').click();
-  }), 1500);
+  }), 'open');
   assert.ok(turned.some((s) => s.copy?.shown), 'the backdrop flies');
   for (const s of turned) if (s.copy?.shown && s.copy.op > 0.5) assert.equal(s.copy.src, heroSrc, "the tapped slide's picture flies, not the next one's");
   assert.equal(turned.at(-1).details?.src, heroSrc);

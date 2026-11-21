@@ -95,6 +95,8 @@ const WORKSHOP_PART = /^\/v1\/workshop\/[^/]+\/parts\/[^/]+$/;
 // The owner's Astra copy (areas/astra/backup.ts, which counts it again): the larger limit only for a save; any
 // other method on the path keeps the small one.
 const astraSave = bodyLimit({ maxSize: ASTRA_BACKUP.max_bytes, onError: tooLarge });
+// Music's playlists (areas/music/sync-routes.ts, which checks each record's length again).
+const musicPlaylists = bodyLimit({ maxSize: 512 * 1024, onError: tooLarge });
 const astraCopy: typeof small = (c, next) => (c.req.method === 'PUT' ? astraSave : small)(c, next);
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
@@ -125,7 +127,9 @@ const limitFor = (path: string) =>
                             ? workshopPart
                             : path === '/v1/astra/backup'
                               ? astraCopy
-                              : small;
+                              : path === '/v1/music/playlists'
+                                ? musicPlaylists
+                                : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {

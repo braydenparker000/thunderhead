@@ -55,6 +55,7 @@ All times are integer ms UTC (`*_at`); `day` is the owner-local date. snake_case
 | `books` | `id`, title, author, kind (`book\|manual\|other`), language, bytes, pdf_pages, sha256, r2_key, state, state_reason, added_at, ingested_at, duplicate_of, kept_hint | `state` per §3.2. `title`/`author` editable by the owner. |
 | `pages` | `rowid`, book_id, pdf_page, page_label, text, blocks_json, ocr (0/1), ocr_conf, chars | UNIQUE(book_id, pdf_page). `blocks_json` = `[[start,end],…]` character offsets into `text`. |
 | `pages_fts` | FTS5 over `pages.text`, `content='pages'`, `content_rowid='rowid'`, `tokenize='unicode61 remove_diacritics 2'` | One row per page. |
+| `pages_stem` (step 4) | The same over `pages.text` with `tokenize='porter unicode61 remove_diacritics 2'`: word forms ("prayers" finds "prayed") | Searched first once it holds every page. Pages stored before step 4 go in by `stem_fill` (`after`, `until`): 1000 a daily pass, none while the rows guard holds (`areas/library/stems.ts`). |
 | `verse_refs` | (`book_code`, `chapter`, `v_start`, `v_end`, `book_id`, `pdf_page`, `block`) | Index (book_code, chapter). Also `weight` (§7.5) and `in_heading` (0/1). |
 | `highlights` | `id` (UUIDv7), book_id, pdf_page, quote, prefix, suffix, rects_json, color, note, ref (verse ref or NULL), created_at, updated_at, deleted_at | A page note is a highlight with empty `quote` and NULL `rects_json`. |
 | `positions` | (`book_id`) WITHOUT ROWID, pdf_page, scroll_frac, at, device | Last place per book; the latest `at` wins. |
@@ -113,7 +114,8 @@ Check: a unit test in `backend/` round-trips every ref form through the shared r
 |---|---|---|
 | Start | Book menu → **Keep on this phone**. | Browser test. |
 | Space check | If `navigator.storage.estimate()` shows free quota below `2 × bytes`, refuse: "Not enough space on this phone (needs 2× the book's size)." | Unit test with a stubbed estimate. |
-| Download | One full GET (no Range) streamed into `OPFS study/<book_id>.pdf.part`, then renamed to `.pdf`. Progress shown as a ring on the book cover (percent of `bytes`). | Browser test. |
+| Download | The reader opens with byte ranges (`GET /v1/library/books/:id/file` with `Range`, 206; `areas/library/file.ts`) and shows page 1 as soon as its ranges are in, while the whole file is fetched in 8 MiB ranges in the background into `OPFS study/<book_id>.parts/`, then joined into `study/<book_id>.pdf`. A dropped download goes on from the ranges it has, at the next open or when the phone is online again. The screen stays on (wake lock) while it runs. | Browser test. |
+| Uploader | The phone that added a book keeps the picked file as its copy once the upload completes; it never downloads it. The screen stays on while the upload runs. | Browser test. |
 | Verify | sha256 of the file must equal `books.sha256`; on mismatch delete the file and show "The copy didn't match. Try again." | Unit test with a corrupted file. |
 | Persistence | Call `navigator.storage.persist()` on the first kept book. | Browser test reads `persisted()`. |
 | Open | A kept book opens from `URL.createObjectURL(await handle.getFile())`; no network at all. | Offline browser test. |
@@ -138,6 +140,9 @@ Check: a unit test in `backend/` round-trips every ref form through the shared r
   the record is removed (it never held data, so no proposal is needed).
 - Title and author start from the PDF metadata (`/Title`, `/Author`), else the file name without
   `.pdf`. The owner can edit both in the book menu.
+- Language: before the upload a sheet asks "What language is this book in?" (**English** /
+  **Spanish**), the phone's own language first; it is sent as `language` (`eng` or `spa`) and OCR
+  reads the book's scans in it.
 
 Check: an API test uploads a 120 MB synthetic PDF in three parts, kills the second part once, resumes,
 and the stored object's sha256 equals the source.
@@ -182,7 +187,7 @@ Steps, per book:
    thresholds]**.
 5. **OCR:** render the page at 300 dpi with `pypdfium2` (Apache-2.0/BSD-3), recognise with Tesseract
    (Apache-2.0) through `pytesseract` (Apache-2.0), `--psm 3`, language from `books.language`
-   (default `eng`). Store mean word confidence as `ocr_conf`.
+   (`eng` or `spa`, default `eng`; `study_extract.py --lang`; `study-setup.sh` installs both). Store mean word confidence as `ocr_conf`.
    - **Not ocrmypdf:** it depends on Ghostscript (AGPL). The plan's tool list is replaced
      **[proposal; contradicts plan §16.9's tool list, not decisions]**.
    - Not PyMuPDF (AGPL).
@@ -229,11 +234,11 @@ Check: fixture PDFs with (a) real `/PageLabels`, (b) printed numbers only with r
 
 | Screen | Contents |
 |---|---|
-| **Library** (Study's start) | Header: "Study" + **Add a book** + search field. Section **Continue** (the last 3 books opened, with "p. 212" and a thin progress line). Section **All books**: covers (first page rendered at 160 px wide, cached in IndexedDB) sorted by last opened, then title. Empty state: "Your books will live here. Add a PDF to start." |
+| **Library** (Study's start) | Header: "Study" + **Add a book** + search field. Section **Continue** (the last 3 books opened, with "p. 212" and a thin progress line). Section **All books**: covers (first page rendered at 160 px wide, cached in IndexedDB; drawn on whichever phone first adds or opens the book) sorted by last opened, then title; a book kept on this phone reads "On this phone". Empty state: "Your books will live here. Add a PDF to start." |
 | **Reader** | Full-screen pages, continuous vertical scroll. Top bar (hides after 3 s without touch, returns on tap): back, title, **Search in book**, menu. Bottom: page pill "p. 212" (tap → Go to page). |
 | **Verse** | §7.6. |
 | **Search** | §6. |
-| **Book menu** | Keep on this phone / Remove from this phone, Go to page, Highlights and notes, Edit title and author, Details, Delete book… |
+| **Book menu** | Contents (the PDF's own outline, each entry going to its page; without one, the pages as small pictures ten at a time: `outline.js`), Keep on this phone / Remove from this phone, Go to page, Highlights and notes, Edit title and author, Details, Delete book… |
 
 Route: `/study/` (library), `/study/?book=<book_id>&p=<pdf_page>`, `/study/?verse=<book_code>/<ch>/<v>`,
 `/study/?q=` (built as queries: the storage website has no rewrites; decisions 2026-10-30). The `p` query is the only position in the address; nothing else (never a URL).
@@ -244,8 +249,12 @@ Route: `/study/` (library), `/study/?book=<book_id>&p=<pdf_page>`, `/study/?vers
 |---|---|
 | Library cover | `positions.pdf_page` and `scroll_frac`; page 1 if never opened |
 | A citation `book:<id>#p230.b3` | Page 230; block 3 gets a soft accent wash that fades over 2 s (respects reduced motion: no fade, wash stays until the first scroll) |
-| Search result | That page; matched words marked until the first scroll |
+| Search result | That page; the words the search matched there (`&m=`, from the hit's snippet) marked in its text layer (`marks.js`) |
 | Verb `study.open` (§9.2) | The ref's page |
+
+After a jump to a search result or a citation, a second pill **Back to p. 212** (the owner's saved
+place) stands for 30 s; the jump is never saved as the place, on the phone or the Worker, until the
+owner reads on to another page.
 
 Check: Playwright opens each entry point on a fixture book and asserts the visible page number and the
 wash element.
@@ -254,7 +263,8 @@ wash element.
 
 - Pinch zoom 1×–4×; double-tap toggles fit-width ↔ 2×. Pages render at device pixel ratio up to 2
   (A15 budget, [PERFORMANCE](../../engineering/PERFORMANCE.md)); at most 5 page canvases alive at once
-  (current ±2); others are released.
+  (current ±2); others are released. 300 ms after a pinch settles, the pages alive are drawn again at
+  the pinch's scale (the visual viewport's), each canvas capped at 6 million pixels.
 - Text layer on every rendered page so selection and screen readers work.
 - Day and night theme: night shows pages with an inverted, warm-tinted filter **[proposal]**; a menu
   toggle "Original page colours" turns it off per book.
@@ -294,10 +304,10 @@ wash element.
 | Behavior | Exact rule | Check |
 |---|---|---|
 | Where | Library header field (all books) and **Search in book** (one book). | Browser test. |
-| Engine | FTS5 over `pages_fts`, `bm25()` ranking, `snippet(pages_fts, 0, '<mark>', '</mark>', '…', 12)`. | Store test. |
-| Query | Words are ANDed; `"quoted phrases"` are phrases; a trailing `*` is a prefix; FTS syntax characters typed by the owner are escaped. Accents are ignored. | Store tests with fixture pages. |
+| Engine | FTS5 over `pages_stem` (Porter stems, accents removed) once its backfill is done, until then `pages_fts`; `bm25()` ranking, `snippet(…, 0, '<mark>', '</mark>', '…', 12)` (`areas/library/search.ts`). | `library-search.test.ts`. |
+| Query | Words are ANDed; when no page has them all, they are ORed and the response says `any: true` (the results read "No page has every word. These have some of them."); `"quoted phrases"` are phrases; a trailing `*` is a prefix; FTS syntax characters typed by the owner are escaped. Accents are ignored. | Store tests with fixture pages. |
 | Debounce | 250 ms after typing stops; at least 2 characters. | Browser test. |
-| Results | Grouped by book (books ordered by best hit), up to 5 hits per book with "Show all N"; max 50 hits per request (`limit`, cursor for more). Each hit: snippet, "p. 212". | API test. |
+| Results | Grouped by book (books ordered by best hit), up to 5 hits per book with "Show all N"; max 50 hits per request (`limit`); the cursor (`o<offset>` all words, `r<offset>` any word) brings the next 50 under **More results**. Each hit: snippet, "p. 212"; opening it marks the matched words on that page. | API test. |
 | Verse in the query | If the parser finds a reference, a **Verse** card appears first (§7.6) and the text search still runs. | Browser test with "Book A 3:12 light". |
 | Books not `ready` | Not searched; a line under the results: "1 book is still being read and isn't searchable yet." | Browser test. |
 | Offline | Search covers only books kept on the phone, using pdf.js's own text layer search over the OPFS copy (slower; shows "Searching your kept books only (offline)"). | Offline browser test. |
@@ -595,9 +605,9 @@ a day crossing the 04:00 roll).
    heading is a block's short first line, at most 80 characters with no closing stop). The verse page
    (§7.6, without step 6's Ask) and the search's verse card are built; `tests/study-private.test.mjs`
    fails on any real table, link template or verse text in the checkout. Owner step: SETUP.md O2.
-5. Highlights and notes, offline copies. **Built:** the reader reads only this phone's copy: the
-   first open downloads the whole PDF through the Worker (with its progress) into OPFS `study/`, and
-   every open after is instant and works offline; **Remove from this phone** in the book menu; signing
+5. Highlights and notes, offline copies. **Built:** the reader reads this phone's copy; the first
+   open shows page 1 from byte ranges through the Worker while the whole PDF is kept in OPFS
+   `study/` in the background (§2.3, 2026-11-21), and every open after is instant and works offline; **Remove from this phone** in the book menu; signing
    out deletes the folder. The 256 KB signed ranges are gone (with SETUP.md O1 and Study's need for
    N1). Parked in [IDEAS](../../archive/IDEAS.md), not built: the highlight and note editor in the
    reader (§5.4; the Worker's highlight routes are built) and the wash on the cited block itself (the

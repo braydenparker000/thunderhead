@@ -161,10 +161,11 @@ export abstract class MusicMind extends MusicPacks {
   }
 
   /** The owner's ratings from the phone's `music.rate` senses (the senses route): the newest of each
-   * song is kept for good, so "not for me" doesn't fade with the senses' 90 days. */
+   * song is kept for good, so "not for me" doesn't fade with the senses' 90 days. A sense's time is
+   * the phone's clock, so it never beats a rating the phones synced (store-notes.ts putRating). */
   putRatings(list: { id: string; rating: number; at: number }[]): number {
     const n = this.ctx.storage.transactionSync(() =>
-      list.reduce((w, r) => w + notes.putRating(this.db, r.id, r.rating, r.at), 0),
+      list.reduce((w, r) => w + notes.putRating(this.db, r.id, r.rating, r.at, null), 0),
     );
     if (n) this.ruledOut = null;
     return n;

@@ -135,8 +135,17 @@ export function sentence(f: Forecast, now: number, tz: string): string {
   return first === 0 ? `${kind} until ${hhmm(end, tz)}.${clears}` : `${kind}${from} to ${hhmm(end, tz)}.${clears}`;
 }
 
-/** The tile as the page shows it now; with no place, the one that asks for it. */
-export function weatherTile(place: Place | null, f: Forecast | null, now: number, tz: string): WeatherTile {
+/** The tile as the page shows it now; with no place, the one that asks for it. `units`: the owner's
+ * `briefing.units` (Settings › Briefing). Open-Meteo answers in °C and the kept forecast stays so; with
+ * `f` every temperature is converted before it is rounded and the one now reads "75°F". */
+export function weatherTile(
+  place: Place | null,
+  f: Forecast | null,
+  now: number,
+  tz: string,
+  units: unknown = 'c',
+): WeatherTile {
+  const deg = units === 'f' ? (c: number) => Math.round((c * 9) / 5 + 32) : Math.round;
   if (!place)
     return { place: null, temp: null, detail: 'Set a place for the weather', as_of: null, hours: [], tomorrow: null };
   if (!f || now - f.at > 12 * HOUR)
@@ -151,13 +160,13 @@ export function weatherTile(place: Place | null, f: Forecast | null, now: number
   const tomorrow = f.days.find((d) => ownerDay(d.at + 12 * HOUR, tz) === ownerDay(now + 24 * HOUR, tz));
   return {
     place: place.name,
-    temp: `${Math.round(f.current)}°`,
+    temp: `${deg(f.current)}°${units === 'f' ? 'F' : ''}`,
     detail: now - f.at > 3 * HOUR ? `as of ${hhmm(f.at, tz)}` : sentence(f, now, tz),
     as_of: f.at,
     hours: f.hours
       .filter((x) => x.at + HOUR > now)
       .slice(0, 12)
-      .map((x) => ({ at: x.at, temp: Math.round(x.temp), rain: Math.round(x.rain) })),
-    tomorrow: tomorrow ? { high: Math.round(tomorrow.high), low: Math.round(tomorrow.low) } : null,
+      .map((x) => ({ at: x.at, temp: deg(x.temp), rain: Math.round(x.rain) })),
+    tomorrow: tomorrow ? { high: deg(tomorrow.high), low: deg(tomorrow.low) } : null,
   };
 }

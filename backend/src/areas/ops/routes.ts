@@ -116,6 +116,11 @@ export const opsRoutes = new Hono<AppEnv>()
     bodyLimit({ maxSize: 32 * 1024, onError: tooLarge }),
     async (c) => {
       const { items } = await json(c, errorsBody);
+      // Settings › Privacy › Error reports (`privacy.errors`) off: a phone's reports are taken and kept
+      // nowhere (the phone sends none then; this holds one that has not heard yet).
+      const p = principalOf(c);
+      if (p.kind === 'device' && (await coreObject(c.env).settings())['privacy.errors'] === false)
+        return c.body(null, 204);
       await coreObject(c.env).reportErrors(items);
       return c.body(null, 204);
     },

@@ -6,7 +6,8 @@
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
 // tools (areas/music/writer.ts), one operation at a time. The owner's listening history (schema step 5,
 // MUSIC.md §16) is its code layer music-taste.ts; what the mind reads and writes here (the tags, its
-// notes about each song, songs by feeling) is the layers above it, music-packs.ts and music-mind.ts.
+// notes about each song, songs by feeling) is the layers above it, music-packs.ts and music-mind.ts;
+// the owner's marks and playlists on every phone (schema step 6) are music-sync.ts.
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
@@ -15,10 +16,11 @@ import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
 import { NOTES_SQL, NOTES_TABLES } from '../areas/music/notes-sql';
 import * as store from '../areas/music/store';
 import { lowerCursor } from '../areas/music/store-notes';
+import { SYNC_SQL, SYNC_TABLES } from '../areas/music/sync-sql';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
-import { MusicMind } from './music-mind';
+import { MusicSync } from './music-sync';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -63,10 +65,12 @@ export const MUSIC_MIGRATIONS: Migration[] = [
   { version: 4, name: 'track_notes', kind: 'expand', sql: NOTES_SQL },
   // The owner's listening history (MUSIC.md §16): areas/music/history-store.ts.
   { version: 5, name: 'listens', kind: 'expand', sql: HISTORY_SQL },
+  // The owner's marks and playlists on every phone (MUSIC.md §1.4): areas/music/sync-sql.ts.
+  { version: 6, name: 'music_sync', kind: 'expand', sql: SYNC_SQL },
 ];
 
-/** Every catalog table, the listening pass's, the mind's notes and ratings and the listening history,
- * in the backup and the export (DATA.md §10); `meter_days` (counts), the derived `find_packs` and
+/** Every catalog table, the listening pass's, the mind's notes and ratings, the listening history and
+ * the owner's plays and playlists, in the backup and the export (DATA.md §10); `meter_days` (counts), the derived `find_packs` and
  * ListenBrainz's `similar_artists` (fetched again) stay out of both. */
 export const MUSIC_TABLES = [
   'tracks',
@@ -75,6 +79,7 @@ export const MUSIC_TABLES = [
   ...LISTEN_TABLES,
   ...NOTES_TABLES,
   ...HISTORY_TABLES.filter((t) => t !== 'similar_artists'),
+  ...SYNC_TABLES,
 ] as const;
 
 /** The one instance: the owner's library. */
@@ -101,7 +106,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends MusicMind {
+export class Music extends MusicSync {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */
@@ -175,14 +180,17 @@ export class Music extends MusicMind {
   }
 
   /** The whole catalog without waveforms, in the old published file's shape (`r2-library`, the
-   * ported player's format): each track's record as the old catalog kept it, `waveformBars` on
-   * the ones with a waveform to fetch. */
+   * ported player's format): each track's record as the old catalog kept it, `waveformBars` and
+   * `waveformAt` (the row's last change) on the ones with a waveform to fetch. */
   catalog(): { etag: string; text: string } {
     const v = store.version(this.db);
     const etag = store.etagOf(v);
     if (this.built?.etag === etag) return this.built;
     const rows = store.catalogRows(this.db);
-    const tracks = rows.map((r) => (r.w ? `${r.record_json.slice(0, -1)},"waveformBars":true}` : r.record_json));
+    // `waveformAt`: the row's last change, so a phone fetches a waveform registered again.
+    const tracks = rows.map((r) =>
+      r.w ? `${r.record_json.slice(0, -1)},"waveformBars":true,"waveformAt":${r.u}}` : r.record_json,
+    );
     const head = { version: 1, kind: 'r2-library', complete: true, count: rows.length };
     const generatedAt = new Date(v.changed_at).toISOString();
     const text = `${JSON.stringify({ ...head, generatedAt }).slice(0, -1)},"tracks":[${tracks.join(',')}]}`;

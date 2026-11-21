@@ -64,4 +64,12 @@ describe('weather', () => {
       tomorrow: null,
     });
   });
+
+  it('°F (Settings › Briefing › Units): every temperature converted before rounding, the one now labelled', () => {
+    const place = { name: 'Testville', lat: 1.23, lon: 4.56 };
+    const t = weatherTile(place, forecast(), at(30, 10), 'UTC', 'f');
+    expect([t.temp, t.hours[0].temp, t.tomorrow]).toEqual(['71°F', 59, { high: 74, low: 51 }]);
+    expect(weatherTile(place, forecast(), at(30, 10), 'UTC', 'c').temp).toBe('21°');
+    expect(weatherTile(place, forecast({}, at(29, 20)), at(30, 10), 'UTC', 'f').temp).toBeNull();
+  });
 });

@@ -183,7 +183,7 @@ export abstract class CoreBase extends OwnerObject {
   }
 
   /** What a push waits on (BEHAVIOR.md §3.4): the owner's zone and quiet hours, whether a phone shows
-   * Thunderhead, and when the owner last wrote. */
+   * Thunderhead, when the owner last wrote, and their `mind.pushes`. */
   pushContext(): PushContext {
     const now = Date.now();
     const last = this.db.one<{ at: number }>(
@@ -196,6 +196,7 @@ export abstract class CoreBase extends OwnerObject {
       quiet_until: quietUntil(this.db, now),
       looking: this.hub.looking(now),
       owner_at: last?.at ?? null,
+      pushes: String(settings.getSetting(this.db, 'mind.pushes') ?? 'normal'),
     };
   }
 

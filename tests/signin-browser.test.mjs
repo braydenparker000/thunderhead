@@ -106,17 +106,17 @@ test('too many tries count down 3, 2, 1, then Sign in, disabled throughout', opt
   const { page } = await open('/signin/', { mock: { login: () => [429, { error: { code: 'rate_limited', message: 'x', request_id: 't', retry_after: 3, scope: 'source' } }] } });
   await page.fill('#username', 'example-owner');
   await page.fill('#current-password', 'some password');
+  // Every change to the button is logged in the page as it happens (a MutationObserver), not polled from outside.
+  await page.$eval('#go', b => {
+    window.__goLog = [];
+    new MutationObserver(() => window.__goLog.push([b.textContent, b.disabled])).observe(b, { childList: true, characterData: true, subtree: true, attributes: true });
+  });
   await page.click('#go');
-  const seen = [];
-  const t0 = Date.now();
-  while (Date.now() - t0 < 15_000) {
-    const [text, disabled] = await page.$eval('#go', b => [b.textContent, b.disabled]);
-    if (seen.at(-1)?.[0] !== text) seen.push([text, disabled]);
-    if (text === 'Sign in') break;
-    await page.waitForTimeout(100);
-  }
+  await page.waitForFunction(() => window.__goLog.some(s => s[0].startsWith('Try')) && window.__goLog.at(-1)[0] === 'Sign in', null, { timeout: 15_000 });
+  const log = await page.evaluate(() => window.__goLog);
+  const seen = log.filter((s, i) => i === 0 || log[i - 1][0] !== s[0]);
   assert.deepEqual(seen.map(s => s[0]).filter(t => t !== 'Signing in…'), ['Try again in 3 s', 'Try again in 2 s', 'Try again in 1 s', 'Sign in']);
-  assert.ok(seen.filter(s => s[0].startsWith('Try')).every(s => s[1]), 'disabled while counting');
+  assert.ok(log.filter(s => s[0].startsWith('Try')).every(s => s[1]), 'disabled while counting');
   assert.equal(await page.textContent('#line'), 'Too many tries from here. Wait a moment.');
   assert.equal(await page.textContent('#sr'), 'You can try again now.');
   await page.close();

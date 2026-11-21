@@ -1,13 +1,13 @@
 // Settings → Account: change password (SIGN-IN.md §9.1, also /settings/password/ for the
 // browser's change-password link) and signing out this device. The hidden username lets the
-// password manager update the right entry.
+// password manager update the right entry. Bringing data from the old site is under Privacy and data.
 import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { store } from '/th/session.js';
 import { el, wireShowButtons } from '/th/ui.js';
 import { signOutAsking } from './settings.js';
-import { group, icon, row, switchRow } from './components.js';
+import { group, row, switchRow } from './components.js';
 
 /** @param {HTMLElement} body */
 export async function account(body) {
@@ -34,9 +34,8 @@ export async function account(body) {
   ]);
   const out = row({ title: 'Sign out of this device', icon: 'devices' });
   out.addEventListener('click', () => signOutAsking());
-  // MIGRATION.md §5.3: the phone's app data from the old site's /export/ page.
-  const bring = el('a', { class: 'row', href: '/import/' }, [icon('download-simple'), el('span', { class: 'row-copy' }, [el('span', { class: 'row-title', text: 'Bring data from the old site' })])]);
-  body.replaceChildren(form, group('This phone', [bring, out]));
+  out.dataset.find = 'sign-out';
+  body.replaceChildren(form, group('This phone', [out]));
   wireShowButtons(form);
 
   form.addEventListener('submit', async (e) => {

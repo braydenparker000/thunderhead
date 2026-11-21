@@ -291,7 +291,8 @@ export class PlaybackLog {
   }
 
   async copy(summary) {
-    const text = JSON.stringify(this.snapshot(), null, 1);
+    // Movement and layout (ui/feel-log.js) under its own heading; never in the batches sent to the Worker.
+    const text = JSON.stringify({...this.snapshot(), movement: this.ctx.feelLog?.report() ?? null}, null, 1);
     try { await navigator.clipboard.writeText(text); if (summary) summary.textContent = `Copied (${Math.round(text.length / 1024)} KB)`; } catch { if (summary) summary.textContent = 'Clipboard unavailable'; }
   }
 }

@@ -8,7 +8,11 @@
 // pause and through "go quiet", but never inside quiet hours. The day's quota push (database use
 // past 80% of the day's budget, areas/meter) is a system alarm and goes as a sign-in notice does:
 // outside the budget, through "go quiet", held only by quiet hours, and dropped at 00:00 UTC when
-// the quota starts again. Pure: the context comes from Core, the rows from Auth.
+// the quota starts again. The owner's `mind.pushes` (Settings › Notifications) holds the mind's nudges
+// too: Never takes none and sends none still waiting; Urgent only takes one only when the owner asked
+// to be told (its `asked_by`, an owner's message the route has checked); Normal is all of the above.
+// Reminders, sign-in notices, the quota push and tests are not the mind's and go whatever it says.
+// Pure: the context comes from Core, the rows from Auth.
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { DAY, HOUR, MINUTE, ownerDay, zonedMinute } from '../../lib/time';
 import { inQuiet, type QuietWindow } from '../settings/quiet';
@@ -35,6 +39,8 @@ export interface PushContext {
   /** The day's quota push, from 80% (its id is `quota-<UTC day>`, so it is held once a day). Absent
    * below 80%, and from a Core before the meter. */
   quota?: QuotaPush;
+  /** The owner's `mind.pushes`: 'never', 'urgent' or 'normal' (absent or anything else: normal). */
+  pushes?: string;
 }
 
 /** The day's quota push: its words, when Core offered it, and its deadline (00:00 UTC). */
@@ -64,8 +70,9 @@ export interface NudgeHistory {
 /** The start of the owner's day around `now`. */
 export const dayStart = (ctx: PushContext) => zonedMinute(ownerDay(ctx.now, ctx.tz), 0, ctx.tz);
 
-/** Why a new nudge is refused now, or null. */
-export function refusal(ctx: PushContext, h: NudgeHistory): ErrorCode | null {
+/** Why a new nudge is refused now, or null. `asked`: the owner asked to be told (Urgent only lets it by). */
+export function refusal(ctx: PushContext, h: NudgeHistory, asked = false): ErrorCode | null {
+  if (ctx.pushes === 'never' || (ctx.pushes === 'urgent' && !asked)) return 'push_budget';
   if (ctx.quiet_until > ctx.now) return 'quiet';
   if (inQuiet(ctx.now, ctx.tz, ctx.quiet)) return 'quiet_hours';
   if (h.today >= PER_DAY) return 'push_budget';
@@ -79,6 +86,7 @@ export function mayGo(kind: string, ctx: PushContext): boolean {
   if (kind === 'test') return true;
   if (inQuiet(ctx.now, ctx.tz, ctx.quiet)) return false;
   if (kind !== 'nudge') return true;
+  if (ctx.pushes === 'never') return false;
   return (
     ctx.quiet_until <= ctx.now && !ctx.looking && (ctx.owner_at === null || ctx.now - ctx.owner_at >= OWNER_PAUSE_MS)
   );

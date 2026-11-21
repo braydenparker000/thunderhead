@@ -12,7 +12,11 @@ on:
         type: string
         default: ''
       lab:
-        description: "Test's lab scope (scripts/lab-scope.mjs): empty = every suite; else the test files of a lab-only change"
+        description: "Test's narrowed scope (scripts/test-scope.mjs): empty = every suite; else the test files to run"
+        type: string
+        default: ''
+      scope:
+        description: "What `lab` is the scope of: lab, docs, backend or mind (ignored when `lab` is empty)"
         type: string
         default: ''
       files:
@@ -53,17 +57,33 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
+      # npm's cache is kept by the lockfile, Playwright's browser by Playwright's version: each part fetched both every run.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           package-manager-cache: false
-      # A lab-only change (TESTING.md §1, "Lab changes"): the site's parts run the lab's tests between them, the Worker's passes.
-      - if: ${{ (inputs.lab == '' && inputs.files != 'slow') || matrix.part != 'worker' }}
+          cache: ${{ (((inputs.lab == '' || inputs.scope == 'backend') && inputs.files != 'slow') || matrix.part != 'worker') && 'npm' || '' }}
+          cache-dependency-path: package-lock.json
+      # A narrowed change (TESTING.md §2, "Scopes"): the site's parts run its tests between them; the Worker's runs only
+      # for every suite or a Worker change. Docs, Worker and mind scopes hold no browser test, so need no browser or font.
+      - if: ${{ ((inputs.lab == '' || inputs.scope == 'backend') && inputs.files != 'slow') || matrix.part != 'worker' }}
         run: npm ci --ignore-scripts
-      - if: ${{ matrix.part != 'worker' }}
+      - id: browser
+        if: ${{ matrix.part != 'worker' && (inputs.lab == '' || inputs.scope == 'lab') }}
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright-core'].version")" >> "$GITHUB_OUTPUT"
+      - id: browser-cache
+        if: ${{ steps.browser.outcome == 'success' }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.browser.outputs.version }}-chromium-headless-shell
+      - if: ${{ steps.browser.outcome == 'success' && steps.browser-cache.outputs.cache-hit != 'true' }}
         run: npx playwright install --with-deps --only-shell chromium
+      # The cache holds the browser, not the system's libraries it needs: those are still installed.
+      - if: ${{ steps.browser.outcome == 'success' && steps.browser-cache.outputs.cache-hit == 'true' }}
+        run: npx playwright install-deps chromium
       # Switzer is fetched, not kept here (its licence forbids a public repository; scripts/fonts.mjs).
-      - if: ${{ matrix.part != 'worker' }}
+      - if: ${{ steps.browser.outcome == 'success' }}
         run: node scripts/fonts.mjs
       # Local checks only: the live checks run after a deploy, against what went live.
       - name: Test
@@ -73,15 +93,26 @@ jobs:
           WORKER_URL: ''
           DRIVE_CONFIG_JSON: ''
           LAB: ${{ inputs.lab }}
+          SCOPE: ${{ inputs.scope }}
           FILES: ${{ inputs.files }}
         run: |
           kind=(); if [[ "$FILES" == quick || "$FILES" == slow ]]; then kind=("--$FILES"); fi
           if [[ "$FILES" == slow && "$PART" == worker ]]; then echo "the Worker's suite has no software-GPU tests"; exit 0; fi
           if [[ -n "$LAB" ]]; then
-            if [[ "$PART" == worker ]]; then echo "lab-only change: the Worker's suite is not run"; exit 0; fi
-            # part 1: the types, the contract and the page budgets as preflight checks them. Then the lab's tests,
-            # dealt over the five parts as the whole suite is (one part could not hold the editor's in its time)
-            if [[ "$PART" == 'site 1/5' && "$FILES" != slow ]]; then npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; fi
+            if [[ "$PART" == worker && "$SCOPE" == backend ]]; then npm run test:backend; exit; fi
+            if [[ "$PART" == worker ]]; then echo "$SCOPE change: the Worker's suite is not run"; exit 0; fi
+            # part 1: the checks a scope's files feed. A lab change: the types, the contract and the page budgets as
+            # preflight checks them. The Worker and the contract: the types and the contract's copies. Docs and the mind:
+            # the contract's copies (docs/engineering/CONTRACT.md and mind/cli/contract.json are among them). `|| exit 1`:
+            # bash's -e does not stop at a failure inside an && list, so without it a failed type check went on to the tests.
+            if [[ "$PART" == 'site 1/5' && "$FILES" != slow ]]; then
+              case "$SCOPE" in
+                backend) { npx tsc && node scripts/contract.mjs --check; } || exit 1 ;;
+                docs|mind) node scripts/contract.mjs --check || exit 1 ;;
+                *) { npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"; } || exit 1 ;;
+              esac
+            fi
+            # then the scope's tests, dealt over the five parts as the whole suite is (one part could not hold the editor's in its time)
             read -ra files <<< "$LAB"
             part="${PART#site }"
             node scripts/test-part.mjs "${part%/*}" "${part#*/}" "${kind[@]}" --only "${files[@]}"

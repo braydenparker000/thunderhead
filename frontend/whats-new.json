@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-21-ceiling-round",
+  "id": "2026-11-21-last-round",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "Back now closes the Briefing, the menu, Settings or a sheet, one at a time; it no longer leaves the app."
+      "text": "The ask bar wraps up to four lines, decisions sit above it, and a hold opens the ring in more places."
     },
     {
-      "text": "Podcasts keeps the newest place across phones, and Guitar's progress is saved to your account."
+      "text": "Settings is grouped under headings with one Notifications page, and its search finds Theme, Text size and Sign out."
     },
     {
-      "text": "A decision in the strip opens on a tap to show its reason. Updates no longer interrupt a voice memo."
+      "text": "Music's ratings, likes, playlists and play counts, and Podcasts' Up Next and speed, now follow you to every phone."
     },
     {
-      "text": "Signing out now clears Podcasts and Guitar from the phone; your account keeps them."
+      "text": "Study opens page 1 before the book finishes downloading; its search finds word forms and reads Spanish."
     }
   ]
 }

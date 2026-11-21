@@ -62,6 +62,8 @@ export function r2Tracks(data, url = R2_LIBRARY_URL) {
       rec.waveUrl = base + 'waveform/' + t.id;
       // Loudness bins (scripts/audio/waveform.py) or the older peak bars.
       if (t.waveformKind === 'rms') rec.waveKind = 'rms';
+      // When the Worker's row last changed: a waveform registered again is fetched again (library.js waveSrcFor).
+      if (Number.isSafeInteger(t.waveformAt)) rec.waveAt = t.waveformAt;
     }
     out.push(rec);
   }

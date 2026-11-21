@@ -143,7 +143,8 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
     // The mind's What lands and Routines folds (their rows are read when they open) are read-only rows,
     // and so are Music's Listening history (its lead and its pick button; nothing counted yet), and Privacy's line about
     // the editor's reports (its Send now key inside it).
-    assert.equal(got.info, { privacy: 4, about: 4, mind: 2, music: 2 }[name] ?? 0, `${name}: read-only rows`);
+    // Notifications' state line for this phone is one too (its switch, Quiet hours and Go quiet now are actions).
+    assert.equal(got.info, { privacy: 4, about: 4, mind: 2, music: 2, notifications: 1 }[name] ?? 0, `${name}: read-only rows`);
     assert.deepEqual(got.details, [], `${name}: a detail line under each`);
     assert.deepEqual(got.small, [], `${name}: 44 px hit areas`);
     assert.equal(got.unnamed, 0, `${name}: every button has a name`);
@@ -290,7 +291,7 @@ test('a worker setting goes through PATCH /v1/settings and comes back after a re
   await context.close();
 });
 
-test('the Briefing: tiles move and hide from the keyboard, the holiday country is a sheet picker', opts, async () => {
+test('the Briefing: tiles move and hide from the keyboard; a choice past four options is a sheet picker', opts, async () => {
   const { page, context, errors, worker } = await open();
   await show(page, 'briefing');
   const order = () => page.$$eval('[data-key="briefing.tiles"] .group:not([hidden]) [data-item]', (r) => r.map((x) => x.dataset.item));
@@ -310,12 +311,15 @@ test('the Briefing: tiles move and hide from the keyboard, the holiday country i
   ]);
   // The first tile can't move up and the last can't move down: those buttons are out of the way.
   assert.equal(await page.$('[data-item="report"] [aria-label="Move Overnight up"]:not(:disabled)'), null);
-  await page.click('[data-key="briefing.holidays"]');
-  await page.waitForSelector('.sheet [role=radio][data-value="GB"]');
-  await page.click('.sheet [role=radio][data-value="GB"]');
+  // The Briefing's holiday country left the catalogue (2026-11-21): The mind's Day starts is a picker too.
+  assert.equal(await page.$('[data-key="briefing.holidays"]'), null);
+  await show(page, 'mind');
+  await page.click('[data-key="mind.day_start"]');
+  await page.waitForSelector('.sheet [role=radio][data-value="08:00"]');
+  await page.click('.sheet [role=radio][data-value="08:00"]');
   await until(() => worker.patches.length === 3);
-  assert.deepEqual(worker.patches.at(-1), { 'briefing.holidays': 'GB' });
-  assert.equal(await page.$eval('[data-key="briefing.holidays"] .row-value', (v) => v.textContent), 'United Kingdom');
+  assert.deepEqual(worker.patches.at(-1), { 'mind.day_start': '08:00' });
+  assert.equal(await page.$eval('[data-key="mind.day_start"] .row-value', (v) => v.textContent), '08:00');
   assert.deepEqual(worker.refused, []);
   assert.deepEqual(errors, []);
   await context.close();
@@ -498,4 +502,98 @@ test('MENU-AND-SETTINGS.md documents every key with its scope, its default and w
     assert.ok(line.includes(`\`${shown(s.default)}\``), `${s.key}: default`);
     if (s.mind) assert.ok(line.includes('the mind'), `${s.key}: the mind reads it`);
   }
+});
+
+test('Settings lists its pages under six headings; Agents is reachable but not listed; the old site is under Privacy', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
+  await page.waitForSelector('.spage.in [data-page="about"]');
+  const list = await page.$$eval('.spage.in .sbody > .group-title, .spage.in .sbody > .group-section > .group-title', (h) => h.map((x) => x.textContent));
+  assert.deepEqual(list, ['Look', 'Home and gestures', 'Apps', 'The mind', 'Account and data', 'About']);
+  assert.deepEqual(await page.$$eval('.spage.in [data-page]', (r) => r.map((x) => x.dataset.page)),
+    ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'export', 'deleted', 'workshop', 'about']);
+  assert.ok(await page.$('.spage.in .sappear #set-theme'), 'Theme is under Look');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'agents' } })));
+  await page.waitForFunction(() => document.querySelector('.spage.in .page-title')?.textContent === 'Agents');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'account' } })));
+  await page.waitForSelector('.spage.in #password');
+  assert.equal(await page.$('.spage.in a[href="/import/"]'), null, 'not on Password');
+  await show(page, 'privacy');
+  assert.ok(await page.$('.spage.in a[href="/import/"][data-find="import"]'), 'on Privacy and data');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('one Notifications page: this phone, what I send, Quiet hours and Go quiet now; the old Quiet hours opens it at that section', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'quiet' } })));
+  await page.waitForSelector('.spage.in .scatalog[data-group="notifications"]:not([aria-busy])');
+  assert.equal(await page.textContent('.spage.in .page-title'), 'Notifications');
+  await page.waitForSelector('.spage.in #set-quiet.flash');
+  const headings = await page.$$eval('.spage.in .group-title', (h) => h.map((x) => x.textContent));
+  assert.deepEqual(headings, ['This phone', 'What I send', 'Quiet hours', 'Go quiet now']);
+  assert.deepEqual(await page.$$eval('.spage.in [data-key]', (r) => r.map((x) => x.dataset.key)), ['mind.pushes', 'mind.speech']);
+  assert.deepEqual(await page.$$eval('.spage.in [data-action="quiet"] .row-title', (r) => r.map((x) => x.textContent)).then((t) => t.slice(0, 2)), ['Starts', 'Ends']);
+  assert.match(await page.textContent('.spage.in .sbody'), /Reminders you set and the usage alarm don't count toward the 2\./);
+  // The mind's page no longer holds them.
+  await show(page, 'mind');
+  assert.equal(await page.$('.spage.in [data-key="mind.pushes"], .spage.in [data-key="mind.speech"]'), null);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Settings search finds a control by another word and marks it; an action opens its page at its row', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
+  await page.waitForSelector('.spage.in .ssearch input');
+  await page.click('.spage.in .ssearch input');
+  await page.fill('.spage.in .ssearch input', 'font');
+  await page.waitForSelector('.sresults [data-find="text"]');
+  assert.equal(await page.textContent('.sresults .row .row-title'), 'Text size', 'first');
+  await page.click('.sresults [data-find="text"]');
+  await page.waitForSelector('.spage.in #set-text.flash');
+  assert.equal(await page.inputValue('.spage.in .ssearch input'), '');
+  await page.fill('.spage.in .ssearch input', 'sign out');
+  await page.waitForSelector('.sresults [data-find="sign-out"]');
+  await page.click('.sresults [data-find="sign-out"]');
+  await page.waitForSelector('.spage.in [data-find="sign-out"].flash');
+  assert.equal((await page.$$eval('.spage.in .page-title', (t) => t.map((x) => x.textContent))).at(-1), 'Devices');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('under Ink and Lamp, Accent intensity, Background and Idle glow are not shown; under Classic they are', opts, async () => {
+  for (const [look, shown] of [['ink-lamp', false], ['classic', true]]) {
+    // The test server's phone has chosen Classic (scripts/serve.mjs); `th.t.look` makes it one that chose `look`.
+    const { page, context, errors } = await open({ init: { 'th.t.look': '1', 'th.s.appearance.look': look } });
+    await show(page, 'appearance');
+    const seen = await page.$$eval('.spage.in :is([data-key="appearance.accent"],[data-key="appearance.field"],[data-key="appearance.idle_glow"])', (r) => r.map((x) => x.getClientRects().length > 0));
+    assert.deepEqual(seen, [shown, shown, shown], look);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('with Error reports off, this phone sends none; on again, it does', opts, async () => {
+  const { page, context } = await open();
+  const sent = [];
+  await page.route(`${API}/v1/ops/errors`, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    sent.push(route.request().postDataJSON().items.map((i) => i.message));
+    return route.fulfill({ status: 204, headers: CORS });
+  });
+  /** The setting as the phone saw it, an error, and the page hiding (which sends at once). */
+  const breakWith = (word, on) => page.evaluate(([w, o]) => {
+    localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.errors': o }));
+    setTimeout(() => { throw new Error(`invented ${w}`); });
+    return new Promise((r) => setTimeout(() => { dispatchEvent(new Event('pagehide')); r(); }, 0));
+  }, [word, on]);
+  await breakWith('first', true);
+  await until(() => sent.length === 1);
+  await breakWith('second', false);
+  await breakWith('third', true);
+  await until(() => sent.length === 2);
+  assert.match(sent[1].join(), /third/);
+  assert.doesNotMatch(sent.flat().join(), /second/);
+  await context.close();
 });

@@ -127,9 +127,12 @@ test('Library: a layout change moves the posters and leaves none moved; the hero
   const { context, page, errors } = await open();
   await page.evaluate(() => { for (const m of window.astra.screens.home.previewItems().slice(0, 5)) window.astra.library.toggle(m); window.astra.selectTab('library', true); });
   await page.waitForSelector('.tab-view[data-tab=library] .row .poster-card');
+  // Counted in the page as the click's handlers finish (a listener after the app's, in a microtask), not afterwards from outside.
+  await page.evaluate(() => window.addEventListener('click', (e) => { if (e.composedPath().some((n) => n.classList?.contains('layout-toggle'))) queueMicrotask(() => { window.posterMoves = [...document.querySelectorAll('.library .grid .poster-card')].filter((c) => c.getAnimations().length).length; }); }));
   await page.locator('.layout-toggle').click();
   await page.waitForSelector('.tab-view[data-tab=library] .grid .poster-card');
-  const moving = await page.evaluate(() => [...document.querySelectorAll('.library .grid .poster-card')].filter((c) => c.getAnimations().length).length);
+  await page.waitForFunction(() => window.posterMoves !== undefined);
+  const moving = await page.evaluate(() => window.posterMoves);
   assert.ok(moving >= 3, `${moving} posters move`);
   await page.waitForFunction(() => [...document.querySelectorAll('.library .grid .poster-card')].every((c) => !c.getAnimations().length && getComputedStyle(c).transform === 'none' && !c.style.transformOrigin));
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('astra.v2.libraryLayout'))), 'grid', 'remembered');
@@ -138,7 +141,8 @@ test('Library: a layout change moves the posters and leaves none moved; the hero
   const rest = await page.evaluate(async () => {
     const c = window.astra.screens.home.carousel;
     c.go(2); await new Promise((r) => setTimeout(r, 60)); c.go(3);
-    await new Promise((r) => setTimeout(r, 900));
+    // The settle's own end, however long the runner takes: every animation on the track finished.
+    while (c.track.getAnimations().length) await Promise.allSettled(c.track.getAnimations().map((a) => a.finished));
     return { x: new DOMMatrixReadOnly(getComputedStyle(c.track).transform).m41, w: c.el.clientWidth, index: c.index, anims: c.track.getAnimations().length };
   });
   assert.deepEqual(rest, { x: -3 * rest.w, w: rest.w, index: 3, anims: 0 });

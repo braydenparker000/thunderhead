@@ -30,8 +30,8 @@ describe('settings.set', () => {
   });
 
   it('a value it already holds changes nothing and leaves nothing to undo', async () => {
-    await settle({ 'briefing.due_days': 7 });
-    const r = await doneNow(await verb('settings.set', { key: 'briefing.due_days', value: 7 }));
+    await settle({ 'mind.verbosity': 'full' });
+    const r = await doneNow(await verb('settings.set', { key: 'mind.verbosity', value: 'full' }));
     expect(await ledgerRow(r.ledger_id)).toMatchObject({
       what: 'settings.set done (nothing changed)',
       undoable: false,
@@ -39,10 +39,10 @@ describe('settings.set', () => {
   });
 
   it('an undo after the owner changed it again is a conflict, and changes nothing', async () => {
-    const r = await doneNow(await verb('settings.set', { key: 'briefing.holidays', value: 'GB' }));
-    await settle({ 'briefing.holidays': 'FR' });
+    const r = await doneNow(await verb('settings.set', { key: 'mind.day_start', value: '08:00' }));
+    await settle({ 'mind.day_start': '09:00' });
     expect((await undo(r.ledger_id)).body.error.code).toBe('conflict');
-    expect((await settings())['briefing.holidays']).toBe('FR');
+    expect((await settings())['mind.day_start']).toBe('09:00');
   });
 
   it('never the standing permissions, the outside switch or privacy; only catalogued values', async () => {

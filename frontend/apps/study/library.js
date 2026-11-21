@@ -1,15 +1,19 @@
 // @ts-check
 // Study's start (STUDY.md §5.1, §3, §6): "Study" with Add a book and the search field; Continue,
 // the last three books opened with their page and a thin line of how far; All books as covers
-// (drawn from the first page on this phone, else the title on Study's green spine) with what each
-// is waiting for; the empty shelf; and the search across every ready book, grouped by book.
+// (drawn from the first page on whichever phone opened it first, else the title on Study's green
+// spine) with what each is waiting for and whether it is kept on this phone; the empty shelf; and
+// the search across every ready book, grouped by book, 50 hits at a time.
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { confirmSheet, el, toast } from '/th/ui.js';
+import * as copies from './copies.js';
 import * as data from './data.js';
+import { askLanguage } from './language.js';
 import { back as goBack, go } from './nav.js';
 import { readLocal } from './pdf.js';
 import { partsOf, refuse, sendParts, titleFor } from './upload.js';
+import { holdAwake } from './wake.js';
 import { scriptureIndex, verseCards } from './verse.js';
 import { continueRow, pageName, progress, shelfOrder, snippetParts, stateLine } from './words.js';
 
@@ -115,6 +119,7 @@ async function draw(body) {
     return;
   }
   const covers = new Map(await Promise.all(shelf.map(async (b) => /** @type {[string, string | undefined]} */ ([b.id, await data.cover(b.id)]))));
+  const here = new Set((await Promise.all(shelf.map(async (b) => (b.state === 'ready' && (await copies.kept(b)) ? b.id : '')))).filter(Boolean));
   const parts = [];
   const cont = continueRow(shelf);
   // The printed page numbers the reader saw (pdf.js reads them from the file).
@@ -143,7 +148,7 @@ async function draw(body) {
     );
   }
   parts.push(el('h2', { class: 'sec', text: 'All books' }));
-  parts.push(el('div', { class: 'shelf' }, shelfOrder(shelf).map((b) => bookTile(b, covers.get(b.id)))));
+  parts.push(el('div', { class: 'shelf' }, shelfOrder(shelf).map((b) => bookTile(b, covers.get(b.id), here.has(b.id)))));
   body.replaceChildren(...parts);
 }
 
@@ -175,8 +180,8 @@ function coverOf(b, img, small = false) {
   return c;
 }
 
-/** @param {Book} b @param {string | undefined} img */
-function bookTile(b, img) {
+/** @param {Book} b @param {string | undefined} img @param {boolean} onPhone kept on this phone */
+function bookTile(b, img, onPhone) {
   const line = b.state === 'ready' ? (b.position ? pageName(b.position.pdf_page, null) : '') : stateLine(b);
   // A plain cover already carries the title; a drawn one gets it underneath.
   const kids = img ? [coverOf(b, img), el('span', { class: 'bt', text: b.title })] : [coverOf(b, img)];
@@ -196,13 +201,14 @@ function bookTile(b, img) {
     kids.push(el('span', { class: 'bs', text: line }));
     if (b.duplicate_of) acts.append(action('Open the other copy', () => go(`?book=${b.duplicate_of}`)));
   } else if (line) kids.push(el('span', { class: b.state === 'ready' ? 'bs' : 'bs study', text: line }));
+  if (onPhone) kids.push(el('span', { class: 'bs kept' }, [icon('device-mobile'), 'On this phone']));
   if (acts.childNodes.length) kids.push(acts);
   const tile = el('div', { class: 'book' }, kids);
   const opens = !['uploading', 'duplicate'].includes(b.state);
   if (opens) {
     tile.setAttribute('role', 'button');
     tile.setAttribute('tabindex', '0');
-    tile.setAttribute('aria-label', `${b.title}${line ? `, ${line}` : ''}`);
+    tile.setAttribute('aria-label', `${b.title}${line ? `, ${line}` : ''}${onPhone ? ', on this phone' : ''}`);
     const open = (/** @type {Event} */ e) => {
       if (!(/** @type {HTMLElement} */ (e.target).closest('.acts'))) go(`?book=${b.id}`);
     };
@@ -241,9 +247,11 @@ async function addBook(f) {
   if (no) return toast(no);
   const meta = await readLocal(f);
   if (!meta) return toast("That file isn't a readable PDF.");
+  const language = await askLanguage();
+  if (!language) return;
   const id = uuidv7();
   try {
-    const r = await data.create({ id, title: titleFor(meta.title, f.name), author: meta.author?.trim().slice(0, 200) || null, bytes: f.size });
+    const r = await data.create({ id, title: titleFor(meta.title, f.name), author: meta.author?.trim().slice(0, 200) || null, bytes: f.size, language });
     if (meta.cover) await data.saveCover(id, meta.cover);
     await data.local.set(`upload:${id}`, { name: f.name, size: f.size, part_bytes: r.upload.part_bytes });
     files.set(id, f);
@@ -260,6 +268,7 @@ async function send(b, f, partBytes, have) {
   sending.set(b.id, 0);
   redraw?.();
   let last = 0;
+  const awake = holdAwake();
   try {
     await sendParts({
       file: f,
@@ -277,11 +286,14 @@ async function send(b, f, partBytes, have) {
     });
     await data.complete(b.id);
     await data.local.del(`upload:${b.id}`);
+    // This phone keeps the file it picked: the book never comes down to it again.
+    await copies.keepFile(b.id, f);
     files.delete(b.id);
     toast('Added. It will be read tonight.');
   } catch (e) {
     toast(`The upload stopped. ${lineFor(failure(e))} Tap Resume to go on.`);
   } finally {
+    awake();
     sending.delete(b.id);
     refresh();
   }
@@ -344,7 +356,7 @@ export async function searchScreen(main, q, inBook) {
     const got = await hits;
     if (n !== asked) return;
     if ('r' in got) {
-      showHits(out, t, got.r, known, first);
+      showHits(out, t, got.r, known, first, inBook);
       searched(got.r.items.length);
     } else out.replaceChildren(...first, el('p', { class: 'note', text: lineFor(failure(got.e)) }));
   };
@@ -372,14 +384,15 @@ export async function searchScreen(main, q, inBook) {
 }
 
 /** @param {HTMLElement} out @param {string} q @param {import('../../../shared/contract/library.ts').LibrarySearchResponse} r
- * @param {Book[]} books @param {HTMLElement[]} first the verse cards */
-function showHits(out, q, r, books, first) {
+ * @param {Book[]} books @param {HTMLElement[]} first the verse cards @param {string | null} inBook */
+function showHits(out, q, r, books, first, inBook) {
   const title = new Map(books.map((b) => [b.id, b.title]));
   /** @type {Map<string, typeof r.items>} */
   const by = new Map();
   for (const h of r.items) by.set(h.book_id, [...(by.get(h.book_id) ?? []), h]);
   const kids = [...first];
   if (!r.items.length) kids.push(el('p', { class: 'note', text: `Nothing found in your books for “${q}”.` }));
+  else if (r.any) kids.push(el('p', { class: 'note', text: 'No page has every word. These have some of them.' }));
   const groups = el('div', { class: 'hits' });
   for (const [bookId, hits] of by) {
     const list = el('div');
@@ -387,9 +400,12 @@ function showHits(out, q, r, books, first) {
       list.replaceChildren(
         ...hits.slice(0, k).map((h) => {
           const p = el('p');
-          for (const part of snippetParts(h.snippet)) p.append(part.mark ? el('mark', { text: part.text }) : part.text);
+          const parts = snippetParts(h.snippet);
+          for (const part of parts) p.append(part.mark ? el('mark', { text: part.text }) : part.text);
           const hit = el('button', { type: 'button', class: 'hit' }, [p, el('small', { text: pageName(h.pdf_page, h.page_label) })]);
-          hit.addEventListener('click', () => go(`?book=${bookId}&p=${h.pdf_page}`));
+          // The words the search matched on that page, marked there when it opens.
+          const words = [...new Set(parts.filter((x) => x.mark).map((x) => x.text.trim()))].join(' ');
+          hit.addEventListener('click', () => go(`?book=${bookId}&p=${h.pdf_page}${words ? `&m=${encodeURIComponent(words)}` : ''}`));
           return hit;
         }),
       );
@@ -406,6 +422,20 @@ function showHits(out, q, r, books, first) {
     groups.append(group);
   }
   kids.push(groups);
+  if (r.next) {
+    const more = el('button', { type: 'button', class: 'link', text: 'More results' });
+    more.addEventListener('click', async () => {
+      more.disabled = true;
+      try {
+        const n = await data.search(q, inBook, r.next);
+        showHits(out, q, { ...n, items: [...r.items, ...n.items] }, books, first, inBook);
+      } catch (e) {
+        more.disabled = false;
+        toast(lineFor(failure(e)));
+      }
+    });
+    kids.push(more);
+  }
   if (r.not_ready)
     kids.push(
       el('p', {

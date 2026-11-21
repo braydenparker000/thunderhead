@@ -40,7 +40,6 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); mock?.close(); });
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = (page) => page.evaluate(() => import('/th/island/island.js').then((m) => m.whenResting()));
 const shape = (page) => page.evaluate(() => import('/th/island/shape.js').then((m) => m.box()));
 /** Music in front, ready, with two invented tones queued and playing. */
@@ -68,29 +67,38 @@ async function music(context) {
   }, wav.toString('base64'));
   return page;
 }
-/** A real touch drag on the app (its bottom 150 px), `gap` ms between 5 px moves, held `hold` ms before letting go. */
-async function drag(page, cdp, { to, gap, hold = 0 }) {
-  const x = 195, send = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: y === undefined ? [] : [{ x, y }] });
-  let y = 760;
-  await send('touchStart', y);
+/** A drag on the app (its bottom 150 px), dispatched in the page with fixed timestamps: `gap` ms between 5 px moves,
+ * held `hold` ms before letting go. Its speed is then the drag's own, not the gaps between calls on a loaded runner. */
+const drag = (page, { to, gap, hold = 0 }) => page.evaluate(({ to, gap, hold }) => {
+  const f = document.querySelector('iframe[data-app=music]'), w = f.contentWindow, x = 195;
+  let y = 760, t = w.performance.now();
+  const target = w.document.elementFromPoint(x, y) || w.document.documentElement;
+  // The finger is at (x, y) on the screen; in the app that is under its zoom, as a real touch's point is.
+  const send = (type) => {
+    const r = f.getBoundingClientRect(), k = r.width / f.offsetWidth;
+    const e = new w.PointerEvent(type, { clientX: (x - r.left) / k, clientY: (y - r.top) / k, pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, bubbles: true, cancelable: true, composed: true });
+    Object.defineProperty(e, 'timeStamp', { value: t });
+    target.dispatchEvent(e);
+  };
+  send('pointerdown');
   const seen = [];
   for (y += 5; y <= to; y += 5) {
-    await send('touchMove', y);
-    if (gap) await wait(gap);
-    seen.push(await page.evaluate(() => { const f = document.querySelector('iframe[data-app=music]'); return { clip: f.parentElement.style.clipPath, zoom: new DOMMatrix(getComputedStyle(f).transform).a }; }));
+    t += gap;
+    send('pointermove');
+    seen.push({ clip: f.parentElement.style.clipPath, zoom: new DOMMatrix(getComputedStyle(f).transform).a });
   }
-  await wait(hold);
-  await send('touchEnd');
+  y -= 5; t += hold;
+  send('pointerup');
   return seen;
-}
+}, { to, gap, hold });
 
 test('Music follows the finger down: let go slowly half way it springs back, flung it becomes the island', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'allow', hasTouch: true });
   try {
-    const page = await music(context), cdp = await context.newCDPSession(page);
+    const page = await music(context);
     const front = () => page.evaluate(() => { const f = document.querySelector('iframe[data-app=music]'); return { away: f.classList.contains('away'), island: document.body.dataset.island ?? null, clip: f.parentElement.style.clipPath, zoom: f.style.transform }; });
     // Half way (70 of the 160 px the shrink takes), slowly, and held still before letting go.
-    const slow = await drag(page, cdp, { to: 830, gap: 40, hold: 250 });
+    const slow = await drag(page, { to: 830, gap: 40, hold: 250 });
     const last = slow.at(-1);
     assert.match(last.clip, /^path\(/, 'the surface is clipped to its shape while dragged');
     assert.ok(last.zoom < .9 && last.zoom > .7, `it shrinks under the finger: ${last.zoom}`);
@@ -98,7 +106,7 @@ test('Music follows the finger down: let go slowly half way it springs back, flu
     await settle(page);
     assert.deepEqual(await front(), { away: false, island: null, clip: '', zoom: '' }, 'let go slowly, it springs back whole');
     // The same half way, flung.
-    await drag(page, cdp, { to: 830, gap: 0 });
+    await drag(page, { to: 830, gap: 0 });
     await settle(page);
     const into = await front();
     assert.deepEqual([into.away, into.island], [true, 'music'], 'flung, it becomes the island');
@@ -116,9 +124,14 @@ test('an expanding capsule is caught mid-flight and turned round from where it i
     // Tap: it starts to grow. Two frames on, a finger catches it and drags it back up.
     const [x, , w] = await shape(page);
     await page.mouse.click(x + w / 2, 28);
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const caught = (await shape(page))[3];
+    // Its height is read in the page as the finger lands (pointerdown), not from outside a moment later.
+    await page.evaluate(async () => {
+      const m = await import('/th/island/shape.js');
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      addEventListener('pointerdown', () => { window.__caught = m.box()[3]; }, { capture: true, once: true });
+    });
     await page.mouse.move(x + w / 2, 40); await page.mouse.down();
+    const caught = await page.evaluate(() => window.__caught);
     const heights = [];
     for (let k = 1; k <= 6; k++) { await page.mouse.move(x + w / 2, 40 - 8 * k); heights.push((await shape(page))[3]); }
     await page.mouse.up();

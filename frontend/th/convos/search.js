@@ -142,38 +142,28 @@ function changed() {
   }, DEBOUNCE_MS);
 }
 
-/** Settings by name and other words, so "password" finds Account and "dark" finds the theme: each
- * opens Settings (apps/settings/home.js) at its control, or the page itself. [name, page or
- * Settings' control, icon, other words] */
-const SETTINGS = /** @type {[string, { name: string, focus?: string }, string, string][]} */ ([
-  ['Settings', { name: 'settings' }, 'gear-six', 'preferences options'],
-  ['Theme', { name: 'settings', focus: 'theme' }, 'moon-stars', 'appearance dark light night day mode'],
-  ['Text size', { name: 'settings', focus: 'text' }, 'pencil-simple', 'font bigger smaller larger'],
-  ['Still background', { name: 'settings', focus: 'still' }, 'moon-stars', 'motion animation moving'],
-  ['Quiet hours', { name: 'quiet' }, 'moon-stars', 'do not disturb silence mute go quiet'],
-  ['Notifications', { name: 'notifications' }, 'bell', 'push alerts notify'],
-  ['What I remember', { name: 'memory' }, 'brain', 'memory facts forget'],
-  ['Sign-in & devices', { name: 'devices' }, 'devices', 'sign out sessions phone logout devices'],
-  ['Password · Account', { name: 'account' }, 'user-circle', 'password recovery code username'],
-  ['Export', { name: 'export' }, 'download-simple', 'download backup data'],
-  ['Recently deleted', { name: 'deleted' }, 'trash', 'trash bin restore undelete'],
-  ['Check for update', { name: 'settings', focus: 'update' }, 'info', 'version about'],
-]);
 const openPage = (/** @type {{ name: string, focus?: string }} */ to) => document.dispatchEvent(new CustomEvent('th:open', { detail: to }));
 
-/** App and settings names (and their other words); exact, then prefix, then the rest. @param {string} q @returns {Row[]} */
+/** App names, then Settings' results from its one index (apps/settings/finder.js, as Settings' own
+ * search finds them: settings, pages, controls and actions with their other words), Settings itself
+ * among them; each opens its page with that row marked. @param {string} q @returns {Row[]} */
 function goto(q) {
-  /** @type {{ name: string, also?: string, icon: string, color?: string, act: () => void }[]} */
-  const named = apps.map((a) => ({ name: a.name, icon: a.icon, color: a.color, act: () => (a.built ? location.assign(a.path) : toast(`${a.name} comes later`)) }));
-  for (const [name, to, icon, also] of SETTINGS) named.push({ name, also, icon, act: () => openPage(to) });
-  /** The best rank of the name or any other word for it. @param {{ name: string, also?: string }} n */
-  const best = (n) => Math.min(...[n.name, ...(n.also ?? '').split(' ').filter(Boolean)].map((w) => rank(w, q)).map((r) => (r < 0 ? 99 : r)));
-  return named
-    .map((n) => /** @type {const} */ ([best(n) === 99 ? -1 : best(n), n]))
+  /** @type {{ name: string, ref: string, icon: string, color?: string, act: () => void }[]} */
+  const named = apps
+    .map((a) => /** @type {const} */ ([rank(a.name, q), a]))
     .filter(([r]) => r >= 0)
     .sort((a, b) => a[0] - b[0])
-    .map(([, n]) => ({ ref: `go:${n.name}`, icon: n.icon, color: n.color, title: n.name, act: () => leave(n.act) }));
+    .map(([, a]) => ({ name: a.name, ref: `go:${a.name}`, icon: a.icon, color: a.color, act: () => (a.built ? location.assign(a.path) : toast(`${a.name} comes later`)) }));
+  if (rank('Settings', q) >= 0 || rank('preferences options', q) >= 0) named.push({ name: 'Settings', ref: 'go:Settings', icon: 'gear-six', act: () => openPage({ name: 'settings' }) });
+  for (const e of finder?.find(q, 12, 2) ?? [])
+    named.push({ name: e.title, ref: `go:${e.page}:${e.focus ?? ''}:${e.title}`, icon: e.icon, act: () => openPage({ name: e.page, focus: e.focus }) });
+  return named.map((n) => ({ ref: n.ref, icon: n.icon, color: n.color, title: n.name, act: () => leave(n.act) }));
 }
+
+/** Settings' index, loaded as search opens (Settings' modules are preloaded once home is idle).
+ * @type {typeof import('../../apps/settings/finder.js') | null} */
+let finder = null;
+import('../../apps/settings/finder.js').then((m) => { finder = m; if (ui?.input.value) changed(); }).catch(() => {});
 
 /** Thread titles from the list, and today's messages, both on this phone. @param {string} q @returns {Row[]} */
 function localConvos(q) {

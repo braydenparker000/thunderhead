@@ -60,9 +60,11 @@ const stack = [];
 const layers = new WeakMap();
 
 /** Opens a settings page: over Settings when opened from it (`over`), else in place of what was open.
- * @param {'settings' | 'quiet' | 'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export' | 'deleted'} name
+ * @param {string} name
  * @param {{ fromRoute?: boolean, role?: string, over?: boolean, focus?: string }} [opts] */
 export async function openPage(name, opts = {}) {
+  // Quiet hours is a section of Notifications now (2026-11-21): its old name opens there, at it.
+  if (name === 'quiet') { name = 'notifications'; opts = { ...opts, focus: opts.focus ?? 'quiet' }; }
   if (!opts.over) for (const p of stack.splice(0)) { layers.get(p)?.(); p.remove(); }
   const under = stack[stack.length - 1] ?? null;
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
@@ -81,7 +83,7 @@ export async function openPage(name, opts = {}) {
   const slide = pageMotion(page);
   // The page's module is resolved before the page is shown, so its first visible frame already has its
   // content (the shell-look first-frame check); boot preloads these during idle, so this normally costs nothing.
-  const MODULES = { settings: './home.js', quiet: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js', appearance: './appearance.js', chat: './chat.js', gestures: './gestures.js', island: './island.js', briefing: './briefing.js', mind: './mind.js', music: './music.js', photos: './photos.js', privacy: './privacy.js', about: './about.js', workshop: './workshop.js' };
+  const MODULES = { settings: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js', appearance: './appearance.js', chat: './chat.js', gestures: './gestures.js', island: './island.js', briefing: './briefing.js', mind: './mind.js', music: './music.js', photos: './photos.js', privacy: './privacy.js', about: './about.js', workshop: './workshop.js' };
   /** @type {any} */
   const mod = name in MODULES ? await import(MODULES[/** @type {keyof typeof MODULES} */ (name)]) : null;
   document.querySelector('#app').append(page);
@@ -113,15 +115,18 @@ export async function openPage(name, opts = {}) {
   // The page's title takes focus (a screen reader names the page), never a ring on the back button.
   title.focus({ preventScroll: true });
   if (name === 'settings') mod.settingsHome(body, (p) => openPage(/** @type {any} */ (p), { over: true }), opts.focus);
-  else if (name === 'quiet') cleanup = await mod.quietPage(body);
   else if (name === 'devices') await devices(body);
   else if (name === 'agents') mod.agents(body, opts);
   else if (name === 'memory') cleanup = await mod.memory(body);
   else if (name === 'export') await mod.exportPage(body);
-  else if (name === 'notifications') await mod.notifications(body);
   else if (name === 'deleted') await mod.deletedPage(body);
   else if (mod.page) cleanup = (await mod.page(body)) ?? null; // the catalogue's pages and About (catalog.js)
   else mod.account(body);
+  // A row asked for (search, a deep link): a setting by its key, a section or an action by its mark.
+  if (opts.focus && name !== 'settings' && name !== 'memory' && name !== 'agents') {
+    const f = CSS.escape(opts.focus);
+    (await import('./home.js')).mark(body.querySelector(`#set-${f}, [data-key="${f}"], [data-find="${f}"]`));
+  }
 }
 
 /** The page's slide: progress 0 (off to the right) to 1 (in place), on springs.page with the menu's clock
@@ -269,8 +274,9 @@ async function devices(body) {
     b.classList.add('btn');
     b.addEventListener('click', () => { if (!tooSoon()) fn(); });
     actions.append(b);
+    return b;
   };
-  btn('Sign out of this device', 'soft', () => signOutAsking());
+  btn('Sign out of this device', 'soft', () => signOutAsking()).dataset.find = 'sign-out';
   btn('Sign out all other devices', 'soft', async () => {
     if (!(await confirmSheet({ title: 'Sign out all other devices?', body: 'They stop working within a minute.', action: 'Sign out' }))) return;
     try { await signedIn((t) => api.signout(t, 'others')); toast('Signed out everywhere else'); load(); } catch (e) { errLine(body, e); }
@@ -282,7 +288,7 @@ async function devices(body) {
     await wipe();
     location.replace('/signin/');
   });
-  const rec = el('button', { type: 'button', class: 'btn soft', text: 'Make a new recovery code' });
+  const rec = el('button', { type: 'button', class: 'btn soft', text: 'Make a new recovery code', 'data-find': 'recovery' });
   rec.addEventListener('click', async () => {
     const r = await withPassword(recovery, 'Make a new recovery code', 'Make code', (t, pw) => api.newRecoveryCode(t, pw));
     if (!r) { recovery.replaceChildren(rec); return; }

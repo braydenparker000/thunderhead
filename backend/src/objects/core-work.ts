@@ -91,7 +91,7 @@ export abstract class CoreWork extends CoreBackups {
       now,
       tz,
       day,
-      weather: weatherTile(place, forecast, now, tz),
+      weather: weatherTile(place, forecast, now, tz, getSetting(this.db, 'briefing.units')),
       songsAdded,
       nightConfigured: this.nightConfigured(),
     });

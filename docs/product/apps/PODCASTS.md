@@ -80,7 +80,7 @@ states · 13. New feature ideas · 14. Open questions / tests
 | Feed state `{show_id, etag, last_modified, next_check_at, interval_s, fail_count, known_guids[≤ 50], latest_at}` | `Core` table (Worker only) | — |
 | New-episode records `{show_id, episode_id, title, published_at, duration_s, enclosure_url, bytes}` | `Core` list `podcasts.new` (last 30 days) | IndexedDB `th-podcasts/new` |
 | Parsed feeds (episodes) | — | IndexedDB `th-podcasts/feeds` (per show, newest 300 episodes) |
-| Up next (queue) | `Core` lists (`podcasts.queue`), max 100 | IndexedDB `th-podcasts/queue` |
+| Up next (queue) | **Built:** `Core` `podcast_queue` (step 49): each episode's place and details by the app's own key, a removal kept 30 days; and the speed in `podcast_prefs` (§5.4) | The ported app's own `jarvis.podcasts.v1` (`queue`, `speed`) |
 | Progress `{position_s, duration_s, played, updated_at}` per episode | **Built:** `Core` `podcast_progress` (step 25), keyed by the app's own `<feed address>#<episode id>`, newest 1,000 | The ported app's own `jarvis.podcasts.v1` (`progress`, its newest 300); later IndexedDB `th-podcasts/progress` |
 | Downloads | — | OPFS `podcasts/<show_id>/<episode_id>.<ext>`; index in IndexedDB |
 | Prefs (speed per show, skip lengths, autoplay, region) | `Core` settings | IndexedDB `th-podcasts/prefs` |
@@ -367,7 +367,22 @@ always did), and `frontend/th/podcasts/progress.js` keeps that in step with the 
   missing show proves nothing). This phone's own word stands: a show it follows, listed or not (an
   unlisted one is an unfollow not yet sent), or unfollowed at least as recently, is left alone, so an
   unfollow made here goes up and the next pull does not bring it back (the Worker keeps an unfollow
-  30 days, the newer `updated_at` winning). Up Next, downloads and speed still live on one phone.
+  30 days, the newer `updated_at` winning).
+- **Up Next and the speed on every phone (2026-11-21, `frontend/th/podcasts/queue.js`, Core step
+  49):** the same pulls read `GET /v1/podcasts/queue?since=` and `GET /v1/podcasts/prefs?since=`, and
+  the same pushes send what changed. The app keeps no time for either, so the module notes a change
+  when it looks (before a pull is applied and before each push) and stamps it then. Each change of
+  Up Next is a new version of the whole queue: every member goes up with the version's stamp and its
+  place, and every episode it took out as a removal, which the Worker keeps (30 days) so it does not
+  come back. The queue is the members carrying the newest stamp, so with two phones editing the newer
+  whole version wins; the phone keeps its own copy of an episode it has (the Worker's has the
+  description cut to 1,000 characters). An episode removed on another phone after the version this
+  phone last had stays removed, here and on the Worker. The speed is one value, the newer wins, and
+  the player takes a pulled one at once. A phone's first look (a new phone, or one signed in again
+  after the sign-out wiped `jarvis.podcasts.v1` and `th.p.podcasts.sync`) learns what it has as older
+  than anything the account holds, so signing in again brings the queue, the speed and the played
+  marks (part of the positions) back and the empty phone writes nothing over them. The app has no
+  per-show speed. Downloads are files and stay on the phone.
 - **Conflicts:** the newer `updated_at` wins, on the Worker and on the phone; a tie keeps what is
   there. **Clocks:** the app stamps its saves with the phone's clock, which may be off. Every answer
   from the Worker carries its clock (`at`, `next_since`), so the module keeps the difference (the

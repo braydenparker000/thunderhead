@@ -20,6 +20,10 @@ export function pageFx(f, R) {
   return {scale: (R - 1) * f + 1, alpha: 1 - f};
 }
 
+// The movement recorder's hook (ui/feel-log.js): told when a page transition first moves and when it ends.
+let pageWatch = null;
+export const watchPages = fn => { pageWatch = fn; };
+
 export class ListTransition {
   /**
    * @param ctx app context
@@ -28,8 +32,9 @@ export class ListTransition {
    * @param opts.scene top navigation scene to follow while dragged (optional)
    * @param opts.commitTime / cancelTime seconds for a released drag
    */
-  constructor(ctx, {render, finish, scene = null, commitTime = 0.25, cancelTime = 0.5}) {
+  constructor(ctx, {render, finish, scene = null, commitTime = 0.25, cancelTime = 0.5, name = 'page'}) {
     this.ctx = ctx;
+    this.name = name;
     this.render = render;
     this.finish = finish;
     this.scene = scene;
@@ -41,6 +46,7 @@ export class ListTransition {
   }
 
   setProgress(p) {
+    if (!this.watched) { this.watched = true; pageWatch?.(this, true); }
     this.p = Math.max(0, Math.min(1, p));
     this.render(this.p);
     if (this.scene) this.ctx.topNav?.scenes.drag(this.scene, this.p);
@@ -125,6 +131,7 @@ export class ListTransition {
   end(commit) {
     if (this.done) return;
     this.done = true;
+    if (this.watched) pageWatch?.(this, false, !commit);
     if (this.scene) this.ctx.topNav?.scenes.release(commit);
     this.finish(commit);
   }
