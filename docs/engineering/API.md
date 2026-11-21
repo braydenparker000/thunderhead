@@ -972,6 +972,19 @@ file is removed after 30 days. Known fields only (`fields.js`: one list for the 
 a setting. Off with Settings › Privacy and data › Editor reports: then nothing leaves the phone (it keeps its
 own two weeks).
 
+### 11.28 Guitar's progress (P6, 2026-11-21)
+
+[GUITAR.md §1.1](../product/apps/GUITAR.md) (types and `GUITAR_LIMITS` in `shared/contract/guitar.ts`; Core step 47, [DATA.md §4.1](DATA.md#41-settings-ops-the-feed-and-the-minds-bookkeeping)). The ported Guitar app keeps its library and the ladder on the phone; `frontend/th/guitar/progress.js` syncs them, one record per song, so they follow the owner to another phone. The owner's device only.
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/guitar/progress` | D | `{ items: GuitarProgress[] /* 1–50 */ }`, each `{ key, song, ladder, days, phone_at, updated_at }`, nothing else: `key` `s<Songsterr id>` or `g:<artist>/<song>`; `song` the library entry (an object of at most 24 fields) or null; `ladder` at most 24 sections by `<first bar>-<last bar>`, each `{ day, passes, clean, ceiling, best, last }`; `days` at most 400 practice seconds (0–86,400) by `YYYY-MM-DD`; the whole item at most 16,000 characters | `200 { applied, stale, refused, at }`: each item checked on its own; one the Worker can't take (malformed, too big, or an `updated_at` more than an hour ahead of the Worker's clock) is in `refused` as `{ index, issue }` and the rest are kept. A record replaces the song's only when its `updated_at` is newer (equal keeps what is there, so a batch sent twice changes nothing): `applied` counts those, `stale` the rest | 413 over 64 KB; 422 not 1–50 items |
+| `GET /v1/guitar/progress?since=&limit=&cursor=` | D | `since`: ms (0 for everything); `limit` 1–100 (100); then `cursor` from `next` | `200 { items: GuitarProgress[], next_since, next }`: what Core took at or after `since` (by when it took it), oldest first; while `next` is a cursor there is more; once it is null, `next_since` is the next `since` | 400 another route's cursor; 422 a bad `since` or `limit` |
+
+- Nothing here writes the change feed: the phones ask when Guitar opens and when it is shown again.
+- Rows (measured, [TESTING.md §6](TESTING.md#6-cost-tests)): a song's record kept 0 read and 2 written (the row and its `synced_at` index entry), a stale one 0 and 0, a first sync of 50 songs 100 written; a read 1 row when nothing changed (of 1,000 kept), else the rows it returns. The daily prune keeps the newest 1,000 by `updated_at`.
+- Song titles and artists travel only in JSON bodies, never a path, a query or a log line.
+
 ## 12. WebSocket protocol (`/v1/live`)
 
 | Direction | Frame | Meaning |
@@ -1083,6 +1096,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/music/notes` | D C N | P5 |
 | `PUT /v1/music/uploads/audio/:file`, `PUT /v1/music/uploads/art/:file`, `POST /v1/music/uploads/:op` | P (no bearer token: each request signed by an upload tool key) | P5 |
 | `GET /v1/guitar/search`, `/songs/:id`, `/songs/:id/score`, `/gprotab/search`, `/gprotab/file`, `/sounds/:instrument/:file` | D | P6 |
+| `PUT /v1/guitar/progress`, `GET /v1/guitar/progress` (§11.28) | D | P6 |
 | `POST /v1/astra/play`, `GET /v1/astra/torbox`, `GET /v1/astra/torbox/servers` | D | P8 |
 | `GET /v1/astra/backup`, `PUT /v1/astra/backup`, `DELETE /v1/astra/backup` | D | P8 |
 | `GET /v1/podcasts/directory`, `/audio` | D | P8 |

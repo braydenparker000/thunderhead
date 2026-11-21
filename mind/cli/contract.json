@@ -2034,6 +2034,22 @@
       "phase": "P8",
       "status": "built",
       "note": "TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute"
+    },
+    "PUT /v1/guitar/progress": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "1–50 songs, each ≤ 16,000 characters; the newer updated_at wins"
+    },
+    "GET /v1/guitar/progress": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "?since=&cursor=: what changed since, oldest first, ≤ 100 a page"
     }
   },
   "verbs": {

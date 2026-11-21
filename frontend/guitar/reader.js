@@ -80,7 +80,7 @@ class Reader {
     });
     this.wireSheet(); this.wireProgress(); this.wireKeys();
     this.practiceTimer = setInterval(() => this.tally(), 5000);
-    const touched = () => { this.lastInteraction = performance.now(); };
+    const touched = () => { this.lastInteraction = performance.now(); this.holdScreen(); };
     for (const type of ['pointerdown', 'wheel', 'keydown']) this.root.addEventListener(type, touched, { passive: true });
     this.scroller.addEventListener('scroll', touched, { passive: true });
     this.resizeObserver = new ResizeObserver(() => this.onResize());
@@ -467,7 +467,7 @@ class Reader {
       else if (k === '-') this.changeSpeed(-5);
     };
     addEventListener('keydown', this.keys);
-    this.visibility = () => { if (document.visibilityState === 'visible' && player.playing) this.lock(); };
+    this.visibility = () => this.holdScreen();
     document.addEventListener('visibilitychange', this.visibility);
   }
 
@@ -489,9 +489,27 @@ class Reader {
     this.playButton.setAttribute('aria-label', on ? 'Pause' : 'Play');
     this.playIcon.innerHTML = icon(on ? 'pause' : 'play', 30);
     this.root.classList.toggle('playing', on);
-    if (!on) { this.wakeLock?.release().catch(() => {}); this.wakeLock = null; }
+    this.holdScreen();
   }
-  async lock() { try { if ('wakeLock' in navigator && !this.wakeLock) { this.wakeLock = await navigator.wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } } catch {} }
+  // The screen stays on while the reader is visible and playing, or touched in the last 90 s
+  // (GUITAR.md §9); 90 s after the last touch with nothing playing, it is let go.
+  wantsScreen() { return !this.closed && document.visibilityState === 'visible' && (player.playing || performance.now() - (this.lastInteraction ?? -Infinity) < 90000); }
+  holdScreen() {
+    clearTimeout(this.idleTimer);
+    if (!this.wantsScreen()) { this.wakeLock?.release().catch(() => {}); this.wakeLock = null; return; }
+    this.lock();
+    if (!player.playing) this.idleTimer = setTimeout(() => this.holdScreen(), 90000 - (performance.now() - this.lastInteraction) + 50);
+  }
+  async lock() {
+    if (this.wakeLock || this.locking || !('wakeLock' in navigator)) return;
+    this.locking = true;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      lock.addEventListener('release', () => { if (this.wakeLock === lock) this.wakeLock = null; });
+      this.wakeLock = lock;
+      if (!this.wantsScreen()) this.holdScreen();
+    } catch {} finally { this.locking = false; }
+  }
   recordBest() {
     const speed = Math.round(player.speed * 100);
     if (speed > (this.song.best || 0)) this.song = this.store.update(this.song.key, { best: speed }) || this.song;

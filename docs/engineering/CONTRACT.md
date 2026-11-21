@@ -248,6 +248,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/astra/play` | D | P8 | built | {link, hash?, fileIndex?, fileName?, fileSize?, mode play\|ahead}: a film's direct address from TorBox with the Worker's key, else url null (the page plays the add-on's link); not cached for certain: 503; ahead never adds; add-on links are not opened unless ASTRA_FOLLOW is on |
 | `GET /v1/astra/torbox` | D | P8 | built | whether the TorBox key is set and accepted, and the plan number |
 | `GET /v1/astra/torbox/servers` | D | P8 | built | TorBox's public speed-test files: each server group's label, region and test file (none carrying a token), for the lab; 6 a minute |
+| `PUT /v1/guitar/progress` | D | P6 | built | 1–50 songs, each ≤ 16,000 characters; the newer updated_at wins |
+| `GET /v1/guitar/progress` | D | P6 | built | ?since=&cursor=: what changed since, oldest first, ≤ 100 a page |
 
 ## Verbs
 

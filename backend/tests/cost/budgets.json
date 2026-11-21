@@ -399,6 +399,30 @@
     "rows_read_max": 3,
     "rows_written_max": 0
   },
+  "PUT /v1/guitar/progress (1 new) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/guitar/progress (1 newer) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/guitar/progress (1 stale) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "PUT /v1/guitar/progress (50 new, a first sync) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 100
+  },
+  "GET /v1/guitar/progress (nothing new of 1,000) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/guitar/progress (3 new of 1,003) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
   "PUT /v1/podcasts/follows (1) (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 3
