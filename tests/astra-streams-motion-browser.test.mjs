@@ -107,8 +107,11 @@ test('a chosen filter chip springs its fill in and ends filled; the order chosen
   await page.evaluate((m) => window.astra.openStreams(m), META);
   await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 2);
   const chip = page.locator('.screen.streams .filter-chips.facts .chip', { hasText: 'HEVC' });
+  // Read in the page as the click's handlers finish (a listener after the app's, in a microtask), not afterwards from outside.
+  await chip.evaluate((el) => window.addEventListener('click', (e) => { if (el.contains(e.target)) queueMicrotask(() => { window.fillMoving = el.querySelector('.chip-fill').getAnimations().length; }); }));
   await chip.click();
-  assert.equal(await chip.locator('.chip-fill').evaluate((el) => el.getAnimations().length), 1, 'the fill is moving');
+  await page.waitForFunction(() => window.fillMoving !== undefined);
+  assert.equal(await page.evaluate(() => window.fillMoving), 1, 'the fill is moving');
   await page.waitForFunction(() => document.querySelectorAll('.screen.streams .stream-card').length === 1);
   await chip.locator('.chip-fill').evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
   assert.deepEqual(await chip.evaluate((el) => [el.getAttribute('aria-pressed'), getComputedStyle(el.querySelector('.chip-fill')).opacity]), ['true', '1']);

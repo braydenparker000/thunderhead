@@ -57,30 +57,38 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     out.level = M.level();
     // A shared element: a copy flies from #a to #b while both are hidden, then #b shows. #b (not seen yet)
     // is hidden at once; #a only once the copy has painted over it, two frames later.
+    // The page's clock is held for the reads in between: each flight is paused as it starts and moved to the
+    // moment read (an animation's own time, not a guessed wait that a loaded runner can outlast).
     let started = 0;
-    const t = M.travel($('#a'), $('#b'), { name: 'test:travel', onStart: () => started++ });
+    const hold = (els, at) => { const list = els.flatMap((el) => el.getAnimations().filter((a) => a.playState === 'running' || a.playState === 'paused')); for (const a of list) { a.pause(); a.currentTime = at; } return () => list.forEach((a) => a.play()); };
+    const t = M.travel($('#a'), $('#b'), { name: 'test:travel', onStart: () => { started++; hold([copy], 0); } });
     const copy = [...document.body.children].at(-1);
     out.during = { hiddenA: $('#a').style.visibility, hiddenB: $('#b').style.visibility, copy: copy.getAttribute('aria-hidden'), started };
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
     out.during.after = $('#a').style.visibility;
-    await new Promise((r) => setTimeout(r, 120));
+    const resume = hold([copy], copy.getAnimations()[0].effect.getTiming().duration / 2);
     const mid = copy.getBoundingClientRect();
     out.midway = mid.top > 0 && mid.top < 600;
+    resume();
     // Where it lands: the copy sits at #b's place and size, and its flight ends untransformed there.
     const last = copy.getAnimations()[0].effect.getKeyframes().at(-1);
     const landing = { left: copy.style.left, top: copy.style.top, width: copy.style.width, height: copy.style.height, transform: last.transform };
     out.travel = await t.finished;
     out.travelEnd = { copyGone: !copy.isConnected, a: $('#a').style.visibility, b: $('#b').style.visibility, started, ...landing };
     // Cancelled midway: the copy goes and both originals show.
-    const t2 = M.travel($('#a'), $('#b'), { name: 'test:travel' });
-    await new Promise((r) => setTimeout(r, 60));
+    let flying;
+    const going = new Promise((r) => { flying = r; });
+    const t2 = M.travel($('#a'), $('#b'), { name: 'test:travel', onStart: () => { hold([copy2], 60); flying(); } });
+    const copy2 = [...document.body.children].at(-1);
+    await going;
     t2.cancel();
     out.travelCancel = { result: await t2.finished, copies: document.querySelectorAll('body > [aria-hidden="true"][style*="fixed"]').length, a: $('#a').style.visibility, b: $('#b').style.visibility };
     // A pushed screen: #over comes in, #under recedes and stays so; Back brings it forward.
     const p = M.push($('#over'), $('#under'), { name: 'test:push' });
     out.pushOpaque = getComputedStyle($('#over')).opacity; // from its first frame: it only moves
-    await new Promise((r) => setTimeout(r, 80));
+    const go80 = hold([$('#over'), $('#under')], 80);
     out.pushMid = getComputedStyle($('#over')).transform !== 'none';
+    go80();
     out.push = await p.finished;
     out.pushEnd = { over: getComputedStyle($('#over')).transform, under: getComputedStyle($('#under')).transform, dim: getComputedStyle($('#under')).opacity };
     const b = M.pop($('#under'), $('#over'), { name: 'test:pop' });
@@ -89,7 +97,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     // Back during a push: the pop takes over from where the push was (no queue, no jump).
     $('#over').getAnimations().forEach((a) => a.cancel());
     const p2 = M.push($('#over'), $('#under'), { name: 'test:push' });
-    await new Promise((r) => setTimeout(r, 60));
+    hold([$('#over'), $('#under')], 60);
     const x = new DOMMatrixReadOnly(getComputedStyle($('#over')).transform).m41;
     const b2 = M.pop($('#under'), $('#over'), { name: 'test:pop' });
     const x2 = new DOMMatrixReadOnly(getComputedStyle($('#over')).transform).m41;
@@ -97,7 +105,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
     $('#over').getAnimations().forEach((a) => a.cancel());
     // A push cancelled midway leaves both at rest.
     const p3 = M.push($('#over'), $('#under'), { name: 'test:push' });
-    await new Promise((r) => setTimeout(r, 60));
+    hold([$('#over'), $('#under')], 60);
     p3.cancel();
     out.pushCancel = { result: await p3.finished, anims: $('#over').getAnimations().length + $('#under').getAnimations().length, over: getComputedStyle($('#over')).transform };
     // Rise: groups 30 ms apart, all in place at the end.
@@ -116,7 +124,7 @@ test('travel, push, pop and rise end in place, cancel cleanly, and do nothing wh
   });
   assert.equal(r.level, 'full');
   assert.deepEqual(r.during, { hiddenA: '', hiddenB: 'hidden', copy: 'true', started: 0, after: 'hidden' });
-  assert.ok(r.midway, 'the copy is on its way at 120 ms');
+  assert.ok(r.midway, 'the copy is on its way halfway through its flight');
   assert.deepEqual(r.travel, { cancelled: false });
   assert.deepEqual(r.travelEnd, { copyGone: true, a: '', b: '', started: 1, left: '0px', top: '0px', width: '390px', height: '300px', transform: 'none' });
   assert.deepEqual(r.travelCancel, { result: { cancelled: true }, copies: 0, a: '', b: '' });

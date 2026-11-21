@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
+import { timing, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (synthetic films)', timeout: 60_000 };
@@ -345,16 +346,17 @@ test('dialogue lift on rebuilt 5.1 sound: the engine\'s mix raises the centre, h
   await p.load(host.url('surround.mkv'));
   assert.ok(await playsOn(p.page, 1) >= 1);
   const before = await loudness(p.page);
+  // Listened to (a fresh window each time) until the change is heard, not after a guessed wait; how soon is a timing read.
+  const heardAs = async (ok) => { let db = NaN; const t0 = Date.now(); await until(async () => ok((db = 20 * Math.log10((await loudness(p.page)) / before))), { timeout: 10_000 }).catch(() => {}); return { db, ms: Date.now() - t0 }; };
   await p.page.evaluate(() => window.p.setDialogue(2));
-  await new Promise((r) => setTimeout(r, 1200));
-  const after = await loudness(p.page);
   // surround.mkv's tone is in the centre channel alone (ffmpeg put the mono tone there): step 2 raises it by 8 dB.
-  const db = 20 * Math.log10(after / before);
-  t.diagnostic(`${db.toFixed(1)} dB louder with the centre raised`);
-  assert.ok(db > 7 && db < 9, `the centre is raised by about 8 dB (${db.toFixed(1)} dB)`);
+  const up = await heardAs((db) => db > 7 && db < 9);
+  t.diagnostic(`${up.db.toFixed(1)} dB louder with the centre raised`);
+  assert.ok(up.db > 7 && up.db < 9, `the centre is raised by about 8 dB (${up.db.toFixed(1)} dB)`);
+  timing(up.ms < 2500, `the raised centre was heard after ${up.ms} ms`);
   await p.page.evaluate(() => window.p.setDialogue(0));
-  await new Promise((r) => setTimeout(r, 1200));
-  assert.ok(Math.abs(20 * Math.log10((await loudness(p.page)) / before)) < 1, 'and back');
+  const back = await heardAs((db) => Math.abs(db) < 1);
+  assert.ok(Math.abs(back.db) < 1, `and back (${back.db.toFixed(1)} dB)`);
   assert.ok(await playsOn(p.page, 1) >= 1, 'it plays on');
   assert.deepEqual(p.errors, []);
 });

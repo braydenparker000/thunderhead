@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { astraHost } from './fixtures/astra-host.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (synthetic films)', timeout: 120_000 };
@@ -123,8 +124,9 @@ test('a switch between two rebuilt tracks is heard', opts, async (t) => {
   await p.at(0.5);
   assert.ok(near(await heard(p.page), 660), 'English at 660 Hz');
   await p.page.evaluate(() => window.p.selectAudio(window.p.audioOptions()[1].id));
-  await p.page.waitForTimeout(1200);
-  const pitch = await heard(p.page);
+  // Listened to until the new track is the one heard (each listen a fresh window), not after a guessed wait.
+  let pitch = 0;
+  await until(async () => near((pitch = await heard(p.page, 600)), 990), { timeout: 10_000 }).catch(() => {});
   assert.ok(near(pitch, 990), `then Japanese at 990 Hz (loudest: ${pitch} Hz)`);
   const s = await p.state();
   assert.deepEqual(s.audio.map((a) => a.delivery), ['rebuilt', 'rebuilt']);

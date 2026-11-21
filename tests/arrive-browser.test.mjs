@@ -79,8 +79,12 @@ test('back to a home the browser kept, the launch colour fades off it', async ()
   await page.evaluate(async () => { const { launch } = await import('/ui/launch.js'); await launch('#e08a1e'); });
   assert.equal(await page.locator('.launch').count(), 1);
   // As the browser does when Back shows the page from its back/forward cache.
-  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
-  assert.equal(await page.evaluate(() => document.querySelector('.launch').getAnimations().at(-1).effect.getKeyframes().at(-1).opacity), '0');
+  // Dispatched and read in one evaluate, so the fade is read while it runs, however slow the runner.
+  const fadesTo = await page.evaluate(() => {
+    dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    return document.querySelector('.launch').getAnimations().at(-1).effect.getKeyframes().at(-1).opacity;
+  });
+  assert.equal(fadesTo, '0');
   await until(async () => (await page.locator('.launch').count()) === 0, { message: 'the colour stayed over home' });
   await page.close();
 });
