@@ -152,6 +152,14 @@ export class Context {
     if (this.animations.size || this.tweens.size || this.frameCallbacks.size || this._layoutPending) this.kick();
   }
 
+  /** Lays out and writes the page now, in this frame (a resize: the browser paints next). */
+  layoutNow() {
+    if (!this.root) return;
+    this._layoutPending = false;
+    this.layoutRoot();
+    this.root.sync();
+  }
+
   /** Measures/lays out the root at the container size (device px). */
   layoutRoot() {
     const root = this.root;

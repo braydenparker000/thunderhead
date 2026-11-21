@@ -7,16 +7,26 @@
 //   a transition runs;
 // - every open of the player: the window's and the visual viewport's height, whether a text field
 //   had focus in the last second, the height the layout uses and the player's box height;
-// - 600 ms after every song change and play/pause: whether the play and pause buttons are in the
-//   page, visible, and their box sizes;
+// - after every song change and play/pause, once the scene changes have settled (600 ms at least):
+//   whether the play and pause buttons are in the page, visible, and their box sizes; and, apart, each
+//   time neither shows at full size in a scene that has them (`playPauseMissing`, with the scenes);
 // - each time search is open: the viewport before and after the keyboard, the results list's
-//   height (600 ms in, and at each viewport change), and scroll jumps of more than 40 px that no finger or fling made.
+//   height (600 ms in, and in the frame of each viewport change, after its layout), with home's own
+//   window height when Music is in home's frame, the large-viewport height and the bottom inset (what
+//   a step like 731 → 759 is made of), and scroll jumps of more than 40 px that no finger or fling
+//   made, with the list's height, its scroll limit and whether its results had just changed.
 // Nothing here runs per frame outside a transition.
 import {watchScenes} from '../view/scene.js';
 import {watchPages} from '../list/list-transition.js';
 import {VISIBLE} from '../res/values.js';
 
-export const CAPS = {runs: 150, opens: 40, buttons: 60, searches: 20, perSearch: 12};
+export const CAPS = {runs: 150, opens: 40, buttons: 60, missing: 20, searches: 20, perSearch: 12};
+// Full size: every theme's play and pause at rest are 56 dp or more (TopPlay_maxSize, TopPause_scene_playing_width,
+// TopPauseMoreButtons_maxSize_scene_playing); mid-change they pass 38 dp (play at 50 dp x 0.75) and 49 dp (pause at 28 dp x 1.75).
+export const FULL_PX = 52;
+// The scenes of the player that show the play and pause buttons (scene_vis hides the controls).
+export const BUTTON_SCENES = new Set(['defaultScene', 'scene_playing', 'scene_vis_temp_ui']);
+const SETTLE_MAX_MS = 3000;
 const JUMP_PX = 40;
 const BUTTON_IDS = ['play', 'pause'];
 const BUTTON_WAIT_MS = 600;
@@ -34,6 +44,7 @@ export class FeelLog {
     this.runs = [];
     this.opens = [];
     this.buttons = [];
+    this.missing = [];
     this.searches = [];
     this.running = new Map(); // source (scene controller or page transition) -> run
     this.looping = false;
@@ -100,6 +111,14 @@ export class FeelLog {
     return {innerH: round(window.innerHeight), vvH: round(window.visualViewport?.height ?? NaN)};
   }
 
+  /** What a viewport step is made of: home's window (in its frame), the large viewport, the bottom inset. */
+  viewportParts() {
+    let homeH = null;
+    try { if (window.parent !== window) homeH = round(window.parent.innerHeight); } catch { /* another origin */ }
+    const probe = document.getElementById('cp-probe'), cs = probe ? getComputedStyle(probe) : null;
+    return {homeH, lvh: cs ? round(parseFloat(cs.height)) : null, insetB: cs ? round(parseFloat(cs.paddingBottom)) : null};
+  }
+
   /** CSS px height of a view's box, or null. */
   boxH(v) {
     const r = v?.el?.getBoundingClientRect?.();
@@ -117,7 +136,13 @@ export class FeelLog {
   // The play and pause buttons, once the state's scene change has settled.
   checkButtons(why) {
     clearTimeout(this.buttonTimer);
-    this.buttonTimer = setTimeout(() => this.measureButtons(why), BUTTON_WAIT_MS);
+    const asked = performance.now();
+    const settled = () => !this.ctx.topNav?.scenes?.running && !this.ctx.tweens?.size;
+    const wait = () => {
+      if (settled() || performance.now() - asked > SETTLE_MAX_MS || typeof requestAnimationFrame !== 'function') this.measureButtons(why);
+      else requestAnimationFrame(wait);
+    };
+    this.buttonTimer = setTimeout(wait, BUTTON_WAIT_MS);
   }
 
   measureButtons(why) {
@@ -137,6 +162,10 @@ export class FeelLog {
       return shown.find(s => s.visible) ?? shown[0];
     });
     push(this.buttons, entry, CAPS.buttons);
+    const scenes = this.ctx.topNav?.scenes;
+    if (missingButton(entry.buttons, this.nav, scenes?.scene)) {
+      push(this.missing, {t: entry.t, why, playing: entry.playing, nav: entry.nav, scene: cleanName(scenes.scene), prevScene: cleanName(scenes.prevScene), buttons: entry.buttons}, CAPS.missing);
+    }
   }
 
   buttonState(id, v) {
@@ -153,8 +182,18 @@ export class FeelLog {
 
   startSearch() {
     const s = this.search = {t: this.now(), before: this.viewport(), after: [], listH: null, jumps: [], lastY: null};
+    // Read in the frame of the change, after the app's own resize handler has laid it out (app.js), once
+    // per frame however many resize events it had.
+    let queued = false;
     const resize = () => {
-      if (s.after.length < CAPS.perSearch) s.after.push({t: this.now() - s.t, ...this.viewport(), listH: s.listH = this.boxH(this.listOf())});
+      if (queued || s.after.length >= CAPS.perSearch) return;
+      queued = true;
+      const t = this.now() - s.t;
+      requestAnimationFrame(() => {
+        queued = false;
+        if (this.search !== s || s.after.length >= CAPS.perSearch) return;
+        s.after.push({t, ...this.viewport(), ...this.viewportParts(), layoutH: round(this.ctx.viewportHeight), listH: s.listH = this.boxH(this.listOf())});
+      });
     };
     // The results list's height once the search screen has settled (its scene change takes 250 ms).
     const settle = setTimeout(() => { s.listH = this.boxH(this.listOf()); }, BUTTON_WAIT_MS);
@@ -165,9 +204,12 @@ export class FeelLog {
     if (list) {
       s.list = list;
       list.feelWatch = l => {
-        const y = l.scrollY / (this.ctx.dpr || 1);
-        if (s.lastY !== null && Math.abs(y - s.lastY) > JUMP_PX && !l.drag && !l._fling && s.jumps.length < CAPS.perSearch) s.jumps.push({t: this.now() - s.t, dy: round(y - s.lastY)});
+        const dpr = this.ctx.dpr || 1, y = l.scrollY / dpr, source = l.source !== s.source;
+        if (s.lastY !== null && Math.abs(y - s.lastY) > JUMP_PX && !l.drag && !l._fling && s.jumps.length < CAPS.perSearch) {
+          s.jumps.push({t: this.now() - s.t, dy: round(y - s.lastY), listH: round(l.height / dpr), maxY: round(l.maxScroll() / dpr), newResults: source});
+        }
         s.lastY = y;
+        s.source = l.source;
       };
     }
   }
@@ -192,9 +234,15 @@ export class FeelLog {
     return {
       version: 1, sessionSeconds: Math.round(this.now() / 1000), dpr: this.ctx.dpr, ...this.viewport(),
       transitions: summary, lastTransitions: this.runs.slice(-40),
-      playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), search: [...this.searches, ...open],
+      playerOpens: this.opens.slice(), playPauseButton: this.buttons.slice(), playPauseMissing: this.missing.slice(), search: [...this.searches, ...open],
     };
   }
+}
+
+/** Neither play nor pause visible at full size, in a player scene that shows them. */
+export function missingButton(buttons, nav, scene) {
+  if (nav !== 'nav_main' || !BUTTON_SCENES.has(scene) || !buttons?.length) return false;
+  return !buttons.some(b => b.visible && Math.max(b.w, b.h) >= FULL_PX);
 }
 
 export const installFeelLog = ctx => new FeelLog(ctx);

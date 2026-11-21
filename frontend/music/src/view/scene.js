@@ -201,8 +201,12 @@ export class SceneController {
       r.target = r.target === 1 ? 0 : 1;
       r.clock = animClock();
       r.from = this.ratio;
-      r.duration = sceneDuration(duration * Math.abs(r.target - this.ratio), velocity) * 1000;
       r.onEnd = onEnd;
+      // Turned back before it moved (two taps before a frame): it is already where it goes. (A zero
+      // time here read as sceneDuration's 1 s default: a second with both play and pause shown.)
+      const left = Math.abs(r.target - this.ratio);
+      if (!r.manual && !(duration * left > 0)) { this.finish(r.target === 1); return; }
+      r.duration = sceneDuration(duration * left, velocity) * 1000;
       return;
     }
     if (this.running) this.finish(true);

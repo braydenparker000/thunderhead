@@ -603,10 +603,21 @@ event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 
 report** also carries `movement`, kept in memory with a cap on each list and never sent to the Worker:
 every view transition (its scene or page names, ms, frames, worst gap between frames; frames are
 counted only while one runs); every open of the player (`innerHeight`, `visualViewport.height`, whether
-a text field had focus in the last second, the layout's height, the player's box height); 600 ms after
-each song change and play/pause, the play and pause buttons (in the page, visible, box size); and each
-search (viewport before and after the keyboard, the results list's height, scroll jumps over 40 px no
-finger or fling made). Numbers and layout names only: no titles, artists, file names or search text.
+a text field had focus in the last second, the layout's height, the player's box height); after each
+song change and play/pause, once the scene changes have settled (600 ms at least), the play and pause
+buttons (in the page, visible, box size), and in `playPauseMissing` each time neither shows at full
+size (52 px or more) in a player scene that has them, with the scene names; and each search (viewport
+before and after the keyboard, read in the frame of each change after its layout, with home's window
+height when Music is in home's frame, the large-viewport height and the bottom inset; the results
+list's height; scroll jumps over 40 px no finger or fling made, with the list's height, its scroll
+limit and whether its results had just changed). Numbers and layout names only: no titles, artists,
+file names or search text.
+
+**Layout height and the keyboard** (`frontend/music/src/ui/layout-height.js`): at `/music` the keyboard
+does not resize the page. In home's frame it does (home asks for `resizes-content`), so Music lays out
+at: the window's height while a field has focus, never above the full height (a 731 → 759 → 424 opening
+is one relayout); the full height at once when the field lets go (leaving search blurs it), while the
+keyboard closes (1 s at most); the window's height otherwise. A resize is laid out in its own frame.
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a

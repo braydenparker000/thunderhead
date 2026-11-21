@@ -157,6 +157,9 @@ export class TopNavSceneFastLayout extends SceneFastLayout {
     this.nav = nav;
     this.firstAnimationDone = true;
     this.ctx.bus.post('bus_gui', 'msg_nav_changed', this, {nav, scene: this.scenes.scene});
+    // The drag took the player's scene from when it began: a play or pause meanwhile (setPlaying waits
+    // for nav_main) would leave the other button showing.
+    if (nav === 'nav_main' && this.scenes.scene !== this.mainScene()) this.go(this.mainScene(), nav, true);
   }
 
   /** Scene the navigation shows (the player screen's scene for nav_main). */
@@ -170,6 +173,9 @@ export class TopNavSceneFastLayout extends SceneFastLayout {
     if (scene === 'scene_vis_w_ui') this.applyFadedAlphas();
     const cur = this.scenes.scene;
     const prevNav = this.nav;
+    // Leaving search lets go of its field first, so the next screen lays out at the full height, not
+    // in the space the keyboard leaves (app.js, layout height).
+    if (prevNav === 'nav_search' && nav !== 'nav_search') this.ctx.leaveField?.();
     this.nav = nav;
     if (scene === cur) return;
     const t = this.times;

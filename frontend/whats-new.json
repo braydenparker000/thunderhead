@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-21-last-round",
+  "id": "2026-11-21-music-keyboard",
   "date": "2026-11-21",
   "lines": [
     {
-      "text": "The ask bar wraps up to four lines, decisions sit above it, and a hold opens the ring in more places."
+      "text": "Music: tapping a song from search no longer opens the player squished by the keyboard."
     },
     {
-      "text": "Settings is grouped under headings with one Notifications page, and its search finds Theme, Text size and Sign out."
+      "text": "Music's search list keeps its place and redraws once when the keyboard comes up."
     },
     {
-      "text": "Music's ratings, likes, playlists and play counts, and Podcasts' Up Next and speed, now follow you to every phone."
-    },
-    {
-      "text": "Study opens page 1 before the book finishes downloading; its search finds word forms and reads Spanish."
+      "text": "Two quick taps on play no longer leave both buttons showing for a second."
     }
   ]
 }

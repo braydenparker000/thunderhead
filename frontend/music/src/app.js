@@ -14,6 +14,7 @@ import {Settings, loadStoredSettings, runtimeSettings, prefDefaults} from './set
 import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
 import {installFeelLog} from './ui/feel-log.js';
+import {LayoutHeight, CLOSE_MS} from './ui/layout-height.js';
 import {AudioCache, retireDefaultCopies} from './library/audio-cache.js';
 import {AudioHeads} from './library/heads.js';
 import {installEqPresets} from './widgets/eq-preset-ui.js';
@@ -142,12 +143,21 @@ export async function boot() {
     ctx.firstRunAt = +localStorage.getItem('cp-first-run') || 0;
     if (!ctx.firstRunAt) localStorage.setItem('cp-first-run', String(ctx.firstRunAt = Date.now()));
   } catch { ctx.firstRunAt = Date.now(); }
-  const applyViewport = () => {
+  // The layout's height (ui/layout-height.js): inside home's frame the keyboard resizes the window.
+  const layoutHeight = new LayoutHeight(window.innerHeight, window.innerWidth);
+  /** Applies the viewport at layout height h; returns whether anything the layout uses changed. */
+  const applyViewport = (h = window.innerHeight) => {
     const vp = measureViewport();
+    const insets = {left: Math.round(vp.insets.left * dpr), top: Math.round(vp.insets.top * dpr), right: Math.round(vp.insets.right * dpr), bottom: Math.round(vp.insets.bottom * dpr)};
+    const bar = Math.max(0, Math.round((vp.largeHeight - h) * dpr));
+    // (The bars' height alone is no relayout: it follows the large viewport, which a keyboard step can move.)
+    const was = ctx.windowInsets, changed = ctx.viewportWidth !== window.innerWidth || ctx.viewportHeight !== h ||
+      ['left', 'top', 'right', 'bottom'].some(k => was[k] !== insets[k]);
     ctx.viewportWidth = window.innerWidth;
-    ctx.viewportHeight = window.innerHeight;
-    ctx.windowInsets = {left: Math.round(vp.insets.left * dpr), top: Math.round(vp.insets.top * dpr), right: Math.round(vp.insets.right * dpr), bottom: Math.round(vp.insets.bottom * dpr)};
-    ctx.transientBarHeight = Math.max(0, Math.round((vp.largeHeight - window.innerHeight) * dpr));
+    ctx.viewportHeight = h;
+    ctx.windowInsets = insets;
+    ctx.transientBarHeight = bar;
+    return changed;
   };
   applyViewport();
   installDynamicDimensions(ctx);
@@ -235,12 +245,28 @@ export async function boot() {
   setInterval(() => {
     if (!document.hidden || player.state === 1) navigator.serviceWorker?.controller?.postMessage({type: 'ping'});
   }, 20000);
-  window.addEventListener('resize', () => {
-    applyViewport();
+  // A resize lays out in the same frame (resize runs before the frame's paint), once per change of
+  // the layout height: a step the layout height does not take costs no relayout.
+  const relayout = h => {
+    if (!applyViewport(h)) return;
     decor.insets = ctx.windowInsets;
     decor.forceLayoutTree();
-    ctx.scheduleLayout();
-  });
+    ctx.layoutNow();
+  };
+  const isField = el => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+  const fieldFocused = () => isField(document.activeElement);
+  const windowSize = () => layoutHeight.next(window.innerHeight, window.innerWidth, fieldFocused(), performance.now());
+  window.addEventListener('resize', () => relayout(windowSize()));
+  // A field let go (a tap elsewhere, Enter, leaving search): the full height at once; the window's own
+  // height again once the keyboard has had time to close.
+  let closing = 0;
+  document.addEventListener('focusout', e => {
+    if (!isField(e.target) || isField(e.relatedTarget)) return;
+    relayout(layoutHeight.leave(performance.now()));
+    clearTimeout(closing);
+    closing = setTimeout(() => { if (!fieldFocused()) relayout(windowSize()); }, CLOSE_MS + 50);
+  }, true);
+  ctx.leaveField = () => { const f = document.activeElement; if (isField(f) && container.contains(f)) f.blur(); };
   document.getElementById('cp-boot')?.remove();
   // ?diag opens the playback diagnostics (Settings › Audio Outputs Detection Log).
   if (params.has('diag')) ctx.settingsUi?.open('audio_platform_log');
