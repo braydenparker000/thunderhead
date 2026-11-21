@@ -17,8 +17,9 @@ export const ALWAYS = ['tests/site.test.mjs'];
 const ENGINE_PAGE = /** @type {Record<string, string>} */ ({ 'lightcraft-web': 'lightcraft', raw: 'engine' });
 
 /** Files that go with a lab change without being a page's own, and the tests that read them: the table CI deals
- * its parts by, and the page budgets (the lab checks stage the site themselves, and tests/site.test.mjs is always run). */
-export const WITH = /** @type {Record<string, string[]>} */ ({ 'scripts/test-durations.json': ['tests/test-part.test.mjs'], 'scripts/stage.mjs': [] });
+ * its parts by. Not the staging (scripts/stage.mjs, scripts/site-config.mjs): it builds every page and the service
+ * worker's list, so a change to it runs every suite (audit 2026-11-20). */
+export const WITH = /** @type {Record<string, string[]>} */ ({ 'scripts/test-durations.json': ['tests/test-part.test.mjs'] });
 /** Lab pages that load another's files. */
 const USED_BY = /** @type {Record<string, string[]>} */ ({ engine: ['editor'] });
 const named = (/** @type {string} */ text) => [...text.matchAll(/\/lab\/([a-z0-9-]+)\//g)].map((m) => m[1]);

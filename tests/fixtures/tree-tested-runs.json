@@ -2,6 +2,7 @@
   "total_count": 4,
   "workflow_runs": [
     {
+      "id": 101,
       "name": "Test",
       "path": ".github/workflows/ci.yml",
       "event": "push",
@@ -12,6 +13,7 @@
       "head_commit": { "id": "1111111111111111111111111111111111111111", "tree_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
     },
     {
+      "id": 102,
       "name": "Test",
       "path": ".github/workflows/ci.yml",
       "event": "push",
@@ -22,6 +24,7 @@
       "head_commit": { "id": "2222222222222222222222222222222222222222", "tree_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
     },
     {
+      "id": 103,
       "name": "Test",
       "path": ".github/workflows/ci.yml",
       "event": "push",
@@ -32,6 +35,7 @@
       "head_commit": { "id": "3333333333333333333333333333333333333333", "tree_id": "cccccccccccccccccccccccccccccccccccccccc" }
     },
     {
+      "id": 104,
       "name": "Test",
       "path": ".github/workflows/ci.yml",
       "event": "push",

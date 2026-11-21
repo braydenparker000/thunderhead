@@ -497,10 +497,12 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 - `shell: bash` (gives `-eo pipefail`); never `set -x`; never `env`/`printenv`.
 - No `actions/upload-artifact`, no caches with personal content, no job summaries with personal content.
 - `::add-mask::` for any derived value that could be sensitive.
-- Scheduled workflows are avoided (GitHub disables them after 60 days of repo inactivity); the Worker or the agent dispatches jobs.
+- Scheduled workflows are avoided (GitHub disables them after 60 days of repo inactivity); the Worker or the agent dispatches jobs. The one exception (2026-11-21) is `live-watch.yml`: read-only live checks every 30 minutes, with `contents: read` and `issues: write` and no secret.
 - `zizmor` (workflow linter) in CI **[optional]**.
 
 ### 12.4 The listening pass's trust boundary (JOBS.md §3)
+
+**Cut 2026-11-04** ([SETUP.md N6](../process/SETUP.md), which says which pieces to remove): no workflow runs it; the boundary below is kept for the record.
 
 An Actions run is public and anyone who can push a workflow to `main` controls it, so everything it sends back is treated as hostile input, and what it holds is what such a person could take:
 

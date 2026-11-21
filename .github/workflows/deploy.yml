@@ -8,7 +8,7 @@
 # only after `api` succeeded or was skipped, so a new site never meets an old API.
 # Job `tested` runs first: when the pull request's head (a merge's second parent; for a plain push,
 # the commit itself) has exactly this commit's tree and a completed, successful Test run (ci.yml, the
-# same checks.yml), those files already passed, so `test` is skipped and `api` and `site` go on that
+# same checks.yml) that checked every suite (its job named `Scope: full`), those files already passed, so `test` is skipped and `api` and `site` go on that
 # result (scripts/tree-tested.mjs). On any doubt (another tree, no such run, an API error) `test`
 # runs as before; Run workflow with `retest` ticked always runs it.
 # Manual deploy or rollback: Actions > Deploy > Run workflow (from main), with the commit to put
@@ -278,7 +278,9 @@ jobs:
     needs: [tested, test, api]
     if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.tested.outputs.tested == 'true')) && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # Above the three step limits below together (15 + 10 + 15) and the setup before them, so a slow publish or live
+    # check fails its step and the rollback still has its own 15 minutes.
+    timeout-minutes: 50
     permissions:
       contents: read
       id-token: write
@@ -338,20 +340,40 @@ jobs:
         timeout-minutes: 15
         run: scripts/deploy.sh "$(git rev-parse HEAD)"
       - name: Check the live site (read-only)
+        timeout-minutes: 10
         env:
           DRILL: ${{ inputs.rollback_drill == true }}
         run: |
           if [[ "$DRILL" == "true" ]]; then echo "::warning::rollback drill: failing the live check on purpose"; exit 1; fi
           export EXPECTED_COMMIT="$(git rev-parse HEAD)"
-          node --test tests/live.test.mjs tests/home-browser.test.mjs || { sleep 15; node --test tests/live.test.mjs tests/home-browser.test.mjs; }
+          # live-browser: the site as the owner opens it (the real config.js, the service worker allowed).
+          checks=(tests/live.test.mjs tests/home-browser.test.mjs tests/live-browser.test.mjs)
+          node --test "${checks[@]}" || { sleep 15; node --test "${checks[@]}"; }
       - name: Roll back to the previous live commit
         if: ${{ (failure() || cancelled()) && steps.publish.outcome != 'skipped' && steps.before.outputs.commit != '' }}
         timeout-minutes: 15
         env:
           PREV: ${{ steps.before.outputs.commit }}
         run: |
-          rm -rf frontend
-          git checkout "$PREV" -- frontend
+          # The previous release is built with its own tools: its pages, its staging and publishing (scripts/: stage.mjs,
+          # site-config.mjs, fonts.mjs, astra/files.mjs, deploy.sh, changed.mjs) and the contract (shared/), all
+          # from that commit. A newer stage.mjs can expect files an older release does not have.
+          paths=()
+          for p in frontend scripts shared; do
+            if git cat-file -e "$PREV:$p" 2>/dev/null; then paths+=("$p"); fi
+          done
+          [[ " ${paths[*]} " == *" frontend "* ]] || { echo "::error::$PREV has no frontend/ to put back"; exit 1; }
+          rm -rf "${paths[@]}"
+          git checkout "$PREV" -- "${paths[@]}"
           node scripts/fonts.mjs
           node scripts/stage.mjs "$PREV"
           scripts/deploy.sh "$PREV"
+          # Then the live release.json must name the previous commit (what the owner's phone now loads).
+          live=""
+          for i in $(seq 1 12); do
+            live="$(curl -fsS --max-time 15 -H 'cache-control: no-cache' "${SITE_URL%/}/release.json?t=$(date +%s)" | sed -n 's/.*"commit":"\([0-9a-f]\{40\}\)".*/\1/p' || true)"
+            [[ "$live" == "$PREV" ]] && break
+            sleep 5
+          done
+          [[ "$live" == "$PREV" ]] || { echo "::error::after the rollback /release.json names ${live:-nothing}, not $PREV"; exit 1; }
+          echo "rolled back; /release.json names $PREV"

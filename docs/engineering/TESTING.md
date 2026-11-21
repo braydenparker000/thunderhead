@@ -6,7 +6,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 ## Rules at a glance
 
-1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same checks, split into five parallel jobs (§2): the quick ones before a merge and a release, the editor's software-GPU browser tests once the release is live. Nobody needs to remember a second one.
+1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same checks, split into six parallel jobs (§2: five site-and-mind parts and the Worker's suite): the quick ones before a merge and a release, the editor's software-GPU browser tests once the release is live. Nobody needs to remember a second one.
 2. **Tests run on real runtimes:** the backend in real workerd with real SQLite Durable Objects (Vitest + `@cloudflare/vitest-plugin`), and the frontend in real Chromium (Playwright) against a local server that behaves like Azure. No hand-rolled fake storage.
 3. **Phone size is the default size.** Browser tests run at the Galaxy A15's size, plus 390×844 and 360×740.
 4. **Every endpoint has a cost test** that pins rows read, rows written and DO calls.
@@ -22,17 +22,17 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 | # | Layer | Tool | Proves | Folder | Phase |
 |---|---|---|---|---|---|
-| 1 | Static | `node --test` | Links resolve by root-absolute paths; no outside hosts in new code; the CSP is first on every page and identical on shell and new pages; no inline script, style or handlers in new code; ported folders equal the old copies plus listed adjustments, with only their allowlisted hosts; no credentials in the repo; licences of vendored files | `tests/site.test.mjs`, `tests/repo.test.mjs`, `tests/ported.test.mjs` | P0 (exists); ported checks P1b |
+| 1 | Static | `node --test` | Links resolve by root-absolute paths; no outside hosts in new code; the CSP is first on every page and identical on shell and new pages; no inline script, style or handlers in new code; ported folders equal the old copies plus listed adjustments, with only their allowlisted hosts; no credentials in the repo; licences of vendored files | `tests/site.test.mjs`, `tests/ported.test.mjs` | P0 (exists); ported checks P1b |
 | 2 | Lint + types | Biome 2.6, `tsc --noEmit` (TypeScript 5.9) | Style; types across `backend/`, `shared/`, `mind/` and the frontend's JSDoc | root | P1 |
-| 3 | Frontend unit | `node --test` | Pure modules: outbox policy, router parsing, ref parser, token contrast, budgets, version compare, logical day | `tests/unit/` | P1 |
+| 3 | Frontend unit | `node --test` | Pure modules: outbox policy, router parsing, ref parser, token contrast, budgets, version compare, logical day | `tests/*-logic.test.mjs` | P1 |
 | 4 | Backend | Vitest 4.1 + `@cloudflare/vitest-plugin` (workerd) | Routes, scopes, stores, DO RPC, alarms, WebSockets, rules (taint, proposals) | `backend/tests/{unit,integration}/` | P1 |
 | 5 | Cost | same | Rows read/written and DO calls per endpoint | `backend/tests/cost/` | P1 |
 | 6 | Migration | same | Empty → current schema matches the snapshot; N-1 data survives; expand-only lint | `backend/tests/migrations/` | P1 |
 | 7 | Import | same | Counts, spot checks, idempotent re-run | `backend/tests/integration/import-*.test.ts`; the driver in `mind/tests/old-export.test.mjs` | P3 |
-| 8 | Restore round trip | same | Export → import into a fresh DO → deep-equal | `backend/tests/restore/` | P1 |
+| 8 | Restore round trip | same | Export → import into a fresh DO → deep-equal | `backend/tests/integration/backups.test.ts`, `backend/tests/integration/export.test.ts` | P1 |
 | 9 | Mind CLI and hooks | `node --test` | `th` argument parsing, exit codes, the bounded Stop hook, the briefing size cap | `mind/tests/` | P2 |
-| 10 | Browser | `@playwright/test` + Chromium | Gestures, overlays, sign-in UI, offline, SW update, mount/unmount hygiene, a11y (axe), no console or CSP errors | `tests/browser/` | P0 (bare `playwright` today) |
-| 11 | End-to-end local | Playwright against `wrangler dev` + `scripts/serve.mjs` | The real site talking to a real local Worker, no API mocks | `tests/e2e/` | P2 |
+| 10 | Browser | bare `playwright` + Chromium | Gestures, overlays, sign-in UI, offline, SW update, mount/unmount hygiene, a11y (axe), no console or CSP errors | `tests/*-browser.test.mjs` | P0 |
+| 11 | End-to-end local | Playwright against `wrangler dev` + `scripts/serve.mjs` | The real site talking to a real local Worker, no API mocks | **Not built** (the browser suites use the mocked Worker, `tests/fixtures/mock-api.mjs`) | — |
 | 12 | Live read-only | `node --test`, Playwright | The deployed site and API: release, CSP, 404, content types, health, CORS, 401s | `tests/live*.test.mjs` | P0 (site), P1 (API) |
 | 13 | Evals | mind harness | Memory probes, injection fixtures, router accuracy | `mind/evals/` (harness + synthetic fixtures) | P3 |
 | 14 | Real device | checklist on the Galaxy A15 | What labs can't: touch edges, audio with the screen locked, install, push | §12.2 | P1 |
@@ -49,18 +49,18 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | 4–8 Backend, cost, migration, import, restore | ✓ | ✓ | ✓ | — | — | — |
 | 9 Mind CLI/hooks | ✓ | ✓ | ✓ | — | — | — |
 | 10 Browser | ✓ | ✓ | ✓ | ✓ (read-only subset against `SITE_URL`) | — | — |
-| 11 E2E local | ✓ (`npm run test:e2e`) | ✓ | ✓ | — | — | — |
+| 11 E2E local (not built) | — | — | — | — | — | — |
 | 12 Live | — | — | — | ✓ | on demand | — |
 | 13 Evals | — | synthetic, deterministic parts only | — | — | ✓ (Sundays, `mind-night`) | — |
 | 14 Device | — | — | — | — | — | ✓ per §12.2 |
 
-**How CI runs them (built 2026-10-30, owner: "go faster without losing quality").** `ci.yml` (every branch but `main`) and `deploy.yml` (job `test`, before anything goes live) both call `checks.yml`: five jobs at once, the site and mind suites in five parts and the Worker's suite (four since 2026-11-03: the heaviest of three ran past two minutes; five since 2026-11-16, when the editor's CPU-export and display tests took two parts past their limit). `scripts/test-part.mjs <k> <n>` deals the test files into parts by how long each took in one measured full run (`scripts/test-durations.json`, rewritten by `node scripts/test-part.mjs --measure`), largest first, each to the part with the least time so far; a file the table doesn't know yet counts by its size at the table's own rate, so a new test needs no re-measure until the parts drift. `tests/test-part.test.mjs` proves every file runs in exactly one of the five parts, that the parts' measured times are within 25 % of each other, and that the table names no file that has gone. Each commit is checked once (the deploy's `api` and `site` jobs no longer re-run the suite), in about two minutes where one job took four and a half (measured 2026-10-30: site and mind 165 s, Worker 95 s, on a 4-vCPU runner).
+**How CI runs them (built 2026-10-30, owner: "go faster without losing quality").** `ci.yml` (every branch but `main`) and `deploy.yml` (job `test`, before anything goes live) both call `checks.yml`: six jobs at once, the site and mind suites in five parts and the Worker's suite (four parts since 2026-11-03: the heaviest of three ran past two minutes; five since 2026-11-16, when the editor's CPU-export and display tests took two parts past their limit). `scripts/test-part.mjs <k> <n>` deals the test files into parts by how long each took in one measured full run (`scripts/test-durations.json`, rewritten by `node scripts/test-part.mjs --measure`), largest first, each to the part with the least time so far; a file the table doesn't know yet counts by its size at the table's own rate, so a new test needs no re-measure until the parts drift. `tests/test-part.test.mjs` proves every file runs in exactly one of the five parts, that the parts' measured times are within 25 % of each other, and that the table names no file that has gone. Each commit is checked once (the deploy's `api` and `site` jobs no longer re-run the suite), in about two minutes where one job took four and a half (measured 2026-10-30: site and mind 165 s, Worker 95 s, on a 4-vCPU runner).
 
 **Quick before, slow after (owner, 2026-11-18: "your tests just slow us down to some degree. Honestly better to go live and have a good recording and reporting pipeline").** A merge and a release wait for the quick checks only: `checks.yml` with `files: quick` (Test, and Deploy's `test`), every file but the editor's software-GPU browser tests (`scripts/test-part.mjs` `heavy`: `tests/lab-*-browser.test.mjs`, most of CI's time). Those run once the release is live: `slow.yml` (Slow) runs on each Deploy that succeeded, `checks.yml` with `files: slow` on the commit that went live, five parts at once; Run workflow runs them on any commit. A failure there is a red mark on the live commit, fixed next or the release rolled back (OPERATIONS.md §3.2), never retried into green (rule 8). What the owner meets first on the phone is seen by the flight recorder (`th/report/`: a swipe of the panel, a turn of the tool dial, a pinch and the GPU's work, each with how the page kept up) and by screen recordings, so the slow tests are a net, not a gate. Locally `node scripts/test-part.mjs 1 1 --quick` (or `--slow`) runs one kind; `npm test` runs both.
 
-**Lab changes (owner, 2026-11-09: "why do we have to run every single test when we're just testing a lab item?").** On a branch whose every change adds or edits files under one or more lab pages (`frontend/lab/<page>/`) or the engine builds they load (`engine/raw/` for `/lab/engine/`, `engine/lightcraft-web/` for `/lab/lightcraft/`), Test's `scope` job (`scripts/lab-scope.mjs`) narrows `checks.yml` to the lab checks: part site 1/5 runs `tsc`, the contract check and the stage budgets; the five site parts then run, dealt between them as the whole suite is, `tests/site.test.mjs` (the static checks every page must pass: outside hosts, CSP, imports, credentials) plus every test file that names `/lab/<page>/`; the Worker's part passes at once. A change to the engine page runs the editor's tests too (the editor is made of the engine). A page's own tests (a test file that names a lab page), the table CI deals its parts by (`scripts/test-durations.json`) and the page budgets (`scripts/stage.mjs`) go with a lab change (owner, 2026-11-14: "why do we even have to run every test for small changes?"; until then a change to the editor that touched its own test ran every suite, and on one day four unrelated tests of the shell and the Worker each stopped a merge). Any other path, a deleted or renamed file, or any doubt (the job failing included) runs every suite. Deploy skips its checks when Test passed on the same tree (`scripts/tree-tested.mjs`), so pull requests go in as merge commits, not squashes: a squash has no Test run of its own and runs everything again.
+**Lab changes (owner, 2026-11-09: "why do we have to run every single test when we're just testing a lab item?").** On a branch whose every change adds or edits files under one or more lab pages (`frontend/lab/<page>/`) or the engine builds they load (`engine/raw/` for `/lab/engine/`, `engine/lightcraft-web/` for `/lab/lightcraft/`), Test's `scope` job (`scripts/lab-scope.mjs`) narrows `checks.yml` to the lab checks: part site 1/5 runs `tsc`, the contract check and the stage budgets; the five site parts then run, dealt between them as the whole suite is, `tests/site.test.mjs` (the static checks every page must pass: outside hosts, CSP, imports, credentials) plus every test file that names `/lab/<page>/`; the Worker's part passes at once. A change to the engine page runs the editor's tests too (the editor is made of the engine). A page's own tests (a test file that names a lab page), the table CI deals its parts by (`scripts/test-durations.json`) goes with a lab change (owner, 2026-11-14: "why do we even have to run every test for small changes?"; until then a change to the editor that touched its own test ran every suite, and on one day four unrelated tests of the shell and the Worker each stopped a merge). The staging (`scripts/stage.mjs`, `scripts/site-config.mjs`) does not (audit 2026-11-20: it builds every page and the service worker's list, so a change to it runs every suite). Any other path, a deleted or renamed file, or any doubt (the job failing included) runs every suite. Deploy skips its checks only when Test passed on the same tree with every suite (`scripts/tree-tested.mjs`: Test's job `record` is named `Scope: full` only then; a narrowed run is named `Scope: narrowed` and Deploy runs its checks), so pull requests go in as merge commits, not squashes: a squash has no Test run of its own and runs everything again.
 
-**Astra changes (owner, 2026-11-18: "get it live if there's no errors pertaining to the Astra side of things. They shouldn't affect each other.").** The same job narrows the checks the same way for a branch whose every change is Astra's own: files under `frontend/astra/`, its tests (`tests/astra-*.test.mjs`), fixtures (`tests/fixtures/astra/`, `tests/fixtures/astra-host.mjs`) and tools (`scripts/astra/`), with what goes with them: the release note (`frontend/whats-new.json`, which runs `tests/news-browser.test.mjs`), the ported pages' record (`frontend/ported.json`, which runs the ported tests), `docs/product/apps/ASTRA.md`, the parts' table and the page budgets. It runs `tests/site.test.mjs`, every `tests/astra-*.test.mjs` and every other test file that names `/astra/` (the ported pages' records, the service worker's lists, the shell's checks of the page); the labs' and Photos' own tests are not run, and the Worker's part passes at once. A change to the Worker (`backend/`), the shared contract, the vendored decoders (`frontend/assets/`), the shell or any other page runs every suite, as does a deleted or renamed file. Until this, a timing check of the editor's own stopped a deploy that changed nothing but Astra.
+**Astra changes (owner, 2026-11-18: "get it live if there's no errors pertaining to the Astra side of things. They shouldn't affect each other.").** The same job narrows the checks the same way for a branch whose every change is Astra's own: files under `frontend/astra/`, its tests (`tests/astra-*.test.mjs`), fixtures (`tests/fixtures/astra/`, `tests/fixtures/astra-host.mjs`) and tools (`scripts/astra/`), with what goes with them: the release note (`frontend/whats-new.json`, which runs `tests/news-browser.test.mjs`), the ported pages' record (`frontend/ported.json`, which runs the ported tests), `docs/product/apps/ASTRA.md` and the parts' table. It runs `tests/site.test.mjs`, every `tests/astra-*.test.mjs` and every other test file that names `/astra/` (the ported pages' records, the service worker's lists, the shell's checks of the page); the labs' and Photos' own tests are not run, and the Worker's part passes at once. A change to the Worker (`backend/`), the shared contract, the vendored decoders (`frontend/assets/`), the shell or any other page runs every suite, as does a deleted or renamed file. Until this, a timing check of the editor's own stopped a deploy that changed nothing but Astra.
 
 Time budget: `npm test` ≤ 5 min on a 4-vCPU runner; each CI part ≤ 2 min. A part that grows past it gets another part (raise `n` in `checks.yml`) or its slowest file split. CI's job timeout is 20 minutes (`checks.yml`: CI's machine runs the software-GPU tests about twice as slowly as the table says).
 
@@ -75,15 +75,13 @@ npm test                                 # every offline layer (today: node --te
 npm run test:site                        # layers 1, 3, 10: node --test tests/*.test.mjs
 npm run test:backend                     # layers 2, 4–8: tsc, biome, wrangler types --check, vitest on workerd
 npm run test:mind                        # layer 9: node --test mind/tests/   [proposal: script name]
-npm run test:browser                     # layer 10 against scripts/serve.mjs
-npm run test:e2e                         # layer 11: wrangler dev + serve.mjs + Playwright
 SITE_URL=https://<site> node --test tests/live.test.mjs tests/home-browser.test.mjs   # layer 12, site
 WORKER_URL=https://<api> node --test tests/live-api.test.mjs                          # layer 12, API
 npx vitest run backend/tests/cost --reporter=verbose                                  # cost table
 ```
 
 - `CHROMIUM_PATH` overrides the browser binary (used in sandboxes).
-- Local `wrangler dev` is seeded from `backend/tests/fixtures/seed.jsonl`. The dev setup code and dev agent token come from `backend/.dev.vars`, which is git-ignored. **Never `wrangler dev --remote`.**
+- Local `wrangler dev` starts empty (no seed file). The dev setup code and dev agent token come from `backend/.dev.vars` (made from `backend/.dev.vars.example`), which is git-ignored. **Never `wrangler dev --remote`.**
 
 Today `npm test` is `node --test tests/*.test.mjs` (static plus the bare `playwright` browser suite at 390×844). The layers above arrive with P1 under npm workspaces (`"."`, `backend`, `mind`). From P1 it is `node --test tests/*.test.mjs && npm test -w backend` (then `&& npm run test:mind` from P2). Change dependencies only with npm 11 or newer (decisions 2026-10-28).
 
@@ -158,7 +156,7 @@ Any logic without DOM lives in its own module and has a `node --test` in `tests/
 | `day-roll` | With a fake clock: no roll at 04:00 if a message came at 03:30; roll at 04:30 after 60 quiet minutes; a new daily thread on the next message |
 | `watchdogs` | Each watchdog trips once and repeats only after clearing ([OPERATIONS.md §8.2](OPERATIONS.md#82-watchdogs-coretick-every-15-min)) |
 | `jobs` | A chunked job resumes from its cursor after a thrown step; pauses at the lane cap; never runs two steps at once |
-| `n-1-client` | The previous build's recorded request shapes (`backend/tests/fixtures/client-n-1.json`) all succeed |
+| `n-1-client` | **Not built:** the previous build's recorded request shapes all succeed |
 
 ---
 
@@ -189,8 +187,8 @@ The starting budgets are in [PERFORMANCE.md §4.3](PERFORMANCE.md#43-rows-and-ca
 | Upgrade | A fixture DB at schema N-1 (`fixtures/<class>.v<N-1>.jsonl`) migrates to N; every row is still there and unchanged in kept columns |
 | Expand-only lint | An `expand` step containing `DROP`, `RENAME`, or `ALTER … DROP` fails |
 | Contract timing | A `contract` step must name the earlier version that stopped using the thing; the test checks that version is at least one deploy older (`_migrations` history in `fixtures/deploys.json`) |
-| Rollback safety | The previous release's store queries (`fixtures/queries-n-1.sql`, recorded at each release) all run against the new schema without error |
-| Class change alone | `scripts/api-guard.mjs` unit test: a range with a new `migrations` tag plus any other source change → fails |
+| Rollback safety | **Not built:** the previous release's store queries, recorded at each release, all run against the new schema without error |
+| Class change alone | **Not built:** a range with a new `migrations` tag plus any other source change fails |
 
 ---
 
@@ -230,10 +228,10 @@ PITR can't run locally (it isn't supported in local development). It is covered 
 
 Two rules, since 2026-11-03, when a day of deploys failed four times on load races that passed on a re-run:
 
-1. **Wait for conditions, not for time.** A step waits for what it needs: an element or attribute, a key in storage, a call the mock saw, the springs at rest (`whenResting`), the tap guard let go (`tooSoon()`). Never `waitForTimeout` before an assertion. A "nothing happens" read that must outlast a product timer (the 3 s senses send, the 6 s idle close) outlasts it on the page's own timers, which keep the order however loaded the runner is; a pause that is part of the input (a hold, the gap between two taps) says so where it is. Helpers: `tests/fixtures/waits.mjs`.
+1. **Wait for conditions, not for time.** A step waits for what it needs: an element or attribute, a key in storage, a call the mock saw, the springs at rest (`whenResting`), the tap guard let go (`tooSoon()`). Never `waitForTimeout` before an assertion (`tests/sleep-assert.test.mjs` fails on a `waitForTimeout(` with an `assert` within two lines in a `*-browser.test.mjs`; the 48 there on 2026-11-21 are listed by file in `tests/fixtures/sleep-assert-allow.json`, and no file may gain one). A "nothing happens" read that must outlast a product timer (the 3 s senses send, the 6 s idle close) outlasts it on the page's own timers, which keep the order however loaded the runner is; a pause that is part of the input (a hold, the gap between two taps) says so where it is. Helpers: `tests/fixtures/waits.mjs`.
 2. **Timing is diagnostic on CI.** An assertion on milliseconds, frames or audio levels that measures the machine rather than the product's logic goes through `timing()` (`tests/fixtures/waits.mjs`): on CI it prints `# timing (not enforced on CI): …`; with `TH_STRICT_TIMING=1` it fails like any assertion. Logic stays hard: what happened, in what order, where it ended, and lower bounds that only a bug can break (a timer never fires early).
 
-CI runs the site and mind suites in **four** parts (§2). No retries anywhere: a test that needs one is fixed instead.
+CI runs the site and mind suites in **five** parts (§2). No retries anywhere: a test that needs one is fixed instead.
 
 ### 10.2 Required suites
 
@@ -264,6 +262,7 @@ CI runs the site and mind suites in **four** parts (§2). No retries anywhere: a
 | CSP and content types | same | `/` has the meta CSP; JS, CSS and woff2 have the right types |
 | Real 404 | same | `/no-such-file.js` → 404 |
 | Home works | `tests/home-browser.test.mjs` with `SITE_URL` | Loads clean; gestures work; **nothing is sent** (the send step is skipped live) |
+| As the owner opens it | `tests/live-browser.test.mjs` | The real `config.js` and the service worker allowed: a signed-out visit to `/` lands on `/signin/`, no page reports a CSP violation, the worker reaches `activated`. No sign-in, no writes |
 | Shell stubs (P1) | `tests/live.test.mjs` | Each shell route → 200 with the shell |
 | Ported pages (P1b) | same | `/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that app's own page and its recorded CSP. Read-only: nothing is played or fetched from the old Worker |
 | API health (P1) | `tests/live-api.test.mjs` | `/v1/health` shape; `version.tag` = the deployed sha |
@@ -306,7 +305,7 @@ The agent writes the result into STATUS (pass/fail per item, no personal content
 
 1. Synthetic only. Names like "Song A", "Artist 1", "Book One", "Friend"; places like "Town"; text from a fixed lorem-like generator. No real people, places, scripture text, song titles, message text, or dates tied to the owner's life.
 2. Generated by seeded scripts committed next to them (`make-*.mjs`), so a fixture can always be rebuilt and nothing is pasted from production.
-3. Never copy production data into `tests/` or `backend/tests/fixtures/`, not even "anonymised". Production checks are live and read-only, or run inside the Worker.
+3. Never copy production data into `tests/` or `backend/tests/`, not even "anonymised". Production checks are live and read-only, or run inside the Worker.
 4. Tokens in fixtures are visibly fake (`th1_TEST…`) and fail the checksum ([SECURITY.md §5.2](SECURITY.md)), so the secret scan can tell them from real ones.
 5. The `fixtures-synthetic` lint fails on: email addresses, phone-number shapes, URLs outside `example.com` / `example.org`, `r2.cloudflarestorage.com` hosts, and any word in a short local deny-list file that stays outside the repo (the agent keeps it in its session) **[proposal]**.
 
@@ -314,10 +313,8 @@ The agent writes the result into STATUS (pass/fail per item, no personal content
 
 | File | Used by |
 |---|---|
-| `backend/tests/fixtures/seed.jsonl` | `wrangler dev` and e2e: 3 days of synthetic chat, a few facts, one proposal, one verb |
-| `backend/tests/fixtures/scale.mjs` | Cost and restore tests: year-2 scale generated in memory (20,000 messages, 2,000 facts, 5,000 ledger rows) **[proposal: sizes]** |
+| `backend/tests/fixtures.ts` | The synthetic setup code, username, password and site every Worker test shares |
 | `backend/tests/import-helpers.ts` (`oldChats`, `exportRun`) | Import tests |
-| `backend/tests/fixtures/client-n-1.json` | The N-1 client test |
 | `mind/evals/fixtures/*.json` | Injection and router fixtures (synthetic) |
 
 ### 13.3 Scale fixture

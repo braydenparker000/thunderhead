@@ -31,6 +31,16 @@ jobs:
           verdict="$(node scripts/lab-scope.mjs origin/main || echo all)"
           echo "scope: $verdict"
           if [[ "$verdict" == lab\ * ]]; then echo "lab=${verdict#lab }" >> "$GITHUB_OUTPUT"; else echo "lab=" >> "$GITHUB_OUTPUT"; fi
+  # What this run checks, in a job name Deploy reads (scripts/tree-tested.mjs): Deploy skips its own checks only
+  # after a successful run of this tree whose job is named `Scope: full`. The condition is the one `test` passes as `lab`.
+  record:
+    needs: scope
+    if: ${{ !cancelled() }}
+    name: "${{ (needs.scope.result == 'success' && needs.scope.outputs.lab) && 'Scope: narrowed' || 'Scope: full' }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "the scope is this job's name"
   test:
     needs: scope
     if: ${{ !cancelled() }}

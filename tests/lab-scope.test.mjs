@@ -14,7 +14,12 @@ test('only lab pages and their engine builds count as a lab change', () => {
   assert.equal(labPages(['scripts/stage.mjs']), null, 'the budgets alone are no lab change');
   // a page's own tests, the table CI deals by and the page budgets go with a lab change (owner, 2026-11-14)
   const sources = { 'tests/lab-engine-x.test.mjs': "goto(`${base}/lab/engine/?readback`)", 'tests/photos-browser.test.mjs': "open('/settings/photos/')" };
-  assert.deepEqual([...(labPages(['frontend/lab/editor/app/save.js', 'tests/lab-engine-x.test.mjs', 'scripts/test-durations.json', 'scripts/stage.mjs'], sources) ?? [])].sort(), ['editor', 'engine']);
+  assert.deepEqual([...(labPages(['frontend/lab/editor/app/save.js', 'tests/lab-engine-x.test.mjs', 'scripts/test-durations.json'], sources) ?? [])].sort(), ['editor', 'engine']);
+  // the staging builds every page and the service worker's list: with it, every suite runs (audit 2026-11-20)
+  for (const staging of ['scripts/stage.mjs', 'scripts/site-config.mjs']) {
+    assert.equal(labPages(['frontend/lab/editor/app/save.js', staging], sources), null, `${staging} is no lab change`);
+    assert.equal(astraChange(['frontend/astra/app.js', staging]), false, `${staging} is no Astra change`);
+  }
   assert.deepEqual([...(labPages(['tests/lab-engine-x.test.mjs'], sources) ?? [])], ['engine', 'editor'], 'a lab test changed alone is still a lab change');
   assert.equal(labPages(['frontend/lab/editor/app/save.js', 'tests/photos-browser.test.mjs'], sources), null, 'a test of another page is not');
   assert.equal(labPages(['frontend/lab/editor/app/save.js', 'tests/fixtures/waits.mjs'], sources), null, 'what every test shares is not');

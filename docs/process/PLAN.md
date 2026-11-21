@@ -31,8 +31,8 @@ Found tonight: the Thunderhead ran on UTC, three hours off (PR "runs on your own
 
 ## How to make it the best possible
 
-1. **Try before it ships.** Every pull request gets its own copy of the site to open on the phone
-   (preview builds). One owner step: a Cloudflare token for it. This is what makes "product enjoyer"
+1. **Try before it ships.** A branch's copy of the site to open on the phone (`preview.yml`: run by
+   hand, one branch at a time at one address). One owner step: a Cloudflare token for it. This is what makes "product enjoyer"
    real: tap a link, try it, merge or not.
 2. **Music that just works:** the new streaming engine inside the player, song by song, falling back
    to today's playback on any trouble, measured by the playback reports already live, so problems

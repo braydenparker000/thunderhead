@@ -17,7 +17,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
 9. **API changes inside `/v1` are additive.** Every client request carries `TH-Client`. `/v1/health` publishes `min_client`.
 10. **Home is the one shell document; the ported apps are their own pages at first.** In P1b each existing app (Music, Guitar, Podcasts, Astra, My Media) is ported **as it is** (owner ruling 2026-10-28) and runs as its own page in its own folder, unchanged; only the new home (with the Briefing, menu, settings and sign-in) is the shell. New apps (Study) are lazily imported shell modules. Folding a ported app into the shell (so audio keeps playing across screens) is a later evolution the owner must agree to first (§7, §11).
 11. **One hand-written service worker** precaches each release as a whole and never applies an update mid-song.
-12. **Heavy work goes to its proper place** (see [JOBS.md](JOBS.md)): audio CPU work runs in Actions, addressed by sha256 only. Personal text runs in the mind's session. Row-heavy work runs as chunked DO alarm jobs. Reasoning runs only in mind sessions.
+12. **Heavy work goes to its proper place** (see [JOBS.md](JOBS.md)): audio CPU work was to run in Actions, addressed by sha256 only (the listening pass; cut 2026-11-04, [SETUP.md N6](../process/SETUP.md)). Personal text runs in the mind's session. Row-heavy work runs as chunked DO alarm jobs. Reasoning runs only in mind sessions.
 13. **No Cloudflare or Azure credential is ever inside a Claude session.** Deploy credentials live only in GitHub Actions secrets.
 14. **$0 extra.** Every design must fit the free tiers in [PERFORMANCE.md](PERFORMANCE.md). Anything that would cost money is asked first.
 15. **Ported apps keep calling the old Worker until their data moves** (Music P5, Guitar P6, Astra, Podcasts and My Media P8). They reach it because the new site's origin is added to the old Worker's allowed origins, a one-line old-Worker deploy that is asked first (§11, [MIGRATION.md §6](../archive/MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
@@ -45,7 +45,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
    ┌───────────────┴──────────────────┐   ┌──────────────┐ ┌──────────────┐                                 │ tokens: read
    │ GitHub Actions (public repo)     │   │ DO Core       │ │ DO Auth      │   later: DO Senses (P5),       │ music, write
    │ ci.yml  deploy.yml (site + api)  │   │ "owner"       │ │ "owner"      │          DO Music  (P5),       │ jobs)
-   │ jobs-audio.yml (P5, sha256 only) ├───┤ chat, ledger, │ │ password,    │          DO Library (P7)       │
+   │ (listening pass: cut 2026-11-04) ├───┤ chat, ledger, │ │ password,    │          DO Library (P7)       │
    │ wrangler deploy / rollback       │   │ proposals,    │ │ sessions,    │                                 │
    └───────────────▲──────────────────┘   │ verbs, memory │ │ agents, push │                                 │
                    │ git push (proxy)     └──────▲────────┘ └──────────────┘                                 │
@@ -93,7 +93,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | Azure OIDC (the old site's app registration, Storage Blob Data Contributor on the `thunderhead*` account) | Federated trust; IDs as GitHub secrets | Write `$web` | Claude sessions |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account) | GitHub secret | Deploy, roll back, set Worker secrets | Claude sessions |
 | R2 sign key (Object Read on `jarvis-music` + `thunderhead-private`) | Worker secrets `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Presign GETs | Actions, sessions |
-| R2 Actions key (read `jarvis-music` only) and the `jobs-audio` `ci` key | GitHub environment `jobs` | Read audio bytes by sha256; send job results through the Worker | The Worker, sessions |
+| R2 Actions key (read `jarvis-music` only) and the `jobs-audio` `ci` key: **cut 2026-11-04** with the listening pass (SETUP.md N6 says what to remove) | GitHub environment `jobs` | Read audio bytes by sha256; send job results through the Worker | The Worker, sessions |
 | Mind fire secrets `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN`, `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` (P4) (names as in [RUNTIME.md §2](../mind/RUNTIME.md)) | Worker secrets | Fire `mind-chat`, `mind-night`, `mind-reflex` with text `wake` | Everywhere else |
 
 The full inventory, with rotation steps, is in [SECURITY.md](SECURITY.md) and [OPERATIONS.md §6](OPERATIONS.md#6-secret-rotation).
@@ -120,7 +120,7 @@ thunderhead/
   AGENTS.md  CLAUDE.md  README.md      rules, entry point, commands
   package.json  package-lock.json      npm workspaces: ".", "backend", "mind"; one `npm test`
   biome.json  tsconfig.json            one lint/format config; tsc checks backend, shared, frontend JSDoc, mind
-  .github/workflows/                   checks.yml (the tests, in 4 parallel jobs), called by ci.yml (non-main pushes) and deploy.yml (test → api → site); jobs-audio.yml (P5)
+  .github/workflows/                   checks.yml (the tests, in 6 parallel jobs), called by ci.yml (non-main pushes) and deploy.yml (test → api → site); live-watch.yml (every 30 min)
   .github/dependabot.yml               monthly, grouped
   .claude/settings.json                mind hooks: SessionStart, Stop (bounded), PreToolUse per TH_ROLE
   shared/contract/                     the contract: types (api.ts refs.ts errors.ts …) and the runtime data and code the Worker, the phone and th share: the route table (routes.ts), zod schemas (verbs, surfaces, proposals, reader), the phrase lint (lint.ts), the report cleaner (reports-clean.ts); index.ts feeds scripts/contract.mjs
@@ -212,6 +212,8 @@ mind-chat session starts ─► SessionStart hook: `th brief --claim` ─► POS
 - Wake caps, retries and the honest "isn't waking" line are specified in [RUNTIME.md](../mind/RUNTIME.md).
 
 ### 4.4 Actions → R2 jobs → Worker
+
+**Cut 2026-11-04** with the listening pass ([SETUP.md N6](../process/SETUP.md)): there is no `jobs-audio.yml`; the steps below are kept for the record.
 
 1. `mind-night` asks `GET /v1/jobs/next?kind=audio.analysis`. It receives a spec `{job_id, kind, v, shas[]}` with sha256 keys only.
 2. It dispatches `jobs-audio.yml` with the single `workflow_dispatch` input `job_id`. The workflow fetches the spec with `TH_CI_TOKEN`, so no hash ever shows on the public run page.
@@ -351,7 +353,7 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 | P2 | Threads, messages, FTS5, live WebSocket, `/v1/live/wait`, mind wakes, `th` CLI, `mind-chat` |
 | P3 | Import from the old Worker, memory v1, ledger undo for memory, `mind-night` |
 | P4 | Proposals approved by a device tap or the owner's own words, role enforcement, `mind-reflex`, watchdogs, weekly backups, restore drill, export, Muse work orders |
-| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml`; the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
+| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml` (cut 2026-11-04); the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
 | P6 | Guitar's data moves to the new Worker (Songsterr stays the tab source) |
 | P7 | `Library` + Study |
 | P8 | Briefing data (weather and app tiles); Astra, Podcasts and My Media data moves; push. Then the old Worker can retire (zero callers for 7 days, then an owner-approved proposal) |

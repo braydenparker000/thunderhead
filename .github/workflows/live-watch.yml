@@ -1,0 +1,60 @@
+# Between releases: every 30 minutes the read-only live checks run against what is live (tests/live.test.mjs for
+# the site, tests/live-api.test.mjs for the Worker; neither signs in, writes or needs a secret). Two failed runs in a
+# row open one issue, "The live site check is failing" (a comment on it when it is already open), and a passing run
+# closes it (scripts/live-watch.mjs). The issue names the failing checks and links the run, nothing else.
+# GitHub turns a schedule off after 60 days without a commit; Run workflow starts one by hand.
+name: Live watch
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: live-watch
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  watch:
+    if: ${{ github.ref == 'refs/heads/main' && vars.SITE_URL != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Check the live site and Worker (read-only)
+        id: check
+        timeout-minutes: 10
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: |
+          # The API's preflight check is made from the site's own origin.
+          SITE_ORIGIN="$(node -e 'process.stdout.write(new URL(process.argv[1]).origin)' "$SITE_URL")"
+          export SITE_ORIGIN
+          status=passed
+          node --test --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/live.tap" \
+            tests/live.test.mjs tests/live-api.test.mjs || status=failed
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Open, comment on or close the issue
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          STATUS: ${{ steps.check.outputs.status || 'failed' }}
+        run: node scripts/live-watch.mjs "$RUNNER_TEMP/live.tap" "$STATUS"
+      - name: The run is red while the check fails
+        if: ${{ steps.check.outputs.status != 'passed' }}
+        run: |
+          echo "::error::the live check failed"
+          exit 1
