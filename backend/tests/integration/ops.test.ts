@@ -40,8 +40,8 @@ describe('deep health', () => {
         objects: {
           core: {
             ok: true,
-            schema: 48,
-            expected: 48,
+            schema: 49,
+            expected: 49,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -56,8 +56,8 @@ describe('deep health', () => {
           },
           music: {
             ok: true,
-            schema: 5,
-            expected: 5,
+            schema: 6,
+            expected: 6,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -72,8 +72,8 @@ describe('deep health', () => {
           },
           library: {
             ok: true,
-            schema: 3,
-            expected: 3,
+            schema: 4,
+            expected: 4,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
