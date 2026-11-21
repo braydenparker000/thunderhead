@@ -93,8 +93,8 @@ export function lookBudgets(list) {
   // "That's fine because it should get cached after one load anyways". Each limit is what was measured,
   // with no room.
   return [
-    ['look CSS bytes', sum(/\.css$/), 126_556],
-    ['look JS bytes', sum(/\.js$/), 70_085],
+    ['look CSS bytes', sum(/\.css$/), 128_230],
+    ['look JS bytes', sum(/\.js$/), 75_660],
     ['look font bytes', sum(/\.woff2$/), 129_576],
     ['look kit bytes', sum(/^kit\//), 204_168],
     ['look emblem bytes', sum(/^emblems\.svg$/), 6_160],

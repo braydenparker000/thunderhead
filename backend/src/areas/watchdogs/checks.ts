@@ -7,6 +7,7 @@ import { WATCHDOG_LIMITS as L, type WatchdogName } from '../../../../shared/cont
 import { HOUR, MINUTE, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { BACKUP_CHECKS } from '../backups/checks';
+import { CONVERSATION_CHECKS } from '../conversation/checks';
 import { stuckJob } from '../jobs/store';
 import { dayNote } from '../memory/notes';
 import { METER_CHECKS } from '../meter/checks';
@@ -114,7 +115,8 @@ const dbSize: Check = (_db, c) => ({
  * a watchdog's data adds its check (and, if it reads outside SQL, its GATHER entry) in its own
  * module and spreads it in below: the backups' `backup.stale`, `drill.failed` and `drill.overdue`
  * (P4 stage E, areas/backups/checks.ts) and the quotas' `quota.rows_read` and `quota.rows_written`
- * (the row meter, areas/meter/checks.ts). Muse's `muse.silent` was removed on 2026-11-02: Muse now
+ * (the row meter, areas/meter/checks.ts), and the conversation's `reply.late`
+ * (areas/conversation/checks.ts). Muse's `muse.silent` was removed on 2026-11-02: Muse now
  * polls for orders, an order it leaves shows its age in the menu's Tasks, and the Briefing still
  * says when Muse hasn't called for a day. */
 export const CHECKS: Partial<Record<WatchdogName, Check>> = {
@@ -126,6 +128,7 @@ export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'db.size': dbSize,
   ...BACKUP_CHECKS,
   ...METER_CHECKS,
+  ...CONVERSATION_CHECKS,
 };
 
 /** The gathers the built checks need (none yet: every check above reads Core's SQL). */

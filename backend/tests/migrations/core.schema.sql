@@ -298,7 +298,7 @@ CREATE TABLE messages (
   acked_at INTEGER,
   answered_at INTEGER,
   req_sha256 TEXT
-  );
+  , refires INTEGER NOT NULL DEFAULT 0);
 
 CREATE VIRTUAL TABLE messages_fts USING fts5 (body, content = 'messages', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2');
 

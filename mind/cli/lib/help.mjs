@@ -1,5 +1,5 @@
-// `th help [command]`: the commands, then what this Worker build offers the role, read from the
-// contract (mind/cli/contract.json), so a new route, verb or surface kind shows up here the moment
+// `th help [command|all]`: an index of the commands; one command's usage; or (all) every command,
+// then what this Worker build offers the role, read from the contract (mind/cli/contract.json), so a new route, verb or surface kind shows up here the moment
 // the contract has it.
 import {CONTRACT, routesFor} from './contract.mjs';
 import {EXIT} from './io.mjs';
@@ -36,7 +36,7 @@ export const USAGE = {
   study: ['week [--to <YYYY-MM-DD>]', 'a week of Study: reading stints that moved a page, pages, minutes, days, books moved, each book by its id (its title: th get /v1/library/books). Counts and ids only'],
   growth: ['[--day <YYYY-MM-DD>]', 'night step 13, once a week: the Worker writes the Briefing\'s practice and study tiles from the week\'s counts (one sentence each, what grew, never a scold) and sets tomorrow\'s section and the next passage (guitar.set_plan, study.mark_next); under 3 sessions that week, nothing (reason quiet). Prints each app\'s sessions, the tile\'s and the plan\'s ledger rows and why one is missing'],
   podcasts: ['new', 'the night\'s look for new episodes of the shows the owner follows (≤ 20 a night, each once a day): places the home line itself on line.4 and prints counts only, never a title (RUNTIME.md §12.1)'],
-  help: ['[command]', 'this text'],
+  help: ['[command|all]', 'no command: an index; a command: its usage; all: everything below'],
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
   remind: ['<when> <text|-> --from <owner message id> [--proposal <id>] | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],
   routine: ['propose <file.json|-> --name <≤40> (--at HH:MM [--days weekdays|weekends|mon,wed] | --after <sense type> | --fact <observed fact id>) --why <8–140> --question <q> --if-ignored <t> --odds <p> [--what <home\'s line>] | list | cancel <id>', 'an arrangement the owner approves once, then runs on its own: a card (class routine) with the plan (1–8 steps as th plan) and the condition in words; the yes stores it under the permit as it stands then. It runs without a session at its time (after: the first such event in the owner\'s day), one ledger row, one undo, its line on home; no step behind a floor, no music find. list shows each with its last run; cancel switches one off (only the owner switches one on) or takes back a card still waiting'],
@@ -79,8 +79,39 @@ export const USAGE = {
   report: ['--headline "<≤ 60>" [--line <kind>[@ledger:<id>|@app:<id>]:"<≤ 100>" …] [--day <day>]', 'night step 12: what the night did, the Briefing\'s first tile and the open day\'s first message; ≤ 6 plain lines; a ledger ref (a row this run wrote, th ledger --since) is the owner\'s Undo on the tile; the Worker adds the counts; the same report again changes nothing'],
 };
 
+/** `th help` with no command: one short line per command (≤ 2,500 characters, it stays in context). */
+export const INDEX = {
+  brief: 'the briefing', skill: 'how an app or area works', wait: 'listen for messages', say: 'post to a thread',
+  amend: 'change your own post', history: 'read a thread', status: 'presence, working card',
+  title: 'name a thread', note: 'session note, day voice', pending: 'what the Stop hook reads',
+  search: 'search everything', recall: 'same as search', verb: 'do something (undoable)',
+  verbs: 'what waits for its time', plan: 'several verbs, one undo', surface: 'home lines, tiles',
+  undo: 'undo an action', ledger: 'what was done and why', get: 'GET a route', library: 'book blocks to cite',
+  music: 'the owner\'s songs', taint: 'mark outside text read', health: 'Worker health',
+  errors: 'open errors', reports: 'playback reports', guitar: 'a week of Guitar', study: 'a week of Study',
+  growth: 'night step 13', podcasts: 'new episodes', help: 'this index', file: 'save an attachment',
+  remind: 'a reminder asked for', routine: 'a standing arrangement', watch: 'wake on a condition',
+  remember: 'add a fact', confirm: 'confirm a fact', supersede: 'replace a fact', forget: 'propose forgetting',
+  thread: 'open threads', propose: 'a decision card', approved: 'protected-path approval',
+  ci: 'wait for GitHub Actions', eval: 'the eval suites', read: 'check the reader\'s answer',
+  reflex: 'what the reflex does now', handled: 'report a watchdog', drill: 'trip a watchdog',
+  decide: 'record the owner\'s decision', order: 'a task for Muse', muse: 'Muse\'s thread', push: 'a push',
+  predict: 'a prediction', day: 'the night\'s input', daynote: 'the day note', facts: 'a batch of memory ops',
+  night: 'the night run', report: 'night step 12 report',
+};
+
+/** The index: every command with its short line, then how to ask for the detail. */
+function indexText() {
+  const lines = ['th: the mind\'s way to the Worker. Commands:'];
+  for (const name of Object.keys(USAGE)) lines.push(`  ${name}: ${INDEX[name] ?? USAGE[name][1].split(/[;:(.]/, 1)[0]}`);
+  lines.push('th help <command>: its usage. th help all: every command, route, verb, permission, surface, op and exit code.');
+  return lines.join('\n');
+}
+
+/** `th help` → the index; `th help <command>` → that command; `th help all` → everything. */
 export function helpText(command, role = process.env.TH_ROLE || '') {
   if (command && USAGE[command]) return `th ${command} ${USAGE[command][0]}\n  ${USAGE[command][1]}`;
+  if (command !== 'all') return indexText();
   const lines = ['th: the mind\'s way to the Worker. Commands:'];
   for (const [name, [usage, what]] of Object.entries(USAGE)) lines.push(`  th ${name} ${usage}`.trimEnd(), `      ${what}`);
   lines.push('', `Routes this build offers${role ? ` the ${role} role` : ''} (th get takes the GETs):`);

@@ -49,7 +49,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     const today = await th(['get', '/v1/threads/today'], chat);
     ok(today, 'get');
     assert.ok(today.json.messages.some(m => m.id === asked));
-    assert.match((await th(['help'], chat)).stdout, /shell\.appearance/);
+    assert.match((await th(['help', 'all'], chat)).stdout, /shell\.appearance/);
     const later = await th(['get', '/v1/import/runs/00000000-0000-4000-8000-000000000000'], chat);
     assert.equal(later.code, 8);
     assert.match(later.stderr, /not_found/);

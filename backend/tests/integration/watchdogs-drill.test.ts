@@ -43,6 +43,7 @@ describe('the routes', () => {
       'backup.stale',
       'drill.failed',
       'drill.overdue',
+      'reply.late',
     ]);
     expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
     expect(items.find((i) => i.name === 'quota.do_calls')).toMatchObject({ state: 'later' });

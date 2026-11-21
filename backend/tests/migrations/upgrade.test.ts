@@ -140,6 +140,8 @@ describe('upgrade from P2', () => {
       for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
       // Step 39 (the outside read on the wake); step 40's table is memory's, dropped above.
       sql.exec('ALTER TABLE wakes DROP COLUMN outside_ms');
+      // Step 48 (a refired message's count).
+      sql.exec('ALTER TABLE messages DROP COLUMN refires');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
@@ -195,6 +197,8 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       // …and 47 Guitar's progress.
       for (const t of ['photos', 'photos_gone', 'photo_versions', 'photo_looks', 'guitar_progress'])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
+      // And step 48's (a refired message's count).
+      sql.exec('ALTER TABLE messages DROP COLUMN refires');
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])

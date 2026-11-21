@@ -12,7 +12,7 @@ const withFake = (fn) => async () => {
 };
 
 test('th help names island.show with its rule, and island.clear as an undo only', withFake(async fake => {
-  const help = (await th(['help'], env(fake))).stdout;
+  const help = (await th(['help', 'all'], env(fake))).stdout;
   const show = help.split('\n').find(l => l.startsWith('  island.show v1'));
   assert.ok(show, 'island.show is listed');
   assert.match(show, /\{text\} \[phone · tiles · undo reported\]/);

@@ -78,7 +78,7 @@ test('th get reads any built GET route; th help comes from the contract', withFa
   assert.deepEqual(fake.state.requests.at(-1).query, {limit: '5', kind: 'verb'});
   assert.equal((await th(['get', '/v1/nothing/here'], e)).code, 8);
   assert.equal((await th(['get', 'threads/today'], e)).code, 8);
-  const help = await th(['help'], e);
+  const help = await th(['help', 'all'], e);
   assert.equal(help.code, 0);
   for (const name of [...Object.keys(CONTRACT.verbs), ...Object.keys(CONTRACT.surfaces), 'GET /v1/threads/today'])
     assert.ok(help.stdout.includes(name), name);

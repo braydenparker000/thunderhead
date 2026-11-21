@@ -6,11 +6,15 @@
 //     into a temporary folder that is always removed;
 //  2. reports the file's SHA-256 and page count (a file another book has is a duplicate: the
 //     Worker says so, and the run moves on);
-//  3. reads its pages with study_extract.py (text, printed page numbers, OCR where needed);
+//  3. reads its pages with study_extract.py (text, printed page numbers, OCR where needed), which
+//     stops at a page boundary a minute before the book's time is up, or at the first page that
+//     needs OCR when OCR isn't here, keeping the pages it read;
 //  4. splits each page into blocks, finds each block's verse refs with the owner's private table
-//     (none before the table is stored), and posts pages in batches of 50 from where the last run
-//     stopped; when the day's bulk rows are used up (429) the run pauses until tomorrow;
-//  5. reports ready, or failed with a plain sentence for the owner.
+//     (none before the table is stored), and posts the pages it read in batches of 50 from where
+//     the last run stopped, the cursor moving with each; when the day's bulk rows are used up (429)
+//     the run pauses until tomorrow;
+//  5. reports ready; or paused (time up: it goes on next run; OCR missing: with a reason the cover
+//     shows, never ready with empty pages); or failed with a plain sentence for the owner.
 // It prints counts and timings only: never page text, a title or a file name.
 //
 //   node mind/jobs/study-ingest.mjs [--books 2] [--minutes 45] [--python python3] [--no-ocr]
@@ -35,6 +39,9 @@ import {makeIndex} from '../../frontend/apps/study/scripture/parse.js';
 const EXTRACT = fileURLToPath(new URL('./study_extract.py', import.meta.url));
 const BATCH = 50;
 const LABEL_CHARS = 24;
+/** Time kept back from the book's deadline for posting the pages read. */
+export const POST_MS = 60_000;
+export const OCR_MISSING = "Some pages are scans, and reading scans isn't set up yet. It goes on once it is.";
 const say = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 
 export function parseArgs(argv) {
@@ -129,21 +136,19 @@ async function readBook(claim, o, until, ix) {
       return counts;
     }
     const lines = join(dir, 'pages.jsonl');
-    const read = extract(o.python, [pdf, '--out', lines, '--from', String(job.cursor), '--lang', book.language || 'eng', ...(o.ocr ? [] : ['--no-ocr'])]);
+    const read = extract(o.python, [pdf, '--out', lines, '--from', String(job.cursor), '--until', String(until - POST_MS), '--lang', book.language || 'eng', ...(o.ocr ? [] : ['--no-ocr'])]);
     if (read.status !== 0) {
       counts.state = (await report({state: 'failed', reason: REASONS[read.status] ?? "This file isn't a readable PDF."})).state;
       return counts;
     }
     counts.ocr = read.out.ocr ?? 0;
     counts.ocr_missing = read.out.ocr_missing ?? 0;
+    const stopped = read.out.stopped ?? (counts.ocr_missing ? 'ocr_missing' : null);
     await report({state: counts.ocr ? 'ocr' : 'indexing', cursor: job.cursor});
     const pages = readFileSync(lines, 'utf8').split('\n').filter(Boolean).map((l) => pageIn(JSON.parse(l), ix));
     let cursor = job.cursor;
+    // Every page read is posted, even past the deadline: the reading was the slow part.
     for (let i = 0; i < pages.length; i += BATCH) {
-      if (Date.now() > until) {
-        counts.state = (await report({state: 'paused', cursor})).state + ' (time)';
-        return counts;
-      }
       const batch = pages.slice(i, i + BATCH);
       try {
         const r = await request('PUT', `/v1/library/books/${book.id}/pages`, {body: {job_id: job.id, pages: batch}});
@@ -157,6 +162,16 @@ async function readBook(claim, o, until, ix) {
       }
       cursor = batch.at(-1).pdf_page;
       if (i + BATCH < pages.length) await report({state: 'indexing', cursor});
+    }
+    if (stopped === 'ocr_missing') {
+      counts.state = (await report({state: 'paused', cursor, reason: OCR_MISSING})).state + ' (no OCR)';
+      counts.paused = 'ocr_missing';
+      return counts;
+    }
+    if (stopped || cursor < counts.pages) {
+      counts.state = (await report({state: 'paused', cursor})).state + ' (time)';
+      counts.paused = 'time';
+      return counts;
     }
     counts.state = (await report({state: 'ready', cursor, sha256: sha, pdf_pages: counts.pages})).state;
     return counts;

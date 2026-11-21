@@ -5718,7 +5718,8 @@
       "night_late_local": "09:00",
       "job_running_h": 2,
       "job_attempts": 5,
-      "db_bytes": 734003200
+      "db_bytes": 734003200,
+      "reply_late_min": 30
     },
     "reflex_procedure": [
       "A watchdog woke you (the briefing's wake: line names it). The tripped ones follow, each with what to do about it.",
@@ -5825,6 +5826,14 @@
         "slo": "Backups: the monthly drill passes",
         "wakes": true,
         "handle": "Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
+      },
+      "reply.late": {
+        "trips": "an owner message unanswered for more than 30 minutes, outside quiet hours",
+        "severity": "S3",
+        "slo": "Chat: every owner message is answered, or the thread says why it isn't",
+        "wakes": true,
+        "handle": "Read th get /v1/mind/wakes (the newest chat wakes: fire_status, fire_error, claimed or not) and th health --deep. Don't answer the owner's message: that is the chat session's. Change nothing. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
         "phase": "P4"
       },
       "events.export.late": {

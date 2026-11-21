@@ -8,6 +8,7 @@ const n = (/** @type {number} */ x) => x.toLocaleString('en-US');
 
 /** The line under a cover for a book's state; '' when there is nothing to say. @param {Book} b */
 export function stateLine(b) {
+  if (b.paused && b.state_reason) return b.state_reason;
   const of = b.read_pages !== undefined && b.pdf_pages ? ` ${n(b.read_pages)} of ${n(b.pdf_pages)} pages` : '';
   switch (b.state) {
     case 'uploading':

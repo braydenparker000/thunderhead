@@ -96,7 +96,7 @@ test('th verb --at schedules, th verbs scheduled lists, th verb cancel takes it 
 }));
 
 test('th help lists plan, verb cancel and verbs scheduled', withFake(async fake => {
-  const help = (await th(['help'], env(fake))).stdout;
+  const help = (await th(['help', 'all'], env(fake))).stdout;
   for (const s of ['th plan <file.json|->', 'th verbs scheduled', '| cancel <id>', '--at <time>']) assert.ok(help.includes(s), s);
 }));
 

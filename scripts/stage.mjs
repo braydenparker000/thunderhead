@@ -148,7 +148,7 @@ const budgets = [
   // (2026-11-14) +568 measured (80,311 → 80,879): th/update.js reloads at its next safe moment when another
   // page applied a release (the editor's pages do as they open, lab/engine/fresh.js: a phone that went straight
   // to them ran the release before's code for days).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 80_879],
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_178], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -194,7 +194,7 @@ const budgets = [
   // the mic's wiring with the chat, the recorder on the first press of the mic), 2026-10-31.
   // (2026-11-01) + "off the record" and "back on the record".
   // (2026-11-11, settings) +227 measured (21,000 → 21,227): the Dictation language goes with each piece.
-  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_227],
+  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_261],
   // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01;
   // 24 KB with the sleep timer on it and room for Guitar's.
   // Task C: +8,120 measured bytes (22,958 → 31,078) for one capsule, readiness and retained frames.
@@ -209,14 +209,14 @@ const budgets = [
   // measured (43,972 → 52,157), under the 8 KB allowed for it: one continuous-corner surface for capsule, card and
   // app (shape.js), touch that follows the finger (hand.js), the song's slide, loaded when the island first appears.
   // (2026-11-19) +44 measured: the drag-down reads the finger from the app's own pixels and its zoom, not screenY.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 52_201],
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 54_265],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
   // (2026-11-01) + Off the record in the sheet.
   // (2026-11-04, show) +56 measured (36,256): show.js's `save`, shared with a reply's file chip.
-  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_256],
+  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_646],
   // What's new after an update (th/news, loaded after the first paint), 2026-11-01.
   ['news JS bytes', sum(/^th\/news\/.*\.js$/), 6_000],
   // The menu's conversations and search, loaded when the menu first opens.
@@ -237,7 +237,7 @@ const budgets = [
   // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
   // (2026-11-04, settings depth) 28,700 → 28,722 measured: the hold's tap back follows Haptics.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_722],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_860],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token

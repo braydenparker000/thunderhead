@@ -292,6 +292,7 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `drill.failed`, `drill.overdue` | Last drill failed, or none for 35 days | S3 |
 | `roll.stuck` | `day.current` is more than 30 h old | S2 |
 | `night.late` | No day note for yesterday by 09:00 local | S3 |
+| `reply.late` | An owner message unanswered for more than 30 min, outside quiet hours | S3 |
 | `jobs.stuck` | A job `running` > 2 h, or `attempts` ≥ 5 | S3 |
 | `db.size` | Any object > 700 MB | S3 |
 | `events.export.late` (P5) | Day D not archived by D+1 09:00 | S3 |

@@ -30,8 +30,9 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Migration steps a branch built beside another may skip in the numbering (none: scheduled
- * actions' Core 33, the watches' 34 and what lands' 35 are all in, 2026-11-04). */
+/** Migration steps a branch built beside another may skip in the numbering (scheduled actions'
+ * Core 33, the watches' 34 and what lands' 35 are all in, 2026-11-04). Core 47 and 48 belong to
+ * branches built beside the one with 48 (a refired message's count); empty once all are in. */
 const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

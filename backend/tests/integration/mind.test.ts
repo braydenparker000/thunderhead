@@ -208,6 +208,8 @@ describe('waking', () => {
   it('fires once, retries once at 120 s, gives up at 240 s with the honest line and a backoff', async () => {
     await coreSql('DELETE FROM leases');
     await coreSql('DELETE FROM wakes');
+    // The earlier tests' acknowledged messages have used their refires: only this wake is counted.
+    await coreSql("UPDATE messages SET refires = 2 WHERE author = 'owner'");
     const first = await inCore((w) => wake.maybeWake(w, 'message', true));
     expect(first).not.toBeNull();
     expect(await inCore((w) => wake.maybeWake(w, 'message', true))).toBeNull(); // unclaimed fire < 90 s
