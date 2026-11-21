@@ -356,9 +356,18 @@ always did), and `frontend/th/podcasts/progress.js` keeps that in step with the 
 - **Up:** the positions the Worker doesn't have go on open, on pause and end, when the page hides
   (keepalive), every 60 s while an episode plays and when the network returns (≤ 100 and under
   60 KB a request). Follows and unfollows since the last look go too, stamped when noticed (the app
-  keeps no time for them), for the night. Follows never come down: a second copy of the app open on
-  the phone can write its older list over the storage, and a show missing from it is an unfollow
-  only for this phone's own app.
+  keeps no time for them), for the night.
+- **Follows come down as well as go up (2026-11-21):** the same pulls that bring the positions (on
+  open, on becoming visible, before an episode plays) also read `GET /v1/podcasts/follows?since=`,
+  at the same time (one more read a pull, an empty page when nothing changed), so a phone signed in
+  again (sign-out deletes `jarvis.podcasts.v1`) gets its shows back. A show the account follows and
+  the app lacks is added, through the app's storage on open or its state in memory later. A pull
+  never removes a show: one missing from the account, or one the account has as unfollowed, stays
+  (a second copy of the app open on the phone can write its older list over the storage, so a
+  missing show proves nothing). This phone's own word stands: a show it follows, listed or not (an
+  unlisted one is an unfollow not yet sent), or unfollowed at least as recently, is left alone, so an
+  unfollow made here goes up and the next pull does not bring it back (the Worker keeps an unfollow
+  30 days, the newer `updated_at` winning). Up Next, downloads and speed still live on one phone.
 - **Conflicts:** the newer `updated_at` wins, on the Worker and on the phone; a tie keeps what is
   there. **Clocks:** the app stamps its saves with the phone's clock, which may be off. Every answer
   from the Worker carries its clock (`at`, `next_since`), so the module keeps the difference (the
