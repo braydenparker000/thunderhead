@@ -6,7 +6,7 @@
 // size, not the catalog's. In the Senses object, find reads the early skips by the (day, type)
 // index; in Core, the current rules. The phone's ratings go to Music as two rows each (three for a 1,
 // with its indexes), and its one-time catch-up of the songs rated 1 goes 100 a batch. Songs' tags
-// served to a mind session taint it in Core and record a night reader in Music, once a session. Last,
+// served to a night session record it as a reader (no taint since 2026-11-22). Last,
 // the phone's marks and playlists (music-sync-calls.ts).
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
@@ -169,9 +169,8 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   await cost('GET /v1/music/find (Senses, cold: 40 early skips among 200 events)', find(), 200, senses);
   await cost('GET /v1/music/find (Senses, warm)', find(), 200, senses);
   await cost('GET /v1/music/find (Core, 3 never-play rules)', find(), 200, core);
-  // Songs' tags served to a mind session: the Worker checks the claimed session and dates a taint
-  // event in Core on every call (a night session's songs mark too), and records a night session as a
-  // reader (Music).
+  // Songs' tags served to a night session: the Worker checks the claimed session and records it as a
+  // reader in Core on every call (no taint since 2026-11-22).
   const tags = (s: string) => () =>
     api('GET', `/v1/music/notes?ids=${ids[0]}`, { token: night, headers: { 'TH-Session': s } });
   await cost(

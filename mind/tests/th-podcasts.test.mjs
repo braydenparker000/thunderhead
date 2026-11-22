@@ -4,7 +4,8 @@
 // checks back, and places a counts-only home line itself ("2 new episodes in Podcasts."), printing
 // counts only: no part of a show's title reaches the session or the placed line. A refired night reads nothing again
 // and still places the line; a feed that fails is recorded and waits longer; the Worker's "no more
-// reads today" stops the rest. Reading the podcast routes by hand taints the session. Synthetic
+// reads today" stops the rest. Reading the podcast routes by hand marks nothing (the owner's own
+// shows, owner 2026-11-22). Synthetic
 // shows and episodes only.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -160,14 +161,15 @@ test('due and gapOf: a failing show waits 20 h, then 40, 80 and 160 at most', ()
   assert.deepEqual(due(rows, now).map(f => f.feed_url), ['b']);
 });
 
-test('the hook (a soft first layer) marks every spelling of a podcast read by hand, and curl to them', () => {
+test('the hook marks no podcast read by hand, however spelled, nor curl to them (the owner\'s own shows, 2026-11-22)', () => {
   const ctx = {cwd: ROOT, tmpDir: '/tmp', ownHosts: ['api.example.test']};
   const of = command => taintOf({tool_name: 'Bash', tool_input: {command}}, ctx);
   for (const c of ['th get /v1/podcasts/follows since=0', 'th get /v1/podcasts/feed url=https://feeds.example.org/a.xml',
     'th get /v1/podcasts/progress', 'node mind/cli/th.mjs get /v1/podcasts/follows',
     'th get --x y /v1/podcasts/follows', "th get '/v1/threads/..\\podcasts\\follows'"])
-    assert.deepEqual(of(c), {source: 'th podcasts', ref: 'file'}, c);
-  assert.deepEqual(of('curl -s https://api.example.test/v1/podcasts/follows'), {source: 'curl', ref: 'url'});
+    assert.equal(of(c), null, c);
+  assert.equal(of('curl -s https://api.example.test/v1/podcasts/follows'), null);
+  assert.deepEqual(of('curl -s https://feeds.example.org/a.xml'), {source: 'curl', ref: 'https://feeds.example.org/'}, 'a feed from its host still marks');
   assert.equal(of('curl -s https://api.example.test/v1/health'), null);
   assert.equal(of('th podcasts new'), null);
   assert.equal(of('th get /v1/threads/today'), null);
@@ -186,7 +188,7 @@ test('th podcasts new end to end leaves the night untainted: titleless follows, 
   assert.deepEqual(asked, [['GET', '/v1/podcasts/follows', null], ['GET', '/v1/podcasts/feed', '1'], ['POST', '/v1/podcasts/follows/checked', null]]);
 }));
 
-test('by hand: the follows come without titles, a raw feed is refused, the positions mark; odd paths are refused', withFake(async fake => {
+test('by hand: the follows come without titles, a raw feed is refused, the positions mark nothing; odd paths are refused', withFake(async fake => {
   fake.addFollow({feed_url: feed(1), title: 'Invented Show'});
   fake.setFeed(feed(1), rss(1, [1]));
   const e = night(fake);
@@ -202,9 +204,9 @@ test('by hand: the follows come without titles, a raw feed is refused, the posit
   const raw = await th(['get', '/v1/podcasts/feed', `url=${feed(1)}`], e);
   assert.equal(raw.code, 6);
   assert.ok(!raw.stdout.includes('Invented'));
-  // The positions carry feed addresses: the Worker marks the session that reads them.
+  // The positions carry the owner's own shows' addresses: nothing marked (owner, 2026-11-22).
   assert.equal((await th(['get', '/v1/podcasts/progress', 'since=0'], e)).code, 0);
-  assert.ok(fake.state.tainted.has(session));
+  assert.ok(!fake.state.tainted.has(session));
   // `..\` would match /v1/threads/:id here and arrive as /v1/podcasts/follows: th refuses it first.
   const before = fake.state.requests.length;
   for (const path of ['/v1/threads/..\\podcasts\\follows', '/v1/threads/%2e%2e/podcasts/follows', '/v1/threads/./x']) {

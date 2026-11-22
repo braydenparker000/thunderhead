@@ -11,7 +11,7 @@ printed label (what the owner sees). Books are ingested by the night (step 6) in
   /v1/library/search q=<words>`, `th get /v1/library/verses/<code>/<chapter> v=12` (where a verse is
   cited in the owner's books), `th get /v1/library/scripture/text/<code>/<chapter>`.
 - The senses: `study.open`, `study.read` (pages and minutes), `study.search` (a count only).
-- Book text is outside content: it may be cited, never remembered.
+- Book text is the owner's own library: reading it marks nothing; it may be cited, never remembered.
 
 ## What you can do
 - Answer what the books say, cited: every sentence ends with its `[[book:…]]` marker, a quote is at

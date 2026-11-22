@@ -85,6 +85,8 @@ if (role) {
       reason = decide(input, {
         role, cwd, projectDir, tmpDir,
         allowedHosts: allowedHosts(),
+        // Read outside text: its mark ends with the session, so it claims no new briefing.
+        marked: !!(getState('tainted') || getState('taint_pending')),
         headSubject: () => git(cwd, ['log', '-1', '--format=%s']),
         // A `repo.change` card the owner approved for these paths and that base (this branch's by default).
         approved: (paths, b) => runTh(['approved', '--paths', paths.join(','), '--sha', b ?? base(cwd)], {timeoutMs: left(8_000)}).code === 0,

@@ -1,6 +1,6 @@
 // Stage A.7, the third look at P3 memory: each finding as a test that fails on a19148a. A taint is
 // found by its own time, not by the day its session was claimed on, so a session that runs across
-// the day roll can't shed it, and it carries over for 24 hours: 23 hours old it does, 25 it doesn't.
+// the day roll can't shed it; since 2026-11-22 it carries to no later claim.
 // The never-stored sentences are unit tests (tests/unit/memory-guards.test.ts); two of them go
 // through the route here. Storage carries over between tests, so the untainted case runs first.
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -50,8 +50,8 @@ describe('never stored, through the route', () => {
   });
 });
 
-describe('a taint is found by its own time, and holds for 24 hours', () => {
-  it('a chat session that runs across the day roll passes its taint to the next claim', async () => {
+describe('a taint is found by its own time, and lasts only for its session (owner, 2026-11-22)', () => {
+  it('a chat session that runs across the day roll keeps its taint; the next claim starts clean', async () => {
     await stop(P.C, CHAT_SESSION);
     expect((await brief(P.C, 'cse_a7_spans', 'chat')).body.tainted).toBe(false);
     // The day rolls while that session still runs, then it reads outside text.
@@ -61,23 +61,21 @@ describe('a taint is found by its own time, and holds for 24 hours', () => {
       JSON.stringify(dayBefore(today, -1)),
     );
     await taint(P.C, 'cse_a7_spans');
-    await stop(P.C, 'cse_a7_spans');
-    const next = await brief(P.C, 'cse_a7_after_roll', 'chat');
-    expect([next.body.day, next.body.tainted]).toEqual([dayBefore(today, -1), true]);
     // What it writes is labelled outside (MEMORY.md §6 M11), not laundered into the owner's.
-    expect(await labelled(as(P.C, 'cse_a7_after_roll'), addOp([`msg:${said}`], { text: 'Across the roll' }))).toBe(
+    expect(await labelled(as(P.C, 'cse_a7_spans'), addOp([`msg:${said}`], { text: 'Across the roll' }))).toBe(
       'outside',
     );
+    await stop(P.C, 'cse_a7_spans');
+    const next = await brief(P.C, 'cse_a7_after_roll', 'chat');
+    expect([next.body.day, next.body.tainted]).toEqual([dayBefore(today, -1), false]);
   });
 
-  it('a taint 23 hours old carries over', async () => {
+  it('a fresh taint carries to no later claim', async () => {
     await taint(P.N, NIGHT_SESSION);
-    await age('night', 23);
-    expect((await brief(P.N, 'cse_a7_23h', 'night')).body.tainted).toBe(true);
+    expect((await brief(P.N, 'cse_a7_23h', 'night')).body.tainted).toBe(false);
   });
 
-  it("a taint 25 hours old doesn't", async () => {
-    // The claim above inherited the taint with its own time, so it is 25 hours old too.
+  it('nor does an old one', async () => {
     await age('night', 25);
     const b = await brief(P.N, 'cse_a7_25h', 'night');
     expect(b.body.tainted).toBe(false);

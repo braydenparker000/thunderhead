@@ -21,7 +21,7 @@ import { Reject } from '../memory/validate';
 import { claimedSession } from '../mind/guards';
 import { nextQuietEnd, quietWindow } from '../settings/quiet';
 import { CORE_RUNS, runsIn } from './executors';
-import { settle } from './ops';
+import { OUTSIDE_WHY, settle } from './ops';
 import * as store from './store';
 
 /** What approving a card left to run after the commit (the Auth object's ops). */
@@ -75,8 +75,9 @@ export function decide(w: Writer, c: Caller, id: string, r: DecideProposalReques
     // session that holds the lease, and a tainted one may not record a yes (SECURITY.md §5.3).
     const s = claimedSession(w.db, c.session_id, 'chat');
     if (s.tainted && r.decision === 'approve') throw new Fail('session_tainted');
-    // Some cards only a tap decides: the laws pin, so the mind never moves its own laws.
-    if (proposalOp(p.op)?.decide === 'tap') throw new Fail('not_owner_words');
+    // Some cards only a tap decides: the laws pin, so the mind never moves its own laws; and a card
+    // asked after outside text (ops.ts OUTSIDE_WHY), so no session's record of words decides it.
+    if (proposalOp(p.op)?.decide === 'tap' || p.why.startsWith(OUTSIDE_WHY)) throw new Fail('not_owner_words');
     ownerWords(w, r.by_message, p, tz);
   }
   const via = device ? 'tap' : 'words';

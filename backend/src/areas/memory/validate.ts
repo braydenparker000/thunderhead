@@ -4,7 +4,7 @@
 // route to the owner and wait for proposals (P4), so they reject with `proposal_required`; M13's
 // one-claim half is the weekly in-session review. M8 and M14 no longer refuse (owner ruling
 // 2026-11-03: the mind may write anything down): a sensitive guess is stored private and never
-// raised (fact-ops.ts `flags`), and like every guess it is `outside` until the owner keeps it. M11 labels instead of refusing (2026-11-02): a
+// raised (fact-ops.ts `flags`); a guess from a clean session is kept at once (2026-11-22). M11 labels instead of refusing (2026-11-02): a
 // session that read outside text writes, and what it writes is `outside` (`label` below), which
 // M11a–e keep out of the profile, the briefing's first sections and the rules until the owner keeps it.
 import * as z from 'zod/mini';
@@ -231,22 +231,33 @@ export interface FactShape {
 }
 
 /** M11, the label a new version gets: the owner's own (device) writes are `owner`; a session that
- * read outside text writes `outside`, and so does an inferred fact (the mind's reading, never the
- * owner's words); otherwise `observed` for an observed fact, `owner` for a `user` one (whose
- * evidence M3 holds to the owner's own words). M11e: a new version of an `outside` fact stays
- * `outside` from the mind, clean or not; only the owner's tap makes it `owner`. */
-export function label(ctx: OpContext, source: FactSource, old: FactRow | null, own = false): Provenance {
+ * read outside text writes `outside`, unless `own` (a `user` fact in the owner's own words from the
+ * owner-device message it cites, `ownWords`); otherwise `observed` for an observed or an inferred
+ * fact (what the mind worked out is kept at once, at its lower confidence: owner, 2026-11-22;
+ * a sensitive guess, `sensitive`, stays `outside`),
+ * `owner` for a `user` one (whose evidence M3 holds to the owner's own words). M11e: a new version
+ * of an `outside` fact stays `outside` from the mind, clean or not; only the owner's tap makes it
+ * `owner`. */
+export function label(
+  ctx: OpContext,
+  source: FactSource,
+  old: FactRow | null,
+  own = false,
+  sensitive = false,
+): Provenance {
   if (ctx.device) return 'owner';
-  if ((ctx.tainted && !own) || source === 'inferred') return 'outside';
+  if (ctx.tainted && !own) return 'outside';
+  // A sensitive guess (M14) still waits for the owner's keep: faith, health and people only from their words.
+  if (source === 'inferred' && sensitive) return 'outside';
   if (old && provenanceOf(old) === 'outside') return 'outside';
-  return source === 'observed' ? 'observed' : 'owner';
+  return source === 'user' ? 'owner' : 'observed';
 }
 
-/** Whether a new rule is the owner's own words from an owner-device message it cites
- * (shared/contract/owner-words.ts, the owner's decision of 2026-11-11): the one thing a session
- * that read outside text may still keep, and `label` then calls it `owner`. */
-export function ownRule(ctx: OpContext, kind: string, source: FactSource, text: string, given?: string[]): boolean {
-  if (kind !== 'rule' || source !== 'user') return false;
+/** Whether a new `user` fact is the owner's own words from an owner-device message it cites
+ * (shared/contract/owner-words.ts, the owner's decisions of 2026-11-11 and 2026-11-22): what a
+ * session that read outside text may still keep, and `label` then calls it `owner`. */
+export function ownWords(ctx: OpContext, source: FactSource, text: string, given?: string[]): boolean {
+  if (source !== 'user') return false;
   return (given ?? []).some((r) => {
     const m = REF.exec(r.trim());
     if (m?.[1] !== 'msg') return false;

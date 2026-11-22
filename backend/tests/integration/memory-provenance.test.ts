@@ -68,16 +68,22 @@ beforeAll(async () => {
 });
 
 describe('A. every write carries a label the Worker sets', () => {
-  it("a clean session's user fact is the owner's; a guess is outside; the device's add is the owner's", async () => {
+  it("a clean session's user fact is the owner's; a guess is kept at once, with a hint to say so once; the device's add is the owner's", async () => {
     const own = addOp([`msg:${said}`], { text: 'Likes quiet mornings' });
     expect(await labelled(chat(), own)).toBe('owner');
     ids.owner = own.id;
     const rule = addOp([`msg:${said}`], { kind: 'rule', subject: 'answers', text: 'Answer briefly in the morning' });
     expect(await labelled(chat(), rule)).toBe('owner');
     ids.rule = rule.id;
+    // What the mind works out is kept at once (owner, 2026-11-22), at its lower confidence.
+    const guess = addOp([`msg:${said}`], { source: 'inferred', text: 'Probably reads at night' });
+    const g = await ops(chat(), [guess]);
+    expect([g.body.applied[0]?.provenance, typeof g.body.applied[0]?.hint]).toEqual(['observed', 'string']);
+    expect((await fact(guess.id))?.confidence).toBeLessThan((await fact(ids.owner))?.confidence ?? 0);
+    expect((await profile()).fact_ids).toContain(guess.id);
     expect(
-      await labelled(chat(), addOp([`msg:${said}`], { source: 'inferred', text: 'Probably reads at night' })),
-    ).toBe('outside');
+      (await ops(chat(), [addOp([`msg:${said}`], { text: 'Likes calm music' })])).body.applied[0]?.hint,
+    ).toBeUndefined();
     expect(await labelled(device(), addOp([], { text: 'Owns a red bicycle', kind: 'fact' }))).toBe('owner');
     expect((await fact(ids.owner))?.provenance).toBe('owner');
   });
@@ -93,10 +99,19 @@ describe('A. every write carries a label the Worker sets', () => {
       op.id,
     );
     expect(row.tainted).toBe(1);
-    // A claim under a new id takes the label over, and its briefing says so (`tainted`, its old name).
+    // The owner's own words from the owner-device message cited stay the owner's (owner, 2026-11-22).
+    expect(
+      await labelled(outside(), addOp([`msg:${said}`], { text: 'Likes quiet mornings and calm evening music' })),
+    ).toBe('owner');
+    expect(
+      await labelled(outside(), addOp([`msg:${said}`], { source: 'inferred', text: 'Probably likes calm evenings' })),
+    ).toBe('outside');
+    // Its own briefing says so (`tainted`, its old name); a claim under a new id starts clean.
+    const own = (await brief(P.N, READ, 'night')).body;
+    expect([own.provenance, own.tainted]).toEqual(['outside', true]);
+    expect(own.core).toContain("labelled outside; it waits for the owner's keep in Settings › Memory");
     const b = (await brief(P.N, 'cse_prov_inherit', 'night')).body;
-    expect([b.provenance, b.tainted]).toEqual(['outside', true]);
-    expect(b.core).toContain("labelled outside; it waits for the owner's keep in Settings › Memory");
+    expect([b.provenance, b.tainted]).toEqual(['owner', false]);
   });
 });
 

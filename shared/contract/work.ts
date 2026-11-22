@@ -158,6 +158,9 @@ export interface WorkOrderPut {
   title: string;
   spec: MuseRequestSpec;
   deadline_at: number;
+  /** The owner's message that asked: after outside text, the order passes only when its title and
+   * words are the owner's own from it (owner, 2026-11-22). */
+  source_message_id?: string;
 }
 
 /** A work order as the mind, the owner and Muse see it (Muse sees only its own). */

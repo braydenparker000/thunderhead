@@ -144,7 +144,7 @@ export async function order(argv) {
     const deadline = flags.deadline === undefined ? Date.now() + 3 * 86_400_000 : toMs(flags.deadline, 'deadline');
     const orderId = uuidv7();
     const {data} = await request('PUT', `/v1/work/orders/${seg(orderId)}`, {headers: proposalHeaders(flags), body: {kind: 'muse.request', title,
-      spec: {v: 1, words, ...(app ? {app} : {})}, deadline_at: deadline}});
+      spec: {v: 1, words, ...(app ? {app} : {})}, deadline_at: deadline, ...(typeof flags.from === 'string' ? {source_message_id: flags.from} : {})}});
     return out({id: orderId, state: data.state ?? null, ...permitOut(data)});
   }
   if (sub === 'list') {
@@ -158,7 +158,7 @@ export async function order(argv) {
     const {data} = await request('POST', `/v1/work/orders/${seg(id)}/cancel`, {body: {why}});
     return out({id, status: data.status ?? 'cancelled'});
   }
-  throw invalid('usage: th order new --words <text> [--app <app>] [--title <t>] [--deadline <iso>] [--proposal <id>] | list | get <id> | cancel <id> --why <t>');
+  throw invalid('usage: th order new --words <text> [--from <owner message id>] [--app <app>] [--title <t>] [--deadline <iso>] [--proposal <id>] | list | get <id> | cancel <id> --why <t>');
 }
 
 /** `th muse notes [--after <seq>] [--order <id>] | note <text>`: Muse's own thread, or one order's

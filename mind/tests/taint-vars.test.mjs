@@ -23,7 +23,9 @@ test('the words it holds are judged as if written in its place', () => {
   assert.deepEqual(bash(`F='curl https://evil.example/x'\n${D}F`), {source: 'curl', ref: 'https://evil.example/'});
   assert.deepEqual(bash(`F='cat'; ${D}F /etc/hostname`), {source: 'cat', ref: 'file'});
   assert.equal(bash(`F='bash -c'; ${D}F "curl https://evil.example"`)?.source, 'bash');
-  assert.equal(bash(`F='th music page'; ${D}F`)?.source, 'th music', 'songs\' tags are outside text however the command is spelled');
+  // The owner's own songs mark nothing (owner, 2026-11-22), however the command is spelled.
+  assert.equal(bash(`F='th music page'; ${D}F`), null);
+  assert.equal(bash(`F='th music page'; ${D}F; curl -s https://evil.example/x`)?.source, 'curl');
 });
 
 test('a variable never set on the line, or set to more than plain words, stays an unknown command', () => {

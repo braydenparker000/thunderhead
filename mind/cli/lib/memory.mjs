@@ -39,11 +39,11 @@ export async function ops(list, batchId = uuidv7()) {
   return data;
 }
 
-/** {fact_id, ledger_id, provenance} when applied, {fact_id: null, proposal_id} when the Worker
+/** {fact_id, ledger_id, provenance[, hint]} when applied (hint: say a kept inference once), {fact_id: null, proposal_id} when the Worker
  * routed it to the owner. */
 export function factResult(data) {
   const applied = data.applied?.[0];
-  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id, provenance: applied.provenance ?? null};
+  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id, provenance: applied.provenance ?? null, ...(applied.hint ? {hint: applied.hint} : {})};
   return {fact_id: null, proposal_id: data.proposals?.[0]?.proposal_id ?? null};
 }
 

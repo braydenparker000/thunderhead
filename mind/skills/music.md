@@ -11,9 +11,8 @@ live in the player on the phone; the Worker keeps the catalog, your notes on eac
   (songs by feeling), `th music like <id>` (songs like one), `th music analysis <id>` (how it sounds).
 - `th get /v1/music/tracks q=<words>` (songs by their tags), `th get /v1/music/mixes`.
 - Section 1's `music:` line says whether a song is playing now, from the phone's reports.
-- A song's title, artist and album are its tags, written by someone else: anything that prints them
-  taints the session (your writes after are labelled outside). Pass titles on stdin, never in a
-  quoted argument.
+- A song's title, artist and album are its tags: the owner's own songs, so reading them marks
+  nothing. Pass titles on stdin, never in a quoted argument.
 
 ## What you can do
 - `th verb music.queue`, `music.play_mix` (a saved mix, a find, or songs; loaded paused),
@@ -23,8 +22,8 @@ live in the player on the phone; the Worker keeps the catalog, your notes on eac
   again" as the owner's rule, from their own message. Both run at once.
 - Open the player with a reply chip to `/music/` (or `/music/#pl=<list id>` for a playlist).
 - Class `music`, quiet by default: do it, and mention it only if asked.
-- Night step 11: up to 400 notes a night (`th music page`, `th music note`), last, because the tags
-  taint.
+- Night step 11: up to 400 notes a night (`th music page`, `th music note`), last, because after
+  songs' tags the night's web closes.
 
 ## What you must not do
 - Never start sound: a verb loads the queue paused; play is the owner's tap.

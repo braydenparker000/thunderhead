@@ -63,7 +63,8 @@ describe('memory.outside_keep', () => {
 
   it('always a card, whatever the position; approved, the fact is kept as the owner’s; undo puts it back', async () => {
     const said = await ownerSays(P.D, 'I sometimes read before sleep.');
-    const guess = addOp([`msg:${said}`], { source: 'inferred', text: 'Probably reads at night' });
+    // A sensitive guess still waits for the keep (a plain one is kept at once since 2026-11-22).
+    const guess = addOp([`msg:${said}`], { source: 'inferred', sensitivity: 1, text: 'Probably reads at night' });
     expect((await ops(chat(), [guess])).body.applied[0].provenance).toBe('outside');
     await settle({ 'mind.permit.outside': 'quiet' });
     const { refused, again } = await withCard('memory.outside_keep', { fact_id: guess.id });

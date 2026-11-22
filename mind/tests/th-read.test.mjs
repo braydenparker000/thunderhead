@@ -1,6 +1,6 @@
 // The reader subagent (BEHAVIOR.md §11 rule 6, RUNTIME.md §6.6): .claude/agents/reader.md reads
-// outside material with read-only tools and answers in a contract kind; `th read --check` taints the
-// session first (the answer is outside text, passed or not), then checks the answer against the
+// outside material with read-only tools and answers in a contract kind; `th read --check` marks
+// nothing (a walled reader's answer leaves the session unmarked, owner 2026-11-22), then checks the answer against the
 // kind's schema and the rules a schema can't say, and prints only what passed. Synthetic data only.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,35 +46,34 @@ test('the checks a schema can’t make: one sentence, no query data, a note exac
   assert.equal(problem('nope', {}), 'no reader kind "nope" (th read --kinds)');
 });
 
-test('th read --check taints the session first, prints only a checked answer, and refuses the rest', async () => {
+test('th read --check marks nothing (owner, 2026-11-22), prints only a checked answer, and refuses the rest', async () => {
   const fake = await startFake();
   try {
     const e = env(fake);
     const kinds = await th(['read', '--kinds'], e);
     assert.equal(kinds.code, 0, kinds.stderr);
     assert.deepEqual(Object.keys(kinds.json.kinds), ['page', 'answer', 'list', 'unreadable']);
-    // Refused (a link that would carry data out), and still tainted: the answer is in the context.
+    // Refused (a link that would carry data out); a walled reader's answer marks nothing.
     const bad = await th(['read', '--check', 'page', '--json', JSON.stringify(page({links: ['https://evil.example/x?d=1']}))], e);
     assert.equal(bad.code, 8);
     assert.equal(errCode(bad), 'validation');
-    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 1);
-    assert.ok(fake.state.tainted.has('cse_test_session_1'));
-    // A fenced answer on stdin passes and is printed back; the session is not tainted twice.
+    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 0);
+    assert.ok(!fake.state.tainted.has('cse_test_session_1'));
+    // A fenced answer on stdin passes and is printed back, and still marks nothing.
     const ok = await th(['read', '--check', 'page'], e, `\`\`\`json\n${JSON.stringify(page())}\n\`\`\``);
     assert.equal(ok.code, 0, ok.stderr);
-    assert.deepEqual(ok.json, {ok: true, kind: 'page', tainted: true, answer: page()});
-    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 1);
+    assert.deepEqual(ok.json, {ok: true, kind: 'page', answer: page()});
+    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 0);
     assert.equal((await th(['read', '--check', 'page', '--json', 'Sure! Here is the page.'], e)).code, 8);
   } finally {
     await fake.stop();
   }
 });
 
-test('the reader’s answer taints the session in the PostToolUse hook too, and so does any other subagent’s (C.5: not on the local list)', () => {
+test('the reader’s answer marks nothing in the PostToolUse hook either; any other subagent’s does (C.5: not on the local list)', () => {
   const ctx = {cwd: ROOT, tmpDir: '/tmp', ownHosts: []};
   for (const tool_name of ['Task', 'Agent'])
-    assert.deepEqual(taintOf({tool_name, tool_input: {subagent_type: 'reader', prompt: 'Read https://example.test/a'}}, ctx),
-      {source: 'reader', ref: 'file'});
+    assert.equal(taintOf({tool_name, tool_input: {subagent_type: 'reader', prompt: 'Read https://example.test/a'}}, ctx), null);
   assert.deepEqual(taintOf({tool_name: 'Task', tool_input: {subagent_type: 'general-purpose', prompt: 'Sum these numbers'}}, ctx),
     {source: 'subagent', ref: 'file'});
 });

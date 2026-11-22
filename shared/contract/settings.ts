@@ -177,7 +177,7 @@ export const SETTINGS = [
   { ...PERMIT, key: 'mind.permit.podcasts', label: 'Podcasts', default: 'quiet', detail: 'Following shows and queueing episodes.' },
   { ...PERMIT, key: 'mind.permit.reminders', label: 'Reminders', default: 'tell', detail: 'Setting, moving and cancelling reminders.' },
   { ...PERMIT, key: 'mind.permit.settings', label: 'Settings', default: 'tell', detail: 'Changing one of these settings.' },
-  { ...PERMIT, key: 'mind.permit.muse', label: 'Muse orders', default: 'ask', detail: 'Asking Muse to make something.' },
+  { ...PERMIT, key: 'mind.permit.muse', label: 'Muse orders', default: 'tell', detail: 'Asking Muse to make something.' },
   { ...PERMIT, key: 'mind.permit.watch', label: 'Watch lists', default: 'tell', detail: 'Adding to and tidying your watch lists.' },
   { ...PERMIT, key: 'mind.permit.practice', label: 'Practice', default: 'tell', detail: 'Guitar and study practice plans.' },
   { ...PERMIT, key: 'mind.permit.tiles', label: 'Lines and tiles', default: 'quiet', detail: 'Lines on home and tiles on the Briefing.' },

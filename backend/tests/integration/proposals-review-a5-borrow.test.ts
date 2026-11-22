@@ -32,7 +32,8 @@ describe('borrowing an older session id', () => {
     const B = 'cse_review_tainted_b';
     expect((await brief(P.C, B, 'chat')).status).toBe(200);
     expect((await apiJson('POST', '/v1/mind/taint', { ...as(P.C, B), body: { source: 'WebFetch' } })).status).toBe(200);
-    expect((await raise(forgetCard(id), as(P.C, B))).body.error?.code).toBe('session_tainted');
+    // A tainted session raises no card but a floor's (owner, 2026-11-22): a permit card is refused.
+    expect((await raise(forgetCard(id, { class: 'permit' }), as(P.C, B))).body.error?.code).toBe('session_tainted');
     const [a] = await coreSql<{ ended_at: number | null }>(
       'SELECT ended_at FROM mind_sessions WHERE session_id = ?',
       A,

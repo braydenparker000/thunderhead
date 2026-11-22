@@ -2,7 +2,7 @@
 //
 // The idle cutoff (RUNTIME.md §4.6, owner 2026-11-22): exactly the owner's `mind.idle` setting
 // (45 min unless changed) after their last message, with no growth by message count and no cap;
-// a session with no owner message yet (a pre-warm) closes 10 min after its claim (mind/ops.ts).
+// a session with no owner message yet (a pre-warm) closes 8 min after its claim (mind/ops.ts).
 // `GET /v1/mind/pending` carries it; `th listen`, `th reply` and `th wait` close the session at it.
 //
 // The first reply: a chat session's first reply to an owner message is kept on the wake it

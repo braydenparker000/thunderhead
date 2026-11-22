@@ -79,6 +79,8 @@ export const MEMORY_REASONS = {
   unknown_ref: 'The fact this op names does not exist.',
   not_owner_evidence: "A 'user' fact needs evidence that is all the owner's own words.",
   rule_needs_owner: "A rule needs source 'user'.",
+  rule_not_owner_words:
+    "A rule is kept in the owner's own words: cite the message they wrote it in and keep their wording (three of every four words).",
   too_little_evidence: "An 'observed' fact needs at least 10 owner-device events.",
   tainted_evidence: 'Muse or outside text is never evidence.',
   needs_owner_words: "Faith and facts about people come only from the owner's words.",
@@ -204,8 +206,9 @@ export interface MemoryOpsRequest {
 }
 
 export interface MemoryOpsResponse {
-  /** `provenance`: the label the Worker gave the version it wrote (or confirmed), M11. */
-  applied: { i: number; fact_id: Id; ledger_id: Id; provenance: Provenance }[];
+  /** `provenance`: the label the Worker gave the version it wrote (or confirmed), M11. `hint`: on a
+   * newly kept inferred fact, that the mind mentions it once in the chat (owner, 2026-11-22). */
+  applied: { i: number; fact_id: Id; ledger_id: Id; provenance: Provenance; hint?: string }[];
   /** Ops routed to the owner as `memory_big` proposals (empty until proposals arrive, P4). */
   proposals: { i: number; proposal_id: Id }[];
   rejected: { i: number; reason: MemoryReason }[];

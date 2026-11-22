@@ -63,15 +63,15 @@ describe('raising a card (DEC-1)', () => {
     await clearAgentCards();
   });
 
-  it('needs a claimed session of the key’s role, and refuses a tainted one', async () => {
+  it('needs a claimed session of the key’s role, and refuses a tainted one all but a floor’s card', async () => {
     const id = await fact();
     const none = await raise(forgetCard(id), { token: P.C });
     expect(none.status).toBe(403);
     expect(none.body.error.code).toBe('session_required');
     const made = await raise(forgetCard(id), as(P.C, 'cse_made_up_1'));
     expect(made.body.error.code).toBe('session_required');
-    // A night session that read outside text may not ask either (a taint carries over to its
-    // role's later claims for 24 hours, so this uses its own night session).
+    // A night session that read outside text may ask only a floor's card (owner, 2026-11-22): this
+    // access card gets past the taint to the op's own check (no such key).
     const session = 'cse_proposal_tainted_1';
     await brief(P.N, session, 'night');
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, session), body: { source: 'WebFetch' } });
@@ -83,7 +83,9 @@ describe('raising a card (DEC-1)', () => {
       options: ['Revoke it', 'Keep it'],
       spec: { v: 1, op: 'agents.revoke', args: { agent_id: uuidv7() } },
     };
-    const tainted = await raise(revoke, as(P.N, session));
+    const floor = await raise(revoke, as(P.N, session));
+    expect([floor.status, floor.body.error.code]).toEqual([422, 'validation']);
+    const tainted = await raise({ ...revoke, class: 'permit' }, as(P.N, session));
     expect(tainted.status).toBe(403);
     expect(tainted.body.error.code).toBe('session_tainted');
   });

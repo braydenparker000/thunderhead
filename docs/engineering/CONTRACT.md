@@ -317,7 +317,7 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | `podcasts.follow`, `podcasts.unfollow`, `podcasts.queue_episode`, `podcasts.unqueue_episode`, `podcasts.mark_played` | — |
 | `reminders` | `mind.permit.reminders` | Reminders | tell | `reminder.move`, `reminder.snooze_rule` | `reminder.set`, `reminder.cancel` |
 | `settings` | `mind.permit.settings` | Settings | tell | `settings.set`, `shell.appearance` | — |
-| `muse` | `mind.permit.muse` | Muse orders | ask | `muse.order_personal` (floor: reach_people) | `muse.order` |
+| `muse` | `mind.permit.muse` | Muse orders | tell | `muse.order_personal` (floor: reach_people) | `muse.order` |
 | `watch` | `mind.permit.watch` | Watch lists | tell | `astra.shortlist`, `media.shortlist` | — |
 | `practice` | `mind.permit.practice` | Practice | tell | `study.mark_next`, `study.pace_goal`, `guitar.set_plan`, `guitar.start_practice` | — |
 | `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open`, `briefing.pin_tile`, `briefing.unpin_tile`, `island.show`, `island.clear` | `surface.put` |
@@ -454,6 +454,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `unknown_ref` | The fact this op names does not exist. |
 | `not_owner_evidence` | A 'user' fact needs evidence that is all the owner's own words. |
 | `rule_needs_owner` | A rule needs source 'user'. |
+| `rule_not_owner_words` | A rule is kept in the owner's own words: cite the message they wrote it in and keep their wording (three of every four words). |
 | `too_little_evidence` | An 'observed' fact needs at least 10 owner-device events. |
 | `tainted_evidence` | Muse or outside text is never evidence. |
 | `needs_owner_words` | Faith and facts about people come only from the owner's words. |

@@ -1,8 +1,10 @@
 // Proposals (API.md §11.10, BEHAVIOR.md §4, DEC-1): an agent raises a decision card, which waits
 // for the owner (deciding it is decide.ts), expires after 7 days or is cancelled; the Worker raises
 // its own laws card at a claim. Every step writes a ledger row and a `proposal` change, so the
-// phone's card and the mind's briefing follow it. A tainted session raises no card at all: every agent op is in an
-// ask-first class, and outside text must never start one (SECURITY.md §5.3, EVALS.md INJ-02…22). An
+// phone's card and the mind's briefing follow it. A tainted session raises no ask-first card but a floor's
+// (money, delete, access, reach_people: owner, 2026-11-22), which says on its why line that it was asked
+// after outside text and which only a tap decides (decide.ts); outside text starts no other (SECURITY.md
+// §5.3, EVALS.md INJ-02…22). An
 // arrangement's card carries odds; the owner's speech setting may hold an unasked card back (mind/speech.ts).
 import type { Json, Proposal, PutProposalRequest } from '../../../../shared/contract/api';
 import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
@@ -68,6 +70,11 @@ function permitClass(cls: string, args: Record<string, unknown>): void {
   const want = p.floor ?? 'permit';
   if (cls !== want) throw invalid('class', `this action is filed under ${want}`);
 }
+/** The ask-first classes a session that read outside text may still raise: the owner's floors. */
+export const OUTSIDE_FLOORS: readonly string[] = ['money', 'delete', 'access', 'reach_people'];
+/** How such a card's why line begins: the owner sees it was asked after outside text, and decide.ts
+ * takes only a tap for it. */
+export const OUTSIDE_WHY = 'Asked after reading outside text. ';
 const short = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /** PUT /v1/proposals/:id from an agent. `hash` is the canonical body hash (API.md §7). */
@@ -86,10 +93,11 @@ export function put(
     return { proposal: store.toProposal(found), created: false };
   }
   if (c.who !== 'C' && c.who !== 'N' && c.who !== 'R') throw new Fail('forbidden');
-  // Only a claimed, live session of the key's role may ask, and never a tainted one: checked before
-  // the op, so outside text can't even learn which ops exist.
+  // Only a claimed, live session of the key's role may ask, and a tainted one only a floor's card:
+  // checked before the op, so outside text can't even learn which other ops exist.
   const s = claimedSession(w.db, c.session_id, ROLE[c.who]);
-  if (s.tainted && PROPOSAL_CLASSES[r.class].ask_first) throw new Fail('session_tainted');
+  const outside = s.tainted && PROPOSAL_CLASSES[r.class].ask_first;
+  if (outside && !OUTSIDE_FLOORS.includes(r.class)) throw new Fail('session_tainted');
   const op = proposalOp(r.spec.op);
   if (!op) throw invalid('spec.op', 'not an op in the executor map');
   if (!op.by.includes(c.who)) throw new Fail('forbidden');
@@ -117,7 +125,20 @@ export function put(
   if (store.waitingFor(w.db, ref))
     throw new Fail('conflict', [{ path: 'spec', issue: 'a card for this already waits' }]);
   const target = targetOf(w, spec.op, spec.args, given);
-  insert(w, c.actor, c.session_id, id, { ...r, spec }, specJson, ref, hash, tz, target, wasAsked ? r.asked_by : null);
+  const why = outside ? short(`${OUTSIDE_WHY}${r.why}`, PROPOSAL_LIMITS.why) : r.why;
+  insert(
+    w,
+    c.actor,
+    c.session_id,
+    id,
+    { ...r, why, spec },
+    specJson,
+    ref,
+    hash,
+    tz,
+    target,
+    wasAsked ? r.asked_by : null,
+  );
   return { proposal: store.toProposal(store.byId(w.db, id) as store.ProposalRow), created: true };
 }
 

@@ -1,16 +1,14 @@
 // th read: the reader subagent's answers (RUNTIME.md §6.6; BEHAVIOR.md §11 rule 6). `th read --kinds`
 // lists the kinds the reader (.claude/agents/reader.md) answers in, from the contract. `th read
-// --check <kind>` takes its answer (stdin, `--json` or `--file`), marks this session tainted (the
-// answer is outside text still, whether or not it passes), checks it against the kind's schema and
+// --check <kind>` takes its answer (stdin, `--json` or `--file`), marks nothing (a walled reader's
+// answer leaves the session unmarked: owner, 2026-11-22), checks it against the kind's schema and
 // the rules a schema can't say, and prints the checked object: the only thing the session works
 // from. Exit 8 names the first problem; the session then works from nothing it read.
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {CONTRACT} from './contract.mjs';
-import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {check} from './schema.mjs';
-import {getState, setState} from './state.mjs';
 
 const READER = CONTRACT.reader;
 
@@ -54,13 +52,10 @@ export async function read(argv) {
   const kind = typeof flags.check === 'string' ? flags.check : null;
   if (!kind) throw invalid('usage: th read --kinds | th read --check <kind> [--json <answer> | --file <path>] (else stdin)');
   const text = typeof flags.json === 'string' ? flags.json : readFileSync(typeof flags.file === 'string' ? flags.file : 0, 'utf8');
-  // Tainted first: the session has the answer in its context, checked or not (MEMORY.md §7).
-  if (!getState('tainted')) {
-    await request('POST', '/v1/mind/taint', {body: {source: 'reader', ref_kind: /"https?:\/\//.test(text) ? 'url' : 'file'}});
-    setState('tainted', true);
-  }
+  // A walled reader's answer marks nothing (owner, 2026-11-22): the reader could not act, and the
+  // session works only from what this check passes.
   const answer = parseAnswer(text);
   const why = problem(kind, answer);
   if (why) throw invalid(`reader answer refused: ${why}`);
-  out({ok: true, kind, tainted: true, answer});
+  out({ok: true, kind, answer});
 }

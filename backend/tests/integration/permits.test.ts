@@ -187,7 +187,17 @@ describe('a Core-internal op under each position (tiles: a home line)', () => {
 });
 
 describe('the other gated writes', () => {
-  it('Muse orders ask by default; a reminder tells; a title is quiet; the owner is never gated', async () => {
+  it('Muse orders tell by default; at ask they ask; a reminder tells; a title is quiet; the owner is never gated', async () => {
+    const body = {
+      kind: 'muse.request',
+      title: 'Bus timetable',
+      spec: { v: 1, words: 'Find the new bus timetable.' },
+      deadline_at: Date.now() + 3_600_000,
+    };
+    // Tell by default (owner, 2026-11-22): an order the owner asks for raises no card.
+    const told = await apiJson<Answer<object>>('PUT', `/v1/work/orders/${uuidv7()}`, { ...chat(), body });
+    expect([told.status, told.body.permit?.position]).toEqual([201, 'tell']);
+    await settle({ 'mind.permit.muse': 'ask' });
     const order = await apiJson<ErrorBody>('PUT', `/v1/work/orders/${uuidv7()}`, {
       ...chat(),
       body: {
@@ -198,6 +208,7 @@ describe('the other gated writes', () => {
       },
     });
     expect([order.status, refusal(order.body).class, refusal(order.body).floor]).toEqual([403, 'muse', null]);
+    await settle({ 'mind.permit.muse': 'tell' });
     const msg = await ownerSays(P.D, 'Remind me to call the garage at five');
     const set = await apiJson<Answer<{ reminder: { id: string } }>>('PUT', `/v1/reminders/${uuidv7()}`, {
       ...chat(),
