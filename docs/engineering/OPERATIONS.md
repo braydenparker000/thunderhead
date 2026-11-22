@@ -356,6 +356,16 @@ The owner uses only the site; nothing here waits for a person or a dashboard. Th
 - **The outside watcher** (`live-watch.yml`, every 30 minutes). A failing check fails the run, so GitHub's own failed-run notification goes out; the issue names no person. The site and the Worker are checked apart: the site failing twice running while the Worker answers makes the `tell` job post `POST /v1/ops/site {state: down}` with the CI key (environment `worker`, secret `TH_CI_TOKEN`, no new secret; the route admits only the CI principal, everyone else 403), and the Worker pushes the owner once (kind `site`): "The site isn't loading. Your data is safe."; the first passing run after a failure posts `up`, and the Worker pushes "The site is loading again." once, only if it had said it was down. **When the Worker itself is down, only GitHub can tell**: the failed run and its notification, and the issue, are all there is; nothing reaches the phone.
 - **Keeping the schedule alive.** GitHub disables a public repository's scheduled workflows "when no repository activity has occurred in 60 days" (docs: Disabling and enabling a workflow). On the 1st of each month the `keepalive` job calls the REST API's "Enable a workflow" (`PUT /repos/{owner}/{repo}/actions/workflows/live-watch.yml/enable`, job permission `actions: write`). GitHub's documentation does **not** say that enabling an enabled workflow resets the 60-day count (checked 2026-11-21: it says only that a disabled workflow can be re-enabled, and that a commit changing the cron reactivates one); community practice relies on it, unconfirmed. If the schedule is disabled anyway, the Briefing still shows every Worker-side line (the cron's heartbeat is the Worker's own), and the watcher's site check stops until someone runs the workflow or re-enables it (Actions → Live watch → Enable workflow). A better guard, not built: the Worker's cron reading the workflow's public `state` (`disabled_inactivity`) and adding a line.
 
+### 8.6 The list for the builder (built 2026-11-22)
+
+For the months nobody builds, what annoys the owner or breaks waits in a dated list ([API.md §11.30](API.md)): the owner says so in the chat and the mind files it (`th issue add`, citing the owner's message), or the owner adds one in Settings › For the builder. Each item keeps the owner's words, where it happened, how bad, the message it came from, the Worker's commit then and the newest matching error or report. A building session starts by reading the open items, newest first, in one of three ways:
+
+- **From the owner:** Settings › For the builder › **Copy all** copies the open list as plain text, to paste into the session.
+- **With a mind key** (a session whose `th` reaches the Worker): `th issue ls` (open), `th issue ls --state all`; `th get /v1/issues/<id>` for one with its notes.
+- **With the ci key:** `GET /v1/issues` with `Authorization: Bearer thc_…` and `TH-Client: ci/<build>`. The list holds the owner's own words: read it into the session only, never into an Actions log, a commit or a pull request (this repository and its logs are public).
+
+When the work lands, the owner marks the item done in Settings (or the session adds a note with `th issue note <id> "<text>"` saying which pull request should fix it). Nothing is ever deleted.
+
 ---
 
 ## 9. Routine checks

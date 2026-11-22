@@ -27,6 +27,7 @@ import {evalCmd} from './lib/eval.mjs';
 import {read} from './lib/read.mjs';
 import {library} from './lib/library.mjs';
 import {remind} from './lib/remind.mjs';
+import {issue} from './lib/issue.mjs';
 import {voice} from './lib/voice.mjs';
 import {watch} from './lib/watch.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
@@ -57,7 +58,7 @@ export const COMMANDS = {
   daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
   plan: later.plan, verbs: later.verbs, routine, guitar: grow.guitar, study: grow.study, growth: grow.growth,
-  checkin, library, music, remind, voice, watch, podcasts, push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
+  checkin, library, music, remind, issue, voice, watch, podcasts, push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
   help: async argv => { out(helpText(argv[0])); },
 };

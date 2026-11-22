@@ -243,6 +243,34 @@ CREATE TABLE imports (
 
 CREATE INDEX imports_run ON imports (run_id, dataset);
 
+CREATE TABLE issue_notes (
+  issue_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  by TEXT NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY (issue_id, id)
+  ) WITHOUT ROWID;
+
+CREATE TABLE issues (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  what TEXT NOT NULL,
+  place TEXT,
+  kind TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  from_message_id TEXT,
+  release TEXT,
+  seen TEXT,
+  state TEXT NOT NULL,
+  done_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  req_sha256 TEXT NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX issues_state ON issues (state, at);
+
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,

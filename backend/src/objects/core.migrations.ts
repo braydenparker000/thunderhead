@@ -12,6 +12,7 @@ import { FEED_MIGRATIONS, FEED_TABLES } from '../areas/feed/migrations';
 import { FILES_MIGRATIONS, FILES_TABLES } from '../areas/files/migrations';
 import { GUITAR_MIGRATIONS, GUITAR_TABLES } from '../areas/guitar/migrations';
 import { IMPORT_MIGRATIONS, IMPORT_TABLES } from '../areas/import/migrations';
+import { ISSUES_MIGRATIONS, ISSUES_TABLES } from '../areas/issues/migrations';
 import { JOBS_MIGRATIONS, JOBS_TABLES } from '../areas/jobs/migrations';
 import { LEDGER_MIGRATIONS, LEDGER_TABLES } from '../areas/ledger/migrations';
 import { MEMORY_MIGRATIONS, MEMORY_TABLES } from '../areas/memory/migrations';
@@ -97,6 +98,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...PHOTOS_MIGRATIONS,
   ...GUITAR_MIGRATIONS,
   ...VOICE_MIGRATIONS,
+  ...ISSUES_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -128,4 +130,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...PHOTOS_TABLES,
   ...GUITAR_TABLES,
   ...VOICE_TABLES,
+  ...ISSUES_TABLES,
 };

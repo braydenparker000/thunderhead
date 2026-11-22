@@ -125,7 +125,7 @@ Navigation (2026-11-21, `apps/settings/pages.js`), under headings: **Look** (The
 Still background, More appearance) · **Home and gestures** (Home and chat, Ring and gestures) ·
 **Apps** (Music, Photos, Island, Briefing) · **The mind** (The mind, What I remember,
 Notifications) · **Account and data** (Password, Devices, Privacy and data, Data use, Export,
-Recently deleted, Files for the workshop) · **About** (About and diagnostics, Check for update). Agents
+Recently deleted, Files for the workshop) · **About** (About and diagnostics, For the builder, Check for update). Agents
 is not listed (§4.7). The catalogue's pages (§6), Data use, Files for the workshop and About open over
 Settings like the others. Connected apps stays hidden until it has a working surface.
 
@@ -206,6 +206,19 @@ Restore uses the shared button and the existing API; it does not add a permanent
 Shared groups, password fields and buttons surround the existing export job. Download everything
 still requires the password. The gathering bar, resuming a pending export, download link and
 backup explanation keep their logic. This task does not start an export outside test fixtures.
+
+### 4.10 For the builder
+
+`apps/settings/builder.js` (2026-11-22, [API.md §11.30](../engineering/API.md)): what annoyed the owner or
+broke, kept for the next building session. The open items newest first, each a row with its title and
+"date · where · how bad"; a tap opens what happened, where it came from (the chat or added here), the
+release then and the notes, with **Mark done**. Done items sit in a **Done** fold, each with **Reopen**.
+**Add one** (a fold) takes a few words, what happened, where (optional) and how bad (Annoying, Broken,
+Idea). **Copy all** copies the open list as plain text, ready to paste into a building session. The
+mind files items from the chat when the owner says something is broken or annoying (`th issue add`).
+States: "Reading…"; "Nothing open. When something annoys you, tell me in the chat or add it here.";
+offline, "You're offline. The list shows once you're back." (read again when the phone is back
+online); a failed read says why. Nothing is ever deleted.
 
 ## 5. Accessibility and verification
 

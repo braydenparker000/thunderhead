@@ -301,6 +301,11 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `export.backup` / `.none` | Last automatic backup: <weekday> <hh:mm> (weekly, private). / Automatic backups run every Sunday at 02:30 (weekly, private). | Under the button (built) |
 | `menu.convos.offline` | Offline: showing what this phone has. | The list offline, from this phone (built) |
 | `menu.convos.offline.none` | You're offline. Your conversations show once you're back. | The list offline with nothing on this phone (built) |
+| `builder.lead` | What annoyed you or broke, kept for the next time someone builds. Tell me in the chat, or add one here. | Settings › For the builder, at the top (built) |
+| `builder.empty` | Nothing open. When something annoys you, tell me in the chat or add it here. | The list with nothing open (built) |
+| `builder.offline` | You're offline. The list shows once you're back. | The page opened offline (built) |
+| `builder.add.empty` | Say what it is and what happened. | Add with a field empty (built) |
+| `toast.builder.done` | Marked done. · Open again. | Mark done, Reopen (built) |
 | `menu.convos.failed` | Couldn't load your conversations. <reason> / Couldn't refresh your conversations. <reason> | The Worker didn't answer (built) |
 | `toast.now` | This is the current conversation | Tapping Now while on it (built) |
 | `row.continue` / `.rename` / `.delete` | Continue this / Rename / Delete | Row actions (mind research; proposal) |

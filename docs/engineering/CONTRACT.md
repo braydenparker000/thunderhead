@@ -263,6 +263,11 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/mind/voice/:id` | D C N R | P9 | built | one version of the voice page, with its text |
 | `PUT /v1/mind/voice` | D C | P9 | built | {text ≤ 4,000, why?}: a new version; mind:chat from a claimed, live session that read no outside text, with a why of 8 to 200 characters (a ledger row with undo and a line in the chat) |
 | `POST /v1/mind/voice/restore` | D | P9 | built | {id}: that version becomes the page again, as a new version |
+| `GET /v1/issues` | D C N R I | P9 | built | ?state=open\|done\|all (default open): newest first with their notes, ≤ 200; ci: a building session reads the list |
+| `GET /v1/issues/:id` | D C N R I | P9 | built | one item with its notes |
+| `PUT /v1/issues/:id` | D C | P9 | built | {title ≤ 120, what ≤ 1,000, where?, kind?, from_message_id?}: mind:chat names the owner-device message of the last 48 h it came from, from a clean claimed session |
+| `PATCH /v1/issues/:id` | D | P9 | built | {title?, what?, where?, kind?, state?: open\|done}: edit, mark done, reopen |
+| `POST /v1/issues/:id/notes` | D C | P9 | built | {text ≤ 1,000}: a note added (never changed or removed), at most 50 an item |
 
 ## Verbs
 
@@ -543,7 +548,7 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 
 Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
 
-`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code` · `issues`
 
 ## Watchdogs
 
