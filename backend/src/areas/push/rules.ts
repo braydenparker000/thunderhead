@@ -8,7 +8,8 @@
 // pause and through "go quiet", but never inside quiet hours. The day's quota push (database use
 // past 80% of the day's budget, areas/meter) is a system alarm and goes as a sign-in notice does:
 // outside the budget, through "go quiet", held only by quiet hours, and dropped at 00:00 UTC when
-// the quota starts again. The owner's `mind.pushes` (Settings › Notifications) holds the mind's nudges
+// the quota starts again. The day's bundled alarm and the site's word (areas/watchdogs) go the same
+// way, each until its own deadline. The owner's `mind.pushes` (Settings › Notifications) holds the mind's nudges
 // too: Never takes none and sends none still waiting; Urgent only takes one only when the owner asked
 // to be told (its `asked_by`, an owner's message the route has checked); Normal is all of the above.
 // Reminders, sign-in notices, the quota push and tests are not the mind's and go whatever it says.
@@ -39,6 +40,9 @@ export interface PushContext {
   /** The day's quota push, from 80% (its id is `quota-<UTC day>`, so it is held once a day). Absent
    * below 80%, and from a Core before the meter. */
   quota?: QuotaPush;
+  /** The day's bundled push for what is seriously wrong (id `alarm-<owner day>`), on the day it
+   * became serious; absent otherwise. */
+  alarm?: QuotaPush;
   /** The owner's `mind.pushes`: 'never', 'urgent' or 'normal' (absent or anything else: normal). */
   pushes?: string;
 }

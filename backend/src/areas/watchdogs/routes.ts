@@ -1,7 +1,10 @@
 // /v1/ops/watchdogs (OPERATIONS.md §8.2): every watchdog of the registry with its state, and the
 // report a mind session (normally the reflex) makes on a trip. The sandbox has no watchdogs.
+// POST /v1/ops/site: the live watch's word that the site isn't loading, or is back (the CI key
+// only, by the route table's default deny): one push each way (site.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
+import { SITE_WORDS, type SiteRequest, type SiteResponse } from '../../../../shared/contract/watch.ts';
 import {
   WATCHDOG_NAMES,
   type WatchdogDrillResponse,
@@ -16,13 +19,17 @@ import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
 import { value } from '../../lib/result';
+import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { deliver } from '../push/routes';
 
 const handledBody = z.strictObject({
   outcome: z.enum(['fixed', 'reported', 'nothing']),
   note: z.string().check(z.minLength(8), z.maxLength(200)),
 }) satisfies z.ZodMiniType<WatchdogHandledRequest>;
+
+const siteBody = z.strictObject({ state: z.enum(['down', 'up']) }) satisfies z.ZodMiniType<SiteRequest>;
 
 const nameOf = (raw: string): WatchdogName => {
   if (!(WATCHDOG_NAMES as string[]).includes(raw)) throw new ApiError('not_found');
@@ -46,4 +53,13 @@ export const watchdogsRoutes = new Hono<AppEnv>()
     const name = nameOf(c.req.param('name'));
     const out = value(await fresh(coreObject(c.env).watchdogDrill(callerOf(c), name)));
     return c.json(out satisfies WatchdogDrillResponse);
+  })
+  .post('/ops/site', guard('POST /v1/ops/site'), async (c) => {
+    const { state } = await json(c, siteBody);
+    const pushed = await coreObject(c.env).siteWord(state);
+    if (pushed) {
+      await authObject(c.env).queueSite(pushed, SITE_WORDS[pushed]);
+      c.executionCtx.waitUntil(deliver(c.env).catch(() => {}));
+    }
+    return c.json({ pushed } satisfies SiteResponse);
   });

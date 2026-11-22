@@ -21,6 +21,7 @@ import { decisions } from '../decide/state.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
+import { mindLine, watchAt } from '../briefing/watch.js';
 import { createSendLine, createWorking } from './working.js';
 import { keepZone } from './zone.js';
 import { wireMic } from '../dictate/mic.js';
@@ -132,6 +133,9 @@ export async function startChat() {
       all.push(/** @type {any} */ ({ seq: 0, id: `catchup:${cu.at}`, thread_id: '', author: 'system', origin: 'system', kind: 'text', body: cu.body, meta: { line: 'catchup' }, attachments: [], reply_to: null, created_at: cu.at, delivered_at: null, acked_at: null, answered_at: null }));
       all.sort((a, b) => a.created_at - b.created_at);
     }
+    // The mind unable to answer for 2 hours (OPERATIONS.md §8.5): one line at the end, gone once it answers.
+    const down = otr ? null : mindLine(state.presence);
+    if (down) all.push(/** @type {any} */ ({ seq: 0, id: 'mindstate', thread_id: '', author: 'system', origin: 'system', kind: 'text', body: down, meta: { line: 'mindstate' }, attachments: [], reply_to: null, created_at: watchAt(), delivered_at: null, acked_at: null, answered_at: null }));
     // While a reply is on its way the working card says so, docked by the bar (HOME.md §4.13); the
     // slot under the newest turn is left only for a mind that isn't connected yet.
     const card = model.work({ shown, waiting, now, presence: state.presence });
@@ -167,6 +171,7 @@ export async function startChat() {
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let ticker;
+  document.addEventListener('th:watch', () => paint());
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let catchingUp;
   /** The phone's own commands (th/commands), loaded once the chat starts. @type {typeof import('../commands/commands.js') | null} */

@@ -2,9 +2,12 @@
 // the row meter (areas/meter: every object's day, kept in meter_days), runs the built checks and,
 // when a trip wakes mind-reflex, fires its task after the commit; the reflex reads every
 // watchdog's state and reports what it did. Today's use against the Free plan also gives the
-// owner's one push from 80% and the hold the heavy work waits on. The sandbox runs none of it. A
-// code layer of the one Core class.
+// owner's one push from 80% and the hold the heavy work waits on. What is wrong reaches the owner
+// in the site (OPERATIONS.md §8.5): the cron's heartbeat, the mind's state, the Briefing's lines,
+// the day's one bundled push and the site's word from the outside watcher. The sandbox runs none
+// of it. A code layer of the one Core class.
 import type { MeterResponse } from '../../../shared/contract/api';
+import type { OwnerWatch } from '../../../shared/contract/watch.ts';
 import type {
   WatchdogDrillResponse,
   WatchdogHandledRequest,
@@ -17,8 +20,12 @@ import { type DayRow, putDay } from '../areas/meter/store';
 import { fire, fireConfig } from '../areas/mind/fire';
 import * as mstore from '../areas/mind/store';
 import type { PushContext } from '../areas/push/rules';
+import { putSetting } from '../areas/settings/store';
 import { GATHER, type Gather } from '../areas/watchdogs/checks';
 import * as watchdogs from '../areas/watchdogs/ops';
+import { alarmPush, alarms, cronBeat, mindWatch } from '../areas/watchdogs/owner';
+import { siteWord } from '../areas/watchdogs/site';
+import * as wstore from '../areas/watchdogs/store';
 import type { Out } from '../lib/result';
 import { MINUTE } from '../lib/time';
 import type { Caller } from './caller';
@@ -90,9 +97,35 @@ export abstract class CoreWatchdogs extends CoreEvals {
     if (this.sandboxed) return ctx;
     const q = safeQuota(this.db, ctx.now);
     const body = quotaLine(q, ctx.tz);
-    return q?.hold_until && body
-      ? { ...ctx, quota: { id: `quota-${q.day}`, at: ctx.now, until: q.hold_until, body } }
-      : ctx;
+    const withQuota =
+      q?.hold_until && body ? { ...ctx, quota: { id: `quota-${q.day}`, at: ctx.now, until: q.hold_until, body } } : ctx;
+    const alarm = alarmPush(this.db, ctx.now, ctx.tz);
+    return alarm ? { ...withQuota, alarm } : withQuota;
+  }
+
+  /** The cron's heartbeat (areas/ops/cron.ts): when it last ran and the steps that failed in it. */
+  cronBeat(at: number, failed: string[]): void {
+    this.ctx.storage.transactionSync(() => putSetting(this.db, 'ops.cron', { at, failed }, 'worker', at));
+  }
+
+  /** Deep health's `watch`: the heartbeat, the mind's state and the owner's lines; `push` and
+   * `missing` come from the Auth object and every object's health. */
+  ownerWatch(push: boolean, missing: string[], now = Date.now()): OwnerWatch {
+    const tz = this.tz();
+    const lines = this.sandboxed ? [] : alarms(this.db, now, tz).lines;
+    return {
+      cron: cronBeat(this.db),
+      roll_at: wstore.dayStartedAt(this.db)?.at ?? null,
+      mind: mindWatch(this.db, now, tz),
+      push,
+      missing,
+      lines,
+    };
+  }
+
+  /** POST /v1/ops/site: the outside watcher's word; the push it calls for, or null. */
+  siteWord(state: 'down' | 'up'): 'down' | 'up' | null {
+    return this.write((w) => siteWord(w, state));
   }
 
   watchdogs(): WatchdogItem[] {

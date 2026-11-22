@@ -210,6 +210,8 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       // And step 48's (a refired message's count).
       sql.exec('ALTER TABLE messages DROP COLUMN refires');
+      // And step 51's (the tripped watchdogs' index).
+      sql.exec('DROP INDEX IF EXISTS watchdogs_tripped');
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])

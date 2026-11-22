@@ -65,6 +65,13 @@ export const opsRoutes = new Hono<AppEnv>()
         .catch(() => null),
     ]);
     const lastBackup = backup ? { date: backup.date, age_h: backup.age_h } : null;
+    // The heartbeat and the owner's lines (areas/watchdogs/owner.ts); a Worker or Core mid-deploy leaves it out.
+    const all = { core, auth, music, senses, library };
+    const missing = Object.entries(all).flatMap(([k, h]) => (h.missing ?? []).map((v) => `${k}:${v}`));
+    const watch = await authObject(c.env)
+      .pushReach()
+      .then((push) => coreObject(c.env).ownerWatch(push, missing))
+      .catch(() => undefined);
     rememberMinClient(core.min_client);
     const objects = Object.fromEntries(
       Object.entries({ core, auth, music, senses, library }).map(([k, h]) => [
@@ -107,6 +114,7 @@ export const opsRoutes = new Hono<AppEnv>()
       errors_open: core.errors_open,
       wakes_today: core.wakes_today,
       min_client: core.min_client,
+      ...(watch ? { watch } : {}),
     };
     return c.json(body);
   })

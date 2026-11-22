@@ -787,6 +787,8 @@ CREATE TABLE watchdogs (
   handled_note TEXT
   ) WITHOUT ROWID;
 
+CREATE INDEX watchdogs_tripped ON watchdogs (state) WHERE state = 'tripped';
+
 CREATE TABLE watches (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,

@@ -63,6 +63,8 @@ export interface DeepHealthResponse {
   errors_open: number;
   wakes_today: number;
   min_client: number;
+  /** The heartbeat and what the owner is told (watch.ts); absent from a Worker before 2026-11-21. */
+  watch?: import('./watch.ts').OwnerWatch;
 }
 
 // --- auth (§11.2) ------------------------------------------------------------------------------
