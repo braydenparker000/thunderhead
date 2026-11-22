@@ -116,7 +116,8 @@ describe('upgrade from P2', () => {
         // Step 49: Podcasts' Up Next and speed.
         'podcast_queue',
         'podcast_prefs',
-        // Step 53: the check-ins.
+        // Step 52: the voice page's versions; step 53: the check-ins.
+        'voice_versions',
         'checkins',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
@@ -208,7 +209,8 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
         'guitar_progress',
         'podcast_queue',
         'podcast_prefs',
-        // …and 53 the check-ins.
+        // …52 the voice page's versions and 53 the check-ins.
+        'voice_versions',
         'checkins',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);

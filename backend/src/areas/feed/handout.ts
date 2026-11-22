@@ -1,6 +1,7 @@
 // What the Worker adds when GET /v1/live/wait hands owner messages to the chat session (API.md
-// §11.5): the mind's presence set to working at once (what `th status working` does, with no note),
-// so the phone shows it is thinking without a model step; and with each message up to 5 memories
+// §11.5): the mind's presence set to working at once (as `th status working` sets it, with no note;
+// it acknowledges nothing, areas/mind/ops.ts status), so the phone shows it is thinking without a
+// model step; and with each message up to 5 memories
 // that match it (`recall`), from the search `th recall "<the message>"` runs (words matched, and
 // hits by meaning fused in). The handout never waits on it: the whole search gets 400 ms; a meaning
 // search not back by then leaves the words' matches alone; any error hands the message out without

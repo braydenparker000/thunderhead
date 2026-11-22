@@ -72,7 +72,9 @@ describe('A. every write carries a label the Worker sets', () => {
     const own = addOp([`msg:${said}`], { text: 'Likes quiet mornings' });
     expect(await labelled(chat(), own)).toBe('owner');
     ids.owner = own.id;
-    const rule = addOp([`msg:${said}`], { kind: 'rule', subject: 'answers', text: 'Answer briefly in the morning' });
+    // A rule is the owner's own words from the message it cites (rule-words.ts).
+    const asked = await ownerSays(P.D, 'Answer briefly in the morning.');
+    const rule = addOp([`msg:${asked}`], { kind: 'rule', subject: 'answers', text: 'Answer briefly in the morning' });
     expect(await labelled(chat(), rule)).toBe('owner');
     ids.rule = rule.id;
     // What the mind works out is kept at once (owner, 2026-11-22), at its lower confidence.
@@ -106,12 +108,14 @@ describe('A. every write carries a label the Worker sets', () => {
     expect(
       await labelled(outside(), addOp([`msg:${said}`], { source: 'inferred', text: 'Probably likes calm evenings' })),
     ).toBe('outside');
-    // Its own briefing says so (`tainted`, its old name); a claim under a new id starts clean.
+    // Its own briefing says so (`tainted`, its old name).
     const own = (await brief(P.N, READ, 'night')).body;
     expect([own.provenance, own.tainted]).toEqual(['outside', true]);
     expect(own.core).toContain("labelled outside; it waits for the owner's keep in Settings › Memory");
+    // A claim under a new id takes the label over, and its briefing says so (claim-mark.ts).
     const b = (await brief(P.N, 'cse_prov_inherit', 'night')).body;
-    expect([b.provenance, b.tainted]).toEqual(['owner', false]);
+    expect([b.provenance, b.tainted]).toEqual(['outside', true]);
+    expect(b.core).toContain("labelled outside; it waits for the owner's keep in Settings › Memory");
   });
 });
 

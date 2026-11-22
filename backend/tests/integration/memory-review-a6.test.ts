@@ -1,6 +1,7 @@
 // Stage A.6, the second review of P3 memory: each finding as a test that fails on 54cd448. A taint
-// lasts only for its session since 2026-11-22 (a new claim takes over none; the hooks keep a
-// session from speaking as another; an older session still counts a later sibling's); forgetting a fact takes its words from the ledger rows of the surfaces
+// can't be shed by claiming a new session id (only the session the Worker fired after the taint
+// starts clean; since 2026-11-02 the inherited taint labels writes `outside`, MEMORY.md §6 M11,
+// where it refused them); forgetting a fact takes its words from the ledger rows of the surfaces
 // that drew on it; the reflex briefing carries no session note; a night write over the owner's
 // day-note edit says so; and a day note in everyday words is kept. The never-stored rules
 // themselves are unit tests (tests/unit/memory-guards.test.ts). Storage carries over between tests
@@ -115,62 +116,61 @@ describe('before any taint', () => {
   });
 });
 
-describe('a mark lasts only for its session (owner, 2026-11-22): a new claim takes over none', () => {
-  it('night: after th taint, the session itself writes outside; a claim with a new id starts clean', async () => {
+describe('a taint holds for its role: a new claim takes it over (24 hours since A.7)', () => {
+  it('night: after th taint, a claim with a new id is tainted too (its fact and day note are outside)', async () => {
     await taint(P.N, NIGHT_SESSION);
-    expect(await labelled(as(P.N, NIGHT_SESSION), addOp([`msg:${said}`], { text: 'Night write after the read' }))).toBe(
-      'outside',
-    );
     const s = 'cse_a6_minted';
     const b = await brief(P.N, s, 'night');
-    expect([b.status, b.body.tainted, b.body.provenance]).toEqual([200, false, 'owner']);
-    expect(b.body.core).not.toContain('outside: what you write this session is labelled outside');
-    expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'Night write in a new claim' }))).toBe('owner');
+    expect([b.status, b.body.tainted, b.body.provenance]).toEqual([200, true, 'outside']);
+    expect(b.body.core).toContain('outside: what you write this session is labelled outside');
+    expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'Night laundered via new claim' }))).toBe(
+      'outside',
+    );
     const dn = await dayNote(as(P.N, s), dayBefore(today, 3), 'Minted session note.');
-    expect([dn.status, dn.body.provenance]).toEqual([200, 'owner']);
-    const [row] = await coreSql<{ tainted_at: number | null }>(
-      'SELECT tainted_at FROM mind_sessions WHERE session_id = ?',
+    expect([dn.status, dn.body.provenance]).toEqual([200, 'outside']);
+    const [row] = await coreSql<{ taint_source: string }>(
+      'SELECT taint_source FROM mind_sessions WHERE session_id = ?',
       s,
     );
-    expect(row.tainted_at).toBeNull();
+    expect(row.taint_source).toBe('inherited:WebFetch');
   });
 
-  it('a loose claim and an exact one on a wake fired before the taint start clean too', async () => {
-    await taint(P.N, 'cse_a6_minted');
+  it('a loose claim inherits it: the open wake was fired for another session', async () => {
     await firedWake('night', 'session_someone_else');
-    const loose = await brief(P.N, 'cse_a6_loose', 'night');
-    expect([loose.body.wake?.claim_match, loose.body.tainted]).toEqual(['loose', false]);
-    await firedWake('night', 'session_a6early', -60_000);
-    const early = await brief(P.N, 'cse_a6early', 'night');
-    expect([early.body.wake?.claim_match, early.body.tainted]).toEqual(['exact', false]);
+    const b = await brief(P.N, 'cse_a6_loose', 'night');
+    expect([b.body.wake?.claim_match, b.body.tainted]).toEqual(['loose', true]);
   });
 
-  it("an older live session still counts a later sibling's taint (an old id can't step around it)", async () => {
+  it('a wake fired before the taint does not clean a later claim, even an exact one', async () => {
+    await firedWake('night', 'session_a6early', -60_000);
+    const b = await brief(P.N, 'cse_a6early', 'night');
+    expect([b.body.wake?.claim_match, b.body.tainted]).toEqual(['exact', true]);
+  });
+
+  it('the session the Worker fired after the taint starts clean (an exact id match)', async () => {
     await firedWake('night', 'session_a6fresh');
     const s = 'cse_a6fresh';
     const b = await brief(P.N, s, 'night');
     expect([b.body.wake?.claim_match, b.body.tainted]).toEqual(['exact', false]);
     expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'A clean fired session' }))).toBe('owner');
-    await taint(P.N, 'cse_a6early');
-    expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'After a sibling read' }))).toBe('outside');
+    const dn = await dayNote(as(P.N, s), dayBefore(today, 4), 'A fired session note.');
+    expect([dn.status, dn.body.provenance]).toEqual([200, 'owner']);
   });
 
-  it('chat: the tainted session writes outside; the next claim starts clean and the tainted one ends', async () => {
+  it('chat: stopping and claiming a new id does not shed it', async () => {
     await apiJson('POST', '/v1/mind/status', { ...as(P.C, CHAT_SESSION), body: { state: 'stopping' } });
     const c1 = 'cse_a6_chat_1';
     expect((await brief(P.C, c1, 'chat')).body.tainted).toBe(false);
     await taint(P.C, c1);
-    expect(await labelled(as(P.C, c1), addOp([`msg:${said}`], { text: 'Chat write after the read' }))).toBe('outside');
     await apiJson('POST', '/v1/mind/status', { ...as(P.C, c1), body: { state: 'stopping' } });
     const c2 = 'cse_a6_chat_2';
-    expect((await brief(P.C, c2, 'chat')).body.tainted).toBe(false);
-    expect(await labelled(as(P.C, c2), addOp([`msg:${said}`], { text: 'Chat write in a new claim' }))).toBe('owner');
-    expect(await reason(as(P.C, c1), addOp([`msg:${said}`], { text: 'The old session again' }))).toBe(
-      'session_required',
+    expect((await brief(P.C, c2, 'chat')).body.tainted).toBe(true);
+    expect(await labelled(as(P.C, c2), addOp([`msg:${said}`], { text: 'Chat laundered via new claim' }))).toBe(
+      'outside',
     );
   });
 
-  it('an old taint changes nothing for a later claim either', async () => {
+  it("a taint more than 24 hours old doesn't carry over", async () => {
     await coreSql(
       'UPDATE mind_sessions SET tainted_at = ?1, taint_event_at = iif(taint_event_at IS NULL, NULL, ?1) WHERE tainted_at IS NOT NULL',
       Date.now() - 25 * HOUR,

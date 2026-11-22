@@ -128,7 +128,9 @@ export function status(w: Writer, sessionId: string | null, role: MindRole, r: M
   const { db, at } = w;
   if (role !== 'chat') return { typing: false };
   if (sessionId) renew(db, sessionId, at, true);
-  if (r.state === 'working') convo.ackHandedOut(db, at);
+  // An acknowledgement is the session's own step: the handout's presence (no session, feed/handout.ts)
+  // acknowledges nothing, so a session that dies before its own `th status` is owned up to (onLapse).
+  if (r.state === 'working' && sessionId) convo.ackHandedOut(db, at);
   if (r.state === 'stopping' && sessionId) {
     reported.delete(sessionId);
     store.dropLease(db, 'chat', sessionId);

@@ -82,7 +82,8 @@ beforeAll(async () => {
   p = await principals();
   await apiJson('PATCH', '/v1/settings', {
     token: p.D,
-    body: { 'owner.tz': 'UTC', 'quiet.start': '06:30', 'quiet.end': '06:30' },
+    // The mind's own pushes on (their default is never, owner 2026-11-22), so speech is what holds them.
+    body: { 'owner.tz': 'UTC', 'quiet.start': '06:30', 'quiet.end': '06:30', 'mind.pushes': 'normal' },
   });
 });
 

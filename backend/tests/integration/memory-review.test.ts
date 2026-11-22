@@ -204,7 +204,8 @@ describe('5. muting or forgetting clears the surfaces that cite the fact', () =>
 
 describe('8, 10 and the nits', () => {
   it('M12: a session whose constitution was missing may not supersede a rule into something else', async () => {
-    const rule = addOp([`msg:${said}`], { kind: 'rule', text: 'Answer briefly at night' });
+    const asked = await ownerSays(P.D, 'Answer briefly at night.'); // a rule is in the owner's words
+    const rule = addOp([`msg:${asked}`], { kind: 'rule', text: 'Answer briefly at night' });
     await ops(chat(), [rule]);
     const s = 'cse_review_nolaws';
     // A session the Worker fired: clean, though an earlier test tainted a night session today.

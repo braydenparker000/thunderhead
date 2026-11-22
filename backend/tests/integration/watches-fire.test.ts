@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { BriefResponse, LiveWaitResponse, Verb } from '../../../shared/contract/api';
 import type { ReminderResponse } from '../../../shared/contract/reminders.ts';
 import { uuidv7 } from '../../src/lib/ids';
-import { HOUR, MINUTE } from '../../src/lib/time';
+import { HOUR, MINUTE, ownerDay } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
 import { as, brief, CHAT_SESSION, type Principals, principals } from '../memory-helpers';
 import { fires, plainTick, pulse, setWatch, sleep, tick, WHY } from '../watch-helpers';
@@ -35,6 +35,15 @@ beforeAll(async () => {
   await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'quiet.start': '06:30', 'quiet.end': '06:30' } });
   // The helpers' night session ends: while a night runs, met watches wait (watches-budget.test.ts).
   await coreSql("UPDATE mind_sessions SET ended_at = ? WHERE role = 'night'", Date.now());
+  // On a Sunday the tick would start the weekly backup, whose job's alarm runs the watches' pass
+  // before the tick does: today's backup is already there (as tests/cost/ticks.ts does).
+  const today = ownerDay(Date.now(), 'UTC');
+  await coreSql(
+    "INSERT INTO backups (id, date, class, state, job_id, started_at) VALUES (?, ?, 'core', 'failed', 'test', ?)",
+    `${today}/core`,
+    today,
+    Date.now(),
+  );
 });
 
 describe('an at watch', () => {

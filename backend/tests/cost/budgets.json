@@ -111,7 +111,7 @@
     "rows_read_max": 280,
     "rows_written_max": 0
   },
-  "POST /v1/mind/brief (no claim, 25 settings stored) (Core)": {
+  "POST /v1/mind/brief (no claim, 24 settings stored) (Core)": {
     "rows_read_max": 309,
     "rows_written_max": 0
   },
@@ -119,7 +119,7 @@
     "rows_read_max": 0,
     "rows_written_max": 2
   },
-  "PATCH /v1/settings, every mind setting (25 keys) (Core)": {
+  "PATCH /v1/settings, every mind setting (24 keys) (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 50
   },

@@ -50,14 +50,17 @@ beforeAll(async () => {
 
 describe('a sibling session id', () => {
   it("the verifier's scenario: a sibling claim that reads tags closes N1's web; one that reads outside text marks N1", async () => {
-    // N1: tonight's session. Nothing carries over from N0 (owner, 2026-11-22): clean.
+    // N1: tonight's session, the very one the Worker fired after N0's taint: clean.
     await firedWake('night', 'session_sib_n1');
     expect((await brief(P.N, 'cse_sib_n1', 'night')).body.tainted).toBe(false);
     expect(await songs(as(P.N, 'cse_sib_n1'))).toBe(false);
     const said = await ownerSays(P.D, 'Tomorrow I start the new routine.');
     expect(await reason(as(P.N, 'cse_sib_n1'), addOp([`msg:${said}`]))).toBeNull();
-    // N1 claims a sibling id by hand (clean: no claim takes a taint over) and reads songs' tags as it.
-    expect((await brief(P.N, 'cse_sib_x', 'night')).body.tainted).toBe(false);
+    // N1 claims a sibling id by hand (it inherits N0's taint) and reads songs' tags as that id.
+    expect((await brief(P.N, 'cse_sib_x', 'night')).body.tainted).toBe(true);
+    const [x] = await coreSql<{ tainted_at: number }>(
+      "SELECT tainted_at FROM mind_sessions WHERE session_id = 'cse_sib_x'",
+    );
     expect((await tags('cse_sib_x')).status).toBe(200);
     // The owner's songs mark nobody, but N1's web is closed: the sibling read them after N1 claimed.
     expect(await labelled(as(P.N, 'cse_sib_n1'), addOp([`msg:${said}`]))).toBe('owner');
@@ -65,10 +68,12 @@ describe('a sibling session id', () => {
     // The sibling then reads outside text: a dated taint event after N1's claim, so N1, under its own
     // id, writes outside (MEMORY.md §6 M11).
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, 'cse_sib_x'), body: { source: 'WebFetch', ref_kind: 'url' } });
-    const [after] = await coreSql<{ taint_event_at: number; claimed: number }>(
-      `SELECT x.taint_event_at, n1.claimed_at AS claimed FROM mind_sessions x, mind_sessions n1
+    const [after] = await coreSql<{ tainted_at: number; taint_event_at: number; claimed: number }>(
+      `SELECT x.tainted_at, x.taint_event_at, n1.claimed_at AS claimed FROM mind_sessions x, mind_sessions n1
        WHERE x.session_id = 'cse_sib_x' AND n1.session_id = 'cse_sib_n1'`,
     );
+    // The inherited first taint keeps its time; the read is a dated event after N1's claim.
+    expect(after.tainted_at).toBe(x.tainted_at);
     expect(after.taint_event_at).toBeGreaterThanOrEqual(after.claimed);
     expect(await labelled(as(P.N, 'cse_sib_n1'), addOp([`msg:${said}`]))).toBe('outside');
     const note = await dayNote('cse_sib_n1', 'Written after a sibling read outside text.');

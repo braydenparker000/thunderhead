@@ -2,8 +2,9 @@
 // Worker marks no session it serves them to, but records a night session that read them (`songs` in
 // GET /v1/mind/pending), whose web the PreToolUse hook closes, so no title leaves the Worker. A
 // night principal reads songs' tags only from a claimed, live session (422 without one, 403 for a
-// made-up one); the chat reads them freely. A taint (the evals' `th eval`, a web read) lasts only
-// for its own session: no claim, fired, loose or manual, takes it over.
+// made-up one); the chat reads them freely. A taint (the evals' `th eval`, a web read) carries as
+// before (claim-mark.ts): a night claim on a wake the Worker fired on a later day starts clean once
+// every tainted night session has ended; a live tainted session, a same-day claim or a manual one inherits.
 // The suite's cases run in order on one store.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { PendingResponse, TodayResponse } from '../../../shared/contract/api';
@@ -39,6 +40,12 @@ const readers = async () =>
       'SELECT session_id FROM mind_sessions WHERE songs_at IS NOT NULL ORDER BY session_id',
     )
   ).map((r) => r.session_id);
+/** A night session's work is over (`th night start` on a done run answers done and ends it). */
+const endNight = async (session: string) => {
+  const r = await apiJson('POST', '/v1/mind/night', { ...as(P.N, session), body: { day: yday, action: 'start' } });
+  expect(r.status).toBe(200);
+  expect((await row(session)).ended_at).not.toBeNull();
+};
 /** A session's taint (its first and its last event) moved back `hours`. */
 const toYesterday = (session: string, hours = 23) =>
   coreSql(
@@ -106,32 +113,53 @@ describe("the Worker records the night's songs and marks no session", () => {
   });
 });
 
-describe('a taint lasts only for its session: no claim takes it over', () => {
-  it('night N tainted by step 9 (the evals): its own day note outside; every later claim clean', async () => {
+describe("a taint carries as before (claim-mark.ts): a later day's fired wake starts clean once the tainted night has ended", () => {
+  it('night N tainted by step 9 (the evals) ended; night N+1 claims clean', async () => {
     await brief(P.N, 'cse_mt_n2', 'night');
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, 'cse_mt_n2'), body: { source: 'th eval', ref_kind: 'file' } });
     expect(await noteLabel('cse_mt_n2', 'Labelled: tainted.')).toBe('outside');
-    // cse_mt_n2 is still live: a loose claim on the next wake, a manual one and a same-day one start clean.
+    await endNight('cse_mt_n2');
+    await toYesterday('cse_mt_n2', 22);
     await nextWake();
-    const loose = await brief(P.N, 'cse_mt_n3', 'night');
-    expect([loose.body.wake?.claim_match, loose.body.tainted]).toEqual(['loose', false]);
+    const next = await brief(P.N, 'cse_mt_n3', 'night');
+    expect([next.body.wake?.claim_match, next.body.tainted]).toEqual(['loose', false]);
     expect((await row('cse_mt_n3')).tainted_at).toBeNull();
     expect(await noteLabel('cse_mt_n3', 'Clean after the evals.')).toBe('owner');
-    await toYesterday('cse_mt_n2', 1 / 60);
-    const manual = await brief(P.N, 'cse_mt_n4', 'night');
-    expect([manual.body.wake?.claim_match, manual.body.tainted]).toEqual(['manual', false]);
-    await firedWake('night', 'session_someone_today');
-    const sameDay = await brief(P.N, 'cse_mt_n5', 'night');
-    expect([sameDay.body.wake?.claim_match, sameDay.body.tainted]).toEqual(['loose', false]);
-    expect(await noteLabel('cse_mt_n5', 'Clean the same day.')).toBe('owner');
-    // The tainted session itself stays marked.
-    expect(await noteLabel('cse_mt_n2', 'Still labelled.')).toBe('outside');
   });
 
-  it("songs read before a claim don't close its web; a sibling's read after it does", async () => {
+  it('a live tainted night session, and a made-up id on the next wake: it inherits', async () => {
+    await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', as(P.N, 'cse_mt_n3'));
+    await apiJson('POST', '/v1/mind/taint', { ...as(P.N, 'cse_mt_n3'), body: { source: 'th eval', ref_kind: 'file' } });
+    await toYesterday('cse_mt_n3', 21);
+    await nextWake();
+    // cse_mt_n3 is still live: the claim could be it under a new id.
+    const madeUp = await brief(P.N, 'cse_mt_madeup', 'night');
+    expect([madeUp.body.wake?.claim_match, madeUp.body.tainted]).toEqual(['loose', true]);
+    expect(await row('cse_mt_madeup')).toMatchObject({ taint_source: 'inherited:th eval' });
+    expect(await noteLabel('cse_mt_madeup', 'Labelled: inherited.')).toBe('outside');
+    // The songs were read before this claim: they don't close its web (a read after it would).
+    expect(await pending(P.N, 'cse_mt_madeup')).toMatchObject({ songs: false });
+  });
+
+  it('a same-day claim inherits, a manual one or one on a wake fired that day', async () => {
+    await endNight('cse_mt_n3');
+    await endNight('cse_mt_madeup');
+    // A taint from today (an ended session), then a manual claim (the 06:07 schedule's, or by hand).
+    await toYesterday('cse_mt_n3', 1 / 60);
+    const manual = await brief(P.N, 'cse_mt_n4', 'night');
+    expect([manual.body.wake?.claim_match, manual.body.tainted]).toEqual(['manual', true]);
+    // A wake fired the same day: still inherits.
+    await firedWake('night', 'session_someone_today');
+    const sameDay = await brief(P.N, 'cse_mt_n5', 'night');
+    expect([sameDay.body.wake?.claim_match, sameDay.body.tainted]).toEqual(['loose', true]);
+    expect(await noteLabel('cse_mt_n5', 'Labelled: same day.')).toBe('outside');
+  });
+
+  it("songs read before a claim don't close its web; a sibling's read after it does, and marks nobody", async () => {
     expect(await pending(P.N, 'cse_mt_n5')).toMatchObject({ songs: false });
+    const before = (await row('cse_mt_n5')).tainted_at;
     await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', as(P.N, 'cse_mt_n4'));
     expect(await pending(P.N, 'cse_mt_n5')).toMatchObject({ songs: true });
-    expect(await row('cse_mt_n5')).toMatchObject({ tainted_at: null });
+    expect(await row('cse_mt_n5')).toMatchObject({ tainted_at: before });
   });
 });

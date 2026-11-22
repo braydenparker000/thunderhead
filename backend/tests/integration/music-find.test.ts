@@ -145,12 +145,10 @@ describe('how the owner listens', () => {
   });
 
   it('a song the owner said never to play again is left out of find and like', async () => {
-    const said = await ownerSays(P.D, 'Never play Quiet Lake again.');
-    const rule = addOp([`msg:${said}`], {
-      kind: 'rule',
-      subject: 'music.never',
-      text: `Never play "Quiet Lake" again (music:${S[0]}).`,
-    });
+    // A rule is the owner's own words from the message it cites (rule-words.ts): here they name the song by its ref.
+    const text = `Never play "Quiet Lake" again (music:${S[0]}).`;
+    const said = await ownerSays(P.D, text);
+    const rule = addOp([`msg:${said}`], { kind: 'rule', subject: 'music.never', text });
     expect(await reason(as(P.C, CHAT_SESSION), rule)).toBeNull();
     const r = await find('moods=calm');
     expect(order(r)).toEqual([4, 2, 5]);
