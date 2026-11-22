@@ -70,7 +70,6 @@ describe('the night’s report', () => {
     tileLedger = tile.body.ledger_id as string;
     const owner = await coreSql<{ id: string }>("SELECT id FROM ledger WHERE actor = 'owner' LIMIT 1");
     for (const bad of [
-      report('A great night!'),
       report('x'.repeat(61)),
       { headline: 'Fine', lines: Array.from({ length: 7 }, () => ({ kind: 'note', text: 'One more thing' })) },
       { headline: 'Fine', lines: [{ kind: 'note', text: '**Bold** words' }] },

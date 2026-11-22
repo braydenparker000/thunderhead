@@ -10,6 +10,7 @@ import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 import {lintText} from './lint.mjs';
 import {dayVoice} from './day-voice.mjs';
+import {forgetAnswered} from './wait.mjs';
 
 export {lintText};
 
@@ -96,9 +97,7 @@ export async function say(argv) {
   const text = textArg(words);
   if (!text.trim()) throw invalid('the message is empty');
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
-  // The phrase lint alone: a reply's shape is the voice's judgement (BEHAVIOR.md §2.2).
-  const lint = kind === 'text' || kind === 'question' ? lintText(text) : null;
-  if (lint) throw invalid(`the phrase lint refuses it (${lint})`);
+  // No refusal for style (owner, 2026-11-22): the voice is the mind's judgement (mind/skills/voice.md).
   if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');
   const attachments = [];
@@ -108,6 +107,7 @@ export async function say(argv) {
   const body = {body: text, kind, meta, reply_to: typeof flags['reply-to'] === 'string' ? flags['reply-to'] : undefined,
     attachments: attachments.length ? attachments : undefined, thread_id: thread === 'system' ? 'system' : undefined};
   const res = await request('PUT', `/v1/messages/${seg(id)}`, {body});
+  if (body.reply_to) forgetAnswered(body.reply_to);
   stopNotice(res);
   out({id: res.data?.id || id});
 }

@@ -5,7 +5,6 @@
 // ask-first class, and outside text must never start one (SECURITY.md §5.3, EVALS.md INJ-02…22). An
 // arrangement's card carries odds; the owner's speech setting may hold an unasked card back (mind/speech.ts).
 import type { Json, Proposal, PutProposalRequest } from '../../../../shared/contract/api';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
 import { oddsRequired, PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
 import type { RoutineArgs } from '../../../../shared/contract/routines.ts';
@@ -26,11 +25,6 @@ import { lawsCard } from './laws';
 import * as store from './store';
 
 const ROLE = { C: 'chat', N: 'night', R: 'reflex' } as const;
-
-function lint(path: string, text: string): void {
-  const problem = lintMindText(text);
-  if (problem) throw invalid(path, problem);
-}
 
 /** The card's ref: what its op acts on (one waiting card per thing). */
 const refOf = (op: { ref: readonly [string, string] }, args: Record<string, unknown>) =>
@@ -110,10 +104,6 @@ export function put(
   // An arrangement the mind proposes says how sure it is the owner wants it (BEHAVIOR.md §4).
   if (oddsRequired(r.class) && r.odds === undefined)
     throw invalid('odds', `required on a card of class ${r.class}: how sure you are the owner wants it, 0.05–0.95`);
-  lint('question', r.question);
-  lint('why', r.why);
-  lint('if_ignored', r.if_ignored);
-  for (const [i, o] of r.options.entries()) lint(`options.${i}`, o);
   const spec = { v: 1 as const, op: r.spec.op, args: args.data as Record<string, Json> };
   const specJson = canonicalJson(spec);
   if (new TextEncoder().encode(specJson).length > PROPOSAL_LIMITS.spec_bytes)

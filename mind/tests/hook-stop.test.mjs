@@ -1,9 +1,11 @@
-// The bounded Stop hook (RUNTIME.md §6.2, check HK-2) and the StopFailure hook (§6.3, HK-3).
+// The bounded Stop hook (RUNTIME.md §6.2, check HK-2) and the StopFailure hook (§6.3, HK-3). Allow: closed mark, stop,
+// day closed, limited, pending unreachable, 3 blocks, a listener running (th wait or th listen), past the cut-off.
+// Block: an unanswered owner message, or no listener.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {env, hook, startFake, th} from './helpers.mjs';
 
-const WAIT = [{id: 't1', type: 'shell', status: 'running', description: 'listen', command: 'th wait --minutes 24'}];
+const WAIT = [{id: 't1', type: 'shell', status: 'running', description: 'listen', command: 'th wait'}];
 const input = (extra = {}) => ({hook_event_name: 'Stop', session_id: 'sess-1', stop_hook_active: false, last_assistant_message: 'Done.', background_tasks: [], ...extra});
 const decision = r => (r.stdout.trim() ? JSON.parse(r.stdout) : null);
 
@@ -18,7 +20,7 @@ test('an unanswered owner message blocks, at most 3 times per session; the 4th s
   for (let i = 1; i <= 3; i++) {
     const r = await hook('stop', input({background_tasks: WAIT, stop_hook_active: i > 1}), e);
     assert.equal(r.code, 0);
-    assert.deepEqual(decision(r), {decision: 'block', reason: `Owner message ${m.id} is unanswered. Answer it with th say before ending.`});
+    assert.deepEqual(decision(r), {decision: 'block', reason: `Owner message ${m.id} is unanswered. Answer it: th reply.`});
   }
   const fourth = await hook('stop', input({background_tasks: WAIT, stop_hook_active: true}), e);
   assert.equal(fourth.code, 0);
@@ -39,17 +41,27 @@ test('blocks are counted in a row: an allowed stop resets the count', withFake({
   assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e))?.decision, 'block', `${n.id} still waits: a new run of blocks`);
 }));
 
-test('no running th wait blocks; a running one (th or th.mjs) allows; no task list means no wait block', withFake({}, async fake => {
+test('no listener blocks; a running th wait or th listen (th or th.mjs) allows; no task list means no listener block', withFake({}, async fake => {
   const e = env(fake);
   const none = await hook('stop', input(), e);
   assert.equal(decision(none).decision, 'block');
-  assert.match(decision(none).reason, /^No th wait is running\. Start: th wait --minutes 24 \(run_in_background\), then end your turn\.$/);
+  assert.equal(decision(none).reason, 'No listener is running. Run th listen, or th wait in the background.');
   assert.equal(decision(await hook('stop', input({background_tasks: WAIT}), e)), null);
-  const viaNode = [{id: 't2', type: 'shell', status: 'running', command: 'node mind/cli/th.mjs wait --minutes 24'}];
+  const viaNode = [{id: 't2', type: 'shell', status: 'running', command: 'node mind/cli/th.mjs wait'}];
   assert.equal(decision(await hook('stop', input({background_tasks: viaNode}), e)), null);
+  const listening = [{id: 't3', type: 'shell', status: 'running', command: 'th listen'}];
+  assert.equal(decision(await hook('stop', input({background_tasks: listening}), e)), null);
   const finished = [{...WAIT[0], status: 'completed'}];
   assert.equal(decision(await hook('stop', input({background_tasks: finished}), e)).decision, 'block');
   assert.equal(decision(await hook('stop', input({background_tasks: undefined}), e)), null);
+}));
+
+test('the closed mark (th listen, th reply or th wait closed the session) allows, even with no listener', withFake({minuteMs: 20, cutoffMin: 1}, async fake => {
+  const e = {...env(fake), TH_MINUTE_MS: '20'};
+  await th(['brief', '--claim'], e);
+  assert.equal((await th(['listen', '--minutes', '0.2'], e)).code, 12);
+  fake.addOwnerMessage('arrived after the close');
+  assert.equal(decision(await hook('stop', input(), e)), null);
 }));
 
 test('stop_hook_active with nothing pending and a wait running → allowed', withFake({}, async fake => {
@@ -76,15 +88,13 @@ test('always allowed: Stop tapped, day closed, usage limited, role ≠ chat, Wor
   assert.equal(decision(await hook('stop', input(), env(null))), null);
 });
 
-test('idle cutoff from th pending: past it with a session note → allowed; past it without a wait → no wait block; lean is 30 min', async () => {
+test('idle cutoff from th pending: past it → no listener needed, no session note needed; an unanswered message still blocks', async () => {
   const fake = await startFake({pendingExtra: {idle_min: 130}});
   try {
     const e = env(fake);
-    assert.equal(decision(await hook('stop', input(), e)), null, 'past the cutoff: no wait needed');
+    assert.equal(decision(await hook('stop', input(), e)), null, 'past the cutoff: no listener needed, no note');
     fake.addOwnerMessage('one more thing');
     assert.equal(decision(await hook('stop', input(), e)).decision, 'block', 'still must answer');
-    assert.equal((await th(['note', '--session', 'Answered everything; nothing open.'], e)).code, 0);
-    assert.equal(decision(await hook('stop', input(), e)), null, 'note written and past the cutoff');
   } finally { await fake.stop(); }
   for (const [lean, expected] of [[false, 'block'], [true, undefined]]) {
     const f = await startFake({lean, pendingExtra: {idle_min: 45}});

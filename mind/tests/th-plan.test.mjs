@@ -1,6 +1,6 @@
 // th plan, th verb --at, th verb cancel and th verbs scheduled (API.md §11.11): each step is checked
-// against the contract before the network (its verb, its args, the plan's size, its line and the
-// phrase lint, no now-only verb put off), the plan reaches the Worker with one id, its why and line,
+// against the contract before the network (its verb, its args, the plan's size, its line's length,
+// no now-only verb put off), the plan reaches the Worker with one id, its why and line,
 // and what waits for its time is listed and taken back. Against the fake Worker; synthetic.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,7 +42,7 @@ test('th plan sends the steps in order with one why and its line, and prints the
   assert.equal(last(fake, 'POST', '/v1/verbs/plan').body.what, 'Get the drive ready.');
 }));
 
-test('th plan refuses before the network: size, an unknown verb, bad args, the line, a now-only step later', withFake(async fake => {
+test('th plan refuses before the network: size, an unknown verb, bad args, the line\'s length, a now-only step later', withFake(async fake => {
   const e = env(fake);
   const before = fake.state.requests.length;
   const step = evening.steps[1];
@@ -54,7 +54,6 @@ test('th plan refuses before the network: size, an unknown verb, bad args, the l
     [{what: 'An owner tap.', steps: [step, {verb: 'app.open', args: {app: 'music', path: '/music/'}}]}, []],
     [{steps: [step, step]}, []],
     [{what: 'x'.repeat(81), steps: [step, step]}, []],
-    [{what: 'Great question, here is your evening.', steps: [step, step]}, []],
     [{what: 'Later.', steps: [step, {verb: 'memory.note', args: {text: 'Likes rain', kind: 'preference', evidence: ['msg:m1']}}]}, ['--at', '+2h']],
   ]) {
     const r = await th(['plan', file(value), ...why, ...extra], e);

@@ -1,10 +1,9 @@
 // Latency (B5): how fast a cold wake is answered, and how long the chat stays awake.
 //
-// The idle cutoff is adaptive to the day (RUNTIME.md §4.6): the owner's `mind.idle` setting
-// (120 min unless changed), plus 15 min for every owner message today after the first, at most
-// twice the setting and never past 4 hours. A busy day keeps the session alive for the next
-// message (an idle turn on a warm cache costs less than a cold wake and answers at once); a quiet
-// day ends at the setting. `GET /v1/mind/pending` carries it; the Stop hook reads it.
+// The idle cutoff (RUNTIME.md §4.6, owner 2026-11-22): exactly the owner's `mind.idle` setting
+// (45 min unless changed) after their last message, with no growth by message count and no cap;
+// a session with no owner message yet (a pre-warm) closes 10 min after its claim (mind/ops.ts).
+// `GET /v1/mind/pending` carries it; `th listen`, `th reply` and `th wait` close the session at it.
 //
 // The first reply: a chat session's first reply to an owner message is kept on the wake it
 // claimed (`first_reply_at`, RUNTIME.md §4.2), so every cold wake has three times (fired, claimed,
@@ -15,26 +14,20 @@ import type { MindPresence } from '../../../../shared/contract/api';
 import { LOOKUP_TITLE } from '../../../../shared/contract/feed.ts';
 import { settingSpec, validSetting } from '../../../../shared/contract/settings.ts';
 import type { Db } from '../../objects/base';
-import { currentDay, ownerCount } from '../conversation/day';
-import { dailyThread } from '../conversation/store';
 import { getSetting } from '../settings/store';
-
-export const IDLE_PER_MESSAGE_MIN = 15;
-export const IDLE_CEILING_MIN = 240;
 
 /** The owner's setting (Settings › The mind), the catalogue's default while unset. */
 function idleSetting(db: Db): number {
   const spec = settingSpec('mind.idle');
-  if (!spec) return 120;
+  if (!spec) return 45;
   const v = getSetting(db, spec.key);
   return validSetting(spec, v) ? (v as number) : (spec.default as number);
 }
 
-export function idleCutoff(db: Db, now: number, tz: string): number {
-  const base = idleSetting(db);
-  const thread = dailyThread(db, currentDay(db, tz, now));
-  const n = thread ? ownerCount(db, thread.id) : 0;
-  return Math.min(base + IDLE_PER_MESSAGE_MIN * Math.max(0, n - 1), 2 * base, IDLE_CEILING_MIN);
+/** Minutes of idle after the owner's last message before the session closes. The day and zone
+ * no longer change it; they stay in the signature for the caller in mind/ops.ts. */
+export function idleCutoff(db: Db, _now?: number, _tz?: string): number {
+  return idleSetting(db);
 }
 
 /** The session's first reply, on the wake it claimed: kept once, so the latency is the first

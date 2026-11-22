@@ -109,8 +109,9 @@ describe('surfaces', () => {
     expect(first.status).toBe(200);
     expect(first.body.ledger_id).toMatch(/^[0-9a-f-]{36}$/);
     expect((await put('line.9', line('Good morning.'))).status).toBe(422);
-    expect((await put('line.2', line('Good morning!'))).status).toBe(422);
     expect((await put('line.2', line('No full stop'))).status).toBe(422);
+    expect((await put('line.1', line('Good morning! ☀️'))).status).toBe(200);
+    expect((await put('line.1', line('Good morning.'))).status).toBe(200);
     expect((await put('line.2', line(`${'x'.repeat(44)}.`))).status).toBe(422);
     expect((await put('line.2', { ...line('Fine.'), kind: 'banner' })).status).toBe(422);
     expect((await put('line.2', { ...line('Fine.'), schema: 2 })).status).toBe(422);

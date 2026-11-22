@@ -52,7 +52,7 @@ describe('the night shift’s Briefing tiles', () => {
     expect((await put('study', tile(study))).status).toBe(200);
     for (const bad of [
       { ...study, label: 'x'.repeat(25) },
-      { ...study, value: 'Read now!' },
+      { ...study, value: 'Read now\nthen' },
       { ...study, path: '/music/' },
       { ...study, path: '/study/../signin/' },
       { ...study, app: 'nowhere' },

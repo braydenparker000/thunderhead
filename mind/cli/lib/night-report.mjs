@@ -4,7 +4,7 @@
 // day's first message when the owner hasn't written yet. A line's ref is `ledger:<id>` (a row this
 // run wrote, from `th ledger --since <the run's start>`: the owner's Undo on the tile) or
 // `app:<id>` (the app it opens). The Worker adds its own counts; your words never carry them.
-// Checked here as the Worker checks it (limits, plain words, the phrase lint) before sending.
+// Checked here as the Worker checks it (limits, one line, no Markdown) before sending.
 //
 //   → {"day","ledger_id","message_id","lines","counts"}
 import {CONTRACT} from './contract.mjs';
@@ -12,20 +12,18 @@ import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {parseArgs} from './args.mjs';
 import {getState} from './state.mjs';
-import {lintText} from './lint.mjs';
 
 const R = CONTRACT.night.report;
 const LINE = /^([a-z_]+)(?:@([a-z]+:[0-9a-z-]+))?:([\s\S]*)$/;
 const USAGE = 'usage: th report --headline "<…>" [--line <kind>[@ledger:<id>|@app:<id>]:"<…>" …] [--day <YYYY-MM-DD>]';
 
-/** One plain line within `max`, through the phrase lint: the problem, or null. */
+/** One plain line within `max`: the problem, or null. No refusal for style (owner, 2026-11-22). */
 function problem(what, s, max) {
   if (!s.trim()) return `${what} is empty`;
   if (s.length > max) return `${what} is over ${max} characters`;
   if (/[\r\n]/.test(s)) return `${what} is one line`;
-  if (/[!*_`#>[\]]|^\s*[-+]\s|^\s*\d+\.\s/.test(s)) return `${what}: plain words, no exclamation marks or Markdown`;
-  const lint = lintText(s);
-  return lint ? `${what}: ${lint}` : null;
+  if (/[*_`#>[\]]|^\s*[-+]\s|^\s*\d+\.\s/.test(s)) return `${what}: no Markdown`;
+  return null;
 }
 
 /** The request body from the flags (exported for the tests). */

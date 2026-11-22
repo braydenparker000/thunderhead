@@ -184,17 +184,14 @@ describe('set by the chat mind', () => {
     expect((await apiJson('GET', '/v1/reminders', { token: N })).status).toBe(200);
   });
 
-  it('its words pass the phrase lint, and it sets at most 5 in any 24 hours', async () => {
+  it('its words are not refused for style, and it sets at most 5 in any 24 hours', async () => {
     const session = chat('cse_reminders_clean_2');
     const asked = await ownerSays(D, 'remind me about the car');
     const at = local(1, 17);
     const say = (text: string, source = asked) => put({ text, at, source_message_id: source }, C, uuidv7(), session);
-    const banned = await say('Great question: the car');
-    expect([banned.status, issue(banned)?.path]).toEqual([422, 'text']);
-    expect((await say('The car \u{1F697}')).status).toBe(422);
     const set = Number((await coreSql("SELECT count(*) AS n FROM reminders WHERE origin = 'mind'"))[0]?.n);
     expect(set).toBe(4); // 3 for the bank and one stretch
-    expect((await say('The car')).status).toBe(201);
+    expect((await say('The car! \u{1F697}')).status).toBe(201);
     const sixth = await say('The car again', await ownerSays(D, 'and the tyres'));
     expect([sixth.status, issue(sixth)?.issue]).toEqual([422, 'at most 5 reminders from the mind in 24 hours']);
     await coreSql("UPDATE reminders SET created_at = ? WHERE origin = 'mind' AND text LIKE 'Call%'", Date.now() - DAY);

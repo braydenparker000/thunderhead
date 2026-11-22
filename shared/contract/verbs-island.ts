@@ -3,7 +3,6 @@
 // its undo (`island.clear`, never queued by the mind) takes it away, and it goes when that app
 // leaves the island.
 import * as z from 'zod/mini';
-import { lintMindText } from './lint.ts';
 import type { VerbSpec } from './verb-spec.ts';
 
 /** Characters in one island line. */
@@ -16,7 +15,6 @@ const line = z
     z.refine((s) => s.trim() === s && !/[\n\r\t]/.test(s), 'one line, no spaces at its ends'),
     z.refine((s) => !s.includes('?'), 'never a question'),
     z.refine((s) => !/[.!;:]\s+\S/.test(s), 'one sentence'),
-    z.refine((s) => lintMindText(s) === null, 'the phrase lint (BEHAVIOR.md §10)'),
   );
 /** The phone's own name for the line it showed, so an undo takes back that one and no later one. */
 const lineId = z.string().check(z.regex(/^[A-Za-z0-9-]{8,40}$/));
@@ -37,7 +35,7 @@ export const ISLAND_VERBS = {
       },
     },
     what: 'one sentence in the island; never a question',
-    doc: "Shows one sentence (at most 80 characters, never a question, under the phrase lint) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo.",
+    doc: "Shows one sentence (at most 80 characters, never a question) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo.",
   },
   'island.clear': {
     app: 'shell',

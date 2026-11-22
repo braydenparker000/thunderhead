@@ -151,8 +151,8 @@ export const SETTINGS = [
     options: o('bookkeeping:Bookkeeping', 'arrange:Arrange', 'full:Full'), detail: 'Only the bookkeeping, also arranging tomorrow, or all of the night shift.' },
   { ...MIND, section: 'Nights', key: 'mind.night_budget', label: 'Night budget', kind: 'range', unit: 'min', default: 30,
     options: stops('min', 5, 15, 30), detail: 'How long the night shift may run.' },
-  { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 120,
-    options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep. On a busy day I stay up to twice this, never past 4 hours.' },
+  { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 45,
+    options: stops('min', 15, 45, 120), detail: 'How long I stay awake after your last message. After that the next first reply takes up to a minute.' },
   // On the Notifications page (2026-11-21). The Worker holds the mind's nudges to it (push/rules.ts):
   // urgent is one the owner asked to be told of. Reminders, sign-in notices and the usage alarm are apart.
   { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'normal',

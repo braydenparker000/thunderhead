@@ -17,6 +17,7 @@ import {EXIT, invalid, out, printError} from './lib/io.mjs';
 import {brief} from './lib/brief.mjs';
 import {skill} from './lib/skill.mjs';
 import {wait} from './lib/wait.mjs';
+import {listen, reply} from './lib/reply.mjs';
 import {helpText} from './lib/help.mjs';
 import * as conv from './lib/conv.mjs';
 import * as memory from './lib/memory.mjs';
@@ -42,7 +43,7 @@ const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 export const COMMANDS = {
   brief: withFlags(brief, {bool: ['claim', 'full', 'json']}),
   skill,
-  wait: withFlags(wait),
+  wait: withFlags(wait), listen, reply,
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
   errors: conv.errors, reports, report, ledger: conv.ledger, undo: conv.undo, get: conv.get,

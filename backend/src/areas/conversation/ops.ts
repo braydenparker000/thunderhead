@@ -4,7 +4,6 @@
 // files a message names become its attachments (areas/files/ops.ts).
 import type { JsonObject, Message, MessageKind, Permitted, Thread } from '../../../../shared/contract/api';
 import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
@@ -51,9 +50,8 @@ export function today(w: Writer, tz: string): Thread {
   return t;
 }
 
-/** The phrase lint on a mind message's words (a reply or a question; a progress card's lines and
- * an error's are not prose). A reply's shape is the voice's judgement (BEHAVIOR.md §2.2). */
-const bodyLint = (kind: string, body: string) => (kind === 'text' || kind === 'question' ? lintMindText(body) : null);
+// No refusal for style on a mind message's words (owner, 2026-11-22): the voice is the mind's
+// judgement (mind/skills/voice.md); the phrase lint stays for the Sunday voice test alone.
 
 /** Returns the stored message and whether this call created it. */
 export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { message: Message; created: boolean } {
@@ -75,8 +73,6 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   if (files.length && c.who !== 'D' && c.who !== 'C') throw invalid('attachments', 'only the owner and the chat mind');
   if (!p.body && (c.who !== 'D' || !files.length)) throw invalid('body', 'empty: only an owner message with files');
   if (c.who !== 'D') {
-    const lint = bodyLint(kind, p.body);
-    if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
     checkChip(p.meta);
   }
   const target = p.reply_to ? store.messageById(w.db, p.reply_to) : null;
@@ -173,10 +169,6 @@ export function chipPath(app: AppId, path: string): string | null {
 export function patchMessage(w: Writer, id: string, body: string | undefined, meta: JsonObject | undefined) {
   const m = store.messageById(w.db, id);
   if (m?.author !== 'mind') throw new Fail('not_found');
-  if (body !== undefined) {
-    const lint = bodyLint(m.kind, body);
-    if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
-  }
   checkChip(meta);
   if (meta && 'using' in meta) throw invalid('meta.using', 'set by the Worker');
   // A deleted conversation takes no more words; one off the record keeps none in the index.

@@ -102,18 +102,17 @@ describe('island.show: one sentence in the capsule', () => {
       body: { verb: 'island.show', schema: 1, args: { text }, why: 'a word about what plays' },
     });
 
-  it('refuses a question, more than 80 characters, two sentences, the phrase lint and emoji', async () => {
+  it('refuses a question, more than 80 characters, two sentences; takes an emoji', async () => {
     for (const text of [
       'Is this one too slow?',
       'x'.repeat(81),
       'This one is slow. The next is faster',
-      'Great question, this one is slow',
-      'A slow one for the evening 🌙',
       'A slow one\nfor the evening',
       '',
     ])
       expect((await show(text)).status, text).toBe(422);
     expect((await show('y'.repeat(80))).status).toBe(201);
+    expect((await show('A slow one for the evening 🌙')).status).toBe(201);
   });
 
   it('the speech setting at silent holds it back like a tile', async () => {

@@ -57,8 +57,10 @@ describe('raising a card (DEC-1)', () => {
     expect(pin.status).toBe(403);
     // The night role may not ask to forget (chat only).
     expect((await raise(forgetCard(id), as(P.N, NIGHT_SESSION))).status).toBe(403);
-    // The phrase lint applies to the card's words too.
-    expect((await raise(forgetCard(id, { why: 'Great question, I deeply apologize.' }))).status).toBe(422);
+    // A card's words are not refused for style (owner, 2026-11-22).
+    const styled = await raise(forgetCard(await fact(), { why: 'Great question! You asked me to forget it 🙂' }));
+    expect(styled.status).toBe(201);
+    await clearAgentCards();
   });
 
   it('needs a claimed session of the key’s role, and refuses a tainted one', async () => {

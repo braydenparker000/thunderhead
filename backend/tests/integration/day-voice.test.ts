@@ -1,6 +1,6 @@
 // The night's one line (MEMORY.md §3.1, memory/day-voice.ts): a clean night session puts it on a day
-// note it wrote (PUT /v1/memory/day-notes/:day/voice), at most 200 characters through the phrase
-// lint; it is served with the note (the Memory page, under the day), found by search (`th
+// note it wrote (PUT /v1/memory/day-notes/:day/voice), at most 200 characters in its own
+// voice; it is served with the note (the Memory page, under the day), found by search (`th
 // recall`), and refused from the chat, from a session that read outside text, and with no day
 // note. Synthetic data only.
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -30,10 +30,9 @@ beforeAll(async () => {
 });
 
 describe("the night's one line", () => {
-  it('needs a day note, takes ≤ 200 characters through the phrase lint, and only the night', async () => {
+  it('needs a day note, takes ≤ 200 characters in any voice, and only the night', async () => {
     expect((await voice(night(), 'The house was quiet.', '2020-01-01')).status).toBe(404);
     expect((await voice(night(), 'x'.repeat(201))).status).toBe(422);
-    expect((await voice(night(), 'Great question, the day.')).status).toBe(422);
     expect((await voice(as(P.C, CHAT_SESSION), 'The house was quiet.')).status).toBe(403);
   });
 

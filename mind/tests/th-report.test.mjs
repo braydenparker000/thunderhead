@@ -9,7 +9,7 @@ import {env, startFake, th} from './helpers.mjs';
 
 const ID = '0190aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee';
 
-test('reportBody: kinds and refs from each line; the Worker\'s limits and lint, checked here', () => {
+test('reportBody: kinds and refs from each line; the Worker\'s limits checked here; no refusal for style', () => {
   assert.deepEqual(reportBody({headline: 'A quiet night', line: [`memory@ledger:${ID}:Kept that you like calm music`, 'music@app:music:Music is ready', 'note:Nothing else']}), {
     headline: 'A quiet night',
     lines: [
@@ -20,7 +20,6 @@ test('reportBody: kinds and refs from each line; the Worker\'s limits and lint, 
   });
   for (const flags of [
     {line: ['note:No headline']},
-    {headline: 'A great night!'},
     {headline: 'x'.repeat(61)},
     {headline: 'Fine', line: Array.from({length: 7}, () => 'note:One more')},
     {headline: 'Fine', line: ['gossip:Plain words']},
@@ -29,6 +28,7 @@ test('reportBody: kinds and refs from each line; the Worker\'s limits and lint, 
     {headline: 'Fine', line: ['no kind at all']},
   ])
     assert.throws(() => reportBody(flags), /./, JSON.stringify(flags));
+  assert.equal(reportBody({headline: 'A great night! 🌙'}).headline, 'A great night! 🌙', 'an emoji and an exclamation mark pass');
 });
 
 test('th report puts the report for the run\'s day; the same again answers the stored one', async () => {
@@ -43,7 +43,7 @@ test('th report puts the report for the run\'s day; the same again answers the s
     const sent = fake.state.requests.find(q => q.method === 'PUT' && q.path === '/v1/briefing/report/2026-11-03');
     assert.deepEqual(sent.body, {headline: 'A quiet night', lines: [{kind: 'memory', text: 'Kept one thing', ref: `ledger:${ID}`}]});
     assert.equal((await th(args, e)).json.ledger_id, 'led-2026-11-03-1');
-    assert.equal((await th(['report', '--day', '2026-11-03', '--headline', 'Fine!'], e)).code, 8);
+    assert.equal((await th(['report', '--day', '2026-11-03', '--headline', '**Fine**'], e)).code, 8);
     assert.equal(fake.state.requests.filter(q => q.method === 'PUT').length, 2);
     assert.equal((await th(['report', '--day', '2026-11-03', '--headline', 'Fine'], env(fake))).code, 6);
     assert.match((await th(['help', 'all'], e)).stdout, /report --headline/);

@@ -4,7 +4,6 @@
 // closed day, kept 30 days in Core. Its words are the mind's; its counts are the Worker's own
 // record of the run, never the mind's words. `nightReportProblem` is the check the Worker makes
 // and `th report` makes before sending, so both say the same thing.
-import { lintMindText } from './lint.ts';
 
 export const NIGHT_REPORT_KINDS = [
   'memory',
@@ -65,19 +64,17 @@ export interface PutNightReportRequest {
 }
 
 const oneLine = (s: string) => !/[\r\n]/.test(s);
-const plain = (s: string) => !/[!*_`#>[\]]|^\s*[-+]\s|^\s*\d+\.\s/.test(s);
+const plain = (s: string) => !/[*_`#>[\]]|^\s*[-+]\s|^\s*\d+\.\s/.test(s);
 
-/** What is wrong with a report, as `{path, issue}`, or null: the limits, one plain line each (no
- * exclamation marks, Markdown or emoji) and the shared phrase lint. */
+/** What is wrong with a report, as `{path, issue}`, or null: the limits and one line each with no
+ * Markdown. No refusal for style (owner, 2026-11-22): an emoji or an exclamation mark is fine. */
 export function nightReportProblem(r: PutNightReportRequest): { path: string; issue: string } | null {
   const L = NIGHT_REPORT_LIMITS;
   const text = (path: string, s: unknown, max: number) => {
     if (typeof s !== 'string' || !s.trim()) return { path, issue: 'required' };
     if (s.length > max) return { path, issue: `at most ${max} characters` };
     if (!oneLine(s)) return { path, issue: 'one line' };
-    if (!plain(s)) return { path, issue: 'plain words: no exclamation marks or Markdown' };
-    const lint = lintMindText(s);
-    return lint ? { path, issue: lint } : null;
+    return plain(s) ? null : { path, issue: 'no Markdown' };
   };
   const head = text('headline', r.headline, L.headline);
   if (head) return head;

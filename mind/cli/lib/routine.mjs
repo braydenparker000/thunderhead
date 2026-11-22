@@ -16,7 +16,6 @@ import {CONTRACT, checkProposal, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {ThError, invalid, need, out} from './io.mjs';
-import {lintText} from './lint.mjs';
 
 const R = CONTRACT.routines;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -77,10 +76,6 @@ async function propose(argv) {
   const what = typeof flags.what === 'string' ? flags.what : raw?.what;
   if (typeof what !== 'string' || !what.trim() || what.length > CONTRACT.schedules.plans.what)
     throw invalid(`a routine needs its line for home (--what or "what"), at most ${CONTRACT.schedules.plans.what} characters`);
-  for (const t of [name, what]) {
-    const problem = lintText(t);
-    if (problem) throw invalid(`the phrase lint refuses "${t}" (${problem})`);
-  }
   const {odds_min: lo, odds_max: hi} = CONTRACT.proposals.limits;
   const odds = Number(need(flags, 'odds'));
   if (!(odds >= lo && odds <= hi)) throw invalid(`--odds must be between ${lo} and ${hi}: how sure you are the owner wants it`);

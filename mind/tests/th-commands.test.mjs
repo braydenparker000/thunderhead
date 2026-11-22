@@ -136,7 +136,7 @@ test('note --session enforces 120 words and records note_at', withFake({}, async
   assert.equal((await th(['note', '--session', Array(121).fill('word').join(' ')], e)).code, 8);
 }));
 
-test('note --day-voice puts the night line on the day note: one line, ≤ 200, the phrase lint, a day', withFake({}, async fake => {
+test('note --day-voice puts the night line on the day note: one line, ≤ 200, a day; no refusal for style', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   assert.equal((await th(['daynote', '2026-11-03', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).code, 0);
   const r = await th(['note', '--day-voice', 'The house was quiet; the later train again.', '--day', '2026-11-03'], e);
@@ -144,10 +144,11 @@ test('note --day-voice puts the night line on the day note: one line, ≤ 200, t
   assert.deepEqual(r.json, {day: '2026-11-03', voice: 'The house was quiet; the later train again.'});
   assert.equal(fake.state.dayNotes.get('2026-11-03').voice, 'The house was quiet; the later train again.');
   const before = fake.state.requests.length;
-  for (const bad of [['--day-voice', 'x'.repeat(201), '--day', '2026-11-03'], ['--day-voice', 'Great question, the day.', '--day', '2026-11-03'],
+  for (const bad of [['--day-voice', 'x'.repeat(201), '--day', '2026-11-03'],
     ['--day-voice', 'A line.'], ['--day-voice']])
     assert.equal((await th(['note', ...bad], e)).code, 8, bad.join(' '));
   assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  assert.equal((await th(['note', '--day-voice', 'A good day! 🌤', '--day', '2026-11-03'], e)).code, 0, 'an emoji and an exclamation mark pass');
   assert.equal((await th(['note', '--day-voice', 'A line.', '--day', '2026-11-02'], e)).code, 8, 'no day note there: 404');
   assert.match((await th(['help', 'all'], e)).stdout, /--day-voice/);
 }));

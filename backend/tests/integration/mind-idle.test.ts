@@ -1,5 +1,5 @@
-// B5 latency (RUNTIME.md §4.2, §4.6): the chat's idle cutoff grows with the day's owner messages
-// from the owner's `mind.idle` setting (at most double it, never past 4 hours; a pre-warm with no
+// B5 latency (RUNTIME.md §4.2, §4.6): the chat's idle cutoff is exactly the owner's `mind.idle`
+// setting (45 by default) after their last message, whatever the day's count (a pre-warm with no
 // message stays 10), and a chat session's first reply to an owner message is kept on the wake it
 // claimed, which the usage meter turns into the cold-wake latency.
 import { runInDurableObject } from 'cloudflare:test';
@@ -15,9 +15,6 @@ import { as, CHAT_SESSION, ownerSays, type Principals, principals } from '../mem
 let p: Principals;
 const SESSION = CHAT_SESSION;
 const pending = (session: string) => apiJson<PendingResponse>('GET', '/v1/mind/pending', as(p.C, session));
-const ownerToday = async () =>
-  (await coreSql<{ n: number }>("SELECT count(*) AS n FROM messages WHERE author = 'owner'"))[0].n;
-const cutoff = (base: number, n: number) => Math.min(base + 15 * Math.max(0, n - 1), 2 * base, 240);
 
 beforeAll(async () => {
   // A chat wake a message fired 9 s before the claim the helpers make for CHAT_SESSION binds to it.
@@ -34,27 +31,26 @@ beforeAll(async () => {
 });
 
 describe('the idle cutoff', () => {
-  it('is the setting plus 15 min per owner message after the first, at most double, never past 240', async () => {
+  it('is exactly the setting after the last owner message: no growth by count, no cap; stops 15, 45, 120', async () => {
     expect(
       (await coreSql<{ wake_id: string | null }>('SELECT wake_id FROM mind_sessions WHERE session_id = ?', SESSION))[0]
         .wake_id,
     ).not.toBeNull();
-    const check = async (base: number) => {
+    const cutoff = async () => {
       const r = await pending(SESSION);
       expect(r.status).toBe(200);
-      expect(r.body.idle_cutoff_min).toBe(cutoff(base, await ownerToday()));
       return r.body.idle_cutoff_min;
     };
-    const n0 = await ownerToday();
-    expect(await check(120)).toBe(cutoff(120, n0));
-    for (let i = 0; i < 3; i++) await ownerSays(p.D, `message ${i}`);
-    expect(await check(120)).toBe(cutoff(120, n0 + 3));
-    expect(cutoff(120, n0 + 3)).toBeGreaterThan(120);
-    for (let i = 0; i < 9; i++) await ownerSays(p.D, `more ${i}`);
-    expect(await check(120)).toBe(240);
-    await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'mind.idle': 30 } });
-    expect(await check(30)).toBe(60);
-    await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'mind.idle': 120 } });
+    expect(await cutoff()).toBe(45);
+    for (let i = 0; i < 12; i++) await ownerSays(p.D, `message ${i}`);
+    expect(await cutoff()).toBe(45);
+    for (const v of [15, 120]) {
+      expect((await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'mind.idle': v } })).status).toBe(200);
+      expect(await cutoff()).toBe(v);
+    }
+    expect((await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'mind.idle': 240 } })).status).toBe(422);
+    expect((await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'mind.idle': 45 } })).status).toBe(200);
+    expect((await pending(SESSION)).body.idle_min).toBe(0);
   });
 
   it('records the first reply on the wake, once, and the meter reads it as the cold-wake latency', async () => {

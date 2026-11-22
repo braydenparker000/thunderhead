@@ -20,7 +20,6 @@ import {CONTRACT, checkVerb} from './contract.mjs';
 import {permitOut, request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {invalid, need, out} from './io.mjs';
-import {lintText} from './lint.mjs';
 
 const S = CONTRACT.schedules;
 const LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/;
@@ -74,8 +73,6 @@ export async function plan(argv) {
   const what = typeof flags.what === 'string' ? flags.what : raw?.what;
   if (typeof what !== 'string' || !what.trim() || what.length > S.plans.what)
     throw invalid(`a plan needs its line for home (--what or "what"), at most ${S.plans.what} characters`);
-  const problem = lintText(what);
-  if (problem) throw invalid(`the phrase lint refuses the line (${problem})`);
   if (flags.at !== undefined) for (const s of list) laterOk(s.verb);
   const id = uuidv7();
   const {data} = await request('POST', '/v1/verbs/plan', {body: {

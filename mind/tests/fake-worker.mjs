@@ -147,9 +147,11 @@ export function createFake(options = {}) {
       const lastOwner = s.messages.filter(m => m.author === 'owner' && m.thread_id === today.id).at(-1);
       const since = lastOwner?.created_at ?? s.claimedAt ?? now();
       const claimed = s.wakes.filter(w => w.status === 'claimed').at(-1);
-      const cutoff = o.lean ? 30 : claimed?.reason === 'prewarm' && !lastOwner ? 10 : 120;
+      // cutoffMin and minuteMs (a shorter minute) let the tests run a cut-off in seconds.
+      const cutoff = o.lean ? 30 : claimed?.reason === 'prewarm' && !lastOwner ? 10 : o.cutoffMin ?? 120;
+      s.pendingReads = (s.pendingReads || 0) + 1;
       return {unanswered: ctl.unanswered(), stop: !!(s.stop && !s.stop.cleared), day_closed: !!s.dayClosed, limited: !!o.limited,
-        idle_min: Math.floor((now() - since) / 60_000), idle_cutoff_min: cutoff,
+        idle_min: Math.floor((now() - since) / (o.minuteMs ?? 60_000)), idle_cutoff_min: cutoff,
         songs: role === 'night' && !!s.songReaders?.has(session), ...(o.pendingExtra || {})};
     }],
     ['PUT', /^\/v1\/messages\/([^/]+)$/, ['chat', 'night', 'reflex'], ({role, body, params, session}) => {

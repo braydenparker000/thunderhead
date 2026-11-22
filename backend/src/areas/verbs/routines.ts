@@ -11,7 +11,6 @@
 // recorded once (`failed`, a short `last_error` Settings shows). The owner switches one on or off
 // and removes one that is off; the mind may only switch one off.
 import type { ErrorCode, ErrorDetails, Json, ProposalResult } from '../../../../shared/contract/api';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { type PermitPosition, permitOf } from '../../../../shared/contract/permits.ts';
 import { ROUTINE_LIMITS, type Routine, type RoutineArgs } from '../../../../shared/contract/routines.ts';
 import { PLAN_ACTION } from '../../../../shared/contract/schedules.ts';
@@ -37,13 +36,6 @@ const changed = (w: Writer, id: string) => w.change('routine', `routine:${id}`);
 
 /** Everything a routine is checked for, before a card is raised and again at the yes. */
 export function check(db: Db, a: RoutineArgs): { steps: plan.Step[]; cond: Resolved; when: string } {
-  for (const [path, text] of [
-    ['name', a.name],
-    ['what', a.what],
-  ] as const) {
-    const problem = lintMindText(text);
-    if (problem) throw invalid(`spec.args.${path}`, problem);
-  }
   const topic = law8Topic(`${a.name} ${a.what}`, {});
   if (topic) throw new Fail('validation', { reason: 'needs_owner_words', topic, path: 'spec.args.name' });
   const steps = plan.validate(
