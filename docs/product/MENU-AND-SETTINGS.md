@@ -109,7 +109,7 @@ A tap opens the shared sheet: the title, the state and age, what came of it (Mus
 its reason when it failed), then Muse's progress lines with their times (`GET
 /v1/work/thread?order=`), and **Cancel task** while it is asked, picked up or working (the owner's
 cancel is never gated; the chat says "Cancelled. Muse won't do it."). The sheet's own button reads
-Close. Nothing new in Settings: Muse orders the mind places ask first under `mind.permit.muse`.
+Close. Nothing new in Settings: Muse orders the mind places follow `mind.permit.muse` (Do and tell by default since 2026-11-22).
 
 ## 4. Settings pages
 
@@ -142,8 +142,10 @@ The status line and held-notification rules are unchanged.
 The phone's permission/subscription status sits above the Notifications on this phone switch.
 Its checked state means notifications are on; Send a test appears while they are on.
 Only the owner's enable tap requests browser permission.
-The line under it: at most 2 a day from the mind, never in quiet hours; reminders the owner set
-and the usage alarm don't count toward the 2; new sign-ins always reach the owner.
+Notifications from the mind are off by default (`mind.pushes` `never`, 2026-11-22): its words wait
+in the chat and on home. Turned on, at most 2 a day from the mind, never in quiet hours (the end of
+the push window is the quiet hours' start, §4.2). Reminders the owner set, sign-in notices, the
+usage alarm and the site-is-broken alert are separate and always go, outside quiet hours.
 
 One page for every way of reaching the owner (2026-11-21), under plain headings: **This phone**
 (the above), **What I send** (`mind.pushes` and `mind.speech`, the catalogue's `notifications`
@@ -390,7 +392,7 @@ row for the 7 days before (wakes a day). Counts only: never why it woke or what 
 the budget at Off it says so; when the Worker can't answer it says that, and the settings below
 still work. The day is the owner's logical day (it ends at 04:00).
 
-Six parts: How I talk, Day and evening, Nights, Reaching you, Waking, Standing permissions. The name
+Six parts: How I talk (the Name row, then the voice page: `mind-voice.js`), Day and evening, Nights, Reaching you, Waking, Standing permissions. The name
 the owner gives the mind (2026-11-04) is what the shell says wherever it would say "the mind" (the
 page's title and its row in Settings, the copy in `th/copy.js` `mindName()`), from `th.p.settings`,
 which home's read of the settings keeps (`keepShell`); the briefing says it in one line of section 1. Each permission is Ask (a
@@ -400,10 +402,14 @@ asks first: money, deleting your data, keys and access, reaching another person.
 setting lowers). The briefing's section 2 gives each class's position on every wake, in the first
 2,000 characters; section 13 says what each position asks of it and lists every verb.
 
+**How I talk: the voice page** (`mind-voice.js`, 2026-11-22, [BEHAVIOR.md §10](../mind/BEHAVIOR.md#10-tone)): under the Name row, the page itself in a text box ("How I talk, in plain words. I read this every time I wake."), up to 4,000 characters, with Save (`PUT /v1/mind/voice`), who changed it last and when, and a fold, "Earlier versions" (the newest 20, `GET /v1/mind/voice`), each opening with its text (`GET /v1/mind/voice/:id`) and "Use this version" (`POST /v1/mind/voice/restore`). The mind may change the page too, with a why, and then says so in the chat with Undo and a way here. With no version yet it shows the default page. It replaces the old Voice and Length settings.
+
+**Check-ins** (Reaching you, 2026-11-22, [RUNTIME.md §3](../mind/RUNTIME.md#3-triggers)): "Check-ins a day", None, One or Two: times the mind wakes by itself to leave a note in the chat or a line on home, never a notification (one at 15:00, two at 12:30 and 18:30). Today's meter counts them beside the sessions.
+
 **What lands** comes near the end of the page (`mind-lands.js`, 2026-11-04, [BEHAVIOR.md §3.6](../mind/BEHAVIOR.md)):
 a fold read when it opens (`GET /v1/insight/topics`), a row per topic the mind placed in the last 30
 days, worst first, with its counts in words ("Used 3 · took back 0 · left 1 · not seen 0 · on the
-Briefing and home"). A topic the owner passed over three times in a row says "Resting until 4
+Briefing and home"). A topic the owner passed over twice in a row (it rests silently) says "Resting until 4
 December" and has Reopen (`POST /v1/surfaces/topics/:key/reopen`), after which the fold reads again;
 "Counts only, never a score for you."
 
@@ -415,24 +421,23 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `mind.name` | text in a sheet, ≤ 20 characters, no control characters | worker | empty (``) | the shell's copy, in place of "the mind"; the mind (briefing sections 1 and 13); the Worker's PATCH holds it to the phrase lint (`shared/contract/lint.ts`, `422 validation`); the owner's alone (the mind's `settings.set` is refused) |
-| `mind.voice` | segments: plain / warmer / drier | worker | `plain` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.verbosity` | segments: short / normal / full | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.name` | text in a sheet, ≤ 20 characters, no control characters | worker | empty (``) | the shell's copy, in place of "the mind"; the mind (briefing sections 1 and 13); the Worker's PATCH holds it to the phrase lint (`shared/contract/lint.ts`, `422 validation`; the one thing the lint still refuses); the owner's alone (the mind's `settings.set` is refused) |
 | `mind.day_start` | a sheet picker: 05:00 to 10:00 | worker | `07:00` | `ui/theme.js` (Auto turns day at it, also while the page is open); the mind (briefing section 1's "now": the owner's day or evening, `brief-day.ts` `dayPart`; section 13) |
 | `mind.night_start` | a sheet picker: 18:00 to 23:00 | worker | `22:00` | `ui/theme.js` (Auto turns night at it); the mind (briefing sections 1 and 13) |
 | `mind.night_scope` | segments: bookkeeping / arrange / full | worker | `full` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.night_budget` | range (min): 5 / 15 / 30 | worker | `30` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.pushes` | segments: never / urgent / normal (on Notifications) | worker | `normal` | the Worker (`push/rules.ts`, 2026-11-21): never takes no nudge (`409 push_budget`) and sends none still waiting; urgent takes one only with `asked_by`, an owner's message asking to be told; reminders, sign-in notices, the usage alarm and tests go whatever it says; the mind (briefing section 13) |
+| `mind.idle` | range (min): 15 / 45 / 120 | worker | `45` | the Worker (`GET /v1/mind/pending` `idle_cutoff_min`, exactly this after the owner's last message); `th`, which closes a quiet chat session at it ([RUNTIME.md §4.6](../mind/RUNTIME.md#46-ending)); the mind (briefing section 13) |
+| `mind.checkins` | segments: none / one / two | worker | `2` | the Worker's cron (`areas/mind/checkin.ts`): 1 is 15:00, 2 are 12:30 and 18:30 in the owner's zone, on the night routine, skipped with a reason; 0 none; the mind (briefing section 13) |
+| `mind.pushes` | segments: never / urgent / normal (on Notifications) | worker | `never` | the Worker (`push/rules.ts`, 2026-11-21): never takes no nudge (`409 push_budget`) and sends none still waiting; urgent takes one only with `asked_by`, an owner's message asking to be told; reminders, sign-in notices, the usage alarm and tests go whatever it says; the mind (briefing section 13) |
 | `mind.speech` | segments: as needed / quiet / silent (on Notifications) | worker | `as_needed` | the Worker, at each `th surface`, `th propose` and `th push`: quiet takes 1 home line change and 1 card a day and a push only for what the owner asked for, silent none (`422 speech_budget`); as needed holds nothing back ([BEHAVIOR.md §3.7](../mind/BEHAVIOR.md)); the owner's alone (the mind's `settings.set` is refused); the mind (briefing sections 1 and 13) |
 | `mind.home_lines` | range (lines): none / 1 / 2 / 3 / 4 | worker | `4` | the Worker, at each `PUT /v1/surfaces/home/line.N`: a slot past the count is `422 validation` on `slot` (`settings/home-lines.ts`); the mind (briefing section 13) |
-| `mind.ask_outside` | switch | worker | `off` | the mind (briefing section 13, and `mind/skills/voice.md`: off, it looks things up unasked; on, it asks first); the Worker does not enforce it |
+| `mind.ask_outside` | switch | worker | `off` | the mind (briefing section 13: off, it looks things up unasked, through its walled readers; on, it asks first); the Worker does not enforce it |
 | `mind.wake_budget` | range (a day): Off / 6 / 12 / 24 / 40, a sheet picker | worker | `12` | the Worker, at each watch's wake: past it the watch is refused (`over_budget`), Off refuses new watches; the owner's own messages never count ([RUNTIME.md §3, §11](../mind/RUNTIME.md)); the mind (briefing sections 1 and 13) |
 | `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.podcasts` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.reminders` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.settings` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
-| `mind.permit.muse` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.muse` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.watch` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.practice` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.tiles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |

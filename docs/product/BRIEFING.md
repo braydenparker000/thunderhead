@@ -244,39 +244,41 @@ The owner chose: the night's written report becomes an **expandable tile** on th
 
 - **Its place:** the first tile after the weather, before "Waiting on you" (the lead's brief, owner decision 16: what the night did is the first thing the owner sees), not after Due. Pins never move it.
 - **Undo per line:** a line whose `ref` is `ledger:<id>` (a row the night wrote; any other is 422) has an Undo on the tile, `POST /v1/ledger/:id/undo`, the same as `th undo`; an undone line says so. So the tile also reads the rows its lines name.
-- **Counts:** the Worker counts from Core's own rows since the run began (the night's ledger rows, its predictions, the run's cut steps), again at `th night done`. Songs, mixes and pages are kept in the Music and Library objects and are `null` for now; the detail line leaves them out.
+- **The morning note** (2026-11-22): the report is above all a note in the mind's own voice, 1 to 1,200 characters, paragraphs kept (`night_reports.note`, Core step 54): what the night did, what it noticed, something the owner would enjoy, what waits. It stands under the headline on the tile and in the first message; the lines are optional.
+- **Counts:** the Worker counts from Core's own rows since the run began (the night's ledger rows, the run's cut steps), again at `th night done`. Songs, mixes and pages are kept in the Music and Library objects and are `null` for now; the detail line leaves them out.
 - **The message:** posted once, when the report is first put; a replacement or an undo changes the tile, never the chat. Messages have no `visible_from`, so it shows when it is put (inside the quiet hours, with no push); the counts are its last paragraph, not a block. Its origin is the new `night`.
 - **Ledger:** every version is a row (`arrangement`, `briefing/report ← <day>`), the first one too: its undo removes the report.
 
-**Who writes it, and when.** The night, as step 12 "the report", placed right after step 5 since 2026-11-10 (the run: 1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10; it stood after step 9, see "Why the night's report never came"). Before the books, the evals and the songs, because reading songs' tags taints the session and a tainted session's words may not reach the owner; what step 11 then does joins the report as Worker counts, never as words. `th report --headline "<…>" --line <kind>:"<…>" …` → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
+**Who writes it, and when.** The night, as step 12 "the morning note", right after step 5, health (the run: 1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10; it stood after step 9, see "Why the night's report never came"), so the note can say how the Worker is. Before the books, the evals and the songs, because the Sunday evals mark the session and a marked session's words may not reach the owner; what those steps then do joins the report as Worker counts, never as words. `th report --headline "<…>" --note - [--line <kind>:"<…>" …]` with the note on stdin → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
 
 **Data shape** (`shared/contract/night-report.ts`; the counts' songs, mixes and pages are `number | null`, and the stored report also keeps `message_id`):
 
 ```ts
-type ReportKind = 'memory' | 'loose_ends' | 'built' | 'reading' | 'music' | 'health' | 'predictions' | 'note';
+type ReportKind = 'memory' | 'loose_ends' | 'built' | 'reading' | 'music' | 'health' | 'note';
 interface NightReport {
   day: string;                // the closed day the night worked on
   written_at: number;
   headline: string;           // the mind's, ≤ 60 characters, one line
+  note: string | null;        // the morning note, 1–1,200 characters, paragraphs separated by a blank line
   lines: { kind: ReportKind; text: string; ref: string | null }[]; // ≤ 6, each ≤ 100; ref app:<id> | ledger:<id>
   counts: {                   // the Worker's own record of the run, never the mind's words
     facts_added: number; facts_confirmed: number; loose_ends_closed: number; loose_ends_added: number;
-    pages_read: number; songs_noted: number; mixes: number; predictions: number;
+    pages_read: number; songs_noted: number; mixes: number;
     steps_cut: number[];      // what a hard stop cut, in run order
   };
   ledger_id: string;
 }
 ```
 
-**Limits.** Headline ≤ 60 characters, at most 6 lines of ≤ 100, 800 characters in all; one line each, no exclamation marks, emoji or Markdown; the shared phrase lint (`shared/contract/lint.ts`) applies; a `ref` is only `app:<id>` or `ledger:<id>`. No names of other people, no song or episode titles (the counts carry those parts). One report per closed day; kept 30 days in Core (backup and export: yes), then pruned; a held (off the record) conversation is never in it, as the night never reads one.
+**Limits.** Headline ≤ 60 characters; the note 1 to 1,200; at most 6 lines of ≤ 100, 800 characters in all with the headline; the headline and each line one line with no Markdown; no refusal for style (an emoji or an exclamation mark is fine, 2026-11-22); a `ref` is only `app:<id>` or `ledger:<id>`. No names of other people, no song or episode titles (the counts carry those parts). One report per closed day; kept 30 days in Core (backup and export: yes), then pruned; a held (off the record) conversation is never in it, as the night never reads one.
 
-**The tile.** `kind: 'report'`, wide, after Due and before the night's own tiles: key line moon-stars · "Overnight", value the headline, detail the counts in one line ("3 facts · 2 loose ends · 40 songs noted"). A tap expands it in place (`aria-expanded`): the lines, each opening its `ref` when it has one, and "Cut by the time limit: steps 5, 6" when `steps_cut` isn't empty; a second tap collapses it. It shows from the quiet hours' end (06:30 or the owner's later end) to the end of the open day. No report (the night cut before step 12, or didn't run): no tile, and the night line (§7) says why.
+**The tile.** `kind: 'report'`, wide, after Due and before the night's own tiles: key line moon-stars · "Overnight", value the headline, detail the counts in one line ("3 facts · 2 loose ends · 40 songs noted"). A tap expands it in place (`aria-expanded`): the note's paragraphs, then the lines, each opening its `ref` when it has one, and "Cut by the time limit: steps 5, 6" when `steps_cut` isn't empty; a second tap collapses it. It shows from the quiet hours' end (06:30 or the owner's later end) to the end of the open day. No report (the night cut before step 12, or didn't run): no tile, and the night line (§7) says why.
 
-**The first message of the day.** When the report is put and the open day's thread has no owner message yet, the Worker (not the mind: the night may not post) adds it as that thread's first message: author `mind`, `meta.report = <day>`, the headline and the lines as a short list, the counts as one block, `visible_from` the quiet end, no push, no wake. If the owner has already written that day, it stays a tile only. The next chat session's briefing carries the report in its "Last night" section, so the mind can follow up on it.
+**The first message of the day.** When the report is put and the open day's thread has no owner message yet, the Worker (not the mind: the night may not post) adds it as that thread's first message: author `mind`, `meta.report = <day>`, the headline, the note, the lines as a short list, the counts as one block, `visible_from` the quiet end, no push, no wake. If the owner has already written that day, it stays a tile only. The next chat session's briefing carries the report in its "Last night" section, so the mind can follow up on it.
 
 **Cost.** One report row, one message row and their change and ledger rows: 4 to 6 writes a night; the tile reads one row.
 
-**Tests.** The route's guards (night key only, a tainted session refused, the limits, the same body again, another session 409); the report as the open day's first message only when the thread has no owner message, hidden until the quiet end, with no push; the tile expands and collapses at 390×844, keyboard and screen reader included; a cut run's `steps_cut`; the lint.
+**Tests.** The route's guards (night key only, a tainted session refused, the limits, the same body again, another session 409); the report as the open day's first message only when the thread has no owner message, hidden until the quiet end, with no push; the tile expands and collapses at 390×844, keyboard and screen reader included; a cut run's `steps_cut`; the note's limit.
 
 ## Open questions / tests
 

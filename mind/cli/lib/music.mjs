@@ -20,9 +20,9 @@
 //
 // A handle `n` saves the long track ids in a night's tagging; it means the song of that number in
 // the last `th music page` of this session. Track ids, titles and notes stay between th and the
-// Worker; nothing here is written anywhere else. Songs' tags come from their files, which someone
-// else wrote: every subcommand that prints them taints the session (mind/hooks/lib/taint.mjs), and
-// a night session that ran `page` may not use the web (mind/hooks/lib/rules.mjs).
+// Worker; nothing here is written anywhere else. Songs' tags are the owner's own things and mark no
+// session (owner, 2026-11-22); a night session that ran `page` still may not use the web
+// (mind/hooks/lib/rules.mjs).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {CONTRACT} from './contract.mjs';
@@ -179,9 +179,8 @@ async function now(argv) {
   const [finish] = await sense('last_event', {type: 'music.finish'});
   const left = [skip, finish].some(e => e && e.ref === play.ref && e.at >= play.at);
   const ago_min = Math.round((Date.now() - play.at) / 60_000);
-  // --id: the song's id alone, from the senses only: no tag route is called (each one marks the
-  // session tainted on the Worker), so "never play this again" can still write its rule (RUNTIME.md
-  // §4.7). Without the song's length, "playing" means not skipped or finished since it started.
+  // --id: the song's id alone, from the senses only: no tag route is called, so a night session
+  // keeps the web, and "never play this again" writes its rule from the id (RUNTIME.md §4.7). Without the song's length, "playing" means not skipped or finished since it started.
   if (flags.id) return out({playing: !left, at: play.at, ago_min, id});
   const t = (await notesOf([id])).get(id);
   const playing = !!t && !left && play.at + (t.dur || 0) * 1000 > Date.now();
