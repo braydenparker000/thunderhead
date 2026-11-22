@@ -6,15 +6,18 @@
 // not its words) unless `--outside` asks for it, which marks this session (MEMORY.md §6 M11f).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
-import {EXIT, ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
+import {EXIT, ThError, invalid, list, need, out, toMs} from './io.mjs';
 import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState, setState} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
+import {checkBatch} from './memory-forms.mjs';
+
+// `th remember` and `th thread`, in their forgiving form (lib/forgive.mjs).
+export {remember, thread} from './memory-forms.mjs';
 
 // The fact kinds and sources are the contract's (shared/contract/memory.ts via contract.json).
 export const FACT_KINDS = Object.keys(CONTRACT.memory.kinds);
-const SOURCES = Object.keys(CONTRACT.memory.sources);
 const seg = value => encodeURIComponent(String(value));
 
 /** Evidence ids: a bare id is a message (`msg:<id>`); anything with a kind prefix is kept. */
@@ -31,16 +34,16 @@ function factText(flags) {
   return text;
 }
 
-async function ops(list, batchId = uuidv7()) {
+export async function ops(list, batchId = uuidv7()) {
   const {data} = await request('POST', '/v1/memory/ops', {body: {batch_id: batchId, ops: list}});
   return data;
 }
 
-/** {fact_id, ledger_id, provenance} when applied, {fact_id: null, proposal_id} when the Worker
+/** {fact_id, ledger_id, provenance[, hint]} when applied (hint: say a kept inference once), {fact_id: null, proposal_id} when the Worker
  * routed it to the owner. */
-function factResult(data) {
+export function factResult(data) {
   const applied = data.applied?.[0];
-  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id, provenance: applied.provenance ?? null};
+  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id, provenance: applied.provenance ?? null, ...(applied.hint ? {hint: applied.hint} : {})};
   return {fact_id: null, proposal_id: data.proposals?.[0]?.proposal_id ?? null};
 }
 
@@ -103,19 +106,6 @@ export function bounded(items, flags) {
   return items;
 }
 
-export async function remember(argv) {
-  const {flags} = parseArgs(argv);
-  const kind = need(flags, 'kind');
-  if (!FACT_KINDS.includes(kind)) throw invalid(`--kind must be one of ${FACT_KINDS.join(', ')}`);
-  const source = flags.source ?? 'user';
-  if (!SOURCES.includes(source)) throw invalid('--source must be user, observed or inferred');
-  const sensitivity = Number(flags.sensitivity ?? 0);
-  if (sensitivity !== 0 && sensitivity !== 1) throw invalid('--sensitivity must be 0 or 1');
-  const data = await ops([{op: 'add', id: uuidv7(), kind, subject: typeof flags.subject === 'string' ? flags.subject : 'owner',
-    text: factText(flags), source, evidence: evidenceRefs(flags.evidence), valid_from: toMs(flags['valid-from'], 'valid-from'), sensitivity}]);
-  out(factResult(data));
-}
-
 export async function confirm(argv) {
   const {flags, rest} = parseArgs(argv);
   if (!rest[0]) throw invalid('usage: th confirm <fact id> --evidence <ids>');
@@ -147,34 +137,6 @@ export async function forget(argv) {
     options: ['Forget it', 'Keep it'], spec: {v: 1, op: 'memory.forget', args: {id: rest[0]}},
   }});
   out({proposal_id: data.id || id});
-}
-
-/** Open threads (commitments): add | done | drop | list. */
-export async function thread(argv) {
-  const {flags, rest} = parseArgs(argv);
-  const [sub, ...words] = rest;
-  if (sub === 'list') {
-    const {data} = await request('GET', '/v1/memory/open-threads', {query: {status: 'open'}});
-    return out({items: data.items || []});
-  }
-  if (sub === 'add') {
-    const text = words.join(' ').trim();
-    if (!text) throw invalid('usage: th thread add <text> [--owner mind|owner] [--due <date>] --evidence <ids>');
-    const owner = flags.owner ?? 'mind';
-    if (owner !== 'mind' && owner !== 'owner') throw invalid('--owner must be mind or owner');
-    const id = uuidv7();
-    const {data} = await request('PUT', `/v1/memory/open-threads/${seg(id)}`,
-      {body: {text, owner, due_at: toMs(flags.due, 'due'), evidence: evidenceRefs(flags.evidence)}});
-    return out({id, provenance: data?.provenance ?? null});
-  }
-  if (sub === 'done' || sub === 'drop') {
-    const id = words[0];
-    if (!id) throw invalid(`usage: th thread ${sub} <id>${sub === 'drop' ? ' --why <text>' : ''}`);
-    const why = sub === 'drop' ? need(flags, 'why') : undefined;
-    await request('PATCH', `/v1/memory/open-threads/${seg(id)}`, {body: {status: sub === 'done' ? 'done' : 'dropped', why}});
-    return out({id});
-  }
-  throw invalid('usage: th thread add <text> --evidence <ids> | done <id> | drop <id> --why <t> | list');
 }
 
 const dayArg = value => {
@@ -233,19 +195,6 @@ export async function day(argv) {
     next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary, routines});
 }
 
-export async function daynote(argv) {
-  const {flags, rest} = parseArgs(argv);
-  const d = dayArg(rest[0]);
-  const decisions = jsonFlag(flags.decisions, 'decisions') ?? [];
-  const importance = Number(flags.importance);
-  if (!Array.isArray(decisions)) throw invalid('--decisions must be a JSON array of strings');
-  if (!(importance >= 1 && importance <= 10)) throw invalid('--importance must be 1-10');
-  const {data} = await request('PUT', `/v1/memory/day-notes/${d}`, {body: {summary: need(flags, 'summary'), decisions, importance}});
-  // The owner edited this day: their note stands and this one was not written.
-  const provenance = data.provenance ?? null;
-  out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true, provenance} : {version: data.version ?? null, provenance});
-}
-
 /** A UUID (version 8) from a name: the same name, the same id. */
 const nameId = name => {
   const h = sha256(name);
@@ -265,12 +214,12 @@ export async function facts(argv) {
   let parsed;
   // `-`: the batch on stdin, so the night writes no file and has no folder to look into.
   try { parsed = JSON.parse(readFileSync(need(flags, 'batch') === '-' ? 0 : flags.batch, 'utf8')); } catch (e) { throw invalid(`--batch: ${e.message}`); }
-  const list = Array.isArray(parsed) ? parsed : parsed.ops;
-  if (!Array.isArray(list) || !list.length || list.length > 50) throw invalid('--batch must hold 1–50 ops');
+  // Every op checked here first: repairs listed in `repaired`, every fault in one refusal.
+  const {ops: list, faults} = checkBatch(Array.isArray(parsed) ? parsed : parsed?.ops);
   if (!flags.night) {
     if (flags.part !== undefined || flags.day !== undefined) throw invalid('--part and --day go with --night');
     const data = await ops(list.map(op => (op.op === 'add' && !op.id ? {...op, id: uuidv7()} : op)));
-    return out(applied(data));
+    return out(faults.with(applied(data)));
   }
   const day = typeof flags.day === 'string' ? flags.day : getState('night_day');
   if (!day) throw invalid('--night: start the night first (th night start), or give --day <YYYY-MM-DD>');
@@ -290,7 +239,7 @@ export async function facts(argv) {
     throw e;
   }
   setState('night_batches', {...sent, [batchId]: sha});
-  out(sent[batchId] === sha ? {...applied(data), already: true} : applied(data));
+  out(faults.with(sent[batchId] === sha ? {...applied(data), already: true} : applied(data)));
 }
 
 /** A batch's counts; `outside`: how many of the applied ops the Worker labelled outside (MEMORY.md §6 M11). */

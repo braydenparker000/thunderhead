@@ -3,7 +3,7 @@
 // (day notes too, labelled `outside` after outside text), and a tainted note is never evidence; the
 // mind can only make a fact more protected; muting or forgetting clears the surfaces that cite
 // it; M12 covers the rule being replaced; the owner's day-note edit wins; M10 caps chat batches;
-// a forgotten id is never reused; no owner message lifts a guess to the owner's word (M11e).
+// a forgotten id is never reused; only the owner's later words lift a kept guess to theirs.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Fact, Page, SurfacesResponse, UndoResponse } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -204,7 +204,8 @@ describe('5. muting or forgetting clears the surfaces that cite the fact', () =>
 
 describe('8, 10 and the nits', () => {
   it('M12: a session whose constitution was missing may not supersede a rule into something else', async () => {
-    const rule = addOp([`msg:${said}`], { kind: 'rule', text: 'Answer briefly at night' });
+    const asked = await ownerSays(P.D, 'Answer briefly at night.'); // a rule is in the owner's words
+    const rule = addOp([`msg:${asked}`], { kind: 'rule', text: 'Answer briefly at night' });
     await ops(chat(), [rule]);
     const s = 'cse_review_nolaws';
     // A session the Worker fired: clean, though an earlier test tainted a night session today.
@@ -251,17 +252,16 @@ describe('8, 10 and the nits', () => {
     expect([r.body.applied.length, r.body.rejected]).toEqual([10, [{ i: 10, reason: 'proposal_required' }]]);
   });
 
-  it("no owner message lifts a guess to the owner's word (M11e); the owner's tap does", async () => {
+  it("a kept guess is lifted to the owner's word only by their words written after it (as an observed fact)", async () => {
     const older = await ownerSays(P.D, 'I want to perform the piece one day.');
     const guess = addOp([`msg:${said}`], { source: 'inferred', kind: 'goal', text: 'Wants to perform the piece' });
-    expect((await ops(chat(), [guess])).body.applied[0].provenance).toBe('outside');
-    const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${older}`] }]);
-    expect(r.body.applied[0].fact_id).toBe(guess.id);
+    expect((await ops(chat(), [guess])).body.applied[0].provenance).toBe('observed');
+    expect((await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${older}`] }])).status).toBe(200);
     expect((await get(guess.id))?.source).toBe('inferred');
-    // A newer one lifted it before M11e; now it waits for the owner's Keep (memory-provenance.test.ts).
     const newer = await ownerSays(P.D, 'Yes, I really want to perform it.');
-    const still = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${newer}`] }]);
-    expect(still.body.applied[0]).toMatchObject({ fact_id: guess.id, provenance: 'outside' });
+    const lifted = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${newer}`] }]);
+    expect(lifted.body.applied[0].provenance).toBe('owner');
+    expect((await get(lifted.body.applied[0].fact_id))?.source).toBe('user');
   });
 });
 

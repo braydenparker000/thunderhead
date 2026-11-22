@@ -1,10 +1,12 @@
 // How a work order is placed (MUSE-PROTOCOL.md): the owner's `@muse` in the chat, with their message
 // (core.ts), under their own authority, never gated; or the mind's PUT /v1/work/orders/:id, under
-// the standing permission `muse.order` (Ask by default: a card first) and only from a clean session.
+// the standing permission `muse.order` (Tell by default) from a clean session, or from one that read
+// outside text when its words are the owner's own from the message it names (owner, 2026-11-22).
 // Neither sends on what MEMORY.md §13 says is never stored.
 
 import type { Message } from '../../../../shared/contract/api';
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
+import { ownersWords } from '../../../../shared/contract/owner-words.ts';
 import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
   ASKED_KINDS,
@@ -20,10 +22,11 @@ import { Fail, invalid } from '../../lib/result';
 import { DAY, MINUTE } from '../../lib/time';
 import { type Caller, isMind } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
-import { messageById } from '../conversation/store';
+import { messageById, messageOrigin } from '../conversation/store';
 import { answerOne } from '../conversation/store-threads';
 import { claimedSession } from '../mind/guards';
 import { gate, positionFor, withPermit } from '../mind/permit';
+import { SOURCE_MS } from '../reminders/ops';
 import { LINES, say, sayOnly } from './lines';
 import { mentionWords } from './mention';
 import * as store from './store';
@@ -32,12 +35,30 @@ const changed = (w: Writer, id: string) => w.change('work', `work:${id}`);
 const reread = (w: Writer, id: string) => store.order(w.db, id) as store.OrderRow;
 
 /** What a mind may send towards Muse: only from a claimed session of its role that has read no
- * outside content (an order reaches another agent), and nothing MEMORY.md §13 says is never
- * stored. The owner's device may always. */
-export function toMuse(w: Writer, c: Caller, path: string, value: unknown): void {
-  if (c.who !== 'D' && claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat').tainted)
+ * outside content (an order reaches another agent), or, from one that has, when `said` holds only
+ * the owner's own words from the message it names (the reminders' test); and nothing MEMORY.md §13
+ * says is never stored. The owner's device may always. */
+export function toMuse(
+  w: Writer,
+  c: Caller,
+  path: string,
+  value: unknown,
+  said?: { texts: string[]; from?: string },
+): void {
+  if (
+    c.who !== 'D' &&
+    claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat').tainted &&
+    !ownOrder(w, said)
+  )
     throw new Fail('session_tainted');
   if (neverStored(JSON.stringify(value))) throw invalid(path, 'never_stored');
+}
+
+/** Every text is the owner's own words from `from`: an owner-device message of the last 48 hours. */
+function ownOrder(w: Writer, said?: { texts: string[]; from?: string }): boolean {
+  const m = said?.from ? messageOrigin(w.db, said.from) : null;
+  if (!m || m.author !== 'owner' || m.origin !== 'owner_device' || m.created_at < w.at - SOURCE_MS) return false;
+  return (said?.texts ?? []).every((t) => ownersWords(t, m.body));
 }
 
 /** The standing permission an order of `kind` is taken under: Muse orders, or, for a kind that
@@ -60,7 +81,7 @@ export function create(
     return { order: store.toOrder(had), created: false, ...(permit ? { permit } : {}) };
   }
   if (!(ASKED_KINDS as string[]).includes(r.kind)) throw invalid('kind', `one of ${ASKED_KINDS.join(', ')}`);
-  toMuse(w, c, 'spec', [r.title, r.spec]);
+  toMuse(w, c, 'spec', [r.title, r.spec], { texts: [r.title, r.spec.words], from: r.source_message_id });
   if (JSON.stringify(r.spec).length > WORK_LIMITS.spec_bytes)
     throw invalid('spec', `at most ${WORK_LIMITS.spec_bytes} bytes`);
   if (r.deadline_at <= w.at + 5 * MINUTE || r.deadline_at > w.at + WORK_LIMITS.deadline_days * DAY)

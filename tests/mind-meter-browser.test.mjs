@@ -83,7 +83,7 @@ test('Today with the wake budget at Off, and when the Worker cannot answer', opt
   await down.page.waitForSelector('.spage.in [data-meter] .sempty');
   assert.deepEqual(await lines(down.page), [['sempty', "I couldn't read today's count just now."]]);
   // The settings below still answer.
-  assert.ok(await down.page.$('[data-key="mind.voice"] .seg-option.on'));
+  assert.ok(await down.page.$('[data-key="mind.night_scope"] .seg-option.on'));
   await down.context.close();
 });
 

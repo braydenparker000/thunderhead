@@ -7,7 +7,6 @@
 // it once: a system line in today's thread and, outside quiet hours, a push.
 
 import type { Permitted } from '../../../../shared/contract/api';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { ownersWords } from '../../../../shared/contract/owner-words.ts';
 import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
@@ -97,8 +96,6 @@ export function put(
   if (mind) {
     checkSource(w, r.source_message_id as string);
     cleanSession(w, c, text, r.source_message_id as string);
-    const lint = lintMindText(text);
-    if (lint) throw invalid('text', lint);
     if (store.mindSince(w.db, w.at - DAY) >= MIND_PER_DAY)
       throw invalid('source_message_id', `at most ${MIND_PER_DAY} reminders from the mind in 24 hours`);
   }

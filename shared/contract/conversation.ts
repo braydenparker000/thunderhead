@@ -3,6 +3,7 @@
 // the vocabularies (change kinds, frames, apps, sources) are runtime data in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
 import type { AppId, ChangeKind, MindUse, SearchSource } from './feed';
+import type { RecallItem } from './mind-brief';
 
 /** `off_record`: answered, never remembered, purged 7 days after its last message; `restored`: a
  * day's conversation given back from Recently deleted beside the fresh one its day began after the
@@ -161,7 +162,8 @@ export interface LiveWaitResponse {
   seq: number;
   changed: boolean;
   kinds: ChangeKind[];
-  messages: Message[];
+  /** Each with up to 5 memories that match it (`recall`, mind-brief.ts), when the search was back in time. */
+  messages: (Message & { recall?: RecallItem[] })[];
   events: LiveEvent[];
   signals: LiveSignal[];
   /** The conversations off the record among `messages`: answer them, remember nothing from them. */
@@ -173,24 +175,7 @@ export interface LiveWaitResponse {
 export type MindRole = 'chat' | 'night' | 'reflex';
 export type MindState = 'working' | 'listening' | 'stopping' | 'limited';
 
-export interface BriefRequest {
-  claim: boolean;
-  session_id: string;
-  role: MindRole;
-  constitution_sha256: string;
-  th_version: string;
-}
-
-export interface BriefResponse {
-  wake: { id: Id; reason: string; claim_match: 'exact' | 'loose' | 'manual' } | null;
-  day: Day;
-  seq: number;
-  core: string;
-  full: string;
-  night_done: boolean;
-  provenance: 'owner' | 'outside'; // what its memory writes are labelled (MEMORY.md §7, M11)
-  tainted: boolean; // `provenance === 'outside'` by its old name, kept one release (from 2026-11-02)
-}
+export type { BriefRequest, BriefResponse, RecallItem } from './mind-brief';
 
 export interface MindStatusRequest {
   state: MindState;
@@ -214,12 +199,12 @@ export interface TaintRequest {
   ref_kind?: 'url' | 'file' | 'comment';
 }
 
-/** POST /v1/mind/night (RUNTIME.md §12): the run's progress for a closed `day`. `cursor` saves
- * where a step with a cursor got to (shared/contract/night.ts); `partial` (with `done`) records
- * the steps the hard stop cut as skipped. */
+/** POST /v1/mind/night (RUNTIME.md §12): the run's progress for a closed `day`. `through` closes
+ * every open step up to `step`; `cursor` saves where a step with a cursor got to (night.ts);
+ * `partial` (with `done`) records the steps the hard stop cut as skipped. */
 export interface MindNightRequest {
   day: Day;
-  action: 'start' | 'step_done' | 'cursor' | 'done';
+  action: 'start' | 'step_done' | 'through' | 'cursor' | 'done';
   step?: number;
   cursor?: string;
   partial?: boolean;

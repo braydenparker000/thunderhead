@@ -90,6 +90,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
 | `PUT /v1/mind/growth/:day` | N | P7 | built | night step 13, the week's growth (growth.ts): from a claimed night session, for a closed day with a run; the Briefing's practice and study tiles from the week's counts and the plans through guitar.set_plan and study.mark_next, silent under 3 sessions; the same again writes nothing |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
+| `POST /v1/mind/checkin` | N | P9 | built | a check-in session's one message into today's conversation (say: no reply-to, no notification) or its end (done, with the outcome); only from a night session whose claim is a check-in, within 10 minutes (areas/mind/checkin-session.ts) |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
 | `GET /v1/memory/facts/:id` | D C N | P3 | built | one fact: its earlier versions, evidence and why |
 | `GET /v1/memory/profile` | D C N | P3 | built |  |
@@ -258,6 +259,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/music/playlists` | D | P5 | built | 1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days |
 | `GET /v1/music/playlists` | D | P5 | built | ?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page |
 | `POST /v1/ops/site` | I | P9 | built | {state: down\|up}: the live watch says the site is not loading, or is back; one push each way |
+| `GET /v1/mind/voice` | D C N R | P9 | built | how the mind talks: the page, who changed it last, when and why, and the newest 20 versions without their text |
+| `GET /v1/mind/voice/:id` | D C N R | P9 | built | one version of the voice page, with its text |
+| `PUT /v1/mind/voice` | D C | P9 | built | {text ≤ 4,000, why?}: a new version; mind:chat from a claimed, live session that read no outside text, with a why of 8 to 200 characters (a ledger row with undo and a line in the chat) |
+| `POST /v1/mind/voice/restore` | D | P9 | built | {id}: that version becomes the page again, as a new version |
 
 ## Verbs
 
@@ -293,7 +298,7 @@ Side `worker`: run inside the commit that queues it, `done` at once, its inverse
 | `study.pace_goal` | study | reversible | practice | worker | yes (now only) | stored | 1 | `{ pages: integer, evidence: array }` | Records the owner's own pace for Study (pages a week) as their goal (subject `study.pace`), through memory's rules: `evidence` must be the owner's messages (M3). A pace already set is replaced (`previous`: its fact id). Its undo puts the previous pace back (or none). |
 | `guitar.set_plan` | guitar | reversible | practice | worker | yes | stored | 1 | `{ tab: string, sections: array, label?: string }` | Places Guitar's arrangement "today's section" (`guitar/today`, kind `section`): a song (`tab:<id>`), one to four sections (`<first bar>-<last bar>`, as the ladder keys them) each at a tempo (20–300 bpm) from the ladder's last ceilings, and a short label. Coaching, not doing (law 5): the owner plays it. Its undo puts back the plan before. |
 | `guitar.start_practice` | guitar | reversible | practice | phone (intent) | yes | none | 1 | `{ tab: string, section: string, bpm?: integer }` | Opens Guitar's reader at a section of a song (`tab:<id>`, `<first bar>-<last bar>` as guitar.set_plan names it), looped, at its tempo when given, the next time the owner opens Guitar (an intent): it never opens the app or plays by itself. A song this phone has never opened is `song_unknown`. Nothing to undo: the owner closes it. |
-| `island.show` | shell | reversible | tiles | phone | yes | reported | 1 | `{ text: string }` | Shows one sentence (at most 80 characters, never a question, under the phrase lint) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo. |
+| `island.show` | shell | reversible | tiles | phone | yes | reported | 1 | `{ text: string }` | Shows one sentence (at most 80 characters, never a question) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo. |
 | `island.clear` | shell | reversible | tiles | phone | no (owner tap or undo) | none | 1 | `{ line: string }` | Takes away the island line that `island.show` put up, if it still stands; a later line stays (`cleared: false`). |
 | `watch.set` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ kind: 'at' \| 'event' \| 'change', at?: integer, type?: 'player.open' \| 'music.play' \| 'music.skip' \| 'music.finish' \| 'music.rate' \| 'podcasts.open' \| 'podcast.play' \| 'podcast.finish' \| 'podcast.skip' \| 'podcast.follow' \| 'podcast.unfollow' \| 'guitar.open' \| 'guitar.piece_opened' \| 'guitar.pass' \| 'guitar.bpm' \| 'guitar.session' \| 'study.open' \| 'study.read' \| 'study.search' \| 'study.highlight' \| 'photo.import' \| 'photo.delete' \| 'photo.edit' \| 'photo.export' \| 'photo.paste' \| 'photo.look' \| 'photo.rate' \| 'astra.open' \| 'mymedia.open' \| 'media.watch' \| 'media.finish' \| 'media.drop' \| 'app.open' \| 'app.close' \| 'ring.choice' \| 'island.tap' \| 'briefing.open' \| 'settings.change' \| 'briefing.tile' \| 'line.seen' \| 'line.dismiss' \| 'arrangement.seen' \| 'arrangement.tap' \| 'arrangement.dismiss' \| 'card.decide' \| 'reply.open_chip' \| 'reminder.fired' \| 'work' \| 'verb' \| 'proposal' \| 'prediction', ref?: string, why: string, note?: string }` | Sets a watch: `at` (a time, at most 7 days ahead), `event` (a sense type or `reminder.fired`, optionally its ref) or `change` (`work`, `verb`, `proposal` or `prediction`, met when it settles; optionally its ref). Met once, it wakes the chat with its why and note (a live session hears it in `th wait`), within the wake budget; at most 20 wait at once. From a claimed session that was handed nothing off the record. Its undo cancels it. |
 | `watch.cancel` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ id: string }` | Cancels a live or queued watch. Its undo sets it waiting again while its time has not passed and fewer than 20 wait. |
@@ -312,7 +317,7 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | `podcasts.follow`, `podcasts.unfollow`, `podcasts.queue_episode`, `podcasts.unqueue_episode`, `podcasts.mark_played` | — |
 | `reminders` | `mind.permit.reminders` | Reminders | tell | `reminder.move`, `reminder.snooze_rule` | `reminder.set`, `reminder.cancel` |
 | `settings` | `mind.permit.settings` | Settings | tell | `settings.set`, `shell.appearance` | — |
-| `muse` | `mind.permit.muse` | Muse orders | ask | `muse.order_personal` (floor: reach_people) | `muse.order` |
+| `muse` | `mind.permit.muse` | Muse orders | tell | `muse.order_personal` (floor: reach_people) | `muse.order` |
 | `watch` | `mind.permit.watch` | Watch lists | tell | `astra.shortlist`, `media.shortlist` | — |
 | `practice` | `mind.permit.practice` | Practice | tell | `study.mark_next`, `study.pace_goal`, `guitar.set_plan`, `guitar.start_practice` | — |
 | `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open`, `briefing.pin_tile`, `briefing.unpin_tile`, `island.show`, `island.clear` | `surface.put` |
@@ -449,6 +454,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `unknown_ref` | The fact this op names does not exist. |
 | `not_owner_evidence` | A 'user' fact needs evidence that is all the owner's own words. |
 | `rule_needs_owner` | A rule needs source 'user'. |
+| `rule_not_owner_words` | A rule is kept in the owner's own words: cite the message they wrote it in and keep their wording (three of every four words). |
 | `too_little_evidence` | An 'observed' fact needs at least 10 owner-device events. |
 | `tainted_evidence` | Muse or outside text is never evidence. |
 | `needs_owner_words` | Faith and facts about people come only from the owner's words. |
@@ -491,13 +497,13 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 4 | facts | 6 | P3 | yes | each part is one batch with its own id (`th facts --night --part <k>`); sent again, it is already applied |
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 13 | growth (the week in Guitar and Study) (weekly) | 1 | P7 | no | tiles and plans are put by slot, and one the same as the one in place writes nothing |
-| 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
 | 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
+| 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
 | 6 | indexing (Study’s books) | 10 | P7 | no | a book is claimed by one run at a time and goes on from its cursor; a page is put by its number |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
 | 11 | songs (notes, mixes) | 6 | P5 | no | a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one |
-| 10 | session note and done | 2 | P3 | no | the run is marked done once |
+| 10 | done | 2 | P3 | no | the run is marked done once |
 
 ## Proposals
 
@@ -537,7 +543,7 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 
 Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
 
-`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code` · `voice`
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
 
 ## Watchdogs
 
@@ -562,7 +568,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 
 ## Watches
 
-The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog`.
+The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog` · `checkin`.
 
 | Event watch (beside every sense type) | When |
 |---|---|

@@ -24,13 +24,15 @@ export function reportRoutes(ctl) {
       if (!s.growth.answer) throw new HttpError(422, 'validation', 'the day of a night run');
       return {day: params[0], ...s.growth.answer};
     }],
+    // Study's books (`th night start` counts the queued ones; it never prints a title).
+    ['GET', /^\/v1\/library\/books$/, ['chat', 'night'], () => ({items: s.books ?? []})],
     ['PUT', /^\/v1\/briefing\/report\/(\d{4}-\d{2}-\d{2})$/, ['night'], ({params, body}) => {
       const [day] = params;
       const had = s.nightReports.get(day);
       if (had && JSON.stringify(had.sent) === JSON.stringify(body)) return had.report;
-      const report = {day, written_at: ctl.now(), headline: body.headline, lines: body.lines, ledger_id: `led-${day}-${s.nightReports.size + 1}`,
+      const report = {day, written_at: ctl.now(), headline: body.headline, note: body.note ?? null, lines: body.lines, ledger_id: `led-${day}-${s.nightReports.size + 1}`,
         message_id: had ? had.report.message_id : `msg-${day}`, counts: {facts_added: 0, facts_confirmed: 0, loose_ends_closed: 0,
-          loose_ends_added: 0, pages_read: null, songs_noted: null, mixes: null, predictions: 0, steps_cut: []}};
+          loose_ends_added: 0, pages_read: null, songs_noted: null, mixes: null, steps_cut: []}};
       s.nightReports.set(day, {sent: body, report});
       return report;
     }],

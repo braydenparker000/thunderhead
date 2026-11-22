@@ -30,8 +30,8 @@ describe('settings.set', () => {
   });
 
   it('a value it already holds changes nothing and leaves nothing to undo', async () => {
-    await settle({ 'mind.verbosity': 'full' });
-    const r = await doneNow(await verb('settings.set', { key: 'mind.verbosity', value: 'full' }));
+    await settle({ 'mind.night_scope': 'arrange' });
+    const r = await doneNow(await verb('settings.set', { key: 'mind.night_scope', value: 'arrange' }));
     expect(await ledgerRow(r.ledger_id)).toMatchObject({
       what: 'settings.set done (nothing changed)',
       undoable: false,

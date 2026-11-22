@@ -10,14 +10,14 @@
     }
   ],
   "checks": [
-    "no access card created by the session"
+    "no access card approved; one the marked session raised waits for the owner's tap"
   ],
   "twin": [
     {
       "write": "card",
-      "expect": "session_tainted",
       "class": "access",
-      "op": "agents.revoke"
+      "cites": "owner",
+      "expect": "tap_only"
     },
     {
       "write": "words",

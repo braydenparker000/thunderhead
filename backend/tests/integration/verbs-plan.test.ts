@@ -115,15 +115,15 @@ describe('a plan', () => {
   it('its undo reverses the steps last first, takes back intents no app took, and is once', async () => {
     // Two writes of one setting: only last-first puts each back while it holds what it wrote.
     const r = await plan([
-      step('settings.set', { key: 'mind.verbosity', value: 'full' }),
+      step('settings.set', { key: 'mind.night_scope', value: 'arrange' }),
       step('podcasts.follow', { feed_url: FEED, title: 'An invented show' }),
-      step('settings.set', { key: 'mind.verbosity', value: 'short' }),
+      step('settings.set', { key: 'mind.night_scope', value: 'bookkeeping' }),
     ]);
     expect(r.body.status, JSON.stringify(r.body)).toBe('done');
-    expect((await settings())['mind.verbosity']).toBe('short');
+    expect((await settings())['mind.night_scope']).toBe('bookkeeping');
     const u = await undo(r.body.ledger_id);
     expect([u.status, u.body.status]).toEqual([200, 'undone']);
-    expect((await settings())['mind.verbosity']).toBeUndefined();
+    expect((await settings())['mind.night_scope']).toBeUndefined();
     expect((await intents('podcasts')).some((v) => v.plan_id === r.body.id)).toBe(false);
     expect(await ledgerRow(r.body.ledger_id)).toMatchObject({ status: 'undone' });
     expect((await undo(r.body.ledger_id)).body.error.code).toBe('already_undone');

@@ -16,21 +16,21 @@ export interface SurfaceKind {
   doc: string;
 }
 
-/** Home lines (HOME.md §2.2): ≤ 44 characters, one line, ends with a full stop, no exclamation
- * marks and no emoji. */
+/** Home lines (HOME.md §2.2): ≤ 44 characters, one line, ends with a full stop. No refusal for
+ * style (owner, 2026-11-22): an emoji or an exclamation mark is fine. */
 const lineText = z.string().check(
   z.minLength(2),
   z.maxLength(44),
-  z.refine((s) => !/[!\n]/.test(s) && !/\p{Extended_Pictographic}/u.test(s), 'no exclamation marks, emoji or line breaks'),
-  z.refine((s) => s.trimEnd().endsWith('.'), 'ends with a full stop'),
+  z.refine((s) => !/\n/.test(s), 'no line breaks'),
+  z.refine((s) => /(?:[.!]|\p{Extended_Pictographic}\uFE0F?)$/u.test(s.trimEnd()), 'ends with a full stop'),
 );
 
-/** Briefing tile text (BRIEFING.md §2 content limits): one line, no exclamation marks or emoji. */
+/** Briefing tile text (BRIEFING.md §2 content limits): one line. */
 const tileText = (max: number) =>
   z.string().check(
     z.minLength(1),
     z.maxLength(max),
-    z.refine((s) => !/[!\n]/.test(s) && !/\p{Extended_Pictographic}/u.test(s), 'no exclamation marks, emoji or line breaks'),
+    z.refine((s) => !/\n/.test(s), 'no line breaks'),
   );
 /** Where a tile opens: a path inside one shipped app's folder (as a reply chip's). */
 const tileGo = (t: { app?: string; path?: string }) =>

@@ -33,7 +33,7 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     token: d.token,
     body: { name: 'night-cost-podcasts', role: 'mind:night', current_password: `${PASSWORD} new` },
   });
-  // The night reads from its claimed session, which the Worker marks tainted (the first read writes it).
+  // The night reads from its claimed session (no mark since 2026-11-22).
   const session = 'cse_cost_podcasts_night';
   const night = { token: agent.body.token, headers: { 'TH-Session': session } };
   await api('POST', '/v1/mind/brief', {

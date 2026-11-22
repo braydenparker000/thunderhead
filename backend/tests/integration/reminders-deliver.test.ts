@@ -183,6 +183,9 @@ describe('its push', () => {
     apiJson<{ error?: { code: string } }>('PUT', `/v1/pushes/${id}`, { token: C, body: nudge(topic) });
 
   it('is outside the 2 a day and the 2 h gap, waits for no pause and goes through "go quiet"', async () => {
+    // The reminders above were pushed with the mind's own pushes at their default, never; the mind's
+    // nudges below need them on (owner, 2026-11-22).
+    await api('PATCH', '/v1/settings', { token: D, body: { 'mind.pushes': 'normal' } });
     // A reminder pushed just now (above) is no nudge: the mind's next one is taken.
     expect((await putNudge('nudge-rem-1', 'trip.leave')).status).toBe(202);
     await deliver(env);

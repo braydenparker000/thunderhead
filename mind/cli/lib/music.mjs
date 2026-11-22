@@ -20,9 +20,9 @@
 //
 // A handle `n` saves the long track ids in a night's tagging; it means the song of that number in
 // the last `th music page` of this session. Track ids, titles and notes stay between th and the
-// Worker; nothing here is written anywhere else. Songs' tags come from their files, which someone
-// else wrote: every subcommand that prints them taints the session (mind/hooks/lib/taint.mjs), and
-// a night session that ran `page` may not use the web (mind/hooks/lib/rules.mjs).
+// Worker; nothing here is written anywhere else. Songs' tags are the owner's own things and mark no
+// session (owner, 2026-11-22); a night session that ran `page` still may not use the web
+// (mind/hooks/lib/rules.mjs).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {CONTRACT} from './contract.mjs';
@@ -30,6 +30,8 @@ import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {getState, setState} from './state.mjs';
 import {similar, taste} from './taste.mjs';
+import {Faults, sent} from './forgive.mjs';
+import {repairNote} from './music-repair.mjs';
 
 const M = CONTRACT.music;
 const L = M.limits;
@@ -57,43 +59,47 @@ async function page(argv) {
   out({more: !!data.more, items: items.map(({id: _, ...t}, i) => ({n: i + 1, ...lean(t)}))});
 }
 
-/** One note checked against the contract (the Worker checks it all again); a list of problems. */
-export function checkNote(raw, i) {
+/** One note checked against the contract (the Worker checks it all again); a list of problems.
+ * With `f` (lib/forgive.mjs), each also goes there with what was sent, for the one refusal. */
+export function checkNote(raw, i, f) {
   const p = `items.${i}`;
   const bad = [];
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [`${p}: a note object`];
-  if (typeof raw.id !== 'string' || !SONG_ID.test(raw.id)) bad.push(`${p}.id: a track id`);
-  if (typeof raw.known !== 'boolean') bad.push(`${p}.known: true or false`);
+  const b = (path, rule, value) => { bad.push(`${path}: ${rule}`); f?.add(path, rule, value === NONE ? '' : sent(value)); };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { b(p, 'a note object', raw); return bad; }
+  if (typeof raw.id !== 'string' || !SONG_ID.test(raw.id)) b(`${p}.id`, 'a track id', raw.id);
+  if (typeof raw.known !== 'boolean') b(`${p}.known`, 'true or false', raw.known);
   const cap = raw.known === false ? L.unknown_conf_max : 1;
   const conf = c => typeof c === 'number' && c >= L.conf_min && c <= cap;
   for (const [field, vocab, max] of [['moods', M.moods, L.moods], ['occasions', M.occasions, L.occasions]]) {
     const v = raw[field] ?? {};
-    if (!v || typeof v !== 'object' || Array.isArray(v)) { bad.push(`${p}.${field}: an object of word: confidence`); continue; }
-    if (Object.keys(v).length > max) bad.push(`${p}.${field}: at most ${max}`);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) { b(`${p}.${field}`, 'an object of word: confidence', v); continue; }
+    const n = Object.keys(v).length;
+    if (n > max) b(`${p}.${field}`, `at most ${max}`, `yours has ${n}`);
     for (const [k, c] of Object.entries(v)) {
-      if (!vocab.includes(k)) bad.push(`${p}.${field}.${k}: not one of ${vocab.join(', ')}`);
-      else if (!conf(c)) bad.push(`${p}.${field}.${k}: ${L.conf_min} to ${cap}`);
+      if (!vocab.includes(k)) b(`${p}.${field}.${k}`, `not one of ${vocab.join(', ')}`, NONE);
+      else if (!conf(c)) b(`${p}.${field}.${k}`, `${L.conf_min} to ${cap}`, c);
     }
   }
   const themes = raw.themes ?? [];
   if (!Array.isArray(themes) || themes.length > L.themes || themes.some(t => !M.themes.includes(t)) || new Set(themes).size !== themes.length)
-    bad.push(`${p}.themes: at most ${L.themes} of ${M.themes.join(', ')}`);
+    b(`${p}.themes`, `at most ${L.themes} of ${M.themes.join(', ')}`, themes);
   const language = raw.language ?? null;
-  if (language !== null && !M.languages.includes(language)) bad.push(`${p}.language: an ISO 639-1 code, or null`);
+  if (language !== null && !M.languages.includes(language)) b(`${p}.language`, 'an ISO 639-1 code, or null', language);
   const era = raw.era ?? null;
   const top = Math.floor(new Date().getUTCFullYear() / 10) * 10;
-  if (era !== null && !(Number.isInteger(era) && era % 10 === 0 && era >= L.era_min && era <= top)) bad.push(`${p}.era: a decade (1990), or null`);
+  if (era !== null && !(Number.isInteger(era) && era % 10 === 0 && era >= L.era_min && era <= top)) b(`${p}.era`, 'a decade (1990), or null', era);
   const energy = raw.energy ?? null;
-  if (energy !== null && !(typeof energy === 'number' && energy >= 0 && energy <= 1)) bad.push(`${p}.energy: 0 to 1, or null`);
+  if (energy !== null && !(typeof energy === 'number' && energy >= 0 && energy <= 1)) b(`${p}.energy`, '0 to 1, or null', energy);
   const said = {themes: Array.isArray(themes) && themes.length > 0, language: language !== null, era: era !== null, energy: energy !== null};
   const c = raw.conf ?? {};
   for (const k of Object.keys(said)) {
-    if (said[k] && c[k] === undefined) bad.push(`${p}.conf.${k}: needed, ${k} is set`);
-    else if (!said[k] && c[k] !== undefined) bad.push(`${p}.conf.${k}: ${k} is empty`);
-    else if (c[k] !== undefined && !conf(c[k])) bad.push(`${p}.conf.${k}: ${L.conf_min} to ${cap}`);
+    if (said[k] && c[k] === undefined) b(`${p}.conf.${k}`, `needed, ${k} is set`, NONE);
+    else if (!said[k] && c[k] !== undefined) b(`${p}.conf.${k}`, `${k} is empty`, c[k]);
+    else if (c[k] !== undefined && !conf(c[k])) b(`${p}.conf.${k}`, `${L.conf_min} to ${cap}`, c[k]);
   }
   return bad;
 }
+const NONE = Symbol('none');
 
 async function note(argv) {
   const {flags, rest} = parseArgs(argv);
@@ -101,19 +107,22 @@ async function note(argv) {
   let parsed;
   try { parsed = JSON.parse(readFileSync(flags.file ? String(flags.file) : 0, 'utf8')); } catch (e) { throw invalid(`the notes are not JSON: ${e.message}`); }
   const list = Array.isArray(parsed) ? parsed : parsed?.items;
-  if (!Array.isArray(list) || !list.length || list.length > L.batch) throw invalid(`a batch holds 1-${L.batch} notes`);
+  if (!Array.isArray(list) || !list.length || list.length > L.batch) throw invalid(`a batch holds 1-${L.batch} notes; ${Array.isArray(list) ? `yours has ${list.length}` : 'no list sent'}`);
   const ids = getState('music_page')?.ids ?? [];
+  const f = new Faults();
+  // The obvious slips set right first (lib/music-repair.mjs), then every remaining fault in one refusal.
   const items = list.map((raw, i) => {
-    if (!raw || typeof raw !== 'object' || raw.n === undefined) return raw;
+    if (!raw || typeof raw !== 'object' || raw.n === undefined) return repairNote(raw, i, f.repaired);
     const {n, ...rest} = raw;
     const id = Number.isInteger(n) ? ids[n - 1] : undefined;
-    if (!id) throw invalid(`items.${i}.n: no song ${n} in the last th music page`);
-    return {id, ...rest};
+    if (!id) f.add(`items.${i}.n`, `a song number from the last th music page (1 to ${ids.length})`, sent(n));
+    return repairNote({id, ...rest}, i, f.repaired);
   });
-  const problems = items.flatMap(checkNote);
-  if (problems.length) throw invalid(problems.slice(0, 20).join('; '));
+  // A missing handle is named once (above), not again as a bad id.
+  items.forEach((note, i) => checkNote(note?.id === undefined && list[i]?.n !== undefined ? {...note, id: 'r2_handle_none'} : note, i, f));
+  f.done('th music note: [{n|id, known, moods, occasions, themes, language, era, energy, conf}] on stdin');
   const {data} = await request('PUT', '/v1/music/notes', {body: {items}});
-  out(data);
+  out(f.with(data));
 }
 
 function feeling(flags) {
@@ -170,9 +179,8 @@ async function now(argv) {
   const [finish] = await sense('last_event', {type: 'music.finish'});
   const left = [skip, finish].some(e => e && e.ref === play.ref && e.at >= play.at);
   const ago_min = Math.round((Date.now() - play.at) / 60_000);
-  // --id: the song's id alone, from the senses only: no tag route is called (each one marks the
-  // session tainted on the Worker), so "never play this again" can still write its rule (RUNTIME.md
-  // §4.7). Without the song's length, "playing" means not skipped or finished since it started.
+  // --id: the song's id alone, from the senses only: no tag route is called, so a night session
+  // keeps the web, and "never play this again" writes its rule from the id (RUNTIME.md §4.7). Without the song's length, "playing" means not skipped or finished since it started.
   if (flags.id) return out({playing: !left, at: play.at, ago_min, id});
   const t = (await notesOf([id])).get(id);
   const playing = !!t && !left && play.at + (t.dur || 0) * 1000 > Date.now();

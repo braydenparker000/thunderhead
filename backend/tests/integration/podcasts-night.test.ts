@@ -2,9 +2,8 @@
 // never receives podcast text: its follows come without titles and taint nothing, and a feed comes
 // as numbers only (counts mode: new episodes after a time that no phone has started, and the newest
 // time), for a followed show, at most 40 a UTC day, counted in a stored row; the raw feed is the
-// device's. The positions (feed addresses of any show listened to) are still served to a mind only
-// from a named, claimed session, which the Worker marks tainted first (no TH-Session: 422, so raw
-// curl gets nothing; a made-up one: 403). Synthetic shows only.
+// device's. The positions (the owner's own shows) are served to a mind and mark nothing (owner,
+// 2026-11-22). Synthetic shows only.
 import { createExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -179,21 +178,19 @@ describe('the night never receives podcast text', () => {
   });
 });
 
-describe('the positions carry feed addresses: a mind reads them only from its claimed session, marked', () => {
-  it('no TH-Session is refused (raw curl sends none); a made-up one too; the claimed one is marked', async () => {
-    const bare = await apiJson<{ error: { code: string } }>('GET', '/v1/podcasts/progress?since=0', { token: N });
-    expect([bare.status, bare.body.error.code]).toEqual([422, 'validation']);
-    const madeUp = await apiJson<{ error: { code: string } }>('GET', '/v1/podcasts/progress?since=0', {
+describe("the positions are the owner's own shows: a mind reads them and nothing is marked (owner, 2026-11-22)", () => {
+  it('no TH-Session needed, and no session marked, claimed or made up', async () => {
+    const bare = await apiJson('GET', '/v1/podcasts/progress?since=0', { token: N });
+    expect(bare.status).toBe(200);
+    const madeUp = await apiJson('GET', '/v1/podcasts/progress?since=0', {
       token: N,
       headers: { 'TH-Session': 'cse_made_up' },
     });
-    expect([madeUp.status, madeUp.body.error.code]).toEqual([403, 'session_required']);
+    expect(madeUp.status).toBe(200);
     expect(await taintOf('cse_made_up')).toBeUndefined();
-    expect((await taintOf(SESSION)).tainted_at).toBeNull();
     const ok = await apiJson('GET', '/v1/podcasts/progress?since=0', { token: N, headers: night });
     expect(ok.status).toBe(200);
-    expect(await taintOf(SESSION)).toEqual({ tainted_at: expect.any(Number), taint_source: 'podcasts' });
-    // The owner's device is never marked, and reads without a session.
+    expect(await taintOf(SESSION)).toEqual({ tainted_at: null, taint_source: null });
     expect((await apiJson('GET', '/v1/podcasts/progress?since=0', { token: D })).status).toBe(200);
   });
 });

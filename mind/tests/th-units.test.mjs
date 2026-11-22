@@ -31,7 +31,7 @@ test('exit codes follow RUNTIME.md §5.2', () => {
   assert.equal(exitFor(429, 'rate_limited'), EXIT.budget);
   assert.equal(exitFor(503, 'budget_exhausted'), EXIT.budget);
   assert.equal(exitFor(503, 'unavailable'), EXIT.unreachable);
-  assert.deepEqual(Object.values(EXIT), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.deepEqual(Object.values(EXIT), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // 12: th closed the session at the idle cut-off
 });
 
 test('evidence: bare ids are messages, prefixed refs are kept, 1–20 required', () => {

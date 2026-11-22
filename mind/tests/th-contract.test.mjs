@@ -1,6 +1,6 @@
 // th and the contract (docs/engineering/EXTENDING.md rules 1 and 8): every route th can call is
 // in mind/cli/contract.json, a route this build lacks exits 8 `not_built` before the network,
-// verb args, surfaces and the phrase lint are checked locally, and `th help` and `th get` come
+// verb args and surfaces are checked locally (no refusal for style), and `th help` and `th get` come
 // from the contract, so new Worker features need no th change.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,34 +38,31 @@ test('a route this build lacks exits 8 not_built before the network', withFake(a
   assert.equal((await th(['pending'], e)).code, 0, 'built routes still work');
 }));
 
-test('surfaces, verbs and the phrase lint are checked locally', withFake(async fake => {
+test('surfaces and verbs are checked locally; a line with an emoji and an exclamation mark passes', withFake(async fake => {
   const e = env(fake);
   const why = ['--why', 'a short morning greeting'];
   const put = (slot, payload, kind = 'line') => th(['surface', 'home', slot, '--kind', kind, '--payload', JSON.stringify(payload), '--topic', 'greeting', ...why], e);
   const before = fake.state.requests.length;
   for (const r of [await put('line.9', {text: 'Good morning.'}), await put('line.1', {text: 'x'.repeat(45)}), await put('line.1', {text: 'Hi.'}, 'banner'),
-    await th(['say', 'today', 'Great question. Here it is.'], e), await th(['say', 'general', 'hello'], e)])
+    await th(['say', 'general', 'hello'], e)])
     assert.equal(r.code, 8, r.stderr);
   assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
   const ok = await put('line.1', {text: 'Good morning.'});
   assert.equal(ok.code, 0, ok.stderr);
   assert.ok(ok.json.ledger_id);
-  assert.equal((await th(['say', 'today', 'Fixed. ```\nsay "great question"\n```'], e)).code, 0, 'code is exempt');
+  assert.equal((await put('line.2', {text: 'Rain at four! 🌧'})).code, 0, 'no refusal for style');
   const ls = await th(['surface', 'ls'], e);
   assert.equal(ls.json.items[0].slot, 'line.1');
   assert.equal((await th(['surface', 'rm', 'home', 'line.1'], e)).code, 0);
 }));
 
-test('th say sends a chat reply in any shape; the phrase lint still stops one locally (exit 8, nothing sent)', withFake(async fake => {
+test('th say sends a chat reply in any shape and voice: an emoji, an exclamation mark, a phrase once linted', withFake(async fake => {
   const e = env(fake);
   assert.deepEqual(Object.keys(CONTRACT.lint), ['banned_phrases'], 'the shape lint is gone from the contract');
   for (const text of ['- the dentist\n- choir', 'Sure, the dentist at 9:30.', 'Moved to Friday. Want me to tell the choir?', 'Options: the train or the bus.'])
     assert.equal((await th(['say', 'today', text], e)).code, 0, text);
-  const before = fake.state.requests.length;
-  const r = await th(['say', 'today', 'Great question. The dentist at 9:30.'], e);
-  assert.equal(r.code, 8);
-  assert.match(r.stderr, /banned phrase/);
-  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  for (const text of ['Great question! The dentist at 9:30 🦷', 'Done 🎉'])
+    assert.equal((await th(['say', 'today', text], e)).code, 0, text);
   assert.equal((await th(['say', 'today', '--kind', 'progress', '- Reading the calendar'], e)).code, 0);
 }));
 

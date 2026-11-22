@@ -120,7 +120,7 @@ describe('the usage meter', () => {
     const u: UsageResponse = await usage();
     expect(u.today).toEqual({
       day: '2030-01-15',
-      wakes: { owner: 7, watch: 2, roll: 1, schedule: 1, watchdog: 1 },
+      wakes: { owner: 7, watch: 2, roll: 1, schedule: 1, watchdog: 1, checkin: 0 },
       minutes: { chat: 45 + 150, night: 30 + 60, reflex: 10 },
       night_min: 26,
       watches: { fired: 1, refused: 1 },
@@ -139,7 +139,7 @@ describe('the usage meter', () => {
     ]);
     expect(u.days[0]).toEqual({
       day: '2030-01-14',
-      wakes: { owner: 1, watch: 1, roll: 0, schedule: 0, watchdog: 0 },
+      wakes: { owner: 1, watch: 1, roll: 0, schedule: 0, watchdog: 0, checkin: 0 },
       minutes: { chat: 20, night: 0, reflex: 0 },
       night_min: 60,
       watches: { fired: 1, refused: 0 },
@@ -147,7 +147,7 @@ describe('the usage meter', () => {
       limits: 0,
       latency: { replies: 0, claim_s: null, reply_s: null, lookups: 0, outside_s: null },
     });
-    expect(u.days[1].wakes).toEqual({ owner: 0, watch: 0, roll: 0, schedule: 0, watchdog: 0 });
+    expect(u.days[1].wakes).toEqual({ owner: 0, watch: 0, roll: 0, schedule: 0, watchdog: 0, checkin: 0 });
     expect([u.budget, u.live]).toEqual([12, 1]);
     // The plan's limit hits (hold.ts) are counted by day.
     await coreSql(

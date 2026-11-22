@@ -1,12 +1,12 @@
-// The phrase lint on the mind's words (BEHAVIOR.md §10, check TONE-1), as data: the Worker
-// refuses a mind message that trips it (422 validation, reason `phrase`) and `th say` checks it
-// before sending (exit 8). Matching is case-insensitive on whole phrases. Code is exempt: lines
-// inside ``` fences are not checked.
+// The phrase lint on the mind's words (BEHAVIOR.md §10, check TONE-1), as data. Since 2026-11-22
+// (owner) nothing the mind writes is refused by it: the Sunday voice test grades with it, and the
+// owner's name for the mind (`mind.name`) is still held to it. Matching is case-insensitive on
+// whole phrases. Code is exempt: lines inside ``` fences are not checked.
 //
 // It holds only what the owner's laws rule out whatever the moment: flattery (law 6), streak and
 // screen pressure (law 16), and talk about the machinery. How a reply is shaped (its length, a
 // list, an opener, an offer at the end, a word of sympathy) is the voice's judgement
-// (mind/skills/voice.md), not a refusal: the shape lint that stood here was taken out on
+// (the owner's voice page), not a refusal: the shape lint that stood here was taken out on
 // 2026-11-11 (docs/process/decisions.md).
 
 export const BANNED_PHRASES = [

@@ -36,6 +36,7 @@ const putBody = z.strictObject({
     app: z.optional(z.enum(WORK_APPS as [string, ...string[]])),
   }),
   deadline_at: z.number().check(z.int()),
+  source_message_id: z.optional(ID),
 });
 const listQuery = z.object({
   status: z.optional(z.enum(['queued', 'claimed', 'done', 'rejected', 'failed', 'expired', 'cancelled', 'all'])),

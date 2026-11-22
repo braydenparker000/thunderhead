@@ -60,17 +60,20 @@ describe('the settings catalogue', () => {
   });
 
   it('refuses a key it does not know, a phone key, and the mind changing anything', async () => {
-    for (const key of ['mind.unknown', 'appearance.glass', 'chat.fold', 'mind.status'])
+    // How the mind talks is the voice page now (/v1/mind/voice): its two old keys are unknown.
+    for (const key of ['mind.unknown', 'appearance.glass', 'chat.fold', 'mind.status', 'mind.voice', 'mind.verbosity'])
       expect((await api('PATCH', '/v1/settings', { token: D, body: { [key]: 'x' } })).status, key).toBe(422);
-    expect((await api('PATCH', '/v1/settings', { token: C, body: { 'mind.voice': 'drier' } })).status).toBe(403);
+    expect((await api('PATCH', '/v1/settings', { token: C, body: { 'mind.night_scope': 'arrange' } })).status).toBe(
+      403,
+    );
   });
 
   it('checks each value by its kind', async () => {
     const bad: [string, unknown][] = [
       ['mind.ask_outside', 'yes'],
       ['mind.ask_outside', 1],
-      ['mind.voice', 'loud'],
-      ['mind.voice', 2],
+      ['mind.night_scope', 'loud'],
+      ['mind.night_scope', 2],
       ['mind.night_budget', 20],
       ['mind.night_budget', '30'],
       ['mind.permit.music', 'always'],
@@ -144,11 +147,13 @@ describe('the settings catalogue', () => {
     expect(mind.length).toBeGreaterThan(15);
     for (const s of mind) expect(section, s.key).toMatch(new RegExp(`^${s.key.replaceAll('.', '\\.')}: `, 'm'));
     for (const s of specs.filter((x) => !x.mind)) expect(section, s.key).not.toContain(`${s.key}:`);
-    expect(section).toContain('mind.voice: plain — Plain, a little warmer, or drier.\n');
+    expect(section).toContain(
+      'mind.night_scope: full — Only the bookkeeping, also arranging tomorrow, or all of the night shift.\n',
+    );
     expect(section).toContain('mind.night_budget: 30 min — How long the night shift may run.\n');
     expect(section).toContain('mind.home_lines: 4 lines — How many of my lines');
     expect(section).toContain('mind.ask_outside: off\n');
-    expect(section).toContain('mind.permit.muse: ask\n');
+    expect(section).toContain('mind.permit.muse: tell\n');
     expect(section).toContain(
       'briefing.tiles: report, today, due, practice, study, built, notes, holidays — Which tiles',
     );
@@ -156,10 +161,16 @@ describe('the settings catalogue', () => {
 
     await api('PATCH', '/v1/settings', {
       token: D,
-      body: { 'mind.voice': 'drier', 'mind.permit.music': 'ask', 'mind.ask_outside': false, 'briefing.tiles': [] },
+      body: {
+        'mind.night_scope': 'arrange',
+        'mind.permit.music': 'ask',
+        'mind.ask_outside': false,
+        'briefing.tiles': [],
+      },
     });
     section = await yourSettings();
-    expect(section).toMatch(/^mind\.voice: drier — /m);
+    expect(section).toMatch(/^mind\.night_scope: arrange — /m);
+    expect(section).not.toContain('mind.voice');
     expect(section).toContain('mind.permit.music: ask\n');
     expect(section).toContain('mind.ask_outside: off\n');
     expect(section).toMatch(/^briefing\.tiles: none — /m);
@@ -172,7 +183,10 @@ describe('a fresh owner', () => {
   it('sees every mind setting at its default', async () => {
     const { mindSettingLines } = await import('../../src/areas/settings/catalog');
     const lines = mindSettingLines({ one: () => null, all: () => [] } as never);
-    expect(lines).toContain('mind.voice: plain (default) — Plain, a little warmer, or drier.');
+    expect(lines).toContain(
+      'mind.night_scope: full (default) — Only the bookkeeping, also arranging tomorrow, or all of the night shift.',
+    );
+    expect(lines.some((l) => l.startsWith('mind.voice') || l.startsWith('mind.verbosity'))).toBe(false);
     expect(lines).toContain('mind.speech: as_needed (default)');
     expect(lines.every((l) => l.includes(' (default)'))).toBe(true);
   });

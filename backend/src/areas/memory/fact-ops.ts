@@ -2,7 +2,8 @@
 // provenance rules (validate.ts) before it writes one ledger row (with its inverse, never the
 // fact's text) and the version itself. ops.ts runs the batch; owner-ops.ts has the owner's own.
 // Every version carries its provenance (validate.ts `label`, MEMORY.md §6 M11): a session that read
-// outside text writes `outside` versions, which wait for the owner's keep (a device confirm).
+// outside text writes `outside` versions (but the owner's own words), which wait for the owner's
+// keep (a device confirm); a clean session's inferred fact is kept at once, with a hint to say so.
 // The mind may only make a fact more protected (PRIVACY.md §4): never lower its sensitivity, never
 // set "may raise" on its own, never drop a protecting tag; the owner may do either.
 import {
@@ -17,6 +18,7 @@ import {
 import { uuidv7 } from '../../lib/ids';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { ruleInOwnersWords } from './rule-words';
 import * as store from './store';
 import {
   content,
@@ -26,7 +28,7 @@ import {
   newestOwnerWords,
   noDisplace,
   type OpContext,
-  ownRule,
+  ownWords,
   type ParsedOp,
   Reject,
   sensitiveGuess,
@@ -105,9 +107,12 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   if (ctx.device && op.source !== 'user') throw new Reject('bad_op');
   const about = op.about ?? 'owner';
   const f = flags(ctx, about, source, op, null);
-  const provenance = label(ctx, source, null, ownRule(ctx, op.kind, source, op.text, op.evidence));
+  const guess = sensitiveGuess(source, f.tags, f.sensitivity);
+  const own = ownWords(ctx, source, op.text, op.evidence);
+  const provenance = label(ctx, source, null, own, guess);
   const shape: FactShape = { kind: op.kind, source, about, tags: f.tags, sensitivity: f.sensitivity, provenance };
   const refs = admit(ctx, shape, op.id, op.evidence);
+  ruleInOwnersWords(ctx, op.kind, source, op.subject, op.text, op.evidence); // rule-words.ts
   const ledgerId = w.ledger({
     id: ctx.selfLedger,
     kind: 'memory',
@@ -143,8 +148,17 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
     lineage_id: op.id,
     provenance,
   });
-  return { fact_id: op.id, ledger_id: ledgerId, provenance };
+  // What the mind worked out, kept at once (owner, 2026-11-22): it says so once in the chat.
+  return {
+    fact_id: op.id,
+    ledger_id: ledgerId,
+    provenance,
+    ...(source === 'inferred' && provenance !== 'outside' ? { hint: KEPT_HINT } : {}),
+  };
 }
+
+/** The hint on a newly kept inferred fact (`th remember` prints it). */
+export const KEPT_HINT = 'Kept what you worked out: mention it once in the chat, in a few words.';
 
 /** The current version a supersede, confirm or flag works on. */
 export function current(ctx: OpContext, id: string): store.FactRow {
@@ -163,11 +177,12 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
   // M12 covers the rule being replaced too, not only a rule being written.
   if (old.kind === 'rule' && ctx.lawsBroken && !ctx.device) throw new Reject('laws_unpinned');
   const source: FactSource = ctx.device ? 'user' : (n.source ?? old.source);
-  const provenance = label(ctx, source, old);
-  // M11c: outside text never replaces a rule (nor becomes one: content(), in admit).
-  if (old.kind === 'rule' && provenance === 'outside') throw new Reject('outside_rule');
   const about = n.about ?? old.about;
   const f = flags(ctx, about, source, n, old);
+  const provenance = label(ctx, source, old, false, sensitiveGuess(source, f.tags, f.sensitivity));
+  // M11c: outside text never replaces a rule (nor becomes one: content(), in admit).
+  if (old.kind === 'rule' && provenance === 'outside') throw new Reject('outside_rule');
+  ruleInOwnersWords(ctx, n.kind ?? old.kind, source, n.subject ?? old.subject, n.text, n.evidence);
   const shape: FactShape = {
     kind: n.kind ?? old.kind,
     source,

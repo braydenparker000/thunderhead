@@ -71,14 +71,14 @@ describe('the daily thread', () => {
     expect(s['mind.status']?.state).toBe('listening');
   });
 
-  it('lints the mind (banned phrases, emoji) but never the owner', async () => {
-    expect((await say(C, { body: 'Great question. Here it is.' }, uuidv7(), mind(C))).status).toBe(422);
-    expect((await say(C, { body: 'Done 🎉' }, uuidv7(), mind(C))).status).toBe(422);
+  it('refuses nothing for style: a once-banned phrase, an emoji and an exclamation mark from the mind', async () => {
+    expect((await say(C, { body: 'Great question! Here it is.' }, uuidv7(), mind(C))).status).toBe(201);
+    expect((await say(C, { body: 'Done 🎉' }, uuidv7(), mind(C))).status).toBe(201);
     expect((await say(C, { body: 'Fixed. ```\nsay "great question"\n```' }, uuidv7(), mind(C))).status).toBe(201);
     expect((await say(D, { body: 'Great question! 🎉' })).status).toBe(201);
   });
 
-  it('takes a chat reply in any shape: a list, an opener, an offer at the end (the phrase lint alone)', async () => {
+  it('takes a chat reply in any shape: a list, an opener, an offer at the end', async () => {
     const q = (await say(D, { body: 'what is on tomorrow' })).body;
     for (const body of [
       '- the dentist\n- choir',
@@ -91,8 +91,8 @@ describe('the daily thread', () => {
     const ok = await say(C, { body: 'The dentist at 9:30, choir at six.', reply_to: q.id }, uuidv7(), mind(C));
     const amend = (body: string) => apiJson('PATCH', `/v1/messages/${ok.body.id}`, { ...mind(C), body: { body } });
     expect((await amend('Options: dentist, choir.')).status).toBe(200);
-    // An amended reply still takes the phrase lint.
-    expect((await amend('Great question. The dentist.')).status).toBe(422);
+    // An amended reply is not refused for style either.
+    expect((await amend('Great question! The dentist 🦷')).status).toBe(200);
   });
 
   it('accepts one well-formed action chip and refuses any other shape', async () => {

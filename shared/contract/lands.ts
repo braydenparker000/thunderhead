@@ -1,8 +1,8 @@
 // What lands, and the speech budget (BEHAVIOR.md §3.6, §3.7; EVALS.md §9). The Worker counts what the
 // owner did with each topic the mind placed (kept, undone, ignored, unseen), per topic and per place,
-// over the last 30 days; a topic ignored or undone three times in a row with no kept between rests
-// for 30 days (422 `topic_quiet`). Counts only, never a score to push the owner with (law 16). The
-// speech setting (`mind.speech`) is "as needed" by default: no daily caps; quiet and silent are the
+// over the last 30 days; a topic ignored or undone twice in a row with no kept between rests
+// for 30 days, silently (owner, 2026-11-22; 422 `topic_quiet`). Counts only, never a score to push
+// the owner with (law 16). The speech setting (`mind.speech`) is "as needed" by default: no daily caps; quiet and silent are the
 // two positions the Worker holds the mind to (422 `speech_budget`). Plain data, Node-importable.
 import type { Id, Ms } from './api';
 
@@ -10,7 +10,7 @@ export const LANDS = {
   /** The window the counts cover. */
   window_days: 30,
   /** Ignored or undone this many times in a row, no kept between: the topic rests. */
-  streak: 3,
+  streak: 2,
   /** How long it rests. */
   quiet_days: 30,
   /** The brief's table, at most, worst first. */

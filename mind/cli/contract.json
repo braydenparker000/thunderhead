@@ -678,6 +678,14 @@
       "status": "built",
       "note": "a closed day's stats, messages, ledger and notes"
     },
+    "POST /v1/mind/checkin": {
+      "who": [
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "a check-in session's one message into today's conversation (say: no reply-to, no notification) or its end (done, with the outcome); only from a night session whose claim is a check-in, within 10 minutes (areas/mind/checkin-session.ts)"
+    },
     "GET /v1/memory/facts": {
       "who": [
         "D",
@@ -2115,6 +2123,45 @@
       "phase": "P9",
       "status": "built",
       "note": "{state: down|up}: the live watch says the site is not loading, or is back; one push each way"
+    },
+    "GET /v1/mind/voice": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "how the mind talks: the page, who changed it last, when and why, and the newest 20 versions without their text"
+    },
+    "GET /v1/mind/voice/:id": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "one version of the voice page, with its text"
+    },
+    "PUT /v1/mind/voice": {
+      "who": [
+        "D",
+        "C"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{text ≤ 4,000, why?}: a new version; mind:chat from a claimed, live session that read no outside text, with a why of 8 to 200 characters (a ledger row with undo and a line in the chat)"
+    },
+    "POST /v1/mind/voice/restore": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{id}: that version becomes the page again, as a new version"
     }
   },
   "verbs": {
@@ -3604,7 +3651,7 @@
       "side": "phone",
       "queueable": true,
       "undo": "reported",
-      "doc": "Shows one sentence (at most 80 characters, never a question, under the phrase lint) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo.",
+      "doc": "Shows one sentence (at most 80 characters, never a question) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo.",
       "versions": {
         "1": {
           "args": {
@@ -5064,6 +5111,7 @@
       "unknown_ref": "The fact this op names does not exist.",
       "not_owner_evidence": "A 'user' fact needs evidence that is all the owner's own words.",
       "rule_needs_owner": "A rule needs source 'user'.",
+      "rule_not_owner_words": "A rule is kept in the owner's own words: cite the message they wrote it in and keep their wording (three of every four words).",
       "too_little_evidence": "An 'observed' fact needs at least 10 owner-device events.",
       "tainted_evidence": "Muse or outside text is never evidence.",
       "needs_owner_words": "Faith and facts about people come only from the owner's words.",
@@ -5096,8 +5144,7 @@
       "verbs",
       "muse",
       "night",
-      "code",
-      "voice"
+      "code"
     ],
     "limits": {
       "chars": 2500
@@ -5161,20 +5208,20 @@
         "weekly": true
       },
       {
-        "step": 12,
-        "name": "the report",
-        "budget_min": 1,
-        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
-        "cursor": false,
-        "phase": "P4"
-      },
-      {
         "step": 5,
         "name": "health and agreed fixes",
         "budget_min": 8,
         "idempotent": "reads, then one branch per agreed loose end",
         "cursor": false,
         "phase": "P3"
+      },
+      {
+        "step": 12,
+        "name": "the report",
+        "budget_min": 1,
+        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
+        "cursor": false,
+        "phase": "P4"
       },
       {
         "step": 6,
@@ -5212,7 +5259,7 @@
       },
       {
         "step": 10,
-        "name": "session note and done",
+        "name": "done",
         "budget_min": 2,
         "idempotent": "the run is marked done once",
         "cursor": false,
@@ -5254,7 +5301,6 @@
         "reading",
         "music",
         "health",
-        "predictions",
         "note"
       ],
       "limits": {
@@ -5262,6 +5308,7 @@
         "lines": 6,
         "line": 100,
         "total": 800,
+        "note": 1200,
         "keep_days": 30
       },
       "ref": "^(app:[a-z]{2,16}|ledger:[0-9a-f-]{36})$"
@@ -5661,7 +5708,7 @@
       "muse": {
         "setting": "mind.permit.muse",
         "label": "Muse orders",
-        "default": "ask"
+        "default": "tell"
       },
       "watch": {
         "setting": "mind.permit.watch",
@@ -5716,7 +5763,7 @@
   },
   "lands": {
     "window_days": 30,
-    "streak": 3,
+    "streak": 2,
     "quiet_days": 30,
     "brief_rows": 8
   },
@@ -5958,7 +6005,8 @@
       "watch",
       "roll",
       "schedule",
-      "watchdog"
+      "watchdog",
+      "checkin"
     ]
   },
   "reader": {

@@ -25,13 +25,10 @@ export function daySection(i: BriefInput, budget: number): string {
       part(i.arranged, DAY_BUDGET.arranged, 'th ledger --kind arrangement'),
     ),
     ...part(i.lands, DAY_BUDGET.lands, 'th surface topics'),
-    ...head(`Predicted for ${i.day}:`, part(i.predicted, DAY_BUDGET.predicted, 'th predict list --open')),
     ...head('The Briefing shows:', part(i.tiles, DAY_BUDGET.tiles, 'what the night placed: th surface ls')),
     ...head('Shared calendars:', part(i.calendarShared, DAY_BUDGET.shared, 'th get /v1/briefing/calendar days=2')),
   ];
-  const text = lines.length
-    ? lines.join('\n')
-    : `Nothing arranged or predicted for ${i.day}, and no tiles on the Briefing.`;
+  const text = lines.length ? lines.join('\n') : `Nothing arranged for ${i.day}, and no tiles on the Briefing.`;
   if (text.length <= budget) return text;
   // Cut at a whole line; with no room for even the first one, only where the rest is.
   const at = text.lastIndexOf('\n', budget - 40);

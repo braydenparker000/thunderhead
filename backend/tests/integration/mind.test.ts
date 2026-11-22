@@ -95,10 +95,11 @@ describe('hand-out, acknowledgement and requeue', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(900);
   });
 
-  it('a handed-out message nobody acknowledges is requeued by the alarm after 120 s', async () => {
-    const { body: start } = await wait(0);
+  // The wait's handout now sets the mind working, which acknowledges (feed/handout.ts, 2026-11-22):
+  // what a claim's briefing hands out still waits for the session's own `status working`.
+  it('a message the briefing handed out that nobody acknowledges is requeued by the alarm after 120 s', async () => {
     const m = (await say('Still there?')).body;
-    expect((await wait(start.seq)).body.messages.map((x) => x.id)).toContain(m.id);
+    expect((await brief(C, S1)).body.core).toContain('Still there?');
     await coreSql('UPDATE messages SET delivered_at = delivered_at - 121000 WHERE id = ?', m.id);
     await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) => o.alarm());
     const [row] = await coreSql<{ delivered_at: number | null }>(

@@ -21,9 +21,11 @@ const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 // in each; Study's only complete one is the 40th, and the newest set is still being written.
 const NOW = Date.now();
 const DATES = Array.from({ length: 70 }, (_, i) => day(NOW - (i + 1) * 7 * DAY));
-// The pass looks once a day: turned on, it runs on the next day (never a Sunday here, whose tick
-// would start the weekly backup first and wait for it).
-const NEXT = NOW + (new Date(NOW + DAY).getUTCDay() === 0 ? 2 : 1) * DAY;
+// No tick here falls on a Sunday, whose tick would start the weekly backup first and wait for it:
+// the first one (`off`) on today or tomorrow, then the pass, turned on, runs on the next day.
+const sunday = (ms: number) => new Date(ms).getUTCDay() === 0;
+const FIRST = NOW + (sunday(NOW) ? DAY : 0);
+const NEXT = FIRST + (sunday(FIRST + DAY) ? 2 : 1) * DAY;
 // A set under a name of another shape (none is written today) is never deleted.
 const ODD = ['2020-01-05-copy'];
 function keysOf(date: string, i: number): string[] {
@@ -89,7 +91,7 @@ describe('old backups', () => {
   });
 
   it('off (the default): the daily pass deletes nothing', async () => {
-    await tick();
+    await tick(FIRST);
     expect((await bucketKeys(env.VAULT)).filter((k) => ALL.includes(k) || OUTSIDE.includes(k)).length).toBe(
       ALL.length + OUTSIDE.length,
     );

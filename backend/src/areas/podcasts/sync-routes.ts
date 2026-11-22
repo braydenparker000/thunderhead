@@ -6,8 +6,8 @@
 // `refused` and the rest are kept. The night reads the follows as show ids with its last check of each
 // (no address, title, author or artwork: publishers' words; one page, no cursor, which would carry an
 // address) and records the shows it read by id, the numbers clamped (sync.ts checked); a mind
-// session that reads the positions (feed addresses of any show listened to) is marked tainted first
-// (taint.ts). Nothing here writes the change feed: the phones ask by time when Podcasts opens.
+// session that reads the positions (the owner's own shows) is marked by nothing (owner,
+// 2026-11-22). Nothing here writes the change feed: the phones ask by time when Podcasts opens.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
@@ -31,7 +31,6 @@ import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
-import { taintMindReader } from './taint';
 
 const seconds = z.number().check(z.gte(0), z.lte(L.seconds_max));
 const ms = z.number().check(z.int(), z.gte(1), z.lte(Number.MAX_SAFE_INTEGER));
@@ -163,7 +162,6 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
   })
   .get('/podcasts/progress', guard('GET /v1/podcasts/progress'), async (c) => {
     const { after, limit } = startOf('podcasts/progress', c.req.query());
-    await taintMindReader(c);
     return c.json(pageOut('podcasts/progress', await fresh(coreObject(c.env).podcastProgress(after, limit))));
   })
   .put('/podcasts/follows', guard('PUT /v1/podcasts/follows'), async (c) => {

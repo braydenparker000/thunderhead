@@ -7,7 +7,7 @@ export const VERSION = '0.2.0';
 /** RUNTIME.md §5.2. */
 export const EXIT = Object.freeze({
   ok: 0, unexpected: 1, unauthorized: 2, timeout: 3, stop: 4, day_closed: 5, forbidden: 6,
-  conflict: 7, validation: 8, unreachable: 9, budget: 10, already_live: 11,
+  conflict: 7, validation: 8, unreachable: 9, budget: 10, already_live: 11, closed: 12,
 });
 
 export class ThError extends Error {

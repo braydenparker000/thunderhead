@@ -28,10 +28,11 @@ const DAYS = 8;
 const LIMIT_MIN: Record<MindRole, number> = { chat: 120, night: 60, reflex: 10 };
 
 /** Why a wake fired, as the meter counts it (shared/contract/watches.ts WAKE_CAUSES). The night's
- * claim by its 06:07 schedule shows as `manual` (RUNTIME.md §12), so a manual night is `schedule`. */
+ * claim by its 06:07 schedule shows as `manual` (RUNTIME.md §12), so a manual night is `schedule`;
+ * a check-in (checkin.ts) runs on the night routine and counts as its own kind. */
 export function causeOf(task: string, reason: string): WakeCause {
   if (task === 'reflex') return 'watchdog';
-  if (task === 'night') return reason === 'roll' ? 'roll' : 'schedule';
+  if (task === 'night') return reason === 'roll' ? 'roll' : reason === 'checkin' ? 'checkin' : 'schedule';
   return reason === 'watch' ? 'watch' : 'owner';
 }
 

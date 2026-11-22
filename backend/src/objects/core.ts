@@ -53,7 +53,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import { dayBefore } from '../lib/time';
 import type { Caller } from './caller';
-import { CoreGuitar } from './core-guitar';
+import { CoreVoice } from './core-voice';
 import { sensesObject } from './senses';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -67,7 +67,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [embedJob.kind]: embedJob,
 };
 
-export class Core extends CoreGuitar {
+export class Core extends CoreVoice {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -150,7 +150,7 @@ export class Core extends CoreGuitar {
   private async briefReports(role: BriefRequest['role']): Promise<BriefReports | null> {
     if (role === 'reflex' || this.sandboxed) return null;
     const open = day.currentDay(this.db, this.tz(), Date.now());
-    const on = role === 'night' ? nightDayOf(open) : open;
+    const on = role === 'night' && !this.checkinNear() ? nightDayOf(open) : open;
     return sensesObject(this.env)
       .briefReports({ day: open, from: on, to: dayBefore(on, -1), music: role === 'chat' })
       .catch(() => null);

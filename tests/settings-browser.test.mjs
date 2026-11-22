@@ -140,11 +140,11 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
     const expected = SETTINGS.filter((s) => s.group === name).map((s) => s.key);
     assert.deepEqual(got.keys, expected, `${name}: its rows are its catalogue entries, in order`);
     assert.deepEqual(got.loose, [], `${name}: no row outside the catalogue`);
-    // The mind's What lands and Routines folds (their rows are read when they open) are read-only rows,
+    // The mind's What lands, Routines and the voice page's Earlier versions folds (their rows are read when they open) are read-only rows,
     // and so are Music's Listening history (its lead and its pick button; nothing counted yet), and Privacy's line about
     // the editor's reports (its Send now key inside it).
     // Notifications' state line for this phone is one too (its switch, Quiet hours and Go quiet now are actions).
-    assert.equal(got.info, { privacy: 4, about: 4, mind: 2, music: 2, notifications: 1 }[name] ?? 0, `${name}: read-only rows`);
+    assert.equal(got.info, { privacy: 4, about: 4, mind: 3, music: 2, notifications: 1 }[name] ?? 0, `${name}: read-only rows`);
     assert.deepEqual(got.details, [], `${name}: a detail line under each`);
     assert.deepEqual(got.small, [], `${name}: 44 px hit areas`);
     assert.equal(got.unnamed, 0, `${name}: every button has a name`);
@@ -233,7 +233,7 @@ test('a phone setting stays on this phone across a reload, and Appearance puts i
   await page.click('[data-key="gestures.hold_ms"] [data-v="300"]');
   const read = () => page.evaluate(async () => {
     const c = await import('/apps/settings/catalog.js');
-    return [c.phoneValue('chat.time_markers'), c.phoneValue('gestures.hold_ms'), c.phoneValue('appearance.glass'), c.phoneValue('island.art'), c.phoneValue('mind.voice')];
+    return [c.phoneValue('chat.time_markers'), c.phoneValue('gestures.hold_ms'), c.phoneValue('appearance.glass'), c.phoneValue('island.art'), c.phoneValue('mind.night_scope')];
   });
   assert.deepEqual(await read(), [false, 300, 'flat', true, undefined]);
   await page.reload({ waitUntil: 'load' });
@@ -257,11 +257,11 @@ test('a worker setting goes through PATCH /v1/settings and comes back after a re
   await show(page, 'mind');
   assert.equal(await page.getAttribute('[data-key="mind.ask_outside"]', 'aria-checked'), 'false', 'the default while unset: the mind looks things up unasked');
   await page.click('[data-key="mind.ask_outside"]');
-  await page.click('[data-key="mind.voice"] [data-v="drier"]');
+  await page.click('[data-key="mind.night_scope"] [data-v="arrange"]');
   await page.click('[data-key="mind.night_budget"] [data-v="15"]');
   await page.click('[data-key="mind.permit.muse"] [data-v="quiet"]');
   await until(() => worker.patches.length === 4);
-  assert.deepEqual(worker.patches, [{ 'mind.ask_outside': true }, { 'mind.voice': 'drier' }, { 'mind.night_budget': 15 }, { 'mind.permit.muse': 'quiet' }]);
+  assert.deepEqual(worker.patches, [{ 'mind.ask_outside': true }, { 'mind.night_scope': 'arrange' }, { 'mind.night_budget': 15 }, { 'mind.permit.muse': 'quiet' }]);
   assert.deepEqual(worker.refused, []);
   assert.ok(await page.$('text=Always asks first: money, deleting your data, keys and access, reaching another person.'));
   await page.reload({ waitUntil: 'load' });
@@ -270,17 +270,17 @@ test('a worker setting goes through PATCH /v1/settings and comes back after a re
   await show(page, 'mind');
   assert.deepEqual(await page.evaluate(() => [
     document.querySelector('[data-key="mind.ask_outside"]').getAttribute('aria-checked'),
-    document.querySelector('[data-key="mind.voice"] .seg-option.on').dataset.v,
+    document.querySelector('[data-key="mind.night_scope"] .seg-option.on').dataset.v,
     document.querySelector('[data-key="mind.night_budget"] .seg-option.on').dataset.v,
     document.querySelector('[data-key="mind.permit.muse"] .seg-option.on').dataset.v,
     document.querySelector('[data-key="mind.permit.music"] .seg-option.on').dataset.v,
-  ]), ['true', 'drier', '15', 'quiet', 'quiet']);
+  ]), ['true', 'arrange', '15', 'quiet', 'quiet']);
   // The Worker refuses: the control goes back and the line says why.
   worker.fail = 1;
-  await page.click('[data-key="mind.voice"] [data-v="warmer"]');
+  await page.click('[data-key="mind.night_scope"] [data-v="bookkeeping"]');
   await page.waitForFunction(() => document.querySelector('.spage.in .line')?.textContent);
-  assert.equal(await page.$eval('[data-key="mind.voice"] .seg-option.on', (b) => b.dataset.v), 'drier');
-  assert.equal(worker.stored['mind.voice'], 'drier');
+  assert.equal(await page.$eval('[data-key="mind.night_scope"] .seg-option.on', (b) => b.dataset.v), 'arrange');
+  assert.equal(worker.stored['mind.night_scope'], 'arrange');
   // Privacy's switches are worker settings too.
   await show(page, 'privacy');
   await page.click('[data-key="privacy.senses.guitar"]');

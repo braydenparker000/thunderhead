@@ -70,11 +70,13 @@ describe('the night’s report', () => {
     tileLedger = tile.body.ledger_id as string;
     const owner = await coreSql<{ id: string }>("SELECT id FROM ledger WHERE actor = 'owner' LIMIT 1");
     for (const bad of [
-      report('A great night!'),
       report('x'.repeat(61)),
       { headline: 'Fine', lines: Array.from({ length: 7 }, () => ({ kind: 'note', text: 'One more thing' })) },
       { headline: 'Fine', lines: [{ kind: 'note', text: '**Bold** words' }] },
       { headline: 'Fine', lines: [{ kind: 'gossip', text: 'Plain words' }] },
+      { headline: 'Fine', lines: [{ kind: 'predictions', text: 'Plain words' }] },
+      { ...report('Fine'), note: 'x'.repeat(1201) },
+      { ...report('Fine'), note: '  ' },
       { headline: 'Fine', lines: [{ kind: 'note', text: 'Plain words', ref: 'song:abc' }] },
       ...(owner[0] ? [report('Fine', `ledger:${owner[0].id}`)] : []),
       report('Fine', 'ledger:0190aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee'),
@@ -84,10 +86,13 @@ describe('the night’s report', () => {
 
   it('put first, it is the open day’s first message and the Briefing’s first tile; again, nothing changes', async () => {
     const before = await ledgerRows();
-    const r = await put(S1, report('A quiet night, one tile placed'));
+    // The morning note (2026-11-22): the mind's own words, paragraphs kept, never refused for style.
+    const noted = { ...report('A quiet night, one tile placed'), note: 'All calm here!\n\nThe tile is up 🙂' };
+    const r = await put(S1, noted);
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ day: yday, headline: 'A quiet night, one tile placed' });
-    expect(r.body.counts).toMatchObject({ facts_added: 0, predictions: 0, steps_cut: [], songs_noted: null });
+    expect(r.body).toMatchObject({ day: yday, headline: 'A quiet night, one tile placed', note: noted.note });
+    expect(r.body.counts).toMatchObject({ facts_added: 0, steps_cut: [], songs_noted: null });
+    expect(r.body.counts).not.toHaveProperty('predictions');
     const [m] = await messages();
     expect(m).toMatchObject({
       id: r.body.message_id,
@@ -97,10 +102,10 @@ describe('the night’s report', () => {
       meta: { report: yday },
     });
     expect(m.body).toBe(
-      'A quiet night, one tile placed\n\n- Put a reading tile on the Briefing for chapter 3\n- Nothing else needed doing',
+      'A quiet night, one tile placed\n\nAll calm here!\n\nThe tile is up 🙂\n\n- Put a reading tile on the Briefing for chapter 3\n- Nothing else needed doing',
     );
     expect(await ledgerRows()).toBe(before + 1);
-    const again = await put(S1, report('A quiet night, one tile placed'));
+    const again = await put(S1, noted);
     expect(again.body.ledger_id).toBe(r.body.ledger_id);
     expect(await ledgerRows()).toBe(before + 1);
     expect(await messages()).toHaveLength(1);
@@ -110,6 +115,7 @@ describe('the night’s report', () => {
       label: 'Overnight',
       value: 'A quiet night, one tile placed',
       day: yday,
+      note: ['All calm here!', 'The tile is up 🙂'],
     });
     expect(first.lines[0]).toMatchObject({ ledger_id: tileLedger, undo: 'open', path: null });
     expect(first.lines[1]).toMatchObject({ ledger_id: null, undo: null });

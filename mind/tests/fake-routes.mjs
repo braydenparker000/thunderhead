@@ -15,6 +15,7 @@ const fileRecord = (id, f) => ({ref: `file:${id}`, name: f.name, type: f.type, b
 /** @param {any} ctl the fake's control object */
 export function extraRoutes(ctl) {
   const s = ctl.state;
+  s.checkins = [];
   const idem = (map, id, body, make) => {
     const h = hash(body);
     if (map.has(id)) { const prev = map.get(id); if (prev.hash !== h) throw new HttpError(409, 'conflict'); return [200, prev.value]; }
@@ -199,27 +200,40 @@ export function extraRoutes(ctl) {
       const start = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
       return {items: rows.slice(start, start + size), next: start + size < rows.length ? `c${start + size}` : null};
     }],
-    // The run record: steps in the list's order (12, the report, and 11, the songs, between 9 and
-    // 10; 409 with resume_from), 6, 8 and 9 skipped as not built, a cursor for step 4, done ending
-    // it (with --partial, before the last step) at 14, past every step's number.
+    // A check-in's message and end (backend areas/mind/checkin-session.ts): recorded as sent.
+    ['POST', /^\/v1\/mind\/checkin$/, ['night'], ({body, session}) => {
+      s.checkins.push({session, ...body});
+      return body.action === 'say' ? {message_id: body.id, thread_id: 't-today'} : {outcome: body.nothing ? 'nothing' : 'said', slot: '12:30'};
+    }],
+    // The run record: steps in the list's order (5, health, before 12, the report; 11, the songs,
+    // between 9 and 10; 409 with resume_from), 8 and 9 skipped as not built and not Sunday, a cursor
+    // for step 4, `through` closing every open step up to its own, done closing the rest (as done; with
+    // --partial, as cut) at 14, past every step's number. Every call is kept in `nightCalls`.
     ['POST', /^\/v1\/mind\/night$/, ['night'], ({body}) => {
-      const ORDER = [1, 2, 3, 4, 5, 6, 7, 13, 8, 9, 12, 11, 10];
+      const ORDER = [1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10];
+      const SKIP = [8, 9];
       const pos = n => (ORDER.includes(n) ? ORDER.indexOf(n) : ORDER.length);
-      const run = s.night.get(body.day) || {resume: 1, done: false, cursors: {}, skipped: []};
+      const run = s.night.get(body.day) || {resume: 1, done: false, cursors: {}, skipped: [], closed: []};
+      (s.nightCalls ??= []).push(body);
       const answer = () => ({resume_from: run.resume, done: run.done, cursor: run.cursors[run.resume] ?? null, skipped: [...run.skipped].sort((a, b) => a - b)});
       const advance = () => {
+        run.closed.push(run.resume);
         run.resume = ORDER[pos(run.resume) + 1];
-        while ([6, 8, 9].includes(run.resume)) { run.skipped.push(run.resume); run.resume = ORDER[pos(run.resume) + 1]; }
+        while (SKIP.includes(run.resume)) { run.skipped.push(run.resume); run.resume = ORDER[pos(run.resume) + 1]; }
       };
       s.night.set(body.day, run);
       if (run.done) return answer();
+      if (body.action === 'through' && (body.step === 10 || !ORDER.includes(body.step))) throw new HttpError(422, 'validation', 'step');
       if ((body.action === 'step_done' || body.action === 'cursor') && pos(body.step) > pos(run.resume))
         throw new HttpError(409, 'conflict', 'a step out of order', {resume_from: run.resume});
       if (body.action === 'step_done' && body.step === run.resume) advance();
+      if (body.action === 'through') while (pos(run.resume) <= pos(body.step)) advance();
       if (body.action === 'cursor' && body.step === run.resume) run.cursors[body.step] = body.cursor;
       if (body.action === 'done') {
-        if (pos(run.resume) < pos(10) && !body.partial) throw new HttpError(409, 'conflict', 'steps left', {resume_from: run.resume});
-        for (const n of ORDER.slice(pos(run.resume), pos(10))) if (!run.skipped.includes(n)) run.skipped.push(n);
+        for (const n of ORDER.slice(pos(run.resume), pos(10))) {
+          if (SKIP.includes(n) || body.partial) { if (!run.skipped.includes(n)) run.skipped.push(n); } else run.closed.push(n);
+        }
+        run.closed.push(10);
         run.resume = 14;
         run.done = true;
       }

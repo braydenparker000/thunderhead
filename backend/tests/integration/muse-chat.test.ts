@@ -47,10 +47,11 @@ beforeEach(() => forgetPolls());
 
 describe('@muse in the chat', () => {
   it("makes a muse.request under the owner's authority, answered by a line naming it; the mind is not asked", async () => {
-    // Muse orders stay at their default, ask: the owner's own asking needs no card.
+    // Muse orders at ask (their default is tell since 2026-11-22): the owner's own asking needs no card.
+    await api('PATCH', '/v1/settings', { token: p.D, body: { 'mind.permit.muse': 'ask' } });
     expect(
       (await apiJson<Record<string, unknown>>('GET', '/v1/settings', { token: p.D })).body['mind.permit.muse'],
-    ).not.toBe('tell');
+    ).toBe('ask');
     const id = uuidv7();
     const r = await ask('@muse grab me three indie catalogs', {}, id);
     expect(r.status).toBe(201);

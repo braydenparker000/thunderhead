@@ -133,6 +133,13 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
           text.append(' ', b);
         }
       }
+      // The mind's change to its voice page (areas/voice): a way into Settings › The mind.
+      if (mt.settings === 'mind') {
+        const b = el('button', 'nu', 'How I talk');
+        b.type = 'button';
+        b.addEventListener('click', () => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'mind' } })));
+        card.append(b);
+      }
       return card;
     }
     if (m.author === 'system' || (m.author === 'mind' && m.kind === 'error')) return el('div', 'sys', m.body);

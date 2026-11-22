@@ -17,6 +17,8 @@ import {EXIT, invalid, out, printError} from './lib/io.mjs';
 import {brief} from './lib/brief.mjs';
 import {skill} from './lib/skill.mjs';
 import {wait} from './lib/wait.mjs';
+import {listen, reply} from './lib/reply.mjs';
+import {keepalive} from './lib/keepalive.mjs';
 import {helpText} from './lib/help.mjs';
 import * as conv from './lib/conv.mjs';
 import * as memory from './lib/memory.mjs';
@@ -25,16 +27,20 @@ import {evalCmd} from './lib/eval.mjs';
 import {read} from './lib/read.mjs';
 import {library} from './lib/library.mjs';
 import {remind} from './lib/remind.mjs';
+import {voice} from './lib/voice.mjs';
 import {watch} from './lib/watch.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
 import {reports} from './lib/reports.mjs';
 import {report} from './lib/night-report.mjs';
+import {daynote} from './lib/daynote.mjs';
+import {autoClose} from './lib/night-flow.mjs';
 import {music} from './lib/music.mjs';
 import {podcasts} from './lib/podcasts.mjs';
 import * as later from './lib/plan.mjs';
 import {routine} from './lib/routine.mjs';
 import * as grow from './lib/growth.mjs';
+import {checkin} from './lib/checkin.mjs';
 
 const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
@@ -42,16 +48,16 @@ const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 export const COMMANDS = {
   brief: withFlags(brief, {bool: ['claim', 'full', 'json']}),
   skill,
-  wait: withFlags(wait),
+  wait: withFlags(wait), listen, reply,
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
   errors: conv.errors, reports, report, ledger: conv.ledger, undo: conv.undo, get: conv.get,
   search: memory.recall, recall: memory.recall, remember: memory.remember, confirm: memory.confirm,
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
-  daynote: memory.daynote, facts: memory.facts,
+  daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
   plan: later.plan, verbs: later.verbs, routine, guitar: grow.guitar, study: grow.study, growth: grow.growth,
-  library, music, remind, watch, podcasts, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
+  checkin, library, music, remind, voice, watch, podcasts, push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
   help: async argv => { out(helpText(argv[0])); },
 };
@@ -59,10 +65,13 @@ export const COMMANDS = {
 /** @param {string[]} argv @returns {Promise<number>} */
 export async function main(argv) {
   const [command, ...tail] = argv;
+  // th's own detached keep-alive (lib/keepalive.mjs): not a command of the mind's.
+  if (command === 'keepalive' && tail[0]) return keepalive(tail[0]).catch(() => 0);
   try {
     const run = COMMANDS[command];
     if (!run) throw invalid(`unknown command ${command ? `"${command}"` : '(none)'}; run th help`);
     const code = await run(tail);
+    if (typeof code !== 'number' || code === EXIT.ok) await autoClose(command, tail);
     return typeof code === 'number' ? code : EXIT.ok;
   } catch (error) {
     return printError(error);

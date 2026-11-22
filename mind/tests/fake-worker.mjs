@@ -11,6 +11,7 @@ import {reportRoutes} from './fake-reports.mjs';
 import {podcastRoutes} from './fake-podcasts.mjs';
 import {musicRoutes} from './fake-music.mjs';
 import {watchRoutes} from './fake-watches.mjs';
+import {voiceRoutes} from './fake-voice.mjs';
 
 // Deliberately short and fake: the repository's credential scan rejects anything token-length.
 export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token', reflex: 'thm_fake_reflex_token'};
@@ -135,6 +136,9 @@ export function createFake(options = {}) {
       const core = o.coreOverride ?? buildCore(role);
       return {wake: wake && {id: wake.id, reason: wake.reason, claim_match: wake.claim_match}, day: o.day, seq: s.seq, core,
         full: o.fullOverride ?? `${core}\n\n## 8. Profile\n(no facts yet)`, night_done: Boolean(o.nightDone),
+        // The briefing in parts (null: a Worker on the release before them) and the role section.
+        ...(o.parts === null ? {} : {parts: o.parts ?? [core, "## Today's conversation\nNo messages yet today.", '## 8. On demand\nth brief --section <n>']}),
+        ...(o.roleSection ? {role_section: o.roleSection} : {}),
         provenance: s.tainted.has(body.session_id) ? 'outside' : 'owner', tainted: s.tainted.has(body.session_id)};
     }],
     ['POST', /^\/v1\/mind\/status$/, ['chat', 'night', 'reflex'], ({body, session}) => {
@@ -147,9 +151,11 @@ export function createFake(options = {}) {
       const lastOwner = s.messages.filter(m => m.author === 'owner' && m.thread_id === today.id).at(-1);
       const since = lastOwner?.created_at ?? s.claimedAt ?? now();
       const claimed = s.wakes.filter(w => w.status === 'claimed').at(-1);
-      const cutoff = o.lean ? 30 : claimed?.reason === 'prewarm' && !lastOwner ? 10 : 120;
+      // cutoffMin and minuteMs (a shorter minute) let the tests run a cut-off in seconds.
+      const cutoff = o.lean ? 30 : claimed?.reason === 'prewarm' && !lastOwner ? 10 : o.cutoffMin ?? 120;
+      s.pendingReads = (s.pendingReads || 0) + 1;
       return {unanswered: ctl.unanswered(), stop: !!(s.stop && !s.stop.cleared), day_closed: !!s.dayClosed, limited: !!o.limited,
-        idle_min: Math.floor((now() - since) / 60_000), idle_cutoff_min: cutoff,
+        idle_min: Math.floor((now() - since) / (o.minuteMs ?? 60_000)), idle_cutoff_min: cutoff,
         songs: role === 'night' && !!s.songReaders?.has(session), ...(o.pendingExtra || {})};
     }],
     ['PUT', /^\/v1\/messages\/([^/]+)$/, ['chat', 'night', 'reflex'], ({role, body, params, session}) => {
@@ -201,6 +207,7 @@ export function createFake(options = {}) {
     ...podcastRoutes(ctl),
     ...musicRoutes(ctl),
     ...watchRoutes(ctl),
+    ...voiceRoutes(ctl),
   ];
 
   const server = createServer(async (req, res) => {

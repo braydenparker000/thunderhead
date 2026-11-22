@@ -75,7 +75,9 @@ describe('remember and recall', () => {
   });
 
   it('rules go to section 4 of the core, not the profile', async () => {
-    const op = addOp([`msg:${said}`], { kind: 'rule', text: 'Answer in two lines on the phone' });
+    // A rule is the owner's own words from the message it cites (rule-words.ts).
+    const asked = await ownerSays(P.D, 'Answer in two lines on the phone');
+    const op = addOp([`msg:${asked}`], { kind: 'rule', text: 'Answer in two lines on the phone' });
     expect(await reason(chat(), op)).toBeNull();
     const b = await brief(P.C, CHAT_SESSION, 'chat');
     const three = b.body.core.slice(b.body.core.indexOf('## 4.'), b.body.core.indexOf('## 5.'));
@@ -128,18 +130,20 @@ describe('supersede, confirm, and the owner own fixes', () => {
   });
 
   it("confirm resets the clock; a guess waits for the owner's tap to become their word (M11e)", async () => {
+    // A clean session's guess is kept at once (observed); a sensitive one (M14) is still `outside`.
     const guess = addOp([`msg:${said}`], {
       source: 'inferred',
       kind: 'goal',
       text: 'Wants to perform the piece',
       tags: ['imported'],
+      sensitivity: 1,
     });
     await ops(chat(), [guess]);
     expect((await fact(guess.id))?.confidence).toBe(0.6);
     await coreSql('UPDATE facts SET last_confirmed = last_confirmed - 86400000 WHERE id = ?', guess.id);
     const yes = await ownerSays(P.D, 'Yes, I want to perform it.');
     const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${yes}`] }]);
-    // The mind's confirm resets the clock; a guess is `outside`, so no words of the owner lift it.
+    // The mind's confirm resets the clock; a sensitive guess is `outside`, so no words of the owner lift it.
     expect(r.body.applied[0]).toMatchObject({ fact_id: guess.id, provenance: 'outside' });
     const confirmed = await fact(guess.id);
     expect(confirmed).toMatchObject({ source: 'inferred', superseded_by: null });

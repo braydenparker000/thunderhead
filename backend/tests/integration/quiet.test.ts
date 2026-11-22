@@ -21,7 +21,8 @@ beforeAll(async () => {
   // Quiet hours off, so only "go quiet" can refuse.
   await api('PATCH', '/v1/settings', {
     token: D,
-    body: { 'quiet.start': '06:30', 'quiet.end': '06:30', 'owner.tz': 'UTC' },
+    // The mind's own pushes on (their default is never, owner 2026-11-22), so only "go quiet" refuses.
+    body: { 'quiet.start': '06:30', 'quiet.end': '06:30', 'owner.tz': 'UTC', 'mind.pushes': 'normal' },
   });
 });
 

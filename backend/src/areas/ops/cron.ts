@@ -3,7 +3,7 @@
 // retention), the Auth object's tidy-up (old sessions, spent counters, old notices, a new
 // AUTH_RESET_FP), approvals whose Auth step never reported (a crash between the decision and
 // the step), run again, and the pushes that may go now (a nudge waiting for a pause, a sign-in
-// notice held by quiet hours). On the day roll, the owner's calendar links are fetched again
+// notice held by quiet hours), and the mind's check-ins (a due slot, fired on the night routine). On the day roll, the owner's calendar links are fetched again
 // (areas/briefing/calendar.ts), so the morning's Briefing and brief start from this day's.
 // Each step runs on its own: one that fails no longer stops the rest, and the run ends with the
 // cron's heartbeat (Core's `ops.cron`: when it ran, which steps failed), which deep health and the
@@ -46,6 +46,7 @@ export async function runCron(env: Env, now = Date.now()): Promise<string[]> {
     }),
   ]);
   if (rolled) await step('calendars', () => rollCalendars(core));
+  await step('checkin', () => checkinStep(core));
   await step('approvals', () => retryApprovals(env, core));
   await step('pushes', () => sendPushes(env));
   await step('photos', () => photosPass(env));
@@ -53,6 +54,17 @@ export async function runCron(env: Env, now = Date.now()): Promise<string[]> {
   // A Core still on the release before the heartbeat (a deploy in progress) records nothing.
   await core.cronBeat(now, failed).catch(() => {});
   return failed;
+}
+
+/** The mind's check-ins (areas/mind/checkin.ts): a due slot fired on the night routine. */
+async function checkinStep(core: ReturnType<typeof coreObject>): Promise<void> {
+  try {
+    const wake = await core.checkinTick();
+    if (wake) console.log(JSON.stringify({ evt: 'cron_checkin', wake }));
+  } catch (e) {
+    // A Core still on the release before check-ins (a deploy in progress).
+    if (!missingMethod(e)) throw e;
+  }
 }
 
 /** Photos' daily Drive pass (areas/photos/reconcile.ts); a failure waits for the next tick and is

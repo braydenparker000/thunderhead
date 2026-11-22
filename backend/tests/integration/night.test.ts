@@ -194,10 +194,10 @@ describe('the run record', () => {
     expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).status).toBe(409);
     const after7 = await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c');
     expect(after7.body).toEqual({ resume_from: 13, done: false, cursor: null, skipped: [] });
-    expect((await night({ day: yday, action: 'step_done', step: 13 }, 'cse_night_c')).body.resume_from).toBe(12);
-    // 12 (the report) before health and the steps that may read outside text (5, 6, 9, 11): a labelled session's report is refused.
-    expect((await night({ day: yday, action: 'step_done', step: 12 }, 'cse_night_c')).body.resume_from).toBe(5);
-    expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).body.resume_from).toBe(6);
+    expect((await night({ day: yday, action: 'step_done', step: 13 }, 'cse_night_c')).body.resume_from).toBe(5);
+    // 12 (the morning note) after health, before the steps that may read outside text (6, 9, 11).
+    expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).body.resume_from).toBe(12);
+    expect((await night({ day: yday, action: 'step_done', step: 12 }, 'cse_night_c')).body.resume_from).toBe(6);
     // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
     const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body).toEqual({
@@ -265,14 +265,12 @@ describe('the run record', () => {
     expect(await run(yday)).toEqual(before);
   });
 
-  it('done before the last step is 409 unless the hard stop cut the run: then the rest is skipped', async () => {
+  // A plain done before the last step closes the rest as done (2026-11-22): night-flow.test.ts.
+  it('done --partial before the last step: the hard stop cut the rest, recorded as skipped', async () => {
     const d2 = dayBefore(today, 2);
     await brief(p.N, 'cse_night_e', 'night');
     await night({ day: d2, action: 'start' }, 'cse_night_e');
     await night({ day: d2, action: 'step_done', step: 1 }, 'cse_night_e');
-    const early = await night({ day: d2, action: 'done' }, 'cse_night_e');
-    expect(early.status).toBe(409);
-    expect(early.body.error.details).toEqual({ resume_from: 2 });
     expect((await night({ day: d2, action: 'step_done', step: 2, partial: true }, 'cse_night_e')).status).toBe(422);
     expect((await night({ day: d2, action: 'done', partial: true }, 'cse_night_e')).body).toEqual({
       resume_from: NIGHT_END,

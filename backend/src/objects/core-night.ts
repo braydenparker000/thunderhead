@@ -9,17 +9,23 @@ import type { NightDayPart } from '../../../shared/contract/night.ts';
 import type { NightReport, PutNightReportRequest } from '../../../shared/contract/night-report.ts';
 import { putReport, recount } from '../areas/briefing/report';
 import { currentDay } from '../areas/conversation/day';
+import { isCheckin } from '../areas/mind/checkin-session';
 import { fireConfig } from '../areas/mind/fire';
 import { type GrowthInput, growth } from '../areas/mind/growth';
 import { night } from '../areas/mind/night';
 import { type DayPart, dayPart } from '../areas/mind/night-input';
-import { attempt, type Out } from '../lib/result';
+import { attempt, Fail, type Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreMemory } from './core-memory';
 
 export abstract class CoreNight extends CoreMemory {
   night(c: Caller, r: MindNightRequest): Out<MindNightResponse> {
-    const out = this.run((w) => night(w, c, r, currentDay(w.db, this.tz(), w.at)));
+    const out = this.run((w) => {
+      // A check-in runs on the night routine but is not the night shift: it starts no night run.
+      if (r.action === 'start' && isCheckin(w.db, c.session_id, w.at))
+        throw new Fail('conflict', { reason: 'this session is a check-in: th checkin say, then th checkin done' });
+      return night(w, c, r, currentDay(w.db, this.tz(), w.at));
+    });
     // The watches met while it ran waited for its end (RUNTIME.md §3); the recall index catches up
     // on the day and the night's notes.
     if (out.ok && out.value.done) {

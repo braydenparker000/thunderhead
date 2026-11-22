@@ -15,6 +15,7 @@ import { coreObject } from '../../objects/core';
 import { tokenHash } from '../auth/crypto';
 import { newLiveTicket } from '../auth/tokens';
 import { changesForAgent, takeForAgent } from './device-only';
+import { handOut } from './handout';
 import { waitForChange } from './wait';
 
 const TICKET_MS = 30_000;
@@ -66,7 +67,8 @@ export const feedRoutes = new Hono<AppEnv>()
     let take = takeForAgent(await core.liveTake(who, q.after));
     if (!take.changed && take.signals.length === 0 && (await waitForChange(c.env, take.seq, ms)) === 'changed')
       take = takeForAgent(await core.liveTake(who, take.seq));
-    return c.json(take satisfies LiveWaitResponse);
+    // Owner messages handed out: presence working at once, and each with its memories (handout.ts).
+    return c.json((await handOut(c.env, who, take)) satisfies LiveWaitResponse);
   })
   .get('/changes', guard('GET /v1/changes'), async (c) => {
     const q = parse(changesQuery, c.req.query());

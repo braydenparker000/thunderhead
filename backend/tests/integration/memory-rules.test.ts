@@ -194,7 +194,9 @@ describe('M11 and M12: the session', () => {
     const fromMind = addOp([`msg:${mind}`], { kind: 'rule', text: 'Calm music in the evening' });
     expect(await reason(night(), fromMind)).toBe('outside_rule');
     S.night = await freshSession(P.N, 'night', 'cse_memory_night_2');
-    expect(await reason(night(), rule())).toBeNull();
+    // A fired session may: a rule in the owner's own words from the message it cites (rule-words.ts).
+    const briefly = await ownerSays(P.D, 'Answer briefly.');
+    expect(await reason(night(), addOp([`msg:${briefly}`], { kind: 'rule', text: 'Answer briefly' }))).toBeNull();
   });
 
   it('a mind write without TH-Session, or from a session that never claimed, is refused', async () => {

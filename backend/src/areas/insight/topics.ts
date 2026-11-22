@@ -1,7 +1,7 @@
 // What lands inside Core (BEHAVIOR.md §3.6, API.md §11.12): the pass that counts each topic's last
 // 30 days from the ledger and the Senses object's rollups (lands.ts), keeps the counts on the topic's
-// row for the briefing and sends a topic passed over three times in a row to rest for 30 days (a
-// ledger row says so); the owner reopening one (a tap, or their own words, checked as a card's); the
+// row for the briefing and sends a topic passed over twice in a row to rest for 30 days, silently (a
+// ledger row says so; it counts as said at once, so no briefing asks the mind to say it); the owner reopening one (a tap, or their own words, checked as a card's); the
 // mind recording that it said so, once. The pass runs on the day roll (before the night's wake) and
 // whenever GET /v1/insight/topics is read.
 import { LANDS, type TopicLands, type TopicsResponse } from '../../../../shared/contract/lands.ts';
@@ -48,6 +48,7 @@ export function pass(w: Writer, senses: Rollup[], tz: string): TopicsResponse {
     if (trips(t)) {
       const until = quietUntil(w.at);
       store.topicQuiet(w.db, t.topic_key, w.at, until);
+      store.topicSaid(w.db, t.topic_key, w.at);
       w.ledger({
         kind: 'arrangement',
         actor: 'worker',
@@ -58,7 +59,7 @@ export function pass(w: Writer, senses: Rollup[], tz: string): TopicsResponse {
         undoable: false,
       });
       w.change('surface', `topic:${t.topic_key}`);
-      Object.assign(t, { quiet_until: until, reopens: ownerDay(until, tz), said: false });
+      Object.assign(t, { quiet_until: until, reopens: ownerDay(until, tz), said: true });
     }
     const cache = JSON.stringify(cacheOf(t));
     const had = known.find((k) => k.topic_key === t.topic_key)?.lands_json;

@@ -30,13 +30,28 @@ export function nightSafe({cmd, args}, words, ctx) {
 }
 /** The mind's own subagents (.claude/agents/<name>.md, RUNTIME.md §6.6): the tools each one has, the
  * roles that may start it, and whether it is quarantined (it reads outside text: the drop folder and
- * the web only, no URL with a query). A role starts only these, plus BUILT_IN's. */
+ * the web only, no URL with a query). A role starts only these, plus BUILT_IN's. `mail` also has
+ * the mail and file connectors' read tools (MAIL_SERVERS, MAIL_READS), which no other caller has. */
 export const AGENTS = {
+  mail: {tools: ['Read', 'Grep', 'Glob'], roles: ['chat'], quarantined: true, connectors: true},
   reader: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night', 'reflex'], quarantined: true},
   researcher: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: true},
   'night-step': {tools: ['Bash', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
   coder: {tools: ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
 };
+/** The claude.ai connectors the mail agent reads (owner, 2026-11-22): a second account's server
+ * carries a suffix after `_`, so a server is one of these or starts with one and `_`. */
+const MAIL_SERVERS = ['Gmail', 'Google_Drive', 'Google_Docs', 'Google_Sheets', 'Google_Slides'];
+/** A connector tool that only reads, by its name after the server. */
+const MAIL_READS = /^(search_|get_|list_|read_|download_)/;
+const connectorParts = tool => /^mcp__(.+?)__(.+)$/.exec(tool)?.slice(1) ?? null;
+/** A read tool of one of the mail and file connectors. */
+export function mailRead(tool) {
+  const [server, name] = connectorParts(tool) ?? [];
+  return !!server && MAIL_SERVERS.some(s => server === s || server.startsWith(`${s}_`)) && MAIL_READS.test(name);
+}
+const MAIL_ONLY = 'Mail and files are read by the mail agent.';
+const NOT_BUILT = 'Sending or changing mail and files is not built. Give the owner the text.';
 /** Claude Code's own subagents a role may still start: the Sunday evals hand each fixture to a
  * general-purpose one (night step 9, EVALS.md). */
 const BUILT_IN = {night: ['general-purpose']};
@@ -51,7 +66,8 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
- *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean}} Context
+ *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean, marked?: boolean}} Context
+ * `marked`: this session has read outside text (th's state: tainted, or a taint still pending).
  * `songsRead`: whether any night session read songs' tags since this one claimed, from the Worker's
  * own record (asked only for a call that could reach the web, and for a night shell command other
  * than th and a few builtins; it throws, and so denies, when the Worker can't say).
@@ -211,6 +227,12 @@ function checkSegment(seg, ctx) {
       ((cmd === 'declare' || cmd === 'typeset') && args.some(a => /^-[a-zA-Z]*[xp]/.test(a)))) return 'Printing the environment is not allowed in a mind session.';
   if (all.some(isEnvFile)) return 'Reading or writing .env files is not allowed in a mind session.';
   if (all.some(isProcEnviron)) return 'Reading process environments is not allowed.';
+  // A mark lasts only for its session (owner, 2026-11-22), so no command may make th speak as
+  // another session: the session id's variable is never named or cleared, and a session that has
+  // read outside text claims no new briefing (a fresh claim would start clean).
+  if (all.some(w => w.includes('CLAUDE_CODE_REMOTE_SESSION_ID')) || envCleared(seg.words)) return SESSION_ID;
+  const claimTh = thSub({cmd, args});
+  if (ctx.marked && claimTh?.sub === 'brief' && claimTh.rest.some(a => a === '--claim' || a.startsWith('--claim='))) return MARKED_CLAIM;
   if (cmd === 'curl' || cmd === 'wget') {
     const hosts = fetchHosts(cmd, args);
     if (!hosts) return `${cmd} needs a literal URL so its host can be checked.`;
@@ -286,6 +308,21 @@ function ghApiWrites(args) {
   return method !== 'GET' && words.some(w => /(^|\/)repos\/[^/]+\/[^/]+\/(contents|git)(\/|$|\?)/.test(w));
 }
 
+const SESSION_ID = 'A command may not set, clear or name the session id: th speaks only as this session.';
+const MARKED_CLAIM = 'This session has read outside text: it claims no new briefing (its mark ends with it, not by a new claim).';
+/** `env -i` (or `-`, `--ignore-environment`) among env's own options: th would lose the session id. */
+function envCleared(words) {
+  return words.some((w, i) => {
+    if (!/(^|\/)env$/.test(w)) return false;
+    for (let k = i + 1; k < words.length; k++) {
+      const a = words[k];
+      if (a === '-' || a === '--ignore-environment' || /^-[a-zA-Z]*i[a-zA-Z]*$/.test(a)) return true;
+      if (a === '-u' || a === '-C' || a === '-S') { k++; continue; }
+      if (!a.startsWith('-') && !/^[A-Za-z_]\w*=/.test(a)) return false;
+    }
+    return false;
+  });
+}
 const kindIsError = rest => rest.some((a, i) => a === '--kind=error' || (a === '--kind' && rest[i + 1] === 'error'));
 const isRevert = ctx => { try { return /^Revert "/.test(ctx.headSubject?.() ?? ''); } catch { return false; } };
 const protectedReason = path => `${path} is a protected path (mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/**). Changing it needs the owner's approval for this branch's base: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"<commit>"}}', then th approved checks it.`;
@@ -302,7 +339,8 @@ export function decide(input, ctx) {
   const ti = input.tool_input ?? {};
   // Each of the mind's own subagents (when Claude Code names it) has its tools and nothing else.
   const agent = Object.hasOwn(AGENTS, input.agent_type ?? '') ? AGENTS[input.agent_type] : null;
-  if (agent && !agent.tools.includes(tool)) return `The ${input.agent_type} has only ${agent.tools.join(', ')} (not ${tool}).`;
+  if (agent && !agent.tools.includes(tool) && !(agent.connectors && mailRead(tool)))
+    return `The ${input.agent_type} has only ${agent.tools.join(', ')}${agent.connectors ? ' and the mail and file connectors\' read tools' : ''} (not ${tool}).`;
   // A role starts only its own subagents, so each runs on the model its file names (RUNTIME.md §6.6).
   if (tool === 'Agent' || tool === 'Task') {
     const name = String(ti.subagent_type ?? '');
@@ -334,6 +372,11 @@ export function decide(input, ctx) {
   // The night's songs (RUNTIME.md §6.4, §12.1): once it has read songs' tags (the Worker's record),
   // no web lookup or MCP tool, which could carry their titles out (the notes are what it knows).
   if (ctx.role === 'night' && webTool(tool) && ctx.songsRead?.()) return SONGS_WEB;
+  // Connectors (owner, 2026-11-22): only the mail agent calls one, and only to read (above); the
+  // session itself, of any role, and every other subagent call none.
+  if (tool.startsWith('mcp__') && !agent?.connectors) return MAIL_READS.test(connectorParts(tool)?.[1] ?? '') ? MAIL_ONLY : NOT_BUILT;
+  // The connectors' resources by the generic tools: no caller of the mind's reads them.
+  if (/^(List|Read)Mcp(Resource|Resources|ResourceDir)Tool$/.test(tool)) return MAIL_ONLY;
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

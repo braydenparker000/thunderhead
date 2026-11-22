@@ -10,7 +10,7 @@
 // then 6, 7 and 5 get what is left, in that order. The full briefing (1–15) stays ≤ 48,000 and
 // carries fuller versions of 3–7, so a cut in the core always has more behind `th brief --section
 // <n>`; each section has its own budget.
-import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract/api';
+import type { LedgerEntry, Message, MindRole, RecallItem } from '../../../../shared/contract/api';
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
 import type { FactRow } from '../memory/store';
@@ -96,6 +96,8 @@ export interface BriefInput {
   /** Section 1's speech line, and section 7's What lands (brief-learn.ts): the table, what to say once, the odds. */
   speech?: string;
   lands?: string[];
+  /** Each waiting message's memories (brief-recall.ts), shown under it in part 1 (brief-parts.ts). */
+  recall?: Record<string, RecallItem[]>;
 }
 
 /** The role-side note over section 3 when any waiting message is off the record: the Worker refuses
@@ -142,7 +144,7 @@ const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 3_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
 /** Sections 3–7 (`deep`: the full file's version, whose cuts point past the briefing). */
-function middle(i: BriefInput) {
+export function middle(i: BriefInput) {
   const night = i.role === 'night';
   const reflex = i.role === 'reflex';
   const offRecord = i.offRecord ?? [];
@@ -213,7 +215,7 @@ function buildCore(i: BriefInput, make: ReturnType<typeof middle>): { core: stri
 
 /** Sections 9–15, the full file's own: the profile, every loose end, the last week, what is
  * pending, the owner's settings with every verb, health, and today's earlier messages. */
-function fullOnly(i: BriefInput): [number, string][] {
+export function fullOnly(i: BriefInput): [number, string][] {
   const reflex = i.role === 'reflex';
   // A card's question can quote a fact, and reflex reads no memory: it sees that cards wait, not what they ask.
   const pending = [

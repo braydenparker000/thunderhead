@@ -266,4 +266,6 @@ export async function pasteCalls(cost: Cost, grant: (ip: string, password?: stri
     200,
     k,
   );
+  // Last of all: its claim adds a session and a wake that later readings would count (handout-calls.ts).
+  await import('./handout-calls').then((h) => h.handoutCalls(cost, grant));
 }

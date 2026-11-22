@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Message } from '../../../shared/contract/api';
 import { renderProfile, renderRules } from '../../src/areas/memory/profile';
 import type { FactRow } from '../../src/areas/memory/store';
+import { label, type OpContext } from '../../src/areas/memory/validate';
 import { type BriefInput, buildBrief } from '../../src/areas/mind/brief';
 
 const DAY = 86_400_000;
@@ -190,5 +191,27 @@ describe('provenance in the briefing (MEMORY.md §6 M11b)', () => {
     );
     expect(b.core).not.toMatch(/refused/);
     expect(section(buildBrief(input()).core, 1)).not.toContain('outside');
+  });
+});
+
+describe('label (owner, 2026-11-22)', () => {
+  const ctx = (tainted: boolean, device = false) =>
+    ({ db: null, at: NOW, device, tainted, lawsBroken: false, selfLedger: 'x' }) as unknown as OpContext;
+  it('a clean inferred fact is kept as observed; a sensitive one still waits as outside', () => {
+    expect(label(ctx(false), 'inferred', null)).toBe('observed');
+    expect(label(ctx(false), 'inferred', null, false, true)).toBe('outside');
+    expect(label(ctx(false), 'observed', null)).toBe('observed');
+    expect(label(ctx(false), 'user', null)).toBe('owner');
+  });
+  it("marked: only a user fact in the owner's own words is the owner's; every other write is outside", () => {
+    expect(label(ctx(true), 'user', null, true)).toBe('owner');
+    expect(label(ctx(true), 'user', null)).toBe('outside');
+    expect(label(ctx(true), 'inferred', null)).toBe('outside');
+    expect(label(ctx(true), 'observed', null)).toBe('outside');
+    expect(label(ctx(true, true), 'user', null)).toBe('owner');
+  });
+  it('a new version of an outside fact stays outside from the mind (M11e)', () => {
+    expect(label(ctx(false), 'inferred', fact({ provenance: 'outside' } as Partial<FactRow>))).toBe('outside');
+    expect(label(ctx(false), 'user', fact({ provenance: 'outside' } as Partial<FactRow>))).toBe('outside');
   });
 });

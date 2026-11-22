@@ -1,23 +1,14 @@
 // @ts-check
 // "How well I know you" at the end of What I remember (EVALS.md §9, P9): the mind's own checks in
 // plain words, read when the owner opens it (GET /v1/insight): corrections (M-8), memory checks
-// (M-10), what it arranged and what the owner did with it (M-16), and its guesses about the owner's
-// day against their usual pattern (M-18, from 30 checked). A check on the mind, never a score for
+// (M-10) and what it arranged and what the owner did with it (M-16); its guesses about the owner's
+// day left with the predictions (2026-11-22). A check on the mind, never a score for
 // the owner, and never a comparison with anyone (law 16).
 import { api, signedIn } from '/th/client.js';
 import { el } from '/th/ui.js';
 import { icon } from './components.js';
 
 /** @typedef {import('../../../shared/contract/predictions.ts').InsightResponse} InsightResponse */
-
-const GUESSES = /** @type {Record<string, string>} */ ({
-  'chat.any': 'Whether you write to me',
-  'chat.count': 'How much you write',
-  'chat.before': 'How early you write',
-  'decision.answered': 'Whether you answer a card',
-  'app.open': 'Which apps you open',
-});
-const SHOWN_FROM = 30;
 
 /** @param {number} n @param {string} one @param {string} many */
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -37,7 +28,6 @@ export function meterParts(r) {
   const [last, ...before] = r.memory;
   const a = r.arrangements;
   const decided = a.kept + a.undone + a.ignored;
-  const guesses = r.skill.filter((s) => s.resolved > 0);
   return [
     part(
       'Corrections',
@@ -60,20 +50,8 @@ export function meterParts(r) {
         : 'Nothing I arranged has been out for 2 days yet.',
       a.waiting ? `${count(a.waiting, 'more is', 'more are')} still new.` : undefined,
     ),
-    part(
-      'My guesses about your day',
-      guesses.length ? guesses.map(guessLine) : 'No guesses checked yet. I make a few each night and check them the next day.',
-    ),
     el('p', { class: 'st2', text: 'This is how I check myself, never a score for you.' }),
   ];
-}
-
-/** @param {InsightResponse['skill'][number]} s */
-function guessLine(s) {
-  const what = GUESSES[s.category] ?? s.category;
-  if (s.skill === null) return `${what}: ${s.resolved} checked; this shows from ${SHOWN_FROM}.`;
-  if (s.skill <= 0) return `${what}: ${s.resolved} checked; no better than your usual pattern yet.`;
-  return `${what}: ${s.resolved} checked; better than your usual pattern by ${Math.round(s.skill * 100)}%.`;
 }
 
 /** The fold, read the first time it opens. */

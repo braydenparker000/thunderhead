@@ -115,12 +115,8 @@ describe('the first 2,000 characters (sections 1–2)', () => {
     }
   });
 
-  it('carry the voice on every wake, every role, as BEHAVIOR.md §10 says it', () => {
-    const ten = behavior.slice(behavior.indexOf('## 10. Tone'), behavior.indexOf('## 11.'));
-    for (const l of VOICE) {
-      expect(ten).toContain(l);
-      expect(l).not.toMatch(/!|outside/);
-    }
+  it('point at the voice page on every wake, every role (the page itself comes beside the role)', () => {
+    for (const l of VOICE) expect(l).not.toMatch(/!|outside/);
     for (const role of ['chat', 'night', 'reflex'] as const)
       expect(section(buildBrief(input({ role })).core, 1)).toContain(VOICE.join('\n'));
   });
@@ -153,7 +149,7 @@ describe('the first 2,000 characters (sections 1–2)', () => {
 
   it('carry the day pulse first in today’s state: the wake budget, the watch that woke it, cut to its budget', () => {
     const one = section(buildBrief(rich()).core, 1);
-    expect(one).toContain(`${VOICE[2]}\n${PULSE.join('\n')}\nweather: 11°`);
+    expect(one).toContain(`${VOICE[VOICE.length - 1]}\n${PULSE.join('\n')}\nweather: 11°`);
     const many = Array.from(
       { length: 5 },
       (_, i) => `watch w${i} fired (at 17:4${i}): ${'y'.repeat(180)} · note: ${'n'.repeat(100)}`,
@@ -170,12 +166,12 @@ describe('the first 2,000 characters (sections 1–2)', () => {
 });
 
 describe('then the day, then on demand', () => {
-  it('section 7: the arrangements and how they were met, the predictions, the Briefing, each in its budget', () => {
+  it('section 7: the arrangements and how they were met, the Briefing, each in its budget; no predictions', () => {
     const b = buildBrief(rich());
     const seven = section(b.core, 7);
     expect(seven).toContain('Arranged on 2026-11-03, each as the owner met it so far');
     expect(seven).toContain('06:12 home/line.2 ← line · kept: the bus leaves early on Tuesdays');
-    expect(seven).toContain('Predicted for 2026-11-03:\napp.open app=guitar · 70%: practised four days running');
+    expect(seven).not.toMatch(/predict/i);
     expect(seven).toContain('The Briefing shows:\nDue: 1 today · Next at 15:00');
     const crowded = buildBrief(
       rich({
@@ -186,7 +182,7 @@ describe('then the day, then on demand', () => {
       }),
     );
     expect(section(crowded.core, 7)).toMatch(/\(\+\d+ more: th ledger --kind arrangement\)/);
-    expect(section(buildBrief(input()).core, 7)).toContain('Nothing arranged or predicted for 2026-11-03');
+    expect(section(buildBrief(input()).core, 7)).toContain('Nothing arranged for 2026-11-03');
     // With no room for its first line, only where the rest is.
     expect(daySection(rich(), 100)).toBe('(no room in the core: th brief --section 7)');
   });
@@ -212,7 +208,7 @@ describe("the mind's name and the owner's hours (Settings › The mind)", () => 
     const named = now(buildBrief(rich({ name: 'Wren' })).core);
     const lines = named.split('\n').filter((l) => l.includes('Wren'));
     expect(lines).toEqual(['Name: the owner calls you Wren; answer to it, and still call yourself "I".']);
-    expect(named.indexOf(lines[0] as string)).toBeGreaterThan(named.indexOf(VOICE[2]));
+    expect(named.indexOf(lines[0] as string)).toBeGreaterThan(named.indexOf(VOICE[VOICE.length - 1]));
     expect(now(buildBrief(rich({ name: '' })).core)).not.toContain('Name:');
   });
 

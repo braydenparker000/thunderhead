@@ -1,6 +1,6 @@
-// The Worker's phrase lint (shared/contract/lint.ts, via contract.json), checked here before
-// sending so a refused message exits 8 without a round trip. Code fences are exempt. A reply's
-// shape is not checked: that is the voice's judgement (mind/skills/voice.md).
+// The phrase lint (shared/contract/lint.ts, via contract.json). Nothing the mind sends is refused
+// by it since 2026-11-22 (owner): the Sunday voice test (eval-voice.mjs) grades with it. Code
+// fences are exempt.
 import {CONTRACT} from './contract.mjs';
 
 const prose = text => text.replace(/```[\s\S]*?```/g, ' ').toLowerCase();

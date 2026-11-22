@@ -5,12 +5,9 @@
 // - Edit, Write and the session's own bookkeeping tools;
 // - Read, Grep and Glob of own files: the project (not node_modules, not the drop folder
 //   $TMPDIR/th/ext/) and th's own briefing and state;
-// - th, except `th file` (attachments are outside text, INJ-08), a `th get` naming podcasts (show
-//   titles and feeds, which their publishers wrote; the Worker marks the session itself too), and
-//   what prints the owner's songs' tags (`th music page|now|find|like|week`, a `th get` naming music):
-//   titles, artists and albums come from the files' own tags, which someone else wrote (`th music now
-//   --id` prints the id alone);
-// - curl/wget to the Worker's podcast routes taint (the Worker refuses one without a session anyway);
+// - th, every command: what it prints is the owner's own (their files, their songs' tags, their
+//   shows, their books and calendars) or the Worker's; outside text it holds comes labelled
+//   (owner, 2026-11-22: the owner's own things do not mark);
 // - git on this repository and its origin (origin holds the project's own commits, whose files the
 //   rule already trusts); another remote, a URL, a clone or `-c` taints;
 // - `gh pr create|merge|checks` and `gh run`; every other gh call reads issues, PRs or the API;
@@ -18,7 +15,11 @@
 // - npm test/run/ci and a plain npm install (the lockfile's packages), tsc, biome, vitest, playwright,
 //   `wrangler types|dev`, node running a project script;
 // - a short list of commands on own files, and commands that read no file at all;
-// - the answer of the night-step and coder subagents (their own calls are checked as they run).
+// - the answer of every one of the mind's own subagents: night-step and coder (their own calls are
+//   checked as they run) and the walled readers reader, researcher and mail (they read outside text
+//   but cannot act, and answer in one checked JSON object: owner, 2026-11-22), and every call a
+//   walled reader makes inside its wall.
+// The mark lasts only for its session (the Worker carries none to a later claim).
 // Pure: the same call always gives the same answer, and nothing here touches the network.
 import {isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
@@ -77,21 +78,6 @@ function gitTaints(args, ctx) {
   return false;
 }
 
-/** A th call that prints what podcast publishers wrote (show titles, feeds): any word of a `th get`
- * naming podcasts, wherever it stands (a flag's value can come first) and however it is spelled.
- * A soft first layer: the Worker marks the session itself when it serves them (API.md §11.25). */
-const podcastText = ({sub, rest}) => sub === 'get' && rest.some(a => /podcasts/i.test(a));
-/** curl or wget to a Worker's podcast routes (by a literal URL; the Worker refuses one with no session). */
-const podcastFetch = args => args.some(a => /\/v1\/podcasts/i.test(a));
-/** A th call that prints songs' tags (from the files, outside text). */
-function songTags({sub, rest}) {
-  const pos = positionals(rest);
-  // `note` and `now --id` print no tags, nor does `jobs` (the listening pass's counts, kind and id).
-  if (sub === 'music') return !['note', 'jobs'].includes(pos[0]) && !(pos[0] === 'now' && rest.includes('--id'));
-  // Any word of a `th get` naming music (a flag's value can come first); the Worker marks it too.
-  return sub === 'get' && rest.some(a => /music/i.test(a));
-}
-
 /** How much a taint says reached the session: a URL most, then a comment, then a file, then
  * anything else. A compound command is as tainting as its strongest part. */
 const STRENGTH = ref => (/^https?:|^url$/.test(ref) ? 3 : ref === 'comment' ? 2 : ref === 'file' ? 1 : 0);
@@ -143,15 +129,8 @@ function* segmentTaints(command, ctx) {
     }
     if (seg.inputs.some(p => !ownFile(p, ctx))) { yield {source: 'Bash', ref: 'file'}; continue; }
     const th = thSub({cmd, args});
-    if (th) {
-      if (th.sub === 'file') { yield {source: 'th file', ref: 'file'}; continue; }
-      if (podcastText(th)) { yield {source: 'th podcasts', ref: 'file'}; continue; }
-      if (songTags(th)) { yield {source: 'th music', ref: 'file'}; continue; }
-      continue;
-    }
+    if (th) continue;
     if (cmd === 'curl' || cmd === 'wget') {
-      // The Worker's podcast or music routes by a literal URL (the Worker refuses one with no session).
-      if (podcastFetch(args) || args.some(a => /\/v1\/music/i.test(a))) { yield {source: cmd, ref: 'url'}; continue; }
       const hosts = fetchHosts(cmd, args);
       if (!hosts) { yield {source: cmd, ref: 'url'}; continue; } // the host can't be read
       const outside = hosts.find(h => !hostAllowed(h, ctx.ownHosts));
@@ -198,6 +177,10 @@ function* segmentTaints(command, ctx) {
 export function taintOf(input, ctx) {
   const tool = input?.tool_name ?? '';
   const ti = input?.tool_input ?? {};
+  // A call a walled reader makes inside its wall (Claude Code names the agent): what it reads stays
+  // in the reader, whose answer is local (below).
+  const walled = input?.agent_type;
+  if (typeof walled === 'string' && Object.hasOwn(AGENTS, walled) && AGENTS[walled].quarantined) return null;
   if (LOCAL_TOOLS.has(tool)) return null;
   if (FILE_TOOLS.has(tool)) {
     const pattern = tool === 'Glob' && typeof ti.pattern === 'string' ? ti.pattern : null;
@@ -212,9 +195,10 @@ export function taintOf(input, ctx) {
     const name = String(ti.subagent_type ?? '');
     const agent = Object.hasOwn(AGENTS, name) ? AGENTS[name] : null;
     // night-step and coder have no web tool, and their own calls pass these hooks (each taints as
-    // it would here), so what they hand back is local; a quarantined one's answer is outside text.
-    if (agent && !agent.quarantined) return null;
-    return {source: agent ? name : 'subagent', ref: 'file'};
+    // it would here); the walled readers read outside text but cannot act, and the session works
+    // only from their checked answer. So what any of them hands back is local; another is not.
+    if (agent) return null;
+    return {source: 'subagent', ref: 'file'};
   }
   return {source: tool.startsWith('mcp__') ? 'mcp' : (tool || 'unknown tool').slice(0, 40), ref: ''};
 }

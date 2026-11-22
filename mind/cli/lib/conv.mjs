@@ -10,6 +10,7 @@ import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 import {lintText} from './lint.mjs';
 import {dayVoice} from './day-voice.mjs';
+import {forgetAnswered} from './wait.mjs';
 
 export {lintText};
 
@@ -96,9 +97,7 @@ export async function say(argv) {
   const text = textArg(words);
   if (!text.trim()) throw invalid('the message is empty');
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
-  // The phrase lint alone: a reply's shape is the voice's judgement (BEHAVIOR.md §2.2).
-  const lint = kind === 'text' || kind === 'question' ? lintText(text) : null;
-  if (lint) throw invalid(`the phrase lint refuses it (${lint})`);
+  // No refusal for style (owner, 2026-11-22): the voice is the owner's page (th voice) and the mind's judgement.
   if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');
   const attachments = [];
@@ -108,6 +107,7 @@ export async function say(argv) {
   const body = {body: text, kind, meta, reply_to: typeof flags['reply-to'] === 'string' ? flags['reply-to'] : undefined,
     attachments: attachments.length ? attachments : undefined, thread_id: thread === 'system' ? 'system' : undefined};
   const res = await request('PUT', `/v1/messages/${seg(id)}`, {body});
+  if (body.reply_to) forgetAnswered(body.reply_to);
   stopNotice(res);
   out({id: res.data?.id || id});
 }
@@ -190,15 +190,8 @@ export async function status(argv) {
   out({ok: true});
 }
 
-export async function title(argv) {
-  const {flags, rest} = parseArgs(argv);
-  const [thread, ...words] = rest;
-  const text = words.join(' ').trim();
-  if (!thread || !text) throw invalid('usage: th title <thread> <title> [--proposal <approved card id>]');
-  if (text.length > 80) throw invalid('the title is over 80 characters');
-  const {data} = await request('PATCH', `/v1/threads/${seg(thread)}`, {headers: proposalHeaders(flags), body: {title: text}});
-  out({ok: true, ...permitOut(data)});
-}
+// `th title`, in its forgiving form.
+export {title} from './title.mjs';
 
 export async function note(argv) {
   const {flags} = parseArgs(argv);

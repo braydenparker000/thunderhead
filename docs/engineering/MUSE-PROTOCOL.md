@@ -1,7 +1,7 @@
 # For Muse: taking tasks from the Thunderhead
 
 The owner types `@muse <words>` in the Thunderhead's chat, or the Thunderhead's mind asks for
-something (after the owner says yes to it). Each becomes a **work order** for you. You take them
+something (it tells the owner in the chat; the owner can set it to ask first). Each becomes a **work order** for you. You take them
 one at a time, say how it is going, and hand back what you did. The owner sees every step: a line
 in the chat and a row under Tasks in the menu (asked → picked up → working → done or failed). This
 page is the exact sequence. History: [archive/MUSE.md](../archive/MUSE.md); routes:

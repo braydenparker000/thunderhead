@@ -60,11 +60,10 @@ beforeAll(async () => {
 });
 
 describe('the quiet rule', () => {
-  it('three passed over in a row: the topic rests 30 days, said once, reopened by a tap', async () => {
+  it('two passed over in a row: the topic rests 30 days, silently, reopened by a tap', async () => {
     for (const [slot, ago] of [
       ['home/line.1', 9],
       ['home/line.2', 6],
-      ['home/line.3', 3],
     ] as const) {
       const r = await line(slot, 'episodes.new');
       expect(r.status).toBe(200);
@@ -72,14 +71,15 @@ describe('the quiet rule', () => {
     }
     const before = Date.now();
     const [ep] = await topics();
+    // Silently (owner, 2026-11-22): it counts as said at once, so no briefing asks the mind to say it.
     expect(ep).toMatchObject({
       topic_key: 'episodes.new',
       places: ['home'],
       kept: 0,
-      ignored: 3,
+      ignored: 2,
       unseen: 0,
-      streak: 3,
-      said: false,
+      streak: 2,
+      said: true,
     });
     expect(ep.quiet_until).toBeGreaterThanOrEqual(before + 30 * DAY);
     expect(ep.reopens).toBe(new Date(ep.quiet_until as number).toISOString().slice(0, 10));
@@ -93,20 +93,12 @@ describe('the quiet rule', () => {
     expect([refused.status, refused.body.error.code]).toEqual([422, 'topic_quiet']);
     expect(refused.body.error.details).toEqual({ until: ep.quiet_until, reopens: ep.reopens });
     expect((await line('home/line.4', 'weather.walk')).status).toBe(200);
-    // The briefing lists it, worst first, with the sentence to say once until it is recorded.
-    let core = await readBrief();
-    expect(core).toContain(`episodes.new (home) 0/0/3/0 · 3 in a row · rests until ${ep.reopens}, not said yet`);
-    expect(core).toContain('th surface said <topic> (episodes.new)');
-    const said = await apiJson<{ said_at: number }>('POST', '/v1/surfaces/topics/episodes.new/said', {
-      ...chat(),
-      body: {},
-    });
-    expect(said.status).toBe(200);
+    // The briefing lists it, worst first, with no sentence to say: there is nothing to say.
+    const core = await readBrief();
+    expect(core).toContain(`episodes.new (home) 0/0/2/0 · 2 in a row · rests until ${ep.reopens}\n`);
+    expect(core).not.toContain('Say once');
     const again = await apiJson<ErrorBody>('POST', '/v1/surfaces/topics/episodes.new/said', { ...chat(), body: {} });
     expect([again.status, again.body.error.code]).toEqual([409, 'already_said']);
-    core = await readBrief();
-    expect(core).toContain(`episodes.new (home) 0/0/3/0 · 3 in a row · rests until ${ep.reopens}\n`);
-    expect(core).not.toContain('Say once');
     // The owner reopens it with a tap: its streak starts again, and the mind may place it.
     const open = await apiJson<{ topic_key: string; ledger_id: string }>(
       'POST',

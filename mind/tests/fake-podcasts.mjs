@@ -25,15 +25,10 @@ export function podcastRoutes(ctl) {
   /** A feed's answer: XML, or `{status, code}` for a refusal. */
   ctl.setFeed = (url, answer) => p.feeds.set(url, answer);
   const page = items => ({items, next_since: Date.now(), next: null});
-  /** The positions carry feed addresses: served only to a named session, which is marked first. */
-  const mark = session => {
-    if (!session) throw new HttpError(422, 'validation', 'TH-Session required');
-    s.tainted.add(session);
-  };
   const started = key => p.progress.some(r => r.key === key && (r.played || r.position_s > 0));
   return [
     ['GET', /^\/v1\/podcasts\/follows$/, ['night'], () => page(p.follows.map(f => ({show_id: f.show_id, followed: f.followed, updated_at: f.updated_at, checked_at: f.checked_at, latest_at: f.latest_at, new_n: f.new_n, fails: f.fails})))],
-    ['GET', /^\/v1\/podcasts\/progress$/, ['night'], ({query, session}) => { mark(session); return page(p.progress.filter(r => r.updated_at >= Number(query.get('since') || 0))); }],
+    ['GET', /^\/v1\/podcasts\/progress$/, ['night'], ({query}) => { return page(p.progress.filter(r => r.updated_at >= Number(query.get('since') || 0))); }],
     ['GET', /^\/v1\/podcasts\/feed$/, ['night'], async ({query}) => {
       const show = query.get('show') ?? '';
       if (query.get('count') !== '1' || query.has('url') || !/^[0-9a-f]{16}$/.test(show))

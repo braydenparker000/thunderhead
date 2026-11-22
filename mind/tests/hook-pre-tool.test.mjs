@@ -227,7 +227,9 @@ test('night: once the Worker says it read songs\' tags, no web, no MCP tool, no 
   for (const t of reach) assert.match(denied('night', t, read), /no web lookups/, JSON.stringify(t.tool_input));
   assert.match(denied('night', {...reach[0], agent_type: 'reader'}, read), /no web lookups/, 'the reader neither');
   // The chat may look up the one song the owner asked about; a night that read no songs keeps the web.
-  for (const t of reach.slice(0, 3)) assert.equal(denied('chat', t, read), null);
+  // No session calls a connector at all (owner, 2026-11-22): only the mail agent reads one.
+  for (const t of reach.slice(0, 2)) assert.equal(denied('chat', t, read), null);
+  assert.match(denied('chat', reach[2], read), /not built/);
   assert.equal(denied('night', reach[0], {songsRead: () => false}), null);
   // After songs the night's shell runs only th and a few builtins: not even a GitHub call that is no search.
   assert.match(denied('night', bash('gh api repos/o/r/pulls'), read), /shell runs only th/);
@@ -315,4 +317,19 @@ test('the hook process prints the documented deny JSON, nothing on allow, and de
   assert.equal(JSON.parse(broken.stdout).hookSpecificOutput.permissionDecision, 'deny');
   const owner = await hook('pre-tool', {tool_name: 'Bash', tool_input: {command: 'printenv'}}, {PATH: process.env.PATH});
   assert.equal(owner.stdout, '', 'no TH_ROLE: not a mind session');
+});
+
+test('a mark ends with its session, so no command speaks as another one: the session id is never named or cleared, and a marked session claims nothing', () => {
+  for (const role of ['chat', 'night', 'reflex']) {
+    for (const cmd of ['CLAUDE_CODE_REMOTE_SESSION_ID=cse_new th brief --claim', 'export CLAUDE_CODE_REMOTE_SESSION_ID=x',
+      'unset CLAUDE_CODE_REMOTE_SESSION_ID; th remember --kind fact --text x --evidence msg:1', 'env -u CLAUDE_CODE_REMOTE_SESSION_ID th say today hi',
+      'env -i TH_ROLE=chat th brief --claim', 'env - th pending', 'env --ignore-environment th pending', 'echo $CLAUDE_CODE_REMOTE_SESSION_ID'])
+      assert.match(denied(role, bash(cmd)) ?? '', /session id/, `${role}: ${cmd}`);
+    assert.match(denied(role, bash('th brief --claim'), {marked: true}), /claims no new briefing/);
+    assert.match(denied(role, bash('node mind/cli/th.mjs brief --claim'), {marked: true}), /claims no new briefing/);
+    assert.equal(denied(role, bash('th brief --claim')), null, 'an unmarked session claims');
+    assert.equal(denied(role, bash('th brief --section 4'), {marked: true}), null, 'and reads its briefing');
+    assert.equal(denied(role, bash('env NODE_USE_ENV_PROXY=1 th pending')), null);
+    assert.equal(denied(role, bash('env FOO=1 grep -i x README.md')), null);
+  }
 });

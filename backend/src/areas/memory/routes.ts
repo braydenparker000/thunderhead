@@ -63,7 +63,7 @@ const dayBody = z.strictObject({
 const refs = z.array(z.string().check(z.maxLength(240))).check(z.maxLength(20));
 const tags = z.array(z.string().check(z.regex(/^[a-z][a-z0-9_-]{0,23}$/))).check(z.maxLength(MEMORY_LIMITS.tags_max));
 const why = z.optional(z.string().check(z.minLength(1), z.maxLength(200)));
-const threadBody = z.strictObject({
+export const threadBody = z.strictObject({
   text: z.string().check(z.minLength(1), z.maxLength(MEMORY_LIMITS.thread_text)),
   owner: z.enum(['mind', 'owner']),
   due_at: z.optional(z.number().check(z.int(), z.gte(0))),

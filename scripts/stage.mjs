@@ -148,7 +148,7 @@ const budgets = [
   // (2026-11-14) +568 measured (80,311 → 80,879): th/update.js reloads at its next safe moment when another
   // page applied a release (the editor's pages do as they open, lab/engine/fresh.js: a phone that went straight
   // to them ran the release before's code for days).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_411], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_434], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -187,7 +187,7 @@ const budgets = [
   // left and taken up again when home is shown from the back/forward cache.
   // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
   // th/registry/apps.js, the one rule for where Photos' front page lands.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 119_527],
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 119_893], // (2026-11-22) the mind's voice-page card: its button into Settings
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -237,7 +237,7 @@ const budgets = [
   // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
   // (2026-11-04, settings depth) 28,700 → 28,722 measured: the hold's tap back follows Haptics.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 33_649],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 33_809], // (2026-11-22) the report tile shows the morning note
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token

@@ -31,15 +31,17 @@ function agents() {
   return out;
 }
 
-test('the four agent files parse: name, description, tools and a model alias, the hook\'s tools exactly', () => {
+test('the five agent files parse: name, description, tools and a model alias, the hook\'s tools exactly', () => {
   const all = agents();
   assert.deepEqual(Object.keys(all).sort(), Object.keys(AGENTS).sort());
   for (const [name, {front, body}] of Object.entries(all)) {
     assert.equal(front.name, name);
     assert.ok(front.description?.length >= 80 && front.description.length <= 500, `${name}: description`);
     assert.ok(MODELS.includes(front.model), `${name}: model ${front.model}`);
-    const tools = front.tools.split(',').map(t => t.trim());
-    assert.deepEqual([...tools].sort(), [...AGENTS[name].tools].sort(), `${name}: tools`);
+    // mail names no tools (a connector's tools carry the account's suffix): it inherits the
+    // session's, and the hook holds it to its own and the connectors' read tools.
+    const tools = AGENTS[name].connectors ? (assert.equal(front.tools, undefined, `${name}: tools`), AGENTS[name].tools) : front.tools.split(',').map(t => t.trim());
+    if (!AGENTS[name].connectors) assert.deepEqual([...tools].sort(), [...AGENTS[name].tools].sort(), `${name}: tools`);
     // Quarantined: outside text in, nothing that acts. Not quarantined: nothing that reaches the web.
     if (AGENTS[name].quarantined) assert.ok(!tools.some(t => WRITES.includes(t)), `${name}: acts`);
     else assert.ok(!tools.some(t => WEB.includes(t)), `${name}: web`);
@@ -49,26 +51,31 @@ test('the four agent files parse: name, description, tools and a model alias, th
     // Generic aliases only, never a full model name.
     assert.doesNotMatch(`${JSON.stringify(front)}${body}`, /claude-|\b(sonnet|opus|haiku)[- ]\d/i, name);
   }
-  // The reader is the fastest: a lookup must not keep the owner waiting (mind/skills/voice.md).
+  // The reader is the fastest: a lookup must not keep the owner waiting (mind/ROLES.md, chat).
   assert.equal(all.reader.front.model, 'haiku');
   assert.equal(all['night-step'].front.model, 'sonnet');
   assert.equal(all.researcher.front.model, 'opus');
   assert.equal(all.coder.front.model, 'opus');
-  // The researcher answers in the reader's kinds, so th read --check can check it.
-  for (const [kind, k] of Object.entries(CONTRACT.reader.kinds)) {
-    assert.ok(all.researcher.body.includes(`\`${kind}\``), kind);
-    for (const field of Object.keys(k.schema.properties)) assert.ok(all.researcher.body.includes(`"${field}"`), `${kind}.${field}`);
-  }
+  assert.equal(all.mail.front.model, 'haiku');
+  // The researcher and mail answer in the reader's kinds, so th read --check can check them.
+  for (const name of ['researcher', 'mail'])
+    for (const [kind, k] of Object.entries(CONTRACT.reader.kinds)) {
+      assert.ok(all[name].body.includes(`\`${kind}\``), `${name} ${kind}`);
+      for (const field of Object.keys(k.schema.properties)) assert.ok(all[name].body.includes(`"${field}"`), `${name} ${kind}.${field}`);
+    }
 });
 
 test('mind/ROLES.md stays within its 6,000 characters', () => {
   assert.ok(readFileSync(join(ROOT, 'mind/ROLES.md'), 'utf8').length <= 6000);
 });
 
-test('a role starts only its own subagents: all four for chat and night (and the evals\' general-purpose at night), the reader for reflex', () => {
+test('a role starts only its own subagents: all four for chat and night, mail for chat (and the evals\' general-purpose at night), the reader for reflex', () => {
   const start = (role, subagent_type, tool_name = 'Agent') => decide({tool_name, tool_input: {subagent_type, prompt: 'p'}}, ctx(role));
   for (const role of ['chat', 'night'])
     for (const name of ['reader', 'night-step', 'researcher', 'coder']) assert.equal(start(role, name), null, `${role} ${name}`);
+  assert.equal(start('chat', 'mail'), null);
+  assert.ok(start('night', 'mail'));
+  assert.ok(start('reflex', 'mail'));
   assert.equal(start('night', 'general-purpose'), null);
   assert.equal(start('reflex', 'reader'), null);
   assert.equal(start('chat', 'reader', 'Task'), null);
@@ -103,13 +110,54 @@ test('inside a subagent: its tools only; the researcher is quarantined like the 
   assert.equal(decide({tool_name: 'Bash', tool_input: {command: 'th facts --batch f.json --night'}}, ctx('chat')), null);
 });
 
-test('what a subagent hands back: the quarantined ones taint by name, the shell ones are local, any other is a subagent', () => {
+test('what a subagent hands back: the walled readers and the shell ones are local (owner, 2026-11-22), any other is a subagent', () => {
   const c = {cwd: '/work/repo', projectDir: '/work/repo', tmpDir: '/tmp/sess', ownHosts: []};
   const back = subagent_type => taintOf({tool_name: 'Agent', tool_input: {subagent_type, prompt: 'p'}}, c);
-  assert.deepEqual(back('reader'), {source: 'reader', ref: 'file'});
-  assert.deepEqual(back('researcher'), {source: 'researcher', ref: 'file'});
+  assert.equal(back('reader'), null);
+  assert.equal(back('researcher'), null);
+  assert.equal(back('mail'), null);
   assert.equal(back('night-step'), null);
   assert.equal(back('coder'), null);
   assert.deepEqual(back('general-purpose'), {source: 'subagent', ref: 'file'});
   assert.deepEqual(back('constructor'), {source: 'subagent', ref: 'file'});
+});
+
+test('inside a walled reader its own calls mark nothing; inside a shell agent, or the session, they mark as ever', () => {
+  const c = {cwd: '/work/repo', projectDir: '/work/repo', tmpDir: '/tmp/sess', ownHosts: []};
+  const fetch = {tool_name: 'WebFetch', tool_input: {url: 'https://example.com/a', prompt: 'p'}};
+  const mailRead = {tool_name: 'mcp__Gmail__search_threads', tool_input: {query: 'invoice'}};
+  for (const agent_type of ['reader', 'researcher']) assert.equal(taintOf({...fetch, agent_type}, c), null, agent_type);
+  assert.equal(taintOf({...mailRead, agent_type: 'mail'}, c), null);
+  assert.deepEqual(taintOf(fetch, c), {source: 'WebFetch', ref: 'https://example.com/a'});
+  assert.deepEqual(taintOf({...fetch, agent_type: 'general-purpose'}, c), {source: 'WebFetch', ref: 'https://example.com/a'});
+  assert.deepEqual(taintOf({tool_name: 'Bash', tool_input: {command: 'curl -s https://evil.example/x'}, agent_type: 'coder'}, c),
+    {source: 'curl', ref: 'https://evil.example/'});
+  assert.deepEqual(taintOf(mailRead, c), {source: 'mcp', ref: ''});
+});
+
+test('the mail agent: only the mail and file connectors\' read tools (any account\'s suffix) and the drop folder; the session calls no connector', () => {
+  const mail = (tool_name, tool_input = {}) => decide({tool_name, tool_input, agent_type: 'mail'}, ctx('chat'));
+  for (const t of ['mcp__Gmail__search_threads', 'mcp__Gmail__get_thread', 'mcp__Gmail_189b086c__get_message', 'mcp__Gmail__list_labels',
+    'mcp__Gmail__download_gmail_attachment', 'mcp__Google_Drive__search_files', 'mcp__Google_Drive_c1005530__read_file_content',
+    'mcp__Google_Drive__download_file_content', 'mcp__Google_Docs__read_doc', 'mcp__Google_Sheets__get_values',
+    'mcp__Google_Slides__read_presentation', 'mcp__Google_Slides__list_x'])
+    assert.equal(mail(t), null, t);
+  assert.equal(mail('Read', {file_path: '/tmp/sess/th/ext/scan.md'}), null);
+  for (const t of ['mcp__Gmail__send_message', 'mcp__Gmail__reply', 'mcp__Gmail__forward', 'mcp__Gmail__create_draft',
+    'mcp__Gmail__trash_thread', 'mcp__Gmail__label_message', 'mcp__Google_Drive__share_file', 'mcp__Google_Drive__update_file',
+    'mcp__Google_Drive__create_file', 'mcp__Google_Docs__update_doc', 'mcp__Google_Sheets__update_values', 'mcp__Google_Chat__list_messages',
+    'mcp__Google_Chat__send_message', 'mcp__GmailEvil__get_x', 'mcp__github__get_file_contents', 'mcp__Phone__phone_list_apps',
+    'mcp__x__y', 'WebFetch', 'WebSearch', 'Bash', 'Write', 'Edit', 'Agent'])
+    assert.ok(mail(t, {url: 'https://example.com/', query: 'q', command: 'ls', file_path: '/tmp/sess/th/ext/x', content: ''}), t);
+  assert.ok(mail('Read', {file_path: '/tmp/sess/th/brief.md'}), 'the drop folder only');
+  assert.ok(mail('Read', {file_path: '/work/repo/README.md'}));
+  // The session itself, in every role, and every other subagent: no connector at all.
+  for (const role of ['chat', 'night', 'reflex']) {
+    for (const t of ['mcp__Gmail__search_threads', 'mcp__Google_Drive_c1005530__read_file_content', 'mcp__github__get_file_contents'])
+      assert.equal(decide({tool_name: t, tool_input: {}}, ctx(role)), 'Mail and files are read by the mail agent.', `${role} ${t}`);
+    for (const t of ['mcp__Gmail__send_message', 'mcp__Google_Drive__share_file', 'mcp__fetch__fetch', 'mcp__Phone__phone_type_keys'])
+      assert.equal(decide({tool_name: t, tool_input: {}}, ctx(role)), 'Sending or changing mail and files is not built. Give the owner the text.', `${role} ${t}`);
+  }
+  for (const agent_type of ['reader', 'researcher', 'night-step', 'coder', 'general-purpose'])
+    assert.ok(decide({tool_name: 'mcp__Gmail__search_threads', tool_input: {}, agent_type}, ctx('night')), agent_type);
 });

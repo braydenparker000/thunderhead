@@ -39,7 +39,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     ok(await th(['status', 'working'], chat), 'status');
     ok(await th(['say', 'today', '--reply-to', asked, 'The plan is a walk, then music.'], chat), 'say');
     assert.deepEqual((await th(['pending'], chat)).json.unanswered, []);
-    assert.equal((await th(['say', 'today', 'Great question. A walk.'], chat)).code, 8, 'the phrase lint');
+    ok(await th(['say', 'today', 'Great question! A walk, then music 🎶'], chat), 'no refusal for style: CLI and Worker take it');
   });
 
   await t.test('search, get and help reach the built routes; an unknown import run is 404 (exit 8)', async () => {
@@ -105,7 +105,9 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     const today = (await th(['get', '/v1/threads/today'], chat)).json.day;
     assert.ok(b.json.day < today, 'the night works on the day before the open one');
     assert.equal(b.json.night_done, false);
-    assert.deepEqual((await th(['night', 'start'], night)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
+    const started = (await th(['night', 'start'], night)).json;
+    assert.deepEqual([started.resume_from, started.done, started.cursor, started.skipped], [1, false, null, []]);
+    assert.ok(started.todo.some(t => t.step === 2 && t.run.startsWith('th daynote')), 'start says what is due tonight');
     const ahead = await th(['night', 'step', '4', 'cursor', 'msg:x'], night);
     assert.equal(ahead.code, 7);
     assert.equal(JSON.parse(ahead.stderr).error.details.resume_from, 1);

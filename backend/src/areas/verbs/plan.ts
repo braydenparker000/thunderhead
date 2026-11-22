@@ -18,7 +18,6 @@ import type {
   PostPlanRequest,
   UndoResponse,
 } from '../../../../shared/contract/api';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
 import type { Permit, PermitClass, PermitPosition } from '../../../../shared/contract/permits.ts';
 import { PLAN_ACTION } from '../../../../shared/contract/schedules.ts';
 import { verbSpec } from '../../../../shared/contract/verbs.ts';
@@ -101,8 +100,6 @@ export function post(
       r.fire_at && found.fire_at !== null ? { shifted: schedule.fireMs(r.fire_at, zone()) !== found.fire_at } : {};
     return { plan: planOf(w.db, found), created: false, ...permitOf(w.db, found), ...shifted };
   }
-  const problem = lintMindText(r.what);
-  if (problem) throw invalid('what', problem);
   const steps = validate(r.steps, r.why);
   const verbs = steps.map((s) => s.verb);
   const tz = r.fire_at === undefined ? 'UTC' : zone();

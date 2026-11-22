@@ -19,8 +19,6 @@ bars and BPM, never in vague progress.
 - The Briefing's `practice` tile (night step 7): `th surface briefing practice --kind tile`, with
   the planned minutes and "bars 9-12 at 92" from the senses, and its why.
 - A home line when a goal moved: "That's 8 bpm faster than last week."
-- At night, a prediction that the owner opens Guitar today: `th predict app.open --app guitar --p
-  <odds> --why "<why>"`, honest odds.
 - Open Guitar with a reply chip to `/guitar/`.
 - The growth loop: `th guitar week` gives the week's sessions, best clean tempo per section and the
   BPM gained; coach from it, and night step 13 (`th growth`) sets tomorrow's section from it.

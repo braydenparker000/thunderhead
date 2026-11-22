@@ -1,7 +1,7 @@
 // What lands (BEHAVIOR.md §3.6, EVALS.md §9): the meter's outcome of each arrangement (meter.ts, the
 // same rule, one row at a time), counted per topic and per place over the last 30 days, and the
 // streak: ignored or undone in a row since the last kept, a home line never seen and one not decided
-// yet skipped. Three in a row and the topic rests for 30 days. The streak counts only what was placed
+// yet skipped. Two in a row and the topic rests for 30 days. The streak counts only what was placed
 // after the topic last reopened or went quiet, so a reopened topic starts clean. Counts only, never a
 // score (law 16). Pure.
 import { LANDS, type TopicLands } from '../../../../shared/contract/lands.ts';

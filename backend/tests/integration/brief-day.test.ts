@@ -125,7 +125,7 @@ describe('the briefing reads the day', () => {
     ).toBe(200);
     const before = section((await brief(C, CHAT_SESSION, 'chat')).body.core, 7);
     expect(before).toMatch(/^\d\d:\d\d briefing\/note\.1 ← tile · no answer yet: The calendar has choir tonight\.$/m);
-    expect(before).toContain(`Predicted for ${today}:\napp.open app=guitar · 70%: Practised four days running.`);
+    expect(before).not.toMatch(/Predicted for/); // predictions left the night (2026-11-22)
     expect(before).toMatch(/^The Briefing shows:\n(.+\n)*Note: Choir at six/m);
 
     await senses([

@@ -42,13 +42,10 @@ export function musicRoutes(ctl) {
     return null;
   };
   const tags = t => t;
-  /** The Worker records songs' tags it serves to a mind session itself (areas/music/tags-read.ts):
-   * the session's taint, and for a night session that it read them. */
+  /** The Worker records that a night session read songs' tags (areas/music/tags-read.ts); the
+   * owner's own songs mark no session (owner, 2026-11-22). */
   const heard = (role, session) => {
-    if (!session) return;
-    s.tainted.add(session);
-    (s.taintSources ??= new Map()).set(session, [...(s.taintSources.get(session) ?? []), 'th music']);
-    if (role === 'night') (s.songReaders ??= new Set()).add(session);
+    if (session && role === 'night') (s.songReaders ??= new Set()).add(session);
   };
   return [
     ['GET', /^\/v1\/music\/tracks$/, CN, ({query, role, session}) => {

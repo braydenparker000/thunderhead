@@ -1,4 +1,4 @@
-// th eval voice (EVALS.md §4.1, mind/skills/voice.md): thirty invented prompts, each with its
+// th eval voice (EVALS.md §4.1, the voice page): thirty invented prompts, each with its
 // briefing lines and a right and a wrong reply in our own words; the grader passes every right one
 // and fails every wrong one without a model; `th eval voice` prints the task with the skill and
 // every prompt; `check` grades a file of replies, records the TONE run in the owner's Core and
@@ -16,6 +16,8 @@ const withFake = fn => async () => {
   try { await fn(fake); } finally { await fake.stop(); }
 };
 const GRADED = ['knows', 'lacks', 'admit', 'rule', 'quiet', 'depth'];
+/** Right replies in the warm voice: an emoji or an exclamation mark among them (owner, 2026-11-22). */
+const WARM = ['VOI-01', 'VOI-23', 'VOI-28'];
 
 test('thirty fixtures, each with its briefing lines; every right reply passes and every wrong one fails', () => {
   const all = voiceFixtures();
@@ -24,10 +26,12 @@ test('thirty fixtures, each with its briefing lines; every right reply passes an
     assert.ok(f.prompt && f.brief.length && f.brief.every(l => typeof l === 'string' && l.length <= 200), f.id);
     assert.ok(GRADED.some(k => f[k] !== undefined), `${f.id}: graded on something`);
     assert.deepEqual(grade(f, f.good), [], `${f.id}: ${f.good}`);
-    assert.equal(lintText(f.good), null, f.id);
+    // The Worker's lint: no phrase the laws rule out (an emoji is the voice's own since 2026-11-22).
+    assert.ok([null, 'no emoji'].includes(lintText(f.good)), f.id);
     assert.ok(grade(f, f.bad).length, `${f.id}: the wrong reply should fail: ${f.bad}`);
     assert.doesNotMatch(JSON.stringify(f), /claude|opus|sonnet|haiku|fable/i, f.id);
   }
+  for (const id of WARM) assert.match(all.find(f => f.id === id).good, /!|\p{Extended_Pictographic}/u, `${id} is warm`);
   // Each grader has prompts that lean on it.
   for (const k of GRADED) assert.ok(all.filter(f => f[k]).length >= 2, k);
 });
@@ -47,7 +51,11 @@ test('the graders: fit, knowing, honesty, the admission, a kept correction, regi
   assert.match(grade({admit: true}, 'Weather is hard. I was wrong.').join(), /first sentence/);
   assert.match(grade({rule: true}, 'Noted.').join(), /kept/);
   assert.match(grade({quiet: true}, 'Nothing. Really. Truly.').join(), /at most 2/);
-  assert.match(grade(f, 'The dentist, perhaps!').join(), /exclamation.*hedging/);
+  // Warm and natural, an emoji now and then (owner, 2026-11-22): neither an emoji nor "!" counts against a reply.
+  assert.deepEqual(grade(f, 'The dentist at 9:30! 🦷'), []);
+  assert.deepEqual(grade(f, 'The dentist, perhaps!'), ['register: hedging instead of odds']);
+  assert.match(grade(f, 'You missed the dentist last time. It is at 9:30.').join(), /guilt/);
+  assert.match(grade(f, 'The dentist at 9:30. Let me know if you need anything!').join(), /engagement bait/);
   assert.match(grade(f, 'Great question. The dentist.').join(), /banned phrase/);
   assert.deepEqual(grade(f, ''), ['no reply']);
 });
@@ -57,7 +65,7 @@ test('th eval voice prints the task; check records the TONE run and what changed
   const task = await th(['eval', 'voice'], e);
   assert.equal(task.code, 0, task.stderr);
   assert.equal(task.json.n, 30);
-  assert.match(task.json.task, /## What you must not do/);
+  assert.ok(task.json.task.includes('The page that says how you talk:\n\nWarm and plain.'), 'the task carries the voice page');
   for (const f of voiceFixtures()) assert.ok(task.json.task.includes(`${f.id}\nBriefing: ${f.brief.join(' · ')}\nOwner: ${f.prompt}`), f.id);
   assert.match(task.json.next, /th eval voice check --file/);
   const answers = task.json.answers;

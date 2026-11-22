@@ -1,7 +1,7 @@
 // @ts-check
 // The night's report on the Briefing (BRIEFING.md "The report card"): the first tile after the
-// weather, folded to "Overnight", the headline and the Worker's counts; a tap on it opens its lines
-// in place (`aria-expanded`) and a second tap folds it. A line opens its app when it names one, and
+// weather, folded to "Overnight", the headline and the Worker's counts; a tap on it opens the
+// morning note's paragraphs and then its lines in place (`aria-expanded`) and a second tap folds it. A line opens its app when it names one, and
 // a line whose ledger row can still be undone has an Undo: POST /v1/ledger/:id/undo, the same as
 // `th undo` on that row; an undone line says so. The tile stays open across the page's redraws.
 // Text is set with textContent only.
@@ -27,6 +27,7 @@ export function reportTile(t, icon, changed) {
   head.setAttribute('aria-label', `${t.label}, ${t.value}, ${t.detail}`);
   const list = el('ul', { class: 'rlines', id });
   list.hidden = !open.has(t.day);
+  for (const p of t.note ?? []) list.append(el('li', { class: 'rline rnote' }, [el('span', { class: 'rt', text: p })]));
   for (const l of t.lines) list.append(line(t.day, l, changed));
   if (t.cut.length) list.append(el('li', { class: 'rcut', text: `Cut by the time limit: step${t.cut.length > 1 ? 's' : ''} ${t.cut.join(', ')}` }));
   head.addEventListener('click', () => {

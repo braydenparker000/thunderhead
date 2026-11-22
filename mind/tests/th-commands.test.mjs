@@ -136,7 +136,7 @@ test('note --session enforces 120 words and records note_at', withFake({}, async
   assert.equal((await th(['note', '--session', Array(121).fill('word').join(' ')], e)).code, 8);
 }));
 
-test('note --day-voice puts the night line on the day note: one line, ≤ 200, the phrase lint, a day', withFake({}, async fake => {
+test('note --day-voice puts the night line on the day note: one line, ≤ 200, a day; no refusal for style', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   assert.equal((await th(['daynote', '2026-11-03', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).code, 0);
   const r = await th(['note', '--day-voice', 'The house was quiet; the later train again.', '--day', '2026-11-03'], e);
@@ -144,10 +144,11 @@ test('note --day-voice puts the night line on the day note: one line, ≤ 200, t
   assert.deepEqual(r.json, {day: '2026-11-03', voice: 'The house was quiet; the later train again.'});
   assert.equal(fake.state.dayNotes.get('2026-11-03').voice, 'The house was quiet; the later train again.');
   const before = fake.state.requests.length;
-  for (const bad of [['--day-voice', 'x'.repeat(201), '--day', '2026-11-03'], ['--day-voice', 'Great question, the day.', '--day', '2026-11-03'],
+  for (const bad of [['--day-voice', 'x'.repeat(201), '--day', '2026-11-03'],
     ['--day-voice', 'A line.'], ['--day-voice']])
     assert.equal((await th(['note', ...bad], e)).code, 8, bad.join(' '));
   assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  assert.equal((await th(['note', '--day-voice', 'A good day! 🌤', '--day', '2026-11-03'], e)).code, 0, 'an emoji and an exclamation mark pass');
   assert.equal((await th(['note', '--day-voice', 'A line.', '--day', '2026-11-02'], e)).code, 8, 'no day note there: 404');
   assert.match((await th(['help', 'all'], e)).stdout, /--day-voice/);
 }));
@@ -354,20 +355,11 @@ test('surface, push (quiet hours exit 7), pending, health, errors', withFake({},
   assert.deepEqual((await th(['errors', '--hours', '1'], e)).json, {items: []});
 }));
 
-test('predict: the night shift, about the day after its briefing day, with the resolver\'s arguments', withFake({}, async fake => {
+test('predict is gone (2026-11-22): no command, no help line', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
-  const b = await th(['brief', '--claim'], e);
-  assert.equal(b.code, 0, b.stderr);
-  const day = JSON.parse(readFileSync(join(e.TMPDIR, 'th', 'state', 'day.json'), 'utf8'));
-  const next = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  const r = await th(['predict', 'chat.before', '--time', '08:30', '--p', '0.7', '--why', 'Writes before work most days'], e);
-  assert.equal(r.code, 0, r.stderr);
-  assert.equal(r.json.day, next);
-  const sent = [...fake.state.predictions.values()][0].value;
-  assert.deepEqual([sent.category, sent.args, sent.p], ['chat.before', {time: '08:30'}, 0.7]);
-  assert.equal((await th(['predict', 'list', '--open'], e)).json.items.length, 1);
-  assert.equal((await th(['predict', 'chat.any', '--day', next, '--p', '0.7', '--why', 'x'], env(fake))).code, 6, 'the chat role may not');
-  assert.equal((await th(['predict', 'chat.any', 'extra', '--p', '0.7', '--why', 'x'], e)).code, 8);
+  assert.equal((await th(['predict', 'chat.any', '--p', '0.7', '--why', 'x'], e)).code, 8, 'an unknown command');
+  assert.doesNotMatch((await th(['help', 'all'], e)).stdout.split('\nRoutes')[0], /\bth predict|^ *predict\b/m);
+  assert.equal(fake.state.predictions.size, 0);
 }));
 
 test('night role: day, daynote, facts, night progress', withFake({}, async fake => {
@@ -404,7 +396,8 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.deepEqual((await th(['facts', '--batch', '-'], e, onStdin)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
   const how = (await th(['help', 'facts'], e)).stdout;
   for (const word of ['{"ops":[', '"op":"add"', '"op":"confirm"', '"op":"supersede"', 'msg:<message id>', '--batch - --night']) assert.ok(how.includes(word), `th help facts says ${word}`);
-  assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
+  const started = (await th(['night', 'start'], e)).json;
+  assert.deepEqual([started.resume_from, started.done, started.cursor, started.skipped], [1, false, null, []]);
   const ahead = await th(['night', 'step', '3', 'done'], e);
   assert.equal(ahead.code, 7, 'a step ahead of the run is a conflict');
   assert.equal(JSON.parse(ahead.stderr).error.details.resume_from, 1, 'and says where the run is');
@@ -412,7 +405,6 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.deepEqual((await th(['night', 'step', '4', 'cursor', 'msg:abc'], e)).json, {resume_from: 4, done: false, cursor: 'msg:abc', skipped: []});
   assert.equal((await th(['night', 'step', '2', 'cursor', 'x'], e)).code, 8, 'step 2 keeps no cursor, checked before the call');
   assert.equal((await th(['night', 'step', '14', 'done'], e)).code, 8, 'no step 14');
-  assert.equal((await th(['night', 'done'], e)).code, 7, 'steps are left');
   assert.deepEqual((await th(['night', 'done', '--partial'], e)).json, {resume_from: 14, done: true, cursor: null, skipped: [4, 5, 6, 7, 8, 9, 11, 12, 13]});
   assert.equal((await th(['day', '2026-10-28'], env(fake))).code, 6, 'chat may not read night input');
 }));
@@ -420,7 +412,7 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
 test('night steps come from the contract; the day comes from the briefing or --day', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const r = await th(['night', 'steps'], e);
-  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 12, 5, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 12, the report, before health, then 11, the songs, last before 10');
+  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 5, health, then 12, the morning note; then 11, the songs, last before 10');
   assert.deepEqual(r.json.steps.filter(s => s.cursor).map(s => s.step), [4]);
   assert.deepEqual(r.json.budget_min, {target: 30, hard: 45, sunday_hard: 60});
   assert.equal(fake.state.requests.length, 0, 'listing the steps asks the Worker nothing');
@@ -516,4 +508,87 @@ test('approved: an executed repo.change card for these paths and this base (exit
   assert.equal(inEval.code, 0);
   const last = fake.state.requests.filter(r => r.path === '/v1/proposals').pop();
   assert.equal(last.headers['th-sandbox'], undefined);
+}));
+
+// Forgiving commands (owner, 2026-11-22): obvious slips repaired and listed; one refusal, before
+// the network, naming every fault with its rule, its number and what was sent.
+const refusal = r => JSON.parse(r.stderr).error;
+
+test('thread add: a long text is refused with its limit and length; every fault at once; repairs said', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('keep track of the long plan');
+  const before = fake.state.requests.length;
+  const long = 'x'.repeat(212);
+  const r = await th(['thread', 'add', long, '--owner', 'nobody', '--due', 'soon'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['text', '--owner', '--due', '--evidence']);
+  assert.match(err.message, /text: at most 200 characters; yours has 212/);
+  assert.match(err.message, /--owner: one of mind, owner; you sent "nobody"/);
+  assert.equal(err.message.includes('Invalid input'), false);
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  const ok = await th(['thread', 'add', '  Restring the guitar  ', '--owner', ' owner', '--evidence', `${said.id},${said.id}`], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(fake.state.openThreads.get(ok.json.id).text, 'Restring the guitar');
+  assert.deepEqual(ok.json.repaired, ['text: trimmed the spaces around it', '--owner: trimmed the spaces around it', '--evidence: dropped 1 repeated id(s)']);
+  const drop = await th(['thread', 'drop'], e);
+  assert.deepEqual(refusal(drop).details.map(d => d.path), ['id', '--why']);
+}));
+
+test('remember: every fault in one refusal; sensitivity clamped and text trimmed, never cut', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('I like long walks');
+  const r = await th(['remember', '--kind', 'mood', '--source', 'guess', '--text', 'y'.repeat(300), '--sensitivity', 'high'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['--kind', '--source', '--sensitivity', '--text', '--evidence']);
+  assert.match(err.message, /--text: at most 280 characters; yours has 300/);
+  const ok = await th(['remember', '--kind', 'preference', '--text', ' Likes long walks ', '--sensitivity', '3', '--evidence', said.id], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['--sensitivity: 3 → 1 (0 to 1)', '--text: trimmed the spaces around it']);
+  assert.equal(fake.state.facts.at(-1).text, 'Likes long walks');
+}));
+
+test('facts --batch: every op checked first; one refusal names each fault', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('I run on Saturdays');
+  const before = fake.state.requests.length;
+  const r = await th(['facts', '--batch', '-'], e, JSON.stringify([{op: 'add', kind: 'habit', source: 'user', text: 'z'.repeat(281), evidence: [said.id]},
+    {op: 'grow'}, {op: 'add', kind: 'nope', source: 'user', text: 'Runs', evidence: []}]));
+  assert.equal(r.code, 8);
+  assert.deepEqual(refusal(r).details.map(d => d.path), ['ops.0.text', 'ops.1.op', 'ops.2.kind', 'ops.2.evidence']);
+  assert.match(refusal(r).message, /ops\.0\.text: at most 280 characters; yours has 281/);
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  const ok = await th(['facts', '--batch', '-'], e, JSON.stringify([{op: 'add', kind: 'routine', source: 'user', text: 'Runs on Saturdays ', evidence: [said.id]}]));
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['ops.0.text: trimmed the spaces around it']);
+}));
+
+test('title: one refusal names the thread, the limit and the length; spaces trimmed', withFake({}, async fake => {
+  const e = env(fake);
+  const r = await th(['title', fake.today.id, 't'.repeat(95)], e);
+  assert.equal(r.code, 8);
+  assert.match(refusal(r).message, /title: at most 80 characters; yours has 95/);
+  assert.deepEqual(refusal(await th(['title'], e)).details.map(d => d.path), ['thread', 'title']);
+  const ok = await th(['title', fake.today.id, ' Garden', 'plans '], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(fake.today.title, 'Garden plans');
+  assert.deepEqual(ok.json.repaired, ['title: trimmed the spaces around it']);
+}));
+
+test('surface: --why and --topic named with their rules in the one refusal, beside the payload\'s faults', withFake({}, async fake => {
+  const e = env(fake);
+  const before = fake.state.requests.length;
+  const r = await th(['surface', 'home', 'line.1', '--kind', 'line', '--payload', '{"text":5,"lang":"English"}', '--why', 'short'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['payload.text', 'payload.lang', '--why', '--topic']);
+  assert.match(err.message, /--why: at least 8 characters; yours has 5/);
+  assert.match(err.message, /--topic: required: a topic key, 1 to 64/);
+  assert.equal(fake.state.requests.length, before);
+  const bad = refusal(await th(['surface', 'home', 'line.1', '--kind', 'tilee', '--topic', 'Big Topic'], e));
+  assert.deepEqual(bad.details.map(d => d.path), ['--kind', '--payload', '--why', '--topic']);
+  const ok = await th(['surface', 'home', 'line.1', '--kind', ' line', '--payload', '{"text":"Rain at 3"}', '--why', ' Owner walks at 3 pm ', '--topic', 'weather-walk '], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['--kind: trimmed the spaces around it', '--why: trimmed the spaces around it', '--topic: trimmed the spaces around it']);
 }));

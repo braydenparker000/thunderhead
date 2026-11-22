@@ -14,6 +14,7 @@ import * as surfaces from '../surfaces/ops';
 import * as verbs from '../verbs/ops';
 import { undoPlan } from '../verbs/plan';
 import { VERB_UNDO_OPS, undo as verbUndo } from '../verbs/undo';
+import { undoVoice, VOICE_UNDO_OPS } from '../voice/ops';
 import * as store from './store';
 
 const UNDO_DAYS = 30;
@@ -95,6 +96,8 @@ export function undo(w: Writer, c: Caller, id: string, zone: () => string = () =
   else if (inverse.op && photos.PHOTO_UNDO_OPS.includes(inverse.op)) photos.undo(w, inverse.op, inverse.args ?? {});
   // The night's report: back to the version before, or none (briefing/report.ts).
   else if (inverse.op && REPORT_UNDO_OPS.includes(inverse.op)) undoReport(w, id, inverse.op, inverse.args ?? {});
+  // The mind's edit of the voice page: the version before, as a new version (voice/ops.ts).
+  else if (inverse.op && VOICE_UNDO_OPS.includes(inverse.op)) undoVoice(w, c.actor, inverse.args ?? {});
   else throw new Fail('validation', { reason: 'not_undoable' });
   store.setStatus(w.db, id, 'undone', w.at);
   const undoId = w.ledger({

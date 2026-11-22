@@ -84,7 +84,7 @@ describe('a scheduled Worker-side verb', () => {
     const put = (b: object) =>
       apiJson<Verb & { shifted?: boolean }>('PUT', `/v1/verbs/${id}`, {
         ...chat(),
-        body: { verb: 'settings.set', schema: 1, args: { key: 'mind.verbosity', value: 'full' }, ...b },
+        body: { verb: 'settings.set', schema: 1, args: { key: 'mind.night_scope', value: 'arrange' }, ...b },
       });
     const r = await put(body);
     expect([r.status, r.body.fire_at]).toEqual([201, zonedMinute(day, 18 * 60, 'Asia/Tokyo')]);
@@ -152,7 +152,7 @@ describe('the limits', () => {
     for (let i = waiting; i < 20; i++) {
       const r = await verb(
         'settings.set',
-        { key: 'mind.verbosity', value: 'short' },
+        { key: 'mind.night_scope', value: 'bookkeeping' },
         { fire_at: iso(Date.now() + DAY) },
       );
       expect(r.status).toBe(201);
@@ -160,12 +160,12 @@ describe('the limits', () => {
     }
     const over = await verb(
       'settings.set',
-      { key: 'mind.verbosity', value: 'short' },
+      { key: 'mind.night_scope', value: 'bookkeeping' },
       { fire_at: iso(Date.now() + DAY) },
     );
     expect([over.status, over.body.error.code]).toEqual([429, 'too_many_scheduled']);
     // A verb at once is not counted.
-    expect((await verb('settings.set', { key: 'mind.verbosity', value: 'full' })).body.status).toBe('done');
+    expect((await verb('settings.set', { key: 'mind.night_scope', value: 'arrange' })).body.status).toBe('done');
     for (const id of ids) await cancel(id);
   });
 });

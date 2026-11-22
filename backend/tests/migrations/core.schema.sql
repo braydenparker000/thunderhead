@@ -53,6 +53,23 @@ CREATE TABLE changes (
   at INTEGER NOT NULL
   );
 
+CREATE TABLE checkins (
+  day TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  at INTEGER NOT NULL,
+  fired_at INTEGER,
+  wake_id TEXT,
+  session_id TEXT,
+  outcome TEXT NOT NULL,
+  why TEXT,
+  message_id TEXT,
+  ended_at INTEGER,
+  PRIMARY KEY (day, slot)
+  ) WITHOUT ROWID;
+
+CREATE INDEX checkins_wake ON checkins (wake_id) WHERE wake_id IS NOT NULL;
+
 CREATE TABLE day_notes (
   seq INTEGER PRIMARY KEY,
   day TEXT NOT NULL UNIQUE,
@@ -386,7 +403,7 @@ CREATE TABLE night_reports (
   req_sha256 TEXT NOT NULL,
   ledger_id TEXT NOT NULL,
   message_id TEXT
-  ) WITHOUT ROWID;
+  , note TEXT) WITHOUT ROWID;
 
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,
@@ -751,6 +768,17 @@ CREATE TABLE verbs (
 CREATE INDEX verbs_open ON verbs (created_at) WHERE status IN ('pending', 'claimed');
 
 CREATE INDEX verbs_scheduled ON verbs (fire_at) WHERE status = 'scheduled';
+
+CREATE TABLE voice_versions (
+  seq INTEGER PRIMARY KEY,
+  id TEXT NOT NULL UNIQUE,
+  at INTEGER NOT NULL,
+  by TEXT NOT NULL,
+  text TEXT NOT NULL,
+  why TEXT,
+  session_id TEXT,
+  ledger_id TEXT
+  );
 
 CREATE TABLE wakes (
   id TEXT PRIMARY KEY,

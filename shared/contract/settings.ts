@@ -138,10 +138,7 @@ export const SETTINGS = [
   // by the Worker's PATCH (settings/catalog.ts); the shell says it wherever it would say "the mind".
   { ...MIND, section: 'How I talk', key: 'mind.name', label: 'Name', kind: 'text', default: '', max: 20, pattern: '^[^\\u0000-\\u001f\\u007f]*$',
     detail: 'What you call me, up to 20 characters. Empty: the mind.' },
-  { ...MIND, section: 'How I talk', key: 'mind.voice', label: 'Voice', kind: 'choice', default: 'plain',
-    options: o('plain:Plain', 'warmer:Warmer', 'drier:Drier'), detail: 'Plain, a little warmer, or drier.' },
-  { ...MIND, section: 'How I talk', key: 'mind.verbosity', label: 'Length', kind: 'choice', default: 'normal',
-    options: o('short:Short', 'normal:Normal', 'full:Full'), detail: 'How much I say when you have not asked for more or less.' },
+  // How the mind talks is the voice page (voice.ts, Settings › The mind's editor), not a setting.
   // The owner's day (theme.js's Auto, the briefing's "now", brief-day.ts dayPart): day from the one, evening from the other.
   { ...MIND, section: 'Day and evening', key: 'mind.day_start', label: 'Day starts', kind: 'choice', default: '07:00',
     options: hours(5, 6, 7, 8, 9, 10), detail: 'From this hour Auto shows the day theme, and I count it as your day.' },
@@ -151,11 +148,15 @@ export const SETTINGS = [
     options: o('bookkeeping:Bookkeeping', 'arrange:Arrange', 'full:Full'), detail: 'Only the bookkeeping, also arranging tomorrow, or all of the night shift.' },
   { ...MIND, section: 'Nights', key: 'mind.night_budget', label: 'Night budget', kind: 'range', unit: 'min', default: 30,
     options: stops('min', 5, 15, 30), detail: 'How long the night shift may run.' },
-  { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 120,
-    options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep. On a busy day I stay up to twice this, never past 4 hours.' },
+  { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 45,
+    options: stops('min', 15, 45, 120), detail: 'How long I stay awake after your last message. After that the next first reply takes up to a minute.' },
+  // Check-ins (areas/mind/checkin.ts, 2026-11-22): 1 is 15:00, 2 are 12:30 and 18:30, in the owner's zone, on the night routine.
+  { ...MIND, section: 'Reaching you', key: 'mind.checkins', label: 'Check-ins a day', kind: 'choice', default: '2',
+    options: o('0:None', '1:One', '2:Two'), detail: 'Times I wake by myself to leave you a note in the chat or a line on home. No notification.' },
   // On the Notifications page (2026-11-21). The Worker holds the mind's nudges to it (push/rules.ts):
   // urgent is one the owner asked to be told of. Reminders, sign-in notices and the usage alarm are apart.
-  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'normal',
+  // Never by default since 2026-11-22: the mind's words wait in the chat and on home.
+  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'never',
     options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'),
     detail: 'Normal: up to 2 a day, never in quiet hours. Urgent only: only what you asked me to tell you. Never: none from me.' },
   // Speech (BEHAVIOR.md §3.7): as needed is no cap at all; the Worker holds the mind to the other two.
@@ -176,7 +177,7 @@ export const SETTINGS = [
   { ...PERMIT, key: 'mind.permit.podcasts', label: 'Podcasts', default: 'quiet', detail: 'Following shows and queueing episodes.' },
   { ...PERMIT, key: 'mind.permit.reminders', label: 'Reminders', default: 'tell', detail: 'Setting, moving and cancelling reminders.' },
   { ...PERMIT, key: 'mind.permit.settings', label: 'Settings', default: 'tell', detail: 'Changing one of these settings.' },
-  { ...PERMIT, key: 'mind.permit.muse', label: 'Muse orders', default: 'ask', detail: 'Asking Muse to make something.' },
+  { ...PERMIT, key: 'mind.permit.muse', label: 'Muse orders', default: 'tell', detail: 'Asking Muse to make something.' },
   { ...PERMIT, key: 'mind.permit.watch', label: 'Watch lists', default: 'tell', detail: 'Adding to and tidying your watch lists.' },
   { ...PERMIT, key: 'mind.permit.practice', label: 'Practice', default: 'tell', detail: 'Guitar and study practice plans.' },
   { ...PERMIT, key: 'mind.permit.tiles', label: 'Lines and tiles', default: 'quiet', detail: 'Lines on home and tiles on the Briefing.' },

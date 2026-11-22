@@ -1,6 +1,6 @@
 // The files a mind session reads (RUNTIME.md §2): mind/CONSTITUTION.md is the constitution's loaded
 // text byte for byte (CONSTITUTION.md rule 2) and stays ≤ 5,000 characters (rule 3); mind/ROLES.md
-// has the chat, night and reflex sections and stays ≤ 6,000 characters; the hooks block the owner
+// has the chat, night, checkin and reflex sections and stays ≤ 6,000 characters; the hooks block the owner
 // pastes names only hooks that exist, and the pasted copy is that block.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,21 +18,24 @@ test('mind/CONSTITUTION.md is the loaded text of docs/mind/CONSTITUTION.md, byte
   assert.ok(block.length <= 5000, `${block.length} characters`);
 });
 
-test('mind/ROLES.md has the three role sections and stays under 6,000 characters', () => {
+test('mind/ROLES.md has the four role sections, stays under 6,000 characters, and each leaves room for the voice page', () => {
   const roles = read('mind/ROLES.md');
-  assert.deepEqual(roles.match(/^## .+$/gm), ['## chat', '## night', '## reflex']);
+  assert.deepEqual(roles.match(/^## .+$/gm), ['## chat', '## night', '## checkin', '## reflex']);
   assert.ok(roles.length <= 6000, `${roles.length} characters`);
+  // The start prints one role section and the voice page (up to 4,000 characters) as one piece of
+  // at most 9,500 (hooks/session-start.mjs): a section over 5,300 would cut the page.
+  for (const part of roles.split(/\n(?=## )/).slice(1)) assert.ok(part.length <= 5300, `${part.split('\n', 1)[0]}: ${part.length} characters`);
 });
 
 test('the night section walks the contract\'s steps: each built step in order, and the commands th has', () => {
   const roles = read('mind/ROLES.md');
-  const night = roles.slice(roles.indexOf('## night'), roles.indexOf('## reflex'));
+  const night = roles.slice(roles.indexOf('## night'), roles.indexOf('## checkin'));
   const contract = JSON.parse(read('mind/cli/contract.json')).night;
   // A step whose work is somewhere else (8: the Briefing page's tile, deferred) has no bullet.
   const built = contract.steps.filter(s => contract.built_phases.includes(s.phase) && !s.deferred).map(s => s.step);
   const named = [...night.matchAll(/^ {3}- (\d+) /gm)].map(m => Number(m[1]));
   assert.deepEqual(named, built, 'one bullet per built step, in order');
-  for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch - --night'])
+  for (const cmd of ['th night start', 'th night step <n> done', 'th night done', 'th day', 'th daynote', 'th facts --batch - --night', 'th report'])
     assert.ok(night.includes(cmd), cmd);
   assert.match(night, new RegExp(`at ${contract.budget_min.hard} \\(${contract.budget_min.sunday_hard} on the`));
 });

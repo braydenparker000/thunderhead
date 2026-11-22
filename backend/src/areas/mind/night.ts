@@ -2,7 +2,7 @@
 // keeps the last finished step, each step's time and session (or why it was skipped), a step's
 // saved cursor and when the run ended, so a refired session resumes at the first step not done
 // and never repeats one. The steps are shared/contract/night.ts's: a number it doesn't list is
-// refused, steps go in order, a step of a phase not built yet (and the Sunday step on any other
+// refused, steps go in order (`through` closes every open one up to its step), a step of a phase not built yet (and the Sunday step on any other
 // night, the weekly one once a night of its week did it) is skipped on the way, and `done` ends the session and its wake (`night_done`). The day
 // roll fires the night once for the day before the new open day (`nightWake`), but only while the
 // mind-night task is connected (ROUTINE_NIGHT_URL/TOKEN, SETUP.md L1).
@@ -195,23 +195,36 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
   const steps = JSON.parse(row.steps_json) as Record<string, StepRecord>;
   let resume = next(db, steps, r.day, at);
   const step = r.step ?? 0;
-  if (r.action === 'step_done' || r.action === 'cursor') {
+  if (r.action === 'step_done' || r.action === 'cursor' || r.action === 'through') {
     if (!NIGHT_STEPS.some((s) => s.step === step))
       throw invalid('step', `steps are ${NIGHT_STEPS.map((s) => s.step).join(', ')}`);
-    if (nightPos(step) > nightPos(resume)) throw new Fail('conflict', { resume_from: resume });
+    if (r.action === 'through' && step === NIGHT_LAST_STEP) throw invalid('step', 'the last step ends with done');
+    if (r.action !== 'through' && nightPos(step) > nightPos(resume))
+      throw new Fail('conflict', { resume_from: resume });
   }
-  // `done` is the last step's own end (so is that step reported done); with `partial`, the hard
-  // stop cut the steps between, and they are recorded as skipped (those not due tonight anyway
-  // with their own reason).
+  // `done` is the last step's own end (so is that step reported done) and closes every step still
+  // open as done (2026-11-22: the mind works in order); with `partial`, the hard stop cut them, and
+  // they are recorded as skipped. Steps not due tonight keep their own reason either way.
   if (r.action === 'done' || (r.action === 'step_done' && step === NIGHT_LAST_STEP && step === resume)) {
-    if (nightPos(resume) < nightPos(NIGHT_LAST_STEP) && !r.partial) throw new Fail('conflict', { resume_from: resume });
     for (const s of NIGHT_STEPS)
-      if (nightPos(s.step) >= nightPos(resume) && s.step !== NIGHT_LAST_STEP)
-        steps[s.step] = { at, skipped: notDue(db, s, r.day) ?? 'hard_stop' };
+      if (nightPos(s.step) >= nightPos(resume) && s.step !== NIGHT_LAST_STEP && !steps[s.step]?.done) {
+        const skip = notDue(db, s, r.day);
+        steps[s.step] =
+          skip || r.partial ? { at, skipped: skip ?? 'hard_stop' } : { at, session: c.session_id, done: true };
+      }
     steps[NIGHT_LAST_STEP] = { at, session: c.session_id, done: true };
     row.done_at = at;
     resume = NIGHT_END;
     endNight(db, c.session_id, at);
+  } else if (r.action === 'through') {
+    // A writing command's step and every open one before it (`th` sends it after the command).
+    for (const s of NIGHT_STEPS) {
+      if (nightPos(s.step) > nightPos(step)) break;
+      if (steps[s.step]?.done || steps[s.step]?.skipped) continue;
+      const skip = notDue(db, s, r.day);
+      steps[s.step] = skip ? { at, skipped: skip } : { at, session: c.session_id, done: true };
+    }
+    resume = next(db, steps, r.day, at);
   } else if (r.action === 'step_done' && step === resume) {
     steps[step] = { at, session: c.session_id, done: true };
     resume = next(db, steps, r.day, at);

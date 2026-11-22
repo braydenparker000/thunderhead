@@ -56,6 +56,13 @@ export const BRIEFING_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  // The report's morning note (2026-11-22): the mind's own words, shown under the headline.
+  {
+    version: 54,
+    name: 'night_reports.note',
+    kind: 'expand',
+    sql: ['ALTER TABLE night_reports ADD COLUMN note TEXT'],
+  },
 ];
 
 export const BRIEFING_TABLES: Record<string, TableInfo> = {
