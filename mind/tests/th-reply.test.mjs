@@ -111,3 +111,26 @@ test('th wait --minutes N keeps its meaning: exit 3 after N, no cut-off read', w
   assert.ok(r.json.timeout);
   assert.equal(fake.state.pendingReads ?? 0, 0);
 }));
+
+test('a message handed over is acknowledged by th itself, and the lease is kept while the mind works, until the next listener', withFake({}, async fake => {
+  const e = env(fake, {TH_KEEPALIVE: undefined, TH_KEEPALIVE_MS: '60', TH_KEEPALIVE_MAX_MS: '3000'});
+  await th(['brief', '--claim'], e);
+  const working = () => fake.state.requests.filter(r => r.method === 'POST' && r.path === '/v1/mind/status' && r.body?.state === 'working').length;
+  later(100, () => fake.addOwnerMessage('a long question'));
+  const got = await th(['listen', '--minutes', '0.2'], e);
+  assert.equal(got.code, 0, got.stderr);
+  assert.ok(working() >= 1, 'th reported working when it handed the message over');
+  assert.equal(mark(e, 'status')?.state, 'working');
+  // No th command runs while the mind composes: the detached keep-alive goes on reporting.
+  const before = working();
+  await new Promise(r => setTimeout(r, 400));
+  assert.ok(working() >= before + 2, `the keep-alive reported ${working() - before} times in 400 ms`);
+  // The next listener's own takes renew the lease: the keep-alive ends.
+  const r = await th(['reply', '--minutes', '0.01'], e, 'Here is the long answer.');
+  assert.equal(r.code, 3, r.stderr);
+  assert.equal(mark(e, 'keepalive'), null);
+  await new Promise(res => setTimeout(res, 200));
+  const settled = working();
+  await new Promise(res => setTimeout(res, 300));
+  assert.equal(working(), settled, 'no report after the listener started');
+}));

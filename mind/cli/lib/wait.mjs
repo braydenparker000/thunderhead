@@ -16,6 +16,7 @@
 import {EXIT, ThError, invalid, out, redact} from './io.mjs';
 import {request, sleep} from './http.mjs';
 import {getState, setState} from './state.mjs';
+import {handedOver, listening} from './keepalive.mjs';
 
 /** What the session is told beside messages off the record (the Worker refuses the writes anyway). */
 export const OFF_RECORD_NOTE = 'Off the record: answer each with --reply-to, so the answer stays in its conversation. ' +
@@ -97,6 +98,7 @@ export async function listenLoop({minutes, cutoff = false, quiet = false, after:
   let after = from !== undefined ? Number(from) : Number(getState('seq', 0)) || 0;
   if (!Number.isFinite(after) || after < 0) throw invalid('--after must be a sequence number');
   setState('closed', false);
+  listening();
 
   const startedAt = Date.now();
   const until = minutes === undefined ? Infinity : startedAt + minutes * 60_000;
@@ -140,6 +142,8 @@ export async function listenLoop({minutes, cutoff = false, quiet = false, after:
     const events = Array.isArray(data?.events) ? data.events : [];
     const signals = Array.isArray(data?.signals) ? data.signals : [];
     if (messages.length) noteOwnerMessages(messages);
+    // The session's own acknowledgement, and the lease kept while the mind works (keepalive.mjs).
+    if (messages.length) await handedOver();
     const held = Array.isArray(data?.off_record) && data.off_record.length ? {off_record: {threads: data.off_record, note: OFF_RECORD_NOTE}} : {};
     const extra = {...(messages.length ? {messages} : {}), ...(events.length ? {events} : {}), ...held};
     if (signals.includes('day_closed')) {

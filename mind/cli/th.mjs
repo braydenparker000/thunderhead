@@ -18,6 +18,7 @@ import {brief} from './lib/brief.mjs';
 import {skill} from './lib/skill.mjs';
 import {wait} from './lib/wait.mjs';
 import {listen, reply} from './lib/reply.mjs';
+import {keepalive} from './lib/keepalive.mjs';
 import {helpText} from './lib/help.mjs';
 import * as conv from './lib/conv.mjs';
 import * as memory from './lib/memory.mjs';
@@ -64,6 +65,8 @@ export const COMMANDS = {
 /** @param {string[]} argv @returns {Promise<number>} */
 export async function main(argv) {
   const [command, ...tail] = argv;
+  // th's own detached keep-alive (lib/keepalive.mjs): not a command of the mind's.
+  if (command === 'keepalive' && tail[0]) return keepalive(tail[0]).catch(() => 0);
   try {
     const run = COMMANDS[command];
     if (!run) throw invalid(`unknown command ${command ? `"${command}"` : '(none)'}; run th help`);

@@ -223,6 +223,12 @@ describe('a check-in session', () => {
     expect((await say('cse_ci_one', 'You said you would try the new trail today. How was it?', id)).status).toBe(200);
     const again = await say('cse_ci_one', 'And one more thing.');
     expect([again.status, again.body.error?.code]).toEqual([409, 'conflict']);
+    // A check-in is not the night shift: it starts no night run, whatever the routine's prompt says.
+    const run = await apiJson<{ error?: { code: string } }>('POST', '/v1/mind/night', {
+      ...as(p.N, 'cse_ci_one'),
+      body: { day: dayBefore(today), action: 'start' },
+    });
+    expect([run.status, run.body.error?.code]).toEqual([409, 'conflict']);
     expect((await authSql<{ n: number }>('SELECT count(*) AS n FROM pushes'))[0].n).toBe(pushesBefore);
     const done = await apiJson('POST', '/v1/mind/checkin', { ...as(p.N, 'cse_ci_one'), body: { action: 'done' } });
     expect(done.body).toEqual({ outcome: 'said', slot: '00:01' });

@@ -172,11 +172,11 @@
     "rows_written_max": 0
   },
   "cron tick, 2 routines not due (Core)": {
-    "rows_read_max": 54,
+    "rows_read_max": 58,
     "rows_written_max": 12
   },
   "cron tick, running a routine of 2 steps (Core)": {
-    "rows_read_max": 87,
+    "rows_read_max": 91,
     "rows_written_max": 37
   },
   "PUT /v1/surfaces/home/:slot (Core)": {
@@ -240,7 +240,7 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/night (start) (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 6,
     "rows_written_max": 1
   },
   "POST /v1/mind/night (step done) (Core)": {

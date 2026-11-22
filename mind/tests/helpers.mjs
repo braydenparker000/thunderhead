@@ -21,7 +21,9 @@ export function env(fake, extra = {}) {
     TH_ROLE: 'chat', TH_RETRY_BASE_MS: '5', CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_test_session_1',
     // The fake also serves later phases' routes, so the contract's build check is lifted here;
     // th-contract.test.mjs checks the not_built answer itself.
-    TH_ALLOW_UNBUILT: '1'};
+    TH_ALLOW_UNBUILT: '1',
+    // No detached keep-alive left behind by a test (lib/keepalive.mjs); th-reply.test.mjs turns it on.
+    TH_KEEPALIVE: 'off'};
   if (!('TH_TOKEN' in extra)) base.TH_TOKEN = TOKENS[extra.TH_ROLE || 'chat'];
   const out = {...base, ...extra};
   for (const [k, v] of Object.entries(out)) if (v === undefined) delete out[k];
