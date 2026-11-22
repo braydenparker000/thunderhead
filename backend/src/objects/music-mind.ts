@@ -52,17 +52,20 @@ export abstract class MusicMind extends MusicPacks {
   }
 
   /** The night's next page: the songs after its place with no note of the current version (or one
-   * the owner corrected through the chat), in catalog order. Its place moves to just before the
-   * first of them, so the next page starts there; `total` counts this page only. */
+   * the owner corrected through the chat), in catalog order, looking at most UNTAGGED_WINDOW places
+   * on. Its place moves to just before the first of them (or to the window's end when it held none),
+   * so the next page starts there; `total` counts this page only. */
   untaggedPage(limit: number): MusicTracksResponse {
     this.refreshIfStale();
     const kept = notes.cursor(this.db);
     const after = kept?.v === MUSIC_NOTE_VERSION ? kept.ord : 0;
-    const rows = notes.untagged(this.db, after, MUSIC_NOTE_VERSION, limit + 1);
+    // A look at most UNTAGGED_WINDOW places on: past a stretch of songs with notes the place moves
+    // to the window's end and `more` says to ask again.
+    const { rows, end } = notes.untagged(this.db, after, MUSIC_NOTE_VERSION, limit + 1);
     const items = rows.slice(0, limit);
-    const ord = items.length ? items[0].ord - 1 : notes.lastOrd(this.db);
+    const ord = items.length ? items[0].ord - 1 : (end ?? notes.lastOrd(this.db));
     if (ord !== after || kept?.v !== MUSIC_NOTE_VERSION) notes.putCursor(this.db, MUSIC_NOTE_VERSION, ord);
-    return { items: items.map(tagsOf), total: items.length, more: rows.length > limit };
+    return { items: items.map(tagsOf), total: items.length, more: rows.length > limit || end !== null };
   }
 
   /** A batch of notes checked whole by the route (areas/music/notes.ts), written with their packs in

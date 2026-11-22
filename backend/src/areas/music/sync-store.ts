@@ -5,7 +5,7 @@
 // reads the rows it returns. Nothing here writes the change feed or touches the catalog.
 import { MUSIC_SYNC_LIMITS, type MusicMark, type MusicPlaylist } from '../../../../shared/contract/music-sync.ts';
 import type { Db } from '../../objects/base';
-import { putRating } from './store-notes';
+import { inParts, putRating, marks as slots } from './store-notes';
 
 // --- Reset stats: a record with its own time (`music_state` 'plays.reset', the newest kept) ---------
 
@@ -46,26 +46,28 @@ export function putMark(db: Db, m: MusicMark, at: number, reset: number): number
 }
 
 /** The songs whose rating or plays the Worker took after the `[synced_at, id]` cursor, oldest first:
- * at most `limit` + 1 entries from each index, merged. */
-export const markKeys = (db: Db, after: [number, string], limit: number) =>
-  db.all<{ track_id: string; synced_at: number }>(
-    `SELECT track_id, synced_at FROM (
-       SELECT * FROM (SELECT track_id, synced_at FROM track_ratings WHERE (synced_at, track_id) > (?1, ?2)
-         ORDER BY synced_at, track_id LIMIT ?3)
-       UNION ALL
-       SELECT * FROM (SELECT track_id, synced_at FROM track_plays WHERE (synced_at, track_id) > (?1, ?2)
-         ORDER BY synced_at, track_id LIMIT ?3)
-     ) ORDER BY synced_at, track_id LIMIT ?3`,
-    after[0],
-    after[1],
-    limit,
-  );
+ * at most `limit` + 1 entries from each index, merged here, a song taken with both at once (a phone's
+ * push stamps both) listed once, so a page holds `limit` songs, not half as many. Each index entry
+ * read is one row (a merge in SQL read about 5 a song, its temporary tables included). */
+export function markKeys(db: Db, after: [number, string], limit: number) {
+  const from = (table: 'track_ratings' | 'track_plays') =>
+    db.all<{ track_id: string; synced_at: number }>(
+      `SELECT track_id, synced_at FROM ${table} WHERE (synced_at, track_id) > (?, ?) ORDER BY synced_at, track_id LIMIT ?`,
+      after[0],
+      after[1],
+      limit,
+    );
+  const seen = new Set<string>();
+  return [...from('track_ratings'), ...from('track_plays')]
+    .sort((a, b) => a.synced_at - b.synced_at || (a.track_id < b.track_id ? -1 : a.track_id > b.track_id ? 1 : 0))
+    .filter((k) => !seen.has(`${k.synced_at}|${k.track_id}`) && seen.add(`${k.synced_at}|${k.track_id}`))
+    .slice(0, limit);
+}
 
-/** The whole marks of these songs (each read by its key, in both tables); plays from before the
- * newest reset read as none. */
+/** The whole marks of these songs (each read by its key, in both tables, 100 keys a statement: one
+ * row a song a table); plays from before the newest reset read as none. */
 export function marksOf(db: Db, ids: string[], reset: number): Map<string, MusicMark> {
   const out = new Map<string, MusicMark>();
-  const list = JSON.stringify(ids);
   const blank = (id: string): MusicMark => ({
     id,
     rating: null,
@@ -74,18 +76,22 @@ export function marksOf(db: Db, ids: string[], reset: number): Map<string, Music
     last_played: 0,
     updated_at: 1,
   });
-  for (const r of db.all<{ track_id: string; rating: number; at: number }>(
-    'SELECT track_id, rating, at FROM track_ratings WHERE track_id IN (SELECT value FROM json_each(?))',
-    list,
+  for (const r of inParts(ids, (p) =>
+    db.all<{ track_id: string; rating: number; at: number }>(
+      `SELECT track_id, rating, at FROM track_ratings WHERE track_id IN (${slots(p.length)})`,
+      ...p,
+    ),
   )) {
     const m = blank(r.track_id);
     m.rating = r.rating;
     m.rated_at = r.at;
     out.set(r.track_id, m);
   }
-  for (const r of db.all<{ track_id: string; plays: number; last_played: number }>(
-    'SELECT track_id, plays, last_played FROM track_plays WHERE track_id IN (SELECT value FROM json_each(?))',
-    list,
+  for (const r of inParts(ids, (p) =>
+    db.all<{ track_id: string; plays: number; last_played: number }>(
+      `SELECT track_id, plays, last_played FROM track_plays WHERE track_id IN (${slots(p.length)})`,
+      ...p,
+    ),
   )) {
     const m = out.get(r.track_id) ?? blank(r.track_id);
     if (r.last_played > reset) {

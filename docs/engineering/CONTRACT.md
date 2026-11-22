@@ -639,9 +639,9 @@ The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `
 | `client_outdated` | 426 | A newer client is required for writes. |
 | `rate_limited` | 429 | Too many attempts. Try again soon. |
 | `too_many_scheduled` | 429 | Twenty scheduled actions already wait; cancel one or let one run first. |
+| `budget_exhausted` | 429 | Today's free-plan budget is used up. |
 | `internal` | 500 | Something went wrong on our side. |
 | `upstream` | 502 | An upstream service failed. |
-| `budget_exhausted` | 503 | Today's free-plan budget is used up. |
 | `auth_unavailable` | 503 | Sign-in is unavailable. |
 | `unavailable` | 503 | Temporarily unavailable. |
 | `not_configured` | 503 | This needs a binding that is not set up yet. |

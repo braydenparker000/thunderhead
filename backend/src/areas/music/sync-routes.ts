@@ -21,6 +21,7 @@ import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
+import { refuseWhileHeld } from '../meter/hold';
 import { SONG_ID } from './shapes';
 
 const ms = z.number().check(z.int(), z.gte(0), z.lte(Number.MAX_SAFE_INTEGER));
@@ -92,6 +93,8 @@ function startOf(route: string, raw: Record<string, string>): { after: [number, 
 
 export const musicSyncRoutes = new Hono<AppEnv>()
   .put('/music/marks', guard('PUT /v1/music/marks'), async (c) => {
+    // From 80% of the day's budget marks and playlists wait (meter/hold.ts): the phone keeps them queued.
+    await refuseWhileHeld(c.env);
     const body = await json(c, marksBody);
     const now = Date.now();
     const { ok, refused } = sorted(markItem, body.items, now, (m) => [m.rated_at ?? 0, m.last_played, m.updated_at]);
@@ -110,6 +113,7 @@ export const musicSyncRoutes = new Hono<AppEnv>()
     } satisfies MusicMarksPage);
   })
   .put('/music/playlists', guard('PUT /v1/music/playlists'), async (c) => {
+    await refuseWhileHeld(c.env);
     const raw = (await json(c, batch(L.batch_playlists))).items;
     const { ok, refused } = sorted(playlistItem, raw, Date.now(), (p) => [p.updated_at], L.playlist_chars);
     return c.json(await fresh(musicObject(c.env).putPlaylists(ok, refused)));

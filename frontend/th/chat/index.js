@@ -356,6 +356,8 @@ export async function startChat() {
   };
   const keep = (/** @type {Local} */ m) => write(m.id, () => outbox.put(m));
   const drop = (/** @type {string} */ id) => write(id, () => outbox.remove(id)).then(() => writes.delete(id));
+  /** Until when the spent day's line was said (once a day). */
+  let spentSaid = 0;
 
   /** @param {Local} m @returns {Promise<boolean>} whether it went */
   async function send(m) {
@@ -391,6 +393,16 @@ export async function startChat() {
         state.local = state.local.filter((x) => x.id !== m.id);
         drop(m.id);
         sendLine.end(m.id, false);
+        return false;
+      }
+      // The day's free limit is used up: it waits in the outbox, said once, and goes after 00:00 UTC.
+      if (f.code === 'budget_exhausted') {
+        const at = Date.now() + Math.max(1, f.retryAfter ?? 3600) * 1000;
+        flushRetry = setTimeout(flush, at - Date.now() + 1000);
+        sendLine.end(m.id, false);
+        keep(m);
+        if (spentSaid < Date.now()) toast(`Today’s free limit is used up. Nothing is lost: it sends at ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
+        spentSaid = at;
         return false;
       }
       const retryable = f.kind !== 'api' || f.status >= 500 || f.status === 429;

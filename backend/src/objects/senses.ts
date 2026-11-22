@@ -19,12 +19,13 @@ import { gzip, page, type Row } from '../areas/backups/rows';
 import { logicalDay } from '../areas/conversation/day';
 import { sha256 } from '../areas/import/vault';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { nextUtcDay } from '../areas/meter/quota';
 import { type BriefReports, briefReports } from '../areas/senses/brief';
 import * as queries from '../areas/senses/queries';
 import { routines, windowDays } from '../areas/senses/routines';
 import * as store from '../areas/senses/store';
 import { checkEvent, msOf } from '../areas/senses/validate';
-import { DAY } from '../lib/time';
+import { DAY, utcDay } from '../lib/time';
 import { type Migration, OwnerObject } from './base';
 
 export const SENSES_MIGRATIONS: Migration[] = [
@@ -85,6 +86,14 @@ export const SENSES_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: ['CREATE INDEX events_type_seq ON events (type, seq)'],
   },
+  {
+    // The daily pass's prune of old batch records, and the day's count of events (the daily cap),
+    // read a range here instead of the whole table (cost: one row written more per batch).
+    version: 4,
+    name: 'batches_received',
+    kind: 'expand',
+    sql: ['CREATE INDEX batches_received ON batches (received_at, n)'],
+  },
 ];
 
 /** The one instance: the owner's. */
@@ -106,13 +115,18 @@ export class Senses extends OwnerObject {
   /** Early skips by track id (Music's find, MUSIC.md §10.5), kept for the UTC day they were counted
    * on until a batch brings a new skip: a find costs these rows once, not every time. */
   private skips: { day: string; by: Record<string, number> } | null = null;
+  /** Events taken this UTC day (SENSE_LIMITS.day_events), counted once per start from the day's batch
+   * records and kept as batches come. */
+  private taken: { day: string; n: number } | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, SENSES_MIGRATIONS, 'senses');
   }
 
   /** One sealed batch: its events stored with their day's rollups, in one transaction. The same
-   * batch again (same bytes) stores nothing; other bytes under its id are a conflict. */
+   * batch again (same bytes) stores nothing; other bytes under its id are a conflict. A new batch that
+   * would take the UTC day past SENSE_LIMITS.day_events is refused whole (`retry_after`: seconds to
+   * 00:00 UTC), and the phone keeps it until then. */
   putBatch(
     id: string,
     sha: string,
@@ -121,10 +135,15 @@ export class Senses extends OwnerObject {
     tz: string,
     now = Date.now(),
     off: readonly SenseApp[] = [],
-  ): SenseBatchResponse | { conflict: true } {
+  ): SenseBatchResponse | { conflict: true } | { retry_after: number } {
     return this.ctx.storage.transactionSync(() => {
       const had = store.batch(this.db, id);
       if (had) return had.sha256 === sha ? { accepted: had.n, rejected: [] } : { conflict: true as const };
+      const utc = utcDay(now);
+      if (this.taken?.day !== utc)
+        this.taken = { day: utc, n: store.eventsSince(this.db, Date.parse(`${utc}T00:00:00Z`)) };
+      if (this.taken.n + events.length > SENSE_LIMITS.day_events)
+        return { retry_after: Math.max(1, Math.ceil((nextUtcDay(now) - now) / 1000)) };
       const rejected: SenseBatchResponse['rejected'] = [];
       const days = new Set<string>();
       let accepted = 0;
@@ -150,6 +169,7 @@ export class Senses extends OwnerObject {
       // A late event for a day already archived: that day's archive is written again.
       for (const day of days) if (store.exported(this.db, day)) store.unmarkExport(this.db, day);
       store.putBatch(this.db, id, device, now, accepted, sha);
+      this.taken.n += accepted;
       return { accepted, rejected };
     });
   }

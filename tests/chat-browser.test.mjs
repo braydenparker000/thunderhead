@@ -376,6 +376,35 @@ test('a failed send says so and Retry sends it', opts, async () => {
   await context.close();
 });
 
+test('a spent day: the message waits in the outbox, one calm line says so and when it goes', opts, async () => {
+  const { page, context, api } = await open({ chat: { spentSay: 9 } });
+  const puts = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length;
+  await page.evaluate(() => {
+    window.__toasts = [];
+    new MutationObserver(() => document.querySelectorAll('.toast').forEach((t) => {
+      if (t.textContent && !window.__toasts.includes(t.textContent)) window.__toasts.push(t.textContent);
+    })).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+  const kept = () => page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('th-data', 1);
+    req.onsuccess = () => {
+      const all = req.result.transaction('kv').objectStore('kv').getAll();
+      all.onsuccess = () => { req.result.close(); resolve(all.result.filter((v) => typeof v?.body === 'string' && v.tries !== undefined).map((v) => [v.body, v.tries, v.state])); };
+    };
+  }));
+  await send(page, 'Hello there');
+  await page.waitForFunction(() => window.__toasts.some((t) => t.includes('free limit')));
+  await send(page, 'And this');
+  for (let i = 0; i < 100 && puts() < 2; i++) await new Promise((r) => setTimeout(r, 50));
+  const toasts = await page.evaluate(() => window.__toasts.filter((t) => t.includes('free limit')));
+  assert.equal(toasts.length, 1, 'said once');
+  assert.match(toasts[0], /^Today’s free limit is used up\. Nothing is lost: it sends at \d{1,2}:\d{2}( ?[AP]M)?\.$/);
+  assert.equal(await page.locator('#talk .meta.bad').count(), 0, 'not "Didn\'t send"');
+  const left = await kept();
+  assert.deepEqual(left.map((m) => [m[0], m[1]]).sort(), [['And this', 0], ['Hello there', 0]]);
+  await context.close();
+});
+
 test('Stop: the working card\'s Stop asks the mind to stop after this step; the card stays until its reply', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { messages: [owner('m1', 'Rebuild the playlist')], presence: { state: 'working', note: null, since: Date.now() } } });
   await page.waitForSelector('#working .wkstop:not([hidden])');

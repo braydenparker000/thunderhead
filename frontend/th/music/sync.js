@@ -34,7 +34,9 @@ const DEBOUNCE_MS = 20_000;
 /** One playlists request's body: under the Worker's 512 KB limit for it. */
 const BODY_BYTES = 480_000;
 const KEEPALIVE_BYTES = 8_000;
-const PAGES = 60;
+/** A pull's pages at most: the whole library's marks at the Worker's 200 a page (up to its 50,000
+ * songs). A pull cut short saves nothing and starts again from the beginning at the next open. */
+const PAGES = 300;
 const LIBRARY_WAIT_MS = 30_000;
 
 /** `marks`/`lists`: each route's `next_since`. `dirty`: songs changed since the Worker took them,

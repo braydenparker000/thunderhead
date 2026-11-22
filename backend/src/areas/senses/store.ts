@@ -160,6 +160,11 @@ export function pruneEvents(db: Db, day: string, max: number): number {
   return db.run('DELETE FROM events WHERE seq IN (SELECT seq FROM events WHERE day = ? LIMIT ?)', day, max);
 }
 
+/** Events taken since `since` (ms): the day's batch records, by the (received_at, n) index. */
+export const eventsSince = (db: Db, since: number) =>
+  db.one<{ n: number }>('SELECT coalesce(sum(n), 0) AS n FROM batches WHERE received_at >= ?', since)?.n ?? 0;
+
+/** Old batch records, by the (received_at, n) index: never a walk of the whole table. */
 export function pruneBatches(db: Db, before: number, max: number): number {
   return db.run(
     'DELETE FROM batches WHERE batch_id IN (SELECT batch_id FROM batches WHERE received_at < ? LIMIT ?)',

@@ -133,6 +133,7 @@ function chatState(o = {}) {
     /** null, or { after: ms, text, meta? }: the mind answers each owner message. */
     reply: o.reply ?? null,
     failSay: o.failSay ?? 0,
+    spentSay: o.spentSay ?? 0,
     typing: 0,
     /** Per path: answer this many ms late, or with a 503 this many times. */
     slow: {},
@@ -188,6 +189,7 @@ function chatAnswer(c, method, p, url, body) {
     const found = c.messages.find((m) => m.id === id);
     if (found) return [200, found];
     if (c.failSay > 0) { c.failSay--; return [503, { error: { code: 'unavailable', message: 'down', request_id: 't' } }]; }
+    if (c.spentSay > 0) { c.spentSay--; return [429, { error: { code: 'budget_exhausted', message: 'spent', request_id: 't', retry_after: 7200, scope: 'account' } }]; }
     const attachments = (body.attachments ?? []).map((ref) => {
       const { body: _b, sha256: _s, ...a } = c.files[ref.replace(/^file:/, '')];
       return a;

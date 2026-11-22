@@ -90,10 +90,16 @@ export function hello(w: Writer): WorkHello {
 
 /** A claim with nothing to take: no order held, none queued, and Muse's last call already noted
  * within the hour (so the Briefing's "hasn't checked in" stays true to it). Reads only: such a
- * claim answers without a write. */
+ * claim answers without a write, and the claims after it, until an order changes or the hour is
+ * up, without a database call. */
 export function nothingToClaim(db: Db, now: number): boolean {
+  // A claim since found nothing and no order changed: no database call (store.ts `idle`).
+  if (now < store.idleUntil(db)) return true;
   const s = seen(db);
-  return !!s && now - s.last < SEEN_IDLE && !store.claimed(db) && !store.nextQueued(db, now);
+  const none = !!s && now - s.last < SEEN_IDLE && !store.claimed(db) && !store.nextQueued(db, now);
+  // It holds until the last call noted needs noting again (the Briefing's "hasn't checked in").
+  if (none && s) store.markIdle(db, s.last + SEEN_IDLE);
+  return none;
 }
 
 /** POST /v1/work/claim: the one Muse holds, else the oldest queued one; null when none. */

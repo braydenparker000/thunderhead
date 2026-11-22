@@ -220,3 +220,49 @@ test('send.js names each type’s app as the contract does', opts, async () => {
   assert.deepEqual(Object.fromEntries(types.map((t, i) => [t, apps[i]])), Object.fromEntries(types.map((t) => [t, SENSE_TYPES[t].app])));
   await context.close();
 });
+
+test('a 429 stops the sender until its retry_after, keeping the batch; past 200 waiting, ratings go last', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  await mockApi(page);
+  // Registered after the mock, so it answers the batches first: the day's senses cap.
+  const tries = [];
+  await page.route(`${API}/v1/senses/batches/**`, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    tries.push(route.request().url());
+    return route.fulfill({
+      status: 429,
+      headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json', 'retry-after': '3600' },
+      body: JSON.stringify({ error: { code: 'budget_exhausted', message: 'x', request_id: 'r', retry_after: 3600, scope: 'account' } }),
+    });
+  });
+  await page.goto(`${base}/no-such-page`);
+  await page.evaluate((token) => new Promise((resolve, reject) => {
+    const req = indexedDB.open('th-auth', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session');
+      tx.oncomplete = () => { req.result.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }), TOKEN);
+  await page.goto(`${base}/`, { waitUntil: 'load' });
+  const r = await page.evaluate(async () => {
+    const m = await import('/th/senses/send.js');
+    await m.sense('app.open', 'app:music');
+    await m.flush();
+    const sealed = JSON.parse(localStorage.getItem('th.p.senses.batch') || 'null');
+    const until = Number(localStorage.getItem('th.p.senses.until'));
+    await m.sense('app.open', 'app:podcasts');
+    await m.flush();
+    const q = [{ id: 'r', at: 1, type: 'music.rate', ref: 'music:x', data: { rating: 1 } }, ...Array.from({ length: 205 }, (_, i) => ({ id: `e${i}`, at: 2 + i, type: 'app.open' }))];
+    const t = m.trim(q);
+    return { sealed: Boolean(sealed), tries: sealed?.tries, wait: until - Date.now(), lost: m.lost(), kept: t.length, rate: t[0].type, first: t[1].id };
+  });
+  assert.equal(tries.length, 1, 'sent once, then held');
+  assert.deepEqual([r.sealed, r.tries, r.lost], [true, 0, 0]);
+  assert.ok(r.wait > 3_500_000 && r.wait <= 3_600_000, `paused about an hour: ${r.wait}`);
+  assert.deepEqual([r.kept, r.rate, r.first], [200, 'music.rate', 'e6']);
+  await context.close();
+});
