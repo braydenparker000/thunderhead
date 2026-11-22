@@ -6,7 +6,7 @@ import {EXIT} from './io.mjs';
 
 /** One line per command: usage, then what it does. The table in RUNTIME.md §5.3 has the details. */
 export const USAGE = {
-  brief: ['[--claim] [--full] [--section <n|name>] [--json]', 'the briefing (core on stdout; --claim binds the wake)'],
+  brief: ['[--claim] [--full] [--start] [--section <n|name>] [--json]', 'the briefing (core on stdout; --claim binds the wake; --start: the laws, your role and the whole briefing in one text, for a session with no hooks)'],
   skill: ['[<name>]', `how an app or area works, read before you act in it: what it is, what you can read and do there, what you must not do (mind/skills/<name>.md); no name lists them: ${CONTRACT.skills.names.join(', ')}`],
   reply: ["[--to <message id>] [--minutes 9] [th say's options] <<'EOF' … EOF", 'answer the owner, then listen, in one call: the Markdown on stdin is sent as th say today --reply-to <id> (--to, else the newest owner message you were handed and have not answered), its {"id"} printed, then it listens as th listen. A failed send exits with its own error and does not listen'],
   listen: ['[--minutes 9]', 'listen in the foreground (Bash timeout 600000): exit 0 messages/events · 3 quiet {"quiet":{"idle_min","closes_in_min"}} · 4 Stop · 5 day closed · 12 closed {"closed":{"idle_min"}} (the idle cut-off passed: th already said stopping; end your turn in one line)'],

@@ -46,7 +46,7 @@ const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
 /** @type {Record<string, (argv: string[]) => Promise<number|void>>} */
 export const COMMANDS = {
-  brief: withFlags(brief, {bool: ['claim', 'full', 'json']}),
+  brief: withFlags(brief, {bool: ['claim', 'full', 'json', 'start']}),
   skill,
   wait: withFlags(wait), listen, reply,
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
