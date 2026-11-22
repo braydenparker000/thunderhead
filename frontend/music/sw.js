@@ -13,9 +13,14 @@
 // answered from it, as much as it holds; the rest of the song comes from the
 // network as usual. Requests a head does not cover are not touched, so the
 // browser's own retries keep working.
+// Each open asks the network for the site's release (th/music/release.js): the app's files of that
+// release then come from the release's own cache at once, without a round trip each to ask whether
+// they changed; the page itself, a new release, no signal or a cache error take the way described above.
 // P5 data move (MIGRATION.md §7 step 5): the library's requests are answered from the new Worker. The old Worker's origin
 // is only the name they and the offline copies carry: every request to it is answered here, none leaves the phone (§8).
 importScripts('/th/music/bridge.js');
+try { importScripts('/th/music/release.js'); } catch { /* without it, every file asks the network as before */ }
+const release = self.thMusicRelease?.make({ fetch: (...a) => fetch(...a), caches });
 self.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
 const net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);
 const CACHE = 'claude-player-v1';
@@ -72,6 +77,8 @@ async function fromHead(req, h, a, b, e) {
 self.addEventListener('fetch', e => {
   const req = e.request;
   const url = new URL(req.url);
+  // An open of the player (its page, or home's frame of it): which release is live, asked now.
+  if (req.mode === 'navigate' && url.origin === self.location.origin) release?.check();
   // A song's range request that its head or tail covers.
   if (req.method === 'GET' && req.headers.has('range')) {
     if (!headsKnown) { e.respondWith(headsLoaded.then(() => { const c = covered(req); return c ? fromHead(req, ...c, e) : net(req, e); })); return; }
@@ -81,9 +88,28 @@ self.addEventListener('fetch', e => {
   if (self.thMusicBridge.handles(url)) { e.respondWith(self.thMusicBridge.answer(req, e)); return; }
   // Only same-origin GETs of the app itself; never media or range requests.
   if (req.method !== 'GET' || url.origin !== self.location.origin || req.headers.has('range')) return;
+  // The site's shared files the player loads (th/, assets/, ui/, config.js): from the release's cache too, else
+  // the network exactly as without this worker (they have no offline copies here).
+  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && /^\/(th|assets|ui)\/[^?]*\.js$|^\/config\.js$/.test(url.pathname) && !/^\/th\/music\/(dj|dj-tags|search|ratings)\.js$/.test(url.pathname)) {
+    if (release && Date.now() >= badUntil) e.respondWith(release.answer(req).catch(() => null).then(r => r ?? (noRelease(), fetch(req))));
+    return;
+  }
   // The DJ shuffle's planner (with the tags it reads), the better search and the ratings (th/music/dj.js, dj-tags.js, search.js, ratings.js) are part of the app, offline too.
   if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\/th\/music\/(dj|dj-tags|search|ratings)\.js$/.test(url.pathname)) return;
-  e.respondWith(caches.open(CACHE).then(async cache => {
+  const keep = (r, res) => { caches.open(CACHE).then(c => c.put(r, res)).catch(() => {}); };
+  // (After a network failure the offline copies answer at once, as before: the release is not asked.)
+  e.respondWith((release && Date.now() >= badUntil ? release.answer(req, keep) : Promise.resolve(null)).catch(() => null).then(r => r ?? (noRelease(), appFile(req))));
+});
+
+/** No answer from the release: when the network gave none (no signal, or none in time), the offline copies
+ * answer at once for a while, as after any network failure, so a weak signal waits once, not twice. */
+function noRelease() {
+  if (release?.down() && Date.now() >= badUntil) badUntil = Date.now() + BAD_NETWORK_MS;
+}
+
+/** One of the app's files: the network within NETWORK_MS, else the copy kept for offline. */
+function appFile(req) {
+  return caches.open(CACHE).then(async cache => {
     if (Date.now() < badUntil) {
       const copy = await cache.match(req);
       if (copy) return copy;
@@ -100,5 +126,5 @@ self.addEventListener('fetch', e => {
     }
     badUntil = Date.now() + BAD_NETWORK_MS;
     return (await cache.match(req)) ?? network.catch(() => Response.error());
-  }));
-});
+  });
+}

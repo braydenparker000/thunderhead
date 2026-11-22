@@ -20,7 +20,7 @@ function repairModule() {
 
 test('repair clears the code caches and the three service workers, and keeps every data cache', async () => {
   const { repair } = repairModule();
-  const names = ['th-412', 'th-411', 'th-lab-412', 'th-vendor', 'claude-player-v1', 'jarvis-podcast-shell-v6',
+  const names = ['th-412', 'th-411', 'th-lab-412', 'th-vendor', 'claude-player-v1', 'claude-player-release', 'jarvis-podcast-shell-v6',
     'claude-player-audio', 'claude-player-heads', 'jarvis-podcast-audio-v1', 'jarvis-podcast-art-v1', 'th-music-catalog',
     'astra-data-v1', 'astra-state', 'th-photos-thumbs'];
   const caches = new Set(names);
@@ -29,7 +29,7 @@ test('repair clears the code caches and the three service workers, and keeps eve
   const reg = (scope) => ({ scope: `https://site.example.test${scope}`, unregister: async () => { gone.push(scope); return true; } });
   const nav = { serviceWorker: { getRegistrations: async () => ['/', '/music/', '/podcasts/', '/astra/'].map(reg) } };
   const done = await repair(nav, store);
-  assert.deepEqual({ ...done }, { workers: 3, caches: 6 });
+  assert.deepEqual({ ...done }, { workers: 3, caches: 7 });
   assert.deepEqual(gone, ['/', '/music/', '/podcasts/']);
   assert.deepEqual([...caches].sort(), ['astra-data-v1', 'astra-state', 'claude-player-audio', 'claude-player-heads', 'jarvis-podcast-art-v1', 'jarvis-podcast-audio-v1', 'th-music-catalog', 'th-photos-thumbs']);
 });

@@ -530,6 +530,14 @@ All values are the old engine's measured defaults unless marked.
 - The service worker answers a song's range requests that a head or tail covers; everything else
   goes to the network untouched. Heads are keyed by `music:<id>` plus byte range, **not** by the
   signed URL, so re-signing never orphans them.
+- Opening the app (PERFORMANCE.md §3.1, "Opening on a weak link"): each open, the service worker asks
+  the network for the site's `/release.json`, and the page itself comes from the network as before. The
+  app's other files and the site's shared scripts it loads (`th/`, `assets/`, `ui/`, `config.js`) then come
+  from `claude-player-release`, which holds exactly that release's files (`th/music/release.js`), with no
+  round trip each to ask whether they changed (a warm open on a weak link went from 4.4 s to 1.2–1.5 s, 151 requests to 6: PERFORMANCE.md §3.1). A new
+  release empties it, so the release takes over on the next open; a file is kept only if its release is still
+  the live one when it arrives, and the cache starts again after 7 days at the latest; no answer from `/release.json`, a cache
+  error or no signal leaves the worker's earlier way (network first, then its offline copies). Repair clears it.
 - While audio plays, the page pings the service worker every 20 s so it is awake for the next skip
   (waking it costs about 1 s).
 - Data saver (the app's own switch or the browser's): only the next song's head.

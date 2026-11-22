@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-22-mind",
+  "id": "2026-11-22-steady-2",
   "date": "2026-11-22",
   "lines": [
     {
-      "text": "Chat answers sooner and stays ready for 45 minutes after your last message; it no longer refuses a reply for style."
+      "text": "Music opens faster on a weak connection: it no longer asks about every file each time you open it."
     },
     {
-      "text": "Settings › The mind has the page that says how I talk. Edit it there; if I change it, I say so in chat."
+      "text": "Settings › On this phone shows what the site keeps offline, app by app, and lets you clear what can be downloaded again."
     },
     {
-      "text": "I now leave you a morning note, and one or two check-ins a day in chat or on home. No notifications from me."
-    },
-    {
-      "text": "Looking something up no longer stops me saving what you tell me, setting reminders or placing Muse orders."
+      "text": "Tell me when something breaks or annoys you and I file it. Settings › For the builder keeps the list."
     }
   ]
 }

@@ -107,9 +107,11 @@ on two starts in a row; it shows "Thunderhead didn’t start." with Repair and T
 itself), or `/repair/` typed in the address bar. `/repair/` (`frontend/repair/`) is a static page with one
 classic script and nothing else of the site, and `sw.js` never answers it. It unregisters the shell's,
 Music's and Podcasts' service workers, deletes only the caches that hold code (`th-<n>`, `th-lab-<n>`,
-`th-vendor`, `claude-player-v<n>`, `jarvis-podcast-shell-v<n>`), keeps everything else (offline songs and
+`th-vendor`, `claude-player-v<n>`, `claude-player-release`, `jarvis-podcast-shell-v<n>`), keeps everything else (offline songs and
 heads, downloads, covers, art, the catalogue, Astra's and Photos' caches, IndexedDB and localStorage with
 the session), then goes home, which loads from the network; home says what was done ("Repaired: …").
+A file fixed by hand on the storage account reaches Music only with a new `release.json` (re-upload it with a
+new `staged_at`): Music keeps its files for the release that file names, for at most 7 days (`th/music/release.js`).
 Confirm: home opens signed in, and Settings › About › Copy report shows the expected `release.build`.
 
 Settings › About › Copy report puts one JSON on the clipboard (`frontend/th/report/site.js`, under 60 KB,
