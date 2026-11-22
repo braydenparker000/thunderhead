@@ -14,6 +14,8 @@ CREATE TABLE batches (
   sha256 TEXT NOT NULL
   ) WITHOUT ROWID;
 
+CREATE INDEX batches_received ON batches (received_at, n);
+
 CREATE TABLE events (
   seq INTEGER PRIMARY KEY,
   id TEXT NOT NULL,

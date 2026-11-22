@@ -53,7 +53,7 @@ export const opsRoutes = new Hono<AppEnv>()
   )
   // Counts only, never content (ci keys see the same).
   .get('/ops/health/deep', guard('GET /v1/ops/health/deep'), async (c) => {
-    const [core, auth, music, senses, library, backup] = await Promise.all([
+    const [core, auth, music, senses, library, backup, backups] = await Promise.all([
       coreObject(c.env).deepHealth(),
       authObject(c.env).health(),
       musicObject(c.env).health(),
@@ -62,6 +62,10 @@ export const opsRoutes = new Hono<AppEnv>()
       // A Core still on the release before backups has no lastBackup: none yet.
       coreObject(c.env)
         .lastBackup()
+        .catch(() => null),
+      // The point-in-time check and the drill (a Core before them has none).
+      coreObject(c.env)
+        .backupsHealth()
         .catch(() => null),
     ]);
     const lastBackup = backup ? { date: backup.date, age_h: backup.age_h } : null;
@@ -115,6 +119,7 @@ export const opsRoutes = new Hono<AppEnv>()
       wakes_today: core.wakes_today,
       min_client: core.min_client,
       ...(watch ? { watch } : {}),
+      backups,
     };
     return c.json(body);
   })

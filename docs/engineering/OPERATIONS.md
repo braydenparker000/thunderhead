@@ -148,17 +148,21 @@ Each app later switches to `thunderhead-api` when its data moves (Music P5, Guit
 
 ## 4. Restore from backup
 
-All restores are proposals. The owner approves with a device tap or in their own words, which the Worker checks against the owner's own message; nothing restores on a fired prompt or any other text. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
+**No restore exists in the site.** Nothing in the Worker or on the phone can put a real object back to an earlier time: no route, no RPC, no tick pass. The paths below are designs (proposals), not built. What is built is the proof that the platform could do it (§4.4), the weekly backups, the monthly drill and the retention switch. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
 
-### 4.1 Point-in-time (whole object, last 30 days)
+### 4.1 Point-in-time (whole object, last 30 days; not built)
 
-1. Agent: find the last good time `t` (ledger, errors, the owner's report).
-2. Agent: `POST /v1/ops/restore {kind:'pitr', class:'core', at:t}` → a proposal of class `access`, titled "Put Core back to <local time>". Its `why` lists what will be lost: every message, fact and ledger row after `t`. The agent also copies those rows to `thunderhead-private/ops/restores/<id>.json` before asking **[proposal]**.
-3. Owner: approve.
-4. Worker: records `getCurrentBookmark()` (the undo point) in the restore record outside the object, calls `onNextSessionRestoreBookmark(await getBookmarkForTime(t))`, then `ctx.abort()`.
-5. Agent: `GET /v1/ops/health/deep` → `core.ok`. Post a system line: "Restored to <time>. N later messages are saved separately."
+Cloudflare keeps 30 days of each SQLite Durable Object's history ([the PITR API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/): `getBookmarkForTime`, `onNextSessionRestoreBookmark`, which returns the bookmark just before the restore, then a restart with `ctx.abort()`; not supported in local development; the docs do not say whether the Free plan has it).
 
-Undo: the same steps with the recorded pre-restore bookmark.
+**What the proof's outcome means** (deep health `backups.pitr`, per class): `ok` means that on this account, on this deploy, a scratch copy of that class was put back to a bookmark and a row written after it was gone. It says the platform can rewind that class; it does not make a restore safe, and nothing offers one. `unsupported` means the runtime refused the API (as local development does): a whole-object restore would have to use §4.3. `failed` with a code means the API answered but the check did not hold; look at the code before trusting any restore.
+
+**Design note for later: what a restore must solve first.** A restore of Core built in this round was withdrawn after a second read found three defects; any future restore must fix them before it ships:
+
+1. **The past would run again.** Rewinding Core brings back every reminder, scheduled verb or plan and wake that was due in the rewound days as still pending, and the alarm fires them with no age check (`areas/reminders` deliver, `verbs/due.ts`): pushes ring again, verbs run again with their side effects, answered messages wait again. A restore needs a fence: on the first start after a restore, everything due before the restore's moment is marked missed, never fired.
+2. **An armed restore can't be undone by calling it failed.** Once `onNextSessionRestoreBookmark` has answered, the object will rewind at its next restart whatever the code records after. A record written `failed: nothing changed` after the arm (a failed write, a tick that died) is a lie: the data rewinds later, silently, with the undo point lost and the phones never told. The record needs a state written before the arm that can only end as `done` (with the undo point) or `unknown, check it`, never `nothing changed`.
+3. **Settings and the meter rewind too.** A Core restore rewinds the owner's settings (a switch such as the backup retention can turn itself back on) and today's meter row (the Free plan's counts). Those must be kept across a rewind (read before, written back after), or live outside the restored object.
+
+Also open: Music's phone copy (the player's IndexedDB, merged newest-wins by `th/music/sync.js`) has no signal to drop itself after a Music restore, so the phone would push the newer data back.
 
 ### 4.2 One table from a weekly export
 
@@ -175,9 +179,10 @@ Undo: the same steps with the recorded pre-restore bookmark.
 
 ### 4.4 Monthly restore drill
 
-- **When:** the first Sunday of each month, started by the Worker's tick once that day's weekly backup is complete (built, `areas/backups/drill.ts`). `mind-night` or `ci` can start one any time with `POST /v1/ops/drill/run`, which drills the newest complete backup.
-- **What:** the latest `Core` backup goes into the instance `drill-<YYYYMM>` (whose drill methods refuse on any other instance), a part a step on the bulk lane, each part's sha256 checked before a row of it is used. Tables over 30,000 rows are restored as a deterministic sample, every k-th row ([DATA.md §11.4](DATA.md#114-proof-that-backups-work)). The drill compares counts and part sha256 values with the manifest, writes `drills/<YYYY-MM>/report.json` (counts and names only), empties the instance with `deleteAll()`, and writes one ledger note, passed or failed with its first problems.
-- **Pass:** every table's count and every part's hash match. The briefing shows one line only on failure.
+- **When:** the first Sunday of each month, started by the Worker's tick once that day's weekly backup is complete (built, `areas/backups/drill.ts`). The same tick runs the point-in-time check (below). `mind-night` or `ci` can start one any time with `POST /v1/ops/drill/run`, which drills the newest complete backup.
+- **What:** the latest complete backup of each part (Core, Music, the senses, Study; never Auth) goes into that class's own instance `drill-<YYYYMM>` (whose drill methods refuse on any other instance, and on Auth), a part a step on the bulk lane, each part's sha256 checked before a row of it is used. Tables over 30,000 rows are restored as a deterministic sample, every k-th row ([DATA.md §11.4](DATA.md#114-proof-that-backups-work)). The drill compares counts and part sha256 values with the manifest, writes `drills/<YYYY-MM>/report.json` (counts and names only), empties the instance with `deleteAll()`, and writes one ledger note, passed or failed with its first problems.
+- **Pass:** every table's count and every part's hash match. The briefing shows one line only on failure. Deep health's `backups.drill` shows the last drill, its state and the parts it covered.
+- **Point-in-time check** (`areas/backups/proof.ts`): at the first cron tick on a new deploy (a version tag the last check didn't run on) and with every monthly drill, on each class's scratch copy `pitr-proof` only (never the owner's objects, never Auth; the methods refuse on any other instance, and nothing callable arms a restore on a real object): a row, a bookmark, a marker row, `onNextSessionRestoreBookmark`, the restart, then the marker must be gone and the row before it there. The outcome per class (`ok`, `failed` with a code, `unsupported`) goes to one ledger note, Core's setting `backups.pitr` and deep health's `backups.pitr`; what it means is in §4.1. This settles X4 live.
 - **Fail:** a watchdog `drill.failed` (§8). The agent opens a fix within the day. Weekly backups continue.
 
 ---
@@ -374,7 +379,7 @@ The owner uses only the site; nothing here waits for a person or a dashboard. Th
 |---|---|---|
 | X1 | Worker-held WebSocket to a hibernating DO for `/v1/live/wait`: works, unbilled while waiting, and through the session proxy | Bench workflow, test `x1` (100 takes from Actions; with `keep`, DO duration in the dashboard); the session-proxy leg needs a `th-chat` session once `/v1/live/wait` exists (P2) |
 | X3 | DO CPU limit on Free (10 ms vs 30 s); scrypt cost at the edge | Bench workflow, test `x3` ([SECURITY.md §6.3](SECURITY.md)) |
-| X4 | PITR available on Free | Bench workflow, test `x4`: bookmark, write, restore, read back |
+| X4 | PITR available on Free | Settled live by the point-in-time check (§4.4) at the first tick of each deploy: deep health `backups.pitr`. Local tests can't (the API is not supported in local development) |
 | Q1 | Does a step guarded by `cancelled()` get time to finish after `timeout-minutes` cancels the job? | Force a cancel once in a test repo |
 | Q2 | Does `wrangler deployments status --json` give the active version id directly? | Run it in the first `api` deploy; adjust step 4 |
 | Q3 | Does `wrangler secret bulk` from stdin work in Actions without a TTY? | First `rotate-secret.yml` run with a dummy secret |

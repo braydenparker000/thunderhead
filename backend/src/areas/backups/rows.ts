@@ -53,6 +53,13 @@ export function page(
   return { rows, last };
 }
 
+/** Whether `table` is one of the object's own tables (not SQLite's, the platform's or the check's). */
+export const tableExists = (db: Db, table: string): boolean =>
+  IDENT.test(table) &&
+  !/^(sqlite_|_cf_|_)/.test(table) &&
+  (db.one<{ n: number }>("SELECT count(*) AS n FROM sqlite_schema WHERE type = 'table' AND name = ?", table)?.n ?? 0) >
+    0;
+
 export const count = (db: Db, table: string): number =>
   db.one<{ n: number }>(`SELECT count(*) AS n FROM ${q(table)}`)?.n ?? 0;
 

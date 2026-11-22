@@ -536,7 +536,7 @@ Pruning runs once a logical day: Core's 15-minute tick runs every table's prune 
 
 | Layer | What | When | Restores |
 |---|---|---|---|
-| PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs | Always on. Bookmarks recorded before every migration, import and restore. Availability on Free is test X4. | A whole object to any time in the last 30 days |
+| PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs ([docs](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/): the last 30 days; not supported in local development; the docs do not say whether the Free plan has it) | Always on. Bookmarks recorded before every migration and backup. Whether it works on this account is proven, per class, by the point-in-time check on each class's scratch copy `pitr-proof` (§11.4). No restore of a real object exists in the site ([OPERATIONS.md §4.1](OPERATIONS.md#41-point-in-time-whole-object-last-30-days-not-built)). | A whole object to any time in the last 30 days, once a restore is built |
 | Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz`, never holding a held conversation (off the record or deleted: its thread, messages and files' rows), so no backup keeps one off the record past its 7 days; one made before a delete keeps that conversation until the backup ages out | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10; by RPC, each with its own manifest, the Music object's three tables from P5 and its `track_notes` and `track_ratings` from step 4 (not the derived `find_packs`), and from P7 the Senses' `rollups` and `exports` and the Library's tables but `pages_fts`; the drill and `backup.stale` read Core's) | One table, or a whole object into a fresh instance |
 | Events archive | Daily JSONL.gz | Day D exported at D+1 06:00 local; re-exported if late events arrive | Events beyond 90 days |
 | Old Worker | The `jarvis-hub-api` (its data untouched; only its origin list gains the new site in P1b) | Until it retires after P8 | Pre-import history |
@@ -551,13 +551,15 @@ type BackupManifest = {
 };
 ```
 
-A backup is complete only when `manifest.json` is written, and it is written last. A backup without a manifest is ignored and deleted by the next prune.
+A backup is complete only when `manifest.json` is written, and it is written last. A backup without a manifest is ignored, and deleted by the prune once it is older than what the rule keeps.
+
+**Retention** (built, `areas/backups/retention.ts`; off by default): while the owner has "Keep 8 weekly and 12 monthly backups; delete older ones" on (Settings › Privacy and data, `privacy.backups.prune`), Core's tick, once a day, lists `backups/` in the private bucket and deletes every set (`backups/<date>/`) except the 8 newest weekly ones, the newest of each of the 12 newest months, any set not named `YYYY-MM-DD`, and always the newest complete backup (with its manifest) of each part. It decides only on a full listing (at most 20 pages; a longer one deletes nothing that day), deletes at most 1,000 files a day, only keys under `backups/` of `thunderhead-private`, never anything in `jarvis-music`, and writes one ledger note. Off, it deletes nothing: every weekly backup is kept. Core's `backups` rows (counts only) stay after their files go.
 
 ### 11.3 Restore paths
 
 | Situation | Path | Who approves | Note |
 |---|---|---|---|
-| Bad data in the last 30 days, whole object | PITR: `onNextSessionRestoreBookmark(getBookmarkForTime(t))`, then `ctx.abort()` | `access`-class proposal, approved by device tap or the owner's own words | Recent ledger rows go back too, so the restore is also recorded **outside** the object, in `thunderhead-private/ops/restores/<uuidv7>.json` **[proposal]** |
+| Bad data in the last 30 days, whole object (not built) | PITR: `onNextSessionRestoreBookmark(getBookmarkForTime(t))`, then `ctx.abort()` | `access`-class proposal **[proposal]** | Must first solve the three defects in [OPERATIONS.md §4.1](OPERATIONS.md#41-point-in-time-whole-object-last-30-days-not-built): past-due reminders, verbs and wakes fired again; a record that can call an armed restore "nothing changed"; settings and the meter rewound |
 | One table damaged | Bulk job reads `backups/<date>/<class>/<table>.*`, `mode: replace` or `merge` | `delete`-class proposal for `replace` | Under the bulk lane cap |
 | Object lost, PITR unavailable | Restore every table into a fresh instance `owner-r<YYYYMMDD>`, check counts, then point the class at it with the Worker var `<CLASS>_INSTANCE` and deploy **[proposal]** | `access` proposal | Takes days for large objects because of the write cap |
 
@@ -566,7 +568,8 @@ The runbooks are in [OPERATIONS.md §4](OPERATIONS.md#4-restore-from-backup).
 ### 11.4 Proof that backups work
 
 - **CI round trip** (every push): seed a fixture into `Core`, export every table, import into a fresh DO, then deep-equal every table. The same runs for each class once it exists. Built: `backend/tests/integration/backups.test.ts`, which also kills a backup step mid-way and checks each part's sha256 against the manifest.
-- **Monthly restore drill** in production: the latest weekly backup of `Core` goes into a scratch instance `drill-<YYYYMM>`. Counts and per-part sha256 are compared with the manifest. The report goes to `drills/<YYYY-MM>/report.json`, a line in the briefing, and STATUS. To stay inside the write cap, any table over 30,000 rows is restored as a deterministic sample (every k-th `seq`, so that ≤ 30,000 rows are written), with its full row count still checked from the export **[proposal]**. The scratch instance is then emptied with `deleteAll()`.
+- **Monthly restore drill** in production (built): the latest complete backup of each part (Core, Music, the senses, Study; never Auth) goes into that class's own scratch instance `drill-<YYYYMM>`; deep health shows the last drill and the parts it covered. Counts and per-part sha256 are compared with the manifest. The report goes to `drills/<YYYY-MM>/report.json`, a line in the briefing, and STATUS. To stay inside the write cap, any table over 30,000 rows is restored as a deterministic sample (every k-th `seq`, so that ≤ 30,000 rows are written), with its full row count still checked from the export **[proposal]**. The scratch instance is then emptied with `deleteAll()`.
+- **Point-in-time check** (built, `areas/backups/proof.ts`): at the first cron tick on a new deploy and with every monthly drill, on each class's scratch copy `pitr-proof` only: a row, a bookmark, a marker row, the restore armed as the API requires, the restart, then the marker must be gone and the row before it there. The outcome per class (`ok`, `failed` with a code, `unsupported`) goes to a ledger note, Core's setting `backups.pitr` and deep health (`backups.pitr`). Tests use a fake behind the same interface, since the API is not supported in local development: only this live check proves that Cloudflare restores.
 
 ---
 

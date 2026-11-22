@@ -76,12 +76,26 @@ export function startBackup(
   return { job_ids };
 }
 
-export function startDrill(w: Writer, month: string, manifest: BackupManifest): { job_id: string } {
+/** The drill of Core's backup and, beside it, the other parts' newest complete ones (`others`). */
+export function startDrill(
+  w: Writer,
+  month: string,
+  manifest: BackupManifest,
+  others: BackupManifest[] = [],
+): { job_id: string } {
   const had = store.drill(w.db, month);
   if (had?.state === 'running') return { job_id: had.job_id };
   const jobId = uuidv7(w.at);
-  const payload: DrillPayload = { month, instance: drillInstance(month), backup_date: manifest.date, manifest };
-  store.insertDrill(w.db, { month, backup_date: manifest.date, job_id: jobId, at: w.at });
+  const manifests = [manifest, ...others];
+  const payload: DrillPayload = {
+    month,
+    instance: drillInstance(month),
+    backup_date: manifest.date,
+    manifest,
+    manifests,
+  };
+  const classes = manifests.map((m) => m.class);
+  store.insertDrill(w.db, { month, backup_date: manifest.date, job_id: jobId, at: w.at, classes });
   insertJob(w.db, { id: jobId, kind: 'drill.monthly', payload, at: w.at });
   return { job_id: jobId };
 }

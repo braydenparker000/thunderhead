@@ -10,6 +10,7 @@ export type * from './proposals';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
 export type { MeterItem, MeterResponse, QuotaToday } from './meter';
+import type { BackupsHealth } from './backups';
 export type { Ref, RefKind } from './refs';
 import type { SettingValue, WorkerSettingKey } from './settings';
 
@@ -65,6 +66,8 @@ export interface DeepHealthResponse {
   min_client: number;
   /** The heartbeat and what the owner is told (watch.ts); absent from a Worker before 2026-11-21. */
   watch?: import('./watch.ts').OwnerWatch;
+  /** The last point-in-time check and drill (backups.ts); absent from a Core before them. */
+  backups?: BackupsHealth | null;
 }
 
 // --- auth (§11.2) ------------------------------------------------------------------------------

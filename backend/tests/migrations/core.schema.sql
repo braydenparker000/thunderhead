@@ -84,7 +84,7 @@ CREATE TABLE drills (
   finished_at INTEGER,
   report_key TEXT,
   problems INTEGER NOT NULL DEFAULT 0
-  ) WITHOUT ROWID;
+  , classes TEXT) WITHOUT ROWID;
 
 CREATE TABLE errors (
   fingerprint TEXT PRIMARY KEY,

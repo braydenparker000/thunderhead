@@ -8,6 +8,7 @@ import type {
   BackupItem,
   BackupManifest,
   BackupRunResponse,
+  BackupsHealth,
   DrillRunResponse,
   ExportStatus,
 } from '../../../shared/contract/backups.ts';
@@ -15,6 +16,8 @@ import { exportPrefix } from '../areas/backups/export-job';
 import { manifestKey } from '../areas/backups/job';
 import { backupsOf, OTHER_EXPORT } from '../areas/backups/objects';
 import * as backups from '../areas/backups/ops';
+import { proofDue, readProofs, recordProofs, runProofs } from '../areas/backups/proof';
+import { pruneBackups, pruneDue, recordPrune } from '../areas/backups/retention';
 import { count, putRows, type Row } from '../areas/backups/rows';
 import * as bstore from '../areas/backups/store';
 import { logicalDay } from '../areas/conversation/day';
@@ -42,6 +45,11 @@ const EXPORT_TABLES = () => [
 ];
 
 export abstract class CoreBackups extends CoreWatchdogs {
+  /** The deploy the point-in-time check is known to have run on (read once per object start). */
+  private proofTag: string | null | undefined = undefined;
+  /** The owner's day whose old-backups pass has been looked at. */
+  private pruneLooked: string | null = null;
+
   private get vault(): R2Bucket | null {
     return (this.env as { VAULT?: R2Bucket }).VAULT ?? null;
   }
@@ -58,7 +66,28 @@ export abstract class CoreBackups extends CoreWatchdogs {
     const day = ownerDay(now, tz);
     if (backups.weeklyDue(this.db, day, wallMinute(now, tz))) await this.startBackup(day, now);
     const due = backups.drillDue(this.db, day);
-    if (due) await this.startDrill(due.month, now).catch(() => undefined);
+    const drilled = due
+      ? await this.startDrill(due.month, now).then(
+          () => true,
+          () => false,
+        )
+      : false;
+    // The point-in-time check on the scratch copies: on a new deploy and with every monthly drill.
+    const tag = (this.env as { VERSION?: { tag?: string } }).VERSION?.tag || null;
+    if ((drilled || this.proofTag !== tag) && proofDue(this.db, tag, drilled)) {
+      const classes = await runProofs(this.env, now);
+      this.write((w) => recordProofs(w, tag, classes), now);
+    }
+    this.proofTag = tag;
+    // Old backups, once a day, only while the owner has it on (Settings › Privacy and data).
+    // Looked at once a day per object start (the setting is read then, not on every tick).
+    if (this.pruneLooked !== day && !bstore.runningBackup(this.db)) {
+      this.pruneLooked = day;
+      if (pruneDue(this.db, day)) {
+        const out = await pruneBackups(this.vault).catch(() => null);
+        this.write((w) => recordPrune(w, day, out), now);
+      }
+    }
     // Each finished day's events archived, and events past 90 days pruned (the Senses object); from
     // 80% of the day's budget it waits, and the first tick after 00:00 UTC archives every day owed.
     const held = quotaHold(this.db, now) !== null;
@@ -82,6 +111,17 @@ export abstract class CoreBackups extends CoreWatchdogs {
     }
   }
 
+  /** Deep health's backups block: the last point-in-time check and the last drill. */
+  backupsHealth(): BackupsHealth {
+    const d = bstore.lastDrill(this.db);
+    return {
+      pitr: readProofs(this.db),
+      drill: d
+        ? { month: d.month, state: d.state, problems: d.problems, classes: bstore.drillClasses(this.db, d) }
+        : null,
+    };
+  }
+
   private async startBackup(day: string, now = Date.now()): Promise<BackupRunResponse> {
     const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
     const core = { tables: BACKUP_TABLES(), schema_version: this.migration, bookmark };
@@ -98,7 +138,14 @@ export abstract class CoreBackups extends CoreWatchdogs {
     const obj = await this.vault.get(last.manifest_key ?? manifestKey(last.date, 'core'));
     if (!obj) throw new Fail('conflict', { reason: 'the backup has no manifest' });
     const manifest = (await obj.json()) as BackupManifest;
-    const out = this.write((w) => backups.startDrill(w, month, manifest), now);
+    // The other parts' newest complete backups join it (one without a manifest is left out).
+    const others: BackupManifest[] = [];
+    for (const cls of ['music', 'senses', 'library'] as const) {
+      const b = bstore.lastComplete(this.db, cls);
+      const m = b && (await this.vault.get(b.manifest_key ?? manifestKey(b.date, cls)));
+      if (m) others.push((await m.json()) as BackupManifest);
+    }
+    const out = this.write((w) => backups.startDrill(w, month, manifest, others), now);
     this.schedule();
     return out;
   }
@@ -150,24 +197,24 @@ export abstract class CoreBackups extends CoreWatchdogs {
   }
 
   /** Empty, with the schema in place (a scratch instance emptied before has none). */
-  async drillReset(): Promise<void> {
+  override async drillReset(): Promise<void> {
     this.scratchOnly();
     await this.ctx.storage.deleteAll();
     await applyMigrations(this.ctx.storage, this.db, CORE_MIGRATIONS);
   }
 
-  async drillPut(table: string, rows: Row[]): Promise<number> {
+  override async drillPut(table: string, rows: Row[]): Promise<number> {
     this.scratchOnly();
     if (!CORE_TABLES[table]?.backup) throw new Error('not a backed-up table');
     return this.ctx.storage.transactionSync(() => putRows(this.db, table, rows));
   }
 
-  async drillCounts(tables: string[]): Promise<Record<string, number>> {
+  override async drillCounts(tables: string[]): Promise<Record<string, number>> {
     this.scratchOnly();
     return Object.fromEntries(tables.filter((t) => CORE_TABLES[t]?.backup).map((t) => [t, count(this.db, t)]));
   }
 
-  async drillEmpty(): Promise<void> {
+  override async drillEmpty(): Promise<void> {
     this.scratchOnly();
     await this.ctx.storage.deleteAll();
   }

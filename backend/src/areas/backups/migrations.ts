@@ -50,6 +50,13 @@ export const BACKUPS_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  {
+    // The parts a drill covered (all four since the drill restores Music, the senses and Study too).
+    version: 50,
+    name: 'drill classes',
+    kind: 'expand',
+    sql: ['ALTER TABLE drills ADD COLUMN classes TEXT'],
+  },
 ];
 
 export const BACKUPS_TABLES: Record<string, TableInfo> = {
