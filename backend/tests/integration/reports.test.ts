@@ -5,7 +5,7 @@
 // never CI or Muse, newest first, reads the rows it returns, not the table, and ends a page before
 // 512 KB; the daily prune drops rows older than 30 days, at most 2,000 a step.
 import { runInDurableObject } from 'cloudflare:test';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ErrorBody, Page } from '../../../shared/contract/api';
 import type { Report, ReportCreated } from '../../../shared/contract/reports.ts';
 import type { Core } from '../../src/objects/core';
@@ -203,7 +203,12 @@ describe('a batch from the phone', () => {
   });
 
   it('costs one row written and none read', async () => {
+    // A sign-in from a new device leaves one `notice` change in Core after its response
+    // (auth/routes.ts): wait for it, so it lands before the count and not inside it.
+    const notices = () => coreSql<{ n: number }>("SELECT count(*) AS n FROM changes WHERE kind = 'notice'");
+    const [{ n: before }] = await notices();
     const d = await device();
+    await vi.waitFor(async () => expect((await notices())[0].n).toBeGreaterThan(before));
     const rows = await rowsDuring(core(), async () => expect((await post(d, batch())).status).toBe(201));
     expect(rows).toEqual({ read: 0, written: 1 });
   });
