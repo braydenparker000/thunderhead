@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-22-steady",
+  "id": "2026-11-22-mind",
   "date": "2026-11-22",
   "lines": [
     {
-      "text": "When something isn't working, your Briefing now says so in plain words; serious things come as one push a day."
+      "text": "Chat answers sooner and stays ready for 45 minutes after your last message; it no longer refuses a reply for style."
     },
     {
-      "text": "Settings › About has Repair and Copy report. If the app ever fails to start, a small panel offers Repair."
+      "text": "Settings › The mind has the page that says how I talk. Edit it there; if I change it, I say so in chat."
     },
     {
-      "text": "The chat says when your plan's limit is holding a reply and until when; the Briefing shows the right day after midnight."
+      "text": "I now leave you a morning note, and one or two check-ins a day in chat or on home. No notifications from me."
     },
     {
-      "text": "Music's first sync now finishes for a large library, and Music, Podcasts and Guitar no longer use the old server."
+      "text": "Looking something up no longer stops me saving what you tell me, setting reminders or placing Muse orders."
     }
   ]
 }
