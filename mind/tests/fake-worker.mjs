@@ -136,6 +136,9 @@ export function createFake(options = {}) {
       const core = o.coreOverride ?? buildCore(role);
       return {wake: wake && {id: wake.id, reason: wake.reason, claim_match: wake.claim_match}, day: o.day, seq: s.seq, core,
         full: o.fullOverride ?? `${core}\n\n## 8. Profile\n(no facts yet)`, night_done: Boolean(o.nightDone),
+        // The briefing in parts (null: a Worker on the release before them) and the role section.
+        ...(o.parts === null ? {} : {parts: o.parts ?? [core, "## Today's conversation\nNo messages yet today.", '## 8. On demand\nth brief --section <n>']}),
+        ...(o.roleSection ? {role_section: o.roleSection} : {}),
         provenance: s.tainted.has(body.session_id) ? 'outside' : 'owner', tainted: s.tainted.has(body.session_id)};
     }],
     ['POST', /^\/v1\/mind\/status$/, ['chat', 'night', 'reflex'], ({body, session}) => {

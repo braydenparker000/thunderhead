@@ -29,10 +29,13 @@ import { mindSettings } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import { getSetting } from '../settings/store';
 import { voiceSection, withVoice } from '../voice/brief';
+import { voiceText } from '../voice/ops';
 import * as watchdogs from '../watchdogs/ops';
-import { buildBrief } from './brief';
+import { type BriefInput, buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
 import { landsLines, speechLine } from './brief-learn';
+import { briefParts, roleSectionFor } from './brief-parts';
+import { waitingRecall } from './brief-recall';
 import { clock } from './brief-text';
 import { asCheckin, isCheckin } from './checkin-session';
 import { nightDayOf, nightDone, nightLine } from './night';
@@ -86,7 +89,7 @@ export function assemble(
   const calendar = owners ? calendarLines(calendarView(db, now, tz), tz) : { own: [], shared: [] };
   const reports = opts.reports ?? null;
   const theDay = owners ? dayLines(db, { day: night ?? day, now, tz, reports }) : null;
-  const built = buildBrief({
+  const input: BriefInput = {
     role,
     constitution,
     laws: lawsLine(db, constitution),
@@ -150,15 +153,22 @@ export function assemble(
     // claimed against what happened (section 7; insight/topics.ts, predictions/ops.ts).
     speech: speechLine(speechState(db, now, tz)),
     lands: role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
-  });
-  // The voice page, right after section 1 (areas/voice/brief.ts).
-  const { core, full } = withVoice(built, voiceSection(db));
+    // Each waiting message's memories, words matched only (brief-recall.ts): part 1 shows them.
+    recall: waitingRecall(db, role, waiting, offRecord),
+  };
+  // The voice page, right after section 1 in the core and the full file (areas/voice/brief.ts);
+  // at a session's start it comes as its own piece beside the role (`voice`).
+  const { core, full } = withVoice(buildBrief(input), voiceSection(db));
+  const roleSection = roleSectionFor(input);
   return {
     wake,
     day: night ?? day,
     seq: feed.lastSeq(db),
     core,
     full,
+    parts: briefParts(input),
+    voice: voiceText(db),
+    ...(roleSection ? { role_section: roleSection } : {}),
     night_done: night !== null && nightDone(db, night),
     // What its memory writes are labelled (MEMORY.md §7); `tainted` is its old name, kept one release.
     provenance: tainted ? 'outside' : 'owner',

@@ -104,15 +104,15 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 160,
+    "rows_read_max": 224,
     "rows_written_max": 51
   },
   "POST /v1/mind/brief (no claim, no setting stored) (Core)": {
-    "rows_read_max": 261,
+    "rows_read_max": 280,
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (no claim, 25 settings stored) (Core)": {
-    "rows_read_max": 305,
+    "rows_read_max": 309,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
@@ -122,6 +122,10 @@
   "PATCH /v1/settings, every mind setting (25 keys) (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 50
+  },
+  "GET /v1/live/wait (1 owner message handed out, recall and presence) (Core)": {
+    "rows_read_max": 28,
+    "rows_written_max": 4
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
     "rows_read_max": 30,
