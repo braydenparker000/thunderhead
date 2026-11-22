@@ -14,19 +14,22 @@ export interface ReportRow {
   req_sha256: string;
   ledger_id: string;
   message_id: string | null;
+  /** The morning note (schema step 54); null on reports written before it. */
+  note: string | null;
 }
 
-const COLS = 'day, written_at, session_id, headline, lines_json, counts_json, req_sha256, ledger_id, message_id';
+const COLS = 'day, written_at, session_id, headline, lines_json, counts_json, req_sha256, ledger_id, message_id, note';
 
 export const reportRow = (db: Db, day: string): ReportRow | null =>
   db.one<ReportRow>(`SELECT ${COLS} FROM night_reports WHERE day = ?`, day);
 
 export function putRow(db: Db, r: ReportRow): void {
   db.run(
-    `INSERT INTO night_reports (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO night_reports (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (day) DO UPDATE SET written_at = excluded.written_at, session_id = excluded.session_id,
        headline = excluded.headline, lines_json = excluded.lines_json, counts_json = excluded.counts_json,
-       req_sha256 = excluded.req_sha256, ledger_id = excluded.ledger_id, message_id = excluded.message_id`,
+       req_sha256 = excluded.req_sha256, ledger_id = excluded.ledger_id, message_id = excluded.message_id,
+       note = excluded.note`,
     r.day,
     r.written_at,
     r.session_id,
@@ -36,6 +39,7 @@ export function putRow(db: Db, r: ReportRow): void {
     r.req_sha256,
     r.ledger_id,
     r.message_id,
+    r.note ?? null,
   );
 }
 
@@ -52,6 +56,7 @@ export function toReport(r: ReportRow): NightReport {
     day: r.day,
     written_at: r.written_at,
     headline: r.headline,
+    note: r.note ?? null,
     lines: JSON.parse(r.lines_json),
     counts: JSON.parse(r.counts_json),
     ledger_id: r.ledger_id,

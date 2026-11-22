@@ -1,4 +1,4 @@
-// Acting commands: propose, decide, approved, verb, order, surface, push, predict, night
+// Acting commands: propose, decide, approved, verb, order, surface, push, night
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20); plans and what waits for
 // its time are in plan.mjs.
 import {readFileSync} from 'node:fs';
@@ -10,6 +10,7 @@ import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
 import {cancel, fireAt, laterOk} from './plan.mjs';
 import {placeBody} from './surface-place.mjs';
+import {nightPlan} from './night-flow.mjs';
 
 /** The card classes (shared/contract/proposals.ts); `permit` is a standing permission set to Ask. */
 export const CLASSES = Object.keys(CONTRACT.proposals.classes);
@@ -221,33 +222,12 @@ export async function push(argv) {
   out({queued_until: data.queued_until ?? null});
 }
 
-const PREDICT_USAGE = 'usage: th predict <category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill';
-const nextDay = day => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-
-/** `th predict` (P9, EVALS.md M-18): a prediction about the open day (the day after the briefing's),
- * which the Worker resolves from what the owner does once the day is over; `list` and `skill`. */
-export async function predict(argv) {
-  const {flags, rest} = parseArgs(argv, {bool: ['open']});
-  if (rest[0] === 'list' && rest.length === 1) return out((await request('GET', '/v1/predictions', {query: flags.open ? {open: 1} : {}})).data);
-  if (rest[0] === 'skill' && rest.length === 1) return out((await request('GET', '/v1/predictions/skill')).data);
-  if (rest.length !== 1) throw invalid(PREDICT_USAGE);
-  const args = {};
-  if (flags.n !== undefined) args.n = Number(flags.n);
-  if (flags.time !== undefined) args.time = String(flags.time);
-  if (flags.card !== undefined) args.id = String(flags.card);
-  if (flags.app !== undefined) args.app = String(flags.app);
-  const briefed = getState('day');
-  const day = typeof flags.day === 'string' ? flags.day : briefed ? nextDay(briefed) : null;
-  if (!day) throw invalid('--day is required (no briefing day recorded)');
-  const {data} = await request('PUT', `/v1/predictions/${seg(uuidv7())}`, {body: {
-    category: rest[0], args, day, p: Number(need(flags, 'p')), why: need(flags, 'why'),
-  }});
-  out({id: data.id, day: data.day});
-}
-
 const NIGHT_USAGE = 'usage: th night start | step <n> done | step <n> cursor <c> | done [--partial] | steps  [--day <YYYY-MM-DD>]';
 
-/** `th night` (RUNTIME.md §12): the night run's progress. `start` works on the briefing's day (the
+/** `th night` (RUNTIME.md §12): the night run's progress. `start` also prints the night's whole
+ * job (night-flow.mjs): the day in brief, errors and health, each due step's command. Writing
+ * commands close their own steps; `step <n> done` and cursors are for a resumed or long night, and
+ * `done` closes whatever is left. `start` works on the briefing's day (the
  * closed day the night works on), or `--day` for another closed day of the last week; the run's
  * day is kept, so the steps after it (and `th facts --night`) go to the same run without `--day`.
  * `steps` lists the steps from the contract. Out: where the run stands, `{resume_from, done,
@@ -276,5 +256,14 @@ export async function night(argv) {
   if (body.cursor !== undefined && body.cursor.length > n.cursor_max) throw invalid(`a cursor is at most ${n.cursor_max} characters`);
   const {data} = await request('POST', '/v1/mind/night', {body});
   setState('night_day', day);
-  out({resume_from: data.resume_from ?? null, done: !!data.done, cursor: data.cursor ?? null, skipped: data.skipped ?? []});
+  const run = {resume_from: data.resume_from ?? null, done: !!data.done, cursor: data.cursor ?? null, skipped: data.skipped ?? []};
+  if (run.done) setState('night_closed', day);
+  else if (body.action === 'start') {
+    // Writing commands close their steps from here (night-flow.mjs); start says what is due tonight.
+    const at = n.steps.findIndex(s => s.step === run.resume_from);
+    setState('night_through', {day, pos: at - 1});
+    if (getState('night_closed') === day) setState('night_closed', null);
+    return out({...run, ...(await nightPlan(day, run))});
+  }
+  out(run);
 }

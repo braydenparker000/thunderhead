@@ -214,12 +214,12 @@ export interface TaintRequest {
   ref_kind?: 'url' | 'file' | 'comment';
 }
 
-/** POST /v1/mind/night (RUNTIME.md §12): the run's progress for a closed `day`. `cursor` saves
- * where a step with a cursor got to (shared/contract/night.ts); `partial` (with `done`) records
- * the steps the hard stop cut as skipped. */
+/** POST /v1/mind/night (RUNTIME.md §12): the run's progress for a closed `day`. `through` closes
+ * every open step up to `step`; `cursor` saves where a step with a cursor got to (night.ts);
+ * `partial` (with `done`) records the steps the hard stop cut as skipped. */
 export interface MindNightRequest {
   day: Day;
-  action: 'start' | 'step_done' | 'cursor' | 'done';
+  action: 'start' | 'step_done' | 'through' | 'cursor' | 'done';
   step?: number;
   cursor?: string;
   partial?: boolean;

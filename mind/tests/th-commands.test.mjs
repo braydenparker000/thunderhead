@@ -355,20 +355,11 @@ test('surface, push (quiet hours exit 7), pending, health, errors', withFake({},
   assert.deepEqual((await th(['errors', '--hours', '1'], e)).json, {items: []});
 }));
 
-test('predict: the night shift, about the day after its briefing day, with the resolver\'s arguments', withFake({}, async fake => {
+test('predict is gone (2026-11-22): no command, no help line', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
-  const b = await th(['brief', '--claim'], e);
-  assert.equal(b.code, 0, b.stderr);
-  const day = JSON.parse(readFileSync(join(e.TMPDIR, 'th', 'state', 'day.json'), 'utf8'));
-  const next = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  const r = await th(['predict', 'chat.before', '--time', '08:30', '--p', '0.7', '--why', 'Writes before work most days'], e);
-  assert.equal(r.code, 0, r.stderr);
-  assert.equal(r.json.day, next);
-  const sent = [...fake.state.predictions.values()][0].value;
-  assert.deepEqual([sent.category, sent.args, sent.p], ['chat.before', {time: '08:30'}, 0.7]);
-  assert.equal((await th(['predict', 'list', '--open'], e)).json.items.length, 1);
-  assert.equal((await th(['predict', 'chat.any', '--day', next, '--p', '0.7', '--why', 'x'], env(fake))).code, 6, 'the chat role may not');
-  assert.equal((await th(['predict', 'chat.any', 'extra', '--p', '0.7', '--why', 'x'], e)).code, 8);
+  assert.equal((await th(['predict', 'chat.any', '--p', '0.7', '--why', 'x'], e)).code, 8, 'an unknown command');
+  assert.doesNotMatch((await th(['help', 'all'], e)).stdout.split('\nRoutes')[0], /\bth predict|^ *predict\b/m);
+  assert.equal(fake.state.predictions.size, 0);
 }));
 
 test('night role: day, daynote, facts, night progress', withFake({}, async fake => {
@@ -405,7 +396,8 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.deepEqual((await th(['facts', '--batch', '-'], e, onStdin)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
   const how = (await th(['help', 'facts'], e)).stdout;
   for (const word of ['{"ops":[', '"op":"add"', '"op":"confirm"', '"op":"supersede"', 'msg:<message id>', '--batch - --night']) assert.ok(how.includes(word), `th help facts says ${word}`);
-  assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
+  const started = (await th(['night', 'start'], e)).json;
+  assert.deepEqual([started.resume_from, started.done, started.cursor, started.skipped], [1, false, null, []]);
   const ahead = await th(['night', 'step', '3', 'done'], e);
   assert.equal(ahead.code, 7, 'a step ahead of the run is a conflict');
   assert.equal(JSON.parse(ahead.stderr).error.details.resume_from, 1, 'and says where the run is');
@@ -413,7 +405,6 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.deepEqual((await th(['night', 'step', '4', 'cursor', 'msg:abc'], e)).json, {resume_from: 4, done: false, cursor: 'msg:abc', skipped: []});
   assert.equal((await th(['night', 'step', '2', 'cursor', 'x'], e)).code, 8, 'step 2 keeps no cursor, checked before the call');
   assert.equal((await th(['night', 'step', '14', 'done'], e)).code, 8, 'no step 14');
-  assert.equal((await th(['night', 'done'], e)).code, 7, 'steps are left');
   assert.deepEqual((await th(['night', 'done', '--partial'], e)).json, {resume_from: 14, done: true, cursor: null, skipped: [4, 5, 6, 7, 8, 9, 11, 12, 13]});
   assert.equal((await th(['day', '2026-10-28'], env(fake))).code, 6, 'chat may not read night input');
 }));
@@ -421,7 +412,7 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
 test('night steps come from the contract; the day comes from the briefing or --day', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const r = await th(['night', 'steps'], e);
-  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 12, 5, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 12, the report, before health, then 11, the songs, last before 10');
+  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 13, 5, 12, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory, then 13, the week\'s growth; 5, health, then 12, the morning note; then 11, the songs, last before 10');
   assert.deepEqual(r.json.steps.filter(s => s.cursor).map(s => s.step), [4]);
   assert.deepEqual(r.json.budget_min, {target: 30, hard: 45, sunday_hard: 60});
   assert.equal(fake.state.requests.length, 0, 'listing the steps asks the Worker nothing');

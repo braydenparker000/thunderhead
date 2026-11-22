@@ -7,7 +7,8 @@
 // for the night before the open day and the open day's thread has no owner message yet, the Worker
 // (not the mind: the night may not post) adds it as that thread's first message, author mind,
 // origin night: no push, no wake. A message in the chat is never rewritten, so a replacement or an
-// undo changes the tile only. The counts are the Worker's (counts.ts), again when the run is done.
+// undo changes the tile only. The morning note (2026-11-22) stands under the headline in both.
+// The counts are the Worker's (counts.ts), again when the run is done.
 
 import {
   type NightReport,
@@ -74,6 +75,7 @@ export function putReport(
     written_at: w.at,
     session_id: c.session_id ?? '',
     headline: r.headline.trim(),
+    note: r.note?.trim() || null,
     lines_json: JSON.stringify(lines),
     counts_json: JSON.stringify(countsOf(db, day)),
     req_sha256: reqHash,
@@ -93,7 +95,12 @@ function firstMessage(w: Writer, c: Caller, row: ReportRow, ctx: { today: string
   const thread = open ?? todayThread(w, ctx.tz);
   const r = toReport(row);
   const counts = nightReportCountsLine(r.counts);
-  const body = [r.headline, r.lines.map((l) => `- ${l.text}`).join('\n'), counts === 'Nothing to count' ? '' : counts]
+  const body = [
+    r.headline,
+    r.note ?? '',
+    r.lines.map((l) => `- ${l.text}`).join('\n'),
+    counts === 'Nothing to count' ? '' : counts,
+  ]
     .filter(Boolean)
     .join('\n\n');
   const id = uuidv7(w.at);

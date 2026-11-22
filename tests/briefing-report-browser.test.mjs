@@ -1,6 +1,6 @@
 // The night's report on the Briefing in Chromium at 390×844 against the mocked Worker (BRIEFING.md
 // "The report card"): the first tile, folded to "Overnight", the headline and the counts; a tap (or
-// Enter) opens its lines in place with `aria-expanded`, a line that names a ledger row has an Undo
+// Enter) opens the morning note's paragraphs, then its lines, in place with `aria-expanded`, a line that names a ledger row has an Undo
 // (POST /v1/ledger/:id/undo) and says Undone once undone, also after the page redraws; a second tap
 // folds it. CSP violations are console errors, so the test also proves the page fits.
 import { test, before, after } from 'node:test';
@@ -26,6 +26,7 @@ const KEPT = '0192f0c4-0000-7000-8000-0000000000a1';
 const CLOSED = '0192f0c4-0000-7000-8000-0000000000a2';
 const report = {
   kind: 'report', label: 'Overnight', value: 'A quiet night, two things kept', detail: '1 fact · 1 loose end', day: '2026-11-03',
+  note: ['A calm night here, nothing pressing 🙂', 'Your new playlist is waiting when you want it.'],
   lines: [
     { kind: 'memory', text: 'Kept that you like calm music in the evening', path: null, ledger_id: KEPT, undo: 'open' },
     { kind: 'music', text: 'Music is ready for the evening', path: '/music/', ledger_id: null, undo: null },
@@ -73,6 +74,8 @@ test('the report: first, folded; a tap opens its lines, Undo undoes a line, a se
   assert.equal(await head.getAttribute('aria-expanded'), 'true');
   assert.equal(await lines.isVisible(), true);
   assert.deepEqual(await page.$$eval('#brief .tile.report li', (ls) => ls.map((l) => [l.className, l.textContent])), [
+    ['rline rnote', 'A calm night here, nothing pressing 🙂'],
+    ['rline rnote', 'Your new playlist is waiting when you want it.'],
     ['rline', 'Kept that you like calm music in the eveningUndo'],
     ['rline', 'Music is ready for the evening'],
     ['rline undone', 'Closed the loose end about the invented boiler' + 'Undone'],
@@ -88,8 +91,8 @@ test('the report: first, folded; a tap opens its lines, Undo undoes a line, a se
   await page.getByRole('button', { name: 'Undo: Kept that you like calm music in the evening' }).click();
   await until(() => api.calls.some((c) => c.call === `POST /v1/ledger/${KEPT}/undo`));
   await until(() => reads() > before);
-  await page.waitForFunction(() => document.querySelector('#brief .tile.report .rline')?.classList.contains('undone'));
-  assert.equal(await page.locator('#brief .tile.report .rline').first().textContent(), 'Kept that you like calm music in the eveningUndone');
+  await page.waitForFunction(() => document.querySelector('#brief .tile.report .rline:not(.rnote)')?.classList.contains('undone'));
+  assert.equal(await page.locator('#brief .tile.report .rline:not(.rnote)').first().textContent(), 'Kept that you like calm music in the eveningUndone');
   assert.equal(await head.getAttribute('aria-expanded'), 'true', 'still open after the redraw');
 
   await head.click();

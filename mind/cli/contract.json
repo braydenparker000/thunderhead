@@ -5208,20 +5208,20 @@
         "weekly": true
       },
       {
-        "step": 12,
-        "name": "the report",
-        "budget_min": 1,
-        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
-        "cursor": false,
-        "phase": "P4"
-      },
-      {
         "step": 5,
         "name": "health and agreed fixes",
         "budget_min": 8,
         "idempotent": "reads, then one branch per agreed loose end",
         "cursor": false,
         "phase": "P3"
+      },
+      {
+        "step": 12,
+        "name": "the report",
+        "budget_min": 1,
+        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
+        "cursor": false,
+        "phase": "P4"
       },
       {
         "step": 6,
@@ -5259,7 +5259,7 @@
       },
       {
         "step": 10,
-        "name": "session note and done",
+        "name": "done",
         "budget_min": 2,
         "idempotent": "the run is marked done once",
         "cursor": false,
@@ -5301,7 +5301,6 @@
         "reading",
         "music",
         "health",
-        "predictions",
         "note"
       ],
       "limits": {
@@ -5309,6 +5308,7 @@
         "lines": 6,
         "line": 100,
         "total": 800,
+        "note": 1200,
         "keep_days": 30
       },
       "ref": "^(app:[a-z]{2,16}|ledger:[0-9a-f-]{36})$"

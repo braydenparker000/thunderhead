@@ -32,6 +32,8 @@ import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
 import {reports} from './lib/reports.mjs';
 import {report} from './lib/night-report.mjs';
+import {daynote} from './lib/daynote.mjs';
+import {autoClose} from './lib/night-flow.mjs';
 import {music} from './lib/music.mjs';
 import {podcasts} from './lib/podcasts.mjs';
 import * as later from './lib/plan.mjs';
@@ -51,10 +53,10 @@ export const COMMANDS = {
   errors: conv.errors, reports, report, ledger: conv.ledger, undo: conv.undo, get: conv.get,
   search: memory.recall, recall: memory.recall, remember: memory.remember, confirm: memory.confirm,
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
-  daynote: memory.daynote, facts: memory.facts,
+  daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
   plan: later.plan, verbs: later.verbs, routine, guitar: grow.guitar, study: grow.study, growth: grow.growth,
-  checkin, library, music, remind, voice, watch, podcasts, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
+  checkin, library, music, remind, voice, watch, podcasts, push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
   help: async argv => { out(helpText(argv[0])); },
 };
@@ -66,6 +68,7 @@ export async function main(argv) {
     const run = COMMANDS[command];
     if (!run) throw invalid(`unknown command ${command ? `"${command}"` : '(none)'}; run th help`);
     const code = await run(tail);
+    if (typeof code !== 'number' || code === EXIT.ok) await autoClose(command, tail);
     return typeof code === 'number' ? code : EXIT.ok;
   } catch (error) {
     return printError(error);

@@ -29,6 +29,12 @@ export function reportTile(db: Db, c: { now: number; tz: string; day: string }):
     value: r.headline,
     detail: nightReportCountsLine(r.counts),
     day: r.day,
+    note: r.note
+      ? r.note
+          .split(/\n\s*\n/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+      : [],
     lines: r.lines.map((l) => {
       const app = l.ref?.startsWith('app:') ? l.ref.slice('app:'.length) : null;
       const s = states.get(idOf(l.ref) ?? '');

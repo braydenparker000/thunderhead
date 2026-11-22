@@ -403,7 +403,7 @@ CREATE TABLE night_reports (
   req_sha256 TEXT NOT NULL,
   ledger_id TEXT NOT NULL,
   message_id TEXT
-  ) WITHOUT ROWID;
+  , note TEXT) WITHOUT ROWID;
 
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,

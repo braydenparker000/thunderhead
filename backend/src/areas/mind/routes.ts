@@ -88,7 +88,7 @@ const realDay = (d: string) => {
 };
 const nightBody = z.strictObject({
   day: z.string().check(z.regex(DAY), z.refine(realDay, 'a real calendar day')),
-  action: z.enum(['start', 'step_done', 'cursor', 'done']),
+  action: z.enum(['start', 'step_done', 'through', 'cursor', 'done']),
   step: z.optional(z.number().check(z.int(), z.gte(0), z.lte(99))),
   cursor: z.optional(z.string().check(z.minLength(1), z.maxLength(NIGHT_CURSOR_MAX))),
   partial: z.optional(z.boolean()),

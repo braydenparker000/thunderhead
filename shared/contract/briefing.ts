@@ -173,6 +173,8 @@ export interface ReportTile {
   value: string;
   detail: string;
   day: string;
+  /** The morning note's paragraphs, shown under the headline before the lines. */
+  note: string[];
   lines: {
     kind: NightReportKind;
     text: string;

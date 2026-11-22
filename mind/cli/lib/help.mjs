@@ -63,10 +63,8 @@ export const USAGE = {
   order: ['new --words <text> [--app <app>] [--title <t>] [--deadline <iso>] [--proposal <id>] | list | get <id> | cancel <id> --why <t>', 'a task for Muse (ask by default); the owner\'s own are "@muse" in the chat'],
   muse: ['notes [--after <seq>] [--order <id>] | note <text>', 'Muse\'s own thread, or one order\'s progress lines'],
   push: ['--title --body --ref --why --topic [--deadline] [--asked-by <message id>]', 'a push (P8); while the owner\'s speech setting is quiet, only one they asked for (--asked-by), and none while silent'],
-  predict: ['<category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill',
-    'a prediction about the open day, resolved from what the owner does once it ends: chat.any (they write), chat.count --n 2-50 (at least n messages), chat.before --time (their first message before then), decision.answered --card <id> (they answer that waiting card), app.open --app music|guitar|podcasts|astra|media|study (they open that app, as their phone reports it). Honest odds; at most 12 a day; a chat one only before their first message (P9)'],
   day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]] [--first <n> | --last <n>]', 'the night\'s input: counts, routines (habits for step 4) and every part, or one page of a part (P3); --first/--last: only that many items of each part (never pipe th to head or tail)'],
-  daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note; prints its provenance (an outside one is shown marked, never evidence)'],
+  daynote: ['<day> --summary "<≤ 150 words>" [--decisions <json> | --decision "<text>" …] --importance <1-10> [--voice "<≤ 200>"] [--title "<≤ 80>"]', 'night step 2 in one call: the day note, your one line on the day (--voice, as note --day-voice) and the day\'s thread title (--title); --decisions is a JSON list of strings or objects, or repeat --decision; prints its provenance (an outside one is shown marked, never evidence)'],
   // The night of 2026-11-11 found no word here on what the batch holds, went looking in the source
   // and its temp folder, and the listing labelled the session: so the shape is spelled out, and
   // the batch can come on stdin, with no file or folder to look at.
@@ -80,8 +78,8 @@ export const USAGE = {
     '  on stdin: th facts --batch - --night <<\'EOF\' … EOF. Do not ls, cat or sed anything to find this out: a look outside the repo labels the session.',
   ].join('\n')],
   checkin: ['say (text on stdin) | done [--nothing "<why>"]', 'a check-in (a night session whose briefing says checkin): say writes your one message into today\'s conversation (no reply-to, no notification; a second is 409); done ends it and prints the outcome (said, lines, nothing). Within 10 minutes of the claim; the Worker ends it then'],
-  night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],
-  report: ['--headline "<≤ 60>" [--line <kind>[@ledger:<id>|@app:<id>]:"<≤ 100>" …] [--day <day>]', 'night step 12: what the night did, the Briefing\'s first tile and the open day\'s first message; ≤ 6 plain lines; a ledger ref (a row this run wrote, th ledger --since) is the owner\'s Undo on the tile; the Worker adds the counts; the same report again changes nothing'],
+  night: ['start | done [--partial] | steps | step <n> done | step <n> cursor <c> [--day <day>]', 'the night run. start prints the whole job: the day in brief, errors and health, and each step due tonight with its exact command (todo), the rest with why not (not_tonight). Each writing command closes its own step and the open ones before it; done closes the rest (--partial: the hard stop cut them). step <n> done and cursors only for a resumed or long night'],
+  report: ['--headline "<≤ 60>" --note - <<\'EOF\' <note> EOF [--line <kind>[@ledger:<id>|@app:<id>]:"<text>" …] [--day <day>]', 'night step 12, after arranging and health: the morning note in your own voice (1-1,200 chars, paragraphs kept: what you did, what you noticed, something they would enjoy, what is waiting), the Briefing\'s first tile and the open day\'s first message. Lines optional (≤ 6): an unknown kind becomes note, a long one is cut with …, the ref optional (a ledger row is the owner\'s Undo). The Worker adds the counts; the same report again changes nothing'],
 };
 
 /** `th help` with no command: one short line per command (≤ 2,500 characters, it stays in context). */
@@ -102,7 +100,7 @@ export const INDEX = {
   ci: 'wait for GitHub Actions', eval: 'the eval suites', read: 'check the reader\'s answer',
   reflex: 'what the reflex does now', handled: 'report a watchdog', drill: 'trip a watchdog',
   decide: 'record the owner\'s decision', order: 'a task for Muse', muse: 'Muse\'s thread', push: 'a push',
-  predict: 'a prediction', day: 'the night\'s input', daynote: 'the day note', facts: 'a batch of memory ops',
+  day: 'the night\'s input', daynote: 'the day note', facts: 'a batch of memory ops',
   checkin: 'a check-in\'s message and end', night: 'the night run', report: 'night step 12 report',
 };
 

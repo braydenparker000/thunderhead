@@ -170,12 +170,12 @@ describe('the first 2,000 characters (sections 1–2)', () => {
 });
 
 describe('then the day, then on demand', () => {
-  it('section 7: the arrangements and how they were met, the predictions, the Briefing, each in its budget', () => {
+  it('section 7: the arrangements and how they were met, the Briefing, each in its budget; no predictions', () => {
     const b = buildBrief(rich());
     const seven = section(b.core, 7);
     expect(seven).toContain('Arranged on 2026-11-03, each as the owner met it so far');
     expect(seven).toContain('06:12 home/line.2 ← line · kept: the bus leaves early on Tuesdays');
-    expect(seven).toContain('Predicted for 2026-11-03:\napp.open app=guitar · 70%: practised four days running');
+    expect(seven).not.toMatch(/predict/i);
     expect(seven).toContain('The Briefing shows:\nDue: 1 today · Next at 15:00');
     const crowded = buildBrief(
       rich({
@@ -186,7 +186,7 @@ describe('then the day, then on demand', () => {
       }),
     );
     expect(section(crowded.core, 7)).toMatch(/\(\+\d+ more: th ledger --kind arrangement\)/);
-    expect(section(buildBrief(input()).core, 7)).toContain('Nothing arranged or predicted for 2026-11-03');
+    expect(section(buildBrief(input()).core, 7)).toContain('Nothing arranged for 2026-11-03');
     // With no room for its first line, only where the rest is.
     expect(daySection(rich(), 100)).toBe('(no room in the core: th brief --section 7)');
   });

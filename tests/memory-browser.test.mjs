@@ -250,8 +250,8 @@ test('How well I know you: read when opened, in plain words, never a score for t
     ['Corrections', 'You fixed or forgot 2 of the 12 things I learned in the last 4 weeks.', 'By week, oldest first: 0 of 3 · 1 of 5 · 0 of 2 · 1 of 2'],
     ['Memory checks', `35 of 40 right on the last check (${new Date(Date.UTC(2026, 10, 1, 9)).toLocaleDateString('en', { weekday: 'long' })}).`, 'Before: 34 of 40'],
     ['What I arranged', 'Of the 10 things I arranged in the last 4 weeks, you used 4, took back 1 and left 5.', '2 more are still new.'],
-    ['My guesses about your day', 'Whether you write to me: 34 checked; better than your usual pattern by 23%.', 'How early you write: 12 checked; this shows from 30.', 'Which apps you open: 31 checked; no better than your usual pattern yet.'],
   ]);
+  assert.doesNotMatch(await fold.textContent(), /guess|predict/i, 'predictions left (2026-11-22)');
   assert.match(await fold.textContent(), /never a score for you/);
   assert.deepEqual(errors, []);
   await page.close();

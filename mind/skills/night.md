@@ -1,37 +1,33 @@
 # Night
 
 ## What it is
-The night shift: one run on the day that just closed, after the 04:00 roll (the 06:07 schedule is
-the fallback). It reads the day, writes its memory, arranges the open day, reports what it
-did, checks health, ingests books, describes songs, and ends. `th night steps` lists the steps and budgets; ROLES.md has their
-order. Aim for 30 minutes; the hard stop ends the run wherever it is.
+The night shift: one run on the day that just closed, after the 04:00 roll (06:07 is the
+fallback). It writes the day's memory, arranges the open day, checks health, writes the owner a
+morning note, then reads books and songs. Aim for 30 minutes; the hard stop ends it where it is.
 
 ## What you can read
-- `th day <day>`: the counts, the routines (habits for step 4) and each part, page by page
-  (`--part messages|ledger|notes --cursor <c>` while a part has `next`; `--first|--last <n>`).
-- Section 7 of your briefing: the closed day's arrangements and how the owner met each, its
-  predictions, the Briefing's tiles. Learn from it: more of what was kept, less of what was ignored.
-- `th recall --each - --kind facts`, a subject a line; `th errors`, `th health --deep`.
+- `th night start` hands you the whole job: the day in brief (counts, routines, the owner's
+  messages, how the day's arrangements were met), errors and health in a line each, and `todo`:
+  each step due tonight with its exact command. `not_tonight` says why the rest wait. Work down
+  `todo`; no `th help` or `th skill` is needed.
+- More of the day only when it says so: `th day <day> --part messages --cursor <c>`.
 
 ## What you can do
-- Step 2: `th daynote <day> --summary "<≤ 150 words>" --decisions '<json>' --importance <1-10>`,
-  `th note --day-voice "<what you noticed, ≤ 200>"` (the chat's to read), then `th title <thread id>
-  "<title>"` unless the owner titled it.
-- Step 3: `th thread done <id>` for what the day finished, `th thread add` for each commitment.
-- Step 4: `th facts --batch - --night` on stdin (`th help facts`), parts over 50 ops (`--part
-  2`), saving your place with `th night step 4 cursor "<part>:<last message id>"`.
-- Step 7: `th podcasts new`, 0-3 home lines (`th surface home line.<n> … --ref app:<id>`), tiles
-  (`th skill briefing`), up to 6 predictions with honest odds (`th predict …`).
-- Step 12, before 5 (5, 6, 9 and 11 may label you, then it is refused): `th report`, a headline,
-  then up to 6 lines, each one thing done with its ledger row (`memory@ledger:<id>:"…"`).
-- Step 5: fix only loose ends tagged `agreed`, on a branch (`th skill code`); the next chat ships.
-- Steps 6, 9 (Sundays: `th eval begin`, then what it prints), 11 (songs, last).
-- Step 10: `th note --session`, then `th night done`; out of time: `th night done --partial`.
+- Each writing command closes its own step and the open ones before it; never report steps.
+- 2: `th daynote <day> --summary "<≤ 150 words>" --decision "<text>" --importance <1-10>
+  --voice "<≤ 200>" --title "<title>"`, one call.
+- 3, 4 when there are messages: `th thread add "<text>" --evidence msg:<id>`, then
+  `th facts --batch - --night` (its shape is in `todo`).
+- 7: `th podcasts new`, 0-3 home lines, the tiles worth a look (`th surface briefing …`).
+- 12, the morning note: `th report --headline "<≤ 60>" --note -` with the note on stdin, in your
+  own warm voice, ≤ 1,200 characters: what you did, what you noticed, something they would
+  enjoy, what is waiting. Lines are optional.
+- 6, 9, 11 after the note (they may label you): books, Sunday's test, songs, as `todo` says.
+- End with `th night done`; out of time: `th night done --partial`.
 
 ## What you must not do
 - Nothing that notifies the owner: no `th say` but `system --kind error`, no pushes, no reminders.
-- No outside text before step 12 is done, and run `th` plainly: a pipe, loop or wrapper counts
-  as outside text. After it the report is refused.
-- Never push to `main`, merge, or deploy.
-- The owner's rule: the night arranges, it never pressures; a line or a tile must end and carry its
-  why.
+- No outside text before the note, and run `th` plainly: a pipe, loop or wrapper counts as
+  outside text.
+- Never push to `main`, merge, or deploy; fix only loose ends tagged `agreed`, on a branch.
+- Arrange, never pressure: a line or a tile must end and carry its why.

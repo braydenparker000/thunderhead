@@ -1,4 +1,6 @@
-// The night's report (BRIEFING.md "The report card"): night step 12 puts it with `th report`
+// The night's report (BRIEFING.md "The report card"): night step 12 puts it with `th report`.
+// Since 2026-11-22 it is a morning note: plain text in the mind's voice (1 to 1,200 characters,
+// paragraphs kept, never refused for style), shown under the headline before any lines.
 // (PUT /v1/briefing/report/:day). The Briefing shows it as its first tile after the weather, folded
 // to the headline, and the Worker posts it as the first message of the open day's chat. One per
 // closed day, kept 30 days in Core. Its words are the mind's; its counts are the Worker's own
@@ -12,12 +14,11 @@ export const NIGHT_REPORT_KINDS = [
   'reading',
   'music',
   'health',
-  'predictions',
   'note',
 ] as const;
 export type NightReportKind = (typeof NIGHT_REPORT_KINDS)[number];
 
-export const NIGHT_REPORT_LIMITS = { headline: 60, lines: 6, line: 100, total: 800, keep_days: 30 } as const;
+export const NIGHT_REPORT_LIMITS = { headline: 60, lines: 6, line: 100, total: 800, note: 1200, keep_days: 30 } as const;
 
 /** A line's ref: an app to open (`app:<id>`) or what the night did (`ledger:<id>`, its Undo). */
 export const NIGHT_REPORT_REF = /^(app:[a-z]{2,16}|ledger:[0-9a-f-]{36})$/;
@@ -29,7 +30,7 @@ export interface NightReportLine {
 }
 
 /** Counted by the Worker from its own rows of the run: this session's ledger rows (facts, loose
- * ends), its predictions and the run's record (`steps_cut`), again when the run is done. Songs,
+ * ends) and the run's record (`steps_cut`), again when the run is done. Songs,
  * mixes and pages live in other objects and are not counted yet (null). */
 export interface NightReportCounts {
   facts_added: number;
@@ -39,7 +40,6 @@ export interface NightReportCounts {
   pages_read: number | null;
   songs_noted: number | null;
   mixes: number | null;
-  predictions: number;
   /** What a hard stop cut, in run order. */
   steps_cut: number[];
 }
@@ -49,6 +49,8 @@ export interface NightReport {
   day: string;
   written_at: number;
   headline: string;
+  /** The morning note: the mind's own words, paragraphs separated by a blank line (null: none). */
+  note: string | null;
   lines: NightReportLine[];
   counts: NightReportCounts;
   /** The ledger row of this version of the report (undo: the one before, or none). */
@@ -60,6 +62,7 @@ export interface NightReport {
 /** PUT /v1/briefing/report/:day. */
 export interface PutNightReportRequest {
   headline: string;
+  note?: string;
   lines: { kind: NightReportKind; text: string; ref?: string | null }[];
 }
 
@@ -78,6 +81,8 @@ export function nightReportProblem(r: PutNightReportRequest): { path: string; is
   };
   const head = text('headline', r.headline, L.headline);
   if (head) return head;
+  if (r.note !== undefined && (typeof r.note !== 'string' || !r.note.trim() || r.note.trim().length > L.note))
+    return { path: 'note', issue: `1 to ${L.note} characters` };
   if (!Array.isArray(r.lines) || r.lines.length > L.lines) return { path: 'lines', issue: `at most ${L.lines}` };
   let total = r.headline.length;
   for (const [i, l] of r.lines.entries()) {
@@ -101,7 +106,6 @@ export function nightReportCountsLine(c: NightReportCounts): string {
     n(c.pages_read, 'page read', 'pages read'),
     n(c.songs_noted, 'song noted', 'songs noted'),
     n(c.mixes, 'mix', 'mixes'),
-    n(c.predictions, 'prediction', 'predictions'),
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Nothing to count';
 }

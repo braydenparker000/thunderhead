@@ -27,6 +27,7 @@ const placeBody = z.object({ name: z.string().check(z.minLength(2), z.maxLength(
 // The words' own limits are the contract's check (nightReportProblem), so th and the Worker agree.
 const reportBody = z.strictObject({
   headline: z.string().check(z.maxLength(200)),
+  note: z.optional(z.string().check(z.maxLength(2000))),
   lines: z
     .array(
       z.strictObject({

@@ -6,7 +6,7 @@
 // not its words) unless `--outside` asks for it, which marks this session (MEMORY.md §6 M11f).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
-import {EXIT, ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
+import {EXIT, ThError, invalid, list, need, out, toMs} from './io.mjs';
 import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState, setState} from './state.mjs';
@@ -193,19 +193,6 @@ export async function day(argv) {
     .catch(() => null);
   out({stats, messages: bounded(messages.items, flags), ledger: bounded(ledger.items, flags), session_notes: bounded(notes.items, flags),
     next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary, routines});
-}
-
-export async function daynote(argv) {
-  const {flags, rest} = parseArgs(argv);
-  const d = dayArg(rest[0]);
-  const decisions = jsonFlag(flags.decisions, 'decisions') ?? [];
-  const importance = Number(flags.importance);
-  if (!Array.isArray(decisions)) throw invalid('--decisions must be a JSON array of strings');
-  if (!(importance >= 1 && importance <= 10)) throw invalid('--importance must be 1-10');
-  const {data} = await request('PUT', `/v1/memory/day-notes/${d}`, {body: {summary: need(flags, 'summary'), decisions, importance}});
-  // The owner edited this day: their note stands and this one was not written.
-  const provenance = data.provenance ?? null;
-  out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true, provenance} : {version: data.version ?? null, provenance});
 }
 
 /** A UUID (version 8) from a name: the same name, the same id. */

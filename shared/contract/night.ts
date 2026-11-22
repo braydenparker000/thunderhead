@@ -6,6 +6,8 @@
 // the middle). A step that starts work in a later phase is marked done at once until then.
 // Numbers never change meaning: a new step takes the next free number in its place, so the run's
 // order is the list's (NIGHT_ORDER), and a finished run answers NIGHT_END, past every number.
+// Since 2026-11-22 `th` closes the steps itself: each writing command closes every open step up to
+// its own (`through`), and `done` closes what is left, so a normal night never reports a step.
 
 export interface NightStep {
   step: number;
@@ -78,12 +80,21 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P7',
     weekly: true,
   },
+  // Health comes before the report (2026-11-22): the morning note says how the Worker is, and
+  // `th night start` has already printed the errors and the deep health in one line each.
+  {
+    step: 5,
+    name: 'health and agreed fixes',
+    budget_min: 8,
+    idempotent: 'reads, then one branch per agreed loose end',
+    cursor: false,
+    phase: 'P3',
+  },
   // The report (BRIEFING.md "The report card", 2026-11-04): what the night did, as the Briefing's
   // first tile and the open day's first message. It comes before every step that may read outside
   // text (2026-11-10): a session that has read any is labelled, and a labelled session's words may
-  // not reach the owner. Since 2026-11-22 it comes before health too, whose fixes may call gh or
-  // git beyond the repository (the night of 2026-11-21 lost its report to a label taken earlier).
-  // It stood after the books and the Sunday evals, whose first command labels the session, so no Sunday night could ever report (BRIEFING.md "Why the
+  // not reach the owner. Since 2026-11-22 it is the morning note, written after arranging and health
+  // and before the books, the Sunday test and the songs, so a hard stop keeps it. It stood after the books and the Sunday evals, whose first command labels the session, so no Sunday night could ever report (BRIEFING.md "Why the
   // night's report never came"). What the later steps do joins the report's counts when the run is
   // done, never as words.
   {
@@ -93,14 +104,6 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     idempotent: 'the same report again answers the stored one; a new one from the same session replaces it',
     cursor: false,
     phase: 'P4',
-  },
-  {
-    step: 5,
-    name: 'health and agreed fixes',
-    budget_min: 8,
-    idempotent: 'reads, then one branch per agreed loose end',
-    cursor: false,
-    phase: 'P3',
   },
   // Indexing: from P7, reading Study's waiting books (mind/jobs/study-ingest.mjs: at most 2 books,
   // 10 minutes; a book not finished goes on the next night). The P5 indexing jobs join it later.
@@ -132,7 +135,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
   },
   // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
   // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
-  // number is the next free one; it runs last before the session note, after every step that
+  // number is the next free one; it runs last before the end, after every step that
   // writes memory, since reading songs' tags taints the session like any outside text (the next
   // night's fired wake starts clean once this session has ended, RUNTIME.md §4.3).
   {
@@ -145,7 +148,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
   },
   {
     step: 10,
-    name: 'session note and done',
+    name: 'done',
     budget_min: 2,
     idempotent: 'the run is marked done once',
     cursor: false,
@@ -154,7 +157,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 before 5; 11 before 10). */
+/** The steps run in the list's order, not their numbers' (13 runs after 7; 5 before 12; 11 before 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;
