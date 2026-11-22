@@ -10,10 +10,11 @@
 // The player's page names the next songs (a 'th-music-ahead' message, th/music/dj.js), and their
 // links are signed together in one request before their turn, so a skip doesn't wait for one. A
 // link asked for twice at once is signed once. The session is read again after a minute.
-// Until the new Worker can answer (signed out, no catalog imported yet, no signing key, the bucket
-// refusing a fresh link: a REFUSED status), the request goes to the old Worker as before, and the new
-// one is asked again 5 minutes later. Nothing else ever goes to the old Worker (it lacks newer songs:
-// its 404 would make the player skip). A network failure or a slow answer is tried once more with
+// No request ever goes to the old Worker (MIGRATION.md §8): its origin is only the name the player's
+// addresses and offline copies carry. Every request to that origin is answered here. When the new
+// Worker can't answer (signed out, no catalog imported yet, no signing key, the bucket refusing a
+// fresh link: a REFUSED status), the player gets that refusal as it is, its status and plain words
+// (`{error}`), never the old Worker's answer; any other address on that origin is a 404. A network failure or a slow answer is tried once more with
 // longer waits (a signature 8 s, a first byte 12 s; a link already signed is reused), then answered
 // with a network error, which the player treats as a stall and tries again: within ANSWER_MS. A framed copy of the
 // player never gets the owner's session, unless home opened that frame itself (the island,
@@ -35,7 +36,6 @@
   const PATH = /^\/music\/library(?:\.json|\/(audio|art|waveform)\/(r2_[A-Za-z0-9_-]{10,200}))$/;
   const CATALOG_CACHE = 'th-music-catalog';
   const CATALOG_KEY = '/music/th-catalog.json';
-  const RETRY_MS = 5 * 60_000;
   const RESIGN_MS = 20 * 60_000;
   /** A signature, or the first byte of an answer (the bucket's, the catalog's, a waveform's), waits this long at most. */
   const UPSTREAM_MS = 4000;
@@ -51,10 +51,12 @@
   /** The new Worker's answers that mean "not for this site yet": signed out, no catalog or key, not allowed. */
   const REFUSED = [401, 403, 409, 503];
   const PASS = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified'];
-  /** "The new Worker can't answer yet": fall back, and ask again later. */
-  const NOT_READY = Symbol('not ready');
-  /** The data meter's part for a library address: a song, a cover, or the rest (the catalog, waveforms, links). */
-  const partOf = (url) => ({ audio: 'music.songs', art: 'music.covers' })[PATH.exec(new URL(url).pathname)?.[1]] ?? 'music.rest';
+  /** "The new Worker can't answer yet", with its status: answered to the player as that refusal. */
+  const notReady = (status) => ({ refused: status });
+  /** The words for a refusal the player is given (COPY.md: plain, short). */
+  const WORDS = { 401: 'Sign in to play your songs.', 403: "Your songs can't be reached right now.", 409: 'No songs yet.', 503: "Your songs can't be reached right now." };
+  const refusalOf = (status) =>
+    new Response(JSON.stringify({ error: WORDS[status] ?? WORDS[503] }), { status, headers: { 'Content-Type': 'application/json' } });
   /** An answer from the network, counted by its headers for the page that asked (th/data/worker.js). */
   const counted = (r, part, client) => (self.thData?.count(part, r, client), r);
 
@@ -107,7 +109,6 @@
     },
   };
 
-  let offUntil = 0;
   /** The API's origin, as a promise (a failed read is tried again next time). */
   let api = null;
   /** The session, as a promise, and when it was read. */
@@ -117,7 +118,8 @@
   const links = new Map();
   const signing = new Map();
 
-  const handles = (url) => !!OLD && url.origin === OLD && PATH.test(url.pathname);
+  /** Every request to the old Worker's origin is this worker's to answer (none leaves the phone). */
+  const handles = (url) => !!OLD && url.origin === OLD;
 
   /** A signal that aborts after ms, or with `outer` (the player's own request). `done()` stops the clock. */
   function deadline(ms, outer) {
@@ -187,7 +189,7 @@
         ms,
       );
       counted(r, 'music.rest');
-      if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('sign');
+      if (r.status !== 200) throw refused(r.status) ? notReady(r.status) : new Error('sign');
       const body = await r.json();
       for (const item of body.items ?? []) links.set(item.ref, item);
       return body;
@@ -197,7 +199,7 @@
         const item = body.items?.find((x) => x.ref === ref);
         if (item) return item;
         if (body.errors?.find((x) => x.ref === ref)?.code === 'not_found') return null;
-        throw NOT_READY;
+        throw notReady(503);
       });
       signing.set(ref, one);
       one.catch(() => {}).finally(() => signing.get(ref) === one && signing.delete(ref));
@@ -228,7 +230,7 @@
     // Its answer has started: the download takes as long as it takes.
     cap.done();
     if (r.status === 304 && had) return copy(had, 200);
-    if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('catalog');
+    if (r.status !== 200) throw refused(r.status) ? notReady(r.status) : new Error('catalog');
     const keep = new Response(await r.arrayBuffer(), {
       headers: { 'Content-Type': 'application/json; charset=utf-8', ETag: r.headers.get('ETag') ?? '' },
     });
@@ -239,7 +241,7 @@
   async function waveform(base, auth, id, t, cap) {
     const r = counted(await upstream(`${base}/v1/music/waveforms/${id}`, { headers: { Authorization: `Bearer ${auth}` } }, cap.signal, t.bytes), 'music.rest', cap.client);
     if (r.status === 404) return new Response(null, { status: 404 });
-    if (r.status !== 200) throw refused(r.status) ? NOT_READY : new Error('waveform');
+    if (r.status !== 200) throw refused(r.status) ? notReady(r.status) : new Error('waveform');
     const { bars } = await r.json();
     const bytes = Uint8Array.from(atob(bars), (c) => c.charCodeAt(0));
     return new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream' } });
@@ -265,7 +267,7 @@
       url = await within(sign(base, auth, ref, true, t.sign), cap.signal);
       if (!url) return new Response(null, { status: 404 });
       r = await get(url);
-      if (r.status === 403) throw NOT_READY;
+      if (r.status === 403) throw notReady(403);
     }
     const out = copy(r);
     out.headers.set('TH-Sign-Ms', String(signMs));
@@ -276,9 +278,9 @@
     const url = new URL(req.url);
     const m = PATH.exec(url.pathname);
     const auth = await within(tokenOf(), cap.signal);
-    if (!auth) throw NOT_READY;
+    if (!auth) throw notReady(401);
     const base = await within(apiOf(), cap.signal);
-    if (!base) throw NOT_READY;
+    if (!base) throw notReady(503);
     if (!m[1]) return catalog(base, auth, t, cap);
     if (m[1] === 'waveform') return waveform(base, auth, m[2], t, cap);
     return media(req, base, auth, m[2], m[1] === 'art', t, cap);
@@ -293,40 +295,36 @@
   /** The answer to one of the player's library requests. */
   async function answer(req, event) {
     const url = new URL(req.url);
-    // The old Worker (not ready yet, or not a library file): counted too, by the address's part.
-    const old = async () => counted(await deps.fetch(req), partOf(req.url), event?.clientId);
-    if (req.method !== 'GET' || url.search || !PATH.test(url.pathname)) return old();
-    if (deps.now() >= offUntil && (await deps.topLevel(event))) {
-      // The whole answer starts, or fails, within ANSWER_MS; once it has started its body streams on.
-      const cap = deadline(ANSWER_MS, req.signal);
-      cap.client = event?.clientId;
-      try {
-        for (const t of TRIES) {
-          try {
-            return await fromNew(req, t, cap);
-          } catch (e) {
-            // Only "not for this site yet" goes to the old Worker.
-            if (e === NOT_READY) {
-              offUntil = deps.now() + RETRY_MS;
-              break;
-            }
-            // The player let go of the request: there is no one to answer.
-            if (req.signal?.aborted) throw e;
-            // Twice failed or slow: a network error, which the player waits out and tries again (a 404 would skip the song).
-            if (t === TRIES.at(-1) || cap.signal.aborted) return Response.error();
-          }
+    // Not a library file: there is nothing for it on that origin.
+    if (req.method !== 'GET' || url.search || !PATH.test(url.pathname)) return new Response(null, { status: 404 });
+    // A frame home didn't open never gets the session: to it, the owner is signed out.
+    if (!(await deps.topLevel(event))) return refusalOf(401);
+    // The whole answer starts, or fails, within ANSWER_MS; once it has started its body streams on.
+    const cap = deadline(ANSWER_MS, req.signal);
+    cap.client = event?.clientId;
+    try {
+      for (const t of TRIES) {
+        try {
+          return await fromNew(req, t, cap);
+        } catch (e) {
+          // "Not for this site yet": the refusal as it is.
+          if (e?.refused) return refusalOf(e.refused);
+          // The player let go of the request: there is no one to answer.
+          if (req.signal?.aborted) throw e;
+          // Twice failed or slow: a network error, which the player waits out and tries again (a 404 would skip the song).
+          if (t === TRIES.at(-1) || cap.signal.aborted) return Response.error();
         }
-      } finally {
-        cap.done();
       }
+    } finally {
+      cap.done();
     }
-    return old();
+    return Response.error();
   }
 
   /** The next songs' links, signed in one request ahead of their turn (urls: the player's song addresses). */
   async function ahead(urls, source) {
     const ours = source?.frameType === 'top-level' || (!!self.thFrames && !!source?.id && (await self.thFrames.trusted(source.id)));
-    if (!OLD || deps.now() < offUntil || !ours) return;
+    if (!OLD || !ours) return;
     const refs = [];
     for (const u of urls) {
       let url = null;
@@ -341,9 +339,7 @@
     const auth = await tokenOf();
     const base = auth && (await apiOf());
     if (!base) return;
-    await signMany(base, auth, refs.slice(0, SIGN_MAX)).catch((e) => {
-      if (e === NOT_READY) offUntil = deps.now() + RETRY_MS;
-    });
+    await signMany(base, auth, refs.slice(0, SIGN_MAX)).catch(() => {});
   }
 
   self.addEventListener?.('message', (e) => {
@@ -352,7 +348,7 @@
   });
 
   self.thMusicBridge = {
-    /** The origin the player addresses its library on (the old Worker's). */
+    /** The origin the player addresses its library on (the old Worker's): a name only, never fetched. */
     use: (origin) => {
       OLD = new URL(origin).origin;
     },
@@ -361,7 +357,6 @@
     ahead,
     deps,
     reset: () => {
-      offUntil = 0;
       api = null;
       tokenAt = -Infinity;
       links.clear();

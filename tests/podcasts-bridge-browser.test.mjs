@@ -1,8 +1,9 @@
 // The Podcasts data move in Chromium (frontend/th/podcasts/bridge.js in the real podcasts/sw.js):
-// with the owner signed in, the unchanged app's requests to the old Worker are answered from a mock
-// new Worker with the session. Browse and search list shows; a show's feed, passed through, is read
+// with the owner signed in, the app's requests to this site's own /podcasts/ addresses are answered
+// from a mock new Worker with the session. Browse and search list shows; a show's feed, passed through, is read
 // on the phone into its episodes; "Play latest" plays a real Opus file through range requests; a
-// refusal reaches the app in its old shape; signed out, the old Worker answers as before. Apple's
+// refusal reaches the app in its old shape; signed out, the worker says so, and the old Worker is never
+// asked (MIGRATION.md §8). Apple's
 // directory (which the app also asks from the phone) is blocked. Local only; no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 
-// The worker's own requests (its fallback to the old Worker) go through the context's routes too.
+// The worker's own requests go through the context's routes too (so one to the old Worker would be seen).
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -118,10 +119,10 @@ test('signed in: shows, a feed read on the phone, and an episode playing, all fr
   await page.waitForFunction(() => document.querySelector('#audio').currentTime > 0.2, null, { timeout: 15_000 });
   assert.equal(await page.evaluate(() => document.querySelector('#audio').error), null);
   // A refusal comes back in the old shape, its words kept.
-  const refused = await page.evaluate(async (old) => {
-    const r = await fetch(`${old}/podcasts/feed?url=${encodeURIComponent('https://feeds.example.org/gone.xml')}`);
+  const refused = await page.evaluate(async () => {
+    const r = await fetch(`/podcasts/feed?url=${encodeURIComponent('https://feeds.example.org/gone.xml')}`);
     return [r.status, await r.json()];
-  }, OLD);
+  });
   assert.deepEqual(refused, [502, { error: 'This podcast feed is unavailable. Try again later.' }]);
 
   assert.ok(seen.paths.some((p) => p.startsWith('/v1/podcasts/directory?category=popular')), seen.paths.join());
@@ -135,10 +136,16 @@ test('signed in: shows, a feed read on the phone, and an episode playing, all fr
   await context.close();
 });
 
-test('signed out: the old Worker answers as before', opts, async () => {
+test('signed out: the worker answers that, in the app’s shape; the old Worker is never asked', opts, async () => {
   const { context, page, oldCalls, errors } = await opened(false);
-  await page.locator('[data-feed="https://old.example.org/x.xml"]').first().waitFor({ timeout: 15_000 });
-  assert.ok(oldCalls.includes('/podcasts/browse'), oldCalls.join());
+  const r = await page.evaluate(async () => {
+    const r = await fetch('/podcasts/browse?category=popular');
+    return [r.status, await r.json()];
+  });
+  assert.deepEqual(r, [401, { error: 'Sign in to use Podcasts.' }]);
+  await page.locator('#results').waitFor();
+  assert.deepEqual(oldCalls, [], 'the old Worker was never reached');
+  assert.equal(await page.locator('[data-feed="https://old.example.org/x.xml"]').count(), 0);
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -19,7 +19,9 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
  * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session;
  * Astra (2026-11-18), its Worker client with the session, to ask for a film's address. */
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'],
-  'astra/src/addons/worker-api.js': ['/th/ported/session.js'] };
+  'astra/src/addons/worker-api.js': ['/th/ported/session.js'],
+  // Signed out, Music's and Podcasts' pages go to the sign-in door (MIGRATION.md §8): they only read whether there is a session.
+  'music/src/library/r2.js': ['/th/ported/session.js'], 'podcasts/app.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
  * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does;
  * th/data/page.js counts the page's bytes on the phone for Settings › Data use). */

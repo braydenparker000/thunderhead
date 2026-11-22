@@ -26,7 +26,10 @@ for (const path of PAGES) {
     page.on('pageerror', e => errors.push(e.message));
     // Blocked outside requests log "Failed to load resource"; CSP violations name the policy.
     page.on('console', m => { if (m.type() === 'error' && /Content Security Policy|Refused to/i.test(m.text())) errors.push(m.text()); });
-    page.on('response', r => { if (r.url().startsWith(base) && r.status() >= 400) missing.push(`${r.status()} ${r.url().slice(base.length)}`); });
+    // Podcasts' own data addresses (/podcasts/search, /browse, /feed, /audio) are answered by its worker from the new
+    // Worker, which refuses a signed-out phone (401): a refusal, not a file the site lacks (MIGRATION.md §8).
+    const refused = r => r.status() === 401 && /^\/podcasts\/(search|browse|feed|audio)(\?|$)/.test(r.url().slice(base.length));
+    page.on('response', r => { if (r.url().startsWith(base) && r.status() >= 400 && !refused(r)) missing.push(`${r.status()} ${r.url().slice(base.length)}`); });
     await page.route(url => !url.href.startsWith(base), route => route.abort());
     // Written at deploy from the DRIVE_CONFIG_JSON secret (stage.mjs); here the old repo's empty placeholder.
     await page.route('**/assets/drive-config.json', route => route.fulfill({ contentType: 'application/json', body: '{"apiKey":"","folderId":"","videoFolderId":""}' }));

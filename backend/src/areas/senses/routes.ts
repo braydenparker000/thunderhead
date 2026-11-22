@@ -22,6 +22,7 @@ import { musicObject } from '../../objects/music';
 import { fresh, missingMethod } from '../../objects/rpc';
 import { sensesObject } from '../../objects/senses';
 import { sha256 } from '../import/vault';
+import { refuseWhileHeld } from '../meter/hold';
 import { SONG_ID } from '../music/shapes';
 import { check } from './queries';
 import { checkEvent } from './validate';
@@ -108,6 +109,8 @@ export const sensesRoutes = new Hono<AppEnv>()
     const events = body?.events;
     if (!Array.isArray(events) || events.length < 1 || events.length > SENSE_LIMITS.batch_events)
       throw new ApiError('validation', [{ path: 'events', issue: `1 to ${SENSE_LIMITS.batch_events} events` }]);
+    // From 80% of the day's budget the senses wait (meter/hold.ts); the phone keeps them till 00:00 UTC.
+    await refuseWhileHeld(c.env);
     const p = principalOf(c);
     const device = p.kind === 'device' ? p.session_id : 'agent';
     const { tz, off } = await ownerOf(c.env);
@@ -123,6 +126,9 @@ export const sensesRoutes = new Hono<AppEnv>()
       ),
     );
     if ('conflict' in r) throw new ApiError('conflict');
+    // The day's cap (SENSE_LIMITS.day_events): the phone keeps the batch and sends it after 00:00 UTC.
+    if ('retry_after' in r)
+      throw new ApiError('budget_exhausted', undefined, { retry_after: r.retry_after, scope: 'account' });
     // The owner's ratings are kept for good in Music (MUSIC.md §10.5): a song rated 1 stays out of
     // find after the senses' 90 days. The same batch again hands them over again, which changes
     // nothing (the newest rating of each song wins); a failure here answers 5xx, and the phone's

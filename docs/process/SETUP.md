@@ -171,6 +171,36 @@ The mind's own helpers (the reader, researcher, night-step and coder) don't use 
 names its model in its file under `.claude/agents/` (RUNTIME.md §6.6), so a change there is a
 reviewed commit. Check: the next session's page on claude.ai shows the model you picked.
 
+### Six months on a Pro plan (notes, 2026-11-22)
+
+Notes only: nothing in the repository changes with the plan. The Worker's logs for three days
+before this note showed about 2 sessions on a quiet day (one is the night) and about 10 on a day
+you chat, with no sign of the limit, so the mind keeps its caps (20 wakes an hour, up to 8
+warm-ups a day, which only your typing starts). If you move to Pro:
+
+1. claude.ai/settings/usage: keep **usage credits off**. Then a limit stops the mind instead of
+   spending money; the chat says until when (below).
+2. claude.ai/code/routines → each of `mind-chat`, `mind-night`, `mind-reflex` → **Edit** →
+   **Model**: the mid model (Sonnet) for all three is the thrifty choice; keep `mind-chat` on the
+   strongest one if replies matter more than how long the plan lasts. **Save**.
+3. `mind-night` → **Edit** → its schedule stays the 06:07 fallback (L1 step 3); the day roll fires
+   it first. Nothing else is scheduled. `mind-chat` and `mind-reflex` stay **API** triggers only.
+4. Watch Settings › The mind › Today once in a while: wakes, sessions and minutes for today and the
+   7 days before, and how often the usage limit was reached. These are the Worker's own counts
+   (the platform publishes no usage numbers); claude.ai/settings/usage has the plan's own meter.
+
+### What could stop the mind in six months, and how the site says it
+
+| What | What happens | What you see |
+|---|---|---|
+| The plan's usage limit (or a lapsed plan) | A start is refused (429) or a turn stops (StopFailure) | The chat: "The mind hit your plan's usage limit. Your message is saved; it answers it first when the limit resets at 15:40." (or "…it tries again at 15:40…" when no reset time was given). It wakes once at that time. Settings › The mind › Today counts the hits |
+| The routine API changes: the `anthropic-beta: experimental-cc-routine-2026-04-01` header retired, the trigger URL moved | Every fire is refused (a 4xx), no session starts | The chat's "The mind isn't waking (likely the usage limit or an outage)…" line once an hour while messages wait, and `reply.late` after 30 minutes. Only a code change fixes it (`backend/src/areas/mind/fire.ts`) |
+| A routine's trigger token revoked or regenerated, or the routine deleted or renamed | Fires refused (401, 403, 404) | The same "isn't waking" line. Fix: K step 3–4 (or L1, M2) again: new token into the Worker's secret |
+| GitHub disconnected from claude.ai, or the repository's access removed | Runs are skipped for up to 72 hours, then the routine turns off | The same "isn't waking" line; the Briefing's night line says the night hasn't run. Fix: claude.ai → Settings → Connectors → GitHub, then turn the routine back on |
+| A mind key (`mind-chat`, `mind-night`, `mind-reflex`) revoked | The session's `th` gets 401 and ends | Settings → Agents shows the key's last use; the chat's "isn't waking" line. Fix: I, then the environment's network secret |
+| The model a routine names is retired | The session doesn't start | The "isn't waking" line. Fix: Models for the mind, above |
+| Cloudflare's free quotas | The Worker's rows guard holds bulk work from 80 % | The quota watchdogs and the site's own offline state |
+
 ## L. Night shift and import (P3)
 
 Until L1 is done the night shift never runs: the day still rolls at 04:00 after a quiet hour, and
@@ -198,7 +228,11 @@ nothing is fired. Do the steps in order; each says how to check it before the ne
      BASH_MAX_TIMEOUT_MS=7200000
      ```
 
-   - Setup script, exactly: `cd /home/user/thunderhead && npm ci --ignore-scripts`
+   - Setup script, exactly: `cd /home/user/thunderhead && npm ci --ignore-scripts && bash mind/jobs/study-setup.sh`
+     (since 2026-11-22; the second command builds the book reader's own Python, so night step 6
+     doesn't spend its minutes on it. Already set up with the shorter line: `th-night` → **Edit** →
+     Setup script → replace it with this line → **Save**. Without it the night builds the same
+     thing at step 6, about a minute.)
    - **Save**. Check: the list shows `th-night` next to `th-chat`.
 2. **The key.** On the phone: Menu → Settings → Agents → **New agent key**, role **Mind · night**,
    name `mind-night` → **Create**. It is shown once: at once, in `th-night` → **Network

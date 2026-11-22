@@ -4,6 +4,8 @@
 // Rules for objects (enforced by tests): no setTimeout/setInterval, no long polls. A timer keeps
 // an object awake and billed for duration; the free plan allows ~3.6 object-hours a day.
 import { DurableObject } from 'cloudflare:workers';
+import { type Pitr, PROOF_INSTANCE, pitrOf, proofArm, proofCheck } from '../areas/backups/pitr';
+import { count, putRows, type Row, tableExists } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import { Meter, type MeterDay } from './meter';
 
@@ -127,6 +129,7 @@ export abstract class OwnerObject extends DurableObject<Env> {
   private readonly expected: number;
   /** Steps still unapplied after start-up (read once there: the schema only changes then). */
   private missing: number[] = [];
+  private readonly steps: Migration[];
 
   /** `cls`: the class's name in the meter (`core`, `auth`, `music`, `senses`, `library`). */
   constructor(
@@ -136,6 +139,7 @@ export abstract class OwnerObject extends DurableObject<Env> {
     private readonly cls: string,
   ) {
     super(ctx, env);
+    this.steps = migrations;
     this.expected = Math.max(0, ...migrations.map((m) => m.version));
     this.db = new Db(ctx.storage.sql, this.meter);
     // blockConcurrencyWhile holds every request until the schema is current, so no handler
@@ -169,4 +173,61 @@ export abstract class OwnerObject extends DurableObject<Env> {
   meterFlush(): MeterDay[] {
     return this.meter.report();
   }
+
+  // --- the point-in-time check (areas/backups/pitr.ts): the scratch copy `pitr-proof` only, never
+  // Auth; nothing here can arm a restore on a real object -----------------------------------------
+
+  protected get pitr(): Pitr {
+    return pitrOf(this.ctx, this.cls, this.ctx.id.name ?? '');
+  }
+
+  private pitrAllowed(scratch: RegExp): void {
+    if (this.cls === 'auth') throw new Error('sign-in data is never restored');
+    if (!scratch.test(this.ctx.id.name ?? '')) throw new Error('only a scratch instance');
+  }
+
+  /** The check, step 1, on the scratch copy `pitr-proof` only. RPC. */
+  async pitrProofArm() {
+    this.pitrAllowed(new RegExp(`^${PROOF_INSTANCE}$`));
+    return proofArm(this.db, this.pitr);
+  }
+
+  /** The check, step 2, after the restart. RPC. */
+  pitrProofCheck() {
+    this.pitrAllowed(new RegExp(`^${PROOF_INSTANCE}$`));
+    return proofCheck(this.db);
+  }
+
+  /** The check, between the steps: the restart that makes the armed restore happen. RPC. */
+  pitrProofRestart(): void {
+    this.pitrAllowed(new RegExp(`^${PROOF_INSTANCE}$`));
+    this.pitr.restart();
+  }
+
+  // --- the drill's scratch copy `drill-<YYYYMM>` (areas/backups/drill.ts); Core has its own -------
+
+  /** Empty, with the schema in place. RPC. */
+  async drillReset(): Promise<void> {
+    this.pitrAllowed(DRILL);
+    await this.ctx.storage.deleteAll();
+    await applyMigrations(this.ctx.storage, this.db, this.steps);
+  }
+
+  async drillPut(table: string, rows: Row[]): Promise<number> {
+    this.pitrAllowed(DRILL);
+    if (!tableExists(this.db, table)) throw new Error('not a table');
+    return this.ctx.storage.transactionSync(() => putRows(this.db, table, rows));
+  }
+
+  async drillCounts(tables: string[]): Promise<Record<string, number>> {
+    this.pitrAllowed(DRILL);
+    return Object.fromEntries(tables.filter((t) => tableExists(this.db, t)).map((t) => [t, count(this.db, t)]));
+  }
+
+  async drillEmpty(): Promise<void> {
+    this.pitrAllowed(DRILL);
+    await this.ctx.storage.deleteAll();
+  }
 }
+
+const DRILL = /^drill-\d{6}$/;

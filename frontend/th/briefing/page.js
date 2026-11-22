@@ -19,6 +19,7 @@ import { buzz } from '../motion.js';
 import { el, toast } from '../ui.js';
 import { reportTile } from './report.js';
 import { age, keeps } from './age.js';
+import { loadWatch, watchLines } from './watch.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').BriefingResponse} BriefingResponse */
 
@@ -53,6 +54,9 @@ export async function startBriefing() {
   else $('#brief .grid').replaceChildren(...['wide', 'half', 'half'].map((w) => el('div', { class: `tile skel ${w}`, 'aria-hidden': 'true' }, [el('span', { class: 'bar' }), el('span', { class: 'bar' }), el('span', { class: 'bar' })])));
   pullToRefresh(page);
   arrangeByPress(page);
+  // What is wrong, from the Worker's own answer, on opening home (watch.js).
+  document.addEventListener('th:watch', () => { if (shown) draw(shown); });
+  loadWatch();
   new IntersectionObserver((seen) => {
     if (seen.some((e) => e.isIntersecting) && Date.now() - at > FRESH_MS) refresh();
   }, { threshold: 0.3 }).observe(page);
@@ -95,6 +99,7 @@ function refresh() {
       failed = false;
       draw(b);
       db.set(KEY, b).catch(() => {});
+      loadWatch();
     } catch {
       // Offline or the Worker didn't answer: what this phone has stands; with nothing, it says so.
       failed = true;
@@ -229,6 +234,9 @@ function draw(b) {
     }
   /** @type {HTMLElement[]} */
   const notes = [];
+  // What isn't working (OPERATIONS.md §8.5): one line each, under one quiet heading; gone once it clears.
+  const alarms = [...new Set([...(b.alarms ?? []), ...watchLines()])];
+  if (alarms.length) notes.push(el('p', { class: 'bmuse', role: 'heading', 'aria-level': '2', text: 'Not working right' }), ...alarms.map((a) => el('p', { class: 'bmuse', text: a })));
   // The day's database use, from 60% of the free plan's daily limit (an answer from before has none).
   if (b.quota) notes.push(el('p', { class: 'bmuse', text: b.quota }));
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));

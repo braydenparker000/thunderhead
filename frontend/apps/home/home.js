@@ -295,4 +295,5 @@ function openFromRing(id,color,to){
   window.addEventListener('pointercancel',()=>{ if(swipe) endSwipe(); close(false) });
   app.addEventListener('contextmenu',e=>e.preventDefault());
   app.addEventListener('touchmove',e=>{ if(open||swipe) e.preventDefault() },{passive:false});
+  requestAnimationFrame(()=>{const said=globalThis.thStarted?.();if(said)toast(said)}); // home is up: the boot guard stands down and hands over what Repair did (boot-guard.js)
 })();

@@ -29,6 +29,10 @@ test('the words people type find what they look for, first', () => {
   assert.deepEqual(first('quiet hours'), ['Quiet hours', 'notifications', 'quiet']);
   assert.deepEqual(first('bring data'), ['Bring data from the old site', 'privacy', 'import']);
   assert.deepEqual(first('look'), ['Look', 'appearance', 'appearance.look']);
+  assert.deepEqual(first('repair'), ['Repair', 'about', 'repair']);
+  assert.deepEqual(first('broken'), ['Repair', 'about', 'repair']);
+  assert.deepEqual(first('copy report'), ['Copy report', 'about', 'report']);
+  assert.deepEqual(first('diagnostics'), ['Copy report', 'about', 'report']);
   // Word starts only: "size" starts a word of Text size, "ize" starts none.
   assert.deepEqual(find('ize'), []);
 });

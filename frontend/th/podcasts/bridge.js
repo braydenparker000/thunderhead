@@ -1,16 +1,16 @@
 // The ported Podcasts app's data move (P8, MIGRATION.md §7 step 5), inside its own service worker
-// (podcasts/sw.js imports this). The app is unchanged: it still asks the old Worker's addresses
-// (`…/podcasts/search`, `/browse`, `/feed`, `/audio`), its `<audio>` element and downloads too. This
-// worker answers them from the new Worker instead, with the owner's session on this site:
+// (podcasts/sw.js imports this). The app asks this site's own addresses `/podcasts/search`, `/browse`,
+// `/feed`, `/audio` (once the old Worker's; MIGRATION.md §8: none leaves the phone for it now), its
+// `<audio>` element and downloads too. This worker answers them from the new Worker, with the owner's session on this site:
 // - search and browse from GET /v1/podcasts/directory, as they come;
 // - a feed from GET /v1/podcasts/feed, read here into the page of episodes the app expects
 //   (th/podcasts/feed.js; PODCASTS.md §4.1: the phone parses, the Worker stays inside its 10 ms),
 //   kept 10 minutes so the "Show more" pages agree;
 // - an episode's audio from GET /v1/podcasts/audio, byte ranges and all.
-// The new Worker's refusals come back in the shape the app reads, `{error: words}`. Until it can
-// answer (signed out, an old session, the new Worker down), the request goes to the old Worker as
-// before, and the new one is asked again 5 minutes later. A framed copy of the app never gets the
-// owner's session, unless home opened that frame itself (the island, th/ported/frames.js). Nothing here names an outside host; podcasts/sw.js names the old Worker (`use`).
+// The new Worker's refusals come back in the shape the app reads, `{error: words}`, and so does its
+// not answering yet (signed out, an old session, the new Worker down): the app shows those words;
+// nothing is asked of any other host. A framed copy of the app never gets the owner's session, unless
+// home opened that frame itself (the island, th/ported/frames.js). Nothing here names an outside host.
 import { FeedError, parseFeed, publicURL } from '/th/podcasts/feed.js';
 // Home's own frames (the island) may have the session too (th/ported/frames.js sets self.thFrames).
 import '/th/ported/frames.js';
@@ -19,11 +19,13 @@ import { sessionToken } from '/th/ported/session.js';
 import '/th/data/worker.js';
 
 const ROUTES = new Set(['/podcasts/search', '/podcasts/browse', '/podcasts/feed', '/podcasts/audio']);
-const RETRY_MS = 5 * 60_000;
 const KEEP_MS = 10 * 60_000;
 const PASS = ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'];
-/** "The new Worker can't answer yet": fall back, and ask again later. */
+/** "The new Worker can't answer yet" (no address for it) or "signed out": the app is told so, in its own shape. */
 const NOT_READY = Symbol('not ready');
+const SIGNED_OUT = Symbol('signed out');
+/** The words for it (COPY.md: plain, short). */
+const NOT_YET = { signedOut: 'Sign in to use Podcasts.', down: "Podcasts can't be reached right now." };
 /** An answer from the network, counted for the data meter by its headers. @param {Response} r */
 const counted = (r) => (/** @type {any} */ (self).thData?.count('podcasts', r), r);
 
@@ -49,7 +51,6 @@ const deps = {
 };
 
 let OLD = '';
-let offUntil = 0;
 /** @type {string | null} */
 let api = null;
 /** @type {Map<string, { raw: string, until: number }>} */
@@ -61,9 +62,10 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 /** @param {string} path @param {string} token @param {Record<string, string>} [headers] */
 async function ask(path, token, headers = {}) {
   const r = counted(await deps.fetch(`${api}/v1/podcasts/${path}`, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: 'no-store' }));
-  if ([401, 403, 503].includes(r.status)) {
+  // The session refused (ended elsewhere, expired): signed out. Other refusals pass as they are (refusal()).
+  if (r.status === 401) {
     await r.body?.cancel();
-    throw NOT_READY;
+    throw SIGNED_OUT;
   }
   return r;
 }
@@ -134,8 +136,8 @@ async function audio(req, url, token) {
 async function fromNew(req) {
   const url = new URL(req.url);
   const token = await deps.token();
-  if (!token) throw NOT_READY;
-  api ??= await deps.api();
+  if (!token) throw SIGNED_OUT;
+  api ||= await deps.api().catch(() => '');
   if (!api) throw NOT_READY;
   if (url.pathname === '/podcasts/feed') return feed(url, token);
   if (url.pathname === '/podcasts/audio') return audio(req, url, token);
@@ -143,26 +145,28 @@ async function fromNew(req) {
 }
 
 export const podcastsBridge = {
-  /** The origin the app addresses (the old Worker's). @param {string} origin */
+  /** The origin the app addresses (this site's own). @param {string} origin */
   use: (origin) => {
     OLD = new URL(origin).origin;
   },
   /** @param {URL} url */
   handles: (url) => !!OLD && url.origin === OLD && ROUTES.has(url.pathname),
-  /** The answer to one of the app's requests to the old Worker. @param {Request} req @param {any} event */
+  /** The answer to one of the app's requests: the new Worker's, or why it has none. @param {Request} req @param {any} event */
   answer: async (req, event) => {
-    if (req.method === 'GET' && deps.now() >= offUntil && (await deps.topLevel(event))) {
-      try {
-        return await fromNew(req);
-      } catch (e) {
-        if (e === NOT_READY) offUntil = deps.now() + RETRY_MS;
-      }
+    if (req.method !== 'GET') return json({ error: 'Not found' }, 404);
+    // A frame home didn't open never gets the session: to it, the owner is signed out.
+    if (!(await deps.topLevel(event))) return json({ error: NOT_YET.signedOut }, 401);
+    try {
+      return await fromNew(req);
+    } catch (e) {
+      if (e === SIGNED_OUT) return json({ error: NOT_YET.signedOut }, 401);
+      if (e === NOT_READY) return json({ error: NOT_YET.down }, 503);
+      // The network failed: the app's own "unavailable" line, as a fetch that failed.
+      return Response.error();
     }
-    return counted(await deps.fetch(req));
   },
   deps,
   reset: () => {
-    offUntil = 0;
     api = null;
     feeds.clear();
   },

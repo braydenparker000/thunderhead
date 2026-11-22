@@ -36,12 +36,12 @@ describe('deep health', () => {
       expect(body).toEqual({
         ok: true,
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
-        schema: { core: 49, auth: 4, music: 6, senses: 3, library: 4 },
+        schema: { core: 51, auth: 4, music: 6, senses: 4, library: 4 },
         objects: {
           core: {
             ok: true,
-            schema: 49,
-            expected: 49,
+            schema: 51,
+            expected: 51,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -64,8 +64,8 @@ describe('deep health', () => {
           },
           senses: {
             ok: true,
-            schema: 3,
-            expected: 3,
+            schema: 4,
+            expected: 4,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,
@@ -90,6 +90,10 @@ describe('deep health', () => {
         errors_open: 0,
         wakes_today: 0,
         min_client: 0,
+        // No point-in-time check or drill has run in a fresh account.
+        backups: { pitr: null, drill: null },
+        // The heartbeat and the owner's lines: no cron has run, nothing is wrong, no phone can be pushed.
+        watch: expect.objectContaining({ cron: null, lines: [], missing: [], push: false }),
       });
     }
   });

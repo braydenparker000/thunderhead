@@ -2,7 +2,7 @@
 // served at the live site's address (the reporter sends only from there): signed in, a ported page
 // (Music, as staged with the API host in its CSP; Astra) sends an uncaught error to the new Worker's
 // inbox (mocked) with the session, in the inbox's shape, an address in it cut to its host (Astra's
-// add-on addresses are secrets); signed out, to the old Worker's inbox without a session as before.
+// add-on addresses are secrets); signed out, nowhere: nothing goes to the old Worker (MIGRATION.md §8).
 // P9: signed in, a ported page's opening is one sense event (`<app>.open`) in a sealed batch; signed
 // out, none. Local only; no network.
 import { test, before, after } from 'node:test';
@@ -92,17 +92,16 @@ test('signed in, a ported page reports to the new inbox with the session, an add
   await context.close();
 });
 
-test('signed out, a page reports to the old inbox as before, without a session', opts, async () => {
+test('signed out, a page’s error report is dropped: nothing to either inbox', opts, async () => {
   const { context, page, old } = await opened(false);
   const before = inbox.length;
   await page.goto(`${SITE}/astra/`, { waitUntil: 'load' });
   await known(page);
   await boom(page, 'test boom in astra');
-  await waitFor(page, () => old.some((o) => o.path === '/claude-chat/errors'));
-  const sent = old.filter((o) => o.path === '/claude-chat/errors');
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].auth, '');
-  assert.ok(sent[0].body.reports.some((r) => r.app === 'astra' && r.message === 'Error: test boom in astra'));
+  // A negative read: past the reporter's 2 s batch, then the page is hidden (its last batch goes then).
+  await outlast(page, 2500);
+  await page.goto(`${SITE}/no-such-page`, { waitUntil: 'load' });
+  assert.deepEqual(old, [], 'nothing to the old Worker');
   assert.equal(inbox.length, before, 'nothing to the new inbox');
   await context.close();
 });
@@ -128,6 +127,8 @@ test('signed in, a ported page’s opening is one sense event in a sealed batch;
   await context.close();
   const out = await opened(false);
   await out.page.goto(`${SITE}/podcasts/`, { waitUntil: 'load' });
+  // Signed out, Podcasts goes to the sign-in door (MIGRATION.md §8).
+  await out.page.waitForURL(`${SITE}/signin/?next=%2Fpodcasts%2F`, { waitUntil: 'load' });
   await outlast(out.page, 3500); // a negative read: past the senses' 3 s send, on the page's own timers
   assert.deepEqual([of('guitar.open').length, of('podcasts.open').length], [1, 0], 'signed out: nothing kept or sent');
   assert.equal(await out.page.evaluate(() => localStorage.getItem('th.p.senses')), null);

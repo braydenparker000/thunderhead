@@ -1,18 +1,21 @@
 // TESTING.md §7: from an empty object, every step gives exactly the committed schema snapshot,
 // and the steps ran once each with their kind and a PITR bookmark. Any schema change updates
 // the snapshot in the same commit.
-import { runInDurableObject } from 'cloudflare:test';
+import { env, runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { latestOf } from '../../../scripts/schema-version.mjs';
 import type { Auth } from '../../src/objects/auth';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { libraryObject } from '../../src/objects/library';
 import { LIBRARY_MIGRATIONS } from '../../src/objects/library.migrations';
 import { MUSIC_MIGRATIONS } from '../../src/objects/music';
-import { SENSES_MIGRATIONS } from '../../src/objects/senses';
+import { SENSES_MIGRATIONS, sensesObject } from '../../src/objects/senses';
 import { auth, core } from '../helpers';
 import authSchema from './auth.schema.sql?raw';
 import coreSchema from './core.schema.sql?raw';
+import librarySchema from './library.schema.sql?raw';
+import sensesSchema from './senses.schema.sql?raw';
 
 type Stub = DurableObjectStub<Auth>;
 
@@ -32,6 +35,10 @@ describe('schema snapshots', () => {
   it.each([
     ['auth', auth as () => Stub, authSchema],
     ['core', core as unknown as () => Stub, coreSchema],
+    // Senses and Library too (DELIVERY rollback): a Worker rolled back one release must meet only tables and
+    // columns it already knows plus added ones, so a schema change to either shows here as a diff.
+    ['senses', (() => sensesObject(env)) as unknown as () => Stub, sensesSchema],
+    ['library', (() => libraryObject(env)) as unknown as () => Stub, librarySchema],
   ])('%s: empty → current equals the snapshot', async (name, stub, snapshot) => {
     const got = await schemaOf(stub());
     if (got.trim() !== snapshot.trim()) console.log(`--- ${name}.schema.sql ---\n${got}\n--- end ---`);
@@ -39,7 +46,9 @@ describe('schema snapshots', () => {
     const steps = await runInDurableObject(stub(), (_o, s) =>
       s.storage.sql.exec('SELECT version, kind, bookmark FROM _migrations').toArray(),
     );
-    const expected = name === 'core' ? CORE_MIGRATIONS : AUTH_MIGRATIONS;
+    const expected =
+      { core: CORE_MIGRATIONS, auth: AUTH_MIGRATIONS, senses: SENSES_MIGRATIONS, library: LIBRARY_MIGRATIONS }[name] ??
+      [];
     expect(steps).toEqual(expected.map((m) => ({ version: m.version, kind: 'expand', bookmark: expect.any(String) })));
   });
 });

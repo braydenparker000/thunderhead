@@ -1,4 +1,19 @@
-import {API_ORIGIN} from '/assets/config.js';
+// The app's addresses are this site's own (/podcasts/search, /browse, /feed, /audio), answered by its worker from the
+// new Worker (th/podcasts/bridge.js); none leaves the phone for the old Worker (MIGRATION.md §8). Signed out, the page
+// goes to the sign-in door as the site's other pages do; a request waits until the worker controls the page.
+const API_ORIGIN=location.origin;
+const door=location.protocol==='https:'&&window.top===window?import('/th/ported/session.js').then(m=>m.sessionToken()).then(t=>{if(!t){location.replace('/signin/?'+new URLSearchParams({next:location.pathname+location.search}));return new Promise(()=>{});}},()=>{}):Promise.resolve();
+async function viaWorker(){
+  const sw=navigator.serviceWorker;if(sw?.controller){try{sessionStorage.removeItem('th.podcasts.reloaded');}catch{}return;}await door;
+  if(!sw)throw Error('Podcasts can’t start in this browser.');
+  // A first visit: the worker installs and takes over. A reload that skipped it: one plain reload is under it.
+  const reg=await Promise.race([sw.ready,new Promise(r=>setTimeout(r,15000))]);
+  if(reg&&!sw.controller)await new Promise(r=>{sw.addEventListener('controllerchange',r,{once:true});setTimeout(r,3000);});
+  if(sw.controller)return;
+  let again=false;try{again=!sessionStorage.getItem('th.podcasts.reloaded');if(again)sessionStorage.setItem('th.podcasts.reloaded','1');}catch{}
+  if(reg?.active&&again){location.reload();return new Promise(()=>{});}
+  throw Error('Podcasts couldn’t start. Close it and open it again.');
+}
 import {STORAGE_KEY,AUDIO_CACHE,MAX_DOWNLOAD,categories,readState,keyOf,offlinePath,clock,positionText,minutes,size,resumePosition,nextQueued,shouldSleep,progressEntry,compactProgress,storedFeed,saveFeed} from './core.js';
 import {clientDirectory} from './directory.js';
 import {surfaceMotion,episodeHolds} from './motion.js';
@@ -155,6 +170,7 @@ for(const d of [$('sheet'),$('player')])d.addEventListener('click',e=>{if(e.targ
 for(const d of [$('sheet'),$('player')])d.addEventListener('cancel',e=>{e.preventDefault();closeDialog(d);});
 
 async function api(path,params={},signal) {
+  await viaWorker();
   const url=new URL('/podcasts/'+path,API_ORIGIN);for(const [k,v] of Object.entries(params))url.searchParams.set(k,v);
   const r=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.any([AbortSignal.timeout(25000),...(signal?[signal]:[])])});
   let data;try{data=await r.json();}catch{throw Error('The podcast service returned an unreadable response.');}
@@ -383,7 +399,7 @@ async function downloadEpisode(e) {
   const controller=new AbortController();downloadFailures.delete(key);downloads.set(key,{controller,episode:e,bytes:0,total:e.bytes||0});notify('Downloading '+e.title);repaintLocal();updateDownloadButton();
   let saved=false;
   try {
-    await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('Offline storage could not start. Reload this page and try again.')),10000))]);await navigator.storage?.persist?.().catch(()=>false);
+    await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('Offline storage could not start. Reload this page and try again.')),10000))]);await viaWorker();await navigator.storage?.persist?.().catch(()=>false);
     let r;
     for(const url of [...new Set([audioURL(e),safeURL(e.audioUrl)].filter(Boolean))]) {
       const connect=new AbortController(),timeout=setTimeout(()=>connect.abort(),30000);
@@ -473,6 +489,7 @@ async function playEpisode(e) {
   if(currentBlob){URL.revokeObjectURL(currentBlob);currentBlob=null;}
   try {
     const cached=await cachedAudio(e);if(token!==loadToken)return;
+    if(!cached)await viaWorker();
     let url=audioURL(e);
     if(cached) {if(navigator.serviceWorker.controller)url=offlinePath(e);else{currentBlob=URL.createObjectURL(await cached.blob());url=currentBlob;}}
     else if(!navigator.onLine)throw Error('This episode isn’t downloaded. Connect to the internet to play it.');

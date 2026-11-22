@@ -148,10 +148,10 @@ test('staging fills the API host into config.js and the CSP of the shell, sign-i
   const other = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; connect-src \'self\'">';
   assert.equal(withApi(other, 'https://api.example'), other, 'a ported page keeps its own CSP');
   assert.equal(withApi(shell, ''), shell);
-  // Guitar's data moved in P6: its page calls the new Worker itself; its old host stays until it retires.
+  // Guitar's data moved in P6: its page calls the new Worker itself, and never the old one (MIGRATION.md §8).
   const guitar = await readFile(new URL('../frontend/guitar/index.html', import.meta.url), 'utf8');
-  assert.match(withApi(guitar, 'https://api.example', 'guitar/index.html'),
-    /connect-src 'self' https:\/\/api\.example https:\/\/jarvis-hub-api\.braydenparker999\.workers\.dev /);
+  assert.match(withApi(guitar, 'https://api.example', 'guitar/index.html'), /connect-src 'self' https:\/\/api\.example https:\/\/itunes\.apple\.com /);
+  assert.doesNotMatch(guitar, /workers\.dev/);
   assert.equal(withApi(guitar, 'https://api.example', 'guitar/credits.html'), guitar);
   // Astra's page asks the new Worker for a film's address (2026-11-18): its CSP names the API host too.
   const astra = await readFile(new URL('../frontend/astra/index.html', import.meta.url), 'utf8');

@@ -187,7 +187,7 @@ const budgets = [
   // left and taken up again when home is shown from the back/forward cache.
   // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
   // th/registry/apps.js, the one rule for where Photos' front page lands.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 118_292],
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 119_527],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -237,7 +237,7 @@ const budgets = [
   // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
   // (2026-11-04, settings depth) 28,700 → 28,722 measured: the hold's tap back follows Haptics.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 31_442],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 33_649],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token

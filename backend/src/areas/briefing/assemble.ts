@@ -5,7 +5,8 @@
 // public holiday within 14 days in the owner's country, holidays.ts), the date and a line of the
 // day's counts, Muse's line, a line when the connected night shift didn't arrange the page and,
 // from 60% of a Free-plan daily limit, the day's database use (areas/meter). Due, Holidays and the
-// day's line need no mind session: the Worker fills them every time the page asks. Pure in `db`.
+// day's line need no mind session: the Worker fills them every time the page asks. Under "Not
+// working right", one plain line per open condition (areas/watchdogs/owner.ts). Pure in `db`.
 import {
   type BriefingResponse,
   type BriefingTile,
@@ -34,6 +35,7 @@ import * as pstore from '../proposals/store';
 import { dueBefore } from '../reminders/store';
 import { getSetting } from '../settings/store';
 import * as surfaces from '../surfaces/store';
+import { alarms } from '../watchdogs/owner';
 import * as work from '../work/ops';
 import { type CalendarView, view as calendarView } from './calendar-store';
 import { nextHoliday } from './holidays';
@@ -255,7 +257,9 @@ export function briefing(
     ...arrange([...(waiting ? [waiting] : []), ...mine.slice(lead.length)], pinsOf(db)),
   ].slice(0, 8);
   return {
-    day: c.day,
+    // The calendar day, as the phone's date is (th/briefing/age.js): from midnight to 04:00 the logical day
+    // (`c.day`, the night's and the report's) is still yesterday's, and the page would read as one kept from then.
+    day: date,
     title: titleLine(Math.floor(wallMinute(c.now, c.tz) / 60), !tiles.length),
     today: todayLine(date, {
       events: cal.today.length,
@@ -269,5 +273,6 @@ export function briefing(
     night: nightNote(db, { now: c.now, tz: c.tz, day: c.day, nightConfigured: c.nightConfigured ?? false }),
     // A meter that can't be read leaves the line out; the page is served all the same.
     quota: quotaLine(safeQuota(db, c.now), c.tz),
+    alarms: alarms(db, c.now, c.tz).lines,
   };
 }

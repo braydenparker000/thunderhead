@@ -39,6 +39,14 @@ const ASKED = ASKED_KINDS.map((k) => `'${k}'`).join(', ');
 
 export const order = (db: Db, id: string) => db.one<OrderRow>('SELECT * FROM work_orders WHERE id = ?', id);
 
+/** Until when (ms) a claim finds nothing, by object (its Db): set by a claim that looked and found
+ * nothing, cleared by any write to an order (every one goes through insertOrder or setStatus), so
+ * Muse's poll makes no database call while nothing is open (MUSE-PROTOCOL.md §2). In memory only: a
+ * new start looks once again. */
+const idle = new WeakMap<Db, number>();
+export const idleUntil = (db: Db) => idle.get(db) ?? 0;
+export const markIdle = (db: Db, until: number) => void idle.set(db, until);
+
 export function insertOrder(
   db: Db,
   r: {
@@ -56,6 +64,7 @@ export function insertOrder(
   },
 ): void {
   const status = r.status ?? 'queued';
+  idle.delete(db);
   db.run(
     `INSERT INTO work_orders (id, kind, assignee, title, spec_json, personal, deadline_at, status, created_by, created_at, claimed_at, heartbeat_at, message_id)
      VALUES (?, ?, 'muse', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -76,6 +85,7 @@ export function insertOrder(
 
 export function setStatus(db: Db, id: string, s: Partial<OrderRow> & { status: WorkStatus }): void {
   const cols = Object.keys(s) as (keyof OrderRow)[];
+  idle.delete(db);
   db.run(
     `UPDATE work_orders SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`,
     ...cols.map((c) => s[c] as SqlStorageValue),

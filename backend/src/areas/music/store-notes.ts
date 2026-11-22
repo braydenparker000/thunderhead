@@ -22,10 +22,10 @@ export interface TagRow {
   record_json: string;
 }
 
-const marks = (n: number) => Array.from({ length: n }, () => '?').join(', ');
+export const marks = (n: number) => Array.from({ length: n }, () => '?').join(', ');
 /** SQLite here binds at most 100 values a statement: key lists go in parts of this many. */
 const PART = 100;
-function inParts<T>(ids: string[], read: (part: string[]) => T[]): T[] {
+export function inParts<T>(ids: string[], read: (part: string[]) => T[]): T[] {
   const out: T[] = [];
   for (let i = 0; i < ids.length; i += PART) out.push(...read(ids.slice(i, i + PART)));
   return out;
@@ -87,19 +87,32 @@ export function putNote(db: Db, n: NoteRow): number {
   );
 }
 
-/** The next songs without a current note after catalog place `after` (the catalog's own key, then
- * one note lookup a song): a note is current at version `v` or later, or when the owner corrected
- * it through the chat. */
-export function untagged(db: Db, after: number, v: number, limit: number): TagRow[] {
-  return db.all(
-    `SELECT t.id, t.ord, t.record_json FROM tracks t
-     WHERE t.ord > ? AND NOT EXISTS (
+/** How many catalog places one untagged page looks at, at most: a track and a note lookup each. */
+export const UNTAGGED_WINDOW = 1_000;
+
+/** The next songs without a current note after catalog place `after`, among the next UNTAGGED_WINDOW
+ * places only (the catalog's own key, then one note lookup a song): a note is current at version `v`
+ * or later, or when the owner corrected it through the chat. With fewer than `limit` found, `end` is
+ * the window's last place when more of the catalog follows it (null at the catalog's end), so a page
+ * reads at most about 3,000 rows however few songs still lack a note (51,275 at 12,818 songs before). */
+export function untagged(db: Db, after: number, v: number, limit: number): { rows: TagRow[]; end: number | null } {
+  const rows = db.all<TagRow>(
+    `SELECT t.id, t.ord, t.record_json FROM (SELECT id, ord, record_json FROM tracks WHERE ord > ? ORDER BY ord LIMIT ?) t
+     WHERE NOT EXISTS (
        SELECT 1 FROM track_notes n WHERE n.track_id = t.id AND (n.v >= ? OR n.by = 'mind:chat'))
      ORDER BY t.ord LIMIT ?`,
     after,
+    UNTAGGED_WINDOW,
     v,
     limit,
   );
+  if (rows.length >= limit) return { rows, end: null };
+  const end = db.one<{ ord: number }>(
+    'SELECT ord FROM tracks WHERE ord > ? ORDER BY ord LIMIT 1 OFFSET ?',
+    after,
+    UNTAGGED_WINDOW,
+  );
+  return { rows, end: end ? end.ord - 1 : null };
 }
 
 /** Where the night's untagged pages go on from (`music_state`): every song up to place `ord` has a

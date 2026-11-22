@@ -17,6 +17,8 @@ export interface WatchRow {
 }
 
 export const all = (db: Db): WatchRow[] => db.all<WatchRow>('SELECT * FROM watchdogs');
+/** The tripped ones only, by the partial index (step 51). */
+export const tripped = (db: Db): WatchRow[] => db.all<WatchRow>("SELECT * FROM watchdogs WHERE state = 'tripped'");
 export const byName = (db: Db, name: string): WatchRow | null =>
   db.one<WatchRow>('SELECT * FROM watchdogs WHERE name = ?', name);
 

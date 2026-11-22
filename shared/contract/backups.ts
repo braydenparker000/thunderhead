@@ -109,3 +109,28 @@ export interface ExportStatus {
   /** The newest complete automatic backup, for the page's line. */
   last_backup: { date: string; finished_at: number } | null;
 }
+
+/** The point-in-time check on each class's scratch copy `pitr-proof` (OPERATIONS.md §4.4). `ok`:
+ * the copy was put back to its bookmark and the marker row was gone. No restore of a real object
+ * exists in the site; this only says whether Cloudflare's point-in-time recovery works here. */
+export type PitrOutcome = 'ok' | 'failed' | 'unsupported';
+
+export interface PitrProof {
+  outcome: PitrOutcome;
+  /** For `failed` and `unsupported`: a fixed code or an error's name, never its message. */
+  code: string | null;
+  at: number;
+}
+
+/** The last check of every class, and the deploy (version tag) it ran on. */
+export interface PitrProofs {
+  tag: string | null;
+  at: number;
+  classes: Partial<Record<BackupClass, PitrProof>>;
+}
+
+/** Deep health's backups block: the last point-in-time check and the last drill. */
+export interface BackupsHealth {
+  pitr: PitrProofs | null;
+  drill: { month: string; state: string; problems: number; classes: BackupClass[] } | null;
+}

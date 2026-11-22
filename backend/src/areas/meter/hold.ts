@@ -1,9 +1,11 @@
 // The quota hold at the Worker's edge (DATA.md §8.1): from 80% of the day's database budget the
-// upload tools' operations, and the mind's song notes (PUT /v1/music/notes, the night's one bulk
-// write), answer 429 with Retry-After until 00:00 UTC. Core decides from its meter, with Music's own
-// day brought along (both write in Music, whose row in Core is otherwise only as fresh as the last
-// tick). This isolate keeps the answer for a minute, so a run of operations asks about once a
-// minute. The phone and the mind's other work are never held.
+// upload tools' operations, the mind's song notes (PUT /v1/music/notes, the night's one bulk
+// write), and the phone's writes that can wait (its senses batches, and its song marks and playlists,
+// which sync again later anyway) answer 429 with Retry-After until 00:00 UTC, so messages, reminders
+// and settings keep the last 20%. Core decides from its meter, with Music's own day brought along
+// (both write in Music, whose row in Core is otherwise only as fresh as the last tick). This isolate
+// keeps the answer for a minute, so a run of operations asks about once a minute. The phone's other
+// calls and the mind's other work are never held.
 import { ApiError } from '../../http/errors';
 import { MINUTE } from '../../lib/time';
 import { coreObject } from '../../objects/core';

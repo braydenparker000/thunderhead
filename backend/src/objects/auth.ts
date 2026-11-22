@@ -137,6 +137,18 @@ export class Auth extends OwnerObject {
   queuePushTest(sessionId: string): string {
     return outbox.queueTest(this.db, sessionId, Date.now());
   }
+  /** Deep health's `push` and the site's word (areas/watchdogs/site.ts). */
+  pushReach(): boolean {
+    return outbox.reach(
+      this.db,
+      present(this.env.VAPID_PRIVATE_JWK) !== null,
+      activeSessions(this.db, Date.now()).map((s) => s.id),
+    );
+  }
+  queueSite(state: 'down' | 'up', body: string): void {
+    const now = Date.now();
+    outbox.queueAlarm(this.db, 'site', { id: `site-${state}-${now}`, at: now, until: now + 24 * 3_600_000, body });
+  }
   /** Sends what may go now; `ctx` comes from Core. */
   async deliverPushes(ctx: PushContext): Promise<{ sent: string[]; dropped: number; gone: number }> {
     const sub = this.env.SITE_ORIGINS.split(',')[0]?.trim() || 'https://thunderhead.invalid';

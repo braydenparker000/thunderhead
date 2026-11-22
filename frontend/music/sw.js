@@ -13,7 +13,8 @@
 // answered from it, as much as it holds; the rest of the song comes from the
 // network as usual. Requests a head does not cover are not touched, so the
 // browser's own retries keep working.
-// P5 data move (MIGRATION.md §7 step 5): the library's requests are answered from the new Worker, the old one while it can't.
+// P5 data move (MIGRATION.md §7 step 5): the library's requests are answered from the new Worker. The old Worker's origin
+// is only the name they and the offline copies carry: every request to it is answered here, none leaves the phone (§8).
 importScripts('/th/music/bridge.js');
 self.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
 const net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);

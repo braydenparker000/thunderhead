@@ -124,6 +124,8 @@ describe('the usage meter', () => {
       minutes: { chat: 45 + 150, night: 30 + 60, reflex: 10 },
       night_min: 26,
       watches: { fired: 1, refused: 1 },
+      sessions: 5,
+      limits: 0,
       latency: { replies: 2, claim_s: 15, reply_s: 40, lookups: 0, outside_s: null },
     });
     expect(u.days.map((d) => d.day)).toEqual([
@@ -141,10 +143,20 @@ describe('the usage meter', () => {
       minutes: { chat: 20, night: 0, reflex: 0 },
       night_min: 60,
       watches: { fired: 1, refused: 0 },
+      sessions: 1,
+      limits: 0,
       latency: { replies: 0, claim_s: null, reply_s: null, lookups: 0, outside_s: null },
     });
     expect(u.days[1].wakes).toEqual({ owner: 0, watch: 0, roll: 0, schedule: 0, watchdog: 0 });
     expect([u.budget, u.live]).toEqual([12, 1]);
+    // The plan's limit hits (hold.ts) are counted by day.
+    await coreSql(
+      "INSERT OR REPLACE INTO settings (key, value_json, updated_at, actor) VALUES ('mind.limit_hits', ?, ?, 'worker')",
+      JSON.stringify([at(9), at(13, 30), at(9, 0, 14)]),
+      NOW,
+    );
+    const hits: UsageResponse = await usage();
+    expect([hits.today.limits, hits.days[0].limits, hits.days[1].limits]).toEqual([2, 1, 0]);
   });
 
   it('answers the device and the mind roles', async () => {

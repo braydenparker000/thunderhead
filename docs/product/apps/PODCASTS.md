@@ -47,14 +47,16 @@ rules describe the later steps.
 3. The owner's follows, queue, progress and settings are restored unchanged on the new origin
    **[proposal: through the export page, §10]**.
 4. Done when the owner listens on the phone and nothing has changed.
-5. **Data move (P8, built):** the app is still unchanged and still addresses the old Worker; its own
-   worker (`podcasts/sw.js`, one recorded edit) answers those requests from the new Worker's
+5. **Data move (P8, built):** the app addresses this site's own `/podcasts/search`, `/browse`,
+   `/feed` and `/audio` (the old Worker's until 2026-11-22); its own
+   worker (`podcasts/sw.js`) answers those requests from the new Worker's
    `/v1/podcasts/directory`, `/feed` and `/audio` with the owner's session
    (`frontend/th/podcasts/bridge.js`). Feeds are parsed there, on the phone, by
    `frontend/th/podcasts/feed.js`, the old Worker's parser, which the new Worker also uses to find
    an episode's audio, reading a feed in growing pieces (a recent episode costs it well under 1 ms;
-   a whole 4 MB feed would cost about 10). Signed out, or while the new Worker can't answer, the
-   old Worker answers as before.
+   a whole 4 MB feed would cost about 10). Nothing goes to the old Worker (MIGRATION.md §8): signed
+   out the page goes to the sign-in door; a refusal, or the new Worker not answering, comes back in
+   the app's shape and the app shows its words; the page waits for its worker before it asks.
 6. **Progress on the Worker and new episodes at night (built 2026-11-01, NEXT-BATCH.md part 7):**
    one line in the app (`podcasts/app.js`) loads `frontend/th/podcasts/progress.js`,
    which syncs where each episode was left with the Worker, so an episode resumes on any phone, and

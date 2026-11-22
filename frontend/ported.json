@@ -950,7 +950,6 @@
     "github.com",
     "gprotab.net",
     "itunes.apple.com",
-    "jarvis-hub-api.braydenparker999.workers.dev",
     "jspdf.default.namespaceuri",
     "mozilla.org",
     "mths.be",
@@ -967,8 +966,8 @@
     "www.yworks.com"
    ],
    "csp": {
-    "guitar/credits.html": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://jarvis-hub-api.braydenparker999.workers.dev; worker-src 'self'; base-uri 'none';  form-action 'self'; frame-src 'self'",
-    "guitar/index.html": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://jarvis-hub-api.braydenparker999.workers.dev https://itunes.apple.com https://*.mzstatic.com; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-src 'self'"
+    "guitar/credits.html": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; base-uri 'none';  form-action 'self'; frame-src 'self'",
+    "guitar/index.html": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://itunes.apple.com https://*.mzstatic.com; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-src 'self'"
    }
   },
   "podcasts": {
@@ -1078,7 +1077,6 @@
    "hosts": [
     "github.com",
     "itunes.apple.com",
-    "jarvis-hub-api.braydenparker999.workers.dev",
     "scripts.sil.org",
     "www.w3.org"
    ],
@@ -1574,11 +1572,10 @@
    "hosts": [
     "*.googleusercontent.com",
     "i.ytimg.com",
-    "jarvis-hub-api.braydenparker999.workers.dev",
     "www.googleapis.com"
    ],
    "csp": {
-    "media/index.html": "default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: https://i.ytimg.com https://www.googleapis.com https://*.googleusercontent.com; media-src 'self' blob: https://www.googleapis.com; connect-src 'self' https://www.googleapis.com https://jarvis-hub-api.braydenparker999.workers.dev; font-src 'self'; worker-src 'self' blob:; base-uri 'none';  form-action 'self'"
+    "media/index.html": "default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: https://i.ytimg.com https://www.googleapis.com https://*.googleusercontent.com; media-src 'self' blob: https://www.googleapis.com; connect-src 'self' https://www.googleapis.com; font-src 'self'; worker-src 'self' blob:; base-uri 'none';  form-action 'self'"
    }
   }
  },

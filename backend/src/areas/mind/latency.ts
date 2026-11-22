@@ -61,3 +61,15 @@ export function recordOutside(db: Db, sessionId: string, since: number, at: numb
     sessionId,
   );
 }
+
+/** The first chat wake after the mind last claimed one (none older than `after`), or null: since
+ * when it hasn't answered (areas/watchdogs/owner.ts). */
+export function firstUnclaimedChat(db: Db, after: number): number | null {
+  return (
+    db.one<{ at: number | null }>(
+      `SELECT min(at) AS at FROM wakes WHERE task = 'chat' AND at > ? AND at > coalesce(
+         (SELECT max(claimed_at) FROM wakes WHERE task = 'chat' AND claimed_at IS NOT NULL), 0)`,
+      after,
+    )?.at ?? null
+  );
+}

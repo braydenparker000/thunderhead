@@ -257,6 +257,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/marks` | D | P5 | built | ?since=&cursor=: songs whose marks changed since, oldest first, ≤ 200 a page |
 | `PUT /v1/music/playlists` | D | P5 | built | 1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days |
 | `GET /v1/music/playlists` | D | P5 | built | ?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page |
+| `POST /v1/ops/site` | I | P9 | built | {state: down\|up}: the live watch says the site is not loading, or is back; one push each way |
 
 ## Verbs
 
@@ -490,8 +491,8 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 4 | facts | 6 | P3 | yes | each part is one batch with its own id (`th facts --night --part <k>`); sent again, it is already applied |
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 13 | growth (the week in Guitar and Study) (weekly) | 1 | P7 | no | tiles and plans are put by slot, and one the same as the one in place writes nothing |
-| 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
 | 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
+| 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
 | 6 | indexing (Study’s books) | 10 | P7 | no | a book is claimed by one run at a time and goes on from its cursor; a page is put by its number |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
@@ -638,9 +639,9 @@ The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `
 | `client_outdated` | 426 | A newer client is required for writes. |
 | `rate_limited` | 429 | Too many attempts. Try again soon. |
 | `too_many_scheduled` | 429 | Twenty scheduled actions already wait; cancel one or let one run first. |
+| `budget_exhausted` | 429 | Today's free-plan budget is used up. |
 | `internal` | 500 | Something went wrong on our side. |
 | `upstream` | 502 | An upstream service failed. |
-| `budget_exhausted` | 503 | Today's free-plan budget is used up. |
 | `auth_unavailable` | 503 | Sign-in is unavailable. |
 | `unavailable` | 503 | Temporarily unavailable. |
 | `not_configured` | 503 | This needs a binding that is not set up yet. |

@@ -81,7 +81,7 @@ What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `te
 5. `azure/login` with OIDC. If sign-in fails, the next step prints only the token's `sub` claim.
 6. `scripts/deploy.sh <sha>` refuses any account not named `thunderhead*`. It uploads `ui/*`, then `apps/*`, then the rest, then `release.json` last. It reads `release.json` back until it names the commit (10 tries, 3 s apart), then removes stale blobs (at most 50; soft delete keeps them 7 days).
 7. Live checks: `tests/live.test.mjs`, `tests/home-browser.test.mjs` and `tests/live-browser.test.mjs` (the real `config.js` and the service worker: a signed-out visit lands on `/signin/`, no CSP violation, the worker activates) against `SITE_URL`, retried once after 15 s, within 10 minutes.
-8. On failure or cancel after publishing started, the previous commit's `frontend/`, `scripts/` and `shared/` are checked out (its own staging and publishing, since a newer `stage.mjs` can expect files it lacks), staged and published, within 15 minutes; the step fails unless the live `release.json` then names that commit. The job's 50 minutes hold publish (15), the live check (10) and the rollback (15) together.
+8. On failure or cancel after publishing started, the previous commit is checked out in a worktree of its own (`$RUNNER_TEMP/previous-release`) and built entirely with its own tools: its packages (`npm ci`), fonts, `stage.mjs` and `deploy.sh`, since a newer `stage.mjs` can expect files it lacks. The step fails unless the live `release.json` then names that commit and that release's own live checks (step 7's files, those it has) pass, retried once after 15 s; all within 25 minutes. The job's 60 minutes hold publish (15), the live check (10) and the rollback (25) together. `tests/site-rollback.test.mjs` runs the step's script in a scratch repository and stages each of the last five releases on `main` from a worktree with its own `stage.mjs`.
 
 Planned additions (P1): the stage step also writes the route stubs, `config.js`, `precache.json` and the `build` number ([ARCHITECTURE.md §5–6](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)). The live checks add a shell route → 200 with the shell. From P1b, `GET /music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that ported app's own page (§3.4).
 
@@ -91,7 +91,7 @@ Confirm: the run is green, and `<site>/release.json` shows the commit.
 
 | Situation | Who | Steps | Confirm |
 |---|---|---|---|
-| Live check failed | automatic | Step 8 above | The run is red, and `release.json` shows the previous commit |
+| Live check failed | automatic | Step 8 above | The run is red, `release.json` shows the previous commit, and the rollback step's own live check is green |
 | A bad commit got past the checks | agent (or owner) | Actions → Deploy → Run workflow → branch `main` → `ref` = the last good commit → Run | `release.json` shows that commit; reload the phone twice (the SW applies the older build at the next safe moment) |
 | Prefer history to show the fix | agent | `git revert <bad>` on `main` and push | A new deploy run goes green |
 | First deploy ever failed | — | Nothing to go back to; fix forward | — |
@@ -99,9 +99,26 @@ Confirm: the run is green, and `<site>/release.json` shows the commit.
 
 A rolled-back site build is older than the API, which is fine because `/v1` is additive. If the rollback goes below `min_client`, its writes get `426`. In that case, lower `min_client` through `PATCH /v1/settings` (owner) or roll forward instead.
 
-### 3.3 Emergency: service worker kill switch
+### 3.3 Emergency: a broken cached release
 
-Use this when a broken service worker keeps serving a bad shell and normal updates don't apply.
+**First, on the phone (no commit, no GitHub).** Settings › About › Repair, or, when the app cannot start,
+the boot guard's panel (`frontend/boot-guard.js`: home has not marked itself started within 12 s on screen
+on two starts in a row; it shows "Thunderhead didn’t start." with Repair and Try again, and never reloads by
+itself), or `/repair/` typed in the address bar. `/repair/` (`frontend/repair/`) is a static page with one
+classic script and nothing else of the site, and `sw.js` never answers it. It unregisters the shell's,
+Music's and Podcasts' service workers, deletes only the caches that hold code (`th-<n>`, `th-lab-<n>`,
+`th-vendor`, `claude-player-v<n>`, `jarvis-podcast-shell-v<n>`), keeps everything else (offline songs and
+heads, downloads, covers, art, the catalogue, Astra's and Photos' caches, IndexedDB and localStorage with
+the session), then goes home, which loads from the network; home says what was done ("Repaired: …").
+Confirm: home opens signed in, and Settings › About › Copy report shows the expected `release.build`.
+
+Settings › About › Copy report puts one JSON on the clipboard (`frontend/th/report/site.js`, under 60 KB,
+numbers and states only): release and commit, the Worker's tag and deep health, each service worker's state,
+the caches with their sizes, storage, push, network, look and theme, the last 20 client errors as code and
+file:line, open watchdog trips, the data meter's totals, the mind's state and each app's last sync.
+
+**The kill switch, only when Repair cannot reach the phone** (a broken service worker keeps serving a bad
+shell to a phone nobody can tap through, and normal updates don't apply):
 
 1. Agent: in a branch, copy `frontend/sw-kill.js` over `frontend/sw.js` and commit with the message `kill switch`. Merge to `main`.
 2. The deploy publishes it. On the phone's next navigation, the browser fetches `/sw.js` (no-cache), installs the kill worker, which deletes every `th-*` cache, unregisters itself and reloads open pages once.
@@ -131,17 +148,21 @@ Each app later switches to `thunderhead-api` when its data moves (Music P5, Guit
 
 ## 4. Restore from backup
 
-All restores are proposals. The owner approves with a device tap or in their own words, which the Worker checks against the owner's own message; nothing restores on a fired prompt or any other text. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
+**No restore exists in the site.** Nothing in the Worker or on the phone can put a real object back to an earlier time: no route, no RPC, no tick pass. The paths below are designs (proposals), not built. What is built is the proof that the platform could do it (§4.4), the weekly backups, the monthly drill and the retention switch. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
 
-### 4.1 Point-in-time (whole object, last 30 days)
+### 4.1 Point-in-time (whole object, last 30 days; not built)
 
-1. Agent: find the last good time `t` (ledger, errors, the owner's report).
-2. Agent: `POST /v1/ops/restore {kind:'pitr', class:'core', at:t}` → a proposal of class `access`, titled "Put Core back to <local time>". Its `why` lists what will be lost: every message, fact and ledger row after `t`. The agent also copies those rows to `thunderhead-private/ops/restores/<id>.json` before asking **[proposal]**.
-3. Owner: approve.
-4. Worker: records `getCurrentBookmark()` (the undo point) in the restore record outside the object, calls `onNextSessionRestoreBookmark(await getBookmarkForTime(t))`, then `ctx.abort()`.
-5. Agent: `GET /v1/ops/health/deep` → `core.ok`. Post a system line: "Restored to <time>. N later messages are saved separately."
+Cloudflare keeps 30 days of each SQLite Durable Object's history ([the PITR API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/): `getBookmarkForTime`, `onNextSessionRestoreBookmark`, which returns the bookmark just before the restore, then a restart with `ctx.abort()`; not supported in local development; the docs do not say whether the Free plan has it).
 
-Undo: the same steps with the recorded pre-restore bookmark.
+**What the proof's outcome means** (deep health `backups.pitr`, per class): `ok` means that on this account, on this deploy, a scratch copy of that class was put back to a bookmark and a row written after it was gone. It says the platform can rewind that class; it does not make a restore safe, and nothing offers one. `unsupported` means the runtime refused the API (as local development does): a whole-object restore would have to use §4.3. `failed` with a code means the API answered but the check did not hold; look at the code before trusting any restore.
+
+**Design note for later: what a restore must solve first.** A restore of Core built in this round was withdrawn after a second read found three defects; any future restore must fix them before it ships:
+
+1. **The past would run again.** Rewinding Core brings back every reminder, scheduled verb or plan and wake that was due in the rewound days as still pending, and the alarm fires them with no age check (`areas/reminders` deliver, `verbs/due.ts`): pushes ring again, verbs run again with their side effects, answered messages wait again. A restore needs a fence: on the first start after a restore, everything due before the restore's moment is marked missed, never fired.
+2. **An armed restore can't be undone by calling it failed.** Once `onNextSessionRestoreBookmark` has answered, the object will rewind at its next restart whatever the code records after. A record written `failed: nothing changed` after the arm (a failed write, a tick that died) is a lie: the data rewinds later, silently, with the undo point lost and the phones never told. The record needs a state written before the arm that can only end as `done` (with the undo point) or `unknown, check it`, never `nothing changed`.
+3. **Settings and the meter rewind too.** A Core restore rewinds the owner's settings (a switch such as the backup retention can turn itself back on) and today's meter row (the Free plan's counts). Those must be kept across a rewind (read before, written back after), or live outside the restored object.
+
+Also open: Music's phone copy (the player's IndexedDB, merged newest-wins by `th/music/sync.js`) has no signal to drop itself after a Music restore, so the phone would push the newer data back.
 
 ### 4.2 One table from a weekly export
 
@@ -158,9 +179,10 @@ Undo: the same steps with the recorded pre-restore bookmark.
 
 ### 4.4 Monthly restore drill
 
-- **When:** the first Sunday of each month, started by the Worker's tick once that day's weekly backup is complete (built, `areas/backups/drill.ts`). `mind-night` or `ci` can start one any time with `POST /v1/ops/drill/run`, which drills the newest complete backup.
-- **What:** the latest `Core` backup goes into the instance `drill-<YYYYMM>` (whose drill methods refuse on any other instance), a part a step on the bulk lane, each part's sha256 checked before a row of it is used. Tables over 30,000 rows are restored as a deterministic sample, every k-th row ([DATA.md §11.4](DATA.md#114-proof-that-backups-work)). The drill compares counts and part sha256 values with the manifest, writes `drills/<YYYY-MM>/report.json` (counts and names only), empties the instance with `deleteAll()`, and writes one ledger note, passed or failed with its first problems.
-- **Pass:** every table's count and every part's hash match. The briefing shows one line only on failure.
+- **When:** the first Sunday of each month, started by the Worker's tick once that day's weekly backup is complete (built, `areas/backups/drill.ts`). The same tick runs the point-in-time check (below). `mind-night` or `ci` can start one any time with `POST /v1/ops/drill/run`, which drills the newest complete backup.
+- **What:** the latest complete backup of each part (Core, Music, the senses, Study; never Auth) goes into that class's own instance `drill-<YYYYMM>` (whose drill methods refuse on any other instance, and on Auth), a part a step on the bulk lane, each part's sha256 checked before a row of it is used. Tables over 30,000 rows are restored as a deterministic sample, every k-th row ([DATA.md §11.4](DATA.md#114-proof-that-backups-work)). The drill compares counts and part sha256 values with the manifest, writes `drills/<YYYY-MM>/report.json` (counts and names only), empties the instance with `deleteAll()`, and writes one ledger note, passed or failed with its first problems.
+- **Pass:** every table's count and every part's hash match. The briefing shows one line only on failure. Deep health's `backups.drill` shows the last drill, its state and the parts it covered.
+- **Point-in-time check** (`areas/backups/proof.ts`): at the first cron tick on a new deploy (a version tag the last check didn't run on) and with every monthly drill, on each class's scratch copy `pitr-proof` only (never the owner's objects, never Auth; the methods refuse on any other instance, and nothing callable arms a restore on a real object): a row, a bookmark, a marker row, `onNextSessionRestoreBookmark`, the restart, then the marker must be gone and the row before it there. The outcome per class (`ok`, `failed` with a code, `unsupported`) goes to one ledger note, Core's setting `backups.pitr` and deep health's `backups.pitr`; what it means is in §4.1. This settles X4 live.
 - **Fail:** a watchdog `drill.failed` (§8). The agent opens a fix within the day. Weekly backups continue.
 
 ---
@@ -250,7 +272,8 @@ Notes:
 |---|---|---|
 | **Worker request quota (100,000/day) exhausted** | Phone and CLI get non-JSON 429/1027 errors until 00:00 UTC | The phone queues writes in the outbox and shows the offline copy. The mind cannot be woken. After reset: check the meter and logs for the source. If it was a flood (next row), follow that. |
 | **Request flood from a stranger** (`workers.dev` has no WAF) | Requests far above normal with 401s | Accept and watch (owner question pending). If it repeats, the only fix is a custom domain with a WAF rule, which costs money: proposal of class `money` |
-| **DO rows written cap hit** | `503 budget_exhausted` on writes; reads work | The lane and the heavy jobs pause on their own from 80% of the day's written budget (54,400, §8.2); find the object from `GET /v1/ops/meter` and the table from the cost tests; fix the job or query; writes resume at 00:00 UTC. The outbox and the CLI keep retrying after `Retry-After` |
+| **Senses' daily cap** (6,000 events a UTC day, DATA.md §6.1) | `PUT /v1/senses/batches` answers 429 `budget_exhausted` | Nothing to do: the phone holds its batch and sends after 00:00 UTC. A day that hits it often: find the type from `day_summary` and the sender that floods it |
+| **DO rows written cap hit** | `429 budget_exhausted` on writes (the platform's refusal mapped by `http/errors.ts`, logged as `evt: budget_exhausted`); reads work; the phone says once that messages send after 00:00 UTC | The lane, the heavy jobs and the phone's senses, marks and playlists pause on their own from 80% of the day's written budget (54,400, §8.2); find the object from `GET /v1/ops/meter` and the table from the cost tests; fix the job or query; writes resume at 00:00 UTC. The outbox and the CLI keep retrying after `Retry-After` |
 | **DO rows read near or at the cap** | `quota.rows_read` tripped, the Briefing line, the push at 80%; at the cap every object request fails until 00:00 UTC | From 80% the heavy work already waits (§8.2). `th health` and `th get /v1/ops/meter days=2` show which object reads most. Find the scan (`EXPLAIN QUERY PLAN` tests must have missed it) or the count that reads every row (2026-10-31: the Music object counted its catalog per song); add the index under the expand rule |
 | **DO duration high** | Deep health shows `Core` awake for hours | Look for a timer, a pending fetch or a WebSocket without hibernation in `objects/`; the `no-timers-in-do` test should have failed |
 | **Mind not waking** | Wakes `unclaimed` after 240 s; the honest line shows | Check usage limits (owner: claude.ai usage page) and the task's state; check fire responses in `wakes.http_status`. The instant tier keeps working. Nothing to do on the Worker if the platform rejected the fire |
@@ -277,9 +300,11 @@ Notes:
 | Backups | Newest complete backup < 8 days old; monthly drill passes | manifests, drill reports |
 | Phone | INP p75 ≤ 100 ms; no gesture LoAF > 50 ms ([PERFORMANCE.md](PERFORMANCE.md)) | `perf_days` |
 
+**CPU on the Free plan (10 ms a request).** Live 13–20 Nov 2026: p90 10–16 ms, p99 21–37 ms; Muse's `POST /v1/work/claim` was 78% of sampled requests at 15 ms on average. A claim within 5 minutes of an empty answer is answered by the isolate without Core (`areas/work/poll.ts`); since 2026-11-21 a claim that reaches Core while nothing is open makes no database call once one has looked (`areas/work/store.ts` `idle`, cleared by any write to an order, at most an hour old): 0 calls and 0 rows instead of 3 calls and 1 row, the same `204` with no body. No other route runs on a timer to ask whether anything waits (the phone's timed calls, Music's report a minute and Podcasts' place while playing, carry data).
+
 ### 8.2 Watchdogs (`Core.tick`, every 15 min)
 
-Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 it also wakes `mind-reflex` (≤ 4 wakes a day).
+Up to P3, a tripped watchdog writes a ledger note and a line in the mind's briefing. From P4 it also wakes `mind-reflex` (≤ 4 wakes a day). Since 2026-11-21 every open trip is also a line on the owner's Briefing page, and the serious ones go in the day's one bundled push (§8.5).
 
 | Name | Trips when | Action |
 |---|---|---|
@@ -320,6 +345,17 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 - **Stopping it:** delete the `jobs` environment or the R2 token (SETUP.md N6); the Worker side stays idle with no runs.
 - **Analysing everything again** (a new analyzer version): it happens by itself (every song is due when its stored version differs), at the same cost as the first pass (≈ 25,000 rows over ≈ 24 nights, then the neighbours).
 
+### 8.5 What the owner is told (built 2026-11-21)
+
+The owner uses only the site; nothing here waits for a person or a dashboard. The words live in `backend/src/areas/watchdogs/owner.ts` and `shared/contract/watch.ts`.
+
+- **Every open trip on the Briefing.** Under one quiet heading, "Not working right", one plain line per tripped watchdog, saying what is wrong and whether anything is needed (`GET /v1/briefing` `alarms`); gone on the tick it clears. The quota trips keep their own line (§8.2); a drill is not a line. Lines: `errors.spike` "The server is failing more often than usual. Nothing needed from you."; `client.errors` "The site is hitting errors on your phone more than usual. …"; `roll.stuck` "Yesterday hasn't been closed off, so today's pages may be behind. …"; `night.late` "The night shift didn't finish last night. …"; `jobs.stuck` "A background task is stuck. …"; `db.size` "Storage is getting full. Nothing is lost, but something will need deleting soon."; `backup.stale` "The weekly backup hasn't run for over 8 days. Your data is still here. …"; `drill.failed` "The last backup check failed. Your data is still here. …"; `drill.overdue` "The monthly backup check is overdue. …"; `reply.late` "A message has waited over 30 minutes for a reply. It's kept. …".
+- **The day's bundled push.** Serious conditions: `backup.stale`, `drill.failed`, `roll.stuck`, `errors.spike`, `db.size`, `jobs.stuck`, `night.late` three nights running (no day note and no finished run for each), and the mind unable to answer for 24 hours. On the owner's day one of them becomes serious, Core offers one push (kind `alarm`, id `alarm-<day>`): one condition says itself ("Storage is getting full. More on the Briefing."), more say "2 things aren't working right. More on the Briefing.". Like the quota push it is outside the nudge budget, goes through "go quiet", waits for quiet hours to end and is delivered then; a condition that lasts pushes once.
+- **The Worker's heartbeat.** The cron runs each step on its own (sign-in tidy-up, Core's tick, calendars on the roll, approvals, pushes, the Drive photos pass) and ends by writing Core's setting `ops.cron` `{at, failed}` (one row a run, 96 a day). Deep health (`GET /v1/ops/health/deep`, `watch`) carries the last cron, the last day roll, schema steps any object is missing, the mind's state, whether a push can reach a phone (the VAPID key set and a signed-in phone subscribed) and the owner's lines. Home asks for it on opening (at most once a minute, `frontend/th/briefing/watch.js`) and the Briefing shows its lines even when no push came. A cron not seen for 45 minutes is a line ("The 15-minute background check hasn't run since 14:05, so reminders and pushes may be late. Nothing needed from you."), and so is a step that failed in its last run ("The last background check couldn't finish the Google Drive photos pass. It tries again every 15 minutes.").
+- **The mind's state.** While its presence says it can't answer (`limited`, `unconfigured`, `failed`) since its first unclaimed wake after it last answered, for 2 hours: one line on the Briefing and at the end of the chat, gone when it answers: "The mind hasn't answered since 14:05: it reached the plan's limit until 18:00. Music, reminders and the rest still work, and your messages are kept." (or "its routine isn't set up", "it couldn't be started"). How the mind is woken is unchanged.
+- **The outside watcher** (`live-watch.yml`, every 30 minutes). A failing check fails the run, so GitHub's own failed-run notification goes out; the issue names no person. The site and the Worker are checked apart: the site failing twice running while the Worker answers makes the `tell` job post `POST /v1/ops/site {state: down}` with the CI key (environment `worker`, secret `TH_CI_TOKEN`, no new secret; the route admits only the CI principal, everyone else 403), and the Worker pushes the owner once (kind `site`): "The site isn't loading. Your data is safe."; the first passing run after a failure posts `up`, and the Worker pushes "The site is loading again." once, only if it had said it was down. **When the Worker itself is down, only GitHub can tell**: the failed run and its notification, and the issue, are all there is; nothing reaches the phone.
+- **Keeping the schedule alive.** GitHub disables a public repository's scheduled workflows "when no repository activity has occurred in 60 days" (docs: Disabling and enabling a workflow). On the 1st of each month the `keepalive` job calls the REST API's "Enable a workflow" (`PUT /repos/{owner}/{repo}/actions/workflows/live-watch.yml/enable`, job permission `actions: write`). GitHub's documentation does **not** say that enabling an enabled workflow resets the 60-day count (checked 2026-11-21: it says only that a disabled workflow can be re-enabled, and that a commit changing the cron reactivates one); community practice relies on it, unconfirmed. If the schedule is disabled anyway, the Briefing still shows every Worker-side line (the cron's heartbeat is the Worker's own), and the watcher's site check stops until someone runs the workflow or re-enables it (Actions → Live watch → Enable workflow). A better guard, not built: the Worker's cron reading the workflow's public `state` (`disabled_inactivity`) and adding a line.
+
 ---
 
 ## 9. Routine checks
@@ -329,7 +365,7 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 | Every 15 min | Watchdogs; day roll; alarms re-armed | `Core.tick` |
 | Daily | Meter vs caps; errors; wakes claimed/unclaimed; yesterday's `perf_days`; prune jobs | Worker; `mind-night` reads them into the briefing only when something is off |
 | Each deploy | Site and API live checks | `deploy.yml` |
-| Every 30 min | The read-only live checks (`tests/live.test.mjs`, `tests/live-api.test.mjs`); two failed runs in a row open one issue, "The live site check is failing" (names and the run's link only), a pass closes it | `live-watch.yml` (`scripts/live-watch.mjs`) |
+| Every 30 min | The read-only live checks (`tests/live.test.mjs`, `tests/live-api.test.mjs`, apart); two failed runs in a row open one issue, "The live site check is failing" (names and the run's link only), a pass closes it; a failing run is red; the site down while the Worker answers, and back, is told to the Worker, which pushes the owner (§8.5); monthly, the workflow re-enables itself | `live-watch.yml` (`scripts/live-watch.mjs`) |
 | Weekly (Sunday) | Per-class backup at 02:30 local (built: the tick starts `export.weekly` for Core); profile snapshot; evals ([EVALS.md](../mind/EVALS.md)); a one-line ops summary in Monday's briefing | Worker, `mind-night` |
 | Monthly | Restore drill (first Sunday, started by the tick after the backup; built); Dependabot PRs (grouped) merged when green; owner glances at the Cloudflare dashboard for R2 storage and Class A/B operations (about 1 min) | `mind-night`, agent, owner |
 | Every 180 days | Agent token rotation reminder | briefing |
@@ -343,7 +379,7 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 |---|---|---|
 | X1 | Worker-held WebSocket to a hibernating DO for `/v1/live/wait`: works, unbilled while waiting, and through the session proxy | Bench workflow, test `x1` (100 takes from Actions; with `keep`, DO duration in the dashboard); the session-proxy leg needs a `th-chat` session once `/v1/live/wait` exists (P2) |
 | X3 | DO CPU limit on Free (10 ms vs 30 s); scrypt cost at the edge | Bench workflow, test `x3` ([SECURITY.md §6.3](SECURITY.md)) |
-| X4 | PITR available on Free | Bench workflow, test `x4`: bookmark, write, restore, read back |
+| X4 | PITR available on Free | Settled live by the point-in-time check (§4.4) at the first tick of each deploy: deep health `backups.pitr`. Local tests can't (the API is not supported in local development) |
 | Q1 | Does a step guarded by `cancelled()` get time to finish after `timeout-minutes` cancels the job? | Force a cancel once in a test repo |
 | Q2 | Does `wrangler deployments status --json` give the active version id directly? | Run it in the first `api` deploy; adjust step 4 |
 | Q3 | Does `wrangler secret bulk` from stdin work in Actions without a TTY? | First `rotate-secret.yml` run with a dummy secret |

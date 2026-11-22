@@ -12,14 +12,13 @@ const OFFLINE = location.origin + '/guitar/__saved/';
 
 export class SourceError extends Error {}
 
-// P6 data move (MIGRATION.md §7 step 5): the new Worker with the owner's session on this site; the old one while it can't answer.
+// P6 data move (MIGRATION.md §7 step 5): the new Worker with the owner's session on this site. Nothing goes to the old
+// Worker (§8; BASE is only the samples' key in this device's cache): signed out, or without the new Worker, the source
+// is unavailable; the new Worker's refusal is shown as it is.
 async function viaNew(path, signal) {
   const token = await sessionToken();
   if (!token || !CONFIG.api) return null;
-  try {
-    const r = await fetch(CONFIG.api + '/v1/guitar/' + path, { signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });
-    return [401, 403, 503].includes(r.status) ? null : r;
-  } catch (e) { if (signal?.aborted) throw e; return null; }
+  return fetch(CONFIG.api + '/v1/guitar/' + path, { signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });
 }
 
 async function request(path, { signal, timeout = 25000, as = 'json' } = {}) {
@@ -28,7 +27,8 @@ async function request(path, { signal, timeout = 25000, as = 'json' } = {}) {
   signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(abort, timeout);
   try {
-    const r = (await viaNew(path, controller.signal)) ?? await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });
+    const r = await viaNew(path, controller.signal);
+    if (!r) throw new SourceError('The tab source is unavailable. Please try again.');
     if (!r.ok) {
       let message = '';
       try { const e = (await r.json()).error; message = typeof e === 'string' ? e : e?.details?.reason ?? ''; } catch {}
@@ -233,8 +233,8 @@ export async function sample(instrument, note) {
   const store = await cache();
   let hit = await store?.match(url).catch(() => null);
   if (!hit) {
-    const r = (await viaNew(`sounds/${instrument}/${note}.mp3`)) ?? await fetch(url);
-    if (!r.ok) throw new SourceError('Sample unavailable');
+    const r = await viaNew(`sounds/${instrument}/${note}.mp3`).catch(() => null);
+    if (!r?.ok) throw new SourceError('Sample unavailable');
     hit = r.clone();
     store?.put(url, r).catch(() => {});
   }

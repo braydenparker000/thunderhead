@@ -87,21 +87,30 @@ export interface DrillRow {
   finished_at: number | null;
   report_key: string | null;
   problems: number;
+  /** The parts it covered, as JSON (step 50; null for a drill before it: Core's only). */
+  classes: string | null;
 }
+
+export const drillClasses = (_db: Db, d: DrillRow): BackupClass[] =>
+  d.classes ? (JSON.parse(d.classes) as BackupClass[]) : ['core'];
 
 export const drill = (db: Db, month: string) => db.one<DrillRow>('SELECT * FROM drills WHERE month = ?', month);
 export const lastDrill = (db: Db) =>
   db.one<DrillRow>("SELECT * FROM drills WHERE state != 'running' ORDER BY finished_at DESC LIMIT 1");
 
-export function insertDrill(db: Db, r: { month: string; backup_date: string; job_id: string; at: number }): void {
+export function insertDrill(
+  db: Db,
+  r: { month: string; backup_date: string; job_id: string; at: number; classes: BackupClass[] },
+): void {
   db.run(
-    `INSERT INTO drills (month, backup_date, state, job_id, started_at) VALUES (?, ?, 'running', ?, ?)
+    `INSERT INTO drills (month, backup_date, state, job_id, started_at, classes) VALUES (?, ?, 'running', ?, ?, ?)
      ON CONFLICT (month) DO UPDATE SET backup_date = excluded.backup_date, state = 'running', job_id = excluded.job_id,
-       started_at = excluded.started_at, finished_at = NULL, report_key = NULL, problems = 0`,
+       started_at = excluded.started_at, finished_at = NULL, report_key = NULL, problems = 0, classes = excluded.classes`,
     r.month,
     r.backup_date,
     r.job_id,
     r.at,
+    JSON.stringify(r.classes),
   );
 }
 

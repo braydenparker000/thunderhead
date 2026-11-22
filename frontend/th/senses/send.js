@@ -9,7 +9,9 @@
 // Settings keeps; the Worker checks again). Kept on this phone (at most 200) until the Worker takes
 // them. A few seconds after the last one, or when the page hides, the waiting events are sealed into
 // one batch, which is sent again with the same bytes until it is taken (API.md §11.14); one tab sends
-// at a time. Ids, numbers and times only: nothing the owner typed or saved.
+// at a time. A 429 (the day's senses cap, or the day's budget held) stops sending until its
+// `retry_after` (00:00 UTC); meanwhile at most 200 events wait, and past that the oldest go first,
+// a song's rating last. Ids, numbers and times only: nothing the owner typed or saved.
 import { CONFIG } from '/config.js';
 import { framedByOther, sessionToken } from '/th/ported/session.js';
 // Every ported page loads this module (assets/error-report.js): in home's layer, a page that loaded
@@ -59,6 +61,8 @@ const KEY = 'th.p.senses';
 /** The sealed batch on its way: `{ id, body, tries }`. */
 const BATCH = 'th.p.senses.batch';
 const MAX = 200;
+/** Until when (ms) the Worker asked this phone not to send (a 429's `retry_after`). */
+const PAUSE = 'th.p.senses.until';
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let timer;
 /** @type {Promise<void> | null} */
@@ -90,10 +94,16 @@ function waiting() {
     return [];
   }
 }
+/** The newest MAX events; past that the oldest go first, ratings (kept for good in Music) last.
+ * @param {Sense[]} q */
+export function trim(q) {
+  let drop = q.length - MAX;
+  return drop > 0 ? q.filter((e) => !(drop > 0 && e.type !== 'music.rate' && drop--)).slice(-MAX) : q;
+}
 /** @param {Sense[]} q */
 function keep(q) {
   try {
-    if (q.length) localStorage.setItem(KEY, JSON.stringify(q.slice(-MAX)));
+    if (q.length) localStorage.setItem(KEY, JSON.stringify(trim(q)));
     else localStorage.removeItem(KEY);
   } catch {}
 }
@@ -161,8 +171,16 @@ function seal(b) {
   } catch {}
 }
 
+const pausedUntil = () => {
+  try {
+    return Number(localStorage.getItem(PAUSE)) || 0;
+  } catch {
+    return 0;
+  }
+};
+
 async function send() {
-  if (!navigator.onLine || !CONFIG.api) return;
+  if (!navigator.onLine || !CONFIG.api || Date.now() < pausedUntil()) return;
   const token = await sessionToken();
   if (!token) return;
   for (let round = 0; round < 3; round++) {
@@ -187,6 +205,15 @@ async function send() {
         mode: 'cors',
       });
     } catch {}
+    // The day's cap or the budget's hold: the batch waits as it is, and nothing is sent till then.
+    if (r?.status === 429) {
+      const s = Number((await r.json().catch(() => null))?.error?.retry_after) || Number(r.headers.get('Retry-After')) || 60;
+      try {
+        localStorage.setItem(PAUSE, String(Date.now() + s * 1000));
+      } catch {}
+      setTimeout(flush, s * 1000 + 1000);
+      return;
+    }
     // Taken, or refused in a way no retry fixes (a malformed batch, or the Worker failing it five
     // times): it leaves the phone. Offline or signed out: it waits as it is.
     const done = r && (r.ok || r.status === 409 || r.status === 422 || (r.status >= 500 && batch.tries >= 4));

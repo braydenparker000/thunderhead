@@ -97,6 +97,10 @@ export interface UsageDay {
   /** The night shift's run that day (it works on the day before): started to done. */
   night_min: number;
   watches: { fired: number; refused: number };
+  /** Mind sessions a wake started that day (claims of fired wakes). */
+  sessions?: number;
+  /** The times the plan's usage limit refused the mind that day (a refused fire, a limit in a turn). */
+  limits?: number;
   /** Cold wakes answered that day (chat wakes a message fired whose session replied): how many,
    * and the median seconds from the fire to the claim and from the claim to the first reply; and
    * the chat wakes with an outside read (`outside_ms`): how many, the median seconds it took. */

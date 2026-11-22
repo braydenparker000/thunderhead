@@ -91,7 +91,7 @@ img.save(${JSON.stringify(pdf)}, "PDF", resolution=150)
       scanned = await add('A scan', new Uint8Array((await import('node:fs')).readFileSync(pdf)));
     }
     const locked = await add('A locked file', new TextEncoder().encode('%PDF-1.7\nnot really a pdf at all\n%%EOF\n'));
-    const env = {...process.env, TH_API: w.url, TH_TOKEN: keys['mind:night'], TH_ROLE: 'night', PYTHON};
+    const env = {...process.env, TH_API: w.url, TH_TOKEN: keys['mind:night'], TH_ROLE: 'night', TH_STUDY_PYTHON: PYTHON};
     // The owner's scripture files, outside the repository (here the invented table and one verse).
     mkdirSync(join(dir, 'text'));
     copyFileSync(TABLE, join(dir, 'table.json'));

@@ -53,7 +53,7 @@ export const opsRoutes = new Hono<AppEnv>()
   )
   // Counts only, never content (ci keys see the same).
   .get('/ops/health/deep', guard('GET /v1/ops/health/deep'), async (c) => {
-    const [core, auth, music, senses, library, backup] = await Promise.all([
+    const [core, auth, music, senses, library, backup, backups] = await Promise.all([
       coreObject(c.env).deepHealth(),
       authObject(c.env).health(),
       musicObject(c.env).health(),
@@ -63,8 +63,19 @@ export const opsRoutes = new Hono<AppEnv>()
       coreObject(c.env)
         .lastBackup()
         .catch(() => null),
+      // The point-in-time check and the drill (a Core before them has none).
+      coreObject(c.env)
+        .backupsHealth()
+        .catch(() => null),
     ]);
     const lastBackup = backup ? { date: backup.date, age_h: backup.age_h } : null;
+    // The heartbeat and the owner's lines (areas/watchdogs/owner.ts); a Worker or Core mid-deploy leaves it out.
+    const all = { core, auth, music, senses, library };
+    const missing = Object.entries(all).flatMap(([k, h]) => (h.missing ?? []).map((v) => `${k}:${v}`));
+    const watch = await authObject(c.env)
+      .pushReach()
+      .then((push) => coreObject(c.env).ownerWatch(push, missing))
+      .catch(() => undefined);
     rememberMinClient(core.min_client);
     const objects = Object.fromEntries(
       Object.entries({ core, auth, music, senses, library }).map(([k, h]) => [
@@ -107,6 +118,8 @@ export const opsRoutes = new Hono<AppEnv>()
       errors_open: core.errors_open,
       wakes_today: core.wakes_today,
       min_client: core.min_client,
+      ...(watch ? { watch } : {}),
+      backups,
     };
     return c.json(body);
   })

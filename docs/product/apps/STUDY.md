@@ -587,7 +587,12 @@ a day crossing the 04:00 roll).
 3. Ingestion script in the mind's session; search. **Built:** `mind/jobs/study-ingest.mjs` with
    `mind/jobs/study_extract.py` (pypdf text, the PDF's `/PageLabels` else labels inferred from printed
    numbers, OCR by pypdfium2 + Tesseract where a page needs it) and `mind/jobs/study-blocks.mjs`;
-   `mind/jobs/study-setup.sh` installs the pinned tools when missing. It runs as night step 6 (at most
+   `mind/jobs/study-setup.sh` installs the pinned tools when missing, into one venv of the reader's own
+   (`~/.cache/thunderhead/study-venv`, or `$TH_STUDY_VENV`; since 2026-11-22: a user-site pypdf was
+   invisible to the reader's isolated Python and the system `cryptography` panicked on import), which
+   the ingest finds by that path; the ingest checks `import pypdf, cryptography` that way before it
+   claims a book, and a run that fails on its own side releases its claim (`released`), so the book
+   waits again at once. It runs as night step 6 (at most
    2 books and 10 minutes a night, not the 45 minutes above, which the night's own 45-minute hard stop
    can't hold; a book goes on from its cursor the next night) and in a chat session when the owner
    asks. Tested end to end against the real Worker: a canary phrase, the title and the file name never

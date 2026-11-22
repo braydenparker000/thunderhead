@@ -92,7 +92,7 @@ export const pagesBody = z.strictObject({
 });
 
 export const ingestBody = z.strictObject({
-  state: z.enum(['extracting', 'ocr', 'indexing', 'paused', 'ready', 'failed']),
+  state: z.enum(['extracting', 'ocr', 'indexing', 'paused', 'released', 'ready', 'failed']),
   cursor: z.optional(int(0, 100_000)),
   pdf_pages: z.optional(page),
   sha256: z.optional(z.string().check(z.regex(/^[0-9a-f]{64}$/))),

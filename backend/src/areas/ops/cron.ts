@@ -5,6 +5,9 @@
 // the step), run again, and the pushes that may go now (a nudge waiting for a pause, a sign-in
 // notice held by quiet hours). On the day roll, the owner's calendar links are fetched again
 // (areas/briefing/calendar.ts), so the morning's Briefing and brief start from this day's.
+// Each step runs on its own: one that fails no longer stops the rest, and the run ends with the
+// cron's heartbeat (Core's `ops.cron`: when it ran, which steps failed), which deep health and the
+// Briefing read (OPERATIONS.md §8.5); a cron not seen for 45 minutes is itself a line there.
 
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
@@ -14,29 +17,55 @@ import { drivePass } from '../photos/reconcile';
 import { runAfter } from '../proposals/after';
 import { deliver } from '../push/routes';
 
-export async function runCron(env: Env): Promise<void> {
+export async function runCron(env: Env, now = Date.now()): Promise<string[]> {
   const core = coreObject(env);
-  const [pruned, tick] = await Promise.all([authObject(env).prune(), core.tick()]);
-  // The GitHub path's reset ticket opened: an open home shows its card at once (SIGN-IN.md §10.1).
-  if (pruned.reset_opened) await core.noticeChanged().catch(() => {});
-  // `night` is the night wake's id (a Core still on the release before P3's night shift has none).
-  const night = tick.night ?? null;
-  if (pruned.sessions || pruned.counters || pruned.notices || pruned.pushes || tick.rolled || tick.pruned || night)
-    console.log(JSON.stringify({ evt: 'cron', ...pruned, rolled: tick.rolled, core_pruned: tick.pruned, night }));
-  if (tick.rolled) await rollCalendars(core);
-  await retryApprovals(env, core);
-  await sendPushes(env);
-  await photosPass(env);
+  const failed: string[] = [];
+  const step = async (name: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch {
+      failed.push(name);
+    }
+  };
+  let rolled = false;
+  await Promise.all([
+    step('auth', async () => {
+      const pruned = await authObject(env).prune();
+      // The GitHub path's reset ticket opened: an open home shows its card at once (SIGN-IN.md §10.1).
+      if (pruned.reset_opened) await core.noticeChanged().catch(() => {});
+      if (pruned.sessions || pruned.counters || pruned.notices || pruned.pushes)
+        console.log(JSON.stringify({ evt: 'cron', ...pruned }));
+    }),
+    step('tick', async () => {
+      const tick = await core.tick();
+      rolled = Boolean(tick.rolled);
+      // `night` is the night wake's id (a Core still on the release before P3's night shift has none).
+      const night = tick.night ?? null;
+      if (tick.rolled || tick.pruned || night)
+        console.log(JSON.stringify({ evt: 'cron', rolled: tick.rolled, core_pruned: tick.pruned, night }));
+    }),
+  ]);
+  if (rolled) await step('calendars', () => rollCalendars(core));
+  await step('approvals', () => retryApprovals(env, core));
+  await step('pushes', () => sendPushes(env));
+  await step('photos', () => photosPass(env));
+  if (failed.length) console.log(JSON.stringify({ evt: 'cron_failed', failed }));
+  // A Core still on the release before the heartbeat (a deploy in progress) records nothing.
+  await core.cronBeat(now, failed).catch(() => {});
+  return failed;
 }
 
-/** Photos' daily Drive pass (areas/photos/reconcile.ts); a failure waits for the next tick. */
+/** Photos' daily Drive pass (areas/photos/reconcile.ts); a failure waits for the next tick and is
+ * named in the heartbeat. */
 async function photosPass(env: Env): Promise<void> {
   try {
     const out = await drivePass(env);
     if (out?.added || out?.trashed) console.log(JSON.stringify({ evt: 'cron_photos', ...out }));
   } catch (e) {
     // A Core still on the release before Photos (a deploy in progress), or Google not answering.
-    if (!missingMethod(e)) console.log(JSON.stringify({ evt: 'cron_photos', failed: true }));
+    if (missingMethod(e)) return;
+    console.log(JSON.stringify({ evt: 'cron_photos', failed: true }));
+    throw e;
   }
 }
 

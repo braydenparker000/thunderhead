@@ -68,7 +68,7 @@
     "rows_written_max": 0
   },
   "GET /v1/ops/health/deep (Core)": {
-    "rows_read_max": 3,
+    "rows_read_max": 4,
     "rows_written_max": 0
   },
   "POST /v1/ops/errors, 1 item (Core)": {
@@ -100,7 +100,7 @@
     "rows_written_max": 1
   },
   "POST /v1/mind/typing (unconnected) (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 6,
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
@@ -552,7 +552,7 @@
     "rows_written_max": 4
   },
   "PUT /v1/messages/:id (owner, off the record) (Core)": {
-    "rows_read_max": 11,
+    "rows_read_max": 14,
     "rows_written_max": 9
   },
   "DELETE /v1/threads/:id (20 messages) (Core)": {

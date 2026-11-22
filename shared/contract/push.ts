@@ -5,8 +5,9 @@ import type { Ms } from './api.ts';
 
 /** What a push is: the mind's nudge, a sign-in notice, the owner's own test, a reminder the owner
  * set (its id is the reminder's), or the day's database use past 80% of the Free plan's limit (one a
- * UTC day, id `quota-<day>`). */
-export type PushKind = 'nudge' | 'security' | 'test' | 'reminder' | 'quota';
+ * UTC day, id `quota-<day>`), the day's one bundled push for what is seriously wrong (id `alarm-<day>`,
+ * watch.ts), or the site not loading and back (`site`). */
+export type PushKind = 'nudge' | 'security' | 'test' | 'reminder' | 'quota' | 'alarm' | 'site';
 export interface PushKeyResponse {
   /** The VAPID public key, base64url (the uncompressed P-256 point). */
   vapid_public_key: string;

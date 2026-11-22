@@ -493,6 +493,7 @@ errors routes are the place to honour them.
 | `privacy.errors` | switch | worker | `on` | the phone (`ui/errors.js`, 2026-11-21: off as it last saw it in `th.p.settings`, it sends nothing) and the Worker (`POST /v1/ops/errors` from a phone keeps nothing while it is off) |
 | `privacy.editor_timings` | switch (Reports) | phone | `on` | **Editor reports** (2026-11-17): the editor's flight recorder (`th/report/journal.js`) goes to the owner's storage from the background worker (`th/report/send.js`): each step's time, how each gesture kept up (a pinch, a turn of a dial, a swipe of the panel, a hold of the tool dial: frames, the worst gap, how it ended), each heavy job begun and ended, a reset and what it blamed, a visit that died, the phone's model and graphics chip, the compare page's verdicts, as numbers and fixed words, one file a phone a day ([API.md §11.27](../engineering/API.md)). Off: nothing leaves the phone. Under it, a line says how many are kept and waiting and when they last went, with **Send now** (`apps/settings/reports.js`) |
 | `privacy.retention` | segments: forever / 1 year / 90 days (Conversations) | worker | `forever` | the prune pass, once a logical day (`areas/conversation/retention.ts`, [DATA.md §10](../engineering/DATA.md)): a conversation unchanged for longer is purged as a deleted one is, with a ledger row; one filed under a topic is kept; the owner's alone |
+| `privacy.backups.prune` | switch (Backups) | worker | `off` | Core's tick, once a day (`areas/backups/retention.ts`, [DATA.md §11.3](../engineering/DATA.md)): keeps 8 weekly and 12 monthly backups in the private bucket and deletes older ones, never the newest complete backup of a part; the owner's alone (deleting needs their word) |
 
 ### 6.8 About and diagnostics (`about.js`)
 
@@ -501,6 +502,30 @@ Read-only, no catalogue keys: Release (the build, a preview's branch, the short 
 Rows today (`GET /v1/ops/meter?days=1`: rows read and written since 00:00 UTC with their percentages
 of the free plan's day), and the last Frames readout if the feel lab left one on this phone under
 `th.lab.frames` (the lab does not store it yet; until then the row says how to record one).
+
+Help (2026-11-22), for six months of the phone alone:
+
+- **Copy report** (`th/report/site.js`): one JSON to the clipboard, never sent, under 60 KB, numbers
+  and states only, never the owner's words, titles, names or addresses: release and commit; the Worker's
+  tag and deep health (schema versions, each object's `missing` when the Worker sends it, the day's rows,
+  the backup's age, open errors); each service worker's scope and state and whether one controls the page;
+  every cache with its entries and bytes; storage used, quota and persisted; push permission and whether a
+  subscription exists; the network type; the look and theme; the last 20 client errors as code and
+  file:line; open watchdog trips (name, severity, since, the reflex's outcome); the data meter's totals by
+  part, today and this month; the mind's state and today's wakes; and when Music, Guitar and Podcasts last
+  synced. The line under the group says "Report copied (N KB)." `tests/site-report.test.mjs` plants words
+  in everything it reads.
+- **Repair**, after a sheet that says exactly what it does ("Clears this phone’s stored copy of the app’s
+  code and its offline workers (home, Music, Podcasts), then loads it fresh from the network. Sign-in,
+  offline songs, downloads, books, photos and everything of yours stay."): it opens `/repair/`, which
+  unregisters those three service workers, deletes the caches that hold code only, and goes home; home's
+  toast says "Repaired: N code caches and N workers cleared. Sign-in and your data stayed."
+- **When the app cannot start**: `boot-guard.js`, the first script of `index.html` (classic, under
+  1.5 KB), counts a start that has not called `thStarted()` (home's first paint) within 12 s while on
+  screen; on the second such start in a row it shows a plain panel of its own, "Thunderhead didn’t
+  start.", with Repair (`/repair/`) and Try again (a reload), using none of the app's code or styles. A
+  start that marks itself, however slow, clears the count and the panel. Off screen (a prerender, a locked
+  phone) its clock does not run. It never reloads by itself. Settings' search finds both rows (`finder.js`).
 
 ### 6.9 Files for the workshop (`workshop.js`)
 

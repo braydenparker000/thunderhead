@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-21-data-use",
-  "date": "2026-11-21",
+  "id": "2026-11-22-steady",
+  "date": "2026-11-22",
   "lines": [
     {
-      "text": "Settings has a Data use page: what this site downloaded today and this month, by Wi-Fi and mobile data."
+      "text": "When something isn't working, your Briefing now says so in plain words; serious things come as one push a day."
     },
     {
-      "text": "It lists each part (Music's songs and covers, Astra, Photos, updates) and what it cannot count."
+      "text": "Settings › About has Repair and Copy report. If the app ever fails to start, a small panel offers Repair."
     },
     {
-      "text": "The numbers are counted on this phone and never leave it."
+      "text": "The chat says when your plan's limit is holding a reply and until when; the Briefing shows the right day after midnight."
+    },
+    {
+      "text": "Music's first sync now finishes for a large library, and Music, Podcasts and Guitar no longer use the old server."
     }
   ]
 }

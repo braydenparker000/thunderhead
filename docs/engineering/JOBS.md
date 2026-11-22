@@ -105,7 +105,7 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 | Kind | Class | Lane | Trigger | Step | Notes |
 |---|---|---|---|---|---|
 | `export.weekly` | each | no (reads only) | Sunday 02:30 local | 5,000 rows → one `.jsonl.gz` part | Manifest written last (built for Core, `areas/backups/job.ts`) |
-| `backups.prune` | Core | no | after `export.weekly` | R2 deletes only | Keeps 8 weekly + 12 monthly [not built: every backup is kept until the owner agrees to the retention, since it deletes data] |
+| `backups.prune` | Core | no | Core's tick, once a day, only while the owner has `privacy.backups.prune` on (default off) | R2 deletes only, ≤ 1,000 a day | Keeps 8 weekly + 12 monthly, any set not named `YYYY-MM-DD`, and always the newest complete backup of each part; only `backups/` of the private bucket, never on a partial listing (built, `areas/backups/retention.ts`; a pass of the tick, not a job) |
 | `prune.<class>` | each | no | the first tick of each logical day (after 04:00 local) | 2,000 deletes | Retention per [DATA.md §10](DATA.md#10-retention-and-export-inclusion) |
 | `music.history` | Core → Music | yes | a listening-history file the owner drops (PUT /v1/music/history), by its SHA-256 | the split (the file summed by artist, album and year, kept as parts of 2,000 rows beside it), then one part a step | Idempotent per file and per part (`listen_files.next`); measured: a 6,000-stream file (about 5,000 rows) writes about 8,900 rows in Music (`areas/music/history-job.ts`) |
 | `music.mb` | Core → Music | yes | the end of a `music.history` | one MusicBrainz lookup, then the next step waits 1.1 s (the runner's `after`) | The most played artist due first (3 plays or more), 3 tries, until none is due; then the brief's taste line (`areas/music/history-mb.ts`) |
@@ -114,7 +114,7 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 | `import.<dataset>` | Core (Music for `music`) | yes | `POST /v1/import/runs` | 2,000 rows | Idempotent upserts with deterministic IDs |
 | `fts.backfill` | Core, Library | yes | after a migration adds FTS | 2,000 rows | |
 | `restore.table`, `restore.object` | any | yes | an approved proposal | 2,000 rows | Each part's hash checked first |
-| `drill.monthly` | Core | yes | first Sunday | one part (≤ 5,000 rows) | Sampled above 30,000 rows per table; its rows are written in the scratch instance and counted on the lane (built, `areas/backups/drill.ts`) |
+| `drill.monthly` | Core (each class's scratch) | yes | first Sunday | one part (≤ 5,000 rows) | Sampled above 30,000 rows per table; its rows are written in the scratch instance and counted on the lane; all four parts, each in its own class's scratch instance (built, `areas/backups/drill.ts`) |
 | `export.download` | Core | no (reads only) | `POST /v1/export` | 5,000 rows → one deflated ZIP file part | README and counts last; the parts leave the bucket an hour after it is ready (built, `areas/backups/export-job.ts`) |
 | `events.export` | Senses | no | daily 06:00 local for day D−1 | one day | Re-runs if late events arrive |
 | `rollups.daily` | Senses | no | after `events.export` | one day | |

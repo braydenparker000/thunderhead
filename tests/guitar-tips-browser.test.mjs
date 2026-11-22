@@ -1,16 +1,16 @@
 // Guitar tips per section (frontend/th/guitar/teacher.js; GUITAR.md §6) in the real reader: the
 // synthetic practice score opens, each section label says it has tips, and tapping one opens that
 // section's tips (a hint, whose approach, "Show me" for the concrete step) without moving the tab.
-// The tab file comes from a stubbed old Worker; no network.
+// The tab file is a saved copy on the phone (fixtures/guitar-saved.mjs); no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { keepScore } from './fixtures/guitar-saved.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (stubbed tab source)' };
-const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
 const GP = readFileSync(new URL('./fixtures/guitar/practice.gp', import.meta.url));
 let site, browser, base;
 
@@ -27,11 +27,8 @@ after(async () => {
 
 test('a section label opens its tips: a hint, its approach, and the step behind "Show me"', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await context.route(`${OLD}/**`, (route) =>
-    route.request().url().includes('gprotab/file')
-      ? route.fulfill({ status: 200, contentType: 'application/octet-stream', body: GP })
-      : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' }),
-  );
+  // The tab is a saved copy on this phone: there is no tab source signed out (MIGRATION.md §8).
+  await keepScore(context, base, 'g:jarvis-test/practice-song', GP);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

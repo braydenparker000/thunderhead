@@ -1,12 +1,18 @@
 # Between releases: every 30 minutes the read-only live checks run against what is live (tests/live.test.mjs for
 # the site, tests/live-api.test.mjs for the Worker; neither signs in, writes or needs a secret). Two failed runs in a
 # row open one issue, "The live site check is failing" (a comment on it when it is already open), and a passing run
-# closes it (scripts/live-watch.mjs). The issue names the failing checks and links the run, nothing else.
-# GitHub turns a schedule off after 60 days without a commit; Run workflow starts one by hand.
+# closes it (scripts/live-watch.mjs). The issue names the failing checks and links the run, nothing else, and no
+# person. A failing check also fails the run, so GitHub's own failed-run notification goes out.
+# When the site fails twice running while the Worker answers, the `tell` job says so to the Worker (POST
+# /v1/ops/site with the CI key, environment `worker`), which pushes the owner once, and once more when it is back.
+# GitHub turns a schedule off after 60 days without repository activity (public repositories); on the 1st of each
+# month the `keepalive` job re-enables this workflow through the REST API (OPERATIONS.md §8.5 says what GitHub's
+# documentation does and doesn't confirm about that). Run workflow starts one by hand.
 name: Live watch
 on:
   schedule:
     - cron: '*/30 * * * *'
+    - cron: '17 3 1 * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +28,8 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' && vars.SITE_URL != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      tell: ${{ steps.issue.outputs.tell }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,21 +48,64 @@ jobs:
           # The API's preflight check is made from the site's own origin.
           SITE_ORIGIN="$(node -e 'process.stdout.write(new URL(process.argv[1]).origin)' "$SITE_URL")"
           export SITE_ORIGIN
-          status=passed
+          # The site and the Worker apart, so the Worker can be told when only the site is down.
+          site=passed
+          worker=passed
           node --test --test-reporter=spec --test-reporter-destination=stdout \
             --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/live.tap" \
-            tests/live.test.mjs tests/live-api.test.mjs || status=failed
-          echo "status=$status" >> "$GITHUB_OUTPUT"
+            tests/live.test.mjs || site=failed
+          node --test --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/live-api.tap" \
+            tests/live-api.test.mjs || worker=failed
+          cat "$RUNNER_TEMP/live-api.tap" >> "$RUNNER_TEMP/live.tap" || true
+          status=passed
+          [[ "$site" == passed && "$worker" == passed ]] || status=failed
+          { echo "status=$status"; echo "site=$site"; echo "worker=$worker"; } >> "$GITHUB_OUTPUT"
       - name: Open, comment on or close the issue
+        id: issue
         if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           STATUS: ${{ steps.check.outputs.status || 'failed' }}
+          SITE: ${{ steps.check.outputs.site || 'failed' }}
+          WORKER: ${{ steps.check.outputs.worker || 'failed' }}
         run: node scripts/live-watch.mjs "$RUNNER_TEMP/live.tap" "$STATUS"
       - name: The run is red while the check fails
         if: ${{ steps.check.outputs.status != 'passed' }}
         run: |
           echo "::error::the live check failed"
           exit 1
+  # The site down while the Worker answers (or back): the Worker pushes the owner once each way. Only on a change
+  # of word, so the environment's secret is read rarely; the CI key reaches no other write.
+  tell:
+    needs: watch
+    if: ${{ !cancelled() && (needs.watch.outputs.tell == 'down' || needs.watch.outputs.tell == 'up') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: worker
+    permissions: {}
+    steps:
+      - name: Tell the Worker
+        env:
+          TH_CI_TOKEN: ${{ secrets.TH_CI_TOKEN }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          WORD: ${{ needs.watch.outputs.tell }}
+        run: |
+          [[ -n "$TH_CI_TOKEN" ]] || { echo "::warning::TH_CI_TOKEN is not set; the owner was not told"; exit 1; }
+          curl -fsS --max-time 20 -o /dev/null -X POST -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/live-watch' \
+            -H 'Content-Type: application/json' --data "{\"state\":\"$WORD\"}" "${WORKER_URL%/}/v1/ops/site"
+  # Keeps the schedule alive through months without a commit: re-enables this workflow on the 1st of each month.
+  keepalive:
+    if: ${{ github.ref == 'refs/heads/main' && (github.event.schedule == '17 3 1 * *' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Re-enable this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh api -X PUT "repos/$GH_REPO/actions/workflows/live-watch.yml/enable"

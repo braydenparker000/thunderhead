@@ -1,6 +1,7 @@
 // The push outbox inside the Auth object (SECURITY.md §10, BEHAVIOR.md §3.4): the mind's nudges,
 // the sign-in notices' generic words (SIGN-IN.md §11.3, PRIVACY.md §8), the owner's tests, the
-// reminders the owner set and the day's quota push wait here, and `deliver` sends what may go now
+// reminders the owner set, the day's quota push, the day's bundled alarm and the site's word
+// (areas/watchdogs/owner.ts, site.ts) wait here, and `deliver` sends what may go now
 // to every signed-in phone (a test to its own phone), the payload only a kind and an id. An item
 // is claimed before it is sent, so two runs never send it twice; one no push service took goes
 // back to waiting until its deadline. A gone subscription (404, 410) is deleted.
@@ -88,6 +89,17 @@ export function queueQuota(db: Db, q: QuotaPush): void {
     queue(db, 'quota', { title: 'Thunderhead', body: q.body, url: '/' }, q.at, q.until, { id: q.id });
 }
 
+/** A system alarm, once by its id: the day's bundled push (`alarm-<day>`) or the site's word. Held
+ * only by quiet hours, as the quota push is. Its words name what is wrong, nothing of the owner's. */
+export function queueAlarm(db: Db, kind: 'alarm' | 'site', q: QuotaPush): void {
+  if (!store.getPush(db, q.id))
+    queue(db, kind, { title: 'Thunderhead', body: q.body, url: '/' }, q.at, q.until, { id: q.id });
+}
+
+/** Whether a push can reach a phone now: the VAPID key is set and a signed-in phone subscribed. */
+export const reach = (db: Db, vapidSet: boolean, live: string[]) =>
+  vapidSet && store.liveSubscriptions(db, live, null).length > 0;
+
 /** The mind's nudge under its own id: the same request again is the same answer; a refusal is its code. */
 export function queueNudge(
   db: Db,
@@ -133,6 +145,7 @@ export async function deliver(db: Db, ctx: PushContext, s: Sender, live: string[
   if (!s.vapid) return out;
   for (const r of ctx.reminders ?? []) queueReminder(db, r);
   if (ctx.quota) queueQuota(db, ctx.quota);
+  if (ctx.alarm) queueAlarm(db, 'alarm', ctx.alarm);
   for (const p of store.waiting(db)) {
     if (ctx.now > p.deadline) {
       store.markDropped(db, p.id, ctx.now);
@@ -150,7 +163,7 @@ export async function deliver(db: Db, ctx: PushContext, s: Sender, live: string[
     if (!db.all('UPDATE pushes SET sent_at = ? WHERE id = ? AND sent_at IS NULL RETURNING id', ctx.now, p.id).length)
       continue;
     const ttl =
-      p.kind === 'nudge' || p.kind === 'reminder' || p.kind === 'quota'
+      p.kind === 'nudge' || p.kind === 'reminder' || p.kind === 'quota' || p.kind === 'alarm' || p.kind === 'site'
         ? Math.max(60, Math.round((p.deadline - ctx.now) / 1000))
         : p.kind === 'test'
           ? 600

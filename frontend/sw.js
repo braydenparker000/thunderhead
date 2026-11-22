@@ -3,7 +3,7 @@
 // /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs; a file the release
 // before has with the same hash is copied from its cache, not fetched), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
-// their own service workers), and anything that is not a GET. It also shows Web Push notifications
+// their own service workers), /repair/, and anything that is not a GET. It also shows Web Push notifications
 // and finishes Photos' background uploads, makes Photos' editor cross-origin isolated (`isolate`), and sends the
 // editor's reports (th/report/send.js).
 const BUILD = 0;
@@ -161,6 +161,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   const path = url.pathname;
   if (PORTED.some((p) => path === p.slice(0, -1) || path.startsWith(p))) return;
+  // Repair (repair/repair.js) must work when this worker's cached release does not: never answered here.
+  if (path === '/repair' || path.startsWith('/repair/')) return;
   if (req.mode === 'navigate') { event.respondWith(EDITOR(url) ? isolate(LAB.test(path) ? lab(req, path) : page(req, path), true) : page(req, path)); return; }
   if (req.destination === 'worker' && ENGINE_WORKERS.test(path)) { event.respondWith(isolate(LAB.test(path) ? lab(req, path) : cached(req, path), false)); return; }
   if (FRESH.includes(path)) { event.respondWith(fresh(req, path)); return; }

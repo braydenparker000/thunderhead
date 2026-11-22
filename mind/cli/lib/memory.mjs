@@ -47,6 +47,7 @@ function factResult(data) {
 /** `th search` / `th recall`: federated search over the contract's sources (default: all built ones). */
 export async function recall(argv) {
   const {flags, rest} = parseArgs(argv, {bool: ['outside']});
+  if (flags.each !== undefined) return recallEach(flags);
   const q = rest.join(' ').trim();
   if (!q) throw invalid('usage: th search <query> [--sources messages,facts,…] [--since <date>] [--until <date>] [--thread <id>] [--limit 20] [--outside]');
   if (q.length > 200) throw invalid('the query is over 200 characters');
@@ -60,8 +61,46 @@ export async function recall(argv) {
     thread: typeof flags.thread === 'string' ? flags.thread : undefined, limit: Number(flags.limit) || 20,
     outside: flags.outside ? '1' : undefined,
   }});
-  out({items: (data.items || []).map(({source, ref, at, snippet, score, provenance}) =>
-    ({source, ref, at, snippet, score, ...(provenance ? {provenance} : {})}))});
+  out({items: hits(data)});
+}
+
+const hits = data => (data.items || []).map(({source, ref, at, snippet, score, provenance}) =>
+  ({source, ref, at, snippet, score, ...(provenance ? {provenance} : {})}));
+
+/** How many queries one `th recall --each` takes, and its hits for each unless --limit says. */
+export const EACH_MAX = 50;
+const EACH_LIMIT = 5;
+
+/** `th recall --each - [--kind …] [--limit 5]`: one query a line on stdin (or a project file), each
+ * answered in turn, so the night checks all of step 4's candidates in one plain th call: a shell
+ * loop or a pipe is a command the hooks can't read, which labels the session (ROLES.md night 3). */
+async function recallEach(flags) {
+  const src = flags.each === '-' || flags.each === true ? readFileSync(0, 'utf8') : readFileSync(String(flags.each), 'utf8');
+  const qs = src.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!qs.length) throw invalid('--each: no queries (one a line)');
+  if (qs.length > EACH_MAX) throw invalid(`--each takes at most ${EACH_MAX} queries`);
+  const long = qs.find(q => q.length > 200);
+  if (long) throw invalid(`a query is over 200 characters: ${long.slice(0, 40)}…`);
+  const asked = typeof flags.sources === 'string' ? flags.sources : typeof flags.kind === 'string' && flags.kind !== 'all' ? flags.kind : '';
+  const sources = list(asked);
+  const known = Object.keys(CONTRACT.search_sources);
+  const bad = sources.find(s => !known.includes(s));
+  if (bad) throw invalid(`unknown search source ${bad}; sources: ${known.join(', ')}`);
+  const results = [];
+  for (const q of qs) {
+    const {data} = await request('GET', '/v1/search', {query: {q, sources: sources.length ? sources.join(',') : undefined,
+      limit: Number(flags.limit) || EACH_LIMIT, outside: flags.outside ? '1' : undefined}});
+    results.push({q, items: hits(data)});
+  }
+  out({results});
+}
+
+/** `--first N` / `--last N`: only that many items of each part, from its start or its end. */
+export function bounded(items, flags) {
+  const first = Number(flags.first), last = Number(flags.last);
+  if (Number.isInteger(first) && first > 0) return items.slice(0, first);
+  if (Number.isInteger(last) && last > 0) return items.slice(-last);
+  return items;
 }
 
 export async function remember(argv) {
@@ -162,7 +201,7 @@ export async function day(argv) {
   if (flags.part !== undefined) {
     if (!Object.hasOwn(brief, flags.part)) throw invalid('--part is messages, ledger or notes');
     const p = await page(flags.part, typeof flags.cursor === 'string' ? flags.cursor : undefined);
-    return out({items: (p.items ?? []).map(brief[flags.part]), next: p.next ?? null});
+    return out({items: bounded((p.items ?? []).map(brief[flags.part]), flags), next: p.next ?? null});
   }
   const all = async part => {
     const items = [];
@@ -190,7 +229,7 @@ export async function day(argv) {
   const routines = await request('POST', '/v1/senses/query', {body: {name: 'routines', params: {to: d}}})
     .then(r => r.data?.rows ?? [])
     .catch(() => null);
-  out({stats, messages: messages.items, ledger: ledger.items, session_notes: notes.items,
+  out({stats, messages: bounded(messages.items, flags), ledger: bounded(ledger.items, flags), session_notes: bounded(notes.items, flags),
     next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary, routines});
 }
 

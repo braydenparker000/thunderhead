@@ -204,6 +204,8 @@ export interface BriefingResponse {
   /** From 60% of a Free-plan daily limit: "Today's database use is at 62% of the free plan's daily
    * limit." (from 80% with when backups and uploads run again); otherwise null. */
   quota: string | null;
+  /** One plain line per open condition, under "Not working right" (watch.ts); absent before 2026-11-21. */
+  alarms?: string[];
 }
 
 /** BRIEFING.md §3: the title line by local hour. */

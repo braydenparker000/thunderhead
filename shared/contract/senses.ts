@@ -16,6 +16,9 @@ export const SENSE_LIMITS = {
   hot_days: 90,
   /** Batch records (the dedupe) are kept this long. */
   batch_days: 30,
+  /** Events taken a UTC day (about 4 rows written each; live 8–21 Nov 2026: up to ~1,000 a day, so six times the busiest day seen: a guard against a runaway, not a ration). A
+   * batch past it answers 429 `budget_exhausted` until 00:00 UTC and the phone keeps it till then. */
+  day_events: 6_000,
 } as const;
 
 /** `music.skip`, `home.open.v2`: an app, then one or more parts, optionally a version. */

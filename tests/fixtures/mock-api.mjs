@@ -133,6 +133,7 @@ function chatState(o = {}) {
     /** null, or { after: ms, text, meta? }: the mind answers each owner message. */
     reply: o.reply ?? null,
     failSay: o.failSay ?? 0,
+    spentSay: o.spentSay ?? 0,
     typing: 0,
     /** Per path: answer this many ms late, or with a 503 this many times. */
     slow: {},
@@ -188,6 +189,7 @@ function chatAnswer(c, method, p, url, body) {
     const found = c.messages.find((m) => m.id === id);
     if (found) return [200, found];
     if (c.failSay > 0) { c.failSay--; return [503, { error: { code: 'unavailable', message: 'down', request_id: 't' } }]; }
+    if (c.spentSay > 0) { c.spentSay--; return [429, { error: { code: 'budget_exhausted', message: 'spent', request_id: 't', retry_after: 7200, scope: 'account' } }]; }
     const attachments = (body.attachments ?? []).map((ref) => {
       const { body: _b, sha256: _s, ...a } = c.files[ref.replace(/^file:/, '')];
       return a;
@@ -269,9 +271,9 @@ const INSIGHT = {
 };
 
 /** The mind's usage (GET /v1/mind/usage, Settings › The mind's Today): a synthetic week of counts. */
-const usageDay = (day, watch, owner, chat, night) => ({ day, wakes: { owner, watch, roll: 1, schedule: 0, watchdog: 0 }, minutes: { chat, night, reflex: 0 }, night_min: night, watches: { fired: watch, refused: 0 } });
+const usageDay = (day, watch, owner, chat, night) => ({ day, wakes: { owner, watch, roll: 1, schedule: 0, watchdog: 0 }, minutes: { chat, night, reflex: 0 }, night_min: night, watches: { fired: watch, refused: 0 }, sessions: owner + 1, limits: 0 });
 export const USAGE = {
-  today: { ...usageDay('2026-11-03', 4, 6, 52, 24), watches: { fired: 4, refused: 1 } },
+  today: { ...usageDay('2026-11-03', 4, 6, 52, 24), watches: { fired: 4, refused: 1 }, limits: 1 },
   days: ['02', '01', '31', '30', '29', '28', '27'].map((d, i) => usageDay(i < 2 ? `2026-11-${d}` : `2026-10-${d}`, i % 3, 2 + i, 30, 20)),
   budget: 12,
   live: 3,
@@ -310,6 +312,8 @@ function answer(state, method, url, body) {
   // The phone's reports and error inbox (API.md §11.16): taken as sent; `calls` keeps each body.
   if (k === 'POST /v1/ops/reports') return [201, { id: crypto.randomUUID(), at: Date.now() }];
   if (k === 'POST /v1/ops/errors') return [204, null];
+  // Home asks deep health on opening for the owner's lines (th/briefing/watch.js): a healthy Worker unless a test sets `state.watch`.
+  if (k === 'GET /v1/ops/health/deep') return [200, { ok: true, watch: state.watch ?? { cron: null, roll_at: null, missing: [], mind: { state: 'asleep', since: null, cause: null, until: null, line: null }, push: false, lines: [] } }];
   if (k === 'GET /v1/insight') return [200, state.insight ?? INSIGHT];
   if (k === 'GET /v1/mind/usage') return state.usage === 'fail' ? err(503, 'unavailable') : [200, state.usage ?? USAGE];
   return (

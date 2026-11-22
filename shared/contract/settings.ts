@@ -243,6 +243,9 @@ export const SETTINGS = [
   { key: 'privacy.retention', group: 'privacy', section: 'Conversations', label: 'Keep conversations', kind: 'choice', ...IN_WORKER,
     default: 'forever', options: o('forever:Forever', '1y:1 year', '90d:90 days'),
     detail: 'Older ones are deleted for good, once a day. Ones you filed under a topic are kept; delete those yourself.' },
+  // Backup retention (areas/backups/retention.ts): off until the owner says, since it deletes; never the newest of a part.
+  { key: 'privacy.backups.prune', group: 'privacy', section: 'Backups', label: 'Keep 8 weekly and 12 monthly backups; delete older ones', kind: 'switch', ...IN_WORKER,
+    default: false, detail: 'Off: every weekly backup is kept. The newest backup of each part is never deleted.' },
 ] as const satisfies readonly SettingSpec[];
 
 export type SettingKey = (typeof SETTINGS)[number]['key'];

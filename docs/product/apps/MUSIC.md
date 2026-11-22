@@ -59,10 +59,11 @@ for the owner's yes.
    and song heads stay valid) from the new Worker: the catalog from `GET /v1/music/catalog` (kept
    with its ETag), audio and art by signed links straight from `jarvis-music`, waveforms from
    `GET /v1/music/waveforms/:id` (`frontend/th/music/bridge.js`). It uses the owner's session on
-   this site; until the new Worker can answer (signed out, no catalog imported, no signing key, the
-   bucket refusing a fresh link) it asks the old Worker as before and tries the new one again 5
-   minutes later, so music never stops during the move (SETUP.md N). Nothing else goes to the old
-   Worker: it lacks newer songs, and its 404 made the player skip. A network failure or a slow answer
+   this site. Nothing ever goes to the old Worker (MIGRATION.md §8): until the new Worker can answer
+   (signed out, no catalog imported, no signing key, the bucket refusing a fresh link) the player
+   gets that refusal as it is, and keeps the library it has; any other address on that origin is a
+   404. On the site the player starts only once its worker controls the page, and signed out the
+   page goes to the sign-in door. A network failure or a slow answer
    (a signature, or the first byte of the bucket, the catalog or a waveform, not within 4 s) is tried
    once more with longer waits (a signature 8 s, a first byte 12 s; a link already signed is reused, so
    a signed song starts its bytes with no extra round trip). If that fails too, the player gets a
@@ -969,7 +970,7 @@ request (`stream head wait`). Not found on the page: a path that waits 14 s for 
 service worker's bridge (`frontend/th/music/bridge.js`): it waited up to 4 s for a signature and 4 s for
 the bucket's first byte, and after a timeout sent the request to the old Worker, whose 404 for a song it
 does not have was the one in the log. Fixed (§5 step 5): a timeout is tried again on the new path, then
-answered with a network error within 24 s; the old Worker only answers "not for this site yet".
+answered with a network error within 24 s; the old Worker is never asked (since 2026-11-22, MIGRATION.md §8).
 
 **Stalls and slow starts on 3G** (the fourth report: `stalls: 2, reloads: 1`; a `waiting` 5.31 s into a song,
 `stall` 10 s later; first sounds 765–6,068 ms). Lab: the real page, worker and bridge against a mock Worker

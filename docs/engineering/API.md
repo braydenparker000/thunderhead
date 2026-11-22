@@ -202,7 +202,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 429 | `too_many_scheduled` | 20 scheduled verbs and plans already wait ([§11.11](#scheduled-actions)) | Cancel one or let one run first (`th` exit 10) |
 | 500 | `internal` | A bug | Retry once after 2 s for idempotent requests |
 | 502 | `upstream` | R2, a push service or a fire URL failed | Retry with back-off |
-| 503 | `budget_exhausted` | A daily Free-plan cap was reached; `Retry-After` = seconds to 00:00 UTC | Queue writes; keep reading (`th` exit 10) |
+| 429 | `budget_exhausted` | A daily Free-plan cap was reached (the platform's, or the senses' 6,000 events); `retry_after` and `Retry-After` = seconds to 00:00 UTC | Queue writes; keep reading (`th` exit 10) |
 | 503 | `auth_unavailable` | `Auth` can't be reached | "Sign-in is having trouble" line |
 | 503 | `unavailable` | A DO is overloaded or restarting, or (for a moment during a deploy) still runs the previous release and lacks a method this one calls (`objects/rpc.ts` `fresh`) | Retry after 1 s, 2 s, 4 s (max 3 tries) |
 

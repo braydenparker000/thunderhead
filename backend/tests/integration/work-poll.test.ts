@@ -8,6 +8,7 @@ import type { WorkOrder } from '../../../shared/contract/work.ts';
 import { forgetPolls } from '../../src/areas/work/poll';
 import { uuidv7 } from '../../src/lib/ids';
 import { HOUR, MINUTE } from '../../src/lib/time';
+import { Db } from '../../src/objects/base';
 import type { Core } from '../../src/objects/core';
 import { api, apiJson, core, makeAgent } from '../helpers';
 import { as, CHAT_SESSION, type Principals, principals } from '../memory-helpers';
@@ -38,6 +39,21 @@ const claimInCore = () =>
     }
   });
 
+/** Core's claim, counting its database calls, rows read and the answer's bytes. */
+const claimCost = () =>
+  runInDurableObject(stub(), (o: Core) => {
+    const all = vi.spyOn(Db.prototype, 'all');
+    const run = vi.spyOn(Db.prototype, 'run');
+    const before = o.meter.rowsRead;
+    try {
+      const order = o.workClaim();
+      return { order, calls: all.mock.calls.length + run.mock.calls.length, rows: o.meter.rowsRead - before };
+    } finally {
+      all.mockRestore();
+      run.mockRestore();
+    }
+  });
+
 beforeAll(async () => {
   p = await principals();
   M = await makeAgent(p.D, 'muse');
@@ -57,6 +73,21 @@ describe("Muse's poll", () => {
     // Held: claiming again hands back the same order.
     expect((await claimInCore()).order?.id).toBe(id);
     await api('POST', `/v1/work/orders/${id}/fail`, { token: M, body: { reason: 'Not today.' } });
+  });
+
+  it('a claim with nothing open makes no database call once it found nothing; an order placed is taken', async () => {
+    // The first look reads (the last call noted, none held, none queued); the next ones read nothing.
+    const first = await claimCost();
+    expect(first.order).toBeNull();
+    expect(await claimCost()).toEqual({ order: null, calls: 0, rows: 0 });
+    const id = await place();
+    const taken = await claimCost();
+    expect(taken.order?.id).toBe(id);
+    // Held: still handed back, never answered from the marker.
+    expect((await claimCost()).order?.id).toBe(id);
+    await api('POST', `/v1/work/orders/${id}/fail`, { token: M, body: { reason: 'Not today.' } });
+    expect((await claimCost()).order).toBeNull();
+    expect(await claimCost()).toEqual({ order: null, calls: 0, rows: 0 });
   });
 
   it('every 204 says Retry-After: 300', async () => {

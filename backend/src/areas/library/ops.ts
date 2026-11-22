@@ -190,6 +190,10 @@ export function update(db: Db, j: store.JobRow, u: IngestUpdate, now: number): v
     if (!u.reason) throw new Fail('validation', [{ path: 'reason', issue: 'a plain sentence for the owner' }]);
     store.setState(db, b.id, 'failed', now, { ...facts, reason: u.reason });
     store.updateJob(db, { ...j, state: 'failed', cursor, last_error: 'reported', updated_at: now });
+  } else if (u.state === 'released') {
+    // The run's own failure: the claim ends and the book waits again now, its attempts unchanged.
+    store.updateJob(db, { ...j, state: 'queued', cursor, claimed_by: null, claimed_at: null, updated_at: now });
+    if (b.state === 'extracting') store.setState(db, b.id, 'queued', now);
   } else if (u.state === 'paused') {
     // A reason (OCR missing) is the line the cover shows while it waits; the next state clears it.
     if (u.pdf_pages || u.sha256 || u.reason) store.setState(db, b.id, b.state, now, { ...facts, reason: u.reason });

@@ -2107,6 +2107,14 @@
       "phase": "P5",
       "status": "built",
       "note": "?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page"
+    },
+    "POST /v1/ops/site": {
+      "who": [
+        "I"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{state: down|up}: the live watch says the site is not loading, or is back; one push each way"
     }
   },
   "verbs": {
@@ -4562,6 +4570,10 @@
       429,
       "Twenty scheduled actions already wait; cancel one or let one run first."
     ],
+    "budget_exhausted": [
+      429,
+      "Today's free-plan budget is used up."
+    ],
     "internal": [
       500,
       "Something went wrong on our side."
@@ -4569,10 +4581,6 @@
     "upstream": [
       502,
       "An upstream service failed."
-    ],
-    "budget_exhausted": [
-      503,
-      "Today's free-plan budget is used up."
     ],
     "auth_unavailable": [
       503,
@@ -5153,20 +5161,20 @@
         "weekly": true
       },
       {
-        "step": 5,
-        "name": "health and agreed fixes",
-        "budget_min": 8,
-        "idempotent": "reads, then one branch per agreed loose end",
-        "cursor": false,
-        "phase": "P3"
-      },
-      {
         "step": 12,
         "name": "the report",
         "budget_min": 1,
         "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
         "cursor": false,
         "phase": "P4"
+      },
+      {
+        "step": 5,
+        "name": "health and agreed fixes",
+        "budget_min": 8,
+        "idempotent": "reads, then one branch per agreed loose end",
+        "cursor": false,
+        "phase": "P3"
       },
       {
         "step": 6,
