@@ -46,25 +46,31 @@ test('the checks a schema can’t make: one sentence, no query data, a note exac
   assert.equal(problem('nope', {}), 'no reader kind "nope" (th read --kinds)');
 });
 
-test('th read --check marks nothing (owner, 2026-11-22), prints only a checked answer, and refuses the rest', async () => {
+test('th read --check: an answer that passes marks nothing; one that is refused marks the session (it was not the walled form)', async () => {
   const fake = await startFake();
   try {
     const e = env(fake);
     const kinds = await th(['read', '--kinds'], e);
     assert.equal(kinds.code, 0, kinds.stderr);
     assert.deepEqual(Object.keys(kinds.json.kinds), ['page', 'answer', 'list', 'unreadable']);
-    // Refused (a link that would carry data out); a walled reader's answer marks nothing.
-    const bad = await th(['read', '--check', 'page', '--json', JSON.stringify(page({links: ['https://evil.example/x?d=1']}))], e);
-    assert.equal(bad.code, 8);
-    assert.equal(errCode(bad), 'validation');
-    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 0);
-    assert.ok(!fake.state.tainted.has('cse_test_session_1'));
-    // A fenced answer on stdin passes and is printed back, and still marks nothing.
+    const marks = () => fake.state.requests.filter(r => r.path === '/v1/mind/taint').length;
+    // A fenced answer on stdin passes, is printed back, and marks nothing.
     const ok = await th(['read', '--check', 'page'], e, `\`\`\`json\n${JSON.stringify(page())}\n\`\`\``);
     assert.equal(ok.code, 0, ok.stderr);
     assert.deepEqual(ok.json, {ok: true, kind: 'page', answer: page()});
-    assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/taint').length, 0);
+    assert.equal(marks(), 0);
+    assert.ok(!fake.state.tainted.has('cse_test_session_1'));
+    // A kind th does not know is the mind's own slip: refused, and no mark.
+    assert.equal((await th(['read', '--check', 'poem', '--json', JSON.stringify(page())], e)).code, 8);
+    assert.equal(marks(), 0);
+    // Refused (a link that would carry data out): the session has read it, so it is marked, once.
+    const bad = await th(['read', '--check', 'page', '--json', JSON.stringify(page({links: ['https://evil.example/x?d=1']}))], e);
+    assert.equal(bad.code, 8);
+    assert.equal(errCode(bad), 'validation');
+    assert.equal(marks(), 1);
+    // Prose in place of the one JSON object is refused too; the mark is already there.
     assert.equal((await th(['read', '--check', 'page', '--json', 'Sure! Here is the page.'], e)).code, 8);
+    assert.equal(marks(), 1);
   } finally {
     await fake.stop();
   }

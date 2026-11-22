@@ -22,6 +22,7 @@ import { offRecordOf, refuseHeld } from '../conversation/held';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
+import { carryMark, markToCarry } from './claim-mark';
 import { claimedSession, markOffRecord, sawOffRecord, taintedNow } from './guards';
 import { idleCutoff } from './latency';
 import { nightDayOf, nightDone } from './night';
@@ -41,10 +42,10 @@ export interface Claimed {
 }
 
 /** `th brief --claim` (RUNTIME.md §4.3). 409 already_live when another chat session holds the
- * lease. Messages shown in the briefing count as handed out (mind Finding 4). A taint lasts only
- * for its session (owner, 2026-11-22, MEMORY.md §7): a claim takes over none. The hooks keep a
- * session from speaking as another one (no command names or clears its id, and a tainted session
- * claims no new briefing), and an older session still counts a later sibling's taint (guards.ts). */
+ * lease. Messages shown in the briefing count as handed out (mind Finding 4). A taint ends with
+ * its session (owner, 2026-11-22, MEMORY.md §7): the session the Worker starts afterwards begins
+ * clean, and any other claim takes over a recent one (claim-mark.ts), so no session sheds its mark
+ * by claiming again. An older session still counts a later sibling's taint (guards.ts). */
 export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   const { db, at } = w;
   if (r.role === 'chat') {
@@ -74,6 +75,8 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     wake = { id, reason: 'manual', claim_match: 'manual' };
   }
   const day = currentDay(db, tz, at);
+  // A claim the Worker did not start itself takes over a recent mark (claim-mark.ts).
+  const prior = markToCarry(db, r.role, at, tz, open, wake.claim_match === 'exact');
   store.putSession(db, {
     session_id: r.session_id,
     role: r.role,
@@ -83,6 +86,7 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     sha: r.constitution_sha256,
     day,
   });
+  if (prior) carryMark(db, r.session_id, r.role, day, prior);
   if (r.role === 'chat') {
     store.putLease(db, 'chat', r.session_id, at);
     // Only the newest chat session writes: the older ones end here (they can't take the lease back).

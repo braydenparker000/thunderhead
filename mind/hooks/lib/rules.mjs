@@ -375,6 +375,8 @@ export function decide(input, ctx) {
   // Connectors (owner, 2026-11-22): only the mail agent calls one, and only to read (above); the
   // session itself, of any role, and every other subagent call none.
   if (tool.startsWith('mcp__') && !agent?.connectors) return MAIL_READS.test(connectorParts(tool)?.[1] ?? '') ? MAIL_ONLY : NOT_BUILT;
+  // The connectors' resources by the generic tools: no caller of the mind's reads them.
+  if (/^(List|Read)Mcp(Resource|Resources|ResourceDir)Tool$/.test(tool)) return MAIL_ONLY;
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

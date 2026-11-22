@@ -130,6 +130,17 @@ export const mindRoutes = new Hono<AppEnv>()
     const body = await json(c, briefBody);
     if (ROLE[who.who as keyof typeof ROLE] !== body.role) throw new ApiError('forbidden');
     const out = value(await coreObject(c.env).brief({ ...who, session_id: body.session_id }, body));
+    // How the claim met the wake the Worker fired (exact, loose, manual) and whether it starts
+    // marked: the one place this shows, counts only (claim-mark.ts).
+    if (body.claim)
+      console.log(
+        JSON.stringify({
+          evt: 'mind_claim',
+          role: body.role,
+          match: out.wake?.claim_match ?? null,
+          marked: out.tainted,
+        }),
+      );
     return c.json(out satisfies BriefResponse);
   })
   .post('/mind/status', guard('POST /v1/mind/status'), async (c) => {
