@@ -1,14 +1,15 @@
 // @ts-check
-// Settings › About and diagnostics (MENU-AND-SETTINGS.md §6.8): read-only. The release this phone
-// runs (config.js) and the Worker's version (GET /v1/health); today's rows against the free plan's
-// budget (GET /v1/ops/meter); and the last Frames readout, when the feel lab left one on this phone
-// (localStorage `th.lab.frames`). Nothing here changes anything.
+// Settings › About and diagnostics (MENU-AND-SETTINGS.md §6.8). The release this phone runs (config.js)
+// and the Worker's version (GET /v1/health); today's rows against the free plan's budget (GET
+// /v1/ops/meter); the last Frames readout, when the feel lab left one on this phone (localStorage
+// `th.lab.frames`). Then Copy report (th/report/site.js: numbers and states only, to the clipboard) and
+// Repair (after a sheet that says what it does: /repair/ clears the app's stored code and comes home).
 import { api, configured, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { el } from '/th/ui.js';
 import { CONFIG } from '/config.js';
-import { group } from './components.js';
+import { confirmSheet, group, row } from './components.js';
 import { infoRow } from './catalog.js';
 import { feelRow } from '/ui/feel/row.js'; // the feel report's row (ui/feel/)
 
@@ -46,10 +47,34 @@ export async function page(body) {
   const lab = infoRow('Last Frames readout', readout ?? 'None on this phone. Open home with ?feel, then hold or swipe to record one.');
   lab.id = 'about-frames';
   const line = el('p', { class: 'line', role: 'status' });
+  const report = row({ title: 'Copy report', detail: 'Numbers and states for whoever helps you. None of your words.', icon: 'copy' });
+  report.id = 'about-report';
+  report.dataset.find = 'report';
+  report.addEventListener('click', async () => {
+    line.textContent = 'Making the report…';
+    try {
+      const bytes = await (await import('/th/report/site.js')).copyReport();
+      line.textContent = `Report copied (${Math.ceil(bytes / 1024)} KB).`;
+    } catch {
+      line.textContent = 'Couldn’t copy the report.';
+    }
+  });
+  const repair = row({ title: 'Repair', detail: 'When the app acts broken: fresh code, your data stays.', icon: 'arrow-clockwise' });
+  repair.id = 'about-repair';
+  repair.dataset.find = 'repair';
+  repair.addEventListener('click', async () => {
+    const yes = await confirmSheet({
+      title: 'Repair the app?',
+      body: "Clears this phone’s stored copy of the app’s code and its offline workers (home, Music, Podcasts), then loads it fresh from the network. Sign-in, offline songs, downloads, books, photos and everything of yours stay.",
+      action: 'Repair', keep: 'Cancel', danger: false,
+    });
+    if (yes) location.assign('/repair/');
+  });
   body.append(
-    el('p', { class: 'slead', text: 'What this phone and your Worker are running. Nothing here changes anything.' }),
+    el('p', { class: 'slead', text: 'What this phone and your Worker are running, a report to copy, and Repair.' }),
     group('Versions', [release, worker]),
     group('Diagnostics', [rows, lab, feelRow()]),
+    group('Help', [report, repair]),
     line,
   );
   if (!configured) {

@@ -99,9 +99,26 @@ Confirm: the run is green, and `<site>/release.json` shows the commit.
 
 A rolled-back site build is older than the API, which is fine because `/v1` is additive. If the rollback goes below `min_client`, its writes get `426`. In that case, lower `min_client` through `PATCH /v1/settings` (owner) or roll forward instead.
 
-### 3.3 Emergency: service worker kill switch
+### 3.3 Emergency: a broken cached release
 
-Use this when a broken service worker keeps serving a bad shell and normal updates don't apply.
+**First, on the phone (no commit, no GitHub).** Settings › About › Repair, or, when the app cannot start,
+the boot guard's panel (`frontend/boot-guard.js`: home has not marked itself started within 12 s on screen
+on two starts in a row; it shows "Thunderhead didn’t start." with Repair and Try again, and never reloads by
+itself), or `/repair/` typed in the address bar. `/repair/` (`frontend/repair/`) is a static page with one
+classic script and nothing else of the site, and `sw.js` never answers it. It unregisters the shell's,
+Music's and Podcasts' service workers, deletes only the caches that hold code (`th-<n>`, `th-lab-<n>`,
+`th-vendor`, `claude-player-v<n>`, `jarvis-podcast-shell-v<n>`), keeps everything else (offline songs and
+heads, downloads, covers, art, the catalogue, Astra's and Photos' caches, IndexedDB and localStorage with
+the session), then goes home, which loads from the network; home says what was done ("Repaired: …").
+Confirm: home opens signed in, and Settings › About › Copy report shows the expected `release.build`.
+
+Settings › About › Copy report puts one JSON on the clipboard (`frontend/th/report/site.js`, under 60 KB,
+numbers and states only): release and commit, the Worker's tag and deep health, each service worker's state,
+the caches with their sizes, storage, push, network, look and theme, the last 20 client errors as code and
+file:line, open watchdog trips, the data meter's totals, the mind's state and each app's last sync.
+
+**The kill switch, only when Repair cannot reach the phone** (a broken service worker keeps serving a bad
+shell to a phone nobody can tap through, and normal updates don't apply):
 
 1. Agent: in a branch, copy `frontend/sw-kill.js` over `frontend/sw.js` and commit with the message `kill switch`. Merge to `main`.
 2. The deploy publishes it. On the phone's next navigation, the browser fetches `/sw.js` (no-cache), installs the kill worker, which deletes every `th-*` cache, unregisters itself and reloads open pages once.

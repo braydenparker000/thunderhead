@@ -502,6 +502,30 @@ Rows today (`GET /v1/ops/meter?days=1`: rows read and written since 00:00 UTC wi
 of the free plan's day), and the last Frames readout if the feel lab left one on this phone under
 `th.lab.frames` (the lab does not store it yet; until then the row says how to record one).
 
+Help (2026-11-22), for six months of the phone alone:
+
+- **Copy report** (`th/report/site.js`): one JSON to the clipboard, never sent, under 60 KB, numbers
+  and states only, never the owner's words, titles, names or addresses: release and commit; the Worker's
+  tag and deep health (schema versions, each object's `missing` when the Worker sends it, the day's rows,
+  the backup's age, open errors); each service worker's scope and state and whether one controls the page;
+  every cache with its entries and bytes; storage used, quota and persisted; push permission and whether a
+  subscription exists; the network type; the look and theme; the last 20 client errors as code and
+  file:line; open watchdog trips (name, severity, since, the reflex's outcome); the data meter's totals by
+  part, today and this month; the mind's state and today's wakes; and when Music, Guitar and Podcasts last
+  synced. The line under the group says "Report copied (N KB)." `tests/site-report.test.mjs` plants words
+  in everything it reads.
+- **Repair**, after a sheet that says exactly what it does ("Clears this phone’s stored copy of the app’s
+  code and its offline workers (home, Music, Podcasts), then loads it fresh from the network. Sign-in,
+  offline songs, downloads, books, photos and everything of yours stay."): it opens `/repair/`, which
+  unregisters those three service workers, deletes the caches that hold code only, and goes home; home's
+  toast says "Repaired: N code caches and N workers cleared. Sign-in and your data stayed."
+- **When the app cannot start**: `boot-guard.js`, the first script of `index.html` (classic, under
+  1.5 KB), counts a start that has not called `thStarted()` (home's first paint) within 12 s while on
+  screen; on the second such start in a row it shows a plain panel of its own, "Thunderhead didn’t
+  start.", with Repair (`/repair/`) and Try again (a reload), using none of the app's code or styles. A
+  start that marks itself, however slow, clears the count and the panel. Off screen (a prerender, a locked
+  phone) its clock does not run. It never reloads by itself. Settings' search finds both rows (`finder.js`).
+
 ### 6.9 Files for the workshop (`workshop.js`)
 
 No catalogue keys. The owner sends a file of any kind to the agent that builds Thunderhead with

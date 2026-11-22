@@ -3,7 +3,7 @@
 // "Search everything" (th/convos/search.js) both find here. It holds every catalogue setting
 // (shared/contract/settings.ts), every listed page, the controls outside the catalogue (Theme, Text
 // size, Still background, Check for update, Quiet hours) and the actions people look for (Sign out,
-// New recovery code, Export, Bring data from the old site), each with the other words people use for
+// New recovery code, Export, Copy report, Repair, Bring data from the old site), each with the other words people use for
 // it. A query matches when each of its words starts a word of the entry; the entry's own name first.
 // An entry opens its page with `focus` (settings.js openPage), which brings that row into view and
 // marks it for 2 s.
@@ -48,6 +48,8 @@ const FIXED = [
   { title: 'Sign out', detail: 'This phone, the others, or everywhere.', page: 'devices', focus: 'sign-out', icon: 'devices', words: 'logout log out' },
   { title: 'New recovery code', detail: 'For when you forget your password.', page: 'devices', focus: 'recovery', icon: 'key', words: 'password backup code' },
   { title: 'Export', detail: 'Everything of yours as one file.', page: 'privacy', focus: 'export', icon: 'download-simple', words: 'backup download' },
+  { title: 'Copy report', detail: 'Numbers and states for whoever helps you.', page: 'about', focus: 'report', icon: 'copy', words: 'diagnostics debug support help problem bug' },
+  { title: 'Repair', detail: 'When the app acts broken: fresh code, your data stays.', page: 'about', focus: 'repair', icon: 'arrow-clockwise', words: 'fix broken reset reload stuck cache service worker' },
   { title: 'Bring data from the old site', detail: 'The app data from the old site.', page: 'privacy', focus: 'import', icon: 'download-simple', words: 'import old site migrate' },
 ];
 
