@@ -45,5 +45,5 @@ test('every catalogue setting and every listed page is in the index, on its page
 
 test('Settings lists its pages under six headings, without Agents or Quiet hours', () => {
   assert.deepEqual(SECTIONS.map(([h]) => h), ['Look', 'Home and gestures', 'Apps', 'The mind', 'Account and data', 'About']);
-  assert.deepEqual(PAGES.map(([p]) => p), ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'export', 'deleted', 'workshop', 'about']);
+  assert.deepEqual(PAGES.map(([p]) => p), ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
 });

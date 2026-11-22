@@ -27,6 +27,7 @@ const ALSO = /** @type {Record<string, string>} */ ({
   deleted: 'trash bin restore undelete',
   privacy: 'data senses errors',
   data: 'usage mobile data wifi wi-fi cellular megabytes gigabytes download',
+  phone: 'storage space full clear cache offline downloads memory quota keep',
   appearance: 'look style',
   'appearance.look': 'theme style classic ink lamp',
   'appearance.haptics': 'sound vibration vibrate',

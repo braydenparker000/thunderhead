@@ -81,6 +81,37 @@ These budgets apply to home, the shell and new apps. Ported pages (P1b) are trac
 | Layout shift from font swap | 0 on warm starts (fonts precached); ≤ 0.05 CLS on a cold start | Lab: `layout-shift` entries |
 | Theme flash | none: `ui/theme.js` sets `data-theme` before first paint | Lab: a screenshot at first paint in night mode has no white pixels |
 
+#### Opening on a weak link
+
+`node scripts/open-speed.mjs [--json] [page ...]` opens home, the chat, the Briefing, Settings, Music,
+Podcasts, Guitar, Astra, Study and Photos in the CI Chromium at the A15's size with a 4× CPU slowdown,
+behind a link of 1.5 Mbit/s down and 150 ms latency that revalidates like the static website (ETag,
+`no-cache`, 304), with the mock API (`tests/fixtures/mock-api.mjs`) answering after 300 ms. Each page
+opens cold (a new phone) and warm (opened again with its service workers in place, after one open under
+them). Times are read in the page: first paint, first useful paint (the page's own content on screen),
+interactive (500 ms with no long task after it); with the requests, bytes, 304s, render-blocking files
+and the longest chain of requests each waiting on the one before.
+
+What it assumes: HTTP/1.1 with six connections to the site (the static website has no HTTP/2), so a
+page's files go six at a time, one round trip each; and a service worker that is still awake. On the
+phone a worker Chrome has stopped (after about 30 s idle) adds about a second to the next open, which
+these numbers leave out. The link is local, so its latency is exact and never drops a packet.
+
+Measured 2026-11-22 (agents' 4-core VM; seconds to the useful paint, requests on a warm open):
+
+| Page | Cold | Warm before | Warm after | Warm requests before → after |
+|---|---|---|---|---|
+| Music | 14.6 (2.4 MB: the link's pace) | 4.42 | 1.2–1.5 (three runs) | 151 → 6 (Music's release cache, MUSIC.md) |
+| Chat | 5.7 | 0.55 | 0.6 | 0 (shell precache) |
+| Astra | 5.4 | 0.96 | 0.96 | 11 (its own saved release) |
+| Briefing, Settings | 4.2–4.4 | 0.6, 1.0 | 0.6, 1.2 | 0 |
+| Home | 2.7 | 0.5 | 0.5 | 0 |
+| Guitar | 2.5 | 1.11 | 1.11 | 23 (no worker of its own: each file asks) |
+| Study, Photos | 2.6 | 0.2–0.3 | 0.2–0.3 | 0 |
+| Podcasts | 1.1 | 0.28 | 0.28 | 19 |
+
+`tests/music-open-browser.test.mjs` holds Music to cold ≤ 19 s, warm ≤ 2.5 s and ≤ 10 requests.
+
 ### 3.2 Interaction
 
 | Metric | Budget | Measured by |

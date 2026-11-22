@@ -18,6 +18,7 @@ export const SKILLS = [
   'muse',
   'night',
   'code',
+  'issues',
 ] as const;
 export type SkillName = (typeof SKILLS)[number];
 

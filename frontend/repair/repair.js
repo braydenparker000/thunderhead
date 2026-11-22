@@ -2,12 +2,12 @@
 // (boot-guard.js) when the app cannot start. A classic script with no imports, so it runs whatever state the
 // rest of the site is in. It unregisters this site's three service workers (the shell's at /, Music's,
 // Podcasts'), deletes the caches that hold code (the shell's releases th-<n>, the editor's th-lab-<n>,
-// th-vendor, Music's claude-player-v<n>, Podcasts' jarvis-podcast-shell-v<n>) and nothing else: offline
+// th-vendor, Music's claude-player-v<n> and claude-player-release, Podcasts' jarvis-podcast-shell-v<n>) and nothing else: offline
 // songs and their heads, downloads, covers, art, the catalogue, Astra's and Photos' caches, IndexedDB and
 // localStorage (sign-in among them) all stay. Then it leaves a line for home (boot-guard.js `thStarted`
 // hands it to home's toast) and goes home, which now loads from the network. sw.js never answers /repair/.
 (function (g) {
-  var CODE = /^(th-\d+|th-lab-\d+|th-vendor|claude-player-v\d+|jarvis-podcast-shell-v\d+)$/;
+  var CODE = /^(th-\d+|th-lab-\d+|th-vendor|claude-player-v\d+|claude-player-release|jarvis-podcast-shell-v\d+)$/;
   var SCOPES = ['/', '/music/', '/podcasts/'];
 
   /** What was cleared. @param {{ serviceWorker?: ServiceWorkerContainer }} nav @param {CacheStorage | undefined} store */

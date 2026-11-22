@@ -35,6 +35,19 @@ export function upsertError(db: Db, fingerprint: string, e: StoredError, at: num
   );
 }
 
+/** The newest error since `since` whose route contains `place` (any case): the list for the builder's
+ * "what the site knew then" (areas/issues). */
+export function newestErrorOn(db: Db, place: string, since: number): string | null {
+  const like = `%${place.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+  return (
+    db.one<{ fingerprint: string }>(
+      "SELECT fingerprint FROM errors WHERE last_at >= ? AND lower(route) LIKE ? ESCAPE '\\' ORDER BY last_at DESC LIMIT 1",
+      since,
+      like,
+    )?.fingerprint ?? null
+  );
+}
+
 export function countOpenErrors(db: Db): number {
   return db.one<{ n: number }>('SELECT count(*) AS n FROM errors WHERE resolved_at IS NULL')?.n ?? 0;
 }

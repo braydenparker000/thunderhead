@@ -1011,6 +1011,21 @@ own two weeks).
 - Rows (measured, [TESTING.md §6](TESTING.md#6-cost-tests)): a new rating 0 read and 3 written (the row, its `synced_at` entry, the rated-1 partial index for a 1), a newer one 2, a stale one 0; a play 2 (the row and its `synced_at` entry); a first sync of 200 rated and played songs 800 written; a read 6 rows when nothing changed, 23 for 3 new songs (both tables' `synced_at` indexes, then each song by key in both); a playlist made or renamed 3 read (the prune's look at the deleted ones) and 2 written, deleted 3; a read of 1 changed playlist 1. A `music.rate` sense now writes the `synced_at` entry too (100 ratings of 1: 300 written). The catalog's revalidation afterwards is still a 304 of 1 row.
 - Ids, numbers and the owner's playlist names travel only in JSON bodies, never a path, a query or a log line.
 
+### 11.30 The list for the builder (P9, 2026-11-22)
+
+What annoyed the owner or broke, kept for the next building session (types and `ISSUE_LIMITS` in `shared/contract/issues.ts`; Core step 55, `areas/issues/`). The owner says so in the chat and the chat mind files it with `th issue add`, citing that message; the owner adds, edits, marks done and reopens items in Settings › For the builder. Nothing is ever deleted; notes are only added. How a building session reads it: [OPERATIONS.md §8.6](OPERATIONS.md).
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `GET /v1/issues?state=open\|done\|all` | D C N R I | `state` default `open` | `200 { items: Issue[], more }`: newest first, at most 200, each with its notes | 422 another `state` |
+| `GET /v1/issues/:id` | D C N R I | — | `200 { issue }` | 404 |
+| `PUT /v1/issues/:id` | D C | `{ title /* 1–120, one line */, what /* 1–1,000, newlines kept */, where? /* ≤ 60, one line */, kind?: annoying\|broken\|idea /* default annoying */, from_message_id? }`; `from_message_id` is the chat mind's and required from it, never the phone's | `201 { issue }`; the same id and body again `200` with the stored item. The Worker adds `release` (its 12-character commit) and `seen`: the newest error of the last 7 days whose route names `where` (`error:<fingerprint>`), else for Music the newest playback report of the last day (`report:<id>`), else null | 409 another body under this id; 422 words empty, too long or with a control character; from the phone, a `from_message_id`; from the chat mind, none, or one that is not an owner-device message of the last 48 hours. 403 `session_required` for a chat mind without its claimed session; `session_tainted` for one that read outside text (a building session reads this list) |
+| `PATCH /v1/issues/:id` | D | `{ title?, what?, where? /* null clears */, kind?, state?: open\|done }` | `200 { issue }`; done sets `done_at`, reopening clears it | 404; 422 as on `PUT` |
+| `POST /v1/issues/:id/notes` | D C | `{ text /* 1–1,000 */ }` | `200 { issue }` with the note added (`by`: owner or mind), oldest first | 404; 422 empty, too long, or a 51st note; 403 for a chat mind as on `PUT` |
+
+- `Issue` is `{ id, at, title, what, where, kind, origin: owner_device|mind, from_message_id, release, seen, state: open|done, done_at, updated_at, notes: { id, at, by, text }[] }`.
+- Nothing here writes the change feed or the ledger: Settings reads the list when the page opens.
+
 ## 12. WebSocket protocol (`/v1/live`)
 
 | Direction | Frame | Meaning |
@@ -1068,6 +1083,9 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/mind/voice`, `GET /v1/mind/voice/:id` | D C N R | P9 |
 | `PUT /v1/mind/voice` | D C | P9 |
 | `POST /v1/mind/voice/restore` | D | P9 |
+| `GET /v1/issues`, `GET /v1/issues/:id` | D C N R I | P9 |
+| `PUT /v1/issues/:id`, `POST /v1/issues/:id/notes` | D C | P9 |
+| `PATCH /v1/issues/:id` | D | P9 |
 | `GET /v1/ledger` | D C N R | P2 |
 | `PUT /v1/ledger/:id` | C N R | P2 |
 | `POST /v1/ledger/:id/undo` | D C | P2 |

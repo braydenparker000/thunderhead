@@ -7,6 +7,7 @@ import { extname, join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { fileHash } from './astra/files.mjs';
 import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labBuildJs, labJson, lookTag, precacheJson, precached, swJs, TAGGED, themeJs, withApi } from './site-config.mjs';
 
 const ROOT = fileURLToPath(new URL('../frontend/', import.meta.url));
@@ -54,19 +55,37 @@ async function labList(api, build) {
   return labJson(build, list);
 }
 
+/** Astra's release as stage.mjs names it (scripts/astra/files.mjs), from the files as served: its name and list. */
+const astraLists = new Map();
+function astraList(api, build) {
+  const key = `${api} ${build}`;
+  if (!astraLists.has(key)) astraLists.set(key, (async () => {
+    const dir = join(ROOT, 'astra'), files = {};
+    const paths = (await readdir(dir, { recursive: true, withFileTypes: true })).filter((e) => e.isFile()).map((e) => relative(dir, join(e.parentPath, e.name)).replaceAll('\\', '/'));
+    for (const p of paths.filter((x) => x !== 'sw.js' && x !== 'files.json').sort()) files[p] = fileHash(await staged(`astra/${p}`, api, build));
+    const tree = createHash('sha256').update(Object.entries(files).map(([p, h]) => `${h} ${p}\n`).join('')).digest('hex').slice(0, 40);
+    return { tree, files };
+  })());
+  return astraLists.get(key);
+}
+
 /** `api`: serve the site as staged for that API address (config.js and CSP); `build`: the release
  * number in sw.js, precache.json and config.js (a test serves build A, then B); `look`: the look the
  * phone has chosen (`chosen` above), '' for none. */
 export function serve(port = 0, { api = '', build = 1, look = 'classic' } = {}) {
-  const opts = { api, build, look, up: true }, asked = /** @type {string[]} */ ([]), files = /** @type {Map<string, Buffer>} */ (new Map());
+  const opts = { api, build, look, up: true, hang: /** @type {Set<string>} */ (new Set()) }, asked = /** @type {string[]} */ ([]), files = /** @type {Map<string, Buffer>} */ (new Map());
   const server = createServer(async (req, res) => {
     if (!opts.up) { req.socket.destroy(); return; }   // no signal: the connection just drops
     let path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^[/\\]+/, '');
     if (path.startsWith('..')) { res.writeHead(400).end(); return; }
     if (path === '' || path.endsWith('/')) path += 'index.html';
     asked.push(path);
+    if (opts.hang.has(path)) return;   // a request that is never answered (a test's weak signal)
     try {
       if (path === 'precache.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await precacheList(opts.api, opts.build, opts.look)); return; }
+      // as deploy.sh uploads it last: which release is live (music/sw.js asks it at each open, th/music/release.js)
+      if (path === 'release.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(JSON.stringify({ commit: `dev-${opts.build}`, staged_at: '2026-11-22T00:00:00.000Z', components: { astra: { tree: (await astraList(opts.api, opts.build)).tree } } })); return; }
+      if (path === 'astra/files.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(JSON.stringify(await astraList(opts.api, opts.build))); return; }
       if (path === 'lab/offline.json') { res.writeHead(200, { 'content-type': TYPES['.json'] }).end(await labList(opts.api, opts.build)); return; }
       // like stage.mjs: an app route without its own page gets the shell
       if (!existsSync(join(ROOT, path)) && APP_ROUTES.some(r => path === `${r}/index.html`)) path = 'index.html';
@@ -83,6 +102,8 @@ export function serve(port = 0, { api = '', build = 1, look = 'classic' } = {}) 
   /** With `false` every request fails as it does with no signal, for pages and the service worker alike (a browser's
    * own offline switch does not always reach the worker); `true` brings it back. */
   server.signal = (up) => { opts.up = up; };
+  /** Paths (as `asked` lists them) that get no answer at all until removed: a link that has gone quiet. */
+  server.hang = opts.hang;
   /** Files served as if they were in frontend/ (path → bytes; the look's by their source path, look/…): a
    * test's own daily pictures and their list, which the repository does not hold yet. */
   server.files = files;

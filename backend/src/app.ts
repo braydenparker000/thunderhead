@@ -23,6 +23,7 @@ import { filesRoutes } from './areas/files/routes';
 import { guitarRoutes } from './areas/guitar/routes';
 import { importRoutes } from './areas/import/routes';
 import { insightRoutes } from './areas/insight/routes';
+import { issuesRoutes } from './areas/issues/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { ingestRoutes } from './areas/library/ingest';
 import { libraryRoutes } from './areas/library/routes';
@@ -199,5 +200,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', looksRoutes)
   .route('/v1', photosRoutes)
   .route('/v1', workshopRoutes)
+  .route('/v1', issuesRoutes)
   .notFound(notFound)
   .onError(onError);

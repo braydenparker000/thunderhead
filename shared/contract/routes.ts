@@ -3,6 +3,7 @@
 // and the generated appendix docs/engineering/CONTRACT.md. A route is added here first; the
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
+import { ISSUE_ROUTES } from './routes-issues.ts';
 import { PHOTO_ROUTES } from './routes-photos.ts';
 import { PODCAST_SYNC_ROUTES } from './routes-podcasts.ts';
 import { ROUTINE_ROUTES } from './routes-routines.ts';
@@ -31,8 +32,7 @@ export interface RouteSpec {
 const D: Who[] = ['D'];
 /** The one key that may write the import (SETUP.md L2): a Mind · chat key with this name. */
 export const IMPORT_KEY = 'import-once';
-/** The listening pass's own CI key (SETUP.md N6), confined: it may call only the routes naming it. */
-// The cut listening pass's CI key (2026-11-04) stays confined: a key minted with this name reaches no route.
+/** The listening pass's own CI key (SETUP.md N6), cut 2026-11-04 and still confined: a key with this name reaches no route. */
 export const JOBS_KEY = 'jobs-audio';
 export const CONFINED_KEYS: readonly string[] = [JOBS_KEY];
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
@@ -288,11 +288,11 @@ export const ROUTES = {
   ...PHOTO_ROUTES,
   ...WATCH_ROUTES,
   ...VOICE_ROUTES,
+  ...ISSUE_ROUTES,
 } as const satisfies Record<string, RouteSpec>;
 export type RouteKey = keyof typeof ROUTES;
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
 export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
-
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {
   return (Object.entries(ROUTES) as [RouteKey, RouteSpec][]).filter(([, r]) => BUILT_PHASES.includes(r.phase) && !r.deferred);

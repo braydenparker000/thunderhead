@@ -254,7 +254,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 
 | Command | Args | Out | Roles | Notes |
 |---|---|---|---|---|
-| `th brief` | `[--claim] [--full] [--section <n>] [--json]` | Core text (with `--claim`, also writes `$TMPDIR/th/brief.md`) | C N R | `--claim` binds the wake (§4.3). Exit 11 `already_live`. |
+| `th brief` | `[--claim] [--full] [--start] [--section <n>] [--json]` | Core text (with `--claim`, also writes `$TMPDIR/th/brief.md`); `--start`: the laws, the role's section of ROLES.md and the whole briefing (voice page inside) in one text | C N R | `--claim` binds the wake (§4.3). Exit 11 `already_live`. `--start` is the SessionStart hook's pieces for an agent with no hooks (§15). |
 | `th reply` | `[--to <message id>] [--minutes 9] [th say's options] <<'EOF' … EOF` | `{"id"}` of the answer, then what `th listen` prints | C | The answer on stdin, sent as `th say today --reply-to <id> -` (`--to`, else the newest owner message handed to this session and not yet answered), then `th listen` in the same call (§4.5). A failed send exits with its own code and does not listen. |
 | `th listen` | `[--minutes 9]` | as `th wait`, or `{"quiet":{"idle_min","closes_in_min"}}` (exit 3), or `{"closed":{"idle_min"}}` (exit 12) | C | Foreground listening (Bash timeout 600000). Exit 0 / 3 / 4 / 5 / 12. |
 | `th wait` | `[--minutes N] [--after <seq>]` (no `--minutes`: to the idle cut-off) | `{"messages":[…],"events":[…]}` (with `"off_record":{"threads":[…],"note":"…"}` when any message is off the record) or `{"stop":{…}}` or `{"day_closed":{…}}` or `{"timeout":{"idle_min":n}}` or `{"closed":{"idle_min":n}}` | C | Background listening (run_in_background, timeout 7200000). Exit 0 / 3 / 4 / 5 / 12. Each owner message may carry `recall` (API.md §11.5). Events include `proposal.decided`, `work.done`, `verb.result`, `deploy.result`, `watch.fired` (a watch met while this session is live, with its kind, why and note, §3). A message off the record is answered with `th say today --reply-to <id>` (the Worker puts the answer in its conversation) and nothing from it is remembered: the Worker refuses every memory write citing it ([MEMORY.md §6.1](MEMORY.md)). |
@@ -267,7 +267,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th search` (or `th recall`) | `<query> [--sources messages,facts,day_notes,library] [--since <date>] [--until <date>] [--thread <id>] [--limit 20] [--outside]` (`--kind` is kept as an alias) | `{"items":[{source,ref,at,snippet,score,provenance}]}` | C N R | Federated over the built sources, fused by rank ([MEMORY.md §10](MEMORY.md#10-search)). Each memory hit carries its `provenance` (a fact's or a day note's label; a message is `owner` for the owner's words, `outside` for anyone else's). A fact or day note labelled `outside` comes kept back, its snippet `(outside, kept back)`; `--outside` shows it and labels this session's later writes `outside` (MEMORY.md §6 M11f; `th get … outside=1` does the same for the memory reads). |
 | `th get` | `<path> [key=value …]` | the route's JSON | C N R | Any built GET route the role may call (listed by `th help all`). |
 | `th help` | `[command\|all]` | text | C N R | No command: an index, each command with one line (under 2,500 characters, since it stays in context). A command: its usage. `all`: the commands, then the routes, verbs and surface kinds of this build, from the contract (about 50,000 characters). |
-| `th skill` | `[<name>]` | text: the skill file, or the list without a name | C N R | Built 2026-11-03 (`mind/cli/lib/skill.mjs`, plan step A3). Role knowledge on demand: prints `mind/skills/<name>.md` from the checkout, nothing fetched. Thirteen, named in the contract (`shared/contract/skills.ts`) and in the briefing's section 8: music, podcasts, guitar, study, astra, media, briefing, calendar, memory, verbs, muse, night, code. Each is at most 2,500 characters under four headings: what it is, what you can read, what you can do, what you must not do (the owner's rules for it among them). A name the contract doesn't have exits 8. `mind/tests/skills.test.mjs` holds each file to its size and headings and to commands and routes that exist. |
+| `th skill` | `[<name>]` | text: the skill file, or the list without a name | C N R | Built 2026-11-03 (`mind/cli/lib/skill.mjs`, plan step A3). Role knowledge on demand: prints `mind/skills/<name>.md` from the checkout, nothing fetched. Fourteen, named in the contract (`shared/contract/skills.ts`) and in the briefing's section 8: music, podcasts, guitar, study, astra, media, briefing, calendar, memory, verbs, muse, night, code, issues. Each is at most 2,500 characters under four headings: what it is, what you can read, what you can do, what you must not do (the owner's rules for it among them). A name the contract doesn't have exits 8. `mind/tests/skills.test.mjs` holds each file to its size and headings and to commands and routes that exist. |
 | `th remember` | `--kind <k> --text <t> --evidence <ids> [--subject <s>] [--sensitivity 0\|1] [--valid-from <date>] [--source user\|observed\|inferred]` | `{"fact_id","ledger_id","provenance"}`, plus `"hint"` on a newly kept inferred fact and `"repaired"` | C N | Worker enforces provenance (MEMORY.md §6): in a clean session a `user` fact is `owner` and an observed or inferred one is `observed` at once (its `hint`: mention it once in chat), a sensitive guess `outside` (M14); in a marked session a `user` fact in the owner's own words from the message it cites is `owner`, every other write `outside`. A rule only in the owner's own words from the message it cites, in every session (`rule_not_owner_words`). Text 1 to 280 characters, never cut; slips come back fixed in `repaired`; every fault in one exit 8. |
 | `th confirm` | `<fact id> --evidence <ids>` | `{"ok":true,"provenance"}` | C N | Sets `last_confirmed`; the fact keeps its label (only the owner's Keep makes an outside fact theirs). |
 | `th supersede` | `<fact id> --text <t> --evidence <ids> [--reason <r>]` | `{"fact_id","ledger_id","provenance"}` | C N | Closes the old fact, inserts the new one. A non-user source superseding a `user` fact becomes a proposal; an `outside` write can't replace an `owner` or `observed` fact (`outside_supersede`) or a rule. |
@@ -280,6 +280,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th surface` | `<app> <slot> --kind <k> --payload <json\|-> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>]` · `ls` · `rm <app> <slot>` · `topics` · `said <topic>` · `reopen <topic> --by-message <id>` | `{"ledger_id"}` · `{"items","seq"}` · `{"ok":true}` | C N | Kind, slot and payload are checked against the contract first; spaces around `--kind`, `--why`, `--topic` are trimmed and listed in `repaired`; every fault, payload fields too, in one exit 8. Home lines use app `home`, slot `line.<1-4>`. Exit 7 `nudge_repeat` if the owner dismissed the topic in the last 14 days; a topic passed over twice in a row rests 30 days, silently (exit 8 `topic_quiet`). |
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>] [--asked-by <message id>]` | `{"queued_until"}` | C | Held to `mind.pushes`, which is `never` by default (owner, 2026-11-22): the mind's words wait in the chat and on home, and the mind spends no work on a push. Under `urgent` or `normal` the Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |
 | `th remind` | `<when> <text\|-> --from <owner message id>` · `list` · `cancel <id> [--from <owner message id>]` | `{"id","fire_at","shifted"}` · `{"items"}` · `{"id","state"}` | C (N: `list`) | A reminder the owner asked for in words ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push) "Owner-set reminders", [API.md §11.24](../engineering/API.md)). `<when>` is an ISO 8601 time with its offset (`2026-10-31T19:00:00+02:00`) or `+90m`, `+2h`, `+1d`; the id is a new UUIDv7. `--from` is the owner's message that asked: an owner-device message of the last 48 hours, at most 3 reminders from one and 5 from the mind in any 24 hours (exit 8 otherwise, the reason in the error's `details`); a marked session is refused (exit 6) unless the reminder's words are the owner's own from that message. The Worker delivers it once at its time, a line and a push outside the push budget; `shifted: true` means the time fell in quiet hours and moved to `fire_at`, their end, which the reply says ("Set for 06:30, the earliest I'll ring."). `cancel` takes back one not yet delivered (exit 7 once it was); one the owner set on the phone needs `--from` naming the owner's message that asked to take it back (exit 8 without it). |
+| `th issue` | `add --title <≤ 120> --what <≤ 1,000> [--where <app or page>] [--kind annoying\|broken\|idea] --from <owner message id>` · `note <id> "<text>"\|-` · `ls [--state open\|done\|all]` | `{"id","state","seen"}` · `{"id","notes"}` · `{"items","more"}` | C (`ls`: C N R) | Built 2026-11-22 (`mind/cli/lib/issue.mjs`). The list for the builder ([API.md §11.30](../engineering/API.md)): the owner's complaint in their words, naming the owner-device message of the last 48 hours it came from, from a clean claimed chat session; a note is only added. Forgiving (`lib/forgive.mjs`): spaces trimmed, a kind in any case or a near word (bug → broken), a `msg:` id, each said in `repaired`; every fault in one refusal before the network |
 | `th watch` | `set at <when> \| set event <type> [--ref <ref>] \| set change <kind> [--ref <ref>]` `--why <8–200> [--note <≤140>]` · `cancel <id>` · `list` | `{"id","state","until","ledger_id"}` · `{"id","state","ledger_id"}` · `GET /v1/mind/watches` | C N | Built 2026-11-03 (`mind/cli/lib/watch.mjs`; §3 "Watches"). `<when>` as `th remind`, at most 7 days ahead; the type and kind are checked against the contract first (exit 8). The verbs `watch.set` and `watch.cancel`; `th undo <ledger_id>` takes either back. |
 | `th propose` | `--class delete\|money\|access\|reach_people\|memory_big --question <q> --why <t> --spec <json> --if-ignored <t> [--odds <0-1>] [--options "<action>\|<safe>"] [--safe reject\|snooze]` (default "Do it\|Not now", each ≤ 20 characters; `--safe snooze` makes the second button "Not yet") | `{"proposal_id","spec_hash","target"}` (`target`: the Worker's line naming what a Yes changes, shown on the card) | C N R | Shows a decision card. The spec's op, class, role and args are checked against the contract's proposal ops first (exit 8); `th help all` lists the ops. |
 | `th decide` | `<proposal id> --by-message <message id> [--spec-hash <hash>] [--reject]` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message in the open day's thread, sent after the card, the owner's latest message there and not the answer to another card (built: `backend/src/areas/proposals/decide.ts`; [BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)); the laws card takes a tap only. Only the session that holds the chat lease records words (exit 6, `session_required`), and a tainted one records no approval (exit 6, `session_tainted`). Rejections are recorded the same way. |
@@ -685,82 +686,89 @@ Rules:
 
 ---
 
-## 15. If the routines stop: Muse in the mind's place (a recipe, nothing built, 2026-11-22)
+## 15. If the routines stop: Muse in the mind's place (proved locally 2026-11-22)
 
-The owner asked for a written recipe: on a day the claude.ai routines stop working (the plan lapsed,
-the routines turned off, an outage that lasts), Muse, the outside assistant that uploads music, can
-answer in the chat with the same `th` and the same Worker gates. Nothing in the repository changes
-for it. Steps marked **[untried]** have not been run against the real Worker; the rest were
-dry-run against the fake Worker in `mind/tests` (below).
+On a day the claude.ai routines stop working (the plan lapsed, the routines turned off, an outage
+that lasts), Muse, the outside assistant that uploads music, can answer in the chat with the same
+`th` and the same Worker gates. Muse is not a Claude Code session: no hooks, no task notifications,
+no `$CLAUDE_ENV_FILE`. Everything below marked **proved locally** was run by
+`mind/tests/muse-standin.test.mjs` against the real Worker under `wrangler dev --local` (a fresh
+owner, synthetic secrets), with `th` called by name from `PATH` by a plain process whose only
+variables are the ones in step 2. Run it again with `node --test mind/tests/muse-standin.test.mjs`
+(about 20 s; `MUSE_DRILL_IDLE=1` adds the idle cut-off in real time, about 16 minutes more).
+What it cannot prove is the owner's part: the real key, the live host, the phone.
 
-**What Muse is given.**
-- *A key of role Mind · chat*, made by the owner for this: Settings › Agents → **New agent key**,
-  role **Mind · chat**, name `muse-standin`. Not Muse's own `muse` key: that one has none of the
-  mind's routes (§7.1), and giving it those scopes would mix upload and conversation rights in one key.
-- *A checkout of this repository* (it is public) and Node 24: `th` is `mind/cli/th.mjs`, with no
-  dependencies, and it sends the laws' hash from `mind/CONSTITUTION.md` with the claim.
-- *The pages, in its own instructions* (it has no SessionStart hook): `mind/CONSTITUTION.md`
-  whole, the `## chat` section of `mind/ROLES.md`, and the voice page (`th voice` prints it).
+**What Muse is given.** A key of role **Mind · chat** (step 1; not Muse's own `muse` key, which has
+none of the mind's routes, §7.1), a checkout of this public repository and Node 24 (`th` has no
+dependencies). The laws, its role and the voice page come from step 3; nothing has to be pasted
+into Muse's own instructions beyond this section.
 
 **The recipe.**
-1. **Key.** The owner makes the key above (shown once) and hands it to Muse through Muse's own
-   secret store, never a chat line. **[untried]**
-2. **Environment.** In Muse's shell: `TH_API=https://<API host>`, `TH_ROLE=chat`,
-   `TH_TOKEN=<the key>` (th sends it as the bearer only when it is set; in a cloud session the
-   network secret does that instead), `CLAUDE_CODE_REMOTE_SESSION_ID=muse_<YYYYMMDD>_<n>` (a made-up
-   id, letters, digits and `_.:-`, at most 120; a new one for each start), and
-   `NODE_USE_ENV_PROXY=1` only behind a proxy. Put `mind/bin` on `PATH` so `th` runs as a command.
-   Dry-run: done.
-3. **Start.** `th brief --claim` (no wake is open, so the Worker records a `manual` claim and logs
-   it; exit 11 `already_live` means a chat session still holds the lease: wait 90 s and claim
-   again). Then `th brief --full` for the whole briefing and `th voice` for the voice page, and read
-   them with the laws and the `## chat` section. Dry-run: done (the real Worker's parts,
-   `role_section` and `voice` come only in the hooks' answer; `--full` carries the same sections).
-4. **The loop, as ROLES.md `## chat` says, with no Stop hook to hold it:** a message waiting →
-   `th reply --to <id>` with the answer on stdin; none → `th listen`. Exit 0: answer what came with
-   `th reply`. Exit 3 (quiet): run `th listen` again (Muse has no background task that wakes it; a
-   loop in its own process is the same thing). Exit 12 (closed at the cut-off): stop until the next
-   start. Exit 4: stop the work, reply what was done. Exit 5: end; start again for the new day.
-   Exit 2, 6, 9, 10: stop and tell the owner through Muse's own channel. While Muse holds the lease
-   the Worker fires no routine (§3: no live chat lease). Dry-run: `th listen` exit 0 with the
-   message, `th reply` exit 3 quiet. The first real round trip **[untried]**.
-5. **Say who is answering.** The first reply of each start begins "Muse is answering while the
-   mind is away." (the switch and line in Settings that §15 once proposed are not built). **[untried]**
-6. **What works unchanged:** every `th` command the chat key may call; the Worker's gates whoever
-   calls (the lease, provenance and the mark, the permits and the four floors' cards, quiet hours,
-   `rule_not_owner_words`, the ledger and Undo, the constitution pin). Memory, cards and verbs go
-   through the same routes as the mind's.
-7. **What does not exist without the hooks, and what to do instead:**
-   - *SessionStart* (the laws, the role, the parts): step 3 by hand.
-   - *Stop* ("answer before ending"): Muse's loop in step 4 must not end while `th pending` lists
-     an unanswered message.
-   - *PostToolUse, the mark:* nothing marks the session when Muse reads a web page, a mail or a
-     file itself. Muse runs `th taint --source <tool> --ref <url or id>` before it works from any
-     such text, so what it writes after is labelled `outside`. **[untried]**
-   - *PreToolUse* (no deploy, no secrets, no push to `main`, no connector): Muse holds itself to
-     the laws; the network and its own permissions are the real control. It never deploys or
-     pushes code.
-   - *StopFailure:* on a usage or API error of its own, `th status limited --error <code>`.
-   - *The walled readers* (`reader`, `researcher`, `mail`) do not exist: any outside read is a raw
-     read, so step 7's `th taint` comes first.
-8. **No night shift, no reflex, no check-ins.** They fire claude.ai routines too. The Briefing says
-   "The night shift hasn't run yet." (F14); memory, the day note and arranging wait. A night run by
-   Muse with a Mind · night key (`TH_ROLE=night`, `th night start`, then its `todo`) is possible on
-   paper. **[untried]**
-9. **How to tell from the site that it works.** Home shows the mind working, then listening, after
-   a message; the reply arrives in the chat beginning with step 5's line; Settings › Agents shows
-   `muse-standin` last used just now; `th get /v1/mind/wakes` (or the meter in Settings › The mind)
-   shows a `manual` claim and no new fires while Muse listens. **[untried]**
+1. **Key.** *Needs the owner's key.* The owner: Settings › Agents → **New agent key**, role
+   **Mind · chat**, name `muse-standin`; copy the key (shown once) into Muse's own secret store,
+   never a chat line. (Locally: the same call made with the test owner's device, proved locally.)
+2. **Environment, for each start.** In Muse's shell:
+   `export TH_API=https://<API host> TH_ROLE=chat TH_TOKEN=<the key>`,
+   `export CLAUDE_CODE_REMOTE_SESSION_ID=muse_<YYYYMMDD>_<n>` (made up: letters, digits and `_.:-`,
+   at most 120, a new one each start), `export TMPDIR=$(mktemp -d)` (th keeps the session's small
+   state in `$TMPDIR/th`; a fresh one per start, so nothing from the last start is answered twice),
+   `export PATH="$PWD/mind/bin:$PATH"` from the checkout's root, and `NODE_USE_ENV_PROXY=1` only
+   behind a proxy. Nothing else is needed. Proved locally (the live host and key: needs the owner's key).
+3. **Start.** `th brief --claim --start`: claims (no wake is open, so the Worker records a `manual`
+   claim) and prints, under their own headings, the laws (`mind/CONSTITUTION.md`), Muse's role
+   (the `## chat` section of `mind/ROLES.md`) and the whole briefing, the voice page inside it
+   under `## How you talk`. Read all of it before anything else. Exit 11 `already_live`: a chat
+   session still holds the lease; wait 90 s and run it again. Proved locally (and that a second
+   start meanwhile gets 11).
+4. **The loop (ROLES.md `## chat`), held by Muse itself.** Run `th listen`. Exit 0: the owner's
+   message is in the output; answer it with `th reply --to <id>` and the answer on stdin, which
+   sends it and listens again in the same call. Exit 3 (quiet): run `th listen` again. Exit 12
+   (closed at the idle cut-off, the owner's `mind.idle` after their last message): th has already
+   said `stopping`; stop until the next start (step 2, new id and `TMPDIR`). Exit 4: the owner
+   tapped Stop; reply what was done and stop that work. Exit 5: the day closed; start again. Exit
+   2, 6, 9, 10: stop and tell the owner through Muse's own channel. Never end while `th pending`
+   lists an unanswered id. While Muse holds the lease the Worker fires no routine (§3). Proved
+   locally: listen exit 0 with the message, reply exit 3 quiet with nothing left unanswered, and
+   with `MUSE_DRILL_IDLE=1` listen exit 3 then 12 `closed` at a 15-minute `mind.idle`, after which
+   a new start claims at once.
+5. **Say who is answering.** Every first reply of a start begins "Muse is answering while the
+   mind is away." Proved locally (the owner's thread shows the reply, author `mind`, starting so).
+6. **Memory, reminders and the rest, unchanged.** The same commands as the mind, with the same
+   gates: `th remember --kind preference --text "…" --evidence msg:<id>` (provenance `owner` from
+   the owner's own words), `th remind +2h - --from <id>` with the text on stdin. Proved locally.
+   Every other command the chat key may call goes through the same routes and gates (the lease,
+   provenance and the mark, permits and cards, quiet hours, the ledger and Undo, the constitution pin).
+7. **What the hooks did, done by hand.**
+   - *SessionStart*: step 3.
+   - *Stop*: step 4's rule about `th pending`.
+   - *PostToolUse, the mark*: before Muse works from any text it read itself (a web page, a mail,
+     a file), `th taint --source <tool> --ref <url or id>`; what it writes after is labelled
+     `outside`. Proved locally (a fact remembered after it came back `outside`). There are no walled
+     readers (`reader`, `researcher`, `mail`) for Muse: every outside read is a raw read, so the mark
+     comes first, every time.
+   - *PreToolUse*: Muse holds itself to the laws; its own permissions are the real control. It
+     never deploys, pushes code or touches a credential.
+   - *StopFailure*: on a usage or API error of its own, `th status limited --error <code>`.
+   - *Task notifications*: none are needed; `th listen` is a foreground call that returns.
+8. **The night, if wanted.** *Needs the owner's key* (a second one: role **Mind · night**, name
+   `muse-night`). With `TH_ROLE=night` and its key (step 2 otherwise the same): `th brief --claim
+   --start` (role `## night`), `th night start`, then the `todo` it prints, step by step (each line
+   is the exact command), and `th night done` (or `done --partial` for what it skipped). Proved
+   locally: start, `th daynote`, `th report`, `done --partial`. No reflex and no check-ins: they are
+   claude.ai routines; without a night the Briefing says "The night shift hasn't run yet." (F14).
+9. **How to tell from the site that Muse is answering.** After a message: home shows the mind
+   working, then the reply, beginning with step 5's line; Settings › Agents shows `muse-standin`
+   last used just now; Settings › The mind's meter (or `th get /v1/mind/wakes`) shows a `manual`
+   claim and no new fires. Proved locally for the key's last use and the `manual` claim; the
+   screens themselves need the owner's phone.
 10. **Going back.** When the routines work again (a manual fire from claude.ai is claimed, §2):
-    Muse stops its loop and runs `th status stopping` (the lease drops; one that just lapses frees
-    it within 90 s), and the next owner message fires `mind-chat` as before. The owner revokes
-    `muse-standin` in Settings › Agents. **[untried]**
+    Muse stops its loop and runs `th status stopping`; the lease drops at once (proved locally: a
+    new session claims straight after), and the next owner message fires `mind-chat` as before.
+    The owner revokes `muse-standin` (and `muse-night`) in Settings › Agents.
 
-**Dry run, 2026-11-22.** A script outside Claude Code started the fake Worker of `mind/tests`
-(`startFake` in `mind/tests/helpers.mjs`) and ran `th` with `TH_ROLE=chat`, `TH_TOKEN` and a
-made-up session id: `th brief --claim` exit 0 with the briefing; `th listen` exit 0 with an owner
-message; `th reply` sent the answer (`{"id"}`) and exited 3 `quiet`; `th voice` printed the page.
-The real Worker requires a session id (step 2): the fake does not check it.
+**Unproven, and why.** Only what needs the owner: the real key made in Settings and kept in Muse's
+store, the live API host and its network path from wherever Muse runs, the phone's screens in
+step 9, and a manual fire from claude.ai taking over in step 10 (routines cannot fire locally).
 
 ## Open questions / tests
 

@@ -24,7 +24,8 @@ const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/
   'music/src/library/r2.js': ['/th/ported/session.js'], 'podcasts/app.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
  * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does;
- * th/data/page.js counts the page's bytes on the phone for Settings › Data use). */
+ * th/data/page.js counts the page's bytes on the phone for Settings › Data use; th/music/release.js keeps
+ * Music's files for their release, so a second open asks the network for none of them). */
 const IMPROVED = {
   'assets/error-report.js': ['/th/senses/send.js', '/th/data/page.js'],
   'music/src/app.js': ['/th/music/dj.js'],
@@ -36,7 +37,7 @@ const IMPROVED = {
   'astra/src/ui/components.js': ['/th/ported/arrangement.js'],
   'astra/src/main.js': ['/th/astra/open.js'],
   'podcasts/app.js': ['/th/podcasts/progress.js', '/th/ported/arrangement.js'],
-  'music/sw.js': [],
+  'music/sw.js': ['/th/music/release.js'],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));

@@ -1,5 +1,7 @@
-// `th brief [--claim] [--full] [--section <n>] [--json]` and the briefing truncation rule
-// shared with the SessionStart hook (RUNTIME.md §6.1, MEMORY.md §9).
+// `th brief [--claim] [--full] [--start] [--section <n>] [--json]` and the briefing truncation rule
+// shared with the SessionStart hook (RUNTIME.md §6.1, MEMORY.md §9). `--start` is the SessionStart
+// hook's five pieces in one text, for an agent with no hooks (RUNTIME.md §15): the laws, the role's
+// section of ROLES.md, then the whole briefing (the voice page is in it, under `## How you talk`).
 import {existsSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
@@ -7,6 +9,7 @@ import {VERSION, invalid, out} from './io.mjs';
 import {request} from './http.mjs';
 import {getState, setState, writeThFile} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
+import {constitutionText, roleText} from '../../hooks/lib/laws.mjs';
 
 export const CORE_CAP = 9500;
 export const CUT_MARKER = '(+cut: th brief --full)';
@@ -86,10 +89,19 @@ export async function brief(flags) {
   const data = await fetchBrief({claim: !!flags.claim});
   if (flags.json) return out(data);
   const full = typeof data.full === 'string' ? data.full : data.core || '';
+  if (flags.start) return out(startText(data, full));
   if (flags.section !== undefined) {
     const section = sectionOf(full, flags.section);
     if (section === null) throw invalid(`no briefing section ${flags.section}`);
     return out(section);
   }
   return out(flags.full ? full : data.core || '');
+}
+
+/** `--start`: what the SessionStart hook gives a session, as one text (headings say what each is). */
+export function startText(data, full) {
+  const role = (typeof data.role_section === 'string' && roleText(data.role_section)) || roleText(process.env.TH_ROLE || '');
+  if (process.env.TH_ROLE === 'night' && data.night_done) return `Night work for ${data.day} is already done. End now.`;
+  return [`# The laws (mind/CONSTITUTION.md)\n\n${constitutionText()}`, `# Your role (mind/ROLES.md)\n\n${role}`,
+    `# The briefing (th brief --full; the voice page is its "How you talk")\n\n${full}`].join('\n\n');
 }

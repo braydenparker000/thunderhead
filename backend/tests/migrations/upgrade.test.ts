@@ -116,9 +116,11 @@ describe('upgrade from P2', () => {
         // Step 49: Podcasts' Up Next and speed.
         'podcast_queue',
         'podcast_prefs',
-        // Step 52: the voice page's versions; step 53: the check-ins.
+        // Step 52: the voice page's versions; step 53: the check-ins; step 55: the list for the builder.
         'voice_versions',
         'checkins',
+        'issues',
+        'issue_notes',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       // Step 34 also gave the P2 wakes their reason and the sessions a claim-time index.
@@ -209,9 +211,11 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
         'guitar_progress',
         'podcast_queue',
         'podcast_prefs',
-        // …52 the voice page's versions and 53 the check-ins.
+        // …52 the voice page's versions, 53 the check-ins and 55 the list for the builder.
         'voice_versions',
         'checkins',
+        'issues',
+        'issue_notes',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       // And step 48's (a refired message's count).
