@@ -12,8 +12,9 @@
 // (`wakes.reason_json`, `{watch, kind, note}` on a wake a watch fired) and a time index on the
 // sessions' claims, which the usage meter reads (GET /v1/mind/usage) instead of every session row.
 // v39 keeps the outside read's time on the wake (`outside_ms`: the lookup title to the reply).
+// v53 is the check-ins' record (checkin.ts).
 import type { Migration, TableInfo } from '../../objects/base';
-import { pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
+import { pruneCheckins, pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
 import { pruneWatches } from './watches/store';
 
 export const MIND_MIGRATIONS: Migration[] = [
@@ -157,6 +158,31 @@ export const MIND_MIGRATIONS: Migration[] = [
     // From the working card's lookup title to the reply (RUNTIME.md §6.6), beside first_reply_at.
     sql: ['ALTER TABLE wakes ADD COLUMN outside_ms INTEGER'],
   },
+  {
+    // The check-ins (checkin.ts, 2026-11-22): one row per day and slot the cron reached, how it
+    // ended (`fired` while it runs; `said`, `lines`, `nothing`, `timeout`, `unclaimed`; `skipped`
+    // with why), and an index for the claim's lookup by wake.
+    version: 53,
+    name: 'checkins',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE checkins (
+        day TEXT NOT NULL,
+        slot TEXT NOT NULL,
+        due_at INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        fired_at INTEGER,
+        wake_id TEXT,
+        session_id TEXT,
+        outcome TEXT NOT NULL,
+        why TEXT,
+        message_id TEXT,
+        ended_at INTEGER,
+        PRIMARY KEY (day, slot)
+      ) WITHOUT ROWID`,
+      'CREATE INDEX checkins_wake ON checkins (wake_id) WHERE wake_id IS NOT NULL',
+    ],
+  },
 ];
 
 export const MIND_TABLES: Record<string, TableInfo> = {
@@ -166,4 +192,5 @@ export const MIND_TABLES: Record<string, TableInfo> = {
   session_notes: { retention: '180 days', backup: true, export: true, prune: pruneNotes },
   night_runs: { retention: '400 days', backup: true, export: false, prune: pruneNightRuns },
   watches: { retention: '30 days after it settles', backup: true, export: false, prune: pruneWatches },
+  checkins: { retention: '30 days', backup: true, export: false, prune: pruneCheckins },
 };

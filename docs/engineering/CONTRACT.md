@@ -90,6 +90,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
 | `PUT /v1/mind/growth/:day` | N | P7 | built | night step 13, the week's growth (growth.ts): from a claimed night session, for a closed day with a run; the Briefing's practice and study tiles from the week's counts and the plans through guitar.set_plan and study.mark_next, silent under 3 sessions; the same again writes nothing |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
+| `POST /v1/mind/checkin` | N | P9 | built | a check-in session's one message into today's conversation (say: no reply-to, no notification) or its end (done, with the outcome); only from a night session whose claim is a check-in, within 10 minutes (areas/mind/checkin-session.ts) |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
 | `GET /v1/memory/facts/:id` | D C N | P3 | built | one fact: its earlier versions, evidence and why |
 | `GET /v1/memory/profile` | D C N | P3 | built |  |
@@ -562,7 +563,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 
 ## Watches
 
-The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog`.
+The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog` · `checkin`.
 
 | Event watch (beside every sense type) | When |
 |---|---|

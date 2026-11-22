@@ -678,6 +678,14 @@
       "status": "built",
       "note": "a closed day's stats, messages, ledger and notes"
     },
+    "POST /v1/mind/checkin": {
+      "who": [
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "a check-in session's one message into today's conversation (say: no reply-to, no notification) or its end (done, with the outcome); only from a night session whose claim is a check-in, within 10 minutes (areas/mind/checkin-session.ts)"
+    },
     "GET /v1/memory/facts": {
       "who": [
         "D",
@@ -5716,7 +5724,7 @@
   },
   "lands": {
     "window_days": 30,
-    "streak": 3,
+    "streak": 2,
     "quiet_days": 30,
     "brief_rows": 8
   },
@@ -5958,7 +5966,8 @@
       "watch",
       "roll",
       "schedule",
-      "watchdog"
+      "watchdog",
+      "checkin"
     ]
   },
   "reader": {

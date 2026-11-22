@@ -153,9 +153,13 @@ export const SETTINGS = [
     options: stops('min', 5, 15, 30), detail: 'How long the night shift may run.' },
   { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 45,
     options: stops('min', 15, 45, 120), detail: 'How long I stay awake after your last message. After that the next first reply takes up to a minute.' },
+  // Check-ins (areas/mind/checkin.ts, 2026-11-22): 1 is 15:00, 2 are 12:30 and 18:30, in the owner's zone, on the night routine.
+  { ...MIND, section: 'Reaching you', key: 'mind.checkins', label: 'Check-ins a day', kind: 'choice', default: '2',
+    options: o('0:None', '1:One', '2:Two'), detail: 'Times I wake by myself to leave you a note in the chat or a line on home. No notification.' },
   // On the Notifications page (2026-11-21). The Worker holds the mind's nudges to it (push/rules.ts):
   // urgent is one the owner asked to be told of. Reminders, sign-in notices and the usage alarm are apart.
-  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'normal',
+  // Never by default since 2026-11-22: the mind's words wait in the chat and on home.
+  { ...MIND, group: 'notifications', section: 'What I send', key: 'mind.pushes', label: 'Notifications from me', kind: 'choice', default: 'never',
     options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'),
     detail: 'Normal: up to 2 a day, never in quiet hours. Urgent only: only what you asked me to tell you. Never: none from me.' },
   // Speech (BEHAVIOR.md §3.7): as needed is no cap at all; the Worker holds the mind to the other two.

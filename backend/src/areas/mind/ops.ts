@@ -127,7 +127,7 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   // A night with nothing left to do (the 06:07 fallback after the roll's run): its wake ends at
   // once and its briefing says so (`night_done`). The session stays open for `th night start`,
   // which answers done and ends it, or for a missed day's run (`th night start --day <day>`).
-  if (r.role === 'night' && nightDone(db, nightDayOf(day)))
+  if (r.role === 'night' && wake.reason !== 'checkin' && nightDone(db, nightDayOf(day)))
     store.setWakeStatus(db, wake.id, 'ended', { ended_at: at, end_reason: 'night_done' });
   // The presence light, the usage backoff and the Stop are the chat session's.
   if (r.role === 'chat') {

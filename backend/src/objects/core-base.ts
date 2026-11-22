@@ -196,7 +196,7 @@ export abstract class CoreBase extends OwnerObject {
       quiet_until: quietUntil(this.db, now),
       looking: this.hub.looking(now),
       owner_at: last?.at ?? null,
-      pushes: String(settings.getSetting(this.db, 'mind.pushes') ?? 'normal'),
+      pushes: String(settings.getSetting(this.db, 'mind.pushes') ?? 'never'),
     };
   }
 

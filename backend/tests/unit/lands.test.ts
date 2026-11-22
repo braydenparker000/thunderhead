@@ -80,7 +80,7 @@ describe('the streak', () => {
 
 describe('per topic and place, over the window', () => {
   const marks = new Map<string, TopicMarks>();
-  it('three passed over in a row trip the rule; one kept between holds it back', () => {
+  it('two passed over in a row trip the rule; a kept between holds it back', () => {
     const ep = [placed('episodes.new', 9), placed('episodes.new', 6), placed('episodes.new', 3)];
     const bars = [
       placed('practice.bars', 9, { line: 0, place: 'briefing' }),
@@ -88,7 +88,7 @@ describe('per topic and place, over the window', () => {
       placed('practice.bars', 6),
       placed('practice.bars', 4),
     ];
-    const senses = [seen(ep[0]), dismissed(ep[1]), seen(ep[2]), seen(bars[2]), tapped(bars[1]), seen(bars[3])];
+    const senses = [seen(ep[0]), dismissed(ep[1]), seen(ep[2]), tapped(bars[2]), tapped(bars[1]), seen(bars[3])];
     const items = countTopics(
       [...ep, ...bars].sort((a, b) => a.at - b.at),
       byDay(senses),
@@ -99,8 +99,8 @@ describe('per topic and place, over the window', () => {
     const by = Object.fromEntries(items.map((t) => [t.topic_key, t]));
     expect(by['episodes.new']).toMatchObject({ kept: 0, ignored: 3, streak: 3, places: ['home'], quiet_until: null });
     expect(trips(by['episodes.new'])).toBe(true);
-    // ignored, kept, ignored, ignored: two in a row since the kept.
-    expect(by['practice.bars']).toMatchObject({ kept: 1, ignored: 3, streak: 2, places: ['home', 'briefing'] });
+    // ignored, kept, kept, ignored: one since the last kept.
+    expect(by['practice.bars']).toMatchObject({ kept: 2, ignored: 2, streak: 1, places: ['home', 'briefing'] });
     expect(trips(by['practice.bars'])).toBe(false);
   });
 

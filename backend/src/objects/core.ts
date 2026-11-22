@@ -150,7 +150,7 @@ export class Core extends CoreGuitar {
   private async briefReports(role: BriefRequest['role']): Promise<BriefReports | null> {
     if (role === 'reflex' || this.sandboxed) return null;
     const open = day.currentDay(this.db, this.tz(), Date.now());
-    const on = role === 'night' ? nightDayOf(open) : open;
+    const on = role === 'night' && !this.checkinNear() ? nightDayOf(open) : open;
     return sensesObject(this.env)
       .briefReports({ day: open, from: on, to: dayBefore(on, -1), music: role === 'chat' })
       .catch(() => null);

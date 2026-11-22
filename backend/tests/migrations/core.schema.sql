@@ -53,6 +53,23 @@ CREATE TABLE changes (
   at INTEGER NOT NULL
   );
 
+CREATE TABLE checkins (
+  day TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  at INTEGER NOT NULL,
+  fired_at INTEGER,
+  wake_id TEXT,
+  session_id TEXT,
+  outcome TEXT NOT NULL,
+  why TEXT,
+  message_id TEXT,
+  ended_at INTEGER,
+  PRIMARY KEY (day, slot)
+  ) WITHOUT ROWID;
+
+CREATE INDEX checkins_wake ON checkins (wake_id) WHERE wake_id IS NOT NULL;
+
 CREATE TABLE day_notes (
   seq INTEGER PRIMARY KEY,
   day TEXT NOT NULL UNIQUE,

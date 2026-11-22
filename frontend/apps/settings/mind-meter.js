@@ -54,12 +54,13 @@ export function meterLines(u) {
       ? 'I set no wakes myself: you turned them off.'
       : `${t.wakes.watch} of ${u.budget} wakes I set myself${t.watches.refused ? `, ${t.watches.refused} more refused` : ''}${u.live ? ` · ${u.live} waiting` : ''}`;
   const yours = t.wakes.owner ? ` · ${count(t.wakes.owner, 'wake', 'wakes')} for you` : '';
+  const checkins = t.wakes.checkin ? ` · ${count(t.wakes.checkin, 'check-in', 'check-ins')}` : '';
   const sessions = t.sessions === undefined ? '' : ` · ${count(t.sessions, 'session', 'sessions')}`;
   const latency = latencyLine(u);
   const limit = limitLine(u);
   return [
     mine,
-    `Awake ${awake(t)} min${sessions}${yours} · night shift ${t.night_min} min`,
+    `Awake ${awake(t)} min${sessions}${yours}${checkins} · night shift ${t.night_min} min`,
     `Last 7 days: ${u.days.map((d) => `${weekday(d.day)} ${wakes(d)}`).join(' · ')} wakes`,
     `Minutes awake: ${u.days.map((d) => `${weekday(d.day)} ${awake(d)}`).join(' · ')}`,
     ...(limit ? [limit] : []),

@@ -100,6 +100,15 @@ describe('Web Push', () => {
     expect((await api('GET', `/v1/push/items/${p.id}`, { token: C })).status).toBe(403);
   });
 
+  it('by default the mind sends no notification (owner, 2026-11-22): mind.pushes is never until the owner says', async () => {
+    const r = await apiJson<{ error: { code: string } }>('PUT', '/v1/pushes/nudge-default', {
+      token: C,
+      body: nudge('Later', 'trip.default'),
+    });
+    expect([r.status, r.body.error.code]).toEqual([409, 'push_budget']);
+    await apiJson('PATCH', '/v1/settings', { token: D, body: { 'mind.pushes': 'normal' } });
+  });
+
   it('the mind’s nudge waits while a phone shows Thunderhead, then goes; another within 2 h is refused; the same id is the same answer', async () => {
     got = [];
     expect((await api('PUT', '/v1/pushes/nudge-0001', { token: C, body: nudge('Leave now!') })).status).toBe(422);

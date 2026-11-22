@@ -4,11 +4,11 @@
 import type { GuitarProgress, GuitarSyncResponse } from '../../../shared/contract/guitar.ts';
 import * as store from '../areas/guitar/store';
 import type { Out } from '../lib/result';
-import { CorePhotos } from './core-photos';
+import { CoreCheckin } from './core-checkin';
 
 type Refused = GuitarSyncResponse['refused'];
 
-export abstract class CoreGuitar extends CorePhotos {
+export abstract class CoreGuitar extends CoreCheckin {
   putGuitarProgress(items: GuitarProgress[], refused: Refused): Out<GuitarSyncResponse> {
     return this.run((w) => {
       let applied = 0;

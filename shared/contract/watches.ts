@@ -51,8 +51,8 @@ export type WatchState = (typeof WATCH_STATES)[number];
 
 /** Why the mind woke, as the Worker counts it on the meter: the owner (a message, the typing
  * pre-warm, a requeue, a session opened by hand), a watch, the day roll's night, the night's 06:07
- * schedule, a watchdog. */
-export const WAKE_CAUSES = ['owner', 'watch', 'roll', 'schedule', 'watchdog'] as const;
+ * schedule, a watchdog, a check-in (the night routine waking by itself in the day, areas/mind/checkin.ts). */
+export const WAKE_CAUSES = ['owner', 'watch', 'roll', 'schedule', 'watchdog', 'checkin'] as const;
 export type WakeCause = (typeof WAKE_CAUSES)[number];
 
 export interface Watch {

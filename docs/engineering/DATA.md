@@ -491,6 +491,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.imports | forever | yes | no |
 | Core.wakes | 30 days | yes | no |
 | Core.watches | 30 days after it settles (fired, refused, cancelled or lapsed; a waiting one settles within 7 days and 12 hours) | yes | no |
+| Core.checkins | 30 days after its slot | yes | no |
 | Core.leases | live only | no | no |
 | Core.live_tickets | deleted 1 h after `expires_at` | no | no |
 | Core.mind_sessions | 90 days after `ended_at` | yes | no |

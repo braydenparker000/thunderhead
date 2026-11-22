@@ -15,6 +15,7 @@ const fileRecord = (id, f) => ({ref: `file:${id}`, name: f.name, type: f.type, b
 /** @param {any} ctl the fake's control object */
 export function extraRoutes(ctl) {
   const s = ctl.state;
+  s.checkins = [];
   const idem = (map, id, body, make) => {
     const h = hash(body);
     if (map.has(id)) { const prev = map.get(id); if (prev.hash !== h) throw new HttpError(409, 'conflict'); return [200, prev.value]; }
@@ -202,6 +203,11 @@ export function extraRoutes(ctl) {
     // The run record: steps in the list's order (12, the report, and 11, the songs, between 9 and
     // 10; 409 with resume_from), 6, 8 and 9 skipped as not built, a cursor for step 4, done ending
     // it (with --partial, before the last step) at 14, past every step's number.
+    // A check-in's message and end (backend areas/mind/checkin-session.ts): recorded as sent.
+    ['POST', /^\/v1\/mind\/checkin$/, ['night'], ({body, session}) => {
+      s.checkins.push({session, ...body});
+      return body.action === 'say' ? {message_id: body.id, thread_id: 't-today'} : {outcome: body.nothing ? 'nothing' : 'said', slot: '12:30'};
+    }],
     ['POST', /^\/v1\/mind\/night$/, ['night'], ({body}) => {
       const ORDER = [1, 2, 3, 4, 5, 6, 7, 13, 8, 9, 12, 11, 10];
       const pos = n => (ORDER.includes(n) ? ORDER.indexOf(n) : ORDER.length);

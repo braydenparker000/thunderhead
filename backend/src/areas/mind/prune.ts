@@ -47,3 +47,12 @@ export function pruneNightRuns(db: Db, now: number, max: number): number {
     max,
   ).length;
 }
+
+/** Check-ins go 30 days after their slot (checkin.ts). */
+export function pruneCheckins(db: Db, now: number, max: number): number {
+  return db.all(
+    'DELETE FROM checkins WHERE (day, slot) IN (SELECT day, slot FROM checkins WHERE due_at < ? LIMIT ?) RETURNING 1',
+    now - 30 * DAY,
+    max,
+  ).length;
+}

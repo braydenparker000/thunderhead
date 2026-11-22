@@ -33,6 +33,7 @@ import { buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
 import { landsLines, speechLine } from './brief-learn';
 import { clock } from './brief-text';
+import { asCheckin, isCheckin } from './checkin-session';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
 import { speechState } from './speech';
@@ -54,6 +55,8 @@ export function assemble(
   sessionId: string,
   opts: { nightConfigured: boolean; offRecordSeen?: () => void; reports?: BriefReports | null },
 ): BriefResponse {
+  if (role === 'night' && isCheckin(db, sessionId, now))
+    return asCheckin(assemble(db, 'chat', tz, now, wake, constitution, sessionId, opts));
   const day = currentDay(db, tz, now);
   const night = role === 'night' ? nightDayOf(day) : null;
   const tainted = (store.session(db, sessionId)?.tainted_at ?? null) !== null;
