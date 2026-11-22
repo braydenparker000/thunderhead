@@ -39,7 +39,7 @@ export async function settingsCalls(cost: Cost, grant: (ip: string, password?: s
   await cost('POST /v1/mind/brief (no claim, no setting stored) (Core)', brief, 200, k);
   await cost(
     'PATCH /v1/settings, 1 catalogue key (Core)',
-    () => api('PATCH', '/v1/settings', { token: d.token, body: { 'mind.voice': 'warmer' } }),
+    () => api('PATCH', '/v1/settings', { token: d.token, body: { 'mind.night_scope': 'arrange' } }),
     200,
     k,
   );

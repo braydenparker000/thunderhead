@@ -11,6 +11,7 @@ import {reportRoutes} from './fake-reports.mjs';
 import {podcastRoutes} from './fake-podcasts.mjs';
 import {musicRoutes} from './fake-music.mjs';
 import {watchRoutes} from './fake-watches.mjs';
+import {voiceRoutes} from './fake-voice.mjs';
 
 // Deliberately short and fake: the repository's credential scan rejects anything token-length.
 export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token', reflex: 'thm_fake_reflex_token'};
@@ -203,6 +204,7 @@ export function createFake(options = {}) {
     ...podcastRoutes(ctl),
     ...musicRoutes(ctl),
     ...watchRoutes(ctl),
+    ...voiceRoutes(ctl),
   ];
 
   const server = createServer(async (req, res) => {

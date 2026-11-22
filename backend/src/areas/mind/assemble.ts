@@ -28,6 +28,7 @@ import type { BriefReports } from '../senses/brief';
 import { mindSettings } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import { getSetting } from '../settings/store';
+import { voiceSection, withVoice } from '../voice/brief';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
@@ -85,7 +86,7 @@ export function assemble(
   const calendar = owners ? calendarLines(calendarView(db, now, tz), tz) : { own: [], shared: [] };
   const reports = opts.reports ?? null;
   const theDay = owners ? dayLines(db, { day: night ?? day, now, tz, reports }) : null;
-  const { core, full } = buildBrief({
+  const built = buildBrief({
     role,
     constitution,
     laws: lawsLine(db, constitution),
@@ -150,6 +151,8 @@ export function assemble(
     speech: speechLine(speechState(db, now, tz)),
     lands: role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
   });
+  // The voice page, right after section 1 (areas/voice/brief.ts).
+  const { core, full } = withVoice(built, voiceSection(db));
   return {
     wake,
     day: night ?? day,

@@ -27,6 +27,7 @@ import { REPORTS_MIGRATIONS, REPORTS_TABLES } from '../areas/reports/migrations'
 import { SETTINGS_TABLES } from '../areas/settings/tables';
 import { SURFACES_MIGRATIONS, SURFACES_TABLES } from '../areas/surfaces/migrations';
 import { VERBS_MIGRATIONS, VERBS_TABLES } from '../areas/verbs/migrations';
+import { VOICE_MIGRATIONS, VOICE_TABLES } from '../areas/voice/migrations';
 import { WATCHDOGS_MIGRATIONS, WATCHDOGS_TABLES } from '../areas/watchdogs/migrations';
 import { WORK_MIGRATIONS, WORK_TABLES } from '../areas/work/migrations';
 import type { Migration, TableInfo } from './base';
@@ -95,6 +96,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...BRIEFING_MIGRATIONS,
   ...PHOTOS_MIGRATIONS,
   ...GUITAR_MIGRATIONS,
+  ...VOICE_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -125,4 +127,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...BRIEFING_TABLES,
   ...PHOTOS_TABLES,
   ...GUITAR_TABLES,
+  ...VOICE_TABLES,
 };

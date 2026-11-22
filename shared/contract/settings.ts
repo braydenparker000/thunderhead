@@ -138,10 +138,7 @@ export const SETTINGS = [
   // by the Worker's PATCH (settings/catalog.ts); the shell says it wherever it would say "the mind".
   { ...MIND, section: 'How I talk', key: 'mind.name', label: 'Name', kind: 'text', default: '', max: 20, pattern: '^[^\\u0000-\\u001f\\u007f]*$',
     detail: 'What you call me, up to 20 characters. Empty: the mind.' },
-  { ...MIND, section: 'How I talk', key: 'mind.voice', label: 'Voice', kind: 'choice', default: 'plain',
-    options: o('plain:Plain', 'warmer:Warmer', 'drier:Drier'), detail: 'Plain, a little warmer, or drier.' },
-  { ...MIND, section: 'How I talk', key: 'mind.verbosity', label: 'Length', kind: 'choice', default: 'normal',
-    options: o('short:Short', 'normal:Normal', 'full:Full'), detail: 'How much I say when you have not asked for more or less.' },
+  // How the mind talks is the voice page (voice.ts, Settings › The mind's editor), not a setting.
   // The owner's day (theme.js's Auto, the briefing's "now", brief-day.ts dayPart): day from the one, evening from the other.
   { ...MIND, section: 'Day and evening', key: 'mind.day_start', label: 'Day starts', kind: 'choice', default: '07:00',
     options: hours(5, 6, 7, 8, 9, 10), detail: 'From this hour Auto shows the day theme, and I count it as your day.' },

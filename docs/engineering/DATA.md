@@ -468,6 +468,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.photo_versions | while its photo is kept, at most 20 automatic and 20 named; purged with it | yes | yes |
 | Core.photo_looks | until the owner deletes it, at most 500 (the numbers of a look, its name, tag and credit; never a preset file) | yes | yes |
 | Core.photos_gone | until the original is in Drive's trash, at most 60 days | no | no |
+| Core.voice_versions | forever (every version of the voice page, how the mind talks: at most 4,000 characters each, who wrote it and why; none is ever deleted) | yes | yes |
 | Core.reminders | forever (the owner's own words, as the conversation line each becomes; at most 50 set at once) | yes | yes |
 | Core.reports | 30 days after `at` (one row per batch from the phone: timings, counts and track ids, never titles or words) | no (diagnostics: a backup would read every row each week for nothing) | no |
 | Core.podcast_progress | the newest 1,000 by `updated_at` (a position per episode: its feed address and episode id, where it was left, whether it was finished) | yes | yes |

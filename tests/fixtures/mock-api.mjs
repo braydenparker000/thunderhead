@@ -3,6 +3,7 @@
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
 import { briefingAnswer, briefingState } from './mock-briefing.mjs';
 import { EXPORT_ID, exportAnswer, exportState, ZIP_BYTES } from './mock-export.mjs';
+import { voiceAnswer, voiceState } from './mock-voice.mjs';
 import { heldAnswer } from './mock-held.mjs';
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
 import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
@@ -48,6 +49,7 @@ export async function mockApi(page, overrides = {}) {
   state.proposals = proposalsState(overrides.proposals);
   state.threads = overrides.threads ?? threadsState();
   state.work = workState(overrides.work);
+  state.voice = voiceState(overrides.voice);
   // An "@muse" adds its order here (chatAnswer).
   state.chat.work = state.work;
   const calls = [];
@@ -320,6 +322,7 @@ function answer(state, method, url, body) {
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??
     exportAnswer(state.export, method, p, body) ??
+    voiceAnswer(state.voice, method, p, body) ??
     briefingAnswer(state.briefing, method, p, body) ??
     heldAnswer(state, method, p, body, (kind) => changed(state.chat, kind)) ??
     workAnswer(state.work, method, p, url, body, (kind) => changed(state.chat, kind)) ??

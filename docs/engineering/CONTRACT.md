@@ -259,6 +259,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/music/playlists` | D | P5 | built | 1–20 playlists, each ≤ 450,000 characters; the newer updated_at wins; deleted ones kept 30 days |
 | `GET /v1/music/playlists` | D | P5 | built | ?since=&cursor=: playlists changed since (deleted ones too), oldest first, ≤ 200 a page |
 | `POST /v1/ops/site` | I | P9 | built | {state: down\|up}: the live watch says the site is not loading, or is back; one push each way |
+| `GET /v1/mind/voice` | D C N R | P9 | built | how the mind talks: the page, who changed it last, when and why, and the newest 20 versions without their text |
+| `GET /v1/mind/voice/:id` | D C N R | P9 | built | one version of the voice page, with its text |
+| `PUT /v1/mind/voice` | D C | P9 | built | {text ≤ 4,000, why?}: a new version; mind:chat from a claimed, live session that read no outside text, with a why of 8 to 200 characters (a ledger row with undo and a line in the chat) |
+| `POST /v1/mind/voice/restore` | D | P9 | built | {id}: that version becomes the page again, as a new version |
 
 ## Verbs
 

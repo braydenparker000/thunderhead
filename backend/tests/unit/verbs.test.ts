@@ -7,7 +7,7 @@ import { arrange, withPin } from '../../src/areas/briefing/pins';
 import { VERBS_MAX, verbTable } from '../../src/areas/mind/brief-verbs';
 
 const SETTINGS = [
-  'mind.voice: plain (default)',
+  'mind.night_scope: full (default)',
   'mind.permit.music: ask',
   'mind.permit.podcasts: quiet (default)',
   'mind.permit.reminders: tell (default)',

@@ -6,6 +6,7 @@
 import { PHOTO_ROUTES } from './routes-photos.ts';
 import { PODCAST_SYNC_ROUTES } from './routes-podcasts.ts';
 import { ROUTINE_ROUTES } from './routes-routines.ts';
+import { VOICE_ROUTES } from './routes-voice.ts';
 import { WATCH_ROUTES } from './routes-watch.ts';
 
 /** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
@@ -286,6 +287,7 @@ export const ROUTES = {
   'GET /v1/ops/reports': { who: AGENTS_READ, phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB' },
   ...PHOTO_ROUTES,
   ...WATCH_ROUTES,
+  ...VOICE_ROUTES,
 } as const satisfies Record<string, RouteSpec>;
 export type RouteKey = keyof typeof ROUTES;
 /** The phases whose routes are live in this build (the scope test registers exactly these). */

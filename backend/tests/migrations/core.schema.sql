@@ -769,6 +769,17 @@ CREATE INDEX verbs_open ON verbs (created_at) WHERE status IN ('pending', 'claim
 
 CREATE INDEX verbs_scheduled ON verbs (fire_at) WHERE status = 'scheduled';
 
+CREATE TABLE voice_versions (
+  seq INTEGER PRIMARY KEY,
+  id TEXT NOT NULL UNIQUE,
+  at INTEGER NOT NULL,
+  by TEXT NOT NULL,
+  text TEXT NOT NULL,
+  why TEXT,
+  session_id TEXT,
+  ledger_id TEXT
+  );
+
 CREATE TABLE wakes (
   id TEXT PRIMARY KEY,
   at INTEGER NOT NULL,

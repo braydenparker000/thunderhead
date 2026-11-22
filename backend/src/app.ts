@@ -51,6 +51,7 @@ import { sensesRoutes } from './areas/senses/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
 import { routineRoutes } from './areas/verbs/routine-routes';
+import { voiceRoutes } from './areas/voice/routes';
 import { watchdogsRoutes } from './areas/watchdogs/routes';
 import { workRoutes } from './areas/work/routes';
 import { workshopRoutes } from './areas/workshop/routes';
@@ -163,6 +164,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', mindRoutes)
   .route('/v1', checkinRoutes)
   .route('/v1', watchesRoutes)
+  .route('/v1', voiceRoutes)
   .route('/v1', ledgerRoutes)
   .route('/v1', verbsRoutes)
   .route('/v1', routineRoutes)
