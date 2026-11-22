@@ -18,6 +18,7 @@ import {
 import { uuidv7 } from '../../lib/ids';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { ruleInOwnersWords } from './rule-words';
 import * as store from './store';
 import {
   content,
@@ -111,9 +112,7 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   const provenance = label(ctx, source, null, own, guess);
   const shape: FactShape = { kind: op.kind, source, about, tags: f.tags, sensitivity: f.sensitivity, provenance };
   const refs = admit(ctx, shape, op.id, op.evidence);
-  // A rule steers every later session: marked or not, the mind writes one only in the owner's own
-  // words from the message it cites, so what a reader's answer asked for never becomes one.
-  if (op.kind === 'rule' && !ctx.device && !own) throw new Reject('rule_not_owner_words');
+  ruleInOwnersWords(ctx, op.kind, source, op.subject, op.text, op.evidence); // rule-words.ts
   const ledgerId = w.ledger({
     id: ctx.selfLedger,
     kind: 'memory',
@@ -183,9 +182,7 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
   const provenance = label(ctx, source, old, false, sensitiveGuess(source, f.tags, f.sensitivity));
   // M11c: outside text never replaces a rule (nor becomes one: content(), in admit).
   if (old.kind === 'rule' && provenance === 'outside') throw new Reject('outside_rule');
-  // A rule's new wording is the owner's own words too, in any session (as `add`).
-  if ((n.kind ?? old.kind) === 'rule' && source === 'user' && !ctx.device && !ownWords(ctx, source, n.text, n.evidence))
-    throw new Reject('rule_not_owner_words');
+  ruleInOwnersWords(ctx, n.kind ?? old.kind, source, n.subject ?? old.subject, n.text, n.evidence);
   const shape: FactShape = {
     kind: n.kind ?? old.kind,
     source,
