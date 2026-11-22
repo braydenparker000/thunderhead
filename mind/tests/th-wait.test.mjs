@@ -2,7 +2,7 @@
 // The fake holds a take for `timeout × holdUnitMs`, so a "25 s" take lasts 25 × 20 ms here.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {env, errCode, startFake, th} from './helpers.mjs';
+import {env, errCode, startFake, th, TOKENS} from './helpers.mjs';
 
 const withFake = (options, fn) => async () => {
   const fake = await startFake({holdUnitMs: 20, ...options});
@@ -105,28 +105,32 @@ test('lease: a second session cannot claim while the first renews; it can after 
   assert.equal((await th(['brief', '--claim'], b)).code, 0, 'lease lapsed');
 }));
 
-test('requeue: a handed-out message not acknowledged in time goes to the next session; an ack keeps it', withFake({leaseMs: 1000, ackMs: 1500}, async fake => {
+test('requeue: a take nobody acknowledged goes to the next session; th acknowledges what it hands over itself, and that keeps it', withFake({leaseMs: 1000, ackMs: 1500}, async fake => {
   const a = env(fake, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_a'});
   const b = env(fake, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_b'});
   await th(['brief', '--claim'], a);
   const m = fake.addOwnerMessage('fix the podcast search');
-  const got = await th(['wait', '--minutes', '0.05'], a);
-  assert.equal(got.json.messages[0].id, m.id);
-  // Session A vanishes without acknowledging. After the lease and ack window pass, B claims: the message is
-  // requeued (a wake fires, since no lease is live) and handed to B in its briefing.
+  // Session A's take reaches it and A is gone before th could acknowledge (the take alone, as th sends it).
+  const raw = await fetch(`${fake.url}/v1/live/wait?after=0&timeout=1`, {headers: {Authorization: `Bearer ${TOKENS.chat}`,
+    'TH-Role': 'chat', 'TH-Session': 'cse_a', 'TH-Client': 'th/test'}});
+  assert.equal((await raw.json()).messages[0].id, m.id);
+  // After the lease and ack window pass, B claims: the message is requeued (a wake fires, since no
+  // lease is live) and handed to B in its briefing.
   await new Promise(r => setTimeout(r, 1700));
   const brief = await th(['brief', '--claim'], b);
   assert.equal(brief.code, 0);
   assert.match(brief.stdout, /fix the podcast search/);
   assert.equal(fake.state.messages.find(x => x.id === m.id).requeues, 1);
   assert.ok(fake.state.fires.some(f => f.reason === 'requeue' && f.message === m.id), 'requeue with no lease fires a wake');
-  // B does not acknowledge either: after the ack window it is requeued again and B's wait hands it out.
+  // B does not acknowledge the briefing's hand-out: after the ack window it is requeued again, and
+  // B's th wait hands it out and acknowledges it itself (th reports working at hand-over).
   const again = await th(['wait', '--minutes', '0.1'], b);
   assert.equal(again.code, 0, again.stderr);
   assert.equal(again.json.messages[0].id, m.id);
   assert.equal(fake.state.messages.find(x => x.id === m.id).requeues, 2);
-  // B acknowledges with status working; nothing is requeued afterwards.
-  await th(['status', 'working', '--thread', m.thread_id], b);
+  assert.ok(fake.state.requests.some(r => r.method === 'POST' && r.path === '/v1/mind/status' && r.body?.state === 'working'),
+    'th acknowledged the hand-over');
+  // Nothing is requeued afterwards, with no th status from the mind.
   await new Promise(r => setTimeout(r, 1600));
   assert.equal((await th(['wait', '--minutes', '0.01'], b)).code, 3);
   assert.equal(fake.state.messages.find(x => x.id === m.id).requeues, 2);
