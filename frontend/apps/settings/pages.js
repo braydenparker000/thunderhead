@@ -11,7 +11,7 @@ export const SECTIONS = ([
   ['Home and gestures', [['chat', 'Home and chat', 'chat-circle'], ['gestures', 'Ring and gestures', 'hand-pointing']]],
   ['Apps', [['music', 'Music', 'music-notes-simple'], ['photos', 'Photos', 'aperture'], ['island', 'Island', 'music-notes-simple'], ['briefing', 'Briefing', 'newspaper']]],
   ['The mind', [['mind', 'The mind', 'sparkle'], ['memory', 'What I remember', 'brain'], ['notifications', 'Notifications', 'bell']]],
-  ['Account and data', [['account', 'Password', 'key'], ['devices', 'Devices', 'devices'], ['privacy', 'Privacy and data', 'shield-check'], ['data', 'Data use', 'arrow-down'], ['export', 'Export', 'download-simple'], ['deleted', 'Recently deleted', 'trash'], ['workshop', 'Files for the workshop', 'cloud-arrow-up']]],
+  ['Account and data', [['account', 'Password', 'key'], ['devices', 'Devices', 'devices'], ['privacy', 'Privacy and data', 'shield-check'], ['data', 'Data use', 'arrow-down'], ['phone', 'On this phone', 'device-mobile'], ['export', 'Export', 'download-simple'], ['deleted', 'Recently deleted', 'trash'], ['workshop', 'Files for the workshop', 'cloud-arrow-up']]],
   ['About', [['about', 'About and diagnostics', 'info']]],
 ]);
 

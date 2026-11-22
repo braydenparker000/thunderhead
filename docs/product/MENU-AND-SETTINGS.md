@@ -557,3 +557,45 @@ keeping their own files, and how many answers gave no size); a line says since w
 asks first and starts again from now. The lead line says the phone's own data screen also counts other
 apps and sites. Search finds it by data, usage, mobile data, wifi, megabytes. It changes nothing about
 what the site downloads.
+
+### 6.11 On this phone (`phone.js`)
+
+No catalogue keys (2026-11-22: over months the site's offline data fills a small phone, with no way to see
+or clear it). This browser's figures first: what the site uses of what the browser allows
+(`navigator.storage.estimate`), and whether the browser keeps the site's data when space runs low
+(`persisted()`); when it does not, **Ask to keep it** calls `persist()` under one line on why (offline songs,
+downloads and books may otherwise go). Then **By app**: a row per store with its measured size and count,
+largest first, each drawn as soon as it is measured. `phone-measure.js` measures for real and in pieces
+(40 entries, then a turn of the page's loop): a cache entry by its Content-Length, else its body; an
+IndexedDB record by its key and value (strings by length, blobs and buffers by size); a private file by
+its size; a localStorage key by key and value at two bytes a character. It creates nothing it reads.
+A row that holds only what downloads again has **Clear**, asked first ("This removes the …, size, from
+this phone. They come back by downloading again."); offline, a line says what is cleared comes back only
+with a signal. A store that does not exist has no row; a missing API reads "This browser doesn't say."
+Search finds it by storage, space, full, clear, cache, offline, downloads.
+
+Where the site keeps data in this browser (`phone-stores.js`; **C** = has Clear):
+
+| Row | Where | Clear |
+|---|---|---|
+| Music · Offline songs | cache `claude-player-audio` (index `cp-audio-cache`) | **C**, Music's `AudioCache.clear()` |
+| Music · Song starts | cache `claude-player-heads` | **C** |
+| Music · Covers | caches `claude-player-covers`, `claude-player-thumbs` | **C**, as Music's `clearArtCache` |
+| Music · Songs from this phone | IndexedDB `claude-player` (tracks, files, art, playlists) | no: files picked on this phone |
+| Podcasts · Downloads | cache `jarvis-podcast-audio-v1`, marks in `jarvis.podcasts.v1` | **C**, the files and their marks |
+| Podcasts · Show art | cache `jarvis-podcast-art-v1` | **C** |
+| Podcasts · Shows | IndexedDB `jarvis-podcasts` | no |
+| Astra · Saved answers | cache `astra-data-v1` | **C**, Astra's `clearCache()` |
+| Astra · Intros learned | IndexedDB `astra-intro` | no: learned here |
+| Study · Books | private files `study/` | **C**, Study's `remove(id)`; a book still uploading stays |
+| Study · Places and notes | IndexedDB `th-study` (places, labels, uploads, covers) | no |
+| Photos · Shelf kept offline | IndexedDB `th-photos` keys `shelf:` `photo:` `preview:` `thumb:` | **C**, those keys only |
+| Photos · Waiting and edits | the rest of `th-photos` (`bg:`, `session:`, `recipe:`, `recipe-pending:`, `camrating:`) | no: uploads and edits not sent |
+| Guitar · Saved tabs | cache `jarvis-guitar-v1` | no: a source can disappear |
+| Chat and conversations | IndexedDB `th-data` (outbox, conversations, Briefing) | no: messages not sent |
+| Photo editor | IndexedDB `th-editor`, `th-looks`, `th-engine`; private files other than `study/` | no |
+| Sign-in | IndexedDB `th-auth`, `th-setup`, `th-recover` | no |
+| Problem reports | IndexedDB `th-report` | no |
+| The app's own code | caches `th-<build>`, `th-vendor` (with Ink and Lamp's pictures), `th-lab-<n>`, `th-frames`, `th-music-catalog`, `claude-player-v1`, `jarvis-podcast-shell-v<n>`, `astra-app-*`, `astra-sw-state` | no: About › Repair |
+| Settings and small notes | localStorage, every key (`th.*`, `cp-*`, `jarvis.*`, `astra.v2.*`, `mymedia.*`) | no: choices, places, the Forget queue |
+| Other | any cache, database or private file no row names | no |

@@ -511,7 +511,7 @@ test('Settings lists its pages under six headings; Agents is reachable but not l
   const list = await page.$$eval('.spage.in .sbody > .group-title, .spage.in .sbody > .group-section > .group-title', (h) => h.map((x) => x.textContent));
   assert.deepEqual(list, ['Look', 'Home and gestures', 'Apps', 'The mind', 'Account and data', 'About']);
   assert.deepEqual(await page.$$eval('.spage.in [data-page]', (r) => r.map((x) => x.dataset.page)),
-    ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'export', 'deleted', 'workshop', 'about']);
+    ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about']);
   assert.ok(await page.$('.spage.in .sappear #set-theme'), 'Theme is under Look');
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'agents' } })));
   await page.waitForFunction(() => document.querySelector('.spage.in .page-title')?.textContent === 'Agents');
