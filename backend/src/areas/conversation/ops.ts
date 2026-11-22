@@ -51,7 +51,7 @@ export function today(w: Writer, tz: string): Thread {
 }
 
 // No refusal for style on a mind message's words (owner, 2026-11-22): the voice is the mind's
-// judgement (mind/skills/voice.md); the phrase lint stays for the Sunday voice test alone.
+// judgement and the owner's voice page; the phrase lint stays for the Sunday voice test alone.
 
 /** Returns the stored message and whether this call created it. */
 export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { message: Message; created: boolean } {

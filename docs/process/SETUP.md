@@ -113,7 +113,11 @@ the steps in order; each one says how to check it before the next.
    {
      "hooks": {
        "SessionStart": [{"matcher": "startup|resume|clear|compact",
-         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\"", "timeout": 30}]}],
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" laws", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" role", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 1", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 2", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 3", "timeout": 30}]}],
        "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
        "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
        "PreToolUse": [{"matcher": "*",
@@ -339,7 +343,11 @@ is deployed.
    {
      "hooks": {
        "SessionStart": [{"matcher": "startup|resume|clear|compact",
-         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\"", "timeout": 30}]}],
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" laws", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" role", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 1", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 2", "timeout": 30},
+           {"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\" brief 3", "timeout": 30}]}],
        "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
        "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
        "PreToolUse": [{"matcher": "*",

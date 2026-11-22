@@ -115,12 +115,8 @@ describe('the first 2,000 characters (sections 1–2)', () => {
     }
   });
 
-  it('carry the voice on every wake, every role, as BEHAVIOR.md §10 says it', () => {
-    const ten = behavior.slice(behavior.indexOf('## 10. Tone'), behavior.indexOf('## 11.'));
-    for (const l of VOICE) {
-      expect(ten).toContain(l);
-      expect(l).not.toMatch(/!|outside/);
-    }
+  it('point at the voice page on every wake, every role (the page itself comes beside the role)', () => {
+    for (const l of VOICE) expect(l).not.toMatch(/!|outside/);
     for (const role of ['chat', 'night', 'reflex'] as const)
       expect(section(buildBrief(input({ role })).core, 1)).toContain(VOICE.join('\n'));
   });
@@ -153,7 +149,7 @@ describe('the first 2,000 characters (sections 1–2)', () => {
 
   it('carry the day pulse first in today’s state: the wake budget, the watch that woke it, cut to its budget', () => {
     const one = section(buildBrief(rich()).core, 1);
-    expect(one).toContain(`${VOICE[2]}\n${PULSE.join('\n')}\nweather: 11°`);
+    expect(one).toContain(`${VOICE[VOICE.length - 1]}\n${PULSE.join('\n')}\nweather: 11°`);
     const many = Array.from(
       { length: 5 },
       (_, i) => `watch w${i} fired (at 17:4${i}): ${'y'.repeat(180)} · note: ${'n'.repeat(100)}`,
@@ -212,7 +208,7 @@ describe("the mind's name and the owner's hours (Settings › The mind)", () => 
     const named = now(buildBrief(rich({ name: 'Wren' })).core);
     const lines = named.split('\n').filter((l) => l.includes('Wren'));
     expect(lines).toEqual(['Name: the owner calls you Wren; answer to it, and still call yourself "I".']);
-    expect(named.indexOf(lines[0] as string)).toBeGreaterThan(named.indexOf(VOICE[2]));
+    expect(named.indexOf(lines[0] as string)).toBeGreaterThan(named.indexOf(VOICE[VOICE.length - 1]));
     expect(now(buildBrief(rich({ name: '' })).core)).not.toContain('Name:');
   });
 

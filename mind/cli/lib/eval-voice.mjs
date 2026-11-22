@@ -1,4 +1,4 @@
-// th eval voice: the voice eval (EVALS.md §4.1; BEHAVIOR.md §10, mind/skills/voice.md), recorded as
+// th eval voice: the voice eval (EVALS.md §4.1; BEHAVIOR.md §10, the voice page), recorded as
 // the TONE suite. Thirty invented prompts, each with the briefing lines it needs
 // (mind/evals/voice/VOI-*.json). `th eval voice` prints the task for a subagent: the voice skill,
 // then each prompt with its lines. `check --file <answers>` grades the replies without a model:
@@ -69,11 +69,19 @@ export function grade(f, reply) {
   return why;
 }
 
-/** The subagent's task: the voice skill, then each prompt with its briefing lines. */
-export function voiceTask(answers) {
-  const skill = readFileSync(join(skillsDir(repoRoot()), 'voice.md'), 'utf8').trim();
+/** The voice page as the site holds it (GET /v1/mind/voice); a short stand-in when it can't be read. */
+async function voicePage() {
+  try {
+    const {data} = await request('GET', '/v1/mind/voice', {retry: false});
+    if (typeof data?.text === 'string' && data.text.trim()) return data.text.trim();
+  } catch { /* the stand-in */ }
+  return 'Talk like a sharp friend who knows the owner well: warm, natural, plain words. Answer first.';
+}
+
+/** The subagent's task: the voice page, then each prompt with its briefing lines. */
+export function voiceTask(answers, page) {
   const items = voiceFixtures().map(f => `${f.id}\nBriefing: ${f.brief.join(' · ')}\nOwner: ${f.prompt}`);
-  return ['You are the chat, answering the owner in your own voice. The skill you follow:', skill,
+  return ['You are the chat, answering the owner in your own voice. The page that says how you talk:', page,
     'Answer each message below from its briefing lines only, as your reply in the chat. Write the replies as one JSON array '
     + `[{"id":"VOI-01","reply":"…"},…] to ${answers} with the Write tool, and nothing else.`, ...items].join('\n\n');
 }
@@ -91,7 +99,7 @@ export function voiceDiff(last, failures) {
 export async function voiceCmd(rest, flags) {
   if (getState('sandbox') === 'eval') throw invalid('in the eval sandbox: th eval end first');
   const answers = join(thDir(), 'work', 'voice-answers.json');
-  if (!rest[0]) return out({suite: 'TONE', n: voiceFixtures().length, answers, task: voiceTask(answers),
+  if (!rest[0]) return out({suite: 'TONE', n: voiceFixtures().length, answers, task: voiceTask(answers, await voicePage()),
     next: `Give the task, and nothing else, to a general-purpose subagent; then th eval voice check --file ${answers}.`});
   if (rest[0] !== 'check' || typeof flags.file !== 'string') throw invalid('usage: th eval voice [check --file <answers.json>]');
   let given;

@@ -6,7 +6,7 @@
 // It holds only what the owner's laws rule out whatever the moment: flattery (law 6), streak and
 // screen pressure (law 16), and talk about the machinery. How a reply is shaped (its length, a
 // list, an opener, an offer at the end, a word of sympathy) is the voice's judgement
-// (mind/skills/voice.md), not a refusal: the shape lint that stood here was taken out on
+// (the owner's voice page), not a refusal: the shape lint that stood here was taken out on
 // 2026-11-11 (docs/process/decisions.md).
 
 export const BANNED_PHRASES = [

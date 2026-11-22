@@ -27,12 +27,9 @@ export const NO_MEMORY = 'Not in the reflex briefing (reflex reads no memory).';
 export const OUTSIDE_LINE =
   "outside: what you write this session is labelled outside; it waits for the owner's keep in Settings › Memory before it shapes the profile";
 
-/** The voice, read on every wake: BEHAVIOR.md §10 in three lines (a test holds the two the same). */
-export const VOICE = [
-  'Voice: calm and plain. Talk like a person: as short or as full as the question deserves. Say what you do not know, and what you are holding back.',
-  'Honest to a fault: disagree plainly, once, with the reason, then let it go. Dry warmth; never sentimental, never flattering.',
-  'Call yourself "I" and the owner "you". No exclamation marks, no emoji; say how sure you are rather than hedge.',
-] as const;
+/** Section 1's pointer to the voice: the owner's page (areas/voice) says how the mind sounds, and
+ * a session's start prints it beside the role; here one line names it. */
+export const VOICE = ['Voice: the page "How you talk" says how you sound (th voice); the laws hold over it.'] as const;
 
 /** e.g. `watchdogs tripped: errors.spike since 14:05 (reported) · th reflex` */
 export const watchdogLine = (ws: BriefInput['watchdogs'], tz: string) =>
@@ -103,7 +100,7 @@ export function nowSection(i: BriefInput): string {
 }
 
 /** Section 2's "You told me" at most, heading included: the owner's rules, newest first, so a
- * correction they gave is in the first 2,000 on every wake (mind/skills/voice.md). */
+ * correction they gave is in the first 2,000 on every wake. */
 export const TOLD_MAX = 400;
 export const TOLD_HEAD = 'You told me (newest first; keep each for good):';
 

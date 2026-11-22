@@ -542,7 +542,7 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 
 Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
 
-`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code` · `voice`
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
 
 ## Watchdogs
 

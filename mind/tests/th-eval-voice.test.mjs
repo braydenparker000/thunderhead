@@ -1,4 +1,4 @@
-// th eval voice (EVALS.md §4.1, mind/skills/voice.md): thirty invented prompts, each with its
+// th eval voice (EVALS.md §4.1, the voice page): thirty invented prompts, each with its
 // briefing lines and a right and a wrong reply in our own words; the grader passes every right one
 // and fails every wrong one without a model; `th eval voice` prints the task with the skill and
 // every prompt; `check` grades a file of replies, records the TONE run in the owner's Core and
@@ -65,7 +65,7 @@ test('th eval voice prints the task; check records the TONE run and what changed
   const task = await th(['eval', 'voice'], e);
   assert.equal(task.code, 0, task.stderr);
   assert.equal(task.json.n, 30);
-  assert.match(task.json.task, /## What you must not do/);
+  assert.ok(task.json.task.includes('The page that says how you talk:\n\nWarm and plain.'), 'the task carries the voice page');
   for (const f of voiceFixtures()) assert.ok(task.json.task.includes(`${f.id}\nBriefing: ${f.brief.join(' · ')}\nOwner: ${f.prompt}`), f.id);
   assert.match(task.json.next, /th eval voice check --file/);
   const answers = task.json.answers;

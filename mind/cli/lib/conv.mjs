@@ -97,7 +97,7 @@ export async function say(argv) {
   const text = textArg(words);
   if (!text.trim()) throw invalid('the message is empty');
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
-  // No refusal for style (owner, 2026-11-22): the voice is the mind's judgement (mind/skills/voice.md).
+  // No refusal for style (owner, 2026-11-22): the voice is the owner's page (th voice) and the mind's judgement.
   if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');
   const attachments = [];
