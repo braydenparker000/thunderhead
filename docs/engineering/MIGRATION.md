@@ -17,11 +17,32 @@ the old system is ask-first; `jarvis-music` is shared and never deleted from (AG
 
 **Gate:** zero requests to the old Worker for **7 consecutive days**, then the owner's approval (a tap or their own words).
 
-Music's bridge (`frontend/th/music/bridge.js`) no longer sends a request to the old Worker after a
-timeout or a network failure (the calls about once a minute, 2026-11-21): it tries the new Worker once
-more with longer waits, then answers with a network error. It still asks the old Worker while the new
-one refuses (signed out, no catalog imported, no signing key, the bucket refusing a fresh link), so
-those calls count against the gate until the owner is signed in on the phone.
+**Nothing on the site sends a request to the old Worker (2026-11-22).** Live it still had 60 to 100 an
+hour while Music was in use. Every path that could reach it, and what closed it:
+
+| Path | Now |
+|---|---|
+| Music's worker answering "not ready" (signed out, no catalog, no signing key, the bucket refusing a fresh link, a frame home didn't open) by asking the old Worker, then for 5 minutes | The player gets the refusal as it is (its status and plain words, `{error}`); any other address on that origin is a 404. Every request to the origin is the worker's to answer (`frontend/th/music/bridge.js`). |
+| Music's page before its worker controls it (a first visit, a reload that skipped it, a worker that failed to install) asking the old Worker's URLs directly | On the site (https) the player starts only once its worker controls the page; a reload that skipped it reloads once more; if the worker can't run, the page says "Music couldn't start. Close it and open it again." (`music/src/library/r2.js`). |
+| Music and Podcasts signed out | The sign-in door, `/signin/?next=…`, as the site's other pages. |
+| Podcasts' worker answering "not ready" by asking the old Worker; its page before the worker controls it | The app's addresses are this site's own (`/podcasts/search`, `/browse`, `/feed`, `/audio`), so nothing can leave for the old origin; the page waits for its worker; refusals come back in the app's shape (`frontend/th/podcasts/bridge.js`, `podcasts/app.js`). |
+| Guitar's sources falling back to the old Worker (signed out, a refusal) | The new Worker's `/v1/guitar/` only; signed out the source is unavailable with its own message; a refusal is shown as it is (`guitar/sources.js`). |
+| Error reports signed out (to `/claude-chat/errors`) | Dropped (`assets/error-report.js`). |
+| The CSPs of My Media and Guitar | No longer name the old origin: the browser itself refuses it. |
+
+The names stay where they are keys: the player's library addresses, under which its offline copies and
+song heads are kept (so copies made before still play), and Guitar's samples in its cache
+(`assets/config.js`). **Music's CSP still names the old origin**, because a page's CSP is checked before
+its service worker sees a request: dropping it would refuse the player's own addresses, which its worker
+answers. Removing it means giving the player addresses on this site and moving its offline copies to
+them. `tests/old-worker-browser.test.mjs` fails on any request to the old origin.
+
+**What remains before the gate can start counting:** the old Worker's own traffic. About 12 requests an
+hour come at all hours, with no one using the site: most likely its own scheduled job (a cron trigger)
+or another caller outside this site (the old site, Muse). Find it in the old Worker's dashboard (its
+triggers and the requests' paths); a cron stops only with an old-Worker change (ask first). Check that
+Muse uploads to the new Worker only (the repository's uploader, `scripts/music/upload.py`, does). Nothing has been deleted or
+switched off: retiring the old Worker is the owner's own decision, below.
 
 | Step | Exact rule | Ask first? |
 |---|---|---|

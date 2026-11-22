@@ -1,7 +1,7 @@
 // Guitar's data move (P6) in Chromium: on the staged page (its CSP gains the API host), the ported
 // app's own sources module asks the new Worker with the owner's session when signed in on this site
-// (search, a sample), and the old Worker as before when not. Mock API; the old host is answered by
-// the test; no network.
+// (search, a sample); signed out, the source is unavailable with its own words, and the old Worker is
+// never asked (MIGRATION.md §8). Mock API; the old host is recorded by the test; no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -89,15 +89,17 @@ test('signed in: Guitar’s sources ask the new Worker with the session; its CSP
   await context.close();
 });
 
-test('signed out: the old Worker as before, and the session is never invented', opts, async () => {
+test('signed out: the source is unavailable, never the old Worker, and the session is never invented', opts, async () => {
   seen.length = 0;
   const { page, context, old } = await open(false);
-  const titles = await page.evaluate(async () => {
+  const r = await page.evaluate(async () => {
     const m = await import('/guitar/sources.js');
-    return (await m.search('romanza', 'songsterr')).songsterr.results.map((x) => x.title);
+    const sample = await m.sample('acoustic_guitar_nylon', 'E2').then(() => 'played', (e) => e.message);
+    return { found: await m.search('romanza', 'songsterr'), sample };
   });
-  assert.deepEqual(titles, ['From the old Worker']);
-  assert.deepEqual(old, ['/guitar/search']);
+  assert.deepEqual(r.found, { songsterr: { error: 'The tab source is unavailable. Please try again.' } });
+  assert.equal(r.sample, 'Sample unavailable');
+  assert.deepEqual(old, [], 'the old Worker was not asked');
   assert.deepEqual(seen, [], 'nothing reached the new Worker');
   // Reading the session never created the database.
   assert.equal(await page.evaluate(async () => (await indexedDB.databases()).some((d) => d.name === 'th-auth')), false);

@@ -1,6 +1,7 @@
 // Error inbox: sends this page's uncaught errors and unhandled promise
-// rejections to the Jarvis Worker, where Claude reads them, so a bug on the
-// owner's phone is seen without anyone having to report it.
+// rejections to the new Worker's inbox, signed in, so a bug on the owner's
+// phone is seen without anyone having to report it. Signed out they are
+// dropped: nothing goes to the old Worker (MIGRATION.md §8).
 //
 // Load it as the first module of a page:
 //   <script type="module" src="/assets/error-report.js" data-app="guitar"></script>
@@ -10,17 +11,15 @@
 // 20 reports at most in all; reports go in small batches, and the last batch
 // goes out when the page is hidden. Only on the live site.
 
-import {API_ORIGIN} from './config.js';
 import {CONFIG} from '/config.js';
 import {whenShown} from './shown.js';
 
 const SITE = 'https://thunderhead.z13.web.core.windows.net';
-const ENDPOINT = API_ORIGIN + '/claude-chat/errors';
 const PER_ERROR = 3, PER_PAGE = 20, BATCH_MS = 2000;
 
 const script = document.currentScript || document.querySelector('script[src*="/assets/error-report.js"]');
 const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';
-// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.
+// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, nowhere.
 let session = null;
 import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});
 // What the owner uses (P9, EVALS.md M-16, M-18): this app opening, signed in, is one event (th/senses/send.js),
@@ -62,7 +61,6 @@ function flush() {
   sent += reports.length;
   try {
     if (session && CONFIG.api) fetch(CONFIG.api + '/v1/ops/errors', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + session}, body: JSON.stringify({items: reports.map(item)}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});
-    else fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});
   } catch {}
   if (queue.length) timer = setTimeout(flush, BATCH_MS);
 }

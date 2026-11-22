@@ -1,9 +1,10 @@
 // The ported player's data move (frontend/th/music/bridge.js, loaded by music/sw.js): the player's
 // requests for its library, addressed to the old Worker, are answered from the new Worker (the
 // catalog with its ETag, audio and art by signed links signed again near their end or on a 403, a
-// waveform as bytes) and go to the old Worker as before while the new one can't answer (signed out,
-// no catalog yet, no signing key, the bucket refusing a fresh link, a framed player), asking again 5
-// minutes later. A network failure or a slow answer never goes there: it is tried once more with longer
+// waveform as bytes). Nothing ever goes to the old Worker (MIGRATION.md §8): while the new one can't
+// answer (signed out, no catalog yet, no signing key, the bucket refusing a fresh link, a framed
+// player) the player gets that refusal as it is, and any other address on the old origin is a 404. A
+// network failure or a slow answer never goes there either: it is tried once more with longer
 // waits (reusing a link already signed), then answered with a network error within ANSWER_MS. The next songs'
 // links are signed ahead in one request, a link asked twice at once is signed once, and the session
 // is read once a minute. Run in a plain VM with stubbed fetch, caches and session (and its clocks
@@ -83,12 +84,16 @@ function load({ token = 'th1_session', top = true } = {}) {
 }
 const onlyNew = (calls) => calls.every((c) => !c.url.startsWith(OLD));
 
-test('only the library paths on the old Worker are the bridge’s', () => {
-  const { b } = load();
+test('every address on the old Worker’s origin is the bridge’s; one that isn’t a library file is a 404, never fetched', async () => {
+  const { b, calls, get } = load();
   assert.equal(b.handles(new URL(`${OLD}/music/library.json`)), true);
   assert.equal(b.handles(new URL(`${OLD}/music/library/audio/${ID}`)), true);
-  assert.equal(b.handles(new URL(`${OLD}/music/uploads/register`)), false);
+  assert.equal(b.handles(new URL(`${OLD}/music/uploads/register`)), true);
   assert.equal(b.handles(new URL(`https://elsewhere.test/music/library.json`)), false);
+  assert.equal((await get('/music/uploads/register')).status, 404);
+  assert.equal((await get('/music/library.json?v=2')).status, 404);
+  assert.equal((await b.answer(new Request(`${OLD}/music/library.json`, { method: 'POST', body: '{}' }), { clientId: 'c1' })).status, 404);
+  assert.deepEqual(calls, [], 'nothing fetched');
 });
 
 test('the catalog comes from the new Worker, kept with its ETag: an unchanged one costs a 304', async () => {
@@ -136,41 +141,40 @@ test('art and waveforms: a missing cover is a 404; the bars come as bytes', asyn
   assert.ok(onlyNew(calls));
 });
 
-test('until the new Worker can answer, the old one does, and the new one is asked again 5 minutes later', async () => {
-  for (const [why, set] of [
-    ['no catalog imported yet', (s) => (s.catalog = 409)],
-    ['no signing key', (s) => (s.sign = 503)],
-    ['signed out', (s) => (s.token = null)],
+test('until the new Worker can answer, the player gets its refusal as it is, never the old Worker; ready, the new one answers at once', async () => {
+  for (const [why, set, status, words] of [
+    ['no catalog imported yet', (s) => (s.catalog = 409), 409, 'No songs yet.'],
+    ['no signing key', (s) => (s.sign = 503), 503, "Your songs can't be reached right now."],
+    ['signed out', (s) => (s.token = null), 401, 'Sign in to play your songs.'],
   ]) {
     const { get, state, calls } = load();
     set(state);
     const path = why === 'no signing key' ? `/music/library/audio/${ID}` : '/music/library.json';
-    assert.equal(await (await get(path)).text(), 'old', why);
-    const asked = calls.length;
-    await get(path);
-    assert.equal(calls.length, asked + 1, `${why}: straight to the old Worker for a while`);
-    assert.ok(calls.at(-1).url.startsWith(OLD));
-    state.now += 5 * 60_000 + 1;
+    const r = await get(path);
+    assert.equal(r.status, status, why);
+    assert.deepEqual(await r.json(), { error: words }, why);
+    assert.ok(onlyNew(calls), `${why}: no old-Worker call`);
     state.catalog = 200;
     state.sign = 200;
     state.token = 'th1_session';
-    assert.notEqual(await (await get(path)).text(), 'old', `${why}: the new Worker again once ready`);
+    state.now += 60_001;
+    assert.ok((await get(path)).ok, `${why}: the new Worker at once once ready`);
+    assert.ok(onlyNew(calls), `${why}: still no old-Worker call`);
   }
 });
 
-test('a bucket that refuses a fresh link falls back; one that fails as a network would is asked again; a framed player never uses the session', async () => {
+test('a bucket that refuses a fresh link is that refusal; one that fails as a network would is asked again; a framed player never uses the session', async () => {
   const a = load();
   a.state.r2.push('cors', 'cors');
   assert.equal((await a.get(`/music/library/audio/${ID}`)).type, 'error', 'a failure without an answer is not a refusal: a network error');
   assert.equal((await a.get(`/music/library/audio/${ID}`)).status, 206, 'the next request asks the bucket again');
   a.state.r2.push(403, 403);
-  assert.equal(await (await a.get(`/music/library/audio/${ID}`)).text(), 'old', 'refused a fresh link: the old Worker');
-  const asked = a.calls.length;
-  await a.get(`/music/library/audio/${ID}`);
-  assert.equal(a.calls.length, asked + 1, 'and only the old one for a while');
+  assert.equal((await a.get(`/music/library/audio/${ID}`)).status, 403, 'refused a fresh link: that refusal');
+  assert.equal((await a.get(`/music/library/audio/${ID}`)).status, 206, 'and the next request asks again');
+  assert.ok(onlyNew(a.calls), 'no old-Worker call');
   const b = load({ top: false });
-  assert.equal(await (await b.get('/music/library.json')).text(), 'old');
-  assert.ok(b.calls.every((c) => c.url.startsWith(OLD)), 'nothing asked of the new Worker');
+  assert.equal((await b.get('/music/library.json')).status, 401, 'a frame home did not open: signed out to it');
+  assert.deepEqual(b.calls, [], 'nothing asked of either Worker');
 });
 
 const ID2 = `r2_native_${'b'.repeat(64)}`;
@@ -292,9 +296,10 @@ test('both tries failing is a network error within the bound, never the old Work
   }
 });
 
-test('a refusal still falls back to the old Worker at once, with no try again', async () => {
+test('a refusal is answered at once, with no try again and no old-Worker request', async () => {
   const { calls, get, state } = load();
   state.sign = 401;
-  assert.equal(await (await get(`/music/library/audio/${ID}`)).text(), 'old');
+  assert.equal((await get(`/music/library/audio/${ID}`)).status, 401);
   assert.equal(signCalls(calls).length, 1);
+  assert.ok(onlyNew(calls));
 });

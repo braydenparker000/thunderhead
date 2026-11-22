@@ -15,7 +15,7 @@ import { outlast } from './fixtures/waits.mjs';
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
-/** The old Worker the unchanged app addresses (podcasts/sw.js names it). */
+/** The old Worker, which the app once addressed: nothing may reach it now (MIGRATION.md §8). */
 const OLD = 'https://*.workers.dev';
 const FEED = 'https://feeds.example.org/history.xml';
 const OTHER = 'https://feeds.example.org/other.xml';
@@ -85,9 +85,8 @@ async function idOf(page, guid) {
 
 async function opened(signedIn, appState) {
   const context = await browser.newContext({ serviceWorkers: 'allow', bypassCSP: true });
-  // Before the app's worker takes over, the app asks the old Worker itself (its directory, here).
-  await context.route(`${OLD}/**`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ shows: [{ id: '1', title: 'Invented Show', feedUrl: FEED, author: 'Host' }] }) }));
+  // Before the app's worker takes over, the app waits for it; nothing goes to the old Worker.
+  await context.route(`${OLD}/**`, (route) => route.abort());
   await context.route('https://itunes.apple.com/**', (route) => route.abort());
   const page = await context.newPage();
   const errors = [];

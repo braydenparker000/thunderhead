@@ -2,18 +2,18 @@
 // (GUITAR.md §8.1, §9): a touch holds the screen lock, and 90 s later with nothing playing it is let
 // go (the page's clock is moved); a session is kept when the page goes with the reader open and sent
 // when the page comes back or Guitar next opens, never a second time when the reader then closes.
-// The tab file comes from a stubbed old Worker; the screen lock is a stand-in that counts; no
+// The tab file is a saved copy on the phone (fixtures/guitar-saved.mjs); the screen lock is a stand-in that counts; no
 // network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { keepScore } from './fixtures/guitar-saved.mjs';
 import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (stubbed tab source)' };
-const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
 const GP = readFileSync(new URL('./fixtures/guitar/practice.gp', import.meta.url));
 const SONG = 'g:jarvis-test/practice-song';
 const TOKEN = `th1_${'B'.repeat(43)}abcdef`;
@@ -32,11 +32,8 @@ after(async () => {
 
 async function context() {
   const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await c.route(`${OLD}/**`, (route) =>
-    route.request().url().includes('gprotab/file')
-      ? route.fulfill({ status: 200, contentType: 'application/octet-stream', body: GP })
-      : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' }),
-  );
+  // The tab is a saved copy on this phone: there is no tab source signed out (MIGRATION.md §8).
+  await keepScore(c, base, SONG, GP);
   return c;
 }
 const ready = (page) =>

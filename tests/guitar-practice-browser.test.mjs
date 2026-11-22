@@ -2,17 +2,17 @@
 // §4.3, §8.1): with yesterday's records on the phone, the song opens on the bars that went worst at
 // the ladder's speed, with Undo; each pass of the loop asks Clean or Not yet, two clean in a row step
 // the speed up, an unanswered pass is not counted; each marked pass, the new best and the session
-// wait as practice senses with numbers only. The tab file comes from a stubbed old Worker; no network.
+// wait as practice senses with numbers only. The tab file is a saved copy on the phone (fixtures/guitar-saved.mjs); no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { keepScore } from './fixtures/guitar-saved.mjs';
 import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (stubbed tab source)' };
-const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
 const GP = readFileSync(new URL('./fixtures/guitar/practice.gp', import.meta.url));
 const SONG = 'g:jarvis-test/practice-song';
 const TOKEN = `th1_${'B'.repeat(43)}abcdef`;
@@ -36,11 +36,8 @@ const yesterday = () => {
 
 test('the ladder: opens on the worst bars, asks after each pass, steps up after two clean; senses wait with numbers only', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await context.route(`${OLD}/**`, (route) =>
-    route.request().url().includes('gprotab/file')
-      ? route.fulfill({ status: 200, contentType: 'application/octet-stream', body: GP })
-      : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' }),
-  );
+  // The tab is a saved copy on this phone: there is no tab source signed out (MIGRATION.md §8).
+  await keepScore(context, base, SONG, GP);
   // Every toast, in order (the sounds' 404 replaces the first one in a moment).
   await context.addInitScript(() => {
     window.__toasts = [];

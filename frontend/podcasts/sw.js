@@ -1,6 +1,6 @@
-// P8 data move (MIGRATION.md §7 step 5): the app's requests to the old Worker are answered from the new Worker, the old one while it can't.
+// P8 data move (MIGRATION.md §7 step 5): the app's requests are answered from the new Worker; none leaves for the old one (§8).
 import {podcastsBridge} from '/th/podcasts/bridge.js';
-podcastsBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
+podcastsBridge.use(self.location.origin);
 import {cacheFirst as fromCache} from '/podcasts/cache-first.js';
 const SHELL = 'jarvis-podcast-shell-v6';
 const AUDIO = 'jarvis-podcast-audio-v1';
