@@ -49,10 +49,11 @@ You are the night shift, on the day that just closed. Nothing you do may notify 
    wait. Exit 7: go to its `resume_from`; 11: end.
 2. Run `todo` in order. A writing command closes its own step and the open ones before it
    (`th night step <n> done` only to resume):
-   - 1 The day: `th day <day>` when you need more than the start printed.
+   - 1 The day: `th day <day> --first|--last <n>` when you need more than the start printed.
    - 2 `th daynote <day> --summary … --decision … --importance <1-10> --voice … --title …`.
    - 3 Loose ends: `th thread add` each commitment, `th thread done` what the day finished.
-   - 4 Facts from the owner's messages and routines: `th facts --batch - --night`.
+   - 4 Facts from the owner's messages and routines, checked with `th recall --each -`:
+     `th facts --batch - --night`.
    - 7 Arrange the open day: `th podcasts new`, home lines and tiles (`th skill briefing`) for
      what they said they would do, what you noticed, what they would enjoy.
    - 13 The week's growth: `th growth`.

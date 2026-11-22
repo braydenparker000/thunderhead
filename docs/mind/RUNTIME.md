@@ -228,7 +228,7 @@ Also: answers come from `th music` and the song's tags, never from a web search 
 | 0 | Success (for `wait`: messages or events arrived) |
 | 1 | Unexpected error (bug, bad JSON) |
 | 2 | Unauthorized: token missing or wrong (401). The session can't reach the owner. |
-| 3 | `wait` timed out with nothing |
+| 3 | `wait --minutes` timed out with nothing; `listen` and `reply` were quiet for their minutes |
 | 4 | Stop requested by the owner |
 | 5 | Day closed |
 | 6 | Forbidden for this role or this session (403: role scope, session taint for an ask-first card, a reminder or a work order, laws not pinned) |
@@ -237,6 +237,7 @@ Also: answers come from `th music` and the song's tags, never from a web search 
 | 9 | Worker unreachable after retries |
 | 10 | Worker budget exhausted (503 `budget_exhausted`, 429) |
 | 11 | `already_live` (another chat session holds the lease) |
+| 12 | Closed: `th listen`, `th reply` or `th wait` reached the idle cut-off with nothing waiting and closed the session itself; end the turn |
 
 ### 5.3 Commands
 
