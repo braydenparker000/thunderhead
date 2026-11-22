@@ -312,6 +312,8 @@ function answer(state, method, url, body) {
   // The phone's reports and error inbox (API.md §11.16): taken as sent; `calls` keeps each body.
   if (k === 'POST /v1/ops/reports') return [201, { id: crypto.randomUUID(), at: Date.now() }];
   if (k === 'POST /v1/ops/errors') return [204, null];
+  // Home asks deep health on opening for the owner's lines (th/briefing/watch.js): a healthy Worker unless a test sets `state.watch`.
+  if (k === 'GET /v1/ops/health/deep') return [200, { ok: true, watch: state.watch ?? { cron: null, roll_at: null, missing: [], mind: { state: 'asleep', since: null, cause: null, until: null, line: null }, push: false, lines: [] } }];
   if (k === 'GET /v1/insight') return [200, state.insight ?? INSIGHT];
   if (k === 'GET /v1/mind/usage') return state.usage === 'fail' ? err(503, 'unavailable') : [200, state.usage ?? USAGE];
   return (

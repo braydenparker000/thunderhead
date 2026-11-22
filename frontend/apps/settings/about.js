@@ -48,6 +48,7 @@ export async function page(body) {
   lab.id = 'about-frames';
   const line = el('p', { class: 'line', role: 'status' });
   const report = row({ title: 'Copy report', detail: 'Numbers and states for whoever helps you. None of your words.', icon: 'copy' });
+  report.dataset.action = 'copy-report'; // an action, not a setting (the page's rows are otherwise catalogue entries)
   report.id = 'about-report';
   report.dataset.find = 'report';
   report.addEventListener('click', async () => {
@@ -60,6 +61,7 @@ export async function page(body) {
     }
   });
   const repair = row({ title: 'Repair', detail: 'When the app acts broken: fresh code, your data stays.', icon: 'arrow-clockwise' });
+  repair.dataset.action = 'repair';
   repair.id = 'about-repair';
   repair.dataset.find = 'repair';
   repair.addEventListener('click', async () => {
