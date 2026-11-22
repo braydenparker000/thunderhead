@@ -16,7 +16,7 @@ import { fresh } from '../../objects/rpc';
 
 const NAME = /^[a-z][a-z0-9_]{0,23}$/;
 const SLOT = /^[a-z][a-z0-9_]{0,23}(\.[a-z0-9_]{1,12})?$/;
-const putBody = z.strictObject({
+export const putBody = z.strictObject({
   kind: z.string().check(z.regex(NAME)),
   schema: z.number().check(z.int(), z.gte(1), z.lte(99)),
   payload: z.record(z.string(), z.json()).check(z.refine((p) => JSON.stringify(p).length <= 16_384, 'at most 16 KB')),

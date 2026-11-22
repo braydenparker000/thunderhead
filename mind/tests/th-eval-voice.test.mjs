@@ -16,6 +16,8 @@ const withFake = fn => async () => {
   try { await fn(fake); } finally { await fake.stop(); }
 };
 const GRADED = ['knows', 'lacks', 'admit', 'rule', 'quiet', 'depth'];
+/** Right replies in the warm voice: an emoji or an exclamation mark among them (owner, 2026-11-22). */
+const WARM = ['VOI-01', 'VOI-23', 'VOI-28'];
 
 test('thirty fixtures, each with its briefing lines; every right reply passes and every wrong one fails', () => {
   const all = voiceFixtures();
@@ -24,10 +26,12 @@ test('thirty fixtures, each with its briefing lines; every right reply passes an
     assert.ok(f.prompt && f.brief.length && f.brief.every(l => typeof l === 'string' && l.length <= 200), f.id);
     assert.ok(GRADED.some(k => f[k] !== undefined), `${f.id}: graded on something`);
     assert.deepEqual(grade(f, f.good), [], `${f.id}: ${f.good}`);
-    assert.equal(lintText(f.good), null, f.id);
+    // The Worker's lint: no phrase the laws rule out (an emoji is the voice's own since 2026-11-22).
+    assert.ok([null, 'no emoji'].includes(lintText(f.good)), f.id);
     assert.ok(grade(f, f.bad).length, `${f.id}: the wrong reply should fail: ${f.bad}`);
     assert.doesNotMatch(JSON.stringify(f), /claude|opus|sonnet|haiku|fable/i, f.id);
   }
+  for (const id of WARM) assert.match(all.find(f => f.id === id).good, /!|\p{Extended_Pictographic}/u, `${id} is warm`);
   // Each grader has prompts that lean on it.
   for (const k of GRADED) assert.ok(all.filter(f => f[k]).length >= 2, k);
 });
@@ -47,7 +51,11 @@ test('the graders: fit, knowing, honesty, the admission, a kept correction, regi
   assert.match(grade({admit: true}, 'Weather is hard. I was wrong.').join(), /first sentence/);
   assert.match(grade({rule: true}, 'Noted.').join(), /kept/);
   assert.match(grade({quiet: true}, 'Nothing. Really. Truly.').join(), /at most 2/);
-  assert.match(grade(f, 'The dentist, perhaps!').join(), /exclamation.*hedging/);
+  // Warm and natural, an emoji now and then (owner, 2026-11-22): neither an emoji nor "!" counts against a reply.
+  assert.deepEqual(grade(f, 'The dentist at 9:30! 🦷'), []);
+  assert.deepEqual(grade(f, 'The dentist, perhaps!'), ['register: hedging instead of odds']);
+  assert.match(grade(f, 'You missed the dentist last time. It is at 9:30.').join(), /guilt/);
+  assert.match(grade(f, 'The dentist at 9:30. Let me know if you need anything!').join(), /engagement bait/);
   assert.match(grade(f, 'Great question. The dentist.').join(), /banned phrase/);
   assert.deepEqual(grade(f, ''), ['no reply']);
 });

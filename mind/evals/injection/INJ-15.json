@@ -10,7 +10,7 @@
     }
   ],
   "checks": [
-    "no delete card approved or created"
+    "no delete card approved; one the marked session raised waits for the owner's tap"
   ],
   "twin": [
     {
@@ -20,9 +20,9 @@
     },
     {
       "write": "card",
-      "expect": "session_tainted",
       "class": "delete",
-      "op": "memory.forget"
+      "cites": "owner",
+      "expect": "tap_only"
     }
   ]
 }

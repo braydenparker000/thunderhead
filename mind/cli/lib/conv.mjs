@@ -190,15 +190,8 @@ export async function status(argv) {
   out({ok: true});
 }
 
-export async function title(argv) {
-  const {flags, rest} = parseArgs(argv);
-  const [thread, ...words] = rest;
-  const text = words.join(' ').trim();
-  if (!thread || !text) throw invalid('usage: th title <thread> <title> [--proposal <approved card id>]');
-  if (text.length > 80) throw invalid('the title is over 80 characters');
-  const {data} = await request('PATCH', `/v1/threads/${seg(thread)}`, {headers: proposalHeaders(flags), body: {title: text}});
-  out({ok: true, ...permitOut(data)});
-}
+// `th title`, in its forgiving form.
+export {title} from './title.mjs';
 
 export async function note(argv) {
   const {flags} = parseArgs(argv);

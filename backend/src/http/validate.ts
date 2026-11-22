@@ -4,6 +4,7 @@
 import type { Context } from 'hono';
 import type * as z from 'zod/mini';
 import { ApiError } from './errors';
+import './plain-issues';
 
 export async function json<S extends z.ZodMiniType>(c: Context, schema: S): Promise<z.output<S>> {
   let raw: unknown;

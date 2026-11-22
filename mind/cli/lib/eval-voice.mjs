@@ -5,8 +5,11 @@
 // fit (a quick question is not answered with an essay, nor a request for depth with a line),
 // knowing (names a fact from its lines and asks nothing), honesty (where the lines lack the fact:
 // "I don't know" or odds in words), the admission (a mistake is the first sentence), a correction
-// kept, and register (the phrase lint, no exclamation, no hedging). A list, an opener or an offer
-// at the end is not graded: the reply's shape is the voice's judgement since 2026-11-11. It
+// kept, and register (what the laws rule out: the contract's phrase list of flattery, streak pressure
+// and machinery talk, guilt and engagement bait, and hedging instead of odds). An emoji or an
+// exclamation mark is not counted against a reply: the voice is warm and natural with an emoji now
+// and then (owner, 2026-11-22). A list, an opener or an offer at the end is not graded either: the
+// reply's shape is the voice's judgement since 2026-11-11. It
 // records the run in the owner's Core and prints what changed since the last one, ids and reasons
 // only.
 import {execFileSync} from 'node:child_process';
@@ -17,7 +20,7 @@ import {repoRoot} from './brief.mjs';
 import {invalid, out} from './io.mjs';
 import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
-import {lintText} from './lint.mjs';
+import {CONTRACT} from './contract.mjs';
 import {skillsDir} from './skill.mjs';
 import {getState, thDir} from './state.mjs';
 
@@ -34,6 +37,16 @@ const NUM = '(one|two|three|four|five|six|seven|eight|nine|ten|\\d+)';
 const HONEST = new RegExp(`\\bi (don't|do not) know\\b|\\b${NUM} in ${NUM}\\b|\\b\\d{1,3} ?%`, 'i');
 const ADMIT = /^i\b.*\b(wrong|mistake|misread)\b/i;
 const KEPT = /\b(stopped|won't|will not|kept|rule)\b/i;
+/** Guilt and engagement bait (laws 16 and 17): what the voice never does, whatever its warmth. */
+export const GUILT = ['you missed', 'you forgot again', 'you should have', 'you let', 'disappointed'];
+export const BAIT = ['let me know if you need anything', 'i promise', 'come back soon', "don't miss out", 'check back', "i'll message you more often"];
+/** Register: the first phrase the laws rule out, or null. Code fences are exempt; emoji and "!" are not counted. */
+export function register(reply) {
+  const words = prose(reply).toLowerCase().replace(/\u2019/g, "'");
+  for (const [what, list] of [['banned phrase', CONTRACT.lint.banned_phrases], ['guilt', GUILT], ['engagement bait', BAIT]])
+    for (const p of list) if (words.includes(p)) return `${what}: "${p}"`;
+  return null;
+}
 const word = t => new RegExp(`(?<![\\p{L}\\p{N}])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
 
 /** Why a reply fails its prompt (empty: it passes). */
@@ -45,9 +58,8 @@ export function grade(f, reply) {
   const most = f.depth ? 40 : f.quiet ? 2 : 6;
   if (s.length > most) why.push(`fit: ${s.length} sentences, at most ${most}`);
   if (f.depth && s.length < 3) why.push('fit: asked for depth, answered in under three sentences');
-  const lint = lintText(reply);
-  if (lint) why.push(`register: ${lint}`);
-  if (reply.includes('!')) why.push('register: an exclamation mark');
+  const ruled = register(reply);
+  if (ruled) why.push(`register: ${ruled}`);
   if (HEDGE.test(reply)) why.push('register: hedging instead of odds');
   if (f.knows && !f.knows.some(t => word(t).test(reply))) why.push(`knowing: names none of ${f.knows.join(', ')} from its briefing`);
   if (f.knows && reply.includes('?')) why.push('knowing: asks what the briefing holds');

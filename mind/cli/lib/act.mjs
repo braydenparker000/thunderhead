@@ -4,11 +4,12 @@
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
-import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
+import {CONTRACT, checkProposal, checkVerb} from './contract.mjs';
 import {permitOut, proposalHeaders, request} from './http.mjs';
 import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
 import {cancel, fireAt, laterOk} from './plan.mjs';
+import {placeBody} from './surface-place.mjs';
 
 /** The card classes (shared/contract/proposals.ts); `permit` is a standing permission set to Ask. */
 export const CLASSES = Object.keys(CONTRACT.proposals.classes);
@@ -199,19 +200,15 @@ export async function surface(argv) {
   }
   const [app, slot] = rest;
   if (!app || !slot) throw invalid('usage: th surface <app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>] [--asked-by <message id>] · ls · rm <app> <slot> · topics · said <topic> · reopen <topic> --by-message <id>');
-  const kind = need(flags, 'kind');
-  const given = need(flags, 'payload');
-  const payload = jsonFlag(given === '-' ? readFileSync(0, 'utf8') : given, 'payload');
-  const schema = checkSurface(app, slot, kind, flags.schema === undefined ? undefined : Number(flags.schema), payload);
-  const topic = need(flags, 'topic');
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('--topic is a slug: lowercase letters, digits, . _ -');
+  // Every fault in one refusal, the obvious slips repaired (lib/surface-place.mjs).
+  const {f, body} = placeBody(app, slot, flags);
   const {data} = await request('PUT', `/v1/surfaces/${seg(app)}/${seg(slot)}`, {headers: proposalHeaders(flags), body: {
-    kind, schema, payload, why: why(flags), topic_key: topic, expires_at: toMs(flags.expires, 'expires'),
+    ...body,
     // The app it is about (`app:music`): its opening counts as the owner acting on it (EVALS.md M-16).
     ref: typeof flags.ref === 'string' ? flags.ref : undefined,
     asked_by: askedBy(flags),
   }});
-  out({ledger_id: data.ledger_id ?? null, ...permitOut(data)});
+  out(f.with({ledger_id: data.ledger_id ?? null, ...permitOut(data)}));
 }
 
 export async function push(argv) {

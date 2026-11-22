@@ -518,3 +518,86 @@ test('approved: an executed repo.change card for these paths and this base (exit
   const last = fake.state.requests.filter(r => r.path === '/v1/proposals').pop();
   assert.equal(last.headers['th-sandbox'], undefined);
 }));
+
+// Forgiving commands (owner, 2026-11-22): obvious slips repaired and listed; one refusal, before
+// the network, naming every fault with its rule, its number and what was sent.
+const refusal = r => JSON.parse(r.stderr).error;
+
+test('thread add: a long text is refused with its limit and length; every fault at once; repairs said', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('keep track of the long plan');
+  const before = fake.state.requests.length;
+  const long = 'x'.repeat(212);
+  const r = await th(['thread', 'add', long, '--owner', 'nobody', '--due', 'soon'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['text', '--owner', '--due', '--evidence']);
+  assert.match(err.message, /text: at most 200 characters; yours has 212/);
+  assert.match(err.message, /--owner: one of mind, owner; you sent "nobody"/);
+  assert.equal(err.message.includes('Invalid input'), false);
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  const ok = await th(['thread', 'add', '  Restring the guitar  ', '--owner', ' owner', '--evidence', `${said.id},${said.id}`], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(fake.state.openThreads.get(ok.json.id).text, 'Restring the guitar');
+  assert.deepEqual(ok.json.repaired, ['text: trimmed the spaces around it', '--owner: trimmed the spaces around it', '--evidence: dropped 1 repeated id(s)']);
+  const drop = await th(['thread', 'drop'], e);
+  assert.deepEqual(refusal(drop).details.map(d => d.path), ['id', '--why']);
+}));
+
+test('remember: every fault in one refusal; sensitivity clamped and text trimmed, never cut', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('I like long walks');
+  const r = await th(['remember', '--kind', 'mood', '--source', 'guess', '--text', 'y'.repeat(300), '--sensitivity', 'high'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['--kind', '--source', '--sensitivity', '--text', '--evidence']);
+  assert.match(err.message, /--text: at most 280 characters; yours has 300/);
+  const ok = await th(['remember', '--kind', 'preference', '--text', ' Likes long walks ', '--sensitivity', '3', '--evidence', said.id], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['--sensitivity: 3 → 1 (0 to 1)', '--text: trimmed the spaces around it']);
+  assert.equal(fake.state.facts.at(-1).text, 'Likes long walks');
+}));
+
+test('facts --batch: every op checked first; one refusal names each fault', withFake({}, async fake => {
+  const e = env(fake);
+  const said = fake.addOwnerMessage('I run on Saturdays');
+  const before = fake.state.requests.length;
+  const r = await th(['facts', '--batch', '-'], e, JSON.stringify([{op: 'add', kind: 'habit', source: 'user', text: 'z'.repeat(281), evidence: [said.id]},
+    {op: 'grow'}, {op: 'add', kind: 'nope', source: 'user', text: 'Runs', evidence: []}]));
+  assert.equal(r.code, 8);
+  assert.deepEqual(refusal(r).details.map(d => d.path), ['ops.0.text', 'ops.1.op', 'ops.2.kind', 'ops.2.evidence']);
+  assert.match(refusal(r).message, /ops\.0\.text: at most 280 characters; yours has 281/);
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  const ok = await th(['facts', '--batch', '-'], e, JSON.stringify([{op: 'add', kind: 'routine', source: 'user', text: 'Runs on Saturdays ', evidence: [said.id]}]));
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['ops.0.text: trimmed the spaces around it']);
+}));
+
+test('title: one refusal names the thread, the limit and the length; spaces trimmed', withFake({}, async fake => {
+  const e = env(fake);
+  const r = await th(['title', fake.today.id, 't'.repeat(95)], e);
+  assert.equal(r.code, 8);
+  assert.match(refusal(r).message, /title: at most 80 characters; yours has 95/);
+  assert.deepEqual(refusal(await th(['title'], e)).details.map(d => d.path), ['thread', 'title']);
+  const ok = await th(['title', fake.today.id, ' Garden', 'plans '], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(fake.today.title, 'Garden plans');
+  assert.deepEqual(ok.json.repaired, ['title: trimmed the spaces around it']);
+}));
+
+test('surface: --why and --topic named with their rules in the one refusal, beside the payload\'s faults', withFake({}, async fake => {
+  const e = env(fake);
+  const before = fake.state.requests.length;
+  const r = await th(['surface', 'home', 'line.1', '--kind', 'line', '--payload', '{"text":5,"lang":"English"}', '--why', 'short'], e);
+  assert.equal(r.code, 8);
+  const err = refusal(r);
+  assert.deepEqual(err.details.map(d => d.path), ['payload.text', 'payload.lang', '--why', '--topic']);
+  assert.match(err.message, /--why: at least 8 characters; yours has 5/);
+  assert.match(err.message, /--topic: required: a topic key, 1 to 64/);
+  assert.equal(fake.state.requests.length, before);
+  const bad = refusal(await th(['surface', 'home', 'line.1', '--kind', 'tilee', '--topic', 'Big Topic'], e));
+  assert.deepEqual(bad.details.map(d => d.path), ['--kind', '--payload', '--why', '--topic']);
+  const ok = await th(['surface', 'home', 'line.1', '--kind', ' line', '--payload', '{"text":"Rain at 3"}', '--why', ' Owner walks at 3 pm ', '--topic', 'weather-walk '], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json.repaired, ['--kind: trimmed the spaces around it', '--why: trimmed the spaces around it', '--topic: trimmed the spaces around it']);
+}));

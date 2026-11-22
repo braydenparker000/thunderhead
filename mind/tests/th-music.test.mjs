@@ -86,7 +86,9 @@ test('th music note refuses before the network; the Worker\'s refusal is exit 8 
     [JSON.stringify(Array.from({length: 201}, () => ({id: id(1), ...calm()}))), 'over 200'],
     [JSON.stringify([{n: 9, ...calm()}]), 'a handle not on the page'],
     [JSON.stringify([{n: 1, ...calm({moods: {happy: 0.8}})}]), 'a mood not in the list'],
-    [JSON.stringify([{n: 1, ...calm({known: false})}]), 'too sure of a song not known'],
+    // A confidence over the cap of a song not known is now clamped (owner, 2026-11-22); five moods
+    // over the limit of five is not repairable.
+    [JSON.stringify([{n: 1, ...calm({moods: {calm: 0.8, hopeful: 0.5, dreamy: 0.5, focused: 0.5, peaceful: 0.5, joyful: 0.5}})}]), 'too many moods'],
     [JSON.stringify([{n: 1, ...calm({language: 'en'})}]), 'no confidence for the language'],
   ]) {
     const r = await th(['music', 'note'], e, input);
@@ -196,4 +198,44 @@ test('th get takes a value from stdin (key=-), so the owner\'s words never sit i
   const asked = fake.state.requests.filter(x => x.path === '/v1/music/tracks').at(-1);
   assert.deepEqual(asked.query, {q: words, limit: '5'});
   assert.equal((await th(['get', '/v1/music/tracks', 'q=-', 'limit=-'], env(fake), 'x')).code, 8, 'one key=- at most');
+}));
+
+test('th music note repairs what has one obvious meaning and says so', withFake(async fake => {
+  fake.addTracks(SONGS);
+  const e = env(fake, {TH_ROLE: 'night'});
+  await th(['music', 'page'], e);
+  const sent = [{n: 1, ...calm({known: false, moods: {' energetic': 0.02, calm: 0.9}, occasions: {}, themes: ['love', 'love'],
+    language: 'Spanish', era: 1994, energy: 1.4, conf: {energy: 0.333, language: 0.4, era: 0.7, themes: 0.3}})},
+  {n: 2, ...calm({language: 'Klingon', era: null, conf: {energy: 0.6, language: 0.9, era: 0.5}})}];
+  const r = await th(['music', 'note'], e, JSON.stringify(sent));
+  assert.equal(r.code, 0, r.stderr);
+  const [a, b] = puts(fake).at(-1).body.items;
+  assert.deepEqual(a.moods, {energetic: 0.05, calm: 0.5});
+  assert.deepEqual(a.themes, ['love']);
+  assert.equal(a.language, 'es');
+  assert.equal(a.era, 1990);
+  assert.equal(a.energy, 1);
+  assert.deepEqual(a.conf, {energy: 0.33, language: 0.4, era: 0.5, themes: 0.3});
+  assert.equal(b.language, null, 'a language with no code is null');
+  assert.deepEqual(b.conf, {energy: 0.6}, 'confidences for empty fields are dropped');
+  const repaired = r.json.repaired.join('\n');
+  for (const said of ['items.0.moods.energetic: 0.02 → 0.05', 'items.0.moods.calm: 0.9 → 0.5', 'items.0.themes: dropped 1',
+    'items.0.language: "Spanish" → es', 'items.0.era: 1994 → 1990', 'items.0.energy: 1.4 → 1', 'items.0.conf.energy: 0.333 → 0.33',
+    'items.1.language: "Klingon" → null', 'items.1.conf.language: dropped', 'items.1.conf.era: dropped', 'trimmed'])
+    assert.ok(repaired.includes(said), `${said} in ${repaired}`);
+}));
+
+test('th music note refuses once, with every fault of the batch, before the network', withFake(async fake => {
+  fake.addTracks(SONGS);
+  const e = env(fake, {TH_ROLE: 'night'});
+  await th(['music', 'page'], e);
+  const r = await th(['music', 'note'], e, JSON.stringify([{n: 1, ...calm({moods: {happy: 0.5}, language: 'en'})},
+    {n: 7, ...calm({known: 'yes'})}, {id: 'nope', ...calm({themes: ['war']})}]));
+  assert.equal(r.code, 8);
+  const err = JSON.parse(r.stderr).error;
+  assert.deepEqual(err.details.map(d => d.path), ['items.1.n', 'items.0.moods.happy', 'items.0.conf.language', 'items.1.known', 'items.2.id', 'items.2.themes', 'items.2.conf.themes']);
+  assert.match(err.message, /^7 faults: /);
+  assert.match(err.message, /items\.1\.known: true or false; you sent "yes"/);
+  assert.equal(err.message.includes('Invalid input'), false);
+  assert.equal(puts(fake).length, 0, 'nothing reached the Worker');
 }));
