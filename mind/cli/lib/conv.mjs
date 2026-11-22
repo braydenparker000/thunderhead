@@ -181,7 +181,9 @@ export async function status(argv) {
   if ((title || using) && gap > 0) await sleep(gap + 50);
   const res = await request('POST', '/v1/mind/status', {
     body: {state, thread_id: typeof flags.thread === 'string' ? flags.thread : undefined, note, title, using,
-      error: typeof flags.error === 'string' ? flags.error : undefined},
+      error: typeof flags.error === 'string' ? flags.error : undefined,
+      // limited: the reset time the StopFailure hook read from the error (epoch ms).
+      resets_at: state === 'limited' && /^\d{13}$/.test(String(flags.until ?? '')) ? Number(flags.until) : undefined},
   });
   setState('status', {state, at: Date.now()});
   stopNotice(res);

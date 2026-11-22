@@ -5161,20 +5161,20 @@
         "weekly": true
       },
       {
-        "step": 5,
-        "name": "health and agreed fixes",
-        "budget_min": 8,
-        "idempotent": "reads, then one branch per agreed loose end",
-        "cursor": false,
-        "phase": "P3"
-      },
-      {
         "step": 12,
         "name": "the report",
         "budget_min": 1,
         "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
         "cursor": false,
         "phase": "P4"
+      },
+      {
+        "step": 5,
+        "name": "health and agreed fixes",
+        "budget_min": 8,
+        "idempotent": "reads, then one branch per agreed loose end",
+        "cursor": false,
+        "phase": "P3"
       },
       {
         "step": 6,

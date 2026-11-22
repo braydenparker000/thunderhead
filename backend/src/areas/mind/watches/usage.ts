@@ -7,7 +7,9 @@
 // only. A session that never said it ended counts to its role's limit: the chat's idle cutoff
 // after the owner's last message (its setting's 120 min; a busy day's longer cutoff is not
 // known here), the night's hard stop (60), the reflex's run (10). Reads by time index, about 8
-// days of rows.
+// days of rows. Each day also counts the sessions a wake started (a claim of a fired wake; a
+// session started by hand has no wake to tell it from a taint's row) and the plan's limit hits
+// (hold.ts).
 import type { MindRole } from '../../../../../shared/contract/api';
 import {
   type UsageDay,
@@ -18,6 +20,7 @@ import {
 import { dayBefore, MINUTE, zonedInstant } from '../../../lib/time';
 import type { Db } from '../../../objects/base';
 import { DAY_STARTS_HOUR, logicalDay } from '../../conversation/day';
+import { limitHits } from '../hold';
 import { wakeBudget } from './pulse';
 import * as store from './store';
 
@@ -38,6 +41,8 @@ const empty = (day: string): UsageDay => ({
   minutes: { chat: 0, night: 0, reflex: 0 },
   night_min: 0,
   watches: { fired: 0, refused: 0 },
+  sessions: 0,
+  limits: 0,
   latency: { replies: 0, claim_s: null, reply_s: null, lookups: 0, outside_s: null },
 });
 
@@ -103,6 +108,7 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
   )) {
     const d = of(s.claimed_at);
     if (!d || !(s.role in LIMIT_MIN)) continue;
+    d.sessions = (d.sessions ?? 0) + 1;
     const base = s.role === 'chat' ? Math.max(s.claimed_at, s.last_owner_at ?? 0) : s.claimed_at;
     d.minutes[s.role] += minutes(s.claimed_at, Math.min(s.ended_at ?? now, base + LIMIT_MIN[s.role] * MINUTE, now));
   }
@@ -118,6 +124,10 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
     const d = of(w.settled_at ?? 0);
     if (d && w.state === 'fired') d.watches.fired++;
     else if (d && w.state === 'over_budget') d.watches.refused++;
+  }
+  for (const at of limitHits(db)) {
+    const d = of(at);
+    if (d) d.limits = (d.limits ?? 0) + 1;
   }
   return { today: days[0], days: days.slice(1), budget: wakeBudget(db), live: store.countWaiting(db) };
 }

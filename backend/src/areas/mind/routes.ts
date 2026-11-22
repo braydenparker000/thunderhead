@@ -9,13 +9,13 @@ import type {
   MindNightRequest,
   MindNightResponse,
   MindNoteResponse,
-  MindStatusRequest,
   Page,
   PendingResponse,
   WakeItem,
 } from '../../../../shared/contract/api';
 import { MIND_STATUS_LIMITS, MIND_USE_KINDS } from '../../../../shared/contract/feed.ts';
 import type { GrowthResponse } from '../../../../shared/contract/growth.ts';
+import type { LimitedStatusRequest } from '../../../../shared/contract/limits.ts';
 import {
   NIGHT_CURSOR_MAX,
   NIGHT_DAY_PARTS,
@@ -68,7 +68,8 @@ const statusBody = z.strictObject({
   title: z.optional(text(L.title)),
   using: z.optional(z.array(useItem).check(z.maxLength(L.using))),
   error: z.optional(text(60)),
-}) satisfies z.ZodMiniType<MindStatusRequest>;
+  resets_at: z.optional(z.number().check(z.int(), z.positive())),
+}) satisfies z.ZodMiniType<LimitedStatusRequest>;
 const noteBody = z.strictObject({
   id: z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)),
   thread_id: z.optional(z.string().check(z.maxLength(40))),

@@ -2,7 +2,9 @@
 // "Today" at the top of Settings › The mind (MENU-AND-SETTINGS.md §6.6, MIND-PLAN §5.4): how often
 // the mind woke and how long it was awake, read when the page opens (GET /v1/mind/usage). The wakes
 // it set itself against the owner's wake budget (`mind.wake_budget`, the setting below on the same
-// page), the minutes awake, the night shift's minutes, and a small row for the 7 days before.
+// page), the minutes awake, the sessions a wake started, the night shift's minutes, the 7 days
+// before as wakes and as minutes, and how often the plan's usage limit stopped the mind (measured
+// by the Worker: a refused start or a limit in a turn; never an estimate).
 // Counts only: never why it woke or what it looked at. One more line when a cold wake was
 // answered: how long it took to wake and then to reply, the newest day that has one, and beside it
 // how long an outside read took to its answer.
@@ -34,8 +36,17 @@ export function latencyLine(u) {
   return [cold, looked].filter(Boolean).join(' ');
 }
 
-/** The block's lines: the wakes it set itself, the minutes, the 7 days, and the cold-wake line when
- * there is one. @param {UsageResponse} u @returns {string[]} */
+/** The usage limit's hits today and over the 7 days before, or null from a Worker that doesn't count
+ * them. @param {UsageResponse} u @returns {string | null} */
+export function limitLine(u) {
+  if (u.today.limits === undefined) return null;
+  const week = u.days.reduce((n, d) => n + (d.limits ?? 0), u.today.limits);
+  if (!week) return 'Usage limit: not reached in the last 7 days.';
+  return `Usage limit reached ${count(u.today.limits, 'time', 'times')} today, ${week} in the last 7 days.`;
+}
+
+/** The block's lines: the wakes it set itself, the minutes and sessions, the 7 days as wakes and as
+ * minutes, the usage limit, and the cold-wake line when there is one. @param {UsageResponse} u @returns {string[]} */
 export function meterLines(u) {
   const t = u.today;
   const mine =
@@ -43,11 +54,15 @@ export function meterLines(u) {
       ? 'I set no wakes myself: you turned them off.'
       : `${t.wakes.watch} of ${u.budget} wakes I set myself${t.watches.refused ? `, ${t.watches.refused} more refused` : ''}${u.live ? ` · ${u.live} waiting` : ''}`;
   const yours = t.wakes.owner ? ` · ${count(t.wakes.owner, 'wake', 'wakes')} for you` : '';
+  const sessions = t.sessions === undefined ? '' : ` · ${count(t.sessions, 'session', 'sessions')}`;
   const latency = latencyLine(u);
+  const limit = limitLine(u);
   return [
     mine,
-    `Awake ${awake(t)} min${yours} · night shift ${t.night_min} min`,
+    `Awake ${awake(t)} min${sessions}${yours} · night shift ${t.night_min} min`,
     `Last 7 days: ${u.days.map((d) => `${weekday(d.day)} ${wakes(d)}`).join(' · ')} wakes`,
+    `Minutes awake: ${u.days.map((d) => `${weekday(d.day)} ${awake(d)}`).join(' · ')}`,
+    ...(limit ? [limit] : []),
     ...(latency ? [latency] : []),
   ];
 }

@@ -478,9 +478,9 @@ These are also the SLOs in the architecture review (warm p90 < 15 s, cold p90 < 
 | # | Failure | Detected by | Mind / Worker response | Owner sees |
 |---|---|---|---|---|
 | F1 | Wake never claimed (usage limit, outage, GitHub disconnected) | `wakes` 240 s | Retry at 120 s; `failed` at 240 s; backoff | Honest line once: "The mind isn't waking (likely the usage limit or an outage). I'll answer when it's back." |
-| F2 | Fire call rejected by the platform (429 over 30/h, 4xx) | Fire response | Log `fire_error`; no retry until the next hour for 429 | Same honest line if a message waits |
+| F2 | Fire call rejected by the platform (429 over 30/h, 4xx) | Fire response | Log `fire_error`; for 429 no fire until the reset its `Retry-After` gives, else the next hour; the hit is counted (the meter's "limit hits") | If a message waits: "The mind hit your plan's usage limit. Your message is saved; it answers it first when the limit resets at 15:40." (no reset given: "…it tries again at 15:40 and answers it first.") |
 | F3 | Session vanishes mid-answer (VM reclaimed, crash) | Lease lapses (90 s) | Requeue unacknowledged messages at 120 s; acknowledged ones are handed out again at the lease's end, ≤ 2 refires a message (§4.5 rule 7); refire (≤ 3 in a row); with no wake, presence `failed`; `reply.late` after 30 min | A short delay; the answer arrives from a new session, which says "Picking up where the last session stopped." if work was in flight |
-| F4 | Usage limit during a turn | StopFailure hook → `th status limited` | Backoff; no refires until it ends, then one wake if an owner message waits (§4.4) | "The mind hit its usage limit. Your message is saved; it will answer when the limit resets." |
+| F4 | Usage limit during a turn | StopFailure hook → `th status limited --until <reset>` (the reset time read from the error's text, `mind/hooks/lib/reset.mjs`, when it has one) | Backoff to the reset (else 15/30/60/120 min); the hit counted; at its end one wake whatever the presence says, with what the stopped session took handed out again first (§4.4) | The same line, with the reset time; once per new time |
 | F5 | Token refused (401) | `th` exit 2 | Session ends; Worker logs agent auth failure | Settings → Agents shows "chat token: last refused at …". Home line (if the owner opens the app): "The mind's key isn't working. Reissue it in Settings → Agents." |
 | F6 | Worker down or over quota | `th` exit 9/10 | Session retries 3 times, then writes the session note locally to the branch `claude/status-note` and ends | The site shows its own offline state ([HOME.md](../product/HOME.md)); no mind messages |
 | F7 | Briefing hook fails | Hook fallback line | The model runs `th brief --claim` itself | Nothing, unless it also fails (then F6) |
@@ -510,13 +510,13 @@ These are also the SLOs in the architecture review (warm p90 < 15 s, cold p90 < 
 Facts: the Max plan has a 5-hour session window and a weekly limit, shared between the owner's own Claude use and the mind; no numbers are published. A thread started by a scheduled task does not wait at a limit; its turn stops. With usage credits off, extra runs are rejected until the window resets. Usage credits stay **off** (decisions.md).
 
 Behaviour:
-1. **Backoff:** after F1 or F4, the Worker refuses to fire for 15 min, then 30, 60, and caps at 120 min while failures continue. Any claimed wake resets it.
+1. **Backoff:** after F1 or F4, the Worker refuses to fire for 15 min, then 30, 60, and caps at 120 min while failures continue. Any claimed wake resets it. An owner's message the backoff (or the chat's 20 fires an hour) refuses is held: the presence says `limited`, the chat gets the line with the time it lifts (once per new time), and at that time one wake goes out for it (built 2026-11-22, `areas/mind/hold.ts`).
 2. **Honesty:** the owner sees the line once per hour at most, never a spinner that lies.
 3. **The instant tier keeps working:** commands like "play …" or "open guitar" and "go quiet" are handled in the browser with no mind.
 4. **Night at the limit:** the roll's fire fails or stops; the 06:07 fallback tries again; F14 if neither runs.
 5. **Self-restraint [proposal]:** the briefing's "Now" section shows `wakes today` and `pre-warms left`. If `wakes today ≥ 25`, the mind shortens its idle cutoff to 30 min for the rest of the day.
 6. **Weekly check:** until a supported readout exists, the owner reads claude.ai/settings/usage once a week and the mind asks for the number in a Sunday home line only if the owner opted in. **[proposal]**
-7. **The wake budget** (owner ruling 2026-11-03: generous, visible, enforced): `mind.wake_budget` in Settings › The mind, Off / 6 / 12 / 24 / 40 a day (default 12), counts the chat wakes watches fire in the owner's logical day (a retry is the same wake). A watch met past it is refused (`over_budget`) and the briefing counts it ("wakes today: 12 of 12, …, 2 refused over the budget"); at Off no watch is set and a waiting one is refused when met. The owner's own wakes (messages, pre-warms, requeues) never count, nor does a watch heard by a live session or carried by the owner's wake. The chat's caps stay the ceiling: 20 fires an hour, and no watch wakes the mind past 40 chat fires in 24 hours. Settings › The mind's Today shows the count, the minutes awake and the night's minutes (`GET /v1/mind/usage`).
+7. **The wake budget** (owner ruling 2026-11-03: generous, visible, enforced): `mind.wake_budget` in Settings › The mind, Off / 6 / 12 / 24 / 40 a day (default 12), counts the chat wakes watches fire in the owner's logical day (a retry is the same wake). A watch met past it is refused (`over_budget`) and the briefing counts it ("wakes today: 12 of 12, …, 2 refused over the budget"); at Off no watch is set and a waiting one is refused when met. The owner's own wakes (messages, pre-warms, requeues) never count, nor does a watch heard by a live session or carried by the owner's wake. The chat's caps stay the ceiling: 20 fires an hour, and no watch wakes the mind past 40 chat fires in 24 hours. Settings › The mind's Today shows the count, the minutes awake, the sessions a wake started and the night's minutes, the 7 days before as wakes and as minutes, and how often the plan's usage limit stopped the mind today and in the 7 days (a 429 on the fire or a rate or billing limit in a turn, `mind.limit_hits`; built 2026-11-22) (`GET /v1/mind/usage`). All of it is the Worker's own record: the platform publishes no usage numbers, so nothing is estimated.
 8. **Max 5x now, maybe Pro later (owner ruling).** Everything keeps working on Pro, only leaner. The owner sets the plan in Settings → Agents, and the Worker switches to a lean profile **[proposal: the numbers]**: pre-warm off, chat wakes ≤ 8 per hour, idle cutoff 30 min, night shift target ≤ 15 min (steps 5 and 9 alternate weeks), Sunday evals reduced to INJ. Replies, memory, the ledger, the instant tier and every gate stay the same; only speed and optional work shrink.
 
 ---
@@ -540,8 +540,8 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 4 | Facts: candidates from owner messages (`user`) and each of `th day`'s `routines`, an `observed` fact of kind `habit` citing the routine's `rollup:` ref (rule M5; MEMORY.md §4); for each, `th recall --kind facts` and choose ADD / CONFIRM / SUPERSEDE / NOOP; submit them with `th facts --batch <file> --night`, in parts of ≤ 50 ops (`--part 2`, …, each part sent once, its place saved as the step's cursor) | 6 min | `facts`, ledger, proposals for risky changes (P4) |
 | 7 | Arrange tomorrow (P3+; right after step 4 since 2026-11-02, so it starts by minute 15 of the budgets, long before the hard stop: [BRIEFING.md](../product/BRIEFING.md#why-the-briefing-was-empty-2026-11-02)): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none); one of the lines may be the new podcast episodes (§12.1) | 4 min | `surfaces` |
 | 13 | The week's growth (2026-11-04, weekly; MIND-PLAN §9): `th growth` (`PUT /v1/mind/growth/:day`). The Worker reads the week's two questions (`guitar_week`, `study_week`, API.md §11.14) and writes the Briefing's `practice` and `study` tiles itself, one sentence of counts each (sessions and minutes, the section with the most BPM gained, sections clean at full tempo; pages, days, books moved, highlights), and sets tomorrow's section (`guitar.set_plan`: the song practised most, its sections where the clean passes reached, at that tempo, so never past it) and the next passage (`study.mark_next`: the book moved most, from where the owner left off, a day's pace this week, to the book's end). Under 3 sessions (or reading stints) that week: nothing, no tile and no word (law 4). The same week again writes nothing; a tile the owner dismissed stays away for its 14 days. The words are the Worker's, so the session's taint never matters here | 1 min | 2 tiles, 2 arrangements, their ledger rows |
+| 12 | The report (2026-11-04; before 6, 9 and 11 since 2026-11-10 and before 5 since 2026-11-22 (5's fixes may call gh or git beyond the repository; the night of 2026-11-21 lost its report to a label taken at step 4 by a shell loop, now `th recall --each`), since a session labelled by outside text may not send its words to the owner, and the Sunday evals label it with their first command): `th report --headline "<≤ 60>" --line <kind>@ledger:<id>:"<≤ 100>"`, at most 6 plain lines, each one thing the run did with its ledger row (`th ledger --since <the run's start>`), so the owner's Undo on the tile is `th undo` on that row ([BRIEFING.md](../product/BRIEFING.md) "The report card") | 1 min | `night_reports`; the Briefing's first tile; the open day's first message while the owner hasn't written |
 | 5 | Health: `th errors`, `th health --deep`; small agreed fixes on a branch (only `agreed` work, pushed to a branch; never to `main`) | ≤ 8 min | Branch, maybe a release |
-| 12 | The report (2026-11-04; right after 5 since 2026-11-10, before 6, 9 and 11, since a session labelled by outside text may not send its words to the owner, and the Sunday evals label it with their first command): `th report --headline "<≤ 60>" --line <kind>@ledger:<id>:"<≤ 100>"`, at most 6 plain lines, each one thing the run did with its ledger row (`th ledger --since <the run's start>`), so the owner's Undo on the tile is `th undo` on that row ([BRIEFING.md](../product/BRIEFING.md) "The report card") | 1 min | `night_reports`; the Briefing's first tile; the open day's first message while the owner hasn't written |
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; the page reader stops at a page boundary a minute before the time is up, the pages it read are posted and the cursor moves, so a long scan goes on the next night where it stopped (reported `paused`); without OCR it stops at the first scanned page and pauses with a reason the cover shows, never `ready` with empty pages; it prints counts only, so no book text reaches the session). Then the listening pass: `th music jobs` (collects last night's job, sends the next ≤ 500 songs, or the neighbours step, to Actions by the job's id; built 2026-11-01, JOBS.md §3) | 10 min | Pages, FTS, refs in `Library`; one Actions job dispatched |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
@@ -552,7 +552,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 - **Writes:** a few dozen rows per night for the steps, and up to about 400 for the songs' notes (§12.1), well under the Durable Object daily write budget.
 - **Quiet hours:** the night shift posts nothing that notifies the owner. Home lines and decision cards it creates become visible at 06:30 **[not built: surfaces show when placed; a `visible_from` arrives with decision cards, P4]**.
 - **Predictions** (P9, built): step 7b, up to 6 a night about the open day with `th predict` (`th help predict` lists the resolvers), resolved by the Worker's fixed SQL resolvers once the day is over ([API.md §11.23](../engineering/API.md)).
-- **Songs** (built 2026-11-01): step 11, §12.1. A step's number is a name, never its place: 11 is the next free number and runs between 9 and 10, after every step that writes memory (the registry's order, `th night steps`), and a finished run answers `resume_from: 14`, past every number (step 12, the report, 2026-11-04, runs between 9 and 11; step 13, the week's growth, the same day, right after 7).
+- **Songs** (built 2026-11-01): step 11, §12.1. A step's number is a name, never its place: 11 is the next free number and runs between 9 and 10, after every step that writes memory (the registry's order, `th night steps`), and a finished run answers `resume_from: 14`, past every number (step 12, the report, 2026-11-04, runs between 13 and 5; step 13, the week's growth, the same day, right after 7).
 
 ### 12.1 Songs (night step 11)
 
@@ -662,6 +662,41 @@ Rules:
 **Acceptance:** STATUS.md ≤ 80 lines with these five headings. Not linted in CI yet; checked by hand.
 
 ---
+
+## 15. If the plan lapsed: Muse in the mind's place (not built, 2026-11-22)
+
+The owner asked whether Muse, the outside assistant that uploads music, could stand in for the mind
+if the Claude plan lapsed. What it would take, so the choice is ready if it comes; nothing here is
+built.
+
+**What Muse can do today.** Muse holds a key of role `muse` (Settings › Agents) and the upload key.
+It claims work orders (`@muse <words>` in the chat), posts progress lines in its own thread and hands
+back a result with counts and an Open place ([MUSE-PROTOCOL.md](../engineering/MUSE-PROTOCOL.md)).
+It cannot read the conversation, the briefing or memory, and cannot answer the owner in the chat:
+the Worker gives the `muse` role none of the mind's routes.
+
+**What standing in would need.**
+1. *A way to be woken.* The mind is woken by the Worker posting to a claude.ai routine. Muse polls
+   every 5 minutes; a "chat" order kind would reach it, with a reply up to 5 minutes late.
+2. *The chat's routes for a new role* (`muse-chat`): the briefing (`POST /v1/mind/brief`), the
+   wait (`GET /v1/live/wait`), `th say` and the status, under the same lease, taint and provenance
+   rules as the mind (MEMORY.md §6). A second role on the same routes is the smallest change; giving
+   the `muse` key itself those scopes would mix upload and conversation rights in one key.
+3. *The laws, the roles and the voice* in Muse's own instructions (it has no SessionStart hook):
+   `mind/CONSTITUTION.md`, the chat section of `mind/ROLES.md`, `th skill voice`. The Worker's gates
+   (taint, provenance, permits, quiet hours, the ledger) hold whoever calls, so the owner's data
+   stays as protected; what is lost is everything the hooks enforce in a session (the PreToolUse
+   rules, the Stop hook's "answer before ending").
+4. *A switch the owner turns*, Settings › The mind: "Answer with Muse while the plan is off". Off by
+   default, and the honest line says "Muse is answering for now." on every reply, so it is never
+   taken for the mind.
+5. *No night shift, no reflex.* Memory, the day note and arranging would stop; the Briefing would
+   say "The night shift hasn't run yet." (F14) as it does now.
+
+**Cost.** Steps 2 and 4 are a Worker change of about a day with tests (a role, a setting, the
+line); step 3 is Muse's own setup, done by the owner outside this repository. Until then, when the
+plan lapses the chat says so (F2, F4) and every message is kept and answered first when the mind
+is back.
 
 ## Open questions / tests
 

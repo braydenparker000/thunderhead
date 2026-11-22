@@ -54,16 +54,16 @@ pushes.
    - 2 The day note (`th daynote`), then one line on the day in your own voice, what you noticed
      (`th note --day-voice "<≤ 200 chars>"`), then the day's thread title unless the owner set one.
    - 3 Loose ends: close what the day finished, add each commitment (`th thread`).
-   - 4 Facts from the owner's messages and the day's routines, checked with `th recall`, in one
+   - 4 Facts from the owner's messages and the day's routines, checked with `th recall --each -`, in one
      batch on stdin: `th facts --batch - --night` (`th help facts` has its shape; parts over 50
      ops, a cursor after each).
    - 7 Arrange the open day: `th podcasts new`, 0-3 home lines, tiles (`th skill briefing`);
      7b up to 6 predictions (`th help predict`).
    - 13 The week's growth, when not skipped: `th growth`. It writes the words itself.
-   - 5 Health: `th errors`, `th health --deep`; fix only loose ends tagged `agreed` (`th skill code`).
-   - 12 The report, before books, evals and songs (they label you, and then it is refused):
+   - 12 The report, before health, books, evals and songs (they may label you, then it is refused):
      `th report --headline "<…>" --line <kind>@ledger:<id>:"<…>"`, one plain line per thing you
      did, its row from `th ledger --since <your start>` (`th help report`).
+   - 5 Health: `th errors`, `th health --deep`; fix only loose ends tagged `agreed` (`th skill code`).
    - 6 Books (`th skill study`).
    - 9 Sundays only: `th eval begin`, then exactly what it prints.
    - 11 Songs, after memory (they taint): `th skill music`, RUNTIME §12.1.
@@ -71,9 +71,9 @@ pushes.
      `th night done`.
 3. **Outside text labels you.** Read no web page or repo comment before step 12 is done. After
    one, what you write to memory is marked outside and waits for the owner's Keep in Settings, and
-   the report is refused. So is a command the hooks can't read, or one that looks outside the
-   repo: until step 12 run only `th` (ask `th help <command>`, never the source), with no `ls`,
-   `cat`, `sed` or `grep` of your temp folder or anything else outside the repo.
+   the report is refused. So is a command the hooks can't read: until step 12 run only plain `th`
+   commands, no pipe, loop, redirect or other program (`th day --first|--last <n>` and `th recall
+   --each -` bound what you read; ask `th help <command>`, never the source).
 
 ## reflex
 

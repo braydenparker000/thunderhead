@@ -116,3 +116,24 @@ test('StopFailure reports th status limited and the Stop hook then allows', with
   const unset = await hook('stop-failure', {error: 'rate_limit'}, env(fake, {TH_ROLE: undefined}));
   assert.deepEqual([unset.code, unset.stdout, fake.state.requests.length], [0, '', before], 'TH_ROLE unset: nothing at all');
 }));
+
+test('StopFailure passes the limit\'s reset time when the error gives one, and nothing it cannot read', withFake({}, async fake => {
+  const e = env(fake);
+  const at = Math.floor(Date.now() / 1000) + 2 * 3600;
+  await hook('stop-failure', {error: 'rate_limit', error_details: `Claude usage limit reached|${at}`}, e);
+  assert.equal(fake.state.statuses.at(-1).resets_at, at * 1000);
+  await hook('stop-failure', {error: 'rate_limit', error_details: '429 Too Many Requests'}, e);
+  assert.equal(fake.state.statuses.at(-1).resets_at, undefined);
+}));
+
+test('resetAt reads an epoch, an ISO time and a clock time with its zone, only within 7 days', async () => {
+  const {resetAt} = await import('../hooks/lib/reset.mjs');
+  const now = Date.UTC(2026, 10, 22, 10, 0);
+  assert.equal(resetAt('limit reached|1795438800', now), 1795438800000 > now + 7 * 86_400_000 ? null : 1795438800000);
+  assert.equal(resetAt('resets 2026-11-22T15:40:00Z', now), Date.UTC(2026, 10, 22, 15, 40));
+  assert.equal(resetAt("You've hit your limit · resets 3pm (UTC)", now), Date.UTC(2026, 10, 22, 15, 0));
+  assert.equal(resetAt('resets at 9:30 (Europe/Lisbon)', now), Date.UTC(2026, 10, 23, 9, 30)); // Lisbon is UTC in winter; 9:30 has passed
+  assert.equal(resetAt('resets 3pm (America/New_York)', now), Date.UTC(2026, 10, 22, 20, 0));
+  assert.equal(resetAt('resets 2027-03-01T00:00:00Z', now), null, 'past a week');
+  assert.equal(resetAt('429 Too Many Requests', now), null);
+});

@@ -4,6 +4,7 @@
 // unconnected task never fires. Runs after the commit that created the wake, from the Worker
 // (waitUntil), the object's alarm, the cron's day roll or its watchdogs.
 import type { MindRole } from '../../../../shared/contract/api';
+import { retryAt } from './hold';
 
 export interface FireConfig {
   url: string;
@@ -14,6 +15,8 @@ export interface FireResult {
   status: number;
   session_id: string | null;
   error: string | null;
+  /** A refusal's reset time, from its `Retry-After` (hold.ts retryAt), or null. */
+  retry_at?: number | null;
 }
 
 const set = (v: string | undefined) => (v && v !== 'none' ? v : null);
@@ -52,7 +55,9 @@ export async function fire(cfg: FireConfig, fetchImpl: typeof fetch = fetch): Pr
     } catch {
       // no JSON body: the status is what we record
     }
-    return { status: res.status, session_id: sessionId, error: res.ok ? null : `http_${res.status}` };
+    const retry = res.ok ? null : retryAt(res.headers.get('retry-after'), Date.now());
+    const error = res.ok ? null : `http_${res.status}`;
+    return { status: res.status, session_id: sessionId, error, ...(retry !== null ? { retry_at: retry } : {}) };
   } catch (e) {
     return { status: 0, session_id: null, error: (e as Error).name === 'TimeoutError' ? 'timeout' : 'network' };
   }

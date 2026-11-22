@@ -10,10 +10,12 @@ import { uuidv7 } from '../../lib/ids';
 import { HOUR, MINUTE, SECOND } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import { ownerTz } from '../conversation/day';
 import * as lapsed from '../conversation/lapsed';
 import { today } from '../conversation/ops';
 import * as convo from '../conversation/store';
 import * as settings from '../settings/store';
+import { capFreeAt, type HeldWhy, heldText, ownerReason, recordHit } from './hold';
 import * as store from './store';
 
 export const LEASE_MS = 90 * SECOND;
@@ -42,6 +44,8 @@ export function leaseLive(db: Db, now: number): boolean {
 interface Backoff {
   until: number;
   step: number;
+  /** `until` is the reset time the platform gave. */
+  reset?: boolean;
 }
 export function backoff(db: Db): Backoff {
   const b = settings.getSetting(db, 'mind.backoff') as Backoff | undefined;
@@ -80,8 +84,14 @@ export function setPresence(
 }
 
 /** A chat wake, if every condition of RUNTIME.md §3 holds. `configured` = the mind-chat task's
- * URL and token are set (they hold `none` until SETUP.md K). */
-export function maybeWake(w: Writer, reason: WakeReason, configured: boolean): ToFire | null {
+ * URL and token are set (they hold `none` until SETUP.md K). An owner's message a backoff or the
+ * hour's cap refuses is held to the time they lift (one wake then), and the chat says until when. */
+export function maybeWake(
+  w: Writer,
+  reason: WakeReason,
+  configured: boolean,
+  tz = ownerTz(w.db, 'UTC'),
+): ToFire | null {
   const { db, at } = w;
   // A live session (even one the owner started by hand) needs no wake and keeps its presence.
   if (leaseLive(db, at)) return null;
@@ -89,8 +99,14 @@ export function maybeWake(w: Writer, reason: WakeReason, configured: boolean): T
     setPresence(w, 'unconfigured');
     return null;
   }
-  if (backoff(db).until > at) return null;
-  if (store.fireCount(db, 'chat', at - HOUR) >= FIRES_PER_HOUR) return null;
+  const held = (until: number, why: HeldWhy) => {
+    if (ownerReason(reason)) hold(w, until, why, tz);
+    return null;
+  };
+  const b = backoff(db);
+  if (b.until > at) return held(b.until, b.reset ? 'reset' : 'retry');
+  const free = capFreeAt(db, at, FIRES_PER_HOUR);
+  if (free !== null) return held(free, 'cap');
   const last = store.lastFireAt(db, 'chat', reason !== 'prewarm');
   if (last !== null && at - last < FIRE_GAP_MS) return null;
   if (reason === 'prewarm' && store.fireCount(db, 'chat', at - 24 * HOUR, 'prewarm') >= PREWARMS_PER_DAY) return null;
@@ -150,6 +166,22 @@ function giveUp(w: Writer, id: string, tz: string, original?: string): void {
 export function systemLine(w: Writer, line: string, body: string, tz: string): void {
   const last = convo.lastSystemLine(w.db, line);
   if (last !== null && w.at - last < HOUR) return;
+  postLine(w, line, body, tz);
+}
+
+/** An owner's message waits until `until` (the plan's limit or its caps). The back-off holds
+ * every fire till then and ends in one wake (backoffEnd); the presence and the chat say so, the
+ * line once for each new time. */
+function hold(w: Writer, until: number, why: HeldWhy, tz: string): void {
+  const b = backoff(w.db);
+  if (b.until < until) settings.putSetting(w.db, 'mind.backoff', { ...b, until }, 'worker', w.at);
+  setPresence(w, 'limited');
+  if ((settings.getSetting(w.db, 'mind.held') as { until?: number } | undefined)?.until === until) return;
+  settings.putSetting(w.db, 'mind.held', { until }, 'worker', w.at);
+  postLine(w, 'not_waking', heldText(why, until, w.at, tz), tz);
+}
+
+function postLine(w: Writer, line: string, body: string, tz: string): void {
   const thread = today(w, tz);
   const m = convo.insertMessage(w.db, {
     id: uuidv7(w.at),
@@ -168,32 +200,38 @@ export function systemLine(w: Writer, line: string, body: string, tz: string): v
   w.change('message', `msg:${m.id}`);
 }
 
-/** The fire call's outcome (RUNTIME.md §9 F2): a 429 means no fire until the next hour. */
+/** The fire call's outcome (RUNTIME.md §9 F2): a 429 means no fire until the next hour, or until
+ * the reset time the platform gave (`retry_at`) when it gave one; a message waiting is told until
+ * when, and the hit is counted for the meter. */
 export function fired(
   w: Writer,
   id: string,
-  r: { status: number; session_id: string | null; error: string | null },
+  r: { status: number; session_id: string | null; error: string | null; retry_at?: number | null },
+  tz = ownerTz(w.db, 'UTC'),
 ): void {
   store.recordFire(w.db, id, r.status, r.session_id, r.error);
-  if (r.status === 429)
-    settings.putSetting(
-      w.db,
-      'mind.backoff',
-      { until: w.at + HOUR, step: Math.max(backoff(w.db).step, 0) },
-      'worker',
-      w.at,
-    );
+  if (r.status !== 429) return;
+  const reset = typeof r.retry_at === 'number' && r.retry_at > w.at;
+  const until = reset ? (r.retry_at as number) : w.at + HOUR;
+  const next = { until, step: Math.max(backoff(w.db).step, 0), ...(reset ? { reset } : {}) };
+  settings.putSetting(w.db, 'mind.backoff', next, 'worker', w.at);
+  recordHit(w.db, w.at);
+  if (lapsed.oldestUnanswered(w.db) !== null) hold(w, until, reset ? 'reset' : 'retry', tz);
 }
 
 /** The StopFailure hook's `th status limited` (RUNTIME.md §6.3): the usage backoff for a rate or
- * billing limit, five minutes for any other API error. */
-export function limited(w: Writer, error: string | null): void {
+ * billing limit, five minutes for any other API error. A reset time the platform gave (the hook
+ * reads it from the error) is the backoff's end, and a message waiting is told until when. */
+export function limited(w: Writer, error: string | null, resetsAt: number | null = null): void {
   const b = backoff(w.db);
   const usage = error === 'rate_limit' || error === 'billing_error';
   const step = usage ? Math.min(b.step + 1, BACKOFF_MIN.length - 1) : b.step;
-  const until = w.at + (usage ? BACKOFF_MIN[step] : 5) * MINUTE;
-  settings.putSetting(w.db, 'mind.backoff', { until: Math.max(until, b.until), step }, 'worker', w.at);
+  const reset = usage && resetsAt !== null && resetsAt > w.at && resetsAt <= w.at + 7 * 24 * HOUR;
+  const until = reset ? (resetsAt as number) : Math.max(w.at + (usage ? BACKOFF_MIN[step] : 5) * MINUTE, b.until);
+  settings.putSetting(w.db, 'mind.backoff', { until, step, ...(reset ? { reset } : {}) }, 'worker', w.at);
+  if (usage) recordHit(w.db, w.at);
   setPresence(w, 'limited');
+  if (lapsed.oldestUnanswered(w.db) !== null) hold(w, until, reset ? 'reset' : 'retry', ownerTz(w.db, 'UTC'));
 }
 
 /** A claimed wake (or any owner-facing sign of life) ends the backoff. */
@@ -222,6 +260,8 @@ function backoffEnd(w: Writer, configured: boolean): ToFire | null {
   const b = backoff(w.db);
   if (b.until <= 0 || b.until > w.at || lapsed.oldestUnanswered(w.db) === null) return null;
   if ((store.lastFireAt(w.db, 'chat', false) ?? 0) >= b.until) return null;
+  // What a session the limit stopped took and acknowledged is handed out again, first.
+  lapsed.releaseAcked(w.db);
   return maybeWake(w, 'message', configured);
 }
 
@@ -240,7 +280,7 @@ export function nextAlarmAt(db: Db, now = Date.now()): number | null {
   const state = end > now ? 'held' : presenceOf(db);
   if (state === 'held' || LIVE.has(state)) {
     if (lapsed.oldestUnanswered(db) !== null) times.push(end);
-  } else if (state === 'failed' || state === 'limited') {
+  } else {
     const b = backoff(db);
     if (b.until > now && lapsed.oldestUnanswered(db) !== null) times.push(b.until);
   }

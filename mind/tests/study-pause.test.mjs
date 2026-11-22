@@ -99,7 +99,7 @@ async function fakeWorker(pdf, cursor) {
 }
 
 function runJob(w, args) {
-  const env = {...process.env, TH_API: w.url, TH_TOKEN: 'thm_test_key', TH_ROLE: 'night', TMPDIR: mkdtempSync(join(tmpdir(), 'th-')), PYTHON, TH_RETRY_BASE_MS: '5'};
+  const env = {...process.env, TH_API: w.url, TH_TOKEN: 'thm_test_key', TH_ROLE: 'night', TMPDIR: mkdtempSync(join(tmpdir(), 'th-')), TH_STUDY_PYTHON: PYTHON, TH_RETRY_BASE_MS: '5'};
   return new Promise(resolve => {
     const child = spawn(process.execPath, [JOB, '--books', '1', ...args], {env});
     let out = '';

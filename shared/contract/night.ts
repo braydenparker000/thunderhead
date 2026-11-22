@@ -78,19 +78,12 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P7',
     weekly: true,
   },
-  {
-    step: 5,
-    name: 'health and agreed fixes',
-    budget_min: 8,
-    idempotent: 'reads, then one branch per agreed loose end',
-    cursor: false,
-    phase: 'P3',
-  },
   // The report (BRIEFING.md "The report card", 2026-11-04): what the night did, as the Briefing's
-  // first tile and the open day's first message. It comes right after health and before every step
-  // that reads outside text (2026-11-10): a session that has read any is labelled, and a labelled
-  // session's words may not reach the owner. It stood after the books and the Sunday evals, whose
-  // first command labels the session, so no Sunday night could ever report (BRIEFING.md "Why the
+  // first tile and the open day's first message. It comes before every step that may read outside
+  // text (2026-11-10): a session that has read any is labelled, and a labelled session's words may
+  // not reach the owner. Since 2026-11-22 it comes before health too, whose fixes may call gh or
+  // git beyond the repository (the night of 2026-11-21 lost its report to a label taken earlier).
+  // It stood after the books and the Sunday evals, whose first command labels the session, so no Sunday night could ever report (BRIEFING.md "Why the
   // night's report never came"). What the later steps do joins the report's counts when the run is
   // done, never as words.
   {
@@ -100,6 +93,14 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     idempotent: 'the same report again answers the stored one; a new one from the same session replaces it',
     cursor: false,
     phase: 'P4',
+  },
+  {
+    step: 5,
+    name: 'health and agreed fixes',
+    budget_min: 8,
+    idempotent: 'reads, then one branch per agreed loose end',
+    cursor: false,
+    phase: 'P3',
   },
   // Indexing: from P7, reading Study's waiting books (mind/jobs/study-ingest.mjs: at most 2 books,
   // 10 minutes; a book not finished goes on the next night). The P5 indexing jobs join it later.
@@ -153,7 +154,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 after 5; 11 before 10). */
+/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 before 5; 11 before 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;

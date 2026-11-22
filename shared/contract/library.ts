@@ -52,8 +52,10 @@ export type BookState =
   | 'failed'
   | 'duplicate';
 /** The states the mind reports while it reads a book, and how it ends. A duplicate is the Worker's
- * call, from the file's SHA-256. `paused`: the day's bulk rows are used up; it goes on tomorrow. */
-export type IngestState = 'extracting' | 'ocr' | 'indexing' | 'paused' | 'ready' | 'failed';
+ * call, from the file's SHA-256. `paused`: the day's bulk rows are used up; it goes on tomorrow.
+ * `released`: the run failed on its own side (its page reader, the network); the book waits again
+ * at once, from where it was, for the next run (2026-11-22). */
+export type IngestState = 'extracting' | 'ocr' | 'indexing' | 'paused' | 'released' | 'ready' | 'failed';
 
 export interface Position {
   pdf_page: number;

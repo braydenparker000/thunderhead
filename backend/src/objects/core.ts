@@ -156,9 +156,10 @@ export class Core extends CoreGuitar {
       .catch(() => null);
   }
 
-  mindStatus(c: Caller, r: MindStatusRequest): { typing: boolean; stop: boolean } {
+  mindStatus(c: Caller, r: MindStatusRequest & { resets_at?: number }): { typing: boolean; stop: boolean } {
     const out = this.write((w) => mind.status(w, c.session_id, roleOf(c), r));
-    if (r.state === 'limited' && roleOf(c) === 'chat') this.write((w) => wake.limited(w, r.error ?? null));
+    if (r.state === 'limited' && roleOf(c) === 'chat')
+      this.write((w) => wake.limited(w, r.error ?? null, r.resets_at ?? null));
     if (out.typing) this.hub.typing(Date.now() + 60_000);
     return { ...out, stop: roleOf(c) === 'chat' && stop.standing(this.db) !== null };
   }

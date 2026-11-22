@@ -47,8 +47,10 @@ test('Today draws the usage counts at the top of The mind, counts only', opts, a
   await page.waitForSelector('.spage.in [data-meter] .snow');
   assert.deepEqual(await lines(page), [
     ['snow', '4 of 12 wakes I set myself, 1 more refused · 3 waiting'],
-    ['shelp', 'Awake 76 min · 6 wakes for you · night shift 24 min'],
+    ['shelp', 'Awake 76 min · 7 sessions · 6 wakes for you · night shift 24 min'],
     ['shelp', 'Last 7 days: Mon 3 · Sun 5 · Sat 7 · Fri 6 · Thu 8 · Wed 10 · Tue 9 wakes'],
+    ['shelp', 'Minutes awake: Mon 50 · Sun 50 · Sat 50 · Fri 50 · Thu 50 · Wed 50 · Tue 50'],
+    ['shelp', 'Usage limit reached 1 time today, 1 in the last 7 days.'],
   ]);
   const layout = await page.evaluate(() => {
     const body = document.querySelector('.spage.in .sbody');

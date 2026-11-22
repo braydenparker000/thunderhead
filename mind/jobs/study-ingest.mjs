@@ -17,7 +17,14 @@
 //     shows, never ready with empty pages); or failed with a plain sentence for the owner.
 // It prints counts and timings only: never page text, a title or a file name.
 //
-//   node mind/jobs/study-ingest.mjs [--books 2] [--minutes 45] [--python python3] [--no-ocr]
+//   node mind/jobs/study-ingest.mjs [--books 2] [--minutes 45] [--python <path>] [--no-ocr]
+//
+// Its Python is one known environment: the venv study-setup.sh builds ($TH_STUDY_VENV, else
+// ~/.cache/thunderhead/study-venv), found by its path (TH_STUDY_PYTHON or --python name another).
+// Before it claims a book it checks, with the same isolated Python the reader runs, that pypdf and
+// cryptography import; and a run that fails on its own side releases its claim (`released`), so
+// the book waits again at once instead of for the claim to lapse (2026-11-21: the user-site pypdf
+// was invisible to `python -I`, the system cryptography panicked, and the claim held the retry).
 //
 // Environment as `th` (mind/cli/lib/http.mjs): TH_API, and the session's network secret adds the
 // key (TH_TOKEN only in local runs and tests). Exit: 0 done (or nothing waiting), 2 usage, 4 a call
@@ -25,7 +32,7 @@
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {createWriteStream, mkdtempSync, readFileSync, realpathSync, rmSync, statSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
@@ -44,8 +51,13 @@ export const POST_MS = 60_000;
 export const OCR_MISSING = "Some pages are scans, and reading scans isn't set up yet. It goes on once it is.";
 const say = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 
+/** The venv study-setup.sh builds, by its path. */
+export const studyVenv = (env = process.env) => env.TH_STUDY_VENV || join(env.HOME || homedir(), '.cache', 'thunderhead', 'study-venv');
+/** The imports the reader needs, checked with its own isolated Python before any claim. */
+export const IMPORTS = 'import pypdf, cryptography';
+
 export function parseArgs(argv) {
-  const o = {books: 2, minutes: 45, python: process.env.PYTHON || 'python3', ocr: true};
+  const o = {books: 2, minutes: 45, python: process.env.TH_STUDY_PYTHON || join(studyVenv(), 'bin', 'python'), ocr: true};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--books') o.books = Number(argv[++i]);
@@ -184,8 +196,9 @@ async function readBook(claim, o, until, ix) {
 export async function main(argv) {
   const o = parseArgs(argv);
   // Without the page reader nothing is claimed: a claim that can't be read would lapse and count.
-  if (spawnSync(o.python, ['-c', 'import pypdf'], {stdio: 'ignore'}).status !== 0) {
-    say({done: true, books: 0, skipped: 'pypdf is not installed here (bash mind/jobs/study-setup.sh)'});
+  // The check runs the reader's own way (isolated), so what passes here imports there too.
+  if (spawnSync(o.python, ['-I', '-c', IMPORTS], {stdio: 'ignore'}).status !== 0) {
+    say({done: true, books: 0, skipped: 'the page reader\'s Python is not set up here (bash mind/jobs/study-setup.sh)'});
     return 0;
   }
   const ix = await scriptureIndex();
@@ -193,7 +206,14 @@ export async function main(argv) {
   for (; n < o.books; n++) {
     const r = await request('POST', '/v1/library/ingest/claim', {body: {}});
     if (r.status === 204 || !r.data?.job) break;
-    const counts = await readBook(r.data, o, Date.now() + o.minutes * 60_000, ix);
+    let counts;
+    try {
+      counts = await readBook(r.data, o, Date.now() + o.minutes * 60_000, ix);
+    } catch (e) {
+      // The run's own failure (the reader, the network): the claim goes back, the book waits again.
+      await request('PATCH', `/v1/library/ingest/${r.data.job.id}`, {body: {state: 'released', cursor: r.data.job.cursor}}).catch(() => {});
+      throw e;
+    }
     say({book: n + 1, ...counts});
     if (counts.lane) break;
   }
