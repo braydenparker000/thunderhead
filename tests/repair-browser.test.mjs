@@ -109,9 +109,10 @@ test('a healthy start slowed six times shows no panel, twice in a row', opts, as
 
 test('Repair with no signal: About says it needs a connection and stays; /repair/ that cannot reach home clears nothing', opts, async () => {
   const { context, page } = await phone();
-  const held = () => page.evaluate(async () => ({ caches: (await caches.keys()).filter((n) => /^th-\d+$/.test(n)).length, workers: (await navigator.serviceWorker.getRegistrations()).length }));
-  // The worker installs (filling its cache) after the page shows: count once it is active, so a late
-  // install is not mistaken for something Repair added.
+  const held = () => page.evaluate(async () => [...(await caches.keys()).filter((n) => /^th-\d+$/.test(n)), ...(await navigator.serviceWorker.getRegistrations()).map((r) => r.scope)].sort());
+  // The worker installs (filling its cache) after the page shows, and an app in a frame registers its
+  // own worker when it likes: what is held is read by name once home's worker is active, and Repair
+  // clearing nothing means each of those is still there (one that arrives later is not Repair's doing).
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
   const before = await held();
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'about' } })));
@@ -126,6 +127,8 @@ test('Repair with no signal: About says it needs a connection and stays; /repair
   await page.goto(`${base}/repair/`);
   await page.waitForSelector('#again:not([hidden])');
   assert.equal(await page.textContent('#say'), 'Repair needs a connection, and the site can’t be reached now. Nothing was cleared.');
-  assert.deepEqual(await held(), before, 'every code cache and worker stayed');
+  assert.ok(before.length >= 2, 'a code cache and a worker were there to lose');
+  const now = await held();
+  assert.deepEqual(before.filter((n) => !now.includes(n)), [], 'every code cache and worker stayed');
   await context.close();
 });
