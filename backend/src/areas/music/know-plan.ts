@@ -1,6 +1,6 @@
 // What the music knowledge's job asks next, and what a refusal costs (MUSIC.md §19.2). A host that
 // refuses (429, 5xx, no answer) backs off: after 1, 2 and 4 minutes, or its Retry-After when longer
-// (capped), and after the fourth refusal in a row it is left for a day; its sources are skipped
+// (capped), and after the fourth refusal in a row it is left for an hour (`host_left_ms`); its sources are skipped
 // meanwhile, never blocking another host's work, and a row with nothing else to ask is parked until
 // the host may be asked again. A bad answer is the row's alone: each row may fail a source
 // `row_tries` times a round, then that source waits for the next round. The restore pass puts back

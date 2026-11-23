@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { KNOW_LIMITS as K } from '../../../shared/contract/know.ts';
 import { fmParse, lbParse, useFetch } from '../../src/areas/music/history-mb';
 import { askFor, fetchAsk, MAX_BYTES, retryAfter } from '../../src/areas/music/know-fetch';
+import { knowJob } from '../../src/areas/music/know-job';
 import * as mb from '../../src/areas/music/know-parse-mb';
 import * as web from '../../src/areas/music/know-parse-web';
 import { nextAsk, refused, rowFailed } from '../../src/areas/music/know-plan';
@@ -162,5 +163,30 @@ describe('failures and their cost', () => {
       error: 'host',
       retry: 30_000,
     });
+  });
+});
+
+describe('the job and a short wait', () => {
+  it('waits out a back-off of up to stay_ms itself, and ends only for a longer one', () => {
+    const never = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error('a short wait writes nothing');
+        },
+      },
+    ) as never;
+    expect(knowJob.step(never, null, { n: 7 }, { know: 0, wait: 60_000, idle: true })).toEqual({
+      next: { n: 7 },
+      after: 60_000,
+      rows: 0,
+    });
+    expect(knowJob.step(never, null, null, { know: 0, wait: K.stay_ms, idle: true })).toEqual({
+      next: { n: 0 },
+      after: K.stay_ms,
+      rows: 0,
+    });
+    expect(() => knowJob.step(never, null, null, { know: 0, wait: K.stay_ms + 1, idle: true })).toThrow();
+    expect(K.host_left_ms).toBeLessThanOrEqual(3_600_000);
   });
 });
