@@ -21,7 +21,7 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'],
   'astra/src/addons/worker-api.js': ['/th/ported/session.js'],
   // Signed out, Music's and Podcasts' pages go to the sign-in door (MIGRATION.md §8): they only read whether there is a session.
-  'music/src/library/r2.js': ['/th/ported/session.js'], 'podcasts/app.js': ['/th/ported/session.js'] };
+  'music/src/library/r2.js': ['/th/ported/session.js'], 'music/src/library/access.js': ['/th/ported/session.js'], 'podcasts/app.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
  * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does;
  * th/data/page.js counts the page's bytes on the phone for Settings › Data use; th/music/release.js keeps
