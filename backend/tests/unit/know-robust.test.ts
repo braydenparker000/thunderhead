@@ -5,7 +5,7 @@
 // never blocking another host's source, and a row with nothing else to ask is parked. Invented names.
 import { describe, expect, it } from 'vitest';
 import { KNOW_LIMITS as K } from '../../../shared/contract/know.ts';
-import { fmParse, lbParse, useFetch } from '../../src/areas/music/history-mb';
+import { agentFor, fmParse, lbParse, useFetch, useSite } from '../../src/areas/music/history-mb';
 import { askFor, fetchAsk, MAX_BYTES, retryAfter } from '../../src/areas/music/know-fetch';
 import { knowJob } from '../../src/areas/music/know-job';
 import * as mb from '../../src/areas/music/know-parse-mb';
@@ -196,5 +196,18 @@ describe('the job and a short wait', () => {
     });
     expect(() => knowJob.step(never, null, null, { know: 0, wait: K.stay_ms + 1, idle: true })).toThrow();
     expect(K.host_left_ms).toBeLessThanOrEqual(K.stay_ms);
+  });
+});
+
+describe('the User-Agent', () => {
+  it('names the site to MusicBrainz alone, and only a plain https origin', () => {
+    useSite('https://site.example, https://other.example');
+    expect(agentFor('musicbrainz.org')).toBe('Thunderhead/1.0 ( https://site.example )');
+    expect(agentFor('ws.audioscrobbler.com')).toBe('Thunderhead/1.0 (a personal music library)');
+    expect(agentFor('en.wikipedia.org')).not.toContain('site.example');
+    for (const bad of [undefined, '', 'http://site.example', 'https://site.example/path?x=1', 'https://a b']) {
+      useSite(bad);
+      expect(agentFor('musicbrainz.org')).toBe('Thunderhead/1.0 (a personal music library)');
+    }
   });
 });

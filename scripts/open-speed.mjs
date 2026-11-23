@@ -204,8 +204,10 @@ function catalog() {
   return { version: 1, kind: 'r2-library', complete: true, count: tracks.length, generatedAt: '2026-10-29T00:00:00.000Z', tracks };
 }
 
-/** Cold, then warm once the service workers are in place. */
-export async function measure(browser, link, p) {
+/** Cold, then warm once the service workers are in place. With `warmRuns` over 1 the warm open is
+ * made that many times and the fastest is `warm` (all of them in `warms`): one open on a loaded
+ * machine says little, and a real regression is slow every time. */
+export async function measure(browser, link, p, { warmRuns = 1 } = {}) {
   const { context } = await phone(browser, link, p);
   try {
     const cold = await open(context, p, link);
@@ -225,8 +227,10 @@ export async function measure(browser, link, p) {
     // until the link has been quiet for 3 s: the workers have kept what they keep (Astra saves its release whole)
     for (let i = 0; i < 1200 && (link.seen.inflight > 0 || Date.now() - link.seen.last < 3000); i++) await new Promise((ok) => setTimeout(ok, 100));
     await page.close();
-    const warm = await open(context, p, link);
-    return { name: p.name, cold, warm };
+    const warms = [];
+    for (let i = 0; i < warmRuns; i++) warms.push(await open(context, p, link));
+    const warm = warms.reduce((a, b) => (b.ready < a.ready ? b : a));
+    return { name: p.name, cold, warm, warms };
   } finally {
     await context.close();
   }

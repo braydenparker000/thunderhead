@@ -1482,7 +1482,7 @@ Three formats, zip or json (or csv for Last.fm), each ≤ 32 MiB: Spotify's exte
 
 ### 16.2 Canonical names and similar artists
 
-`music.mb` resolves each artist with 3 plays or more, most played first, to a MusicBrainz id and canonical name: one request a step, a step at most every 1.1 s, a User-Agent naming the app and nothing of the owner, three tries; an artist MusicBrainz doesn't know stays as the name. ListenBrainz's similar artists are fetched by MusicBrainz id when the mind asks (`th music similar <id>`, and by the job for the artists it gathers facts on, §19.2) and kept a week (`similar_artists`, out of the backup). A Last.fm API key is optional (`LASTFM_API_KEY`, SETUP.md N6): with one, Last.fm's similar artists are merged in; MusicBrainz and ListenBrainz need none.
+`music.mb` resolves each artist with 3 plays or more, most played first, to a MusicBrainz id and canonical name: one request a step, a step at most every 1.1 s, a User-Agent naming the app and, to MusicBrainz alone, the site's public address as its contact (owner's yes, 2026-11-23: MusicBrainz throttles apps that give none), nothing of the owner, three tries; an artist MusicBrainz doesn't know stays as the name. ListenBrainz's similar artists are fetched by MusicBrainz id when the mind asks (`th music similar <id>`, and by the job for the artists it gathers facts on, §19.2) and kept a week (`similar_artists`, out of the backup). A Last.fm API key is optional (`LASTFM_API_KEY`, SETUP.md N6): with one, Last.fm's similar artists are merged in; MusicBrainz and ListenBrainz need none.
 
 ### 16.3 Reading the taste
 
