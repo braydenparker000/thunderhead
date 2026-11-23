@@ -115,6 +115,7 @@ export abstract class MusicKnow extends MusicSync {
     const st = ks.knowState(this.db);
     const flipped = this.kx(() => {
       let n = ks.refreshDue(this.db, now, todoOf) + ks.retryLookups(this.db, now - K.relook_ms);
+      n += ks.keysArrived(this.db, this.knowKeys(), SOURCES);
       if (now - st.refreshed >= DAY) {
         if (now - st.top_at >= K.top_refresh_ms) n += ks.refreshTop(this.db, K.top_artists, now - K.top_refresh_ms);
         if (plan.restoreMissing(this.db, (id, kind, name, prio) => this.putBack(id, kind, name, prio, now))) n++;

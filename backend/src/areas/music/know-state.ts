@@ -35,3 +35,37 @@ export const putKnowState = (db: Db, s: KnowState) => putState(db, 'know.state',
 export type Hosts = Record<string, { fails: number; until: number; ok_at?: number; refused_at?: number }>;
 export const hostsOf = (db: Db): Hosts => getState<Hosts>(db, 'know.hosts') ?? {};
 export const putHosts = (db: Db, h: Hosts) => putState(db, 'know.hosts', h);
+
+/** The keys the job last saw (`know.keys`). A key that has arrived since (the owner added Last.fm's
+ * or Discogs's) puts its sources back on every row that could ask them and that the service has
+ * never filled: such a row dropped them for want of the key and would otherwise wait for its monthly
+ * round. Rows put back. */
+export function keysArrived(
+  db: Db,
+  keys: { lastfm: boolean; discogs: boolean },
+  sources: Record<string, readonly string[]>,
+): number {
+  const seen = getState<{ lastfm: boolean; discogs: boolean }>(db, 'know.keys');
+  if (seen && seen.lastfm === keys.lastfm && seen.discogs === keys.discogs) return 0;
+  let n = 0;
+  for (const [family, prefix] of [
+    ['lastfm', 'fm'],
+    ['discogs', 'dc'],
+  ] as const) {
+    if (!keys[family] || seen?.[family]) continue;
+    for (const [kind, all] of Object.entries(sources)) {
+      const add = all.filter((x) => x.startsWith(prefix));
+      if (!add.length) continue;
+      n += db.run(
+        `UPDATE know_facts SET busy = 1, todo = trim(todo || ',' || ?1, ',')
+         WHERE kind = ?2 AND json_extract(filled_json, ?3) IS NULL AND instr(',' || todo || ',', ?4) = 0`,
+        add.join(','),
+        kind,
+        `$.${family}`,
+        `,${add[0]},`,
+      );
+    }
+  }
+  putState(db, 'know.keys', keys);
+  return n;
+}

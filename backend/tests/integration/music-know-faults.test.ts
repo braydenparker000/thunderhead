@@ -11,6 +11,9 @@ import {
   type KnowStatus,
   type PicksResponse,
 } from '../../../shared/contract/know.ts';
+import { SOURCES } from '../../src/areas/music/know-fetch';
+import { keysArrived } from '../../src/areas/music/know-state';
+import type { Db } from '../../src/objects/base';
 import { apiJson } from '../helpers';
 import { mbidOf } from '../history-helpers';
 import { fakeWorld, gid, inMusic, musicSql, runJob, seedKnow, tick, world } from '../know-helpers';
@@ -139,5 +142,33 @@ describe('MusicBrainz refusing a lookup', () => {
     expect((await albums()).filter((a) => a.reason === 'lookup_failed').length).toBeGreaterThan(0);
     await inMusic((o) => o.knowNext(now + K.relook_ms + 60_000));
     expect((await albums()).filter((a) => a.reason === 'lookup_failed')).toHaveLength(0);
+  });
+});
+
+describe('a key the owner adds later', () => {
+  it('puts its sources back on the rows that service never filled, once', async () => {
+    const dbOf = (o: unknown) => (o as { db: Db }).db;
+    const todo = async (kind: string) =>
+      (await musicSql<{ todo: string; busy: number }>('SELECT todo, busy FROM know_facts WHERE kind = ?', kind)).map(
+        (r) => r.todo.split(',').filter(Boolean),
+      );
+    // As the job left them with no keys: done, and nothing of Discogs or Last.fm filled.
+    await musicSql("UPDATE know_facts SET todo = '', busy = 0, filled_json = '{\"musicbrainz\":1}'");
+    await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: false }, SOURCES));
+    expect((await todo('album')).every((t) => t.length === 0)).toBe(true);
+    // Discogs's token arrives: albums ask Discogs again; artists (no Discogs source) and Last.fm's stay.
+    const n = await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES));
+    const albumsNow = await todo('album');
+    // (What it answers is the rows written, index entries with them.)
+    expect(n).toBeGreaterThan(0);
+    expect(albumsNow.length).toBeGreaterThan(0);
+    expect(albumsNow.every((t) => t.join() === 'dcm,dcr')).toBe(true);
+    expect((await todo('artist')).every((t) => t.length === 0)).toBe(true);
+    // Seen now: a second look changes nothing, and a row Discogs has filled is not asked again.
+    expect(await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES))).toBe(0);
+    await musicSql("UPDATE know_facts SET todo = '', filled_json = '{\"discogs\":1}' WHERE kind = 'album'");
+    await musicSql("DELETE FROM music_state WHERE key = 'know.keys'");
+    await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES));
+    expect((await todo('album')).every((t) => t.length === 0)).toBe(true);
   });
 });
