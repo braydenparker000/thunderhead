@@ -48,8 +48,18 @@ export function mbTurn(now = Date.now()): boolean {
 
 /** One GET to an outside service with the app's User-Agent (and nothing of the owner), by the fetch
  * the tests replace. */
-export const outsideGet = (url: string, headers: Record<string, string> = {}) =>
-  fetcher(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers } });
+export async function outsideGet(url: string, headers: Record<string, string> = {}): Promise<Response> {
+  const host = url.slice(8, url.indexOf('/', 8));
+  try {
+    const r = await fetcher(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers } });
+    // A refusal is logged by host and status alone (never the address: it can carry a key or a name).
+    if (!r.ok) console.log(JSON.stringify({ evt: 'outside_refused', host, status: r.status }));
+    return r;
+  } catch (e) {
+    console.log(JSON.stringify({ evt: 'outside_refused', host, status: 0 }));
+    throw e;
+  }
+}
 
 const str = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 200) : '');
 
@@ -64,7 +74,7 @@ export async function lookup(
   const query = `artist:"${name.replace(/["\\]/g, ' ')}"`;
   const url = `https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(query)}&limit=3&fmt=json`;
   try {
-    const r = await fetcher(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+    const r = await outsideGet(url);
     if (!r.ok) return 'error';
     const j = (await r.json()) as { artists?: { id?: unknown; name?: unknown; score?: unknown }[] };
     const want = keyOf(name);
