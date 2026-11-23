@@ -137,6 +137,13 @@ export function setMatch(db: Db, key: string, m: { rg: string } | { reason: stri
         key,
       );
 }
+/** Artists whose lookup failed before `before` are due again (their albums with no hint). */
+export const retryLookups = (db: Db, before: number) =>
+  db.run(
+    `UPDATE know_albums SET state = 'due', reason = NULL, tries = 0
+     WHERE reason = 'lookup_failed' AND artist_mbid IS NULL AND hint IS NULL AND state = 'unmatched' AND at < ?`,
+    before,
+  );
 export const bumpTries = (db: Db, key: string) =>
   db.run('UPDATE know_albums SET tries = tries + 1 WHERE artist_key = ?', key);
 

@@ -64,18 +64,24 @@ export async function outsideGet(url: string, headers: Record<string, string> = 
 const str = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 200) : '');
 
 /** One artist by name: its id and canonical name when MusicBrainz is sure (score 90 or more and the
- * same name, or 100), 'none' when it knows no such artist, 'error' when it could not answer, 'wait'
- * when the last request was under 1.1 s ago. */
+ * same name, or 100), 'none' when it knows no such artist, 'refused' when MusicBrainz did not answer
+ * (busy, down, no network: the host's fault, not the name's), 'error' when its answer could not be
+ * read, 'wait' when the last request was under 1.1 s ago. */
 export async function lookup(
   name: string,
   now = Date.now(),
-): Promise<{ mbid: string; name: string } | 'none' | 'error' | 'wait'> {
+): Promise<{ mbid: string; name: string } | 'none' | 'refused' | 'error' | 'wait'> {
   if (!mbTurn(now)) return 'wait';
   const query = `artist:"${name.replace(/["\\]/g, ' ')}"`;
   const url = `https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(query)}&limit=3&fmt=json`;
+  let r: Response;
   try {
-    const r = await outsideGet(url);
-    if (!r.ok) return 'error';
+    r = await outsideGet(url);
+  } catch {
+    return 'refused';
+  }
+  if (!r.ok) return 'refused';
+  try {
     const j = (await r.json()) as { artists?: { id?: unknown; name?: unknown; score?: unknown }[] };
     const want = keyOf(name);
     for (const a of j.artists ?? []) {
@@ -104,7 +110,7 @@ export const mbJob: JobHandler = {
     if (!next) return { done: await music.taste(3) } satisfies MbInput;
     const r = await lookup(next.name);
     if (r === 'wait') return { wait: true } satisfies MbInput;
-    return { resolved: (await music.mbPut(next.key, r)) > 0 } satisfies MbInput;
+    return { resolved: (await music.mbPut(next.key, r === 'refused' ? 'error' : r)) > 0 } satisfies MbInput;
   },
   step(w, _payload, cursor, input) {
     const i = input as MbInput;

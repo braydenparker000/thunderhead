@@ -114,9 +114,11 @@ describe('failures and their cost', () => {
     expect(retryAfter(null, 0)).toBeUndefined();
   });
 
-  it('refusals back a host off 1, 2, 4 minutes (or its Retry-After), then leave it a day', () => {
+  it('refusals back a host off 5, 20, 60 seconds (or its Retry-After), then leave it five minutes', () => {
     let h = refused(undefined, undefined, 0);
-    expect(h.until).toBe(60_000);
+    expect(h.until).toBe(5_000);
+    expect(refused(h, undefined, 0).until).toBe(20_000);
+    expect(refused(refused(h, undefined, 0), undefined, 0).until).toBe(60_000);
     h = refused(h, 600_000, 0);
     expect(h.until).toBe(600_000);
     h = refused(refused(h, undefined, 0), undefined, 0);
@@ -187,6 +189,6 @@ describe('the job and a short wait', () => {
       rows: 0,
     });
     expect(() => knowJob.step(never, null, null, { know: 0, wait: K.stay_ms + 1, idle: true })).toThrow();
-    expect(K.host_left_ms).toBeLessThanOrEqual(3_600_000);
+    expect(K.host_left_ms).toBeLessThanOrEqual(K.stay_ms);
   });
 });
