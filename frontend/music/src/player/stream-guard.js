@@ -12,7 +12,8 @@
 // - a file that will not decode: a bad offline copy is dropped and the
 //   stream tried, a stored file is skipped; a track that keeps failing while
 //   its file answers is skipped ("Failed to play"), at most SKIP_RUN in a row;
-// - online, after GIVE_UP failed tries the player pauses and says so; Play tries again.
+// - online, after GIVE_UP failed tries the player pauses and says so; Play tries again;
+// - the file refused for want of a session (401): the player stops and asks for sign-in (library/access.js).
 // The playback log shows the counts and events.
 export const STALL_MS = 10000;
 // A streamed song (th/music/stream): its stall waits while the feed has any request under way that showed
@@ -42,7 +43,7 @@ export async function probeFile(url, from = 0) {
   try {
     const r = await fetch(url, {headers: {Range: `bytes=${from}-${from + 1}`}, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     r.body?.cancel?.().catch(() => {});
-    return r.status === 404 || r.status === 410 ? 'gone' : r.ok ? 'answers' : 'error';
+    return r.status === 404 || r.status === 410 ? 'gone' : r.status === 401 ? 'signed-out' : r.ok ? 'answers' : 'error';
   } catch { return 'unreachable'; }
 }
 
@@ -202,6 +203,8 @@ export class StreamGuard {
     if (!copy && (this.attempts > PROBE_AFTER || (undecodable && this.attempts > 1))) {
       const answer = await this.probe(t.src, p.ctx.audioHeads?.kept?.get(t.src)?.head ?? 0);
       if (el !== p.audio || t !== p.track) return;
+      // Refused for want of a session: the player stops and sign-in is asked for (library/access.js).
+      if (answer === 'signed-out' && p.ctx.access) { p.ctx.access.signedOut(); return; }
       if (answer === 'gone' || (answer === 'answers' && el.error && el.error.code !== 2)) { this.skip(t); return; }
     }
     this.counts.reloads++;

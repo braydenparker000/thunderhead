@@ -44,6 +44,7 @@ import {openLyricsDialog} from './widgets/lyrics-dialog.js';
 import {installSubAAEditor} from './widgets/subaa-edit.js';
 import {installScreenPrefs} from './widgets/screen.js';
 import {installSession, readSession, restore} from './player/session.js';
+import {Access} from './library/access.js';
 import {installCategoryRestore} from './list/category-ref.js';
 import {prebuildLikely} from './view/prebuild.js';
 import {topViewport, visibleHeight} from './ui/viewport-top.js';
@@ -228,6 +229,9 @@ export async function boot() {
   });
   // Remember the list, the song and its place (reference: resume where left off).
   installSession(ctx, player, library);
+  // Signed out, or no library: Music says so, and Play is the way on (library/access.js).
+  const access = new Access(ctx, player, library);
+  library.r2Ready.then(() => access.checkLibrary());
   // The home screen: the player, or the library with start_at_lib (the
   // app starts there and Back from the player or the EQ returns to it).
   const home = () => (ctx.pref('start_at_lib') ? 'nav_lib' : 'nav_main');
