@@ -67,6 +67,8 @@
   // (SECURITY.md §10): the deploy makes it once when the live Worker lacks it, so nobody sees it.
   // TORBOX_KEY is the owner's TorBox API key for Astra's relay (SECURITY.md §8.2); only the owner
   // sets it (backend/README.md); while it is `none`, /v1/astra/play skips TorBox and answers no address.
+  // DISCOGS_TOKEN is the owner's Discogs personal token (optional, MUSIC.md §19.2): while it is `none`,
+  // the music knowledge asks Discogs nothing.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -85,7 +87,8 @@
       "VAPID_PRIVATE_JWK",
       "GOOGLE_CLIENT_ID",
       "GOOGLE_CLIENT_SECRET",
-      "TORBOX_KEY"
+      "TORBOX_KEY",
+      "DISCOGS_TOKEN"
     ]
   },
   "vars": {

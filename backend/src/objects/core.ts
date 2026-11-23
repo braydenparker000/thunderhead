@@ -40,7 +40,7 @@ import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import { onClaim } from '../areas/mind/watches/pulse';
 import { historyJob } from '../areas/music/history-job';
-import { mbJob } from '../areas/music/history-mb';
+import { MUSIC_JOBS } from '../areas/music/know-job';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import { embedJob } from '../areas/search/embed-job';
 import type { BriefReports } from '../areas/senses/brief';
@@ -63,7 +63,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [drillJob.kind]: drillJob,
   [exportJob.kind]: exportJob,
   [historyJob.kind]: historyJob,
-  [mbJob.kind]: mbJob,
+  ...MUSIC_JOBS,
   [embedJob.kind]: embedJob,
 };
 

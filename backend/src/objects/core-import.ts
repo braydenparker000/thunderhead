@@ -8,6 +8,7 @@ import * as store from '../areas/import/store';
 import { LANE_ROWS_PER_DAY, laneRows, nextLaneDay, useLane } from '../areas/jobs/runner';
 import { job, requeueJob } from '../areas/jobs/store';
 import { HISTORY_JOB, type HistoryPayload } from '../areas/music/history-job';
+import { knowDue, queueKnow } from '../areas/music/know-queue';
 import type { Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreNight } from './core-night';
@@ -38,6 +39,21 @@ export abstract class CoreImport extends CoreNight {
     this.schedule();
     const s = job(this.db, id)?.state;
     return s === 'running' || s === 'failed' || s === 'done' ? s : 'queued';
+  }
+
+  /** The music knowledge's job (areas/music/know-job.ts) queued at `at`, unless it is queued or
+   * running already: a catalog change asks this, its quiet time later. */
+  knowQueue(at = Date.now()): void {
+    if (this.write((w) => queueKnow(w.db, at), Date.now())) this.schedule();
+  }
+
+  /** The cron's tick: the music knowledge's job queued when it is missing, failed, or its idle time
+   * is up (two rows read otherwise). Whether it was queued. */
+  knowTick(now = Date.now()): boolean {
+    if (!knowDue(this.db, now)) return false;
+    this.write((w) => queueKnow(w.db, now), now);
+    this.schedule();
+    return true;
   }
 
   /** Counts rows another object wrote under the bulk lane. */

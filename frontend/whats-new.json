@@ -1,1 +1,15 @@
-{"id":"2026-11-23-seek","date":"2026-11-23","lines":[{"text":"Music's seek bar now stays where you put it, also while the new part of the song is still loading."}]}
+{
+  "id": "2026-11-23-music-knowledge",
+  "date": "2026-11-23",
+  "lines": [
+    {
+      "text": "I now look up your albums and artists on MusicBrainz, Wikipedia and ListenBrainz, so I know more about your music."
+    },
+    {
+      "text": "Ask me what to add: I can suggest albums you don't have yet, and you can say no or have Muse fetch one."
+    },
+    {
+      "text": "Settings › Music shows what I've learnt so far and which albums I couldn't match."
+    }
+  ]
+}

@@ -4,6 +4,7 @@
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
 import { ISSUE_ROUTES } from './routes-issues.ts';
+import { KNOW_ROUTES } from './routes-know.ts';
 import { PHOTO_ROUTES } from './routes-photos.ts';
 import { PODCAST_SYNC_ROUTES } from './routes-podcasts.ts';
 import { ROUTINE_ROUTES } from './routes-routines.ts';
@@ -156,7 +157,6 @@ export const ROUTES = {
     note: "the export run's manifest, written last, after every part it names",
   },
   'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', note: 'state, counts and the verification report' },
-
   // --- P4: proposals, backups, export, Muse -----------------------------------------------------
   // Built stage by stage: a row of a later stage says which one it waits for.
   'PUT /v1/proposals/:id': { who: MIND, phase: 'P4', note: 'an agent raises a decision card (from a claimed, untainted session)' },
@@ -211,7 +211,6 @@ export const ROUTES = {
   'PUT /v1/briefing/report/:day': { who: ['N'], phase: 'P4', note: "night step 12, the night's report (night-report.ts): a claimed, live, untainted night session; the same body again answers the stored report, a new one from the same session replaces it (undo), another session's is 409" },
   'PUT /v1/briefing/place': { who: D, phase: 'P8', note: "the weather's place, by a town's name" },
   'GET /v1/briefing/calendar': { who: ['D', 'C', 'N'], phase: 'P8', note: "?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words" },
-
   // --- P5 and later ---------------------------------------------------------------------------
   'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },
   'GET /v1/music/waveforms/:id': { who: D, phase: 'P5' },
@@ -226,6 +225,7 @@ export const ROUTES = {
   'GET /v1/music/taste/weights': { who: ['D'], phase: 'P5', note: "the DJ shuffle's history weights by song id, none while music.history is off" },
   'GET /v1/music/taste': { who: ['C', 'N'], phase: 'P5', note: '?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays' },
   'GET /v1/music/similar/:mbid': { who: ['C', 'N'], phase: 'P5', note: "ListenBrainz's similar artists, kept a week; plays and catalog songs of each" },
+  ...KNOW_ROUTES,
   'GET /v1/music/mixes/:id': { who: ['D'], phase: 'P5', note: "one mix's songs in order, for the owner's tap on Music's \"tonight\" (404 not_found)" },
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },

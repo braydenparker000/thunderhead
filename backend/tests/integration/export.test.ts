@@ -96,6 +96,9 @@ describe('download everything', () => {
       'listen_artists',
       'track_plays',
       'music_playlists',
+      'know_albums',
+      'know_songs',
+      'picks',
     ])
       expect(names).toContain(`tables/music.${t}.jsonl`);
     // The senses' daily counts and Study's library (the PDFs stay in the bucket, the index is rebuilt).

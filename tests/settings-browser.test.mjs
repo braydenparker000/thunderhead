@@ -141,10 +141,11 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
     assert.deepEqual(got.keys, expected, `${name}: its rows are its catalogue entries, in order`);
     assert.deepEqual(got.loose, [], `${name}: no row outside the catalogue`);
     // The mind's What lands, Routines and the voice page's Earlier versions folds (their rows are read when they open) are read-only rows,
-    // and so are Music's Listening history (its lead and its pick button; nothing counted yet), and Privacy's line about
+    // and so are Music's Listening history (its lead and its pick button; nothing counted yet) and What I know about your
+    // music (its lead; nothing known yet), and Privacy's line about
     // the editor's reports (its Send now key inside it).
     // Notifications' state line for this phone is one too (its switch, Quiet hours and Go quiet now are actions).
-    assert.equal(got.info, { privacy: 4, about: 4, mind: 3, music: 2, notifications: 1 }[name] ?? 0, `${name}: read-only rows`);
+    assert.equal(got.info, { privacy: 4, about: 4, mind: 3, music: 3, notifications: 1 }[name] ?? 0, `${name}: read-only rows`);
     assert.deepEqual(got.details, [], `${name}: a detail line under each`);
     assert.deepEqual(got.small, [], `${name}: 44 px hit areas`);
     assert.equal(got.unnamed, 0, `${name}: every button has a name`);
