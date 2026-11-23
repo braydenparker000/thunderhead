@@ -160,6 +160,12 @@ describe('failures and their cost', () => {
     expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 5000)).toEqual({ none: true });
     useFetch(async () => new Response('<html>no</html>'));
     expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 10000)).toEqual({ error: 'row' });
+    // Not allowed is the host's, for the longest rest: no row pays three requests for it.
+    useFetch(async () => new Response('no', { status: 401 }));
+    expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 12000)).toEqual({
+      error: 'host',
+      retry: 6 * 3_600_000,
+    });
     useFetch(async () => new Response('busy', { status: 429, headers: { 'Retry-After': '30' } }));
     expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 15000)).toEqual({
       error: 'host',
