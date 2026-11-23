@@ -15,7 +15,7 @@ import { musicObject } from '../../objects/music';
 import { sensesObject } from '../../objects/senses';
 import type { JobHandler } from '../jobs/runner';
 import { putSetting } from '../settings/store';
-import { lookup, mbJob } from './history-mb';
+import { lookup, mbJob, useSite } from './history-mb';
 import { fetchAsk, type Got } from './know-fetch';
 import { KNOW_JOB, KNOW_NEXT } from './know-queue';
 
@@ -24,6 +24,7 @@ type Input = { know: number; wait: number; idle?: boolean };
 /** One knowledge step: the rows it wrote in Music, how long the next step waits, and whether there
  * was nothing to do now. */
 export async function knowStep(env: Env, now = Date.now()): Promise<Input> {
+  useSite(env.SITE_ORIGINS);
   const music = musicObject(env);
   const task = await music.knowNext(now);
   if (task.t === 'idle') return { know: 0, wait: task.wait, idle: true };

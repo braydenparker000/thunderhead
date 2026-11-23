@@ -16,6 +16,14 @@ import { keyOf } from './history-parse';
 import { queueKnow } from './know-queue';
 
 const UA = 'Thunderhead/1.0 (a personal music library)';
+/** The site's public address, sent to MusicBrainz alone as the contact its rules ask every app for
+ * (owner's yes, 2026-11-23: without one it throttles harder). Nothing of the owner is in it. */
+let site = '';
+export function useSite(origins: string | undefined): void {
+  const first = (origins ?? '').split(',')[0]?.trim() ?? '';
+  site = /^https:\/\/[a-z0-9.-]+$/.test(first) ? first : '';
+}
+export const agentFor = (host: string) => (host === 'musicbrainz.org' && site ? `Thunderhead/1.0 ( ${site} )` : UA);
 export const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const LB_ALGO = 'session_based_days_7500_session_300_contribution_5_threshold_10_limit_100_filter_True_skip_30';
 
@@ -51,7 +59,7 @@ export function mbTurn(now = Date.now()): boolean {
 export async function outsideGet(url: string, headers: Record<string, string> = {}): Promise<Response> {
   const host = url.slice(8, url.indexOf('/', 8));
   try {
-    const r = await fetcher(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers } });
+    const r = await fetcher(url, { headers: { 'User-Agent': agentFor(host), Accept: 'application/json', ...headers } });
     // A refusal is logged by host and status alone (never the address: it can carry a key or a name).
     if (!r.ok) console.log(JSON.stringify({ evt: 'outside_refused', host, status: r.status }));
     return r;
@@ -105,6 +113,7 @@ export const mbJob: JobHandler = {
   kind: MB_JOB,
   lane: true,
   async load(env) {
+    useSite(env.SITE_ORIGINS);
     const music = musicObject(env);
     const next = await music.mbNext();
     if (!next) return { done: await music.taste(3) } satisfies MbInput;
