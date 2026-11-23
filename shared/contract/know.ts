@@ -26,9 +26,10 @@ export const KNOW_LIMITS = {
   links: 20,
   /** Between two requests to one host other than MusicBrainz (MusicBrainz: TASTE_LIMITS.mb_gap_ms). */
   host_gap_ms: 1_000,
-  /** A host that fails is asked again after 1, 2 and 4 minutes, then left for `host_left_ms`. */
+  /** A host that fails is asked again after 1, 2 and 4 minutes, then left for `host_left_ms` (an hour:
+   * MusicBrainz's "busy" to a shared address passes in minutes, and a day's rest stalled the library). */
   host_tries: 3,
-  host_left_ms: 86_400_000,
+  host_left_ms: 3_600_000,
   /** Failed requests one row may make for one source a round; then that source waits for the next. */
   row_tries: 3,
   /** After the catalog changes, the albums are read again once it has been still this long (an
@@ -40,6 +41,9 @@ export const KNOW_LIMITS = {
   top_artists: 20,
   /** With nothing to do, the job looks again after this long. */
   idle_ms: 3_600_000,
+  /** A wait this short (a host's back-off, a parked row) is waited out inside the job: ended, it would
+   * come back only at the cron's next tick, a minute's back-off costing fifteen. */
+  stay_ms: 20 * 60_000,
   /** Picks are rebuilt at most this often, and only when facts or plays changed. */
   picks_ms: 86_400_000,
   picks_kept: 60,

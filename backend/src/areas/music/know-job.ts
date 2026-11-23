@@ -4,7 +4,8 @@
 // one outside request a step, and the next step waits 1.1 s (the runner's `after`), so MusicBrainz's
 // one a second and every other host's gap hold. What a step learnt is kept by the Music object in one
 // transaction, so a step run again writes the same rows: the job is resumable and idempotent.
-// With nothing to do now, the job ends and notes when to come back (`music.know.next`); it is queued
+// With nothing to do for longer than `stay_ms`, the job ends and notes when to come back
+// (`music.know.next`; a shorter wait it waits out itself); it is queued
 // again by the cron's tick once that time comes (and whenever it is missing or failed: a deploy onto
 // an existing database, a library with no history import, a failure), by the end of the history's
 // `music.mb`, and by a catalog change (the upload routes, `seed_quiet_ms` later).
@@ -50,6 +51,8 @@ export const knowJob: JobHandler = {
   load: (env) => knowStep(env),
   step(w, _payload, cursor, input) {
     const i = input as Input;
+    // A short wait is waited out here; only a long one ends the job until the cron's tick.
+    if (i.idle && i.wait <= K.stay_ms) return { next: cursor ?? { n: 0 }, after: i.wait, rows: 0 };
     if (i.idle) {
       putSetting(w.db, KNOW_NEXT, w.at + Math.min(i.wait, K.idle_ms), 'worker', w.at);
       return { done: true, rows: i.know };
