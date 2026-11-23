@@ -439,7 +439,9 @@ part or a video, and the browser has MediaSource with Opus in WebM (Chrome and A
 Safari**, which has only ManagedMediaSource: there songs play from the plain element as before). The
 song starts at the element's time 0, so the player's position, seeks and end are the song's; its length
 is the catalog's from the start. A deck not yet played (`preload` none) fetches nothing until its first
-play. A seek outside the buffer goes to the feed. A song whose stream gives up plays on from the plain
+play. A seek outside the buffer goes to the feed; while its data is on its way the element is still
+where it was, so the player's position (the clock, the waveform, the lock screen, a saved place) is the
+feed's `seekTo`, where the seek goes (before 2026-11-23 the bar went back to the old place). A song whose stream gives up plays on from the plain
 element where it was, and from the element for the rest of the session (`noStream`); a preloaded one
 loads that way when its turn comes. Switched off on one phone with `localStorage['th.music.stream'] =
 'off'`. Tested in `tests/music-stream-player-browser.test.mjs` (also: no byte of the playing song

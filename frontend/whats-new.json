@@ -1,18 +1,1 @@
-{
-  "id": "2026-11-23-audit",
-  "date": "2026-11-23",
-  "lines": [
-    {
-      "text": "If your session expires, a message that was waiting to send and your draft are kept for when you sign in again."
-    },
-    {
-      "text": "Music says when it can't reach your songs, and a reload keeps your place. Repair says when it needs a connection."
-    },
-    {
-      "text": "Settings asks before throwing away what you typed, and says when a page couldn't load or the phone's storage is full."
-    },
-    {
-      "text": "Study, Astra and the chat now say what really went wrong: sign-in, a dead link, or today's limit and when it lifts."
-    }
-  ]
-}
+{"id":"2026-11-23-seek","date":"2026-11-23","lines":[{"text":"Music's seek bar now stays where you put it, also while the new part of the song is still loading."}]}
