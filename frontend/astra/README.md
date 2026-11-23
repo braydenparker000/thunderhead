@@ -1685,7 +1685,7 @@ measured height, so nothing covers the title or the buttons.
 - A lost connection is retried for up to a minute (at once when the phone is
   back online) while the buffer plays, with "Reconnecting…"; only then does
   the player stop, offering Try again from where it stopped. A dead link
-  (404/410) asks for another source; a host that does not answer in 15 s
+  (401/403/404/410 from the film's address) asks for another source; a host that does not answer in 15 s
   says so. Another app is offered only for files the browser cannot play.
 - Media Session controls (the lock screen's play, pause, seek and next
   episode, with the position line); the screen is kept awake while playing,

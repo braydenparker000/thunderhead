@@ -12,7 +12,7 @@ import * as data from './data.js';
 import { askLanguage } from './language.js';
 import { back as goBack, go } from './nav.js';
 import { readLocal } from './pdf.js';
-import { partsOf, refuse, sendParts, titleFor } from './upload.js';
+import { partsOf, refuse, sendParts, stopLine, titleFor } from './upload.js';
 import { holdAwake } from './wake.js';
 import { scriptureIndex, verseCards } from './verse.js';
 import { continueRow, pageName, progress, shelfOrder, snippetParts, stateLine } from './words.js';
@@ -291,7 +291,8 @@ async function send(b, f, partBytes, have) {
     files.delete(b.id);
     toast('Added. It will be read tonight.');
   } catch (e) {
-    toast(`The upload stopped. ${lineFor(failure(e))} Tap Resume to go on.`);
+    const f = failure(e);
+    toast(stopLine(f, lineFor(f)));
   } finally {
     awake();
     sending.delete(b.id);

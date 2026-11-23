@@ -4,7 +4,7 @@
 // and 3 s), the lines under a cover, page numbers, "Go to page", and search snippets as text.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { partsOf, refuse, sendParts, titleFor, WAITS } from '../frontend/apps/study/parts.js';
+import { partsOf, refuse, retriable, sendParts, stopLine, titleFor, WAITS } from '../frontend/apps/study/parts.js';
 import { continueRow, goTo, pageDetail, pageName, snippetParts, stateLine } from '../frontend/apps/study/words.js';
 
 const MB = 1024 * 1024;
@@ -59,6 +59,34 @@ test('only the missing parts are sent, each retried three times, with byte progr
     /down/,
   );
   assert.equal(tries, 4);
+});
+
+test('a stopped upload says what happened and when Resume will work, not always the connection', async () => {
+  const f = (status, code, retryAfter = null) => ({ kind: status ? 'api' : 'network', status, code, retryAfter });
+  const net = "Can't reach the Thunderhead right now. Check your connection.";
+  assert.equal(stopLine(f(0, null), net), `The upload stopped. ${net} Tap Resume to go on.`);
+  assert.equal(stopLine(f(500, 'internal'), 'x'), 'The upload stopped: the Thunderhead had a problem on its side. Wait a few minutes, then tap Resume.');
+  assert.equal(stopLine(f(503, 'unavailable'), 'x'), 'The upload stopped: the Thunderhead had a problem on its side. Wait a few minutes, then tap Resume.');
+  assert.equal(stopLine(f(429, 'rate_limited', 30), 'x'), 'The upload stopped: too many tries at once. Wait a minute, then tap Resume.');
+  // The day's free allowance: Resume works again at midnight UTC, said in the phone's own time.
+  const now = new Date(2026, 10, 23, 18, 0).getTime();
+  assert.equal(stopLine(f(429, 'budget_exhausted', 90 * 60), 'x', now), "The upload stopped: the Thunderhead has used up today's free allowance. Tap Resume after 19:30 to go on.");
+  assert.equal(stopLine(f(429, 'budget_exhausted'), 'x', now), "The upload stopped: the Thunderhead has used up today's free allowance. Tap Resume tomorrow to go on.");
+  // That one is not tried again; a busy Worker is.
+  assert.equal(retriable({ status: 429, code: 'budget_exhausted' }), false);
+  assert.equal(retriable({ status: 429, code: 'rate_limited' }), true);
+  assert.equal(retriable({ status: 500, code: 'internal' }), true);
+  // While a failed part waits for its next try, the ring shows only what was taken, not 100 %.
+  const progress = [];
+  await assert.rejects(
+    sendParts({
+      file: new Blob([new Uint8Array(10)]), bookId: 'b', partBytes: 10, have: [], wait: async () => {},
+      onProgress: (x) => progress.push(Math.round(x * 100)),
+      put: async (_id, _n, bytes, onSent) => { onSent(bytes.size); throw Object.assign(new Error('busy'), { status: 500 }); },
+    }),
+    /busy/,
+  );
+  assert.equal(progress.at(-1), 0);
 });
 
 const book = (over = {}) => ({

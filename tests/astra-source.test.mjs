@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BLOCK, HttpSource, TIMING } from '../frontend/astra/src/engine/http-source.js';
+import { planPlayback } from '../frontend/astra/src/engine/plan.js';
 
 const SIZE = 40 * BLOCK;
 const byteAt = (offset) => (offset * 7 + (offset >> 20)) & 255;
@@ -108,4 +109,15 @@ test('a host busy at the first ask (429 while a link’s connections close, 503)
   await assert.rejects(never.open(), (error) => error.kind === 'status' && /429/.test(error.message));
   assert.equal(asked, 4, 'the first ask and three more');
   never.close();
+});
+
+test('a film address answering 401, 403, 404 or 410 at the first ask is a dead link: another source, never another app', async () => {
+  for (const status of [401, 403, 404, 410]) {
+    const source = new HttpSource('https://files.example/film.mkv', { fetchFn: async () => new Response('no', { status }) });
+    const error = await source.open().catch((e) => e);
+    assert.equal(error.kind, 'gone', `${status}`);
+    assert.equal(error.detail, status);
+    assert.equal(planPlayback({ readable: false, error }, {}).gone, true, `${status} plans as a dead link`);
+    source.close();
+  }
 });

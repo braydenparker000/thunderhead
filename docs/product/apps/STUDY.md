@@ -135,7 +135,12 @@ Check: a unit test in `backend/` round-trips every ref form through the shared r
 - Upload: through the Worker into R2 as an R2 multipart upload in **50 MB parts** (the Free plan caps a
   request body at 100 MB). `POST /v1/library/books` creates the record and returns `upload_id`;
   `PUT /v1/library/books/:id/parts/:n` sends each part; `POST /v1/library/books/:id/complete` finishes.
-  A part that fails is retried 3 times (1 s, 5 s, 15 s), then the upload shows **Resume**.
+  A part that fails is retried 3 times (1 s, 5 s, 15 s), then the upload shows **Resume** and says
+  why, in words: no connection ("Check your connection"), a problem on the Thunderhead's side ("Wait a
+  few minutes, then tap Resume"), too many tries ("Wait a minute"), or the day's free allowance used up
+  (429 `budget_exhausted`, not retried: "Tap Resume after 01:00", midnight UTC in the phone's time).
+  A signed-out 401 goes to sign-in like every signed-in call; the unfinished book waits on the shelf
+  with **Resume** (pick the same file again).
   Resuming re-sends only missing parts. Uploads unfinished after 24 h are aborted by a Library job and
   the record is removed (it never held data, so no proposal is needed).
 - Title and author start from the PDF metadata (`/Title`, `/Author`), else the file name without

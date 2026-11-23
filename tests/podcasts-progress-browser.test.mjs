@@ -238,6 +238,33 @@ test('signed in: another phone’s place further on, pulled while an episode is 
   await context.close();
 });
 
+test('“Continue listening” shows the real place as it changes, with no reload', opts, async () => {
+  const now = Date.now();
+  const { context, page, ids, errors } = await opened(true, (ids) => ({
+    version: 1, queue: [], downloads: {}, speed: 1, country: 'us', autoplay: true, follows: [show],
+    current: episode(ids[2], 'Episode two'),
+    progress: { [`${FEED}#${ids[2]}`]: { episode: episode(ids[2], 'Episode two'), position: 0.4, duration: 30, played: false, updatedAt: now - 60_000 } },
+  }));
+  remote = [];
+  const key = `${FEED}#${ids[2]}`;
+  await page.goto(`${base}/podcasts/`, { waitUntil: 'load' });
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller && !!(/** @type {any} */ (window).__podcasts));
+  await page.waitForFunction(() => /Resume 0:00/.test(document.querySelector('.continue-listening')?.textContent ?? ''));
+  // Played on Discover past a second, then paused there: the card says where it stopped.
+  await page.locator('#mini-play').click();
+  await page.waitForFunction(() => { const a = /** @type {HTMLAudioElement} */ (document.querySelector('#audio')); return !a.paused && a.currentTime > 1.2; }, null, { timeout: 15_000 });
+  await page.evaluate(() => /** @type {HTMLAudioElement} */ (document.querySelector('#audio')).pause());
+  const at = await page.evaluate((k) => JSON.parse(localStorage.getItem('jarvis.podcasts.v1')).progress[k].position, key);
+  assert.ok(at >= 1, String(at));
+  const line = `Resume 0:${String(Math.floor(at)).padStart(2, '0')}`;
+  await page.waitForFunction((l) => (document.querySelector('.continue-listening')?.textContent ?? '').includes(l), line, { timeout: 5_000 });
+  assert.ok(!(await page.locator('.continue-listening').textContent()).includes('Resume 0:00'));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('signed out: nothing is asked or sent', opts, async () => {
   seen.gets.length = 0;
   seen.puts.length = 0;

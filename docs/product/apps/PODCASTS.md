@@ -323,6 +323,8 @@ waits at most 400 ms for positions from other phones (a later answer is applied,
 ### 5.4 Played, progress and sync
 
 1. Position saved to IndexedDB every 5 s while playing, and on pause, seek and hide.
+   **Built (2026-11-23):** each save also repaints the place under that episode's rows on screen,
+   "Continue listening" included ("Resume 0:42"), in place, with no reload.
 2. Synced to `Core` (`PUT /v1/podcasts/progress` with a batch) on pause, on `visibilitychange →
    hidden` (with `keepalive`), and at most once every 60 s while playing.
 3. **Played** when the position is within the last 30 s or past 95 % (whichever is earlier), or

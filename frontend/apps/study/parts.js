@@ -25,8 +25,26 @@ export function titleFor(metaTitle, fileName) {
   return fileName.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 300) || 'Untitled book';
 }
 
-/** A failure worth another try: no answer, the Worker or the bucket busy. @param {any} e */
-export const retriable = (e) => !e?.status || e.status >= 500 || e.status === 429;
+/** A failure worth another try: no answer, the Worker or the bucket busy; not the day's free
+ * allowance spent (429 `budget_exhausted`), which only midnight UTC ends. @param {any} e */
+export const retriable = (e) => !e?.status || e.status >= 500 || (e.status === 429 && e.code !== 'budget_exhausted');
+
+/**
+ * The toast when an upload stops: what happened, and when Resume will work. A signed-out 401 never
+ * gets here (it goes to sign-in).
+ * @param {{ kind: string, status: number, code: string | null, retryAfter: number | null }} f th/flow.js's failure
+ * @param {string} line th/copy.js's lineFor(f), for every other failure @param {number} [now]
+ */
+export function stopLine(f, line, now = Date.now()) {
+  if (f.code === 'budget_exhausted') {
+    const at = new Date(now + (f.retryAfter ?? 0) * 1000);
+    const when = f.retryAfter ? `after ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` : 'tomorrow';
+    return `The upload stopped: the Thunderhead has used up today's free allowance. Tap Resume ${when} to go on.`;
+  }
+  if (f.status === 429) return 'The upload stopped: too many tries at once. Wait a minute, then tap Resume.';
+  if (f.status >= 500) return "The upload stopped: the Thunderhead had a problem on its side. Wait a few minutes, then tap Resume.";
+  return `The upload stopped. ${line} Tap Resume to go on.`;
+}
 
 /**
  * Sends every part not yet received, in order.
@@ -56,6 +74,8 @@ export async function sendParts(o) {
         base += blob.size;
         break;
       } catch (e) {
+        // The part's bytes were sent but not taken: the ring goes back while it waits.
+        o.onProgress?.(base / o.file.size);
         if (attempt >= WAITS.length || !retriable(e)) throw e;
         await wait(WAITS[attempt]);
       }
