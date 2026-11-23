@@ -117,6 +117,7 @@ Home has no standing voice line (owner, 2026-10-31: "something always telling me
 |---|---|---|
 | `convo.sending` | Sending… | Not acknowledged after 2 s |
 | `convo.queued` | Sends when you're back online | Message queued offline (research 4) |
+| `convo.held` | Today’s limit is used up · Sends at 01:00 | The day's free limit held it (429 `budget_exhausted`), until the time it sends |
 | `convo.failed` | Didn't send · Retry | Retries exhausted |
 | `convo.toolong` | Too long to send | Over 8,000 characters |
 | `convo.written` | Written yesterday, 23:40 | An outbox message filed after the day rolled (proposal) |
@@ -379,6 +380,9 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.about` | About | Row (proposal) |
 | `set.about.update` | Check for update · Up to date · Updating when it's safe | (proposal) |
 | `set.about.hints` | Show gesture hints again | (proposal) |
+| `set.about.repair.offline` | Repair needs a connection. Connect, then try again. | About › Repair with no connection, or `/repair/` not answering (built) |
+| `repair.offline` | Repair needs a connection, and the site can’t be reached now. Nothing was cleared. | `/repair/` could not reach home or the release file, so cleared nothing (built) |
+| `guard.repair.offline` | Repair needs a connection. | The boot guard's Repair with no connection (built; the guard's 1.5 KB keeps it short) |
 
 ### 3.8 Other pages
 

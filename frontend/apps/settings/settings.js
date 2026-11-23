@@ -12,7 +12,7 @@ import { api, signedIn, signOutHere } from '/th/client.js';
 import { lineFor, mindName } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
-import { wipe } from '/th/session.js';
+import { signingOut, wipe } from '/th/session.js';
 import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { animator, haptic, springs } from '/th/motion.js';
 import { timed } from '/ui/feel/log.js';
@@ -304,6 +304,7 @@ async function devices(body) {
   btn('Sign out everywhere', 'danger', async () => {
     const forgets = await forgetsLeft();
     if (!(await confirmSheet({ title: 'Sign out everywhere, including this phone?', body: forgetsBody(forgets, 'yet'), action: 'Sign out', keep: 'Cancel' }))) return;
+    signingOut(); // before the request: nothing is kept, whatever 401 arrives
     try { await signedIn((t) => api.signout(t, 'all')); } catch (e) { if (failure(e).kind !== 'api') { errLine(body, e); return; } }
     await wipe();
     location.replace('/signin/');

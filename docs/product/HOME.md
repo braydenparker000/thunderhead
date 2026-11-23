@@ -219,7 +219,8 @@ Attachments go to private storage behind sign-in (R2 `thunderhead-private`), nev
 2. On `online`, on `visibilitychange → visible`, and through Background Sync where Chrome allows, the outbox sends in order, one message at a time; a message waiting on a retry holds the ones after it, and a failed one waits for Retry without holding them. Each has a client id, so a retry never duplicates. A queued or failed message shows only its meta line: no reply slot under it.
 3. On acknowledgement the meta disappears.
 4. If the day rolled while a message waited, it is filed into the thread whose day matches the message's own time if that thread is still open, otherwise into today's thread with the meta "Written yesterday, 23:40" [proposal].
-5. Limits: 200 queued messages or 20 MB of attachments (a single file, up to 25 MB, may still wait alone); beyond that, the send button shows the toast "Too much waiting to send. Connect to send the rest." (built 2026-10-30). A message's files wait with it in the outbox, bytes and all (IndexedDB keeps Blobs), so a photo sent offline survives the app being closed and goes when the phone is back.
+5. When the Worker answers `429 budget_exhausted` (the day's free limit is used up), the message and the ones waiting behind it stay in the outbox with the time it sends (`held_until`, kept across a reload), their meta reads "Today’s limit is used up · Sends at 01:00" until then, and one toast says it once; at that time the outbox sends again (2026-11-23).
+6. Limits: 200 queued messages or 20 MB of attachments (a single file, up to 25 MB, may still wait alone); beyond that, the send button shows the toast "Too much waiting to send. Connect to send the rest." (built 2026-10-30). A message's files wait with it in the outbox, bytes and all (IndexedDB keeps Blobs), so a photo sent offline survives the app being closed and goes when the phone is back.
 
 ### 4.8 Scrolling
 

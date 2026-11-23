@@ -3,7 +3,8 @@
 // only by a top-level page (frame guard, SECURITY.md §4.3), and wiped in the order of
 // SIGN-IN.md §11.3 at a sign-out here or one the server reports.
 
-import { kv } from './idb.js';
+import { kv, sealed } from './idb.js';
+import { keepsFor, keepUnsent, settle, sweep } from './kept.js';
 
 /** @typedef {import('./flow.js').Session} Session */
 
@@ -58,6 +59,7 @@ export const store = {
   async write(s) {
     if (!top()) throw new Error('framed');
     await auth.set('session', s);
+    await settle(s.username); // what a forced sign-out kept, back to the same owner only (th/kept.js)
     try {
       await navigator.storage?.persist?.();
     } catch {}
@@ -79,8 +81,37 @@ export const pending = {
   clear: () => auth.del('pending_signout'),
 };
 
-/** Removes every private thing this device holds; app code and `th.ui.` choices stay (§11.3). */
-export async function wipe() {
+/** Set once a sign-out by hand has begun in this page: from then on nothing is kept and `th-kept` takes no write. */
+let byHand = false;
+/** Marks a sign-out by hand, before its request is sent (th/client.js signOutHere, Settings' "Sign out everywhere"). */
+export function signingOut() {
+  byHand = true;
+  sealed.add('th-kept');
+}
+
+/** The wipe in flight, and whether it is one by hand: one at a time. */
+let inflight = /** @type {Promise<void> | null} */ (null);
+let inflightHand = false;
+
+/** Removes every private thing this device holds; app code and `th.ui.` choices stay (§11.3). With a `reason`
+ * it is a sign-out the server reported (the /signin/ reason): for `expired` and `unauthorized` only, the owner's
+ * unsent outbox and draft are copied to `th-kept` first (th/kept.js). One wipe at a time: a second reported one
+ * shares the one in flight; a sign-out by hand always wins, running after whatever is in flight and dropping
+ * anything kept. @param {{ reason?: string }} [opts] */
+export function wipe(opts = {}) {
+  const hand = !opts.reason;
+  if (hand) signingOut();
+  if (inflight && (!hand || inflightHand)) return inflight;
+  const run = (inflight ?? Promise.resolve()).catch(() => {}).then(() => wipeNow(hand ? null : opts.reason ?? null));
+  inflightHand = hand;
+  const p = (inflight = run.finally(() => { if (inflight === p) inflight = null; }));
+  return p;
+}
+
+/** @param {string | null} reason */
+async function wipeNow(reason) {
+  sealed.add('th-data'); // an outbox write still in flight in this page must not make it again
+  if (!byHand && keepsFor(reason)) await keepUnsent(await store.read()).catch(() => {});
   // 1. Audio, capture and Media Session belong to the apps; they listen for `signed_out` below.
   // 2. Push subscription.
   try {
@@ -91,7 +122,10 @@ export async function wipe() {
   // 3. IndexedDB.
   // `th-study`: Study's covers, places and uploads (STUDY.md §2.1); `th-photos`: the shelf kept offline;
   // `jarvis-podcasts`: Podcasts' feeds.
-  await Promise.all([auth.drop(), ...['th-data', 'th-study', 'th-photos', 'jarvis-podcasts'].map((n) => kv(n).drop())]);
+  // `th-kept`: the unsent work a reported sign-out kept (th/kept.js), dropped by a sign-out by hand; a reported one
+  // leaves it (one in another tab, which reads no session or no outbox, must not drop what the first kept).
+  const dbs = ['th-data', 'th-study', 'th-photos', 'jarvis-podcasts', ...(byHand ? ['th-kept'] : [])];
+  await Promise.all([auth.drop(), ...dbs.map((n) => kv(n).drop())]);
   // 4. Cache Storage, except code caches.
   try {
     for (const name of await caches.keys()) if (!CODE_CACHE.test(name)) await caches.delete(name);
@@ -118,6 +152,9 @@ export async function wipe() {
     navigator.serviceWorker?.controller?.postMessage({ k: 'signed_out' });
   } catch {}
 }
+
+// A kept record older than 30 days goes unread at each start of a page that loads this (th/kept.js).
+if (top()) sweep().catch(() => {});
 
 /** Runs `then` when another tab signs out. @param {() => void} then */
 export function onSignedOut(then) {

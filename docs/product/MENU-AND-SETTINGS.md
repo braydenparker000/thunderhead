@@ -547,13 +547,19 @@ Help (2026-11-22), for six months of the phone alone:
   offline songs, downloads, books, photos and everything of yours stay."): it opens `/repair/`, which
   unregisters those three service workers, deletes the caches that hold code only, and goes home; home's
   toast says "Repaired: N code caches and N workers cleared. Sign-in and your data stayed."
+  Repair needs the network (2026-11-23): offline, the row says "Repair needs a connection. Connect, then try
+  again." under the group without the sheet, and after the sheet it goes only once `/repair/` answers a HEAD
+  (else the same line). `/repair/` first asks home and `release.json` with HEAD past every cache (no service
+  worker of ours answers a HEAD); if either fails it clears nothing and says "Repair needs a connection, and
+  the site can’t be reached now. Nothing was cleared.", so the cached app with offline songs and books still opens.
 - **When the app cannot start**: `boot-guard.js`, the first script of `index.html` (classic, under
   1.5 KB), counts a start that has not called `thStarted()` (home's first paint) within 12 s while on
   screen; on the second such start in a row (on the first, when the phone's storage is too full to
   keep the count, 2026-11-23) it shows a plain panel of its own, "Thunderhead didn’t
   start.", with Repair (`/repair/`) and Try again (a reload), using none of the app's code or styles. A
   start that marks itself, however slow, clears the count and the panel. Off screen (a prerender, a locked
-  phone) its clock does not run. It never reloads by itself. Settings' search finds both rows (`finder.js`).
+  phone) its clock does not run. It never reloads by itself. Its Repair goes only once `/repair/` answers a
+  HEAD within 15 s; else its line becomes "Repair needs a connection." Settings' search finds both rows (`finder.js`).
 
 ### 6.9 Files for the workshop (`workshop.js`)
 

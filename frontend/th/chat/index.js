@@ -400,12 +400,14 @@ export async function startChat() {
         const at = Date.now() + Math.max(1, f.retryAfter ?? 3600) * 1000;
         flushRetry = setTimeout(flush, at - Date.now() + 1000);
         sendLine.end(m.id, false);
-        keep(m);
+        // It and the ones waiting behind it say so under their bubbles until then, across a reload too (model.meta).
+        for (const x of state.local) if (x === m || x.state === 'sending') (x.held_until = at), keep(x);
         if (spentSaid < Date.now()) toast(`Today’s free limit is used up. Nothing is lost: it sends at ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`);
         spentSaid = at;
         return false;
       }
       const retryable = f.kind !== 'api' || f.status >= 500 || f.status === 429;
+      delete m.held_until;
       m.tries++;
       m.state = !retryable ? 'failed' : !navigator.onLine ? 'queued' : m.tries > model.RETRY_MS.length ? 'failed' : 'sending';
       if (m.state === 'failed') m.failed_at = Date.now();

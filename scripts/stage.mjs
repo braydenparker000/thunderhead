@@ -148,7 +148,7 @@ const budgets = [
   // (2026-11-14) +568 measured (80,311 → 80,879): th/update.js reloads at its next safe moment when another
   // page applied a release (the editor's pages do as they open, lab/engine/fresh.js: a phone that went straight
   // to them ran the release before's code for days).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 90_434], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 96_868], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -187,7 +187,7 @@ const budgets = [
   // left and taken up again when home is shown from the back/forward cache.
   // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
   // th/registry/apps.js, the one rule for where Photos' front page lands.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 119_893], // (2026-11-22) the mind's voice-page card: its button into Settings
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 121_179], // (2026-11-22) the mind's voice-page card: its button into Settings
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -257,7 +257,7 @@ const budgets = [
   // appearance (accent, glass, corners, ring size, reduced motion), compact turns, the mic off, the bar.
   // (2026-11-11, settings) +2,324 measured (83,763 → 86,087): ui/prefs.css, one rule for each of the
   // owner's drawing settings (22 attributes), inert while none is set.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_157],
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_192],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).

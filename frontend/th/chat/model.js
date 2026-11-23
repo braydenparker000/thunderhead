@@ -6,7 +6,7 @@
 
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
-/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number, reply_to?: string,
+/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number, held_until?: number, reply_to?: string,
  *   files?: import('../attach/state.js').LocalFile[], thread_id?: string, mention?: 'muse' }} Local */
 /** @typedef {(Message & { local?: false }) | (Local & { author: 'owner', kind: 'text', local: true })} Shown */
 
@@ -217,6 +217,9 @@ export function meta(m, now) {
   if (m.state === 'toolong') return 'Too long to send';
   if (m.state === 'failed') return "Didn't send";
   if (m.state === 'queued') return "Sends when you're back online";
+  // Held by the day's free limit (429 budget_exhausted): it waits, and says until when.
+  if (m.state === 'sending' && m.held_until && now < m.held_until)
+    return `Today’s limit is used up · Sends at ${new Date(m.held_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   return now - m.created_at >= SENDING_AFTER_MS ? 'Sending…' : null;
 }
 

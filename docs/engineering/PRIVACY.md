@@ -98,6 +98,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | Podcasts' sync (NEXT-BATCH.md part 7): when it last asked the Worker, which positions the Worker has (their keys and times), the follows it sent | `localStorage` `th.p.podcasts.sync` | Until sign-out | yes |
 | "Go quiet"'s end (P8) | `localStorage` `th.p.quiet.until`, `th.p.quiet.pending` | Until it ends | yes |
 | Unsent text in the ask bar | memory, then IndexedDB `th-data` draft | Until sent or cleared | yes |
+| Unsent work after a sign-out nobody chose (`expired` or `unauthorized` only; never a revocation or a sign-out by hand): the outbox (text, and files when they fit) and the draft, under the username that wrote them (SIGN-IN.md §11.3) | IndexedDB `th-kept` | Until the next sign-in on this phone (back to the same owner, else dropped unread), at most 30 days (then dropped unread at the next page start) | a sign-out by hand drops it; a forced one is what writes it |
 | Offline songs, podcast downloads, Study PDFs | OPFS | Until removed or evicted (song budget 512 MB, LRU) | yes |
 | Covers, music index, song heads | Cache Storage (named caches) | Until replaced | yes |
 | App code and fonts | Cache Storage `th-<release>`, `th-vendor` | Current release | no |

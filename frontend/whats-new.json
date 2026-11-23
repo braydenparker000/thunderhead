@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-22-steady-2",
-  "date": "2026-11-22",
+  "id": "2026-11-23-audit",
+  "date": "2026-11-23",
   "lines": [
     {
-      "text": "Music opens faster on a weak connection: it no longer asks about every file each time you open it."
+      "text": "If your session expires, a message that was waiting to send and your draft are kept for when you sign in again."
     },
     {
-      "text": "Settings › On this phone shows what the site keeps offline, app by app, and lets you clear what can be downloaded again."
+      "text": "Music says when it can't reach your songs, and a reload keeps your place. Repair says when it needs a connection."
     },
     {
-      "text": "Tell me when something breaks or annoys you and I file it. Settings › For the builder keeps the list."
+      "text": "Settings asks before throwing away what you typed, and says when a page couldn't load or the phone's storage is full."
+    },
+    {
+      "text": "Study, Astra and the chat now say what really went wrong: sign-in, a dead link, or today's limit and when it lifts."
     }
   ]
 }

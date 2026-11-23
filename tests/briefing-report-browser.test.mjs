@@ -104,3 +104,38 @@ test('the report: first, folded; a tap opens its lines, Undo undoes a line, a se
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('a long word or link in the morning note wraps inside the card at 360 px, on the Briefing and in the chat', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 800 }, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const LONG = 'https://example.org/a/very/long/path/that/keeps/going/without/any/spaces/at/all/index.html?query=parameter&another=value';
+  const note = [`Read this: ${LONG}`, 'Pneumonoultramicroscopicsilicovolcanoconiosisxxxxxxxxxxxxxxxx'];
+  const state = briefingState();
+  state.page.tiles.unshift({ ...report, note, lines: [] });
+  const first = { seq: 1, id: '0192f0c4-0000-7000-8000-0000000000b1', thread_id: '0192f0c4-0000-7000-8000-0000000000aa', author: 'mind', origin: 'mind', kind: 'text', body: note.join('\n\n'), meta: null, attachments: [], reply_to: null, created_at: Date.now() - 60_000, delivered_at: null, acked_at: null, answered_at: null };
+  await mockApi(page, { briefing: state, chat: { messages: [first] } });
+  await page.goto(`${base}/no-such-page`);
+  await page.evaluate((token) => import('/th/idb.js').then(({ kv }) => kv('th-auth').set('session', { session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' })), TOKEN);
+  await page.goto(`${base}/`, { waitUntil: 'load' });
+  // The chat: the note as the day's first message stays inside the screen.
+  await page.waitForFunction(() => document.querySelector('#talk')?.textContent.includes('Pneumono'));
+  const chatOver = await page.evaluate(() => [...document.querySelectorAll('#talk *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 0.5).map((e) => e.className));
+  assert.deepEqual(chatOver, [], 'nothing in the chat runs past the screen');
+  // The Briefing: open the report; every paragraph ends inside the card.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
+  await page.waitForSelector('#brief .tile.report');
+  await page.waitForFunction(() => !document.querySelector('#brief').inert);
+  await resting(page);
+  await page.locator('#brief .tile.report .ohead').click();
+  await page.waitForSelector('#brief .tile.report .rlines', { state: 'visible' });
+  const fit = await page.evaluate(() => {
+    const card = document.querySelector('#brief .tile.report').getBoundingClientRect();
+    return { card: card.right, right: Math.max(...[...document.querySelectorAll('#brief .tile.report .rt')].map((e) => e.getBoundingClientRect().right)), screen: innerWidth };
+  });
+  assert.ok(fit.card <= fit.screen, `the card ends at ${fit.card}, the screen at ${fit.screen}`);
+  assert.ok(fit.right <= fit.card, `the note ends at ${fit.right}, the card at ${fit.card}`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

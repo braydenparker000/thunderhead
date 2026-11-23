@@ -105,7 +105,10 @@ A rolled-back site build is older than the API, which is fine because `/v1` is a
 the boot guard's panel (`frontend/boot-guard.js`: home has not marked itself started within 12 s on screen
 on two starts in a row; it shows "Thunderhead didn’t start." with Repair and Try again, and never reloads by
 itself), or `/repair/` typed in the address bar. `/repair/` (`frontend/repair/`) is a static page with one
-classic script and nothing else of the site, and `sw.js` never answers it. It unregisters the shell's,
+classic script and nothing else of the site, and `sw.js` never answers it. It first proves the site answers
+(HEAD `/` and `/release.json`, past every cache; no service worker of ours answers a HEAD) and, if not, clears
+nothing and says it needs a connection; About's row and the boot guard's button check `/repair/` the same way
+before they go. Then it unregisters the shell's,
 Music's and Podcasts' service workers, deletes only the caches that hold code (`th-<n>`, `th-lab-<n>`,
 `th-vendor`, `claude-player-v<n>`, `claude-player-release`, `jarvis-podcast-shell-v<n>`), keeps everything else (offline songs and
 heads, downloads, covers, art, the catalogue, Astra's and Photos' caches, IndexedDB and localStorage with

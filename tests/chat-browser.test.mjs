@@ -402,6 +402,16 @@ test('a spent day: the message waits in the outbox, one calm line says so and wh
   assert.equal(await page.locator('#talk .meta.bad').count(), 0, 'not "Didn\'t send"');
   const left = await kept();
   assert.deepEqual(left.map((m) => [m[0], m[1]]).sort(), [['And this', 0], ['Hello there', 0]]);
+  // The line under the held message keeps saying it waits and when it sends, across a reload too.
+  const HELD = /^Today’s limit is used up · Sends at \d{1,2}:\d{2}( ?[AP]M)?$/;
+  await page.waitForFunction(() => document.querySelector('#talk .meta')?.textContent.startsWith('Today’s limit'));
+  await page.waitForFunction(() => document.querySelectorAll('#talk .meta').length === 2);
+  for (const t of await page.locator('#talk .meta').allTextContents()) assert.match(t, HELD, 'both: the one behind waits too');
+  await page.reload();
+  await page.waitForFunction(() => [...document.querySelectorAll('#talk .meta')].filter((e) => e.textContent.startsWith('Today’s limit')).length === 2);
+  await outlast(page, 2500); // past the 2 s after which a message still going says "Sending…"
+  await page.evaluate(() => dispatchEvent(new Event('online'))); // a repaint
+  for (const t of await page.locator('#talk .meta').allTextContents()) assert.match(t, HELD, 'never "Sending…"');
   await context.close();
 });
 
