@@ -1,6 +1,6 @@
 // What the music knowledge's job asks next, and what a refusal costs (MUSIC.md §19.2). A host that
-// refuses (429, 5xx, no answer) backs off: after 1, 2 and 4 minutes, or its Retry-After when longer
-// (capped), and after the fourth refusal in a row it is left for an hour (`host_left_ms`); its sources are skipped
+// refuses (429, 5xx, no answer) backs off: after 5, 20 and 60 seconds, or its Retry-After when longer
+// (capped), and after the fourth refusal in a row it is left for five minutes (`host_left_ms`); its sources are skipped
 // meanwhile, never blocking another host's work, and a row with nothing else to ask is parked until
 // the host may be asked again. A bad answer is the row's alone: each row may fail a source
 // `row_tries` times a round, then that source waits for the next round. The restore pass puts back
@@ -19,7 +19,7 @@ export const blockedUntil = (hosts: Hosts, host: string, now: number) =>
 /** A host's state after a refusal. */
 export function refused(h: Hosts[string] | undefined, retry: number | undefined, now: number): Hosts[string] {
   const fails = (h?.fails ?? 0) + 1;
-  const back = 60_000 * 2 ** (fails - 1);
+  const back = K.host_back_ms[Math.min(fails, K.host_back_ms.length) - 1] ?? 60_000;
   if (fails > K.host_tries)
     return { ...h, fails: 0, until: now + Math.max(retry ?? 0, K.host_left_ms), refused_at: now };
   return { ...h, fails, until: now + Math.max(retry ?? 0, back), refused_at: now };

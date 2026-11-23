@@ -203,6 +203,8 @@ export function fakeWorld(wd: World): typeof fetch {
 
 export const musicSql = <T>(q: string, ...b: unknown[]) =>
   runInDurableObject(music(), (_o: Music, st) => st.storage.sql.exec(q, ...b).toArray() as T[]);
+/** A call on the Music object itself. */
+export const inMusic = <T>(fn: (o: Music) => T | Promise<T>) => runInDurableObject(music(), (o: Music) => fn(o));
 const alarm = () => runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) => o.alarm());
 
 /** The catalog's last change moved back past its quiet time, as if the uploads had stopped. */

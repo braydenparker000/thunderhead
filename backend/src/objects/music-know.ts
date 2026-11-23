@@ -114,7 +114,7 @@ export abstract class MusicKnow extends MusicSync {
     }
     const st = ks.knowState(this.db);
     const flipped = this.kx(() => {
-      let n = ks.refreshDue(this.db, now, todoOf);
+      let n = ks.refreshDue(this.db, now, todoOf) + ks.retryLookups(this.db, now - K.relook_ms);
       if (now - st.refreshed >= DAY) {
         if (now - st.top_at >= K.top_refresh_ms) n += ks.refreshTop(this.db, K.top_artists, now - K.top_refresh_ms);
         if (plan.restoreMissing(this.db, (id, kind, name, prio) => this.putBack(id, kind, name, prio, now))) n++;
@@ -168,11 +168,14 @@ export abstract class MusicKnow extends MusicSync {
   }
 
   /** A catalog artist the history did not resolve: MusicBrainz's answer for the albums of that key. */
-  knowLookup(key: string, r: { mbid: string; name: string } | 'none' | 'error', now = Date.now()): number {
+  knowLookup(key: string, r: { mbid: string; name: string } | 'none' | 'refused' | 'error', now = Date.now()): number {
     return this.kx(() => {
       const hosts = ks.hostsOf(this.db);
-      const h = r === 'error' ? plan.refused(hosts[MB], undefined, now) : plan.answered(hosts[MB], now);
+      const h = r === 'refused' ? plan.refused(hosts[MB], undefined, now) : plan.answered(hosts[MB], now);
       if (h) ks.putHosts(this.db, { ...hosts, [MB]: h });
+      // A refusal is the host's fault and costs the artist no try (2026-11-23: MusicBrainz busy for an
+      // hour marked the most played artists failed); only an answer that could not be read does.
+      if (r === 'refused') return 0;
       if (r === 'error') return ks.bumpTries(this.db, key);
       if (r === 'none') return ks.setArtist(this.db, key, null, 'artist_unknown', now);
       ks.putName(this.db, keyOf(r.name), `a:${r.mbid}`);

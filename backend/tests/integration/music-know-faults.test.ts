@@ -5,10 +5,15 @@
 // restore (the facts are not backed up) ends with the facts fetched again and the picks rebuilt.
 // Every outside service is a fake (know-helpers.ts); invented music only.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { FactsResponse, KnowStatus, PicksResponse } from '../../../shared/contract/know.ts';
+import {
+  type FactsResponse,
+  KNOW_LIMITS as K,
+  type KnowStatus,
+  type PicksResponse,
+} from '../../../shared/contract/know.ts';
 import { apiJson } from '../helpers';
 import { mbidOf } from '../history-helpers';
-import { fakeWorld, gid, musicSql, runJob, seedKnow, tick, world } from '../know-helpers';
+import { fakeWorld, gid, inMusic, musicSql, runJob, seedKnow, tick, world } from '../know-helpers';
 import { as, CHAT_SESSION, type Principals, principals } from '../memory-helpers';
 
 const wd = world();
@@ -104,5 +109,35 @@ describe('a restore', () => {
     expect(f.items[0]).toMatchObject({ kind: 'artist', type: 'Group' });
     const picks = (await apiJson<PicksResponse>('GET', '/v1/music/picks', chat())).body;
     expect(picks.items.map((i) => i.album)).toContain('The Loved One');
+  });
+});
+
+describe('MusicBrainz refusing a lookup', () => {
+  it('costs the artist no try, backs the host off in seconds, and a failed lookup is tried again later', async () => {
+    const key = (await musicSql<{ artist_key: string }>('SELECT artist_key FROM know_albums LIMIT 1'))[0]
+      ?.artist_key as string;
+    const tries = async () =>
+      (await musicSql<{ tries: number }>('SELECT max(tries) AS tries FROM know_albums WHERE artist_key = ?', key))[0]
+        ?.tries;
+    const before = await tries();
+    const now = Date.now();
+    for (let i = 0; i < 5; i++) await inMusic((o) => o.knowLookup(key, 'refused', now));
+    expect(await tries()).toBe(before);
+    const h = (await hosts())['musicbrainz.org'];
+    expect(h.until - now).toBeLessThanOrEqual(K.host_left_ms);
+    expect(K.host_left_ms).toBeLessThanOrEqual(300_000);
+    // An answer that could not be read is the artist's: it costs a try.
+    await inMusic((o) => o.knowLookup(key, 'error', now));
+    expect(await tries()).toBe((before ?? 0) + 1);
+    // A lookup that failed long ago comes due again; a fresh failure waits.
+    await musicSql(
+      "UPDATE know_albums SET state = 'unmatched', reason = 'lookup_failed', tries = 99, artist_mbid = NULL, hint = NULL, at = ? WHERE artist_key = ?",
+      now,
+      key,
+    );
+    await inMusic((o) => o.knowNext(now + 60_000));
+    expect((await albums()).filter((a) => a.reason === 'lookup_failed').length).toBeGreaterThan(0);
+    await inMusic((o) => o.knowNext(now + K.relook_ms + 60_000));
+    expect((await albums()).filter((a) => a.reason === 'lookup_failed')).toHaveLength(0);
   });
 });
