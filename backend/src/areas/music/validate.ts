@@ -25,6 +25,10 @@ const NUM = [
   'opusHeadGainDb',
 ];
 
+/** MusicBrainz ids Muse may send with a song (MUSIC.md §19.1), optional: they match it exactly. */
+const MB_IDS = ['mbRecording', 'mbReleaseGroup', 'mbArtist'];
+const MB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export class Invalid extends Error {}
 const bad = (): never => {
   throw new Invalid('invalid');
@@ -36,13 +40,19 @@ const clean = (s: unknown, max = 512): s is string => typeof s === 'string' && s
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** A track's tags: known text and number fields only, a title, an artist and a duration. */
+/** A track's tags: known text and number fields only, a title, an artist and a duration (and
+ * MusicBrainz ids, when given, each a lowercase MusicBrainz id). */
 export function metadata(input: unknown, { copyAnalysis = true } = {}): Obj {
   if (!isObj(input)) return bad();
   const out: Record<string, unknown> = {};
   for (const k of TEXT)
     if (input[k] != null) {
       if (!clean(input[k])) bad();
+      out[k] = input[k];
+    }
+  for (const k of MB_IDS)
+    if (input[k] != null) {
+      if (typeof input[k] !== 'string' || !MB_ID.test(input[k])) bad();
       out[k] = input[k];
     }
   for (const k of NUM)

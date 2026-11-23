@@ -470,7 +470,10 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 
 Whether find and the brief use the owner's listening history, then Listening history
 (`music-history.js`, [MUSIC.md §16](apps/MUSIC.md)): the exports picked or dropped, each sent with its
-SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts only).
+SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts only). Then What I
+know about your music (`music-know.js`, [MUSIC.md §19.6](apps/MUSIC.md)): albums and songs matched,
+artists with their facts, what each source filled, where the job is, the picks' counts, and the
+albums left unmatched with why; read only.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|

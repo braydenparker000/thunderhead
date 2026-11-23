@@ -38,6 +38,8 @@ export default defineConfig({
           R2_SIGN_SECRET: 'none',
           // No upload tool keys in tests; the upload tests pass their own env.
           MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
+          // No Discogs token in tests; the knowledge tests pass their own env.
+          DISCOGS_TOKEN: 'none',
           VAPID_PRIVATE_JWK: VAPID,
           // Photos' OAuth client: invented values; Google itself is faked (areas/photos/google.ts useGoogle).
           GOOGLE_CLIENT_ID: '100000000001-test-client.apps.example',

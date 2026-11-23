@@ -3,7 +3,7 @@
 // retention), the Auth object's tidy-up (old sessions, spent counters, old notices, a new
 // AUTH_RESET_FP), approvals whose Auth step never reported (a crash between the decision and
 // the step), run again, and the pushes that may go now (a nudge waiting for a pause, a sign-in
-// notice held by quiet hours), and the mind's check-ins (a due slot, fired on the night routine). On the day roll, the owner's calendar links are fetched again
+// notice held by quiet hours), the music knowledge's job when its time has come, and the mind's check-ins (a due slot, fired on the night routine). On the day roll, the owner's calendar links are fetched again
 // (areas/briefing/calendar.ts), so the morning's Briefing and brief start from this day's.
 // Each step runs on its own: one that fails no longer stops the rest, and the run ends with the
 // cron's heartbeat (Core's `ops.cron`: when it ran, which steps failed), which deep health and the
@@ -50,6 +50,7 @@ export async function runCron(env: Env, now = Date.now()): Promise<string[]> {
   await step('approvals', () => retryApprovals(env, core));
   await step('pushes', () => sendPushes(env));
   await step('photos', () => photosPass(env));
+  await step('music', () => knowStep(core));
   if (failed.length) console.log(JSON.stringify({ evt: 'cron_failed', failed }));
   // A Core still on the release before the heartbeat (a deploy in progress) records nothing.
   await core.cronBeat(now, failed).catch(() => {});
@@ -63,6 +64,17 @@ async function checkinStep(core: ReturnType<typeof coreObject>): Promise<void> {
     if (wake) console.log(JSON.stringify({ evt: 'cron_checkin', wake }));
   } catch (e) {
     // A Core still on the release before check-ins (a deploy in progress).
+    if (!missingMethod(e)) throw e;
+  }
+}
+
+/** The music knowledge's job queued when its time has come, or it is missing or failed
+ * (areas/music/know-queue.ts). */
+async function knowStep(core: ReturnType<typeof coreObject>): Promise<void> {
+  try {
+    await core.knowTick();
+  } catch (e) {
+    // A Core still on the release before the music knowledge (a deploy in progress).
     if (!missingMethod(e)) throw e;
   }
 }

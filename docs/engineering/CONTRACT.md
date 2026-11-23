@@ -157,6 +157,13 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/taste/weights` | D | P5 | built | the DJ shuffle's history weights by song id, none while music.history is off |
 | `GET /v1/music/taste` | C N | P5 | built | ?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays |
 | `GET /v1/music/similar/:mbid` | C N | P5 | built | ListenBrainz's similar artists, kept a week; plays and catalog songs of each |
+| `GET /v1/music/know` | D C N | P5 | built | how far the matching and the facts are, what each source filled, picks made, declined and added: counts only |
+| `GET /v1/music/facts` | C N | P5 | built | ?ref=<MusicBrainz id or name>: an artist or album, everything known, compact; free text from elsewhere under outside |
+| `GET /v1/music/credits` | C N | P5 | built | ?ref=<MusicBrainz id or name>: what in the library a person worked on, and their other work |
+| `GET /v1/music/unmatched` | D C N | P5 | built | catalog albums left unmatched, with why, ≤ 200 |
+| `GET /v1/music/picks` | D C N | P5 | built | ?kind=&state=&limit=1-50: albums to add, scored over stored facts and the owner's listening; a mixed list |
+| `POST /v1/music/picks/:id/decline` | D C | P5 | built | {why? ≤ 200}: never offered again; its artist weighs less |
+| `POST /v1/music/picks/:id/order` | D C | P5 | built | {order_id?}: without, the words of a Muse order for that album; with the order th order new placed, the pick is ordered |
 | `GET /v1/music/mixes/:id` | D | P5 | built | one mix's songs in order, for the owner's tap on Music's "tonight" (404 not_found) |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |

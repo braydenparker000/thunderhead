@@ -136,7 +136,8 @@ export async function order(argv) {
     if (flags.kind !== undefined && flags.kind !== 'muse.request') throw invalid('--kind: muse.request is the one kind an order is placed of');
     // No order kind carries the owner's data: one that would needs a reach_people card first.
     if (flags.personal) throw invalid('no personal order kinds are built: the owner\'s data never goes to Muse without a reach_people card');
-    const words = need(flags, 'words');
+    // `--words -` reads them from stdin: text from elsewhere (an album's title) never goes in a quoted argument.
+    const words = flags.words === '-' ? textArg(['-']) : need(flags, 'words');
     if (words.length > 500) throw invalid('--words is over 500 characters');
     const title = typeof flags.title === 'string' ? flags.title : words.replace(/\s+/g, ' ').slice(0, 60);
     if (title.length > 80) throw invalid('--title is over 80 characters');

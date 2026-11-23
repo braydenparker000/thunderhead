@@ -33,6 +33,7 @@ import { checkinRoutes } from './areas/mind/checkin-routes';
 import { mindRoutes } from './areas/mind/routes';
 import { watchesRoutes } from './areas/mind/watches/routes';
 import { historyRoutes } from './areas/music/history-routes';
+import { knowRoutes } from './areas/music/know-routes';
 import { notesRoutes } from './areas/music/notes-routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
@@ -182,6 +183,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
   .route('/v1', historyRoutes)
+  .route('/v1', knowRoutes)
   .route('/v1', notesRoutes)
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)

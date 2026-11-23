@@ -17,6 +17,8 @@
 //                                      moods and genres
 //   taste [--limit 10] · similar <artist id> [--limit 20] · find --like-history   the owner's
 //                                      listening history (lib/taste.mjs): counts, ids, canonical names
+//   facts · credits · unmatched · picks · pick decline|order   what is known of the music beyond
+//                                      the files, and albums to add (lib/know.mjs)
 //
 // A handle `n` saves the long track ids in a night's tagging; it means the song of that number in
 // the last `th music page` of this session. Track ids, titles and notes stay between th and the
@@ -30,6 +32,7 @@ import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {getState, setState} from './state.mjs';
 import {similar, taste} from './taste.mjs';
+import {KNOW_SUBS} from './know.mjs';
 import {Faults, sent} from './forgive.mjs';
 import {repairNote} from './music-repair.mjs';
 
@@ -37,7 +40,7 @@ const M = CONTRACT.music;
 const L = M.limits;
 const SONG_ID = /^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
 const DAY_MS = 86_400_000;
-const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now [--id] | week | taste | similar <artist id>';
+const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now [--id] | week | taste | similar <artist id> | facts <id|-> | credits <id|-> | unmatched | picks | pick decline|order <id>';
 
 /** A track's tags without the empty ones (fewer tokens for the mind to read). */
 const lean = t => Object.fromEntries(Object.entries(t).filter(([, v]) => v !== '' && v !== 0 && v !== null && v !== undefined));
@@ -218,7 +221,7 @@ async function week(argv) {
 }
 
 // The owner's listening history (lib/taste.mjs): their top artists and years, and artists like one.
-const SUBS = {page, note, find, like, now, week, taste, similar};
+const SUBS = {page, note, find, like, now, week, taste, similar, ...KNOW_SUBS};
 
 /** @param {string[]} argv */
 export async function music(argv) {

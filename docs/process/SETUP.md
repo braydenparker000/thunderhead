@@ -587,7 +587,8 @@ The listening pass this step used to set up was cut (2026-11-04). If you made it
    - **YouTube Music:** takeout.google.com → Deselect all → tick **YouTube and YouTube Music** → All YouTube data included → only **history** → Multiple formats → History: **JSON** → Next → Create export.
    - **Last.fm** (if you used it): any scrobble exporter that saves your scrobbles as json or csv.
 2. **Drop them in:** Settings → Music → Listening history → Add an export; pick the zip (or the json or csv). The same file twice is counted once. In a few minutes the counts show there, and the mind names your top artists once MusicBrainz has (an hour or so for a long history).
-3. **Later, a Last.fm key (optional):** last.fm/api/account/create → copy the API key → Cloudflare dashboard → Workers → `thunderhead` → Settings → Variables and secrets → Add → Secret, name `LASTFM_API_KEY`. Without it, similar artists come from ListenBrainz alone.
+3. **Later, a Last.fm key (optional):** last.fm/api/account/create → copy the API key → Cloudflare dashboard → Workers → `thunderhead` → Settings → Variables and secrets → Add → Secret, name `LASTFM_API_KEY`. Without it, similar artists come from ListenBrainz alone, and the music knowledge has no tags or album playcounts (MUSIC.md §19.2).
+4. **A Discogs token (optional):** discogs.com → Settings → Developers → **Generate new token** → copy it → Cloudflare dashboard → Workers → `thunderhead` → Settings → Variables and secrets → `DISCOGS_TOKEN` → Edit → paste → Save (the deploy adds it as `none`). With it, albums gain Discogs's styles, and credits where MusicBrainz has none. Without it, Discogs is never asked.
 
 ## O. Study (P7)
 

@@ -7,11 +7,13 @@
 // tools (areas/music/writer.ts), one operation at a time. The owner's listening history (schema step 5,
 // MUSIC.md §16) is its code layer music-taste.ts; what the mind reads and writes here (the tags, its
 // notes about each song, songs by feeling) is the layers above it, music-packs.ts and music-mind.ts;
-// the owner's marks and playlists on every phone (schema step 6) are music-sync.ts.
+// the owner's marks and playlists on every phone (schema step 6) are music-sync.ts; what it knows of the
+// music beyond the files and the picks to add (schema step 7) are music-know.ts and music-picks.ts.
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import { HISTORY_SQL, HISTORY_TABLES } from '../areas/music/history-store';
+import { KNOW_SQL, KNOW_TABLES } from '../areas/music/know-sql';
 import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
 import { NOTES_SQL, NOTES_TABLES } from '../areas/music/notes-sql';
 import * as store from '../areas/music/store';
@@ -20,7 +22,7 @@ import { SYNC_SQL, SYNC_TABLES } from '../areas/music/sync-sql';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
-import { MusicSync } from './music-sync';
+import { MusicPicks } from './music-picks';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -67,11 +69,13 @@ export const MUSIC_MIGRATIONS: Migration[] = [
   { version: 5, name: 'listens', kind: 'expand', sql: HISTORY_SQL },
   // The owner's marks and playlists on every phone (MUSIC.md §1.4): areas/music/sync-sql.ts.
   { version: 6, name: 'music_sync', kind: 'expand', sql: SYNC_SQL },
+  // What the Worker knows of the music beyond the files, and picks to add (MUSIC.md §19): know-sql.ts.
+  { version: 7, name: 'music_know', kind: 'expand', sql: KNOW_SQL },
 ];
 
 /** Every catalog table, the listening pass's, the mind's notes and ratings, the listening history and
- * the owner's plays and playlists, in the backup and the export (DATA.md §10); `meter_days` (counts), the derived `find_packs` and
- * ListenBrainz's `similar_artists` (fetched again) stay out of both. */
+ * the owner's plays and playlists, in the backup and the export (DATA.md §10); `meter_days` (counts), the derived `find_packs`,
+ * ListenBrainz's `similar_artists` and the knowledge's facts, names and credits (fetched again) stay out of both. */
 export const MUSIC_TABLES = [
   'tracks',
   'catalog_log',
@@ -80,6 +84,7 @@ export const MUSIC_TABLES = [
   ...NOTES_TABLES,
   ...HISTORY_TABLES.filter((t) => t !== 'similar_artists'),
   ...SYNC_TABLES,
+  ...KNOW_TABLES,
 ] as const;
 
 /** The one instance: the owner's library. */
@@ -106,7 +111,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends MusicSync {
+export class Music extends MusicPicks {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */

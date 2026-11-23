@@ -1482,7 +1482,7 @@ Three formats, zip or json (or csv for Last.fm), each ≤ 32 MiB: Spotify's exte
 
 ### 16.2 Canonical names and similar artists
 
-`music.mb` resolves each artist with 3 plays or more, most played first, to a MusicBrainz id and canonical name: one request a step, a step at most every 1.1 s, a User-Agent naming the app and nothing of the owner, three tries; an artist MusicBrainz doesn't know stays as the name. ListenBrainz's similar artists are fetched by MusicBrainz id when the mind asks (`th music similar <id>`) and kept a week (`similar_artists`, out of the backup). A Last.fm API key is optional (`LASTFM_API_KEY`, SETUP.md N6): with one, Last.fm's similar artists are merged in; MusicBrainz and ListenBrainz need none.
+`music.mb` resolves each artist with 3 plays or more, most played first, to a MusicBrainz id and canonical name: one request a step, a step at most every 1.1 s, a User-Agent naming the app and nothing of the owner, three tries; an artist MusicBrainz doesn't know stays as the name. ListenBrainz's similar artists are fetched by MusicBrainz id when the mind asks (`th music similar <id>`, and by the job for the artists it gathers facts on, §19.2) and kept a week (`similar_artists`, out of the backup). A Last.fm API key is optional (`LASTFM_API_KEY`, SETUP.md N6): with one, Last.fm's similar artists are merged in; MusicBrainz and ListenBrainz need none.
 
 ### 16.3 Reading the taste
 
@@ -1571,6 +1571,57 @@ Tests: `tests/music-queue.test.mjs`, `music-session.test.mjs` (the player's own 
 (the real page).
 
 ---
+
+## 19. What the mind knows of the music, and picks to add (2026-11-23)
+
+The owner's decision: the mind should know as much as it can about the owner's music, and be able to suggest music to add to the library. The site (the Worker) fetches and scores; the mind only reads. Nothing here runs in the mind's night. It builds on §16: the `music.mb` job, the canonical names and similar artists.
+
+### 19.1 Matching the catalog
+
+The knowledge has its own job, `music.know` (`areas/music/know-job.ts`): it runs until it has nothing to do now, notes when to look again (an hour at most), and ends; the cron's tick queues it again when that time comes, and whenever it is missing or failed (a deploy onto an existing database, a library with no history import, a failure); the end of `music.mb` and every catalog change queue it too. A catalog change is read once the catalog has been still 10 minutes (`seed_quiet_ms`: an upload session of many edits is read once), and only albums that changed are written. Each catalog album (its artist's and album's keys from the tags, album artist first) gets a row in Music's `know_albums` (schema step 7). Most played artist first, the job takes the artist's MusicBrainz id from the history (or Muse, below), or looks it up as §16.2 does, then fetches the artist's discography **by that id alone** (release groups, 100 a page, at most 300) and matches the album here, in the Worker (`know-match.ts`): the exact title first, then the title with its edition's words folded ("(Deluxe Edition)", "[2011 Remaster]", "- Remastered 2009", a regional edition; never "(Live)"); ties go to the type the track count suggests (7 songs or more an album, 3–6 an EP or album, fewer a single or EP), then to no secondary type, then to the same year; anything still tied stays unmatched. An album is never judged against a discography that was not read to its last page (pages are gathered apart and replace the old one only when complete); if it can't be read this round, the artist's albums wait unmatched (`lookup_failed`), and every album left unmatched for want of it is matched again when the discography is next read whole (weekly for the top artists, monthly for the rest). An album Muse named the release group of is matched by it, and its artist's facts are fetched all the same. An unmatched album keeps why: `artist_unknown`, `no_release_group`, `several_release_groups`, `lookup_failed`. A matched album's releases are fetched by its release group's id; the release with the catalog's track count and most titles in common stands for it, and each song gets the recording of the one track of its title (of several, the one at its own track number), else none. No title of the owner's ever leaves the Worker.
+
+**From Muse:** a song registered with `mbRecording`, `mbReleaseGroup` and `mbArtist` (each optional, a MusicBrainz id; the upload contract's tags, [archive/MUSE-UPLOADS.md](../../archive/MUSE-UPLOADS.md)) matches exactly: an album whose songs name one release group is matched to it with no request.
+
+### 19.2 Facts
+
+One row per artist (`a:<mbid>`) and release group (`g:<mbid>`) in `know_facts`, each with the sources it still has to ask, one request a job step, a step at most every 1.1 s (MusicBrainz shares §16.2's gate; every other host has its own of 1 s):
+
+| Source | For an artist | For an album |
+|---|---|---|
+| MusicBrainz | type, origin, years active, members and member of; the discography (types, first release dates) | releases (label, date, the songs' recordings), the release's credits (producer, players by instrument, composers), covers (of a work) and samples |
+| ListenBrainz | listens of each of the artist's release groups (how loved each album is); similar artists (§16.2) | |
+| Wikidata | influenced by, influenced (a search by statement, ids only), awards, origin, years active, its English article | its English article |
+| Wikipedia | the lead (≤ 1,500 characters) | the lead and the reception section (≤ 1,500 each) |
+| Last.fm (with `LASTFM_API_KEY`) | top tags with weights, playcount of each album, similar artists | listeners, playcount and tags (by canonical artist and album names) |
+| Discogs (with `DISCOGS_TOKEN`) | | styles; credits where MusicBrainz gave none (through MusicBrainz's link to the master) |
+
+Wikipedia's article is found only through MusicBrainz's own links (MusicBrainz → Wikidata → its English sitelink), never by a name search. Last.fm's album is asked by the release's MusicBrainz id, or by the group's title and artist as MusicBrainz names them, never by the files' tags and never before those are known. No lyrics, from anywhere. **Failures:** a host that refuses (429, 5xx, no answer) is asked again after 1, 2 and 4 minutes, or after its Retry-After when longer (capped at 6 hours), then left for a day; its sources are skipped meanwhile and never block another host's work, and a row with nothing else to ask waits, its list kept, until the host may be asked. A bad answer (not JSON, not the shape, a parser's surprise) is the row's alone: a row asks a source at most 3 times a round, then that source waits for the next round. An answer over 4 MB is not read and not asked again that round. Nothing from a failed answer is kept. Settings shows each source answering or refusing. **Restore:** the facts, names and credits are not backed up (they are fetched again); when a restore brings back the matches without them, the job puts every facts row back and fetches it, and the picks are rebuilt after. Facts are fetched again monthly, the discographies of the 20 most played artists weekly (new releases). Each step's answer is kept in one transaction, so the job is resumable and idempotent; `GET /v1/music/know` says how far it is. Artists outside the library a pick may name (neighbours, influences) and people behind three or more loved albums get a lighter row: their discography's first page and its listens.
+
+**Outside text.** Everything fetched is outside information, kept apart from the owner's data: free text (Wikipedia's lead and reception, Last.fm's tags, Discogs's styles) under `outside`, and every name or title collapsed (control and invisible characters out, whitespace to one space) and capped (200 characters; a tag 40; 10 tags). Members and credits are listed once per person (and role) before the caps, and the credits' cap keeps every person before anyone's second role. It is handed to the mind as songs' tags are (§10.5): it marks no session, and a night session's read is recorded, which closes its web.
+
+### 19.3 Reading
+
+`th music facts <MusicBrainz id | ->` (an artist or album, everything known, compact; a name goes on stdin), `th music credits <id | ->` (what in the library a person worked on, and their other work), `th music unmatched`. The routes: `GET /v1/music/facts?ref=`, `/credits?ref=`, `/unmatched`, `/know` ([API.md §11.9](../../engineering/API.md)). Every read is by key: ids, names by `know_names`, a release group's albums by its index, a person's credits by the key of `know_credits`.
+
+### 19.4 Picks to add
+
+A pure scorer (`areas/music/picks-score.ts`) over stored data, rebuilt into `picks` when facts or plays changed, at most daily. The owner's love for an artist and an album comes from the imported history (plays by year, a play 3 years older counting half), plays on the site (each worth two, half after 180 days since last played), ratings (5 adds 4 plays' worth, 1 takes 4 away) and early skips (one each), scaled 0–1 by the log. Five kinds:
+
+- `gap`: an album the library lacks by one of the 30 most loved artists, ranked by the artist's love times how loved the album is (its listens against the artist's best);
+- `new`: such an artist's release of the last 90 days;
+- `neighbour`: an artist not in the library similar to two or more top artists at once (named as the similar-artists answer names it), more for sharing their strongest genre words, with that artist's best-loved album;
+- `credit`: other work of a person behind three or more loved albums;
+- `influence`: who influenced, or was influenced by, a loved artist (Wikidata), with their best-loved album.
+
+Never something in the library (by release group, or by its title among the owner's albums of that artist, matched or not), declined, ordered or added; never a pick without MusicBrainz's artist name and title; a line carries only genre words from a fixed list (`GENRE_WORDS` in `shared/contract/know.ts`), never a tag as someone wrote it; albums and EPs only, unless an artist has nothing else (no live, compilation, remix, DJ mix or reissue); at most two picks an artist; a mixed list (no kind fills more than half). Each pick keeps its reason as facts (kind, the owner's artists it came through, listens, counts, shared tags, days, the person) and one plain line is made from them ("The Loved One (2006) by …: one of their best-loved albums, and not in your library."). States: `new`, `declined` (never offered again, and each decline makes that artist weigh 0.7 times), `ordered`, `added` (seen when the album reaches the catalog). The per-kind weights start at 1 and move a little: ×0.95 for a decline, ×1.05 for an add, ×1.05 again when the added album is then played, kept within 0.5–1.5. `th music picks [--kind] [--state] [--limit]`, `th music pick decline <id> [--why]`, `th music pick order <id>` (the words of a Muse order for that album: its ids, and its title and artist cut to letters, digits, spaces and plain punctuation, no quotes, backticks, `$`, backslashes or newlines; they go on stdin to `th order new --words -`, never in a quoted argument, under its rules, the owner's yes included; then `--placed <order id>` marks it ordered).
+
+### 19.5 The mind's part
+
+`mind/skills/music.md`: read picks with `th music picks`, offer one or two by their line when it fits or when asked, a no is a decline, a yes is an order through Muse. **What a hostile article or tag can do:** text fetched from Wikipedia, Last.fm or Discogs reaches the mind only as `outside` in `th music facts` (at most 1,500 characters a section, on one line) and never in a pick's line or reason, which are made from ids, counts, canonical names and genre words from the fixed list. It cannot run anything in the Worker (nothing there reads it but the routes that serve it), cannot change a score beyond a little (the scorer reads numbers, ids and tag names; only a tag that is a listed genre word counts, making a neighbour share a genre, at most +10 % each, three at most), cannot place an order (an order needs the owner's yes in their own message, which `th order new --from` names, and its words are the pick's ids and canonical names, made by the Worker, not the article's) and cannot reach the web from a night session (its read closes the web). It can put persuasive words in front of the chat mind, which treats them as outside text that informs and never instructs, like a file's or a Muse result's.
+
+### 19.6 Settings › Music
+
+Below **Listening history**, **What I know about your music** (`frontend/apps/settings/music-know.js`): albums matched out of how many and songs matched, artists with their facts, what each source filled, where the job is (matching, gathering facts, choosing picks, up to date), the picks offered, declined, ordered and added, each source answering or refusing (and when it is asked again), the stored waveforms by kind (the new `rms`, the old, none; counted as the albums are read), and the albums left unmatched with why (names from the owner's own catalog, on the owner's phone). Loading, offline and error lines as the page's others. Music's own screens do not change.
 
 ## Not built
 

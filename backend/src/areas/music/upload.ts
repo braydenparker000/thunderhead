@@ -15,6 +15,7 @@
 //   waveform backfill) read only. Past 80% of a day's Free-plan rows they answer 429 with
 //   Retry-After until 00:00 UTC (areas/meter/hold.ts): their reads put the day near the cap once.
 import { Hono } from 'hono';
+import { KNOW_LIMITS } from '../../../../shared/contract/know.ts';
 import type { AppEnv } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { coreObject } from '../../objects/core';
@@ -30,6 +31,8 @@ import { proof, verifiedBlob } from './writer';
 export const UPLOAD_LIMITS = { audio: 32 * 1024 * 1024, art: 2 * 1024 * 1024, op: 64 * 1024, batch: 1024 * 1024 };
 /** The operations whose bodies may reach `batch` bytes. */
 export const BIG_OPS = new Set(['register-batch', 'waveforms']);
+/** The operations that change the catalog's albums or songs. */
+const CATALOG_OPS = new Set(['register', 'register-batch', 'patch', 'replace-audio', 'delete', 'waveforms']);
 const AUDIO = /^([a-f0-9]{64})\.opus$/;
 const ART = /^([a-f0-9]{64})\.(jpg|png)$/;
 const LINKS_MAX = 100;
@@ -185,6 +188,13 @@ export const uploadRoutes = new Hono<AppEnv>()
     if (r.status !== 200) answer(r.status, r.body);
     // New songs show in the menu's Tasks as Muse's upload batch (areas/work), after the answer.
     if (op === 'register' || op === 'register-batch') c.executionCtx.waitUntil(batch(c.env, op, input, r.body));
+    // A catalog change: the music knowledge reads the albums again once the uploads have been quiet.
+    if (CATALOG_OPS.has(op))
+      c.executionCtx.waitUntil(
+        coreObject(c.env)
+          .knowQueue(Date.now() + KNOW_LIMITS.seed_quiet_ms)
+          .catch(() => {}),
+      );
     return c.json(r.body);
   });
 

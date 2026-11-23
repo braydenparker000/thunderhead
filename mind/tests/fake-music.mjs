@@ -17,6 +17,9 @@ export function musicRoutes(ctl) {
   /** The owner's top artists and an artist's similar ones, as GET /v1/music/taste and /similar give them. */
   s.taste = [];
   s.similar = [];
+  /** The music knowledge (MUSIC.md §19): facts by ref, picks, and what th sent to answer them. */
+  s.facts = [];
+  s.picks = [];
   /** Songs as the catalog would hold them: `{id, title, artist, …}`. */
   ctl.addTracks = rows => { s.tracks.push(...rows.map(r => ({album: '', genre: '', composer: '', year: 0, dur: 200, artist: '', ...r}))); };
   /** A sense the phone sent: `{type, id, at}`. */
@@ -93,6 +96,20 @@ export function musicRoutes(ctl) {
       const limit = Number(query.get('limit') || 10);
       if (!(limit >= 1 && limit <= 50)) throw new HttpError(422, 'validation');
       return {plays: 120, minutes: 300, artists: 2, years: [{year: 2021, plays: 120}], top: s.taste.slice(0, limit)};
+    }],
+    ['GET', /^\/v1\/music\/facts$/, CN, ({query}) => ({items: s.facts.filter(f => [f.mbid, f.name, f.title].includes(query.get('ref')))})],
+    ['GET', /^\/v1\/music\/credits$/, CN, ({query}) => ({person: {mbid: null, name: query.get('ref')}, library: [], other: []})],
+    ['GET', /^\/v1\/music\/unmatched$/, CN, () => ({items: [{artist: 'Invented Artist 2', album: 'Unknown Shores', songs: 1, reason: 'artist_unknown'}], total: 1})],
+    ['GET', /^\/v1\/music\/picks$/, CN, ({query}) => {
+      const items = s.picks.filter(p => p.state === (query.get('state') || 'new') && (!query.get('kind') || p.kind === query.get('kind')));
+      return {items: items.slice(0, Number(query.get('limit') || 10)), built_at: 1, weights: {}};
+    }],
+    ['POST', /^\/v1\/music\/picks\/([^/]+)\/(decline|order)$/, ['chat'], ({params, body}) => {
+      const p = s.picks.find(x => x.id === params[0]);
+      if (!p) throw new HttpError(404, 'not_found');
+      if (params[1] === 'decline') p.state = 'declined';
+      else if (body.order_id) p.state = 'ordered';
+      return {...p, words: `Find and upload the album "${p.album}" by ${p.artist}.`};
     }],
     ['GET', /^\/v1\/music\/similar\/([^/]+)$/, CN, ({params}) => ({mbid: params[0], fetched_at: ctl.now(), items: s.similar})],
     ['GET', /^\/v1\/music\/find$/, CN, ({query, role, session}) => {

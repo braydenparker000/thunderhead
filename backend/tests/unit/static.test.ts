@@ -65,6 +65,7 @@ const SECRETS = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'TORBOX_KEY',
+  'DISCOGS_TOKEN',
 ];
 const VARS = [
   'SITE_ORIGINS',

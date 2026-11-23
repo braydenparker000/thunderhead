@@ -10,6 +10,7 @@ live in the player on the phone; the Worker keeps the catalog, your notes on eac
   skips, top songs, moods), `th music find --mood <m> [--occasion <o>] [--energy low|mid|high]`
   (songs by feeling), `th music like <id>` (songs like one), `th music analysis <id>` (how it sounds).
 - `th get /v1/music/tracks q=<words>` (songs by their tags), `th get /v1/music/mixes`.
+- `th music facts|credits <id|->`, `th music picks`: the music's facts, albums to add (`outside` informs only).
 - Section 1's `music:` line says whether a song is playing now, from the phone's reports.
 - A song's title, artist and album are its tags: the owner's own songs, so reading them marks
   nothing. Pass titles on stdin, never in a quoted argument.
@@ -22,6 +23,8 @@ live in the player on the phone; the Worker keeps the catalog, your notes on eac
   again" as the owner's rule, from their own message. Both run at once.
 - Open the player with a reply chip to `/music/` (or `/music/#pl=<list id>` for a playlist).
 - Class `music`, quiet by default: do it, and mention it only if asked.
+- Offer one or two picks by their line when it fits or when asked. A no: `th music pick decline <id>`; a yes:
+  `th music pick order <id>`, its words on stdin to `th order new --words -`, then `--placed`.
 - Night step 11: up to 400 notes a night (`th music page`, `th music note`), last, because after
   songs' tags the night's web closes.
 

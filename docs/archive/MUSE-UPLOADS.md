@@ -89,3 +89,19 @@ python3 scripts/music/upload.py "Song.opus" --key music-upload-thunderhead.pem
 ```
 
 It already uses the new server, and its last line is one JSON line with `"registered": true`.
+
+## MusicBrainz ids with a song (optional, 2026-11-23)
+
+When you know them, send each song's MusicBrainz ids in its `metadata` with `register`,
+`register-batch` or `patch`, beside `title` and `artist`:
+
+| Field | What |
+|---|---|
+| `mbRecording` | the song's recording id |
+| `mbReleaseGroup` | its album's release group id (the same for every song of the album) |
+| `mbArtist` | the album artist's id |
+
+Each is optional, and each must be a MusicBrainz id: 36 characters, lowercase hex in the usual
+8-4-4-4-12 groups. Anything else is refused with `422`. With them, the server matches the album and
+its songs exactly instead of working them out (MUSIC.md §19.1); without them, nothing changes.
+A work order for an album to add asks for them ("Send each song's MusicBrainz ids with it").
