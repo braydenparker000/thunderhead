@@ -88,6 +88,8 @@ test('a role starts only its own subagents: all four for chat and night, mail fo
 test('inside a subagent: its tools only; the researcher is quarantined like the reader; the shell ones read th and never push main', () => {
   const as = (agent_type, tool_name, tool_input) => decide({tool_name, tool_input, agent_type}, ctx('chat'));
   assert.ok(as('researcher', 'Bash', {command: 'ls'}));
+  // Each hands its report back to the session that started it (the platform's own tool for that).
+  for (const who of ['reader', 'researcher', 'mail', 'night-step', 'coder']) assert.equal(as(who, 'SubagentHandback', {report: 'r'}), null, who);
   assert.ok(as('researcher', 'Read', {file_path: '/tmp/sess/th/brief.md'}));
   assert.ok(as('researcher', 'WebFetch', {url: 'https://example.com/a?d=notes', prompt: 'p'}));
   assert.equal(as('researcher', 'WebFetch', {url: 'https://example.com/a', prompt: 'p'}), null);
@@ -153,9 +155,11 @@ test('the mail agent: only the mail and file connectors\' read tools (any accoun
   assert.ok(mail('Read', {file_path: '/work/repo/README.md'}));
   // The session itself, in every role, and every other subagent: no connector at all.
   for (const role of ['chat', 'night', 'reflex']) {
-    for (const t of ['mcp__Gmail__search_threads', 'mcp__Google_Drive_c1005530__read_file_content', 'mcp__github__get_file_contents'])
+    for (const t of ['mcp__Gmail__search_threads', 'mcp__Google_Drive_c1005530__read_file_content'])
       assert.equal(decide({tool_name: t, tool_input: {}}, ctx(role)), 'Mail and files are read by the mail agent.', `${role} ${t}`);
-    for (const t of ['mcp__Gmail__send_message', 'mcp__Google_Drive__share_file', 'mcp__fetch__fetch', 'mcp__Phone__phone_type_keys'])
+    for (const t of ['mcp__github__get_file_contents', 'mcp__github__create_pull_request', 'mcp__fetch__fetch', 'mcp__Phone__phone_type_keys'])
+      assert.equal(decide({tool_name: t, tool_input: {}}, ctx(role)), 'Connector tools are closed to this session; for GitHub use gh (see the code skill).', `${role} ${t}`);
+    for (const t of ['mcp__Gmail__send_message', 'mcp__Google_Drive__share_file'])
       assert.equal(decide({tool_name: t, tool_input: {}}, ctx(role)), 'Sending or changing mail and files is not built. Give the owner the text.', `${role} ${t}`);
   }
   for (const agent_type of ['reader', 'researcher', 'night-step', 'coder', 'general-purpose'])

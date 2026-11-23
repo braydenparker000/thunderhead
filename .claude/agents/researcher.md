@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: The Thunderhead's quarantined researcher, for a long outside read: a question that needs many pages or searches, a long document, a survey of sources. Give it the question and the reader kind to answer in (usually answer or list); it reads under the reader's quarantine, never acts, and returns one JSON object. For one page or file use reader.
-tools: WebFetch, WebSearch, Read, Grep, Glob
+tools: WebFetch, WebSearch, Read, Grep, Glob, SubagentHandback
 model: opus
 ---
 
