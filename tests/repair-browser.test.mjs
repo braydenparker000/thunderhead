@@ -110,6 +110,10 @@ test('a healthy start slowed six times shows no panel, twice in a row', opts, as
 test('Repair with no signal: About says it needs a connection and stays; /repair/ that cannot reach home clears nothing', opts, async () => {
   const { context, page } = await phone();
   const held = () => page.evaluate(async () => ({ caches: (await caches.keys()).filter((n) => /^th-\d+$/.test(n)).length, workers: (await navigator.serviceWorker.getRegistrations()).length }));
+  // The worker installs and fills its cache after the page shows: count once both are there, so a late
+  // install is not mistaken for something Repair left behind or added.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await until(async () => (await held()).caches >= 1, { message: 'the shell\'s cache is there' });
   const before = await held();
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'about' } })));
   await page.waitForSelector('#about-repair');
