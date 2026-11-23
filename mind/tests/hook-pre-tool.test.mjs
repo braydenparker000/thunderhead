@@ -229,7 +229,7 @@ test('night: once the Worker says it read songs\' tags, no web, no MCP tool, no 
   // The chat may look up the one song the owner asked about; a night that read no songs keeps the web.
   // No session calls a connector at all (owner, 2026-11-22): only the mail agent reads one.
   for (const t of reach.slice(0, 2)) assert.equal(denied('chat', t, read), null);
-  assert.match(denied('chat', reach[2], read), /not built/);
+  assert.match(denied('chat', reach[2], read), /Connector tools are closed/);
   assert.equal(denied('night', reach[0], {songsRead: () => false}), null);
   // After songs the night's shell runs only th and a few builtins: not even a GitHub call that is no search.
   assert.match(denied('night', bash('gh api repos/o/r/pulls'), read), /shell runs only th/);

@@ -33,11 +33,11 @@ export function nightSafe({cmd, args}, words, ctx) {
  * the web only, no URL with a query). A role starts only these, plus BUILT_IN's. `mail` also has
  * the mail and file connectors' read tools (MAIL_SERVERS, MAIL_READS), which no other caller has. */
 export const AGENTS = {
-  mail: {tools: ['Read', 'Grep', 'Glob'], roles: ['chat'], quarantined: true, connectors: true},
-  reader: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night', 'reflex'], quarantined: true},
-  researcher: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: true},
-  'night-step': {tools: ['Bash', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
-  coder: {tools: ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
+  mail: {tools: ['Read', 'Grep', 'Glob', 'SubagentHandback'], roles: ['chat'], quarantined: true, connectors: true},
+  reader: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob', 'SubagentHandback'], roles: ['chat', 'night', 'reflex'], quarantined: true},
+  researcher: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob', 'SubagentHandback'], roles: ['chat', 'night'], quarantined: true},
+  'night-step': {tools: ['Bash', 'Read', 'Grep', 'Glob', 'SubagentHandback'], roles: ['chat', 'night'], quarantined: false},
+  coder: {tools: ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'SubagentHandback'], roles: ['chat', 'night'], quarantined: false},
 };
 /** The claude.ai connectors the mail agent reads (owner, 2026-11-22): a second account's server
  * carries a suffix after `_`, so a server is one of these or starts with one and `_`. */
@@ -52,6 +52,9 @@ export function mailRead(tool) {
 }
 const MAIL_ONLY = 'Mail and files are read by the mail agent.';
 const NOT_BUILT = 'Sending or changing mail and files is not built. Give the owner the text.';
+/** Any other connector (GitHub's, a phone's): closed to every caller of the mind's, said as itself. */
+const CONNECTOR_CLOSED = 'Connector tools are closed to this session; for GitHub use gh (see the code skill).';
+const mailServer = tool => { const server = connectorParts(tool)?.[0]; return !!server && MAIL_SERVERS.some(s => server === s || server.startsWith(`${s}_`)); };
 /** Claude Code's own subagents a role may still start: the Sunday evals hand each fixture to a
  * general-purpose one (night step 9, EVALS.md). */
 const BUILT_IN = {night: ['general-purpose']};
@@ -374,7 +377,7 @@ export function decide(input, ctx) {
   if (ctx.role === 'night' && webTool(tool) && ctx.songsRead?.()) return SONGS_WEB;
   // Connectors (owner, 2026-11-22): only the mail agent calls one, and only to read (above); the
   // session itself, of any role, and every other subagent call none.
-  if (tool.startsWith('mcp__') && !agent?.connectors) return MAIL_READS.test(connectorParts(tool)?.[1] ?? '') ? MAIL_ONLY : NOT_BUILT;
+  if (tool.startsWith('mcp__') && !agent?.connectors) return !mailServer(tool) ? CONNECTOR_CLOSED : MAIL_READS.test(connectorParts(tool)?.[1] ?? '') ? MAIL_ONLY : NOT_BUILT;
   // The connectors' resources by the generic tools: no caller of the mind's reads them.
   if (/^(List|Read)Mcp(Resource|Resources|ResourceDir)Tool$/.test(tool)) return MAIL_ONLY;
   if (tool === 'WebFetch' && typeof ti.url === 'string') {

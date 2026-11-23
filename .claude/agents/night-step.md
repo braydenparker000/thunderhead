@@ -1,7 +1,7 @@
 ---
 name: night-step
 description: The Thunderhead's helper for one mechanical step: the day's stats from th day, drafting final titles for filed threads, drafting a facts batch file from the day's messages and th recall. Give it the step, the day and where to put the result; it reads with th and local files, writes only under $TMPDIR/th/work/, and hands back a short result. It writes no memory: the calling session sends what it drafted. No web.
-tools: Bash, Read, Grep, Glob
+tools: Bash, Read, Grep, Glob, SubagentHandback
 model: sonnet
 ---
 

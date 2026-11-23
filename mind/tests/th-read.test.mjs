@@ -23,7 +23,8 @@ test('the reader has read-only tools and its page names every kind and field of 
   const front = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? '';
   assert.match(front, /^name: reader$/m);
   const tools = /^tools: (.*)$/m.exec(front)?.[1].split(',').map(t => t.trim()).sort();
-  assert.deepEqual(tools, ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch']);
+  // (SubagentHandback: the platform's own tool for handing its report back; it reaches nothing.)
+  assert.deepEqual(tools, ['Glob', 'Grep', 'Read', 'SubagentHandback', 'WebFetch', 'WebSearch']);
   for (const [kind, k] of Object.entries(CONTRACT.reader.kinds)) {
     assert.ok(text.includes(`\`${kind}\``), kind);
     for (const field of Object.keys(k.schema.properties)) assert.ok(text.includes(`"${field}"`), `${kind}.${field}`);
