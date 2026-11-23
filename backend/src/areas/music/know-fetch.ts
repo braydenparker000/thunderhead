@@ -255,6 +255,10 @@ export async function fetchAsk(env: Env, source: Source, ask: Ask, now = Date.no
     return { error: 'host' };
   }
   if (r.status === 404) return { none: true };
+  // Not allowed (ListenBrainz answered 401 to every popularity read from the live Worker, 2026-11-23):
+  // no row's fault and not passing, so the host is left for the longest rest instead of costing each
+  // row three requests.
+  if (r.status === 401 || r.status === 403) return { error: 'host', retry: RETRY_MAX };
   if (r.status === 429 || r.status >= 500)
     return { error: 'host', retry: retryAfter(r.headers.get('Retry-After'), now) };
   if (!r.ok) return { error: 'row' };
