@@ -67,6 +67,40 @@ test('the app closed inside the undo window: the next open of the page sends the
   await first.context.close();
 });
 
+/** The phone's storage is full: every write to localStorage throws, as Chrome's QuotaExceededError. */
+const fill = (page) => page.evaluate(() => {
+  Storage.prototype.setItem = function () { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
+});
+/** Forget through the page when no Undo toast comes (the phone's storage is full). */
+async function forgetNow(page, text) {
+  const row = `.mrow:has-text("${text}")`;
+  await page.click(`${row} .mtext`);
+  await page.click(`${row} button:has-text("Forget")`);
+  await page.clock.runFor(600);
+  await page.click('.csheet button:has-text("Forget")');
+}
+
+test('storage full: the Forget goes at once (it could not wait for the page to close)', opts, async () => {
+  const { page, context, api } = await pages.open();
+  await fill(page);
+  await forgetNow(page, 'Likes calm music');
+  await until(async () => forgets(api), [CALM], 'sent without waiting out the undo');
+  await until(() => calmRows(page), 0);
+  await context.close();
+});
+
+test('storage full and the send fails: it says the storage is full, and tries again while open', opts, async () => {
+  const { page, context, api } = await pages.open();
+  api.state.chat.fail['/v1/memory/ops'] = 1;
+  await fill(page);
+  await forgetNow(page, 'Likes calm music');
+  await until(() => page.locator('.toast:not(.utoast)').allTextContents(), ["Not forgotten yet. This phone's storage is full: see Settings › On this phone."]);
+  assert.equal(await calmRows(page), 0, 'still off the page');
+  await page.clock.runFor(5_500);
+  await until(() => forgets(api), [CALM, CALM], 'the retry went');
+  await context.close();
+});
+
 test('a Forget that fails for the network is tried again, and the fact stays off the page', opts, async () => {
   const { page, context, api } = await pages.open();
   api.state.chat.fail['/v1/memory/ops'] = 1;

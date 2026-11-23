@@ -7,7 +7,9 @@
 //   nothing can be awaited while a page unloads), and its Undo goes with it;
 // - a send that fails for the network or the server waits and is tried again with back-off
 //   ("Not forgotten yet. I'll keep trying."); any other refusal puts the fact back, with its line.
-// A fact stays off the page until its Forget went through, so it never flashes back.
+// A fact stays off the page until its Forget went through, so it never flashes back. With the phone's
+// storage full the id can't be kept, so the Forget goes at once, with no Undo, and a failure says
+// the storage is full (it is still tried again while the page is open).
 import { signedIn } from '/th/client.js';
 import { failure } from '/th/flow.js';
 import { store } from '/th/session.js';
@@ -18,6 +20,7 @@ import { gone, pendingIds, remember, sendForget, settled } from './memory-queue.
 const UNDO_MS = 10_000;
 const RETRY_MS = [5_000, 15_000, 60_000, 300_000];
 export const NOT_YET = "Not forgotten yet. I'll keep trying.";
+export const NOT_KEPT = "Not forgotten yet. This phone's storage is full: see Settings › On this phone.";
 
 /** A failure worth trying again: no network, a timeout, the server, or a rate limit. */
 const transient = (/** @type {unknown} */ e) => {
@@ -32,7 +35,7 @@ const transient = (/** @type {unknown} */ e) => {
 export async function forgets(on) {
   /** id → its Undo window (`undo`), its retry timer, how many tries failed, and whether a keepalive
    * send is out (`kept`: the page hiding and then unloading sends it once, not twice). */
-  /** @type {Map<string, { undo: boolean, timer?: ReturnType<typeof setTimeout>, tries: number, kept?: boolean }>} */
+  /** @type {Map<string, { undo: boolean, timer?: ReturnType<typeof setTimeout>, tries: number, kept?: boolean, full?: boolean }>} */
   const waiting = new Map();
   const token = (await store.read())?.token ?? null;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -65,7 +68,7 @@ export async function forgets(on) {
         return toast(memoryLine(e));
       }
       later(id);
-      toast(NOT_YET);
+      toast(w.full ? NOT_KEPT : NOT_YET);
     }
   }
 
@@ -136,7 +139,12 @@ export async function forgets(on) {
   /** Asks once; then the fact leaves the page and its Forget waits out the Undo. @param {{ id: string }} f */
   async function ask(f) {
     if (!(await confirmForget())) return false;
-    remember(f.id);
+    if (!remember(f.id)) {
+      waiting.set(f.id, { undo: false, tries: 0, full: true });
+      on.changed();
+      void send(f.id);
+      return true;
+    }
     waiting.set(f.id, { undo: true, tries: 0, timer: setTimeout(() => send(f.id), UNDO_MS) });
     undoToast(f.id);
     on.changed();

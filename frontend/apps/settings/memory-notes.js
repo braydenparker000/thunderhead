@@ -102,7 +102,7 @@ export function dayRow(d, ctx) {
   edit.addEventListener('click', () => {
     const id = `day-${d.day}`;
     const area = el('textarea', { id, class: 'field sedit marea', rows: '5', maxlength: '1200' });
-    area.value = d.summary;
+    area.value = area.defaultValue = d.summary;
     const save = el('button', { type: 'submit', class: 'btn', text: 'Save' });
     const form = el('form', { class: 'mform' }, [el('label', { for: id, class: 'st2', text: 'The day, in at most 150 words' }), area, save]);
     host.replaceChildren(form);

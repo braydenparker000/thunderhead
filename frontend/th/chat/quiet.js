@@ -76,33 +76,50 @@ export function quietLine(until, now = Date.now()) {
   return `Quiet until ${day}${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}.`;
 }
 
+/** This page's quiet while the phone's storage is full and couldn't keep it (null: storage has it). */
+let held = /** @type {number | null} */ (null);
+
 /** When quiet ends, or 0 when it is off. */
 export function quietUntil(now = Date.now()) {
   try {
-    const v = Number(localStorage.getItem(KEY));
+    const v = held ?? Number(localStorage.getItem(KEY));
     return v > now ? v : 0;
   } catch {
     return 0;
   }
 }
 
-/** @param {number} until 0 ends quiet */
+/** @param {number} until 0 ends quiet @returns {boolean} whether the phone's storage kept it */
 function keepHere(until) {
+  let kept = true;
   try {
     if (until && !quietUntil()) localStorage.setItem(FROM, String(Date.now()));
     if (until) localStorage.setItem(KEY, String(until));
     else localStorage.removeItem(KEY);
-  } catch {}
+  } catch {
+    kept = false;
+  }
+  held = kept ? null : until;
   document.dispatchEvent(new CustomEvent('th:quiet'));
+  return kept;
 }
 
-/** The owner's order: kept here at once, then given to the Worker. @param {number} until 0 ends it */
+/** The owner's order: kept here at once, then given to the Worker. With the phone's storage full it
+ * can't wait here for a connection: it goes now, and resolves false (and is undone) if it couldn't.
+ * @param {number} until 0 ends it @returns {Promise<boolean | void>} */
 export function setQuiet(until) {
-  keepHere(until);
+  const before = quietUntil();
+  let kept = keepHere(until);
   try {
     localStorage.setItem(PENDING, '1');
-  } catch {}
-  return sendQuiet();
+  } catch {
+    kept = false;
+  }
+  if (kept) return sendQuiet();
+  return signedIn((t) => api.call('/v1/settings', { method: 'PATCH', token: t, body: { 'quiet.until': until } })).then(
+    () => true,
+    () => { keepHere(before); return false; },
+  );
 }
 
 /** @type {Promise<void> | null} */

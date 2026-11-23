@@ -17,15 +17,19 @@ export function pendingIds() {
   }
 }
 
-/** @param {string[]} ids */
+/** @param {string[]} ids @returns {boolean} false: the phone's storage is full and didn't keep them */
 function save(ids) {
   try {
     if (ids.length) localStorage.setItem(KEY, JSON.stringify([...new Set(ids)]));
     else localStorage.removeItem(KEY);
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** @param {string} id */
+/** Keeps the id; false when the phone's storage is full (it would be lost as the page closes).
+ * @param {string} id */
 export const remember = (id) => save([...pendingIds(), id]);
 /** @param {string} id */
 export const settled = (id) => save(pendingIds().filter((x) => x !== id));

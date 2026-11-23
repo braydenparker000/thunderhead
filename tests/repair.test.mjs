@@ -59,7 +59,7 @@ test('the service worker never answers /repair/: not from the cache, not at all'
 });
 
 /** boot-guard.js in a fake page: its timers, storage and the elements it adds; `hidden` starts it off screen. */
-function page(store = new Map(), { hidden = false } = {}) {
+function page(store = new Map(), { hidden = false, full = false } = {}) {
   const timers = new Map();
   let next = 1;
   const listeners = {};
@@ -75,7 +75,7 @@ function page(store = new Map(), { hidden = false } = {}) {
   const self = {};
   const context = vm.createContext({
     document, location, self,
-    localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
+    localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { if (full) throw new Error('QuotaExceededError'); store.set(k, String(v)); }, removeItem: (k) => store.delete(k) },
     setTimeout: (f, ms) => { timers.set(next, { f, ms }); return next++; }, clearTimeout: (id) => timers.delete(id),
   });
   context.top = context.self = self;
@@ -99,6 +99,13 @@ test('boot guard: two starts in a row with no mark within 12 s show the panel; o
   two.self.thStarted();
   assert.equal(two.added.length, 0);
   assert.equal(two.store.has('th.boot'), false);
+});
+
+test('boot guard: with the phone\'s storage full it can\'t count, so the first miss shows the panel', () => {
+  const p = page(new Map(), { full: true });
+  p.run();
+  assert.equal(p.added.length, 1);
+  assert.match(p.text(p.added[0]), /Thunderhead didn’t start\..*Repair/);
 });
 
 test('boot guard: a slow start that marks itself shows nothing, however many times; off screen counts nothing', () => {

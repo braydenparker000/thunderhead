@@ -8,6 +8,7 @@ import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { el, toast, tooSoon } from '/th/ui.js';
+import { untilLoaded } from './catalog.js';
 import { icon } from './components.js';
 
 /** @typedef {import('../../../shared/contract/voice.ts').VoiceResponse} VoiceResponse */
@@ -63,7 +64,7 @@ export function voiceBlock() {
   /** @param {VoiceResponse} r */
   const show = (r) => {
     stored = r.text;
-    area.value = r.text;
+    area.value = area.defaultValue = r.text; // not typed text (settings.js asks before leaving with that)
     area.disabled = false;
     last.textContent = lastLine(r.last);
     check();
@@ -114,11 +115,14 @@ export function voiceBlock() {
     }
   };
 
+  /** Reads the page; one that fails is read again when the connection is back or the page is shown again. */
   const load = async () => {
     try {
       show(/** @type {VoiceResponse} */ (await signedIn((t) => api.call('/v1/mind/voice', { token: t }))));
+      return true;
     } catch (e) {
       state.textContent = lineFor(failure(e));
+      return false;
     }
   };
 
@@ -135,6 +139,6 @@ export function voiceBlock() {
       state.textContent = lineFor(failure(err));
     }
   });
-  load();
+  load().then((ok) => { if (!ok) untilLoaded(host, load); });
   return [host, fold];
 }

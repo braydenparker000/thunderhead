@@ -71,7 +71,7 @@ function newKey(host, add, reload, preset) {
         button.tabIndex = selected ? 0 : -1;
         button.querySelector('.row-check').toggleAttribute('hidden', !selected);
       }
-      if (!named) name.value = r.name;
+      if (!named) name.value = name.defaultValue = r.name;
     });
     roles.append(option);
   }

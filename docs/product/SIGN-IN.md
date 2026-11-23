@@ -247,7 +247,7 @@ Typical time on the phone: ~0.3–0.8 s (about 235 ms of scrypt plus the network
   - The code, large, monospace, with its five groups.
   - No Copy button. Clipboard history can sync to the cloud. **[proposal]**
   - Confirm field: "Type the last 5 characters to confirm you saved it" (`autocomplete="off"`, `autocapitalize="characters"`, `spellcheck="false"`). Button "Continue" is enabled only when they match. **[proposal]**
-  - Leaving the page without confirming: the code is still valid (it was already stored). Settings → Sign-in & devices then shows "You haven't confirmed your recovery code. Make a new one." until the owner makes and confirms a new code.
+  - Leaving the page without confirming: the code is still valid (it was already stored). Settings → Sign-in & devices then shows "You haven't confirmed your recovery code. Make a new one." until the owner makes and confirms a new code. A confirm that doesn't reach the Worker never says the code was saved: the warning stays and the form says "Your new recovery code isn't confirmed. <reason> Make a new one to try again." (2026-11-23).
 
 ### 7.2 New recovery code (Settings → Sign-in & devices)
 - Button "Make a new recovery code". A sheet asks for the current password (`autocomplete="current-password"`). **[proposal: inline password check; see §15]**

@@ -14,7 +14,7 @@
 import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
-import { el } from '/th/ui.js';
+import { el, toast } from '/th/ui.js';
 import { choice, confirmSheet, group, icon, picker, row, sheet } from './components.js';
 import { SETTING_GROUPS, SETTINGS } from './catalog-data.js';
 
@@ -99,14 +99,35 @@ applyPhone();
 /** @param {Spec} s @param {Value} value */
 const announce = (s, value) => document.dispatchEvent(new CustomEvent('th:setting', { detail: { key: s.key, value, scope: s.scope } }));
 
+/** What a change kept only on this phone says when its storage is full (it lasts until a reload). */
+export const FULL = "This phone's storage is full, so that won't stay. See Settings › On this phone.";
+
 /** @param {Spec} s @param {Value} value */
 export function setPhone(s, value) {
   try {
     if (same(value, s.default)) localStorage.removeItem(PREFIX + s.key);
     else localStorage.setItem(PREFIX + s.key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-  } catch {}
+  } catch {
+    toast(FULL);
+  }
   applyPhone();
   announce(s, value);
+}
+
+/** Runs `fn` each time the connection comes back or the page is shown again, while `node` is on the
+ * page and until `fn` resolves true. @param {Node} node @param {() => Promise<boolean>} fn */
+export function untilLoaded(node, fn) {
+  let busy = false;
+  const go = async () => {
+    if (!node.isConnected) return stop();
+    if (busy || document.visibilityState !== 'visible') return;
+    busy = true;
+    if (await fn()) stop();
+    busy = false;
+  };
+  const stop = () => { removeEventListener('online', go); document.removeEventListener('visibilitychange', go); };
+  addEventListener('online', go);
+  document.addEventListener('visibilitychange', go);
 }
 
 /** Worker settings as this phone last saw them. @returns {Record<string, unknown>} */
@@ -384,30 +405,42 @@ export async function renderGroup(body, name, opts = {}) {
   reset.dataset.action = 'reset';
   parts.push(el('div', { class: 'group' }, [reset]));
   const host = el('div', { class: 'scatalog', 'data-group': name }, parts);
-  body.append(...(opts.before ?? []), el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);
+  const notice = el('p', { class: 'swarn', role: 'status', 'data-unloaded': '', hidden: '' });
+  body.append(notice, ...(opts.before ?? []), el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);
 
   if (!specs.some((s) => s.scope === 'worker')) return;
-  // Until the Worker answers, its values can't be changed here: a change would race the answer.
+  // Until the Worker answers, its values can't be changed here: a change would race the answer. A
+  // first read that fails says so at the top, dims the controls, and is tried again by itself.
   host.inert = true;
-  host.setAttribute('aria-busy', 'true');
-  try {
-    const got = /** @type {Record<string, unknown>} */ (await signedIn((t) => api.settings(t)));
-    const next = { ...store };
-    for (const s of ALL) {
-      if (s.scope !== 'worker') continue;
-      if (s.key in got) next[s.key] = got[s.key];
-      else delete next[s.key];
+  const load = async () => {
+    host.setAttribute('aria-busy', 'true');
+    try {
+      const got = /** @type {Record<string, unknown>} */ (await signedIn((t) => api.settings(t)));
+      const next = { ...store };
+      for (const s of ALL) {
+        if (s.scope !== 'worker') continue;
+        if (s.key in got) next[s.key] = got[s.key];
+        else delete next[s.key];
+      }
+      const before = store;
+      store = next;
+      confirmed = { ...next };
+      remember(store);
+      for (const s of specs) if (s.scope === 'worker' && !same(before[s.key], store[s.key])) redraw(s);
+      host.inert = false;
+      delete host.dataset.off;
+      notice.hidden = true;
+      return true;
+    } catch (e) {
+      host.dataset.off = '';
+      notice.textContent = `Couldn't load these settings, so they can't be changed yet. ${lineFor(failure(e))} I'll try again by myself.`;
+      notice.hidden = false;
+      return false;
+    } finally {
+      host.removeAttribute('aria-busy');
     }
-    const before = store;
-    store = next;
-    confirmed = { ...next };
-    remember(store);
-    for (const s of specs) if (s.scope === 'worker' && !same(before[s.key], store[s.key])) redraw(s);
-    host.inert = false;
-  } catch (e) {
-    line.textContent = lineFor(failure(e));
-  }
-  host.removeAttribute('aria-busy');
+  };
+  if (!(await load())) untilLoaded(host, load);
 }
 
 /** For a page's read-only facts: a row that is not a control, with its detail and an optional value.
