@@ -117,6 +117,7 @@ Home has no standing voice line (owner, 2026-10-31: "something always telling me
 |---|---|---|
 | `convo.sending` | Sending… | Not acknowledged after 2 s |
 | `convo.queued` | Sends when you're back online | Message queued offline (research 4) |
+| `convo.held` | Today’s limit is used up · Sends at 01:00 | The day's free limit held it (429 `budget_exhausted`), until the time it sends |
 | `convo.failed` | Didn't send · Retry | Retries exhausted |
 | `convo.toolong` | Too long to send | Over 8,000 characters |
 | `convo.written` | Written yesterday, 23:40 | An outbox message filed after the day rolled (proposal) |
@@ -368,6 +369,10 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `home.otr` | Off the record · gone in 7 days | The quiet line over a conversation off the record, with **End**; the bar reads "Off the record"; toasts "Off the record. I'll answer, remember none of it, and it's gone in 7 days." / "Back on the record." / "That conversation off the record is gone." (built 2026-11-01) |
 | `set.account.unsent` | 2 messages haven't sent yet. Sign out anyway? | Sign-out with a non-empty outbox; "1 message hasn't sent yet." for one; buttons "Sign out" · "Cancel" (built, P2) |
 | `set.account.unforgotten` | 1 Forget hasn't gone through yet. Sign out anyway? / If you sign out now, I'll keep remembering that fact. | Sign-out (this device or everywhere) while a Forget still waits after one more try; "2 Forgets haven't…", "those facts" for more; after the unsent-messages title the line starts "1 Forget hasn't gone through either."; buttons "Sign out" · "Cancel" (built, P3 B.6) |
+| `set.leave.unsaved` | What you typed isn't saved. Leave anyway? | Leaving a Settings page (Back, a drag, its Back button) with typed text not saved; buttons "Leave" · "Cancel" (built 2026-11-23) |
+| `set.unloaded` | Couldn't load these settings, so they can't be changed yet. <reason> I'll try again by myself. | A catalogue page's first read failed; at its top, the group dimmed (built 2026-11-23) |
+| `set.recovery.unconfirmed` | Your new recovery code isn't confirmed. <reason> Make a new one to try again. | Devices: the confirm of a new code failed (built 2026-11-23) |
+| `toast.storage.full` / `toast.notforgotten.full` / `set.goquiet.full` | This phone's storage is full, so that won't stay. See Settings › On this phone. / Not forgotten yet. This phone's storage is full: see Settings › On this phone. / Not changed: this phone's storage is full and the Thunderhead can't be reached. See Settings › On this phone. | A phone setting, a Forget, or Go quiet now the full storage couldn't keep (built 2026-11-23) |
 | `set.export` | Export | Row (proposal) |
 | `set.export.go` | Download everything | (plan §8) |
 | `set.export.backup` | Last automatic backup: Sunday 03:20 | (proposal) |
@@ -375,6 +380,9 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.about` | About | Row (proposal) |
 | `set.about.update` | Check for update · Up to date · Updating when it's safe | (proposal) |
 | `set.about.hints` | Show gesture hints again | (proposal) |
+| `set.about.repair.offline` | Repair needs a connection. Connect, then try again. | About › Repair with no connection, or `/repair/` not answering (built) |
+| `repair.offline` | Repair needs a connection, and the site can’t be reached now. Nothing was cleared. | `/repair/` could not reach home or the release file, so cleared nothing (built) |
+| `guard.repair.offline` | Repair needs a connection. | The boot guard's Repair with no connection (built; the guard's 1.5 KB keeps it short) |
 
 ### 3.8 Other pages
 

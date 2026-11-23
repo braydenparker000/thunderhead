@@ -163,7 +163,8 @@ test('without renew, at the first open, when renewing fails or the fresh address
   const h1 = host();
   h1.dead.set(A, 403);
   const first = source(h1, { renew: async () => { asked++; return B; } });
-  await assert.rejects(first.open(), (e) => e.kind === 'status' && e.detail === 403);
+  // (a dead link at the first open is 'gone', which leads to choosing another source)
+  await assert.rejects(first.open(), (e) => e.kind === 'gone' && e.detail === 403);
   assert.equal(asked, 0);
   // No renew, a renew that throws, one that gives nothing in time, one whose address is dead too.
   const ways = [

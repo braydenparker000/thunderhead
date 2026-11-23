@@ -6,7 +6,7 @@
 import { CONFIG } from '../config.js';
 import { createApi } from './api.js';
 import { failure, signedOutReason } from './flow.js';
-import { pending, store, wipe } from './session.js';
+import { pending, signingOut, store, wipe } from './session.js';
 
 /** True once the site has an API address; until then every page behaves as before sign-in. */
 export const configured = Boolean(CONFIG.api);
@@ -50,10 +50,12 @@ export async function signedIn(fn) {
   try {
     return await fn(s.token);
   } catch (e) {
-    const reason = signedOutReason(failure(e));
+    const f = failure(e);
+    const reason = signedOutReason(f);
     if (reason) {
       knownReason = knownReason || reason;
-      await wipe();
+      // A revocation without its reason is no `unauthorized`: it keeps nothing (th/kept.js).
+      await wipe({ reason: f.code === 'session_revoked' ? f.reason ?? 'revoked' : reason });
       toSignin(reason);
       return new Promise(() => {});
     }
@@ -75,6 +77,7 @@ export async function flushPendingSignout() {
 
 /** Signs this device out: the server first if it can be reached, then the wipe (§11.3). */
 export async function signOutHere() {
+  signingOut(); // before the request: whatever 401 its revocation brings keeps nothing
   const s = await store.read();
   let reached = true;
   if (s) {

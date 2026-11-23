@@ -672,7 +672,14 @@ export class Player {
 
   /** A song's stream gave up: it plays from the plain element from where it was (the playing deck), or
    * loads that way when its turn comes (a preloaded one). */
-  streamFailed(el, t, ms) {
+  streamFailed(el, t, ms, reason = '') {
+    // Refused for want of a session (signed out, expired): the song stops where it was, and sign-in is
+    // asked for (library/access.js); Play loads it again from there.
+    if (reason === 'http-401' && this.ctx.access) {
+      if (el === this.audio && this.track?.id === t.id) { this.guard.pos = ms / 1000; el._stream?.destroy(); el._stream = null; this.ctx.access.signedOut(); }
+      else if (this.preloaded?.el === el) this.dropPreload();
+      return;
+    }
     this.noStream.add(t.id);
     // (The element's own error for it, if any, is not a second failure: this reload answers it.)
     this.guard.quietUntil = performance.now() + 3000;
@@ -761,7 +768,7 @@ export class Player {
           });
         } : null,
         log,
-        onFallback: ({ms}) => this.streamFailed(el, t, ms),
+        onFallback: ({ms, reason}) => this.streamFailed(el, t, ms, reason),
         onLength: () => this.lengthFrom(el),
       });
       this.ctx.playbackLog?.songNet?.add(String(t.id), el._stream.feed);
@@ -1221,6 +1228,8 @@ export class Player {
     const t = this.track;
     if (!t) return 0;
     if (this.seekTarget !== null && this.seekTarget !== undefined) return this.seekTarget;
+    // A place the song is still to start at (a restore, its source on its way): the clock shows it at once.
+    if (this.isMedia(t) && this.pendingSeek && !this.audio.getAttribute('src')) return this.pendingSeek;
     if (this.isMedia(t)) return Math.max(0, Math.round(this.heardTime(this.audio) * 1000) - rangeStart(t));
     const pos = this.state === STATE_PLAYING ? this.virtualPos + (performance.now() - this.virtualStart) : this.virtualPos;
     if (t.durationMs && pos >= t.durationMs) {
@@ -1266,6 +1275,8 @@ export class Player {
   }
 
   play() {
+    // Signed out, or no library: Play goes to sign-in or tries the library again (library/access.js).
+    if (this.ctx.access?.onPlay()) return;
     if (!this.track) return;
     const resume = this.state !== STATE_PLAYING;
     // The DSP graph needs a user gesture; play is the first one that matters.

@@ -133,7 +133,8 @@ export class HttpSource {
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     const refuse = (kind, message, detail) => { response.body?.cancel().catch(() => {}); return Object.assign(new SourceError(kind, message, detail), {contentType}); };
     if (response.status === 200) throw refuse('range', 'This host sends the whole file at once instead of in parts.');
-    if (response.status === 404 || response.status === 410) throw refuse('gone', `The link has expired or the file was removed (HTTP ${response.status}).`, response.status);
+    // 401 and 403 too: the address is dead, as source-renew.js's DEAD says; another source is the way on.
+    if ([401, 403, 404, 410].includes(response.status)) throw refuse('gone', `The link has expired or the file was removed (HTTP ${response.status}).`, response.status);
     if (response.status !== 206) throw refuse('status', `The host answered ${response.status}.`, response.status);
     if (response.url) this.url = response.url; // where a redirect led; a later failure goes back to the address given
     this.contentType = contentType;

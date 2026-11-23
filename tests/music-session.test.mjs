@@ -106,3 +106,14 @@ test('a play order is every place once', () => {
   assert.equal(validOrder([0, 1, 3], 3), false);
   assert.equal(validOrder(null, 0), false);
 });
+
+test('the place kept at leaving wins when it is newer and for the same song (a reload outruns the store write)', async () => {
+  const { newerPlace } = await import('../frontend/music/src/player/session.js');
+  const saved = { trackId: 'song3', positionMs: 0, savedAt: 1000, shuffle: 0 };
+  assert.deepEqual(newerPlace(saved, { trackId: 'song3', positionMs: 7000, savedAt: 2000 }), { ...saved, positionMs: 7000, savedAt: 2000 });
+  assert.equal(newerPlace(saved, { trackId: 'song3', positionMs: 7000, savedAt: 500 }), saved, 'an older one does not');
+  assert.equal(newerPlace(saved, { trackId: 'song4', positionMs: 7000, savedAt: 2000 }), saved, 'nor one for another song');
+  assert.equal(newerPlace(null, { trackId: 'song3', positionMs: 7000, savedAt: 2000 }), null);
+  const old = { trackId: 'song3', positionMs: 0 };
+  assert.equal(newerPlace(old, { trackId: 'song3', positionMs: 7000, savedAt: 2000 }).positionMs, 7000, 'a record from before savedAt is older');
+});

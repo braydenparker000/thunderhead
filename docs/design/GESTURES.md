@@ -158,7 +158,7 @@ There are three positions. Only one is "at rest" at any time.
 
 ### 4.4 Leaving a Settings page by hand (built 2026-11-02)
 
-A sideways drag that starts within **24 px** of a Settings page's left edge, or anywhere on its header, moves the page with the finger on the menu's progress model; letting go past **28%** of the width, or with a flick of **0.45 px/ms** to the right, closes it on `springs.page` at the finger's speed (the same 180–460 ms flick clock as the menu), otherwise it springs back. The page never passes where it rests. Back and Escape still close it. Under reduced motion it snaps. The page moves on its own opaque fill; its frost cross-fades in from 85% of the way in, before it rests, and leaves as soon as a finger takes it. Note: on gesture navigation the left 24 px is also Android's Back zone (§6).
+A sideways drag that starts within **24 px** of a Settings page's left edge, or anywhere on its header, moves the page with the finger on the menu's progress model; letting go past **28%** of the width, or with a flick of **0.45 px/ms** to the right, closes it on `springs.page` at the finger's speed (the same 180–460 ms flick clock as the menu), otherwise it springs back. The page never passes where it rests. Back and Escape still close it. A drag that starts inside a text field is the field's, never the page's; with typed text that isn't saved on the page, any way out asks first (2026-11-23, MENU-AND-SETTINGS.md §4). Under reduced motion it snaps. The page moves on its own opaque fill; its frost cross-fades in from 85% of the way in, before it rests, and leaves as soon as a finger takes it. Note: on gesture navigation the left 24 px is also Android's Back zone (§6).
 
 ## 5. Long-press "Ask about this"
 

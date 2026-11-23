@@ -273,7 +273,16 @@ list is the only place a setting is declared:
   `apps/settings/catalog.js`, draws any group with the shared controls (§1) and saves by scope:
   phone keys at once; worker keys by PATCH, one key per request, one request after another, the page
   showing the Worker's answer once `GET /v1/settings` returns (the group is inert until then) and
-  putting a control back, with the error line, when a PATCH fails. Worker values are kept in
+  putting a control back, with the error line, when a PATCH fails. A first read that fails (offline, the
+  Worker down) says so at the page's top ("Couldn't load these settings, so they can't be changed yet.
+  <reason> I'll try again by myself."), dims the group, and reads again whenever the connection comes
+  back or the page is shown again, until it loads (2026-11-23; "How I talk" too). A phone key the
+  phone's storage is too full to keep says so in a toast ("This phone's storage is full, so that won't
+  stay. See Settings › On this phone."), as do the theme, text size and still background.
+- **Typed text is never lost unasked** (2026-11-23). Leaving a page by Back, Escape, its Back button or
+  a drag while a text field on it holds text that isn't saved (its value differs from the
+  `defaultValue` its form loaded) asks first, as signing out does: "What you typed isn't saved. Leave
+  anyway?" · Leave · Cancel. Cancel keeps the page, and its place on the Back stack. Worker values are kept in
   `th.p.settings` meanwhile, so a page opens with them; signing out wipes it.
 - **Reading a setting elsewhere.** `phoneValue(key)` from `apps/settings/catalog.js` gives a phone
   key's value or its default; every change is the document event `th:setting`
@@ -538,12 +547,19 @@ Help (2026-11-22), for six months of the phone alone:
   offline songs, downloads, books, photos and everything of yours stay."): it opens `/repair/`, which
   unregisters those three service workers, deletes the caches that hold code only, and goes home; home's
   toast says "Repaired: N code caches and N workers cleared. Sign-in and your data stayed."
+  Repair needs the network (2026-11-23): offline, the row says "Repair needs a connection. Connect, then try
+  again." under the group without the sheet, and after the sheet it goes only once `/repair/` answers a HEAD
+  (else the same line). `/repair/` first asks home and `release.json` with HEAD past every cache (no service
+  worker of ours answers a HEAD); if either fails it clears nothing and says "Repair needs a connection, and
+  the site can’t be reached now. Nothing was cleared.", so the cached app with offline songs and books still opens.
 - **When the app cannot start**: `boot-guard.js`, the first script of `index.html` (classic, under
   1.5 KB), counts a start that has not called `thStarted()` (home's first paint) within 12 s while on
-  screen; on the second such start in a row it shows a plain panel of its own, "Thunderhead didn’t
+  screen; on the second such start in a row (on the first, when the phone's storage is too full to
+  keep the count, 2026-11-23) it shows a plain panel of its own, "Thunderhead didn’t
   start.", with Repair (`/repair/`) and Try again (a reload), using none of the app's code or styles. A
   start that marks itself, however slow, clears the count and the panel. Off screen (a prerender, a locked
-  phone) its clock does not run. It never reloads by itself. Settings' search finds both rows (`finder.js`).
+  phone) its clock does not run. It never reloads by itself. Its Repair goes only once `/repair/` answers a
+  HEAD within 15 s; else its line becomes "Repair needs a connection." Settings' search finds both rows (`finder.js`).
 
 ### 6.9 Files for the workshop (`workshop.js`)
 

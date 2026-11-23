@@ -11,6 +11,10 @@ import {whenStill} from '../view/motion.js';
 
 const STATE = 'queue', LIST = 'queue-list';
 const SAVE_EVERY_MS = 10000; // the place in the song, while it plays
+// The song and its place, also kept at once in localStorage when the page is hidden or left: a store
+// write in IndexedDB does not finish before a reload (the place came back 10 s old, or at 0:00), and
+// this small synchronous write does (one per leaving, none while playing; under 0.1 ms).
+const PLACE = 'cp.place';
 
 /** The list that plays outside the Queue (in queue mode, the one it returns to), its play order and place. */
 function playingList(player) {
@@ -37,7 +41,7 @@ export function stateOf(player, library) {
   if (!t || !library.byId.has(t.id)) return null;
   const np = player.savedNP, at = playingList(player);
   return {
-    trackId: t.id, positionMs: player.positionMs(), shuffle: player.shuffle, repeat: player.repeat,
+    trackId: t.id, positionMs: player.positionMs(), savedAt: Date.now(), shuffle: player.shuffle, repeat: player.repeat,
     entries: player.entries.map(e => ({id: e.track.id, created: e.created, played: e.played})),
     queueMode: player.queueMode, npTrackId: np?.queue?.[np.index]?.id ?? null, listIndex: at.index, category: categoryRef(at),
   };
@@ -93,9 +97,11 @@ export function restore(player, library, saved, savedList) {
 export function installSession(ctx, player, library) {
   const db = library.db;
   let lastList = null, lastOrder = null, lastShuffle = null;
-  const save = () => {
+  const save = (leaving = false) => {
     const state = stateOf(player, library);
-    if (!state || !db) return;
+    if (!state) return;
+    if (leaving) try { localStorage.setItem(PLACE, JSON.stringify({trackId: state.trackId, positionMs: state.positionMs, savedAt: state.savedAt})); } catch {}
+    if (!db) return;
     db.setState(STATE, state).catch(() => {});
     const at = playingList(player);
     if (at.list === lastList && at.order === lastOrder && at.shuffle === lastShuffle) return;
@@ -103,9 +109,9 @@ export function installSession(ctx, player, library) {
     db.setState(LIST, listOf(player, library)).catch(() => {});
   };
   // A change saves once no transition moves (view/motion.js); leaving the page saves at once.
-  ctx.bus.subscribe('bus_player', m => { if (/^msg_player_(track_changed|playing_state_changed|shuffle_mode_changed|repeat_mode_changed|queue_changed|category_changed)$/.test(m)) whenStill(ctx, save, 'session-save'); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
-  for (const type of ['pagehide', 'freeze']) addEventListener(type, save);
+  ctx.bus.subscribe('bus_player', m => { if (/^msg_player_(track_changed|playing_state_changed|shuffle_mode_changed|repeat_mode_changed|queue_changed|category_changed)$/.test(m)) whenStill(ctx, () => save(), 'session-save'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(true); });
+  for (const type of ['pagehide', 'freeze']) addEventListener(type, () => save(true));
   setInterval(() => { if (player.playing) save(); }, SAVE_EVERY_MS);
   return save;
 }
@@ -114,5 +120,16 @@ export function installSession(ctx, player, library) {
 export async function readSession(library) {
   const db = library.db;
   const [saved, savedList] = await Promise.all([db?.getState(STATE).catch(() => null), db?.getState(LIST).catch(() => null)]);
-  return {saved: saved ?? null, savedList: savedList ?? null};
+  return {saved: newerPlace(saved ?? null, placeKept()), savedList: savedList ?? null};
+}
+
+/** The place kept when the page was last left, or null. */
+function placeKept() {
+  try { return JSON.parse(localStorage.getItem(PLACE) ?? 'null'); } catch { return null; }
+}
+
+/** The record with the place kept at leaving, when that is newer and for the same song. */
+export function newerPlace(saved, place) {
+  if (!saved || !place || place.trackId !== saved.trackId || !(place.savedAt > (saved.savedAt ?? 0)) || !Number.isFinite(place.positionMs)) return saved;
+  return {...saved, positionMs: place.positionMs, savedAt: place.savedAt};
 }

@@ -45,7 +45,8 @@ const CODECS = {opus: 'OPUS', aac: 'AAC', flac: 'FLAC', mp3: 'MP3', vorbis: 'OGG
  */
 export async function fetchR2Library(url = R2_LIBRARY_URL, signal) {
   const r = await fetch(url, {signal, credentials: 'omit', cache: 'no-cache', redirect: 'error', referrerPolicy: 'no-referrer'});
-  if (r.status !== 200 || !/^application\/json/i.test(r.headers.get('content-type') || '')) throw new Error('library index unavailable (' + r.status + ')');
+  // (Its status goes with the failure: a 401 means sign-in is needed, library/access.js.)
+  if (r.status !== 200 || !/^application\/json/i.test(r.headers.get('content-type') || '')) throw Object.assign(new Error('library index unavailable (' + r.status + ')'), {status: r.status});
   const len = +(r.headers.get('content-length') || 0);
   if (len > MAX_BYTES) throw new Error('library index too large');
   const data = await r.json();

@@ -136,6 +136,11 @@ test('meta lines under unsent messages', () => {
   assert.equal(m.meta(local('failed'), 0), "Didn't send");
   assert.equal(m.meta(local('toolong'), 0), 'Too long to send');
   assert.equal(m.meta(msg({}), 99_999), null);
+  // Held by the day's free limit: it says it waits and when it sends, until then, then Sending… again.
+  const held = { ...local('sending'), held_until: Date.UTC(2026, 10, 24, 0, 0, 30) };
+  assert.match(m.meta(held, 5000), /^Today’s limit is used up · Sends at \d{1,2}:\d{2}( ?[AP]M)?$/);
+  assert.equal(m.meta(held, held.held_until + 1), 'Sending…');
+  assert.equal(m.meta({ ...held, state: 'queued' }, 5000), "Sends when you're back online");
 });
 
 test("a reply's rich text: paragraphs with their breaks, lists, only https links, long links shortened", async () => {

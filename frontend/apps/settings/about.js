@@ -64,13 +64,19 @@ export async function page(body) {
   repair.dataset.action = 'repair';
   repair.id = 'about-repair';
   repair.dataset.find = 'repair';
+  // Repair needs the network (/repair/ is never cached): offline, or when /repair/ can't be reached, it says so.
+  const NEEDS = 'Repair needs a connection. Connect, then try again.';
   repair.addEventListener('click', async () => {
+    if (!navigator.onLine) return void (line.textContent = NEEDS);
     const yes = await confirmSheet({
       title: 'Repair the app?',
       body: "Clears this phone’s stored copy of the app’s code and its offline workers (home, Music, Podcasts), then loads it fresh from the network. Sign-in, offline songs, downloads, books, photos and everything of yours stay.",
       action: 'Repair', keep: 'Cancel', danger: false,
     });
-    if (yes) location.assign('/repair/');
+    if (!yes) return;
+    const ok = await fetch('/repair/', { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(15_000) }).then((r) => r.ok, () => false);
+    if (ok) location.assign('/repair/');
+    else line.textContent = NEEDS;
   });
   body.append(
     el('p', { class: 'slead', text: 'What this phone and your Worker are running, a report to copy, and Repair.' }),

@@ -25,7 +25,7 @@ const opts = { skip: live && 'local only (mocked API)' };
 const TOKEN = `th1_${'C'.repeat(43)}abcdef`;
 const PDF = makePdf({ pages: 6, filler: 600_000 });
 let site, mock, browser, base, api;
-const state = { books: [], files: new Map(), downloads: 0, served: 0, whole: 0, positions: [], parts: [], tables: [], down: false, senses: [], languages: [], cursors: [] };
+const state = { books: [], files: new Map(), downloads: 0, served: 0, whole: 0, positions: [], parts: [], tables: [], down: false, senses: [], languages: [], cursors: [], partFail: null };
 const TABLE = readFileSync(new URL('./study/table.json', import.meta.url), 'utf8');
 
 const book = (over) => ({
@@ -62,6 +62,7 @@ before(async () => {
       return json(201, { book: b, upload: { part_bytes: 50 * 1024 * 1024, parts: 1 } });
     }
     if ((m = /^\/v1\/library\/books\/([^/]+)\/parts\/(\d+)$/.exec(path))) {
+      if (state.partFail) return json(state.partFail[0], { error: { code: state.partFail[1], message: 'x', request_id: '' } });
       state.parts.push([m[1], Number(m[2]), body.length, req.headers['content-type']]);
       state.files.set(m[1], new Uint8Array(body));
       const b = state.books.find((x) => x.id === m[1]);
@@ -411,4 +412,32 @@ test('signing out drops Study’s covers, places, uploads and kept books with th
   );
   assert.equal(kept, 'gone');
   await context.close();
+});
+
+test('a part answered 401 session_expired goes to sign-in, and the book resumes afterwards', opts, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'study-'));
+  const file = join(dir, 'Expired_session.pdf');
+  writeFileSync(file, PDF);
+  state.partFail = [401, 'session_expired'];
+  const { page, context } = await open('/study/');
+  await page.locator('.book').first().or(page.getByText('Your books will live here. Add a PDF to start.')).waitFor();
+  await page.locator('input[type=file]').first().setInputFiles(file);
+  await page.getByRole('button', { name: 'English' }).click();
+  await page.waitForURL((u) => u.pathname === '/signin/');
+  const at = new URL(page.url());
+  assert.equal(at.searchParams.get('reason'), 'expired');
+  assert.equal(at.searchParams.get('next'), '/study/');
+  const id = state.books[0].id;
+  await context.close();
+  // Signed in again: the book is still there, unfinished, and Resume sends it with the same file.
+  state.partFail = null;
+  const again = await open('/study/');
+  const card = again.page.locator('.book', { hasText: 'A Synthetic Commentary' }).filter({ has: again.page.getByRole('button', { name: 'Resume' }) });
+  await card.waitFor();
+  const [chooser] = await Promise.all([again.page.waitForEvent('filechooser'), card.getByRole('button', { name: 'Resume' }).click()]);
+  await chooser.setFiles(file);
+  await again.page.getByText('Added. It will be read tonight.').waitFor({ timeout: 15_000 });
+  assert.equal(state.books.find((b) => b.id === id).state, 'queued');
+  assert.equal(state.files.get(id).length, PDF.length);
+  await again.context.close();
 });

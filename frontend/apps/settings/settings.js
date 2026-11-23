@@ -6,12 +6,13 @@
 // Settings returns there, Settings and a page opened by its address return to the open menu. Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 // A page slides on springs.page, the menu's progress model, and leaves by its Back button, Escape, or a
-// sideways drag from its left edge or its header (GESTURES.md §4.4).
+// sideways drag from its left edge or its header (GESTURES.md §4.4), never one that starts in a text field.
+// Leaving a page that holds typed text that isn't saved asks first.
 import { api, signedIn, signOutHere } from '/th/client.js';
 import { lineFor, mindName } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
-import { wipe } from '/th/session.js';
+import { signingOut, wipe } from '/th/session.js';
 import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { animator, haptic, springs } from '/th/motion.js';
 import { timed } from '/ui/feel/log.js';
@@ -91,9 +92,22 @@ export async function openPage(name, opts = {}) {
   let closed = false;
   // A frame lays the page out and paints it off to the right; the slide starts on the next (none of its frames carries that).
   requestAnimationFrame(() => requestAnimationFrame(() => { if (!closed) { page.classList.add('in'); slide.to(1); } }));
-  /** @param {number} [velocity] the finger's, in progress per second @param {number} [ms] a flick's own duration */
-  const close = (velocity = 0, ms = undefined) => {
-    if (closed) return;
+  let asking = false;
+  /** @param {number} [velocity] the finger's, in progress per second @param {number} [ms] a flick's own duration
+   * @param {boolean} [popped] Back took the page's step off the Back stack already */
+  const close = async (velocity = 0, ms = undefined, popped = false) => {
+    if (closed || asking) return;
+    // Typed text that isn't saved: ask first, as signing out does with what hasn't sent.
+    if (typed(page)) {
+      asking = true;
+      void slide.to(1);
+      const leave = await confirmSheet({ title: "What you typed isn't saved. Leave anyway?", action: 'Leave', keep: 'Cancel' });
+      asking = false;
+      if (!leave) {
+        if (popped) layers.set(page, layer('page', () => close(0, undefined, true)));
+        return;
+      }
+    }
     closed = true;
     layers.get(page)?.();
     cleanup?.();
@@ -108,7 +122,7 @@ export async function openPage(name, opts = {}) {
     else document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
   };
   // Back to Settings, or to the menu (GESTURES.md §7).
-  layers.set(page, layer('page', () => close()));
+  layers.set(page, layer('page', () => close(0, undefined, true)));
   back.addEventListener('click', () => close());
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   swipeBack(page, slide, close);
@@ -128,6 +142,11 @@ export async function openPage(name, opts = {}) {
     (await import('./home.js')).mark(body.querySelector(`#set-${f}, [data-key="${f}"], [data-find="${f}"]`));
   }
 }
+
+/** Whether the page holds typed text that isn't saved: a text field whose value is not what it was
+ * given (a form sets `defaultValue` to what it loaded or saved). @param {HTMLElement} page */
+const typed = (page) => [...page.querySelectorAll('textarea, input:is([type=text], [type=password], [type=url], :not([type]))')]
+  .some((f) => { const i = /** @type {HTMLInputElement} */ (f); return !i.disabled && i.value.trim() !== i.defaultValue.trim(); });
 
 /** The page's slide: progress 0 (off to the right) to 1 (in place), on springs.page with the menu's clock
  * (home.js go()), so a page and the menu move alike; it carries `.moving` while it moves and `.frost` from
@@ -169,8 +188,9 @@ function swipeBack(page, slide, close) {
   let drag = null, swallow = false;
   page.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.button > 0 || !page.classList.contains('in') || stack[stack.length - 1] !== page) return;
-    const r = page.getBoundingClientRect();
-    if (e.clientX - r.left > 24 && !/** @type {Element} */ (e.target).closest('.sheader')) return;
+    const r = page.getBoundingClientRect(), at = /** @type {Element} */ (e.target);
+    // Not from inside a text field: that drag is the owner's, moving the cursor or selecting.
+    if ((e.clientX - r.left > 24 && !at.closest('.sheader')) || at.closest('input, textarea')) return;
     drag = { x: e.clientX, y: e.clientY, id: e.pointerId, from: slide.value, w: r.width || 1, on: false, v: [] };
   });
   page.addEventListener('pointermove', (e) => {
@@ -284,6 +304,7 @@ async function devices(body) {
   btn('Sign out everywhere', 'danger', async () => {
     const forgets = await forgetsLeft();
     if (!(await confirmSheet({ title: 'Sign out everywhere, including this phone?', body: forgetsBody(forgets, 'yet'), action: 'Sign out', keep: 'Cancel' }))) return;
+    signingOut(); // before the request: nothing is kept, whatever 401 arrives
     try { await signedIn((t) => api.signout(t, 'all')); } catch (e) { if (failure(e).kind !== 'api') { errLine(body, e); return; } }
     await wipe();
     location.replace('/signin/');
@@ -295,7 +316,15 @@ async function devices(body) {
     const showing = recoveryScreen(recovery, r.recovery_code);
     recovery.querySelector('input')?.classList.add('field');
     const last5 = await showing;
-    await signedIn((t) => api.confirmRecovery(t, last5)).catch(() => {});
+    // A new code is unconfirmed until the Worker takes the confirm: the warning follows that.
+    try {
+      await signedIn((t) => api.confirmRecovery(t, last5));
+    } catch (e) {
+      warn.hidden = false;
+      recovery.replaceChildren(rec, el('p', { class: 'line', role: 'status', text: `Your new recovery code isn't confirmed. ${lineFor(failure(e))} Make a new one to try again.` }));
+      return;
+    }
+    warn.hidden = true;
     recovery.replaceChildren(rec);
     toast('New recovery code saved');
     load();

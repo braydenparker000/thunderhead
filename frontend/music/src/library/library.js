@@ -105,6 +105,7 @@ export class Library {
     if (!force && this.remoteTracks.length && Date.now() - (this.r2SavedAt ?? 0) < R2_REFRESH_MS) return false;
     try {
       const data = await fetchR2Library(url);
+      this.r2Error = null;
       if (data.generatedAt && data.generatedAt === this.r2Generated) {
         this.r2SavedAt = Date.now();
         this.db?.getState('r2:index').then(snap => snap && this.db.setState('r2:index', {...snap, savedAt: this.r2SavedAt})).catch(() => {});
@@ -121,6 +122,8 @@ export class Library {
       return true;
     } catch (e) {
       console.warn('[claude-player] R2 library unavailable:', e.message);
+      // Why, for library/access.js (a status, or none for a network failure).
+      this.r2Error = e;
       return false;
     }
   }

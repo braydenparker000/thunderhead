@@ -106,3 +106,26 @@ test('a healthy start slowed six times shows no panel, twice in a row', opts, as
   }
   await context.close();
 });
+
+test('Repair with no signal: About says it needs a connection and stays; /repair/ that cannot reach home clears nothing', opts, async () => {
+  const { context, page } = await phone();
+  const held = () => page.evaluate(async () => ({ caches: (await caches.keys()).filter((n) => /^th-\d+$/.test(n)).length, workers: (await navigator.serviceWorker.getRegistrations()).length }));
+  // The worker installs (filling its cache) after the page shows: count once it is active, so a late
+  // install is not mistaken for something Repair added.
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  const before = await held();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'about' } })));
+  await page.waitForSelector('#about-repair');
+  await context.setOffline(true);
+  await page.locator('#about-repair').click();
+  await until(() => page.evaluate(() => [...document.querySelectorAll('.line')].some((e) => e.textContent === 'Repair needs a connection. Connect, then try again.')), { message: 'About says it needs a connection' });
+  assert.equal(page.url(), `${base}/`, 'stays');
+  await context.setOffline(false);
+  // The page loads, then home and the release file can't be reached (a weak signal): nothing is cleared.
+  await context.route((url) => url.pathname === '/' || url.pathname === '/release.json', (r) => (r.request().method() === 'HEAD' ? r.abort('internetdisconnected') : r.fallback()));
+  await page.goto(`${base}/repair/`);
+  await page.waitForSelector('#again:not([hidden])');
+  assert.equal(await page.textContent('#say'), 'Repair needs a connection, and the site can’t be reached now. Nothing was cleared.');
+  assert.deepEqual(await held(), before, 'every code cache and worker stayed');
+  await context.close();
+});

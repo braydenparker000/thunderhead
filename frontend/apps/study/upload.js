@@ -4,11 +4,12 @@
 // completed. A part already received is never sent again, so Resume (after a failure, or after the
 // page was closed and the same file picked again) sends only what is missing. Progress counts
 // bytes, from each part's own upload events.
+import { ApiError } from '/th/api.js';
 import { signedIn } from '/th/client.js';
 import { CONFIG } from '/config.js';
 import { sendParts as send } from './parts.js';
 
-export { MAX_BYTES, partsOf, refuse, retriable, titleFor, WAITS } from './parts.js';
+export { MAX_BYTES, partsOf, refuse, retriable, stopLine, titleFor, WAITS } from './parts.js';
 
 const BASE = CONFIG.api.replace(/\/+$/, '');
 const CLIENT = `${CONFIG.build}.${String(CONFIG.commit).slice(0, 7)}`;
@@ -35,7 +36,9 @@ export function putPart(bookId, n, bytes, onSent) {
             data = JSON.parse(x.responseText);
           } catch {}
           if (x.status >= 200 && x.status < 300) resolve(data);
-          else reject(Object.assign(new Error(data?.error?.code ?? `HTTP ${x.status}`), { status: x.status, code: data?.error?.code ?? 'unavailable' }));
+          // An ApiError, as every other call gives, so a signed-out 401 goes to sign-in (client.js)
+          // and the page can say what the Worker answered.
+          else reject(new ApiError(x.status, data?.error ?? { code: 'unavailable', message: `HTTP ${x.status}` }));
         };
         x.send(bytes);
       }),

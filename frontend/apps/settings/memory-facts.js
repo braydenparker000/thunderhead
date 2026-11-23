@@ -157,7 +157,7 @@ function actions(f, ctx, row, host, shelf) {
 function fix(host, f, ctx, row, shelf) {
   const id = `fix-${f.id}`;
   const area = el('textarea', { id, class: 'field sedit marea', maxlength: '280', rows: '3' });
-  area.value = f.text;
+  area.value = area.defaultValue = f.text;
   const save = el('button', { type: 'submit', class: 'btn', text: 'Save' });
   const cancel = el('button', { type: 'button', class: 'btn soft', text: 'Cancel' });
   const form = el('form', { class: 'mform' }, [el('label', { for: id, class: 'st2', text: 'Say it the way it is' }), area, save, cancel]);

@@ -336,7 +336,7 @@ Law 9. It works at any time, with no penalty.
 | Menu → Settings → Quiet (see [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md)) | Pick an end time |
 | Chat: "I'm back", "you can talk", "end quiet" or the Settings switch | Quiet ends now |
 
-The phrase is caught by the instant tier in the browser (deterministic grammar), so it works even when the mind is asleep or at its usage limit. The Worker stores `quiet_until` (ms UTC) and `quiet_set_at`.
+The phrase is caught by the instant tier in the browser (deterministic grammar), so it works even when the mind is asleep or at its usage limit. The Worker stores `quiet_until` (ms UTC) and `quiet_set_at`. The phone keeps the order and gives it to the Worker once it can; when the phone's storage is too full to keep it, the order goes to the Worker at once, and if that fails too it is undone and Settings says so (2026-11-23).
 
 **Default end with no time given:** the next 06:30 after now. **[proposal]** Said at 14:00 → quiet until 06:30 tomorrow. Said at 01:00 → quiet until 06:30 the same morning. Said at 06:45 → quiet until 06:30 tomorrow (almost a full day; the reply states the end, so the owner can shorten it).
 

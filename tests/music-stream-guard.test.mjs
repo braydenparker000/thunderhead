@@ -156,3 +156,34 @@ test("a seek on a slow link (6 s of probes) is the link alive: no reload; a dead
     mock.timers.reset();
   }
 });
+
+test('a song refused for want of a session (401) stops the player and asks for sign-in, instead of reloading again and again', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  try {
+    const { el, player, out } = setup();
+    let signedOut = 0;
+    player.ctx.access = { signedOut: () => { signedOut++; player.playing = false; } };
+    el.error = { code: 4, message: 'format' };
+    const guard = new StreamGuard(player, { online: () => true, probe: async () => 'signed-out' });
+    for (let k = 0; k < 4; k++) {
+      guard.failed(el);
+      mock.timers.tick(30_000);
+      for (let i = 0; i < 5; i++) await null;
+    }
+    assert.equal(signedOut, 1, 'asked once, when the file answered 401');
+    assert.equal(out.reloads.length, 1, 'one reload, then the probe, then none');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('the probe tells a 401 apart', async () => {
+  const { probeFile } = await import('../frontend/music/src/player/stream-guard.js');
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 401 });
+  try {
+    assert.equal(await probeFile(SRC), 'signed-out');
+  } finally {
+    globalThis.fetch = real;
+  }
+});

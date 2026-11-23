@@ -17,6 +17,11 @@ function open(name, create) {
   });
 }
 
+/** Databases no write may reach any more in this page: `th-data` once a sign-out's wipe has begun (an outbox
+ * write still in flight must not make it again for whoever signs in next), `th-kept` once a sign-out by hand
+ * has begun (th/session.js). The page then leaves for /signin/, which starts with none. */
+export const sealed = new Set();
+
 /**
  * @template T
  * @param {string} name
@@ -26,8 +31,11 @@ function open(name, create) {
  * @returns {Promise<T>}
  */
 async function tx(name, mode, run, create = mode === 'readwrite') {
+  const shut = () => mode === 'readwrite' && sealed.has(name);
+  if (shut()) throw new Error(`${name} is sealed`);
   const db = await open(name, create);
   if (!db) return /** @type {T} */ (undefined);
+  if (shut()) { db.close(); throw new Error(`${name} is sealed`); }
   try {
     return await new Promise((resolve, reject) => {
       const t = db.transaction('kv', mode);

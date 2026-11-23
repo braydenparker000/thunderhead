@@ -13,6 +13,7 @@ import { el, toast } from '/th/ui.js';
 import { updateLine } from '/th/update-rules.js';
 import { checkForUpdate, waiting } from '/th/update.js';
 import { CONFIG } from '/config.js';
+import { FULL } from './catalog.js';
 import { choice, group, icon, row, sheet, switchRow } from './components.js';
 import { PAGES, SECTIONS } from './pages.js';
 
@@ -40,22 +41,25 @@ export { PAGES, SECTIONS };
 /** Appearance: the theme (Auto follows the clock), the text size of the conversation, and a still
  * background. Kept on this phone; ui/theme.js applies them before the first paint (HOME.md §8). */
 export function appearance(/** @type {HTMLElement[]} */ more = []) {
-  const theme = choice('Theme', [['auto', 'Auto'], ['light', 'Day'], ['dark', 'Night']], stored('th-theme', 'auto'), (v) =>
-    document.dispatchEvent(new CustomEvent('th:theme', { detail: v })),
-  );
+  const theme = choice('Theme', [['auto', 'Auto'], ['light', 'Day'], ['dark', 'Night']], stored('th-theme', 'auto'), (v) => {
+    document.dispatchEvent(new CustomEvent('th:theme', { detail: v })); // ui/theme.js keeps it
+    if (stored('th-theme', 'auto') !== v) toast(FULL);
+  });
   theme.id = 'set-theme';
   const size = choice('Text size', [['s', 'Smaller'], ['m', 'Default'], ['l', 'Larger']], stored('th-text', 'm'), (v) => {
     if (v === 'm') delete root.dataset.text;
     else root.dataset.text = v;
     try {
       v === 'm' ? localStorage.removeItem('th-text') : localStorage.setItem('th-text', v);
-    } catch {}
+    } catch {
+      toast(FULL);
+    }
   });
   size.id = 'set-text';
   const still = switchRow('Still background', 'moon-stars', root.dataset.still !== undefined, (on) => {
     if (on) root.dataset.still = '';
     else delete root.dataset.still;
-    try { on ? localStorage.setItem('th-still', '1') : localStorage.removeItem('th-still'); } catch {}
+    try { on ? localStorage.setItem('th-still', '1') : localStorage.removeItem('th-still'); } catch { toast(FULL); }
   });
   still.id = 'set-still';
   const preview = el('div', { class: 'appearance-preview', 'aria-label': 'Appearance preview' }, [
@@ -139,9 +143,12 @@ export async function quietPart(body) {
   const btn = (/** @type {string} */ text, /** @type {() => unknown} */ run) => {
     const b = row({ title: text, icon: text === 'End now' ? 'bell' : 'moon-stars' });
     b.dataset.action = 'quiet';
-    b.addEventListener('click', () => {
-      run();
+    b.addEventListener('click', async () => {
+      const going = run();
       showNow();
+      // false: the phone's storage is full and the Worker couldn't be reached, so it isn't kept anywhere.
+      if ((await going) === false) { showNow(); now.textContent = "Not changed: this phone's storage is full and the Thunderhead can't be reached. See Settings › On this phone."; }
+      else showNow();
     });
     return b;
   };
