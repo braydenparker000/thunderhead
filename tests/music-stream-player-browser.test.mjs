@@ -4,7 +4,8 @@
 // without fetching the whole file or any byte of it twice (the head kept for the song the app opened
 // on serves its start), and the next songs' heads come without an Ogg tail; its length is the
 // catalog's before its end; a seek past the buffer
-// and a skip work; a stream that gives up plays on from the plain element where it was; switched off
+// and a skip work (a drag on the waveform past it: the bar and the clock show where it went, before
+// its data comes and after); a stream that gives up plays on from the plain element where it was; switched off
 // on the phone, it plays as before. Local only; no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,6 +26,8 @@ let site, mock, browser, base, api;
 /** Byte ranges fetched from the bucket, by song number. */
 const fetched = new Map();
 const total = (i) => (fetched.get(String(i)) ?? []).reduce((n, [a, b]) => n + b - a + 1, 0);
+/** While set, reads from past a song's start wait here (a seek's fetch on a slow line) until released. */
+let held = null;
 
 before(async () => {
   if (live) return;
@@ -63,6 +66,10 @@ before(async () => {
       const a = range ? Number(range[1]) : 0;
       const b = range && range[2] ? Math.min(Number(range[2]), SONG.length - 1) : SONG.length - 1;
       fetched.set(m[1], [...(fetched.get(m[1]) ?? []), [a, b]]);
+      if (held && a > 0) {
+        held.push(() => { res.writeHead(206, { ...head, 'Content-Range': `bytes ${a}-${b}/${SONG.length}`, 'Content-Length': String(b - a + 1) }); res.end(SONG.subarray(a, b + 1)); });
+        return;
+      }
       if (!range) {
         res.writeHead(200, { ...head, 'Content-Length': String(SONG.length) });
         return res.end(SONG);
@@ -81,8 +88,8 @@ before(async () => {
 after(async () => { await browser?.close(); site?.close(); mock?.close(); });
 
 /** The music page under its worker, signed in, with the tones as its library. */
-async function boot({ off = false } = {}) {
-  const context = await browser.newContext({ serviceWorkers: 'allow' });
+async function boot({ off = false, phone = false } = {}) {
+  const context = await browser.newContext({ serviceWorkers: 'allow', ...(phone ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.6, hasTouch: true, isMobile: true } : {}) });
   // Nothing outside this machine (the old Worker the player still names is never reached).
   await context.route(/^https:\/\//, (route) => route.abort());
   const first = await context.newPage();
@@ -181,6 +188,59 @@ test('a reload lands where it was, a second seek wins over the first, and the st
     assert.ok(ms > (SECONDS - 1) * 1000 && ms < (SECONDS + 1) * 1000, `length ${ms} ms`);
     assert.deepEqual(errors, []);
   } finally {
+    await context.close();
+  }
+});
+
+test('a seek on the waveform past what is buffered: the bar and the clock stay where it went, before and after its data comes', opts, async () => {
+  const { context, page, errors } = await boot({ phone: true });
+  try {
+    await playFrom(page, 0);
+    // Far into the song, then paused there (what is buffered starts near 110 s).
+    await page.evaluate(() => __cp.player.seek(110_000));
+    await page.waitForFunction(() => { const a = __cp.player.audio; return a.currentTime > 110.5 && !a.paused && a.readyState >= 3; }, null, { timeout: 20_000 });
+    await page.evaluate(() => __cp.player.pause());
+    await page.waitForFunction(() => __cp.player.audio.paused);
+    const at = await page.evaluate(() => {
+      const p = __cp.player, seek = p.seek.bind(p);
+      window.__seeks = [];
+      p.seek = (ms) => { window.__seeks.push(ms); return seek(ms); };
+      let w = null;
+      const walk = (v) => { if (v?.constructor.name === 'Waveseek') w = v; for (const c of v?.children ?? []) walk(c); };
+      walk(__cp.ctx.root);
+      window.__wave = () => Math.round(w.fraction * p.track.durationMs);
+      const r = w.el.getBoundingClientRect();
+      // (Above the buttons drawn over its middle.)
+      return { x: r.x, w: r.width, y: r.y + r.height * 0.15, from: p.positionMs() };
+    });
+    const where = () => page.evaluate(() => ({ clock: __cp.player.positionMs(), wave: window.__wave(), to: window.__seeks.at(-1), moving: __cp.player.audio._stream?.feed?.seekTo !== null }));
+    // A drag to the right, back to well before what is buffered; the line is slow, so its data waits.
+    held = [];
+    const cdp = await context.newCDPSession(page);
+    const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: at.y }] });
+    const x0 = at.x + at.w * 0.1, x1 = at.x + at.w * 0.9;
+    await touch('touchStart', x0);
+    for (let i = 1; i <= 12; i++) await touch('touchMove', x0 + ((x1 - x0) * i) / 12);
+    await touch('touchEnd');
+    await page.waitForFunction(() => window.__seeks.length === 1 && __cp.player.audio._stream?.feed?.seekTo !== null);
+    const going = await where();
+    assert.ok(going.to < at.from - 30_000, `a seek back from ${at.from} ms, to ${going.to} ms`);
+    assert.ok(Math.abs(going.clock - going.to) < 500 && Math.abs(going.wave - going.to) < 500, `while its data is on its way, the bar and the clock show where it goes: ${JSON.stringify(going)}`);
+    // The data comes: the song is there, and so are the bar and the clock.
+    const release = held;
+    held = null;
+    for (const f of release) f();
+    await page.waitForFunction(() => __cp.player.audio._stream?.feed?.seekTo === null && __cp.player.audio.readyState >= 2);
+    const there = await where();
+    assert.ok(Math.abs(there.clock - going.to) < 500 && Math.abs(there.wave - going.to) < 500, `once there: ${JSON.stringify(there)}`);
+    // A tap on the bar leaves the song where it is (it does not go back to where it was).
+    await page.touchscreen.tap(at.x + at.w / 2, at.y);
+    await page.waitForFunction(() => window.__seeks.length === 2);
+    const after = await where();
+    assert.ok(Math.abs(after.clock - going.to) < 1000 && Math.abs(after.wave - going.to) < 1000, `after a tap: ${JSON.stringify(after)}`);
+    assert.deepEqual(errors, []);
+  } finally {
+    held = null;
     await context.close();
   }
 });

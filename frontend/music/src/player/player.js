@@ -1230,6 +1230,9 @@ export class Player {
     if (this.seekTarget !== null && this.seekTarget !== undefined) return this.seekTarget;
     // A place the song is still to start at (a restore, its source on its way): the clock shows it at once.
     if (this.isMedia(t) && this.pendingSeek && !this.audio.getAttribute('src')) return this.pendingSeek;
+    // A streamed song's seek past what is buffered, its data on its way (the element is still where it was): where it goes.
+    const to = this.audio?._stream?.feed?.seekTo;
+    if (this.isMedia(t) && to !== null && to !== undefined) return Math.max(0, Math.round(to * 1000) - rangeStart(t));
     if (this.isMedia(t)) return Math.max(0, Math.round(this.heardTime(this.audio) * 1000) - rangeStart(t));
     const pos = this.state === STATE_PLAYING ? this.virtualPos + (performance.now() - this.virtualStart) : this.virtualPos;
     if (t.durationMs && pos >= t.durationMs) {
