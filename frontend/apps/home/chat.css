@@ -28,9 +28,9 @@
 /* a code block (th/chat/code.js): its box, a head with the language and Copy (the words by CSS, so the
    reply's text stays its own), the code scrolling sideways alone (home.js leaves it the drag) */
 .talk .reply .codeblock{border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
-.talk .reply .codehead{display:flex;align-items:center;min-height:32px;padding-left:12px;font:500 var(--fs-label)/var(--lh-tight) var(--ui);letter-spacing:.02em;color:var(--ink-3)}
+.talk .reply .codehead{display:flex;align-items:center;min-height:36px;padding-left:12px;font:500 var(--fs-label)/var(--lh-tight) var(--ui);letter-spacing:.02em;color:var(--ink-3)}
 .talk .reply .codehead::before{content:attr(data-lang);flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.talk .reply .copy{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:-6px 0;padding:0 12px;border:0;border-radius:12px;background:none;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity var(--d-fast) var(--ease-default)}
+.talk .reply .copy{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:-8px 0 0;padding:0 12px;border:0;border-radius:12px;background:none;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity var(--d-fast) var(--ease-default)}
 .talk .reply .copy:active{opacity:.6}
 .talk .reply .copy::after{content:"Copy"}
 .talk .reply .copy.done::after{content:"Copied"}
