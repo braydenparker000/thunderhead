@@ -187,7 +187,9 @@ const budgets = [
   // left and taken up again when home is shown from the back/forward cache.
   // (2026-11-11, Photos is the new editor) +763 measured (117,009 → 117,772): `landing()` in
   // th/registry/apps.js, the one rule for where Photos' front page lands.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 121_179], // (2026-11-22) the mind's voice-page card: its button into Settings
+  // (2026-11-24) +4,145 measured (121,179 → 125,324): a reply's code block (th/chat/code.js: its box, Copy
+  // and the fallbacks) and the fence parser's CommonMark cases.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 125_324], // (2026-11-22) the mind's voice-page card: its button into Settings
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -257,7 +259,8 @@ const budgets = [
   // appearance (accent, glass, corners, ring size, reduced motion), compact turns, the mic off, the bar.
   // (2026-11-11, settings) +2,324 measured (83,763 → 86,087): ui/prefs.css, one rule for each of the
   // owner's drawing settings (22 attributes), inert while none is set.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 86_192],
+  // (2026-11-24) +1,288 measured (86,192 → 87,480): the code block's box, head and Copy button.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 87_480],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).

@@ -1,1 +1,1 @@
-{"id":"2026-11-23-web-helpers","date":"2026-11-23","lines":[{"text":"My web helpers can hand their answers back again, so questions that need the web get answered."}]}
+{"id":"2026-11-24-code-and-seek","date":"2026-11-24","lines":[{"text":"Code in replies now sits in a tidy box with a Copy button, and long lines scroll sideways under your finger instead of opening the menu."},{"text":"Music: dragging the waveform seeks even when you start right at the screen's edge, and a song that recovers from a bad connection during a seek picks up where you sought to."}]}

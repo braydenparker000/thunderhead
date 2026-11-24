@@ -93,7 +93,8 @@ export function lookBudgets(list) {
   // "That's fine because it should get cached after one load anyways". Each limit is what was measured,
   // with no room.
   return [
-    ['look CSS bytes', sum(/\.css$/), 128_577],
+    // (2026-11-24) +459 measured (128,577 → 129,036): the code block's plate, head and Copy button.
+    ['look CSS bytes', sum(/\.css$/), 129_036],
     ['look JS bytes', sum(/\.js$/), 77_563],
     ['look font bytes', sum(/\.woff2$/), 129_576],
     ['look kit bytes', sum(/^kit\//), 204_168],
