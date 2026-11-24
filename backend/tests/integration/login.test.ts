@@ -149,9 +149,14 @@ describe('sessions and sign-out', () => {
     };
     expect(await told()).toEqual([401, 'session_revoked', { reason: 'signed_out_here' }]);
     await auth().prune();
-    const cols = 'label, pop_jwk, platform, browser, model, country, region, last_country';
-    expect(await authSql(`SELECT ${cols}, revoked_reason FROM sessions WHERE id = ?`, g.session_id)).toEqual([
+    const cols = 'label, pop_jwk, platform, browser, model, country, region, last_country, standalone, stepup_at';
+    const times = 'created_at = revoked_at AND last_seen_at = revoked_at AND idle_expires_at = revoked_at AS times';
+    const kept = () => authSql(`SELECT ${cols}, ${times}, revoked_reason FROM sessions WHERE id = ?`, g.session_id);
+    expect(await kept()).toEqual([
       {
+        standalone: 0,
+        stepup_at: null,
+        times: 1,
         label: '',
         pop_jwk: null,
         platform: null,
@@ -164,7 +169,7 @@ describe('sessions and sign-out', () => {
       },
     ]);
     expect(await told()).toEqual([401, 'session_revoked', { reason: 'signed_out_here' }]);
-    // A second sweep finds nothing left to strip; an expired session's row still goes.
+    // An expired session's row still goes.
     const idle = await loginOk('192.0.2.36');
     await authSql('UPDATE sessions SET idle_expires_at = ? WHERE id = ?', Date.now() - 31 * DAY, idle.session_id);
     await auth().prune();
@@ -172,6 +177,19 @@ describe('sessions and sign-out', () => {
       { id: g.session_id },
     ]);
     expect((await me(idle.token)).body.error.code).toBe('unauthorized');
+    // Only the newest hundred revoked rows stay: a hundred newer ones push this one out.
+    await authSql(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 100)
+       INSERT INTO sessions (token_hash, id, label, created_at, last_seen_at, idle_expires_at, revoked_at,
+         revoked_reason, credential_version)
+       SELECT 'filler-' || i, 'filler-' || i, '', ?1, ?1, ?1, ?1, 'signed_out_here', 1 FROM n`,
+      Date.now(),
+    );
+    await auth().prune();
+    expect(await kept()).toEqual([]);
+    expect(await authSql("SELECT count(*) AS n FROM sessions WHERE id LIKE 'filler-%'")).toEqual([{ n: 100 }]);
+    await authSql("DELETE FROM sessions WHERE id LIKE 'filler-%'");
+    expect((await me(g.token)).body.error.code).toBe('unauthorized');
   });
 
   it('renews last_seen_at at most once an hour, and caches checks per isolate', async () => {
