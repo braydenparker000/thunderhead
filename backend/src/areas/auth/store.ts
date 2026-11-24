@@ -196,9 +196,16 @@ export function revokeSessions(
   return ids;
 }
 
-/** Rows revoked or expired more than `before` ago are forgotten (SIGN-IN.md §3.2: 30 days). */
+/** Sessions more than `before` old (SIGN-IN.md §3.2: 30 days): an expired one is forgotten; a revoked
+ * one keeps only that it was revoked and why, so its token never reads as merely unknown. */
 export function deleteOldSessions(db: Db, before: number): number {
-  return db.all('DELETE FROM sessions WHERE revoked_at < ? OR idle_expires_at < ? RETURNING id', before, before).length;
+  db.run(
+    `UPDATE sessions SET label = '', pop_jwk = NULL, platform = NULL, browser = NULL, model = NULL, country = NULL,
+       region = NULL, last_country = NULL
+     WHERE revoked_at < ? AND label || COALESCE(pop_jwk, platform, browser, model, country, region, last_country, '') <> ''`,
+    before,
+  );
+  return db.all('DELETE FROM sessions WHERE revoked_at IS NULL AND idle_expires_at < ? RETURNING id', before).length;
 }
 
 // --- throttle ----------------------------------------------------------------------------------

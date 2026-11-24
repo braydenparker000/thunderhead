@@ -77,10 +77,10 @@ Rules:
 | State | Enters when | Leaves to |
 |---|---|---|
 | `active` | Sign-in, setup or recovery succeeds on this device | `revoked` (sign-out, password change with "sign out others", recovery, reset, device cap), `expired` (90 days idle) |
-| `revoked` | As above; the row keeps `revoked_reason` | Row deleted 30 days later |
+| `revoked` | As above; the row keeps `revoked_reason` | 30 days later the row is stripped to its token hash, the time and the reason, and stays |
 | `expired` | `now > last_seen_at + 90 d` (checked on use and by a daily sweep) | Row deleted 30 days later |
 
-`revoked_reason` ∈ `signed_out_here`, `signed_out_elsewhere`, `password_changed`, `recovery_used`, `reset_used`, `device_limit`. Within those 30 days a request with the old token gets `401` with that reason, so the device can say why. After 30 days it gets plain `401 unauthorized`.
+`revoked_reason` ∈ `signed_out_here`, `signed_out_elsewhere`, `password_changed`, `recovery_used`, `reset_used`, `device_limit`. A request with a revoked token gets `401` with that reason, so the device can say why, however long ago (since 2026-11-24: before, it read as plain `401 unauthorized` after 30 days, and the phone kept its unsent work as for an unknown session). An expired session's token gets `session_expired` for 30 days, then plain `401 unauthorized`.
 
 ### 3.3 Client (each browser)
 

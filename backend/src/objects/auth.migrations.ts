@@ -33,7 +33,7 @@ export const AUTH_MIGRATIONS: Migration[] = [
         used_at INTEGER
       )`,
       // Keyed by token hash, the hot lookup; device ids are found by scanning a handful of rows.
-      // Revoked and expired rows stay 30 days so an old token learns why (SIGN-IN.md §3.2).
+      // Expired rows stay 30 days so an old token learns why; a revoked one stays, stripped (SIGN-IN.md §3.2).
       `CREATE TABLE sessions (
         token_hash TEXT PRIMARY KEY,
         id TEXT NOT NULL,

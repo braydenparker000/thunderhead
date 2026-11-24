@@ -49,10 +49,9 @@ export function verify(d: AuthDeps, hash: string, agent: boolean, country: strin
   }
   const s = store.sessionByTokenHash(d.db, hash);
   if (!s) return fail('unauthorized');
-  if (s.revoked_at !== null)
-    return now - s.revoked_at <= KEEP_REVOKED
-      ? fail('session_revoked', { reason: s.revoked_reason as RevokeReason })
-      : fail('unauthorized');
+  // A revoked session says so for good (its row stays, stripped after 30 days): the phone keeps
+  // unsent work only for a session that aged out or is unknown, never for a revoked one.
+  if (s.revoked_at !== null) return fail('session_revoked', { reason: s.revoked_reason as RevokeReason });
   if (s.idle_expires_at <= now)
     return now - s.idle_expires_at <= KEEP_REVOKED ? fail('session_expired') : fail('unauthorized');
   if (hour > s.last_seen_at) touch(() => store.touchSession(d.db, hash, hour, now + IDLE_EXPIRY, country));

@@ -139,13 +139,39 @@ describe('sessions and sign-out', () => {
     expect([r.status, r.body.error.code]).toEqual([401, 'session_expired']);
   });
 
-  it('after 30 days a revoked token gets plain 401 unauthorized, and the cron deletes the row', async () => {
+  it('after 30 days a revoked token still learns why, and the cron strips its row to that', async () => {
     const g = await loginOk('192.0.2.34');
     await signout(g.token, 'this');
     await authSql('UPDATE sessions SET revoked_at = ? WHERE id = ?', Date.now() - 31 * DAY, g.session_id);
-    expect((await me(g.token)).body.error.code).toBe('unauthorized');
+    const told = async () => {
+      const r = await me(g.token);
+      return [r.status, r.body.error.code, r.body.error.details];
+    };
+    expect(await told()).toEqual([401, 'session_revoked', { reason: 'signed_out_here' }]);
     await auth().prune();
-    expect(await authSql('SELECT id FROM sessions WHERE id = ?', g.session_id)).toEqual([]);
+    const cols = 'label, pop_jwk, platform, browser, model, country, region, last_country';
+    expect(await authSql(`SELECT ${cols}, revoked_reason FROM sessions WHERE id = ?`, g.session_id)).toEqual([
+      {
+        label: '',
+        pop_jwk: null,
+        platform: null,
+        browser: null,
+        model: null,
+        country: null,
+        region: null,
+        last_country: null,
+        revoked_reason: 'signed_out_here',
+      },
+    ]);
+    expect(await told()).toEqual([401, 'session_revoked', { reason: 'signed_out_here' }]);
+    // A second sweep finds nothing left to strip; an expired session's row still goes.
+    const idle = await loginOk('192.0.2.36');
+    await authSql('UPDATE sessions SET idle_expires_at = ? WHERE id = ?', Date.now() - 31 * DAY, idle.session_id);
+    await auth().prune();
+    expect(await authSql('SELECT id FROM sessions WHERE id IN (?, ?)', g.session_id, idle.session_id)).toEqual([
+      { id: g.session_id },
+    ]);
+    expect((await me(idle.token)).body.error.code).toBe('unauthorized');
   });
 
   it('renews last_seen_at at most once an hour, and caches checks per isolate', async () => {
