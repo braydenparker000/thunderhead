@@ -183,6 +183,10 @@ export class ListScrollerView extends FastTextView {
 
   get interceptible() { return false; }
 
+  // Hidden (mode 0: the album-art pager, the lyrics) it takes no touch (input.js hitTest): a drag at the
+  // right edge goes to what is under it (the player's waveform), not to the list widget's swipe.
+  get touchable() { return this.mode > 0; }
+
   press(on) {
     if (this.state.pressed === on) return;
     this.setPressed(on);

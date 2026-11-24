@@ -187,3 +187,73 @@ test('the probe tells a 401 apart', async () => {
     globalThis.fetch = real;
   }
 });
+
+test('during a seek not landed yet the guard keeps its target, not the element\'s old place; with none pending, the element\'s', () => {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  try {
+    const { el, player, out } = setup();
+    const on = {};
+    Object.assign(el, { error: null, paused: false, seeking: false, readyState: 4, currentTime: 30, addEventListener: (type, f) => { on[type] = f; } });
+    const guard = new StreamGuard(player, { online: () => true });
+    guard.watch(el);
+    on.timeupdate();
+    assert.equal(guard.pos, 30, 'no seek pending: where the element is');
+    // The player's own seek, fading out before the jump (player.js seek: seekTarget, in ms past the range's start).
+    player.track.startMs = 1000;
+    player.seekTarget = 90_000;
+    on.timeupdate();
+    assert.equal(guard.pos, 91, 'the seek\'s target, not the element still at 30 s');
+    guard.failed(Object.assign(el, { error: { code: 2, message: 'network' } }));
+    mock.timers.tick(30_000);
+    assert.deepEqual(out.reloads, [91], 'a reload meanwhile goes where the seek was going');
+    player.seekTarget = null;
+    delete player.track.startMs;
+    // A streamed song's seek past what is buffered: the element stays where it was, no 'seeking' comes.
+    el.error = null;
+    el._stream = { feed: { seekTo: 120 } };
+    on.timeupdate();
+    assert.equal(guard.pos, 120);
+    on.seeking();
+    assert.equal(guard.pos, 120, 'a transient place in \'seeking\' does not win');
+    el._stream.feed.seekTo = null;
+    el.currentTime = 120.5;
+    on.timeupdate();
+    assert.equal(guard.pos, 120.5, 'landed: the element again');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a reload's target holds through a 'seeking' that reports another place (iOS Safari, a reloaded source) until the deck plays", () => {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  try {
+    const { el, player, out } = setup();
+    const on = {};
+    Object.assign(el, { addEventListener: (type, f) => { on[type] = f; } });
+    const guard = new StreamGuard(player, { online: () => true });
+    guard.watch(el);
+    guard.pos = 42;
+    guard.failed(el);
+    mock.timers.tick(30_000);
+    assert.deepEqual(out.reloads, [42]);
+    // The reloaded source reports 0 in 'seeking', and has no data yet.
+    Object.assign(el, { error: null, paused: false, seeking: true, readyState: 1, currentTime: 0 });
+    on.seeking();
+    on.timeupdate();
+    assert.equal(guard.pos, 42, 'still where the reload was going');
+    // It fails again before playing: the next reload goes to the same place, not to 0.
+    el.error = { code: 2, message: 'network' };
+    guard.failed(el);
+    mock.timers.tick(30_000);
+    assert.deepEqual(out.reloads, [42, 42]);
+    // The deck plays at last: from here, where it is.
+    Object.assign(el, { error: null, seeking: false, readyState: 4, currentTime: 42.3 });
+    on.timeupdate();
+    assert.equal(guard.pos, 42.3);
+    el.currentTime = 50;
+    on.seeking();
+    assert.equal(guard.pos, 50, 'a seek with nothing pending: where the element says');
+  } finally {
+    mock.timers.reset();
+  }
+});

@@ -516,7 +516,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | `jobs`, `_migrations` (all classes) | jobs done 30 days | manifest only (schema version) | no |
 | Core.meter_days | 400 days (one row per UTC day and object class, Core's own and the others' from its tick; counts only) | no | no |
 | `meter_days` (Auth, Music, Senses, Library: each its own class's row) | 400 days (pruned by the meter itself when a day begins) | no | no |
-| Auth.* | sessions deleted 30 days after revoke or expiry; throttle 24 h; notices 14 days; pushes 30 days | **never** | **never** |
+| Auth.* | sessions deleted 30 days after expiry, and stripped 30 days after a revoke to the token's hash, the id, when and why (the newest 100 such rows stay; SIGN-IN.md §3.2); throttle 24 h; notices 14 days; pushes 30 days | **never** | **never** |
 | Senses.events | 90 days | archive in R2 daily instead | yes (the archive) |
 | Senses.batches | 30 days | no | no |
 | Senses.rollups | forever | yes | yes |

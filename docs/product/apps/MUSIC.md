@@ -946,7 +946,8 @@ A media element cannot read the HTTP status, so the engine infers:
 2. If its URL has under 20 minutes left, or the error is a network error, the engine re-signs
    that one ref (one call), swaps `src` at the current position, and fades back in.
 3. If the fresh URL fails too, the stream-guard backoff takes over: retries 1, 2, 4, 8, 15 and
-   30 s, each from the current position. After 6 failed tries with the network up the player
+   30 s, each from the current position (during a seek that has not landed, its target, also through
+   a reload's own seek). After 6 failed tries with the network up the player
    pauses with "Lost the connection · Tap play to try again"; Play reloads where it was.
 4. A head served by the service worker that gets a 403 for its network remainder triggers the same
    re-sign.

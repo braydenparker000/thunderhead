@@ -196,9 +196,26 @@ export function revokeSessions(
   return ids;
 }
 
-/** Rows revoked or expired more than `before` ago are forgotten (SIGN-IN.md §3.2: 30 days). */
+/** Revoked rows kept, newest first: enough for years of sign-outs, few enough to scan. */
+export const KEPT_REVOKED = 100;
+
+/** Sessions more than `before` old (SIGN-IN.md §3.2: 30 days): an expired one is forgotten; a revoked
+ * one keeps only its token's hash, its id, when it was revoked and why, so its token never reads as
+ * merely unknown. Written once (the guard), and only the newest `KEPT_REVOKED` stay. */
 export function deleteOldSessions(db: Db, before: number): number {
-  return db.all('DELETE FROM sessions WHERE revoked_at < ? OR idle_expires_at < ? RETURNING id', before, before).length;
+  db.run(
+    `UPDATE sessions SET label = '', pop_jwk = NULL, platform = NULL, browser = NULL, model = NULL, country = NULL,
+       region = NULL, last_country = NULL, standalone = 0, stepup_at = NULL, created_at = revoked_at,
+       last_seen_at = revoked_at, idle_expires_at = revoked_at
+     WHERE revoked_at < ? AND (label <> '' OR created_at <> revoked_at OR last_seen_at <> revoked_at)`,
+    before,
+  );
+  db.run(
+    `DELETE FROM sessions WHERE revoked_at IS NOT NULL AND token_hash NOT IN
+       (SELECT token_hash FROM sessions WHERE revoked_at IS NOT NULL ORDER BY revoked_at DESC LIMIT ?)`,
+    KEPT_REVOKED,
+  );
+  return db.all('DELETE FROM sessions WHERE revoked_at IS NULL AND idle_expires_at < ? RETURNING id', before).length;
 }
 
 // --- throttle ----------------------------------------------------------------------------------

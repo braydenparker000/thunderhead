@@ -247,8 +247,8 @@ function openFromRing(id,color,to){
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
       // anything else is the scroller's once it passes the 10 px hold slop.
-      // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary).
-      if(!swipe&&view==='side'&&mx<0&&d>=num('gestures.swipe_px',6)&&start.el.closest&&start.el.closest('#convos .row.thr')){ resumePages(); start=null; return }
+      // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary); a sideways one on a reply's code or table is its scroll while it can go that way.
+      const sc=!swipe&&d>=num('gestures.swipe_px',6)&&Math.abs(mx)>Math.abs(my)&&start.el.closest?.('.reply pre,.reply .tbl'); if(!swipe&&view==='side'&&mx<0&&d>=num('gestures.swipe_px',6)&&start.el.closest&&start.el.closest('#convos .row.thr')||sc&&(mx<0?sc.scrollLeft<sc.scrollWidth-sc.clientWidth-1:sc.scrollLeft>0)){ resumePages(); start=null; return }
       if(!swipe){ if(d>=num('gestures.swipe_px',6)&&Math.abs(mx)>Math.abs(my)&&!(pref('gestures.edge_guard')!=='false'&&(start.x<EDGE||start.x>innerWidth-EDGE))){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
         else { if(d>num('gestures.hold_slop',10)){ clearTimeout(holdT); press.classList.remove('on'); resumePages(); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
