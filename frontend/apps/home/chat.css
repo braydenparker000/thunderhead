@@ -37,7 +37,7 @@
 .talk .reply .copy.picked::after{content:"Selected"}
 .talk .reply .copy .i{width:14px;height:14px;fill:currentColor}
 .talk .reply pre{margin:0;padding:0 12px 11px;overflow-x:auto;overscroll-behavior-x:contain;font:400 var(--fs-small)/var(--lh-reading) ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}
-.copyfrom{position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;font-size:16px}
+.copyfrom{position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;font-size:var(--fs-ask)}
 .talk .reply .tbl{overflow-x:auto}
 .talk .reply table{border-collapse:collapse;font:400 var(--fs-chip)/var(--lh-body) var(--ui)}
 .talk .reply th,.talk .reply td{padding:6px 12px 6px 0;border-bottom:1px solid var(--glass-line);text-align:left;vertical-align:top}
