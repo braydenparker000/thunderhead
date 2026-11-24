@@ -26,7 +26,8 @@ function hitTest(view, x, y) {
       if (hit) return hit;
     }
   }
-  if (!inside) return null;
+  // (A view that shows nothing to touch says so: touchable false.)
+  if (!inside || view.touchable === false) return null;
   if (view.clickable || view.longClickable || typeof view.onPointerDown === 'function') return view;
   return null;
 }

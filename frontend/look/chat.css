@@ -34,7 +34,11 @@
 :root[data-look="ink-lamp"] .convo .reply ol>li::marker{font:500 .7em var(--font-legend)}
 :root[data-look="ink-lamp"] .convo .reply blockquote{border-left:1px solid var(--hairline);color:var(--text-2)}
 :root[data-look="ink-lamp"] .convo .reply code{font:400 .8em var(--font-legend);border-radius:4px;background:var(--well);color:var(--text)}
-:root[data-look="ink-lamp"] .convo .reply pre{padding:10px 12px;border-radius:12px;border:1px solid var(--hairline);background:var(--plate);font:400 12px/18px var(--font-legend);color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply .codeblock{border-radius:12px;border:1px solid var(--hairline);background:var(--plate)}
+:root[data-look="ink-lamp"] .convo .reply .codehead{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-3)}
+:root[data-look="ink-lamp"] .convo .reply .copy{font:500 var(--fs-legend) var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}
+:root[data-look="ink-lamp"] .convo .reply .copy.done{color:var(--text)}
+:root[data-look="ink-lamp"] .convo .reply pre{font:400 12px/18px var(--font-legend);color:var(--text)}
 :root[data-look="ink-lamp"] .convo .reply pre code{font:inherit;background:none;padding:0}
 :root[data-look="ink-lamp"] .convo .reply table{font:400 14px/20px var(--font-own);color:var(--text)}
 :root[data-look="ink-lamp"] .convo .reply th{font:500 var(--fs-legend)/14px var(--font-legend);letter-spacing:var(--ls-legend);text-transform:lowercase;color:var(--text-2)}

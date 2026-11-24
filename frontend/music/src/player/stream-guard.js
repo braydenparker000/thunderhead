@@ -75,7 +75,25 @@ export class StreamGuard {
     el.addEventListener('progress', () => { if (el === this.p.audio) this.lastData = this.now(); });
     el.addEventListener('timeupdate', () => this.tick(el));
     // A seek's target is where a reload goes, should the seek's data never come.
-    el.addEventListener('seeking', () => { if (el === this.p.audio) this.pos = el.currentTime; });
+    el.addEventListener('seeking', () => { if (el === this.p.audio) this.pos = this.seekTo(el) ?? el.currentTime; });
+  }
+
+  /**
+   * Where a seek not landed yet is going (media s), else null: the player's own (fading out before the
+   * jump), a streamed song's (its data on its way, the element still where it was), or a reload this guard
+   * asked for (on iOS Safari a reloaded source's 'seeking' does not always report it).
+   */
+  seekTo(el) {
+    const p = this.p, ms = p.seekTarget, to = el._stream?.feed?.seekTo;
+    if (ms !== null && ms !== undefined) return (ms + (p.track?.startMs || 0)) / 1000;
+    if (to !== null && to !== undefined) return to;
+    return this.reloadTo ?? null;
+  }
+
+  /** Reloads the track where it was; until the deck plays there, that is where it is. */
+  reload() {
+    this.reloadTo = this.pos;
+    this.p.reloadAt(this.pos);
   }
 
   /** A new track: earlier failures are forgotten. */
@@ -87,6 +105,7 @@ export class StreamGuard {
     this.pending = false;
     this.goodSince = 0;
     this.pos = pos;
+    this.reloadTo = null;
     this.lastData = this.now();
     this.waitingOnline = false;
   }
@@ -97,7 +116,9 @@ export class StreamGuard {
 
   tick(el) {
     if (el !== this.p.audio || el.seeking || el.readyState < 2) return;
-    this.pos = el.currentTime;
+    // (A reload has landed once its deck has data and is not seeking.)
+    this.reloadTo = null;
+    this.pos = this.seekTo(el) ?? el.currentTime;
     if (el.paused) return;
     const t = this.now();
     this.goodSince ||= t;
@@ -210,7 +231,7 @@ export class StreamGuard {
     this.counts.reloads++;
     this.note('reload', {reason, attempt: this.attempts, atMs: Math.round(this.pos * 1000)});
     this.lastData = this.reloadedAt = this.now();
-    p.reloadAt(this.pos);
+    this.reload();
   }
 
   /** The track will not play: the next one does ("Failed to play"), unless too many have failed in a row. */
@@ -253,7 +274,7 @@ export class StreamGuard {
     if (!this.pending && !el?.error) return false;
     this.pending = false;
     this.attempts = 0;
-    this.p.reloadAt(this.pos);
+    this.reload();
     return true;
   }
 

@@ -3,6 +3,7 @@
 // and cited blocks of the owner's books as numbered taps into Study (STUDY.md §8). `parse` is plain
 // data (tested in node); `rich` builds nodes and sets text, never markup.
 import { citeHref, label } from './model.js';
+import { codeBlock } from './code.js';
 
 const LIST_AFTER = /(?<=[.!?:])\s+(?=– )/;
 const LINK = /https:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]*_]/;
@@ -13,7 +14,7 @@ const INLINE = new RegExp(
 );
 
 /** @typedef {{ text: string } | { b: string } | { i: string } | { code: string } | { href: string, label: string, cite?: true }} Part */
-/** @typedef {{ t: 'p', lines: Part[][] } | { t: 'h', parts: Part[] } | { t: 'q', parts: Part[] } | { t: 'ul', start: number, items: Part[][] } | { t: 'ol', start: number, items: Part[][] } | { t: 'pre', text: string } | { t: 'table', rows: Part[][][] } | { t: 'hr' }} Block */
+/** @typedef {{ t: 'p', lines: Part[][] } | { t: 'h', parts: Part[] } | { t: 'q', parts: Part[] } | { t: 'ul', start: number, items: Part[][] } | { t: 'ol', start: number, items: Part[][] } | { t: 'pre', text: string, lang?: string, open?: true } | { t: 'table', rows: Part[][][] } | { t: 'hr' }} Block */
 
 /** The text as blocks. @param {string} text @returns {Block[]} */
 export function parse(text) {
@@ -47,25 +48,41 @@ export function parse(text) {
   const out = [];
   /** @type {Block | null} */
   let open = null;
-  let fence = false;
-  for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
+  // An open fence: its block, its backticks (a closing line has as many or more, and no word straight
+  // after them) and its indent (taken off each line, as CommonMark does).
+  /** @type {{ pre: { t: 'pre', text: string, lang?: string, open?: true }, ticks: number, indent: number, lines: number } | null} */
+  let fence = null;
+  for (let raw of text.replace(/\r\n?/g, '\n').split('\n')) {
     if (fence) {
-      if (raw.trim().startsWith('```')) fence = false;
-      else {
-        const pre = /** @type {{ t: 'pre', text: string }} */ (out[out.length - 1]);
-        pre.text += `${pre.text ? '\n' : ''}${raw}`;
+      const close = /^\s*(`{3,})(?![`\w])(.*)$/.exec(raw);
+      if (close && close[1].length >= fence.ticks) {
+        delete fence.pre.open;
+        fence = null;
+        if (!close[2].trim()) continue;
+        open = null;
+        raw = close[2]; // words after the closing fence are the reply's again
+      } else {
+        const strip = Math.min(fence.indent, /^ */.exec(raw)?.[0].length ?? 0);
+        fence.pre.text += `${fence.lines++ ? '\n' : ''}${raw.slice(strip)}`;
+        continue;
       }
-      continue;
     }
     for (const piece of raw.split(LIST_AFTER)) {
       const line = piece.trim();
-      if (line.startsWith('```')) {
-        out.push({ t: 'pre', text: '' });
-        fence = true;
-        open = null;
-        continue;
+      // ```lang opens a block (its first word the language); ```one line``` is a block of one line.
+      const one = /^`{3,}([^`]+?)`{3,}$/.exec(line);
+      const f = /^(`{3,})([^`]*)$/.exec(line);
+      if (one) out.push({ t: 'pre', text: one[1].trim() });
+      if (one || f) open = null;
+      if (f) {
+        const lang = /^[\w+#.-]{1,20}$/.exec(f[2].trim().split(/\s+/)[0] ?? '')?.[0];
+        /** @type {{ t: 'pre', text: string, lang?: string, open?: true }} */
+        const pre = lang ? { t: 'pre', text: '', lang, open: true } : { t: 'pre', text: '', open: true };
+        out.push(pre);
+        fence = { pre, ticks: f[1].length, indent: /^ */.exec(raw)?.[0].length ?? 0, lines: 0 };
+        break;
       }
-      if (!line) {
+      if (one || !line) {
         open = null;
         continue;
       }
@@ -96,6 +113,8 @@ export function parse(text) {
       }
     }
   }
+  // A block still arriving may end in the first backticks of its closing fence: not code.
+  if (fence) fence.pre.text = fence.pre.text.replace(/(^|\n)[ \t]*`{1,2}$/, '');
   return out;
 }
 
@@ -148,7 +167,7 @@ export function rich(text) {
       if (b.t === 'ol' && b.start !== 1) list.setAttribute('start', String(b.start));
       for (const item of b.items) list.append(fill(el('li'), item));
       frag.append(list);
-    } else if (b.t === 'pre') frag.append(el('pre', b.text));
+    } else if (b.t === 'pre') frag.append(codeBlock(b.text, b.lang));
     else if (b.t === 'hr') frag.append(el('hr'));
     else {
       const wrap = el('div');
