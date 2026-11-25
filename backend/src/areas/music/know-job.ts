@@ -24,6 +24,9 @@ type Input = { know: number; wait: number; idle?: boolean };
 /** One knowledge step: the rows it wrote in Music, how long the next step waits, and whether there
  * was nothing to do now. */
 export async function knowStep(env: Env, now = Date.now()): Promise<Input> {
+  // Paused by the owner (2026-11-25; `MUSIC_KNOW` in wrangler.jsonc): nothing is asked and nothing is
+  // written, so the day's rows go to the upload tools. What is known, and the picks made, stay.
+  if (env.MUSIC_KNOW === 'paused') return { know: 0, wait: K.idle_ms, idle: true };
   useSite(env.SITE_ORIGINS);
   const music = musicObject(env);
   const task = await music.knowNext(now);

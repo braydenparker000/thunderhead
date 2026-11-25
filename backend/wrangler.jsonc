@@ -94,6 +94,9 @@
     ]
   },
   "vars": {
+    // The music knowledge job (MUSIC.md §19): "on", or "paused" (the owner's word, 2026-11-25): it
+    // then asks no outside service and writes no rows; the facts and picks it made stay readable.
+    "MUSIC_KNOW": "paused",
     // Exact site origins allowed by CORS, comma-separated. The real value comes from the
     // `worker` environment through `wrangler deploy --var`; this placeholder matches nothing real.
     "SITE_ORIGINS": "https://thunderhead.zNN.web.core.windows.net",
