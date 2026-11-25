@@ -88,7 +88,7 @@ describe('GET /v1/ops/diag', () => {
       resume_at: expect.any(Number),
     });
     expect(b.quota.budget).toEqual(DAY_BUDGET);
-    expect(b.quota.hold_at.rows_read).toBe(Math.floor((DAY_BUDGET.rows_read * 80) / 100));
+    expect(b.quota.hold_at.rows_read).toBe(Math.floor((DAY_BUDGET.rows_read * 85) / 100));
     expect(b.quota.hold_until).toBeNull();
     expect(b.meter.find((m) => m.class === 'core')?.bulk_rows_written).toBe(1234);
     expect(b.know?.facts).toEqual({ artist: { busy: 1, idle: 0, todo: 1 }, album: { busy: 0, idle: 2, todo: 1 } });
