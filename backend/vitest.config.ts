@@ -25,6 +25,8 @@ export default defineConfig({
           IP_HASH_KEY: 'test-ip-hash-key-not-a-real-secret-0123',
           AUTH_SETUP_FP: SETUP_FP,
           AUTH_RESET_FP: 'none',
+          // The suite tests the music knowledge job itself; production has it paused (wrangler.jsonc).
+          MUSIC_KNOW: 'on',
           AUTH_HIBP: 'off',
           // The mind's triggers are not connected in tests; fire tests inject their own fetch.
           ROUTINE_CHAT_URL: 'none',

@@ -1575,6 +1575,8 @@ Tests: `tests/music-queue.test.mjs`, `music-session.test.mjs` (the player's own 
 
 ## 19. What the mind knows of the music, and picks to add (2026-11-23)
 
+**Paused (the owner, 2026-11-25).** `MUSIC_KNOW` in `backend/wrangler.jsonc` is `paused`: the job asks no outside service and writes no rows, so the day's rows go to the upload tools. The facts and picks already made stay and are still served; nothing new is matched or picked until it is set to `on` again.
+
 The owner's decision: the mind should know as much as it can about the owner's music, and be able to suggest music to add to the library. The site (the Worker) fetches and scores; the mind only reads. Nothing here runs in the mind's night. It builds on §16: the `music.mb` job, the canonical names and similar artists.
 
 ### 19.1 Matching the catalog
