@@ -54,6 +54,9 @@ export function mbTurn(now = Date.now()): boolean {
   return true;
 }
 
+/** Hosts that have answered OK in this isolate: the first such answer of each is logged, by host alone. */
+const okHosts = new Set<string>();
+
 /** One GET to an outside service with the app's User-Agent (and nothing of the owner), by the fetch
  * the tests replace. */
 export async function outsideGet(url: string, headers: Record<string, string> = {}): Promise<Response> {
@@ -62,6 +65,10 @@ export async function outsideGet(url: string, headers: Record<string, string> = 
     const r = await fetcher(url, { headers: { 'User-Agent': agentFor(host), Accept: 'application/json', ...headers } });
     // A refusal is logged by host and status alone (never the address: it can carry a key or a name).
     if (!r.ok) console.log(JSON.stringify({ evt: 'outside_refused', host, status: r.status }));
+    else if (!okHosts.has(host)) {
+      okHosts.add(host);
+      console.log(JSON.stringify({ evt: 'outside_ok', host }));
+    }
     return r;
   } catch (e) {
     console.log(JSON.stringify({ evt: 'outside_refused', host, status: 0 }));

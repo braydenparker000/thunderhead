@@ -186,6 +186,12 @@ export abstract class MusicPicks extends MusicKnow {
     return ps.toPick(ps.pickOf(this.db, id) as ps.PickRow);
   }
 
+  /** A pick's artist and album as MusicBrainz names them (its preview's search, §19.7). Null when no such pick. */
+  pickNames(id: string): { id: string; artist: string; album: string } | null {
+    const r = ps.pickOf(this.db, id);
+    return r ? { id, artist: ps.toPick(r).artist, album: ps.toPick(r).album } : null;
+  }
+
   /** The words of a Muse order for a pick's album (ids and canonical names only); with the order's id,
    * the pick is ordered. Null when no such pick. */
   pickOrder(id: string, orderId: string | null, now = Date.now()) {

@@ -171,7 +171,7 @@ describe('the heavy jobs', () => {
     let now = Date.now();
     const day = utcDay(now);
     await coreSql("DELETE FROM settings WHERE key = 'bulk.day'");
-    // 300 rows written short of 80% of the day's 68,000 (more than Core's own writes before its
+    // 300 rows written short of 80% of the day's 90,000 (more than Core's own writes before its
     // meter's next write, fewer than the drill's first parts): the drill's own writes pass it.
     const [own] = await coreSql<{ w: number }>(
       'SELECT coalesce(sum(rows_written), 0) AS w FROM meter_days WHERE day = ?',
