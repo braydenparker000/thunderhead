@@ -4,8 +4,8 @@
 // Apps, The mind, Account and data, About. Each page opens over this one and its back button returns
 // here (settings.js keeps the stack). Quiet hours is a section of Notifications (quietPart below): when
 // the day's quiet starts and ends (never before 06:30), and "go quiet" for a while (BEHAVIOR.md §8).
-// Agents (keys for the mind and other tools) is listed under Account and data again (2026-11-25), with a
-// short line under its name; it is also reachable by its address (/settings/agents/).
+// Agents (keys for the mind and other tools) is listed under Account and data again (2026-11-25), a plain
+// row like its neighbours; it is also reachable by its address (/settings/agents/).
 import { api, signedIn } from '/th/client.js';
 import { quietLine, quietUntil, setQuiet } from '/th/chat/quiet.js';
 import { lineFor, mindName } from '/th/copy.js';

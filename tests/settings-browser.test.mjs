@@ -505,7 +505,7 @@ test('MENU-AND-SETTINGS.md documents every key with its scope, its default and w
   }
 });
 
-test('Settings lists its pages under six headings, Agents with its line beside Devices; the old site is under Privacy', opts, async () => {
+test('Settings lists its pages under six headings, Agents a plain row beside Devices; the old site is under Privacy', opts, async () => {
   const { page, context, errors } = await open();
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
   await page.waitForSelector('.spage.in [data-page="about"]');
@@ -514,7 +514,7 @@ test('Settings lists its pages under six headings, Agents with its line beside D
   assert.deepEqual(await page.$$eval('.spage.in [data-page]', (r) => r.map((x) => x.dataset.page)),
     ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'agents', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
   assert.ok(await page.$('.spage.in .sappear #set-theme'), 'Theme is under Look');
-  assert.deepEqual(await page.$eval('.spage.in [data-page="agents"]', (r) => [r.querySelector('.row-title')?.textContent, r.querySelector('.row-detail')?.textContent, r.getBoundingClientRect().height >= 44]), ['Agents', 'Keys for the mind and other tools', true]);
+  assert.deepEqual(await page.$eval('.spage.in [data-page="agents"]', (r) => [r.querySelector('.row-title')?.textContent, r.querySelector('.row-detail')?.textContent ?? '', r.getBoundingClientRect().height >= 44]), ['Agents', '', true]);
   await page.click('.spage.in [data-page="agents"]');
   await page.waitForFunction(() => [...document.querySelectorAll('.spage.in .page-title')].some((h) => h.textContent === 'Agents'));
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'account' } })));
