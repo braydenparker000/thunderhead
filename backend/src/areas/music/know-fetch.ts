@@ -63,6 +63,8 @@ export interface Work {
   /** `rg` gave the group's title and artist as MusicBrainz names them. */
   named?: boolean;
   /** Failed requests this round, by source: at most `row_tries`, then that source waits for the next. */
+  /** When ListenBrainz's popularity last answered for this row. */
+  lbtop_at?: number;
   tries?: Record<string, number>;
 }
 

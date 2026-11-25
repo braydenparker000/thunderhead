@@ -5,6 +5,7 @@
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { Message, SignedIn } from '../../../shared/contract/api';
+import { LANE_ROWS_PER_DAY, useLane } from '../../src/areas/jobs/runner';
 import { embedJob, placeOf } from '../../src/areas/search/embed-job';
 import { putSetting } from '../../src/areas/settings/store';
 import { uuidv7 } from '../../src/lib/ids';
@@ -77,6 +78,10 @@ export async function recallCalls(cost: Cost, grant: (ip: string, password?: str
   await inCore((c) =>
     c.write((w) => putSetting(w.db, 'recall.index', { ...placeOf(w.db), messages: top }, 'worker', w.at)),
   );
+  // The bulk lane is spent for today, so the lane's jobs wait for tomorrow (the artist lookups that follow
+  // the listening history's import ask an outside service a step a second and would never be quiet). Until
+  // 2026-11-25 the day's hold did this by chance: the suite's rows passed 80 % of a 68,000 budget by here.
+  await inCore((c) => c.write((w) => useLane(w, LANE_ROWS_PER_DAY, w.at)));
   await batch(said.body.thread_id, 1);
   await quiet();
   await cost('search.embed step, 100 messages (Library)', () => step(ai.env), 204, library);

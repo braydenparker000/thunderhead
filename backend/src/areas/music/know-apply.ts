@@ -112,6 +112,7 @@ export function apply(source: Source, kind: string, f0: Facts, o0: Outside, w0: 
     case 'lbtop': {
       const by = data as Record<string, number>;
       f.discography = (f.discography ?? []).map((r) => ({ ...r, listens: by[r.mbid] ?? r.listens }));
+      w.lbtop_at = Date.now();
       break;
     }
     case 'fmtop': {

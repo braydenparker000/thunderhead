@@ -190,8 +190,10 @@ export abstract class MusicPicks extends MusicKnow {
   pickNames(id: string): { id: string; artist: string; album: string } | null {
     const r = ps.pickOf(this.db, id);
     if (!r) return null;
-    const p = ps.toPick(r);
-    return { id, artist: p.artist, album: p.album };
+    // The names alone, straight from the row: a pick's line and reason are not needed here.
+    const b = JSON.parse(r.body_json) as { artist?: unknown; album?: unknown };
+    if (typeof b.artist !== 'string' || typeof b.album !== 'string') return null;
+    return { id, artist: b.artist, album: b.album };
   }
 
   /** The words of a Muse order for a pick's album (ids and canonical names only); with the order's id,

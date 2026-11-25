@@ -40,7 +40,7 @@ export const putHosts = (db: Db, h: Hosts) => putState(db, 'know.hosts', h);
  * Discogs's or ListenBrainz's) puts its sources back on every row that could ask them and that the
  * service has never filled: such a row dropped them for want of the key and would otherwise wait for
  * its monthly round. ListenBrainz's labs host fills the same family without a token, so its token puts
- * `lbtop` back on every row that lacks it. Rows put back. */
+ * `lbtop` back on every row its popularity never answered (`work_json.lbtop_at`). Rows put back. */
 export function keysArrived(
   db: Db,
   keys: { lastfm: boolean; discogs: boolean; listenbrainz: boolean },
@@ -50,10 +50,10 @@ export function keysArrived(
   const families = ['lastfm', 'discogs', 'listenbrainz'] as const;
   if (seen && families.every((f) => !!seen[f] === keys[f])) return 0;
   let n = 0;
-  for (const [family, prefix, filled] of [
-    ['lastfm', 'fm', true],
-    ['discogs', 'dc', true],
-    ['listenbrainz', 'lbtop', false],
+  for (const [family, prefix, never] of [
+    ['lastfm', 'fm', "json_extract(filled_json, '$.lastfm') IS NULL"],
+    ['discogs', 'dc', "json_extract(filled_json, '$.discogs') IS NULL"],
+    ['listenbrainz', 'lbtop', "json_extract(work_json, '$.lbtop_at') IS NULL"],
   ] as const) {
     if (!keys[family] || seen?.[family]) continue;
     for (const [kind, all] of Object.entries(sources)) {
@@ -61,12 +61,10 @@ export function keysArrived(
       if (!add.length) continue;
       n += db.run(
         `UPDATE know_facts SET busy = 1, todo = trim(todo || ',' || ?1, ',')
-         WHERE kind = ?2 AND (?5 = 0 OR json_extract(filled_json, ?3) IS NULL) AND instr(',' || todo || ',', ?4) = 0`,
+         WHERE kind = ?2 AND ${never} AND instr(',' || todo || ',', ?3) = 0`,
         add.join(','),
         kind,
-        `$.${family}`,
         `,${add[0]},`,
-        filled ? 1 : 0,
       );
     }
   }
