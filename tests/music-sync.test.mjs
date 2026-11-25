@@ -8,7 +8,7 @@
 // it is not sent back as a sense. The limits agree with the contract. A 429 or 503 stops every
 // request until its Retry-After (capped at an hour, 60 s when none is given) and loses nothing; an
 // edit not yet sent survives a pull and the push decides; a playlist too long for the Worker is never
-// cut. Invented songs only.
+// cut; a delete undone drops its queued deletion and the playlist stays, same id. Invented songs only.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { MUSIC_PLAYLIST_ID, MUSIC_SYNC_LIMITS } from '../shared/contract/music-sync.ts';
@@ -409,4 +409,44 @@ test('a playlist longer than the Worker takes is never cut: kept whole here, not
   assert.equal(worker.lists.has(pl.id), false);
   assert.equal(a.ctx.playlists.get(pl.id).ids.length, sync.L.playlist_ids + 1);
   assert.deepEqual(JSON.parse(a.storage.getItem(sync.SYNC_KEY)).long, { [pl.id]: sync.L.playlist_ids + 1 });
+});
+
+test('a playlist deleted and undone (MUSIC.md §21) goes up as changed, keeps its id, and is not deleted anywhere', async () => {
+  const a = phone(), b = phone();
+  await pull(a), await pull(b);
+  let pl;
+  act(a, () => {
+    pl = a.ctx.playlists.create('Keep me');
+    a.ctx.playlists.add(pl, [a.song(1), a.song(2)]);
+  });
+  await push(a), await pull(b);
+  // Deleted and undone before any push: the queued deletion goes with the Undo.
+  act(a, () => a.ctx.playlists.remove(pl));
+  assert.ok(pl.id in sync.loadMemory(a.storage).gone);
+  act(a, () => a.ctx.playlists.restore(pl));
+  assert.deepEqual(sync.loadMemory(a.storage).gone, {});
+  await push(a);
+  assert.equal(worker.lists.get(pl.id).deleted, false);
+  assert.ok(!worker.requests.some((r) => r.body?.items?.some?.((x) => x.id === pl.id && x.deleted)), 'no deletion ever went up');
+  await pull(b);
+  assert.deepEqual(b.ctx.playlists.get(pl.id)?.ids, [song(1), song(2)]);
+  // Deleted with the deletion already up (the page was hidden), then undone: it goes up again, newer, and stays.
+  act(a, () => a.ctx.playlists.remove(pl));
+  await push(a);
+  assert.equal(worker.lists.get(pl.id).deleted, true);
+  act(a, () => a.ctx.playlists.restore(pl));
+  await push(a);
+  await pull(a), await pull(b);
+  assert.equal(worker.lists.get(pl.id).deleted, false);
+  assert.deepEqual([a.ctx.playlists.get(pl.id)?.id, b.ctx.playlists.get(pl.id)?.name], [pl.id, 'Keep me']);
+  // Undone while its deletion is on the way: the next push brings it back on the Worker.
+  act(a, () => a.ctx.playlists.remove(pl));
+  worker.during = () => act(a, () => a.ctx.playlists.restore(pl));
+  await push(a);
+  assert.equal(worker.lists.get(pl.id).deleted, true);
+  await push(a);
+  await pull(b);
+  assert.equal(worker.lists.get(pl.id).deleted, false);
+  assert.deepEqual(b.ctx.playlists.get(pl.id)?.ids, [song(1), song(2)]);
+  assert.deepEqual(sync.loadMemory(a.storage).gone, {});
 });
