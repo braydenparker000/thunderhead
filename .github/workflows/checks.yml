@@ -41,7 +41,9 @@ jobs:
     # a part ran out at 14:59 with every test passed. A stalled test is still caught in five minutes (test-part.mjs QUIET).
     timeout-minutes: 20
     strategy:
-      fail-fast: true
+      # Every part runs to its end: with one part's failure ending the rest (as until 2026-11-25), a
+      # browser test that failed for the machine's memory hid the Worker suite's own result four times.
+      fail-fast: false
       matrix:
         part: [site 1/5, site 2/5, site 3/5, site 4/5, site 5/5, worker]
     steps:
