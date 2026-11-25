@@ -471,10 +471,12 @@ loads that way when its turn comes. Switched off on one phone with `localStorage
 fetched twice). The feed itself can play a whole queue on one element (the lab uses that). Each song's Ogg Opus file is read in Range requests of 32–128 KB on its signed link
 (`track.js`). Its pages are demuxed as they arrive (`ogg.js`: the capture pattern and CRC of every
 page are checked) and the same Opus packets are written as WebM (`webm.js`). Nothing is re-encoded and
-nothing changes in the bucket. At most 60 s is appended ahead of the play position (the owner,
-2026-11-01; it was 15 s, which a tunnel or a switch between Wi-Fi and mobile data outlasted): fetching
-stops at the cap and starts again under 30 s, so the refill comes in bursts and the radio rests between
-them, and what lies more than 10 s behind is removed (`plan.js`). The
+nothing changes in the bucket. At most 20 s is appended ahead of the play position, the same on every
+connection (the owner, 2026-11-25; it was 60 s from 2026-11-01, which fetched a minute of every song
+skipped): fetching stops at the cap and starts again under 12 s, so the refill comes in bursts and the
+radio rests between them; 12 s rather than 10 so a link that keeps up stays above the 10 s that covers
+and song heads wait for (`player.js` `HEADS_AFTER_BUFFERED_S`). The next song's deck, preloaded 30 s
+before the end, fills its own 20 s and no more. What lies more than 10 s behind is removed (`plan.js`). The
 next song joins at the exact sample where the last one ended. Its pre-skip is trimmed by
 `appendWindowStart`, the last song's end padding by `appendWindowEnd`, and the init segment's OpusHead
 says pre-skip 0. Chromium's decoder drops a head's pre-skip itself only when the head changes, so a

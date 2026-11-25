@@ -758,7 +758,7 @@ export class Player {
     if (old && old !== url) this.ctx.audioCache?.release(old);
     this.deckUrl.set(el, url);
     el.preload = this.state === STATE_PLAYING ? 'auto' : url === this.startHeadUrl ? 'metadata' : 'none';
-    // A song from the network streams (at most 15 s ahead, from its head); anything else, or a song whose
+    // A song from the network streams (at most 20 s ahead, from its head); anything else, or a song whose
     // stream gave up, plays from the element as before.
     if (t && stream?.streamable(t, url) && !this.noStream.has(t.id)) {
       const heads = this.ctx.audioHeads, log = (type, data) => this.ctx.playbackLog?.log?.(type, data);

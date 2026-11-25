@@ -81,7 +81,7 @@ async function harness() {
     const { StreamFeed } = await import('/th/music/stream/feed.js');
     const a = /** @type {HTMLAudioElement} */ (document.getElementById('a'));
     const w = /** @type {any} */ (window);
-    // (The phone's cap is 60 s; the feed's mechanism is checked here at 15 s, fetching again under 10.)
+    // (The phone's cap is 20 s; the feed's mechanism is checked here at 15 s, fetching again under 10.)
     w.feed = new StreamFeed(a, { capS: 15, resumeS: 10 });
     w.events = [];
     for (const type of ['trackstart', 'trackend', 'stall', 'error', 'fallback', 'ended'])
@@ -311,7 +311,7 @@ test('the lab page plays the queue under its own CSP and shows the join, the cap
   await until(page, () => document.getElementById('log').textContent.includes('the queue played out'), null, 20_000);
   const log = await page.locator('#log li').allTextContents();
   assert.ok(log.some((l) => /song 2 \(tone\.opus\) started at 3\.000 s · gap 0\.0 ms after song 1/.test(l)), log.join('\n'));
-  assert.match(await page.locator('#nums').textContent(), /buffered ahead · cap 60 s · most so far \d+\.\d s/);
+  assert.match(await page.locator('#nums').textContent(), /buffered ahead · cap 20 s · most so far \d+\.\d s/);
   assert.match(await page.locator('#state').textContent(), /tone\.opus, tone\.opus/);
   assert.deepEqual(problems, []);
   // An address outside this site is not followed.

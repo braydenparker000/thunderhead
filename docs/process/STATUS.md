@@ -38,7 +38,7 @@ Left: the picks rated by the owner (under about 70 % worth it means tuning), Lis
   predictions and the meter (P9); go quiet and quiet hours; Web Push within its budget; a layered
   briefing (now, the voice and the owner in its first 2,000 characters) and role knowledge on demand
   (`th skill`, 14 files in `mind/skills/`).
-- **The apps on the new Worker:** Music (catalog, uploads, streaming up to 60 s ahead, never-play
+- **The apps on the new Worker:** Music (catalog, uploads, streaming up to 20 s ahead, never-play
   rules), Guitar (sources, tips per section, the tempo ladder), Study (books, verses, asking about
   your books), Podcasts (the data move, the night's new-episode check, Core 25); Astra and My Media
   as ported.

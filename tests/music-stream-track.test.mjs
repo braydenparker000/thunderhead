@@ -144,8 +144,10 @@ test('what can’t pass is refused with a code: 404, no Range support past the s
 });
 
 test('the cap’s decisions: fetch to the cap, wait until under the resume mark, append in steps under the cap', () => {
-  // The phone's cap is 60 s, fetching again under 30 s (the owner, 2026-11-01); the steps are checked at 15 and 10.
-  assert.deepEqual([CAP_S, RESUME_S], [60, 30]);
+  // The phone's cap is 20 s on every connection, fetching again under 12 s (the owner, 2026-11-25), above
+  // the 10 s covers and heads wait for (player.js HEADS_AFTER_BUFFERED_S); the steps are checked at 15 and 10.
+  assert.deepEqual([CAP_S, RESUME_S], [20, 12]);
+  assert.ok(RESUME_S > 10 && RESUME_S < CAP_S);
   const nextFetch = (/** @type {any} */ o) => nextFetch60({ capS: 15, resumeS: 10, ...o });
   const appendRoom = (/** @type {any} */ o) => appendRoom60({ capS: 15, ...o });
   const bps = 20_000; // 160 kb/s

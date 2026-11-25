@@ -1,6 +1,6 @@
 // Music's player streams (th/music/stream/deck.js inside music/src/player/player.js; MUSIC.md §5):
 // the real music page, its worker and bridge, against a mock new Worker and a mock bucket of 150-second
-// Opus tones. A song plays through the stream feed (a MediaSource), never more than about 60 s ahead,
+// Opus tones. A song plays through the stream feed (a MediaSource), never more than about 20 s ahead,
 // without fetching the whole file or any byte of it twice (the head kept for the song the app opened
 // on serves its start), and the next songs' heads come without an Ogg tail; its length is the
 // catalog's before its end; a seek past the buffer
@@ -125,20 +125,20 @@ async function playFrom(page, from) {
   await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 1; }, null, { timeout: 30_000 });
 }
 
-test('a song streams: at most ~60 s ahead, part of the file, its length known, seek and skip, a give-up plays on', opts, async () => {
+test('a song streams: at most ~20 s ahead, part of the file, its length known, seek and skip, a give-up plays on', opts, async () => {
   const { context, page, errors } = await boot();
   try {
     await playFrom(page, 0);
     const deck = await page.evaluate(() => { const a = __cp.player.audio; return { blob: a.src.startsWith('blob:'), stream: !!a._stream, duration: a.duration }; });
     const log = deck.stream ? [] : await page.evaluate(() => window.__cp.ctx.playbackLog.events.filter((e) => /stream|stall|reload/.test(e.type)));
     assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, `through the feed, the catalog length from the start ${JSON.stringify(log)}`);
-    // While it plays, never much more than 60 s buffered ahead of where it is.
+    // While it plays, never much more than 20 s buffered ahead of where it is (plan.js CAP_S).
     let most = 0;
     for (let i = 0; i < 12; i++) {
       most = Math.max(most, await page.evaluate(() => { const a = __cp.player.audio, b = a.buffered; let e = a.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= a.currentTime + 0.1) e = Math.max(e, b.end(k)); return e - a.currentTime; }));
       await page.waitForTimeout(250); // one look every 250 ms over 3 s of playing: the window watched, not a wait
     }
-    assert.ok(most <= 60.6, `buffered ahead at most ${most.toFixed(2)} s`);
+    assert.ok(most <= 20.6, `buffered ahead at most ${most.toFixed(2)} s`);
     const playing = await page.evaluate(() => __cp.player.track.id);
     const i0 = [...Array(N).keys()].find((i) => idOf(i) === playing);
     // Part of the file, and no byte of it twice: the head the app kept for the song it opened on
