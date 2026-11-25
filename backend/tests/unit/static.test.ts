@@ -177,6 +177,7 @@ describe('source rules', () => {
     expect(users.map(([f]) => f.replace(/^.*\/src\//, '')).sort()).toEqual([
       'areas/music/routes.ts',
       'areas/music/upload.ts',
+      'areas/music/writer-analysis.ts',
       'areas/music/writer-edit.ts',
       'areas/music/writer.ts',
       'objects/music.ts',

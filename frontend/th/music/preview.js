@@ -39,6 +39,9 @@ export function stopPreview(host) {
   c.show(false, '');
 }
 const onHide = () => stopPreview();
+// Read fresh each time: the phone can go offline while a preview loads (a function, so the type
+// check does not keep the earlier answer across the await).
+const offline = () => navigator.onLine === false;
 
 /** Whether the pick `id` is the one asked for from `host` (playing or loading). @param {string} id @param {Node} host */
 export const previewing = (id, host) => now?.id === id && now.host === host;
@@ -52,7 +55,7 @@ export async function togglePreview(id, host, show) {
   const same = previewing(id, host);
   stopPreview();
   if (same) return;
-  if (navigator.onLine === false) {
+  if (offline()) {
     show(false, LINES.offline);
     return;
   }
@@ -74,6 +77,6 @@ export async function togglePreview(id, host, show) {
     if (now !== c) return;
     stopPreview();
     const status = /** @type {any} */ (e)?.status;
-    show(false, status === 404 ? LINES.none : navigator.onLine === false ? LINES.offline : LINES.error);
+    show(false, status === 404 ? LINES.none : offline() ? LINES.offline : LINES.error);
   }
 }
