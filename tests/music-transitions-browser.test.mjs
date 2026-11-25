@@ -122,11 +122,12 @@ test('the named transitions run without a long frame and end where they ended be
     console.log(`# ${step.key}: ${r.frames} frames, worst gap ${r.worst} ms; ${r.runs.map((x) => `${x.name} ${x.frames}f ${x.worstGap}ms`).join('; ')}`);
     timing(r.worst <= MAX_GAP_MS, `${step.key}: worst frame gap ${r.worst} ms (at most ${MAX_GAP_MS} ms at 4x)`);
     got[step.key] = await boxes(page);
-    // A mismatch prints the step's whole end state (the assertion's diff is cut short), to read the fixture from the log.
+    // A mismatch prints the step's whole end state (the assertion's diff is cut short), to read the fixture from the log;
+    // the walk goes on so every mismatching step prints in one run, and the boxes are asserted after it.
     if (!capture && !isDeepStrictEqual(got[step.key], reference[step.key])) console.log(`# ${step.key} boxes: ${JSON.stringify(got[step.key])}`);
-    if (!capture) assert.deepEqual(got[step.key], reference[step.key], `${step.key}: the end state's boxes are the ones drawn before`);
   }
   if (capture) writeFileSync(capture, JSON.stringify(got, null, 1) + '\n');
+  else for (const step of STEPS) if (step.key) assert.deepEqual(got[step.key], reference[step.key], `${step.key}: the end state's boxes are the ones drawn before`);
   assert.deepEqual(errors, []);
   await context.close();
 });
