@@ -51,6 +51,8 @@ import {installCategoryRestore} from './list/category-ref.js';
 import {prebuildLikely} from './view/prebuild.js';
 import {topViewport, visibleHeight} from './ui/viewport-top.js';
 import './list/list-widget.js';
+// The list's scroller and its rail (registered here: no module imports it for a name any more).
+import './list/scroller.js';
 import './list/selection.js';
 
 export async function loadModel(url) {

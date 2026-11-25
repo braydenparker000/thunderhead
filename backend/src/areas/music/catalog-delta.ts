@@ -60,12 +60,15 @@ export function changedIds(db: Db, since: number, v: CatalogVersion): string[] |
   return null;
 }
 
-/** The songs of `ids` still in the catalog, in its order (one read each, by the id's index). */
+/** The songs of `ids` still in the catalog, in its order (one read each, by the id's index). Driven by the
+ * ids (a CROSS JOIN keeps json_each outside) and sorted here: `WHERE id IN (…) ORDER BY ord` leaves the planner free to
+ * walk the whole table in its order (about 5 rows read a song changed at the limit, the cost suite saw). */
 export function deltaRows(db: Db, ids: string[]): (CatalogRow & { id: string })[] {
   if (!ids.length) return [];
-  return db.all(
-    `SELECT id, record_json, waveform IS NOT NULL AS w, updated_at AS u FROM tracks
-     WHERE id IN (SELECT value FROM json_each(?)) ORDER BY ord`,
+  const rows = db.all<CatalogRow & { id: string; ord: number }>(
+    `SELECT t.ord, t.id, t.record_json, t.waveform IS NOT NULL AS w, t.updated_at AS u
+     FROM json_each(?) AS k CROSS JOIN tracks AS t ON t.id = k.value`,
     JSON.stringify(ids),
   );
+  return rows.sort((a, b) => a.ord - b.ord).map(({ ord: _ord, ...r }) => r);
 }

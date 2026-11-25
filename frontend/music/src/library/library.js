@@ -305,12 +305,18 @@ export class Library {
   /** A cover's songs ask for it again (their items and the player rebind on msg_data_art_changed). */
   coverAgain(ck) {
     const f = this.coverFails?.get(ck);
-    if (!f) return;
+    // Signed out, its songs wait for the session (coversAgain).
+    if (!f || this.ctx.access?.state === 'signin') return;
     clearTimeout(f.timer);
     f.at = 0;
     const tracks = [...f.owners];
     f.owners.clear();
     if (tracks.length) this.ctx.bus?.post('bus_data', 'msg_data_art_changed', this, {tracks});
+  }
+
+  /** Every cover that could not be read asks again (the session is back: access.js). */
+  coversAgain() {
+    for (const ck of this.coverFails?.keys() ?? []) this.coverAgain(ck);
   }
 
   /**
@@ -379,6 +385,12 @@ export class Library {
     if (hit) return hit.headers.get('x-cover-none') ? null : hit.blob();
     // A cover that failed lately is not asked for again before its time.
     if (Date.now() < (this.coverFails?.get(ck)?.at ?? 0)) return FAILED;
+    // Signed out (access.js): nothing goes out; the session back asks again (coversAgain).
+    if (this.ctx.access?.state === 'signin') {
+      this.coverFails ??= new Map();
+      if (!this.coverFails.has(ck)) this.coverFails.set(ck, {n: 0, at: 0, owners: new Set()});
+      return FAILED;
+    }
     if (wanted) {
       await new Promise(r => setTimeout(r, ROW_SETTLE_MS));
       if (!wanted()) return SKIPPED;
@@ -431,6 +443,8 @@ export class Library {
     }
     try {
       if (!want()) return SKIPPED;
+      // Signed out while it waited: not now (asked again once the session is back).
+      if (this.ctx.access?.state === 'signin') return FAILED;
       let blob = null;
       if (key.startsWith('embedded:')) {
         const t = this.byId.get(key.slice(9));
