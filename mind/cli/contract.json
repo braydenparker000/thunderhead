@@ -1390,7 +1390,7 @@
       "who": "P",
       "phase": "P5",
       "status": "built",
-      "note": "signed by an upload tool key; the catalog writer's operations, export and links"
+      "note": "signed by an upload tool key; the catalog writer's operations, export (whole or in pages), track, quota and links"
     },
     "PUT /v1/senses/batches/:id": {
       "who": [

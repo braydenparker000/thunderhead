@@ -203,6 +203,14 @@ export class Music extends MusicDiag {
     return this.built;
   }
 
+  /** The catalog for the route, as an answer whose body streams. One RPC answer holds 32 MiB at most,
+   * and the text as a string (two bytes a character on the way) passed it at about 14,200 songs: the
+   * route answered 500 from 2026-11-25 02:20 UTC, and the phones kept their last copy. */
+  catalogAnswer(): Response {
+    const c = this.catalog();
+    return new Response(c.text, { headers: { ETag: c.etag } });
+  }
+
   waveform(id: string): string | null {
     return store.waveform(this.db, id);
   }

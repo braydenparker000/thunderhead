@@ -1,11 +1,12 @@
 // The quota hold at the Worker's edge (DATA.md §8.1): from 80% of the day's database budget the
-// upload tools' operations, the mind's song notes (PUT /v1/music/notes, the night's one bulk
-// write), and the phone's writes that can wait (its senses batches, and its song marks and playlists,
-// which sync again later anyway) answer 429 with Retry-After until 00:00 UTC, so messages, reminders
-// and settings keep the last 20%. Core decides from its meter, with Music's own day brought along
-// (both write in Music, whose row in Core is otherwise only as fresh as the last tick). This isolate
-// keeps the answer for a minute, so a run of operations asks about once a minute. The phone's other
-// calls and the mind's other work are never held.
+// upload tools' operations (all but `quota`, which says where the day stands), the mind's song
+// notes (PUT /v1/music/notes, the night's one bulk write), and the phone's writes that can wait
+// (its senses batches, and its song marks and playlists, which sync again later anyway) answer 429
+// with Retry-After until 00:00 UTC, so messages, reminders and settings keep the last 20%. Core
+// decides from its meter, with Music's own day brought along (both write in Music, whose row in
+// Core is otherwise only as fresh as the last tick). This isolate keeps the answer for a minute, so
+// a run of operations asks about once a minute. The phone's other calls and the mind's other work
+// are never held.
 import { ApiError } from '../../http/errors';
 import { MINUTE } from '../../lib/time';
 import { coreObject } from '../../objects/core';
@@ -23,7 +24,7 @@ export function forgetHold(): void {
 }
 
 /** Music's day as its meter stands now, or none when it can't answer. */
-async function musicDay(env: Env): Promise<DayRow[]> {
+export async function musicDay(env: Env): Promise<DayRow[]> {
   try {
     const [today] = await musicObject(env).meterFlush();
     return today

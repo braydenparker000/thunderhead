@@ -227,3 +227,35 @@ export function exportRows(db: Db): { record_json: string; waveform: string | nu
 export function recordBytes(db: Db): number {
   return db.one<{ n: number | null }>('SELECT sum(length(record_json)) AS n FROM tracks')?.n ?? 0;
 }
+
+/** A record as the tools read it, and whether its row has a waveform (`w`). */
+export interface BriefRow {
+  ord: number;
+  record_json: string;
+  waveform: string | null;
+  w: number;
+}
+
+/** Up to `limit` records in catalog order after place `after` (the tools' export in pages): `limit`
+ * rows read at most, by the key. Without `waveforms` the waveform itself is not returned. */
+export function exportPage(db: Db, after: number, limit: number, waveforms: boolean): BriefRow[] {
+  return db.all(
+    `SELECT ord, record_json, ${waveforms ? 'waveform' : 'NULL AS waveform'}, waveform IS NOT NULL AS w
+     FROM tracks WHERE ord > ? ORDER BY ord LIMIT ?`,
+    after,
+    limit,
+  );
+}
+
+/** A track's place in the catalog's order, or null (one row read). */
+export function ordOf(db: Db, id: string): number | null {
+  return db.one<{ ord: number }>('SELECT ord FROM tracks WHERE id = ?', id)?.ord ?? null;
+}
+
+/** One track's record without its waveform, by id or by its audio (one row read). */
+export function briefRow(db: Db, by: { id: string } | { sha256: string; size: number }): BriefRow | null {
+  const cols = 'ord, record_json, NULL AS waveform, waveform IS NOT NULL AS w';
+  if ('id' in by) return db.one<BriefRow>(`SELECT ${cols} FROM tracks WHERE id = ?`, by.id);
+  const q = `SELECT ${cols} FROM tracks WHERE sha256 = ? AND size = ? ORDER BY ord LIMIT 1`;
+  return db.one<BriefRow>(q, by.sha256, by.size);
+}

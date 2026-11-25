@@ -124,8 +124,10 @@ export async function verifiedAudio(c: Ctx, sha256: unknown, size: unknown): Pro
   return { audioKey, sha256, size, mimeType: 'audio/ogg', r2Identity: proof(o as R2Object) };
 }
 
+type Prepared = { track: Obj; waveform: string | null };
+
 /** A registration to a new track record and its waveform, checked against the bucket. */
-async function prepare(c: Ctx, body: Obj): Promise<{ track: Obj; waveform: string | null }> {
+async function prepare(c: Ctx, body: Obj): Promise<Prepared> {
   let meta: Obj;
   try {
     meta = metadata(body?.metadata);
@@ -153,14 +155,15 @@ async function prepare(c: Ctx, body: Obj): Promise<{ track: Obj; waveform: strin
   return { track: withKind(track, waveform, kindOrFail(body.waveformKind)), waveform };
 }
 
-function insert(c: Ctx, { track, waveform }: { track: Obj; waveform: string | null }): Obj {
+/** `moved`: what a change does to the catalog's version (a batch moves it once, after its songs). */
+function insert(c: Ctx, { track, waveform }: Prepared, moved: () => unknown = () => changed(c)): Obj {
   const existing = store.byContent(c.db, track.sha256 as string, track.size as number);
   if (existing) {
     // The same audio again: a waveform it brings fills a missing one.
     const row = store.trackRow(c.db, existing) as store.TrackRow;
     if (waveform && !row.waveform) {
       put(c, withKind(record(row), waveform, (track.waveformKind as string) ?? 'peak'), waveform);
-      changed(c);
+      moved();
     }
     return { registered: true, duplicate: true, id: existing };
   }
@@ -172,7 +175,7 @@ function insert(c: Ctx, { track, waveform }: { track: Obj; waveform: string | nu
   c.grow(size);
   c.counted(1);
   store.logOp(c.db, c.now, 'register', track.id as string, null);
-  changed(c);
+  moved();
   return { registered: true, duplicate: false, id: track.id };
 }
 
@@ -190,16 +193,30 @@ export const OPS: Record<string, Op> = {
     const items = body?.tracks;
     if (!Array.isArray(items) || !items.length || items.length > BATCH_MAX)
       fail(422, `A batch is 1 to ${BATCH_MAX} registrations`);
-    const results: Obj[] = [];
-    for (const item of items as Obj[]) {
-      try {
-        const prepared = await prepare(c, item);
-        results.push(c.tx(() => insert(c, prepared)));
-      } catch (e) {
-        if (!(e instanceof MusicError)) throw e;
-        results.push({ registered: false, sha256: item?.sha256 ?? null, status: e.status, error: e.message });
-      }
-    }
+    const refused = (item: Obj, e: unknown): Obj => {
+      if (!(e instanceof MusicError)) throw e;
+      return { registered: false, sha256: item?.sha256 ?? null, status: e.status, error: e.message };
+    };
+    // Each checked against the bucket first; then all in one transaction that moves the catalog's
+    // version once, not once a song (a refused song writes nothing before it is refused).
+    const ready: Obj[] = [];
+    for (const item of items as Obj[]) ready.push(await prepare(c, item).catch((e) => ({ refused: refused(item, e) })));
+    const results = c.tx(() => {
+      let moved = false;
+      const out = (items as Obj[]).map((item, i) => {
+        const r = ready[i];
+        if (r.refused) return r.refused as Obj;
+        try {
+          return insert(c, r as Prepared, () => {
+            moved = true;
+          });
+        } catch (e) {
+          return refused(item, e);
+        }
+      });
+      if (moved) changed(c);
+      return out;
+    });
     return {
       results,
       registered: results.filter((r) => r.registered && !r.duplicate).length,
