@@ -1,5 +1,5 @@
 // @ts-check
-// Music and Podcasts as layers inside home and the island they shrink into (HOME §12.1): Podcasts loaded at idle (warm.js), Music when opened;
+// Music and Podcasts as layers inside home and the island they shrink into (HOME §12.1): loaded at idle (warm.js);
 // the capsule (capsule.js, shape.js, hand.js) loads when it first appears.
 import { appFor } from '../registry/apps.js';
 import { frames, retain } from './frames.js';
@@ -7,8 +7,7 @@ import { drop } from './line.js';
 import { holdHeight } from './hold-height.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 export const layered = (/** @type {string} */ id) => LAYERED.includes(id);
-/** The layers home loads at idle. Not Music (owner, 2026-11-25): its boot asks the catalogue and its own files, data
- * the owner pays for without opening it; it loads when first opened and stays loaded after. */
+/** Loaded at idle; not Music (owner, 2026-11-25): its boot costs data, so it loads when opened. */
 export const WARMED = Object.freeze(LAYERED.filter(id => id !== 'music'));
 /** Shared state; c, s, h are the modules. @type {{layer:import('./frames.js').Layer|null,island:HTMLDivElement|null,expanded:boolean,touching:boolean,held:boolean,flight:number,dir:number,from:number,c:any,s:any,h:any}} */
 export const st = { layer: null, island: null, expanded: false, touching: false, held: false, flight: 0, dir: 0, from: 0, c: null, s: null, h: null };
@@ -83,7 +82,7 @@ export async function warm() {
   for (const f of ['capsule', 'shape', 'hand']) document.head.append(Object.assign(document.createElement('link'), { rel: 'modulepreload', href: `/th/island/${f}.js` }));
   for (const id of WARMED) {
     if (no()) return;
-    // A failed boot must not keep the next layer from warming forever.
+    // A failed boot must not keep the next from warming forever.
     await Promise.race([retain(id, watch).loaded, new Promise(r => setTimeout(r, 15_000))]);
   }
 }
