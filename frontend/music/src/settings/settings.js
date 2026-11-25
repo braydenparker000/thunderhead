@@ -51,7 +51,9 @@ const attr = (node, name) => {
 // (the XML default is overridden or not a valid value).
 const RUNTIME_DEFAULTS = {navbar_seekbar: 'true', anim_speed: '1', hide_menu: '0', main_lyrics_button: '1', main_lyrics_swipe: '2',
   // b40 library state: the home's categories (all but Albums by Artist) and no start category.
-  library_lists: '1048511', library_home: '-1'};
+  library_lists: '1048511', library_home: '-1',
+  // Previous restarts a song after 5 s, and before goes back to the song heard before (owner, 2026-11-25).
+  previous_resets: 'true'};
 // Settings that restyle the player through theme overlays: the player
 // activity is recreated when settings close (a reload here).
 const THEME_KEYS = new Set(['rating_type', 'hide_menu', 'main_lyrics_button', 'aa_aspect', 'cc_button', 'headers_meta', 'vis_frs_type', 'list_header_buttons', 'localized_az', 'anim_long_labels', 'anim_long_labels_in_lists', 'navbar_seekbar', 'library_lists', 'static_navbar', 'list_bottom_toolbar']);

@@ -332,7 +332,8 @@ export function installDj(ctx, player) {
       save(learned);
       before = now.id;
       // A plan the player made in DJ mode is planned again from here (ensureOrder keeps it); any other, from scratch.
-      const dj = player.orderShuffle === SHUFFLE_DJ && player.orderQueueMode === player.queueMode && !(player.queueMode && ctx.pref?.('queue_no_shuffle'));
+      // The Queue is never planned: queued songs play in the order the owner chose (owner, 2026-11-25).
+      const dj = player.orderShuffle === SHUFFLE_DJ && player.orderQueueMode === player.queueMode && !player.queueMode;
       if (skipped && player.shuffle === SHUFFLE_DJ) player.order = dj ? replan(player.queue, player.order, player.index, { learned }) : null;
     }
     now = { id: t.id, pos: 0, dur: t.durationMs || 0 };

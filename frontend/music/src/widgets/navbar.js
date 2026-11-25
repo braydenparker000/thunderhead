@@ -149,7 +149,8 @@ export class MiniPlayerList extends FastLayout {
     this.offset = 0;
     this.el.style.overflow = 'hidden'; // neighbour pages stay inside the list
     ctx.bus.subscribe('bus_player', msg => {
-      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed') {
+      // (The Queue too: the pages show the song Next and Previous really play, Player.previewAt.)
+      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed' || msg === 'msg_player_queue_changed') {
         const t = this.ctx.player?.track, b = this.bound;
         const dir = msg === 'msg_player_track_changed' && !this.selfStep && t && b && t !== b[0] ? (t === b[1] ? 1 : t === b[-1] ? -1 : 0) : 0;
         this.bind();
