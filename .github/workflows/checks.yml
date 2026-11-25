@@ -83,8 +83,9 @@ jobs:
       - if: ${{ steps.browser.outcome == 'success' && steps.browser-cache.outputs.cache-hit == 'true' }}
         run: npx playwright install-deps chromium
       # Switzer is fetched, not kept here (its licence forbids a public repository; scripts/fonts.mjs).
-      - if: ${{ steps.browser.outcome == 'success' }}
-        run: node scripts/fonts.mjs
+      # In every part: tests/site.test.mjs checks the pages' files with no browser, and a scoped run
+      # (a Worker or docs change) can deal it to a part that has none.
+      - run: node scripts/fonts.mjs
       # Local checks only: the live checks run after a deploy, against what went live.
       - name: Test
         env:
