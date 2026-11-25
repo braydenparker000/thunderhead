@@ -1006,7 +1006,11 @@ covers are in their files (`artId` `embedded:`). Found:
   download slot, until the playing song pauses or sounds with 10 s of its stream ahead, at most 3 s
   (`Player.linkFree`, `frontend/music/src/player/link-free.js`: read on the deck's own events, one wait for
   every caller, no polling); past 3 s covers load one at a time at low priority (`Library.lowSlot`). A cover
-  is read once for every caller (`Library.remoteCover`). The tapped song's first 10 s were on the phone after
+  is read once for every caller (`Library.remoteCover`). Since 2026-11-25 only grid covers wait: the player's
+  covers are a small request each and go at once, also by joining a grid read that waits; until a full cover is
+  there the player shows its thumbnail. A cover that fails is asked again after 2 s, 8 s and 30 s, then at a bind
+  or when the phone is back online (a 404 stays final), and songs sharing one bucket cover (`coverKey`) share
+  its download, thumbnail and memo. The tapped song's first 10 s were on the phone after
   5.0–6.9 s, now 3.0–3.4 s; first sound 708 / 1,278 / 609 ms, now 583–601 / 925–940 / 626 ms (one run each).
 - **A stall reloaded a song whose request was about to deliver.** With the link dead from 3 s to 18 s after
   a tap, the guard reloaded at 10 s of waiting: the new deck sought the file again (five ranges) and played

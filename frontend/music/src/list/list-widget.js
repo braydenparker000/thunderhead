@@ -172,18 +172,19 @@ export class AAItemView extends SceneFastLayout {
       this.num?.setText(n.num ?? '');
       if (labels) for (const k of ['title', 'line2', 'meta', 'num']) if (labels[k] != null) this[k]?.setText(labels[k]);
     }
-    // List rows use cached thumbnails; the player's cover items the full image.
+    // List rows use cached thumbnails; the player's cover items the full image, with the thumbnail until it is decoded.
     const field = this.useThumb ? 'thumb' : 'art';
-    const have = track?.[field] ?? (this.useThumb ? track?.art : null) ?? null;
+    const have = track?.[field] ?? track?.[this.useThumb ? 'art' : 'thumb'] ?? null;
     this.image?.setArt(have);
-    if (track && !have && (track.artId || this.ctx.library?.customArt?.size) && this.ctx.library) {
+    const lib = this.ctx.library;
+    if (track && !(this.useThumb ? have : track.art) && (track.artId || lib?.customArt?.size) && lib) {
+      const show = (art, f) => { if (art && this.track === track) { track[f] = art; this.image?.setArt(art); } };
       // Rows only download once they stay on screen (still bound to this track).
-      (this.useThumb ? this.ctx.library.thumbFor(track, () => this.track === track && this.visibility === VISIBLE) : this.ctx.library.artFor(track)).then(art => {
-        if (art && this.track === track) {
-          track[field] = art;
-          this.image?.setArt(art);
-        }
-      });
+      if (this.useThumb) lib.thumbFor(track, () => this.track === track && this.visibility === VISIBLE).then(art => show(art, 'thumb'));
+      else {
+        if (!have) lib.thumbFor(track).then(art => { if (!track.art) show(art, 'thumb'); });
+        lib.artFor(track).then(art => art && decoded(art)).then(art => show(art, 'art'));
+      }
     }
   }
 
@@ -228,6 +229,14 @@ export class AAItemView extends SceneFastLayout {
     if (hidden?.size) for (const id of hidden) this.findViewById(id)?.setVisibility(GONE);
   }
 }
+
+/** The cover once its image is decoded: a thumbnail it replaces leaves no blank frame between. */
+const decoded = art => {
+  if (typeof Image !== 'function') return Promise.resolve(art);
+  const img = new Image();
+  img.src = art.url;
+  return img.decode().then(() => art, () => art);
+};
 
 /** Album art: fit rule of the reference (width-fit unless clearly portrait), rounded corners, elevation shadow. */
 export class AAImageView extends View {

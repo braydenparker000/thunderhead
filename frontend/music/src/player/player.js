@@ -624,6 +624,12 @@ export class Player {
       }
     }
     if (t && !t.art && (t.artId || this.ctx.library?.customArt?.size) && this.ctx.library) {
+      // The list's thumbnail meanwhile (often kept already), for the lock screen until the full cover is there.
+      if (!t.thumb) this.ctx.library.thumbFor(t).then(small => {
+        if (!small || t.art || token !== this.loadToken) return;
+        t.thumb = small;
+        this.post('msg_player_track_changed', {track: t, meta: true});
+      });
       this.ctx.library.artFor(t).then(art => {
         if (!art || token !== this.loadToken) return;
         t.art = art;
@@ -1889,8 +1895,9 @@ export class Player {
       const t = this.track;
       if (msg === 'msg_player_track_changed' && !d?.meta) state();
       if (msg === 'msg_player_track_changed' && t && typeof MediaMetadata === 'function') {
-        // The reference's media API labels (g30: m3733, m3740, y).
-        ms.metadata = new MediaMetadata({title: trackTitle(this.ctx, t), artist: artistLabel(this.ctx, t), album: albumLabel(this.ctx, t), artwork: t.art ? [{src: t.art.url, sizes: `${t.art.width}x${t.art.height}`}] : []});
+        // The reference's media API labels (g30: m3733, m3740, y); the thumbnail until the full cover is there.
+        const pic = t.art ?? t.thumb;
+        ms.metadata = new MediaMetadata({title: trackTitle(this.ctx, t), artist: artistLabel(this.ctx, t), album: albumLabel(this.ctx, t), artwork: pic ? [{src: pic.url, sizes: `${pic.width}x${pic.height}`}] : []});
         position();
       } else if (msg === 'msg_player_playing_state_changed') {
         state();
