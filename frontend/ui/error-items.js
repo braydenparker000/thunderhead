@@ -22,8 +22,8 @@ const kindOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof
 const where = (stack, origin) => stack.split(`${origin}/`)[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];
 
 /** The browser's own notice that a ResizeObserver's callback changed sizes again within one frame (and its
- * older wording): harmless, not a fault, and on home it was most of the inbox. Every page's reporter
- * asks this (itemOf here; assets/error-report.js on the ported apps), so no page sends it. @param {string} text */
+ * older wording): harmless, not a fault, and on home it was most of the inbox. itemOf asks this, so home,
+ * Photos and Study never send it (the ported apps' own reporter never recorded one). @param {string} text */
 export const harmless = (text) => /^(Uncaught )?ResizeObserver loop (completed with undelivered notifications|limit exceeded)\.?$/i.test(text);
 
 /** FNV-1a (32 bits) as 8 hex digits: a short, stable name. @param {string} s */
