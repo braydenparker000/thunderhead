@@ -32,7 +32,7 @@ const signBody = z.strictObject({
 const MUSIC_REF = /^music:([^#]+)(#art)?$/;
 
 /** This isolate's copy of the catalog, by ETag: a new isolate asks the object once. */
-let held: { etag: string; text: string } | null = null;
+let held: { etag: string; body: ArrayBuffer } | null = null;
 
 const unchanged = (header: string | undefined, etag: string) =>
   !!header && header.split(',').some((v) => v.trim().replace(/^W\//, '') === etag);
@@ -45,10 +45,14 @@ export const musicRoutes = new Hono<AppEnv>()
       throw new ApiError('conflict', { reason: 'no catalog yet: the import (I7) has not run' });
     c.header('ETag', etag);
     if (unchanged(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
-    if (held?.etag !== etag) held = await fresh(music.catalog());
+    if (held?.etag !== etag) {
+      // As a streamed answer, not a string: a string this long does not fit one RPC answer (music.ts).
+      const r = await fresh(music.catalogAnswer());
+      held = { etag: r.headers.get('ETag') ?? etag, body: await r.arrayBuffer() };
+    }
     // The object may have moved on between the two calls: the ETag sent is the text's own.
     c.header('ETag', held.etag);
-    return c.body(held.text, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return c.body(held.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
   })
   // The mind picks a playlist's tracks by their tags (MUSIC.md §10.2), then asks a phone to make it
   // (songs rated 1 or ruled out by a never-play rule left out); `untagged=1` is the night's next page of songs to write notes for
