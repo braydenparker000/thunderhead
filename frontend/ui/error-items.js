@@ -21,6 +21,11 @@ const kindOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof
 /** The first place in this site's own code a stack names (`th/chat/view.js:12:5`). @param {string} stack @param {string} origin */
 const where = (stack, origin) => stack.split(`${origin}/`)[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];
 
+/** The browser's own notice that a ResizeObserver's callback changed sizes again within one frame (and its
+ * older wording): harmless, not a fault, and on home it was most of the inbox. Every page's reporter
+ * asks this (itemOf here; assets/error-report.js on the ported apps), so no page sends it. @param {string} text */
+export const harmless = (text) => /^(Uncaught )?ResizeObserver loop (completed with undelivered notifications|limit exceeded)\.?$/i.test(text);
+
 /** FNV-1a (32 bits) as 8 hex digits: a short, stable name. @param {string} s */
 export function hash(s) {
   let h = 0x811c9dc5;
@@ -30,7 +35,7 @@ export function hash(s) {
 
 /**
  * The inbox item for one uncaught error (`kind` error) or rejection, or null when it says nothing
- * (a cross-origin "Script error.").
+ * (a cross-origin "Script error.") or is harmless (a ResizeObserver loop notice).
  * @param {{ app: string, kind: 'error' | 'rejection', error: unknown, message?: string, origin: string, path: string, build: number, at: number }} e
  */
 export function itemOf(e) {
@@ -43,7 +48,7 @@ export function itemOf(e) {
       : err == null && e.kind === 'error'
         ? String(e.message ?? '')
         : `${e.kind === 'error' ? 'Thrown' : 'Rejected'}: not an Error (${kindOf(err)})`;
-  if (!text || /^(Uncaught )?Script error\.?$/i.test(text)) return null;
+  if (!text || /^(Uncaught )?Script error\.?$/i.test(text) || harmless(text)) return null;
   const at = where(String(err?.stack ?? ''), e.origin);
   const words = cleanText(text, MESSAGE_MAX);
   return {

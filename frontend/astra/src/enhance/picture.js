@@ -131,7 +131,7 @@ export class Picture {
       // Only this canvas's loss counts: the one stop() lets go of is lost on purpose, a moment later.
       const canvas = this.canvas;
       canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); if (canvas === this.canvas) this.lost(); });
-      canvas.addEventListener('webglcontextrestored', () => { if (canvas === this.canvas) this.restore(); });
+      canvas.addEventListener('webglcontextrestored', () => { if (canvas === this.canvas) this.regain(); });
       this.filter = new Filter(this.canvas);
     } catch (e) { this.stop(); this.report(`The sharper picture could not start: ${e.message}`); return false; }
     if ((this.hdr || this.correcting()) && !this.filter.half) { this.stop(); this.report(this.correcting() ? DOLBY.reason : HDR.reason); return false; }
@@ -261,8 +261,8 @@ export class Picture {
 
   lost() { this.canvas?.remove(); if (this.frameId) this.video.cancelVideoFrameCallback(this.frameId); this.frameId = 0; }
 
-  /** One more try after the GPU comes back; a second loss turns the filter off. */
-  restore() {
+  /** One more try after the GPU comes back (not `restore`: that is the Anime4K Restore setting); a second loss turns the filter off. */
+  regain() {
     if (this.restored) return this.refuse('The graphics context was lost twice, so the plain picture stays.');
     this.restored = true;
     try { this.filter = new Filter(/** @type {HTMLCanvasElement} */ (this.canvas)); }
