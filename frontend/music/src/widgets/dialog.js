@@ -27,7 +27,7 @@ let keysInstalled = false;
  * buttons: {positive, negative, neutral} labels (absent ones hide);
  * onButton(which: 1 positive, 2 negative, 3 neutral) returns false to keep it open.
  */
-export function openDialog(ctx, {style, title = '', buttons = {}, onButton = null, onCancel = null, onClosed = null, setup = null} = {}) {
+export function openDialog(ctx, {style, title = '', buttons = {}, onButton = null, onCancel = null, onClosed = null, setup = null, back = false} = {}) {
   const decor = ctx.root;
   const theme = ctx.inflater.overlayTheme(ctx.theme, style);
   const host = new DialogHost(ctx);
@@ -59,7 +59,8 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
       line?.setVisibility(VISIBLE);
       const tb = find('dialog_toast_button');
       if (tb) {
-        if (button) { tb.setVisibility(VISIBLE); tb.setText(button); tb.onClick = () => { onToastButton?.(); close(); }; }
+        // The button's action follows the dialog out (after its history entry, should it navigate).
+        if (button) { tb.setVisibility(VISIBLE); tb.setText(button); tb.onClick = () => { close(); dialog.afterBack(() => onToastButton?.()); }; }
         else tb.setVisibility(GONE);
       }
       host.scenes.go('scene_dialog_in_toast', {duration: animMs / 1000});
@@ -94,6 +95,8 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
     if (dialog.closed) return;
     dialog.closed = true;
     clearTimeout(dialog.toastTimer);
+    // Its history entry goes as it starts to leave (what follows navigates after it: afterBack).
+    release?.();
     ctx.dialogs = ctx.dialogs.filter(d => d !== dialog);
     const done = () => {
       decor.removeView(host);
@@ -112,6 +115,10 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
     close(undefined, {animate: false});
   }});
 
+  // back: Android Back (the browser's history) closes it, as Escape does.
+  const release = back ? closeOnBack(dialog) : null;
+  /** Runs fn once the dialog is closing and its history entry is gone (at once without one). */
+  dialog.afterBack = fn => (release ? release.then(fn) : fn());
   (ctx.dialogs ??= []).push(dialog);
   if (!keysInstalled) {
     keysInstalled = true;
@@ -128,6 +135,56 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
   host.scenes.go('scene_dialog_in', {duration: animMs / 1000});
   ctx.scheduleLayout();
   return dialog;
+}
+
+// The open windows Back can close, newest last, and those whose own entry is being taken back.
+const backStack = [], leaving = [];
+
+/**
+ * One listener for them all, added as this module loads: before the app's own Back (app.js),
+ * which a window's Back must not reach (listeners on the window run in the order added).
+ */
+function onWindowPop(e) {
+  const gone = leaving.shift();
+  if (gone) { e.stopImmediatePropagation(); gone.settle(); return; }
+  const top = backStack.pop();
+  if (!top) return;
+  e.stopImmediatePropagation();
+  top.done = true;
+  top.settle();
+  if (!top.dialog.closed) top.dialog.cancel();
+}
+if (typeof window !== 'undefined') window.addEventListener('popstate', onWindowPop, true);
+
+/**
+ * Back (the browser's history) closes the window: it gets a history entry of its own, and a Back
+ * closes the newest window open instead of moving the app. Returns release(), called when the
+ * window closes otherwise: its entry goes (and that Back moves nothing either).
+ * release.then(fn) runs fn once the entry is gone, so a navigation that follows the window (Open,
+ * up to Playlists) is not taken back with it.
+ */
+export function closeOnBack(dialog) {
+  const entry = {dialog, done: false, gone: false, waiting: []};
+  entry.settle = () => {
+    if (entry.gone) return;
+    entry.gone = true;
+    for (const fn of entry.waiting.splice(0)) fn();
+  };
+  history.pushState({cpWindow: 1}, '');
+  backStack.push(entry);
+  const release = () => {
+    if (entry.done) return;
+    entry.done = true;
+    const at = backStack.indexOf(entry);
+    if (at >= 0) backStack.splice(at, 1);
+    if (!history.state?.cpWindow) { entry.settle(); return; }
+    leaving.push(entry);
+    // Should the Back never come, nothing waits for it.
+    setTimeout(() => { const i = leaving.indexOf(entry); if (i >= 0) { leaving.splice(i, 1); entry.settle(); } }, 1000);
+    history.back();
+  };
+  release.then = fn => (entry.gone ? fn() : void entry.waiting.push(fn));
+  return release;
 }
 
 /**
@@ -158,12 +215,15 @@ function installDrag(ctx, dialog, {outScene, cancelled}) {
 
 const str = (ctx, name, fallback = name) => ctx.res.stringByName(name) ?? fallback;
 
-/** Message dialog (BottomsheetAlertDialog): title, message, OK/Cancel style buttons. */
-export function alertDialog(ctx, {title = '', message = '', positive = null, negative = null, onPositive = null} = {}) {
+/**
+ * Message dialog (BottomsheetAlertDialog): title, message, OK/Cancel style buttons; onNegative
+ * for a negative button that does something. Back closes it as Cancel does.
+ */
+export function alertDialog(ctx, {title = '', message = '', positive = null, negative = null, onPositive = null, onNegative = null} = {}) {
   const d = openDialog(ctx, {
-    style: 'BottomsheetAlertDialog', title,
+    style: 'BottomsheetAlertDialog', title, back: true,
     buttons: {positive: positive ?? str(ctx, 'ok', 'OK'), negative: negative === false ? null : negative ?? str(ctx, 'cancel', 'Cancel')},
-    onButton: which => { if (which === 1) onPositive?.(); },
+    onButton: which => { if (which === 1) onPositive?.(d); else if (which === 2) onNegative?.(d); },
     setup: dd => {
       const content = dd.find('content');
       if (!content) return;
@@ -177,23 +237,27 @@ export function alertDialog(ctx, {title = '', message = '', positive = null, neg
   return d;
 }
 
-/** Name input (dialog_EditNameActivity): returns the trimmed text through onDone. */
-export function editNameDialog(ctx, {title = '', value = '', onDone} = {}) {
+/**
+ * Name input (dialog_EditNameActivity): returns the trimmed text through onDone(text, dialog);
+ * the value shows selected, maxLength caps what can be typed. Back closes it as Cancel does.
+ */
+export function editNameDialog(ctx, {title = '', value = '', maxLength = 0, onDone} = {}) {
   let input = null;
   const d = openDialog(ctx, {
-    style: 'dialog_EditNameActivity', title,
+    style: 'dialog_EditNameActivity', title, back: true,
     setup: dd => dd.find('edit_text')?.setValue?.(value),
     buttons: {positive: str(ctx, 'ok', 'OK'), negative: str(ctx, 'cancel', 'Cancel')},
     onButton: which => {
       if (which !== 1) return true;
       const v = (input?.value ?? '').trim();
       if (!v) return false;
-      onDone?.(v);
+      onDone?.(v, d);
       return true;
     },
   });
   input = d.find('edit_text');
   if (input?.setValue) {
+    if (maxLength > 0) input.input.maxLength = maxLength;
     input.input.addEventListener('keydown', e => { if (e.key === 'Enter') d.find('button1')?.onClick?.(); });
     // Focus once the frame has entered (a hidden input cannot take focus).
     const focus = () => { input.input.focus({preventScroll: true}); input.input.select(); };

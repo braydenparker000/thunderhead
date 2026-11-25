@@ -5,7 +5,7 @@
 // Each window is the app's list dialog (dialog_AlertDialogActivity_list, a bottom sheet: it enters
 // and leaves with the dialogs' scenes, a drag down or a tap outside closes it) with its rows as
 // the library's: track rows (item_track at scene_small, the cover thumb by thumbFor) under the
-// search's subheads (item_separator_button). Android Back closes it too (closeOnBack).
+// search's subheads (item_separator_button). Android Back closes it too (dialog.js closeOnBack).
 //
 // Up next, top to bottom:
 // - Now playing: one row, marked as the playing row is (its PlayingMark activated).
@@ -22,19 +22,12 @@
 import {FastLayout} from '../view/fast-layout.js';
 import {MeasureSpec} from '../view/view.js';
 import {GONE, VISIBLE} from '../res/values.js';
-import {PowerList, LAYOUT_FOR_TYPE} from '../list/power-list.js';
+import {PowerList, EMPTY_ROW} from '../list/power-list.js';
 import {ListReorder} from '../list/reorder.js';
 import {accelDecel, animClock, VelocityTracker, MIN_FLING_DP, MAX_FLING_DP} from '../gesture.js';
 import {openDialog} from './dialog.js';
 import {animTime} from './topnav.js';
 import {heardWhen} from '../player/play-history.js';
-
-// The quiet line of an empty section: the settings' hint text (?Hint, as List Options' hints), one line.
-const EMPTY_ROW = ['FastLayout', {'android:layout_width': 'fill_parent', 'android:layout_height': 'fill_parent'}, [
-  ['TextView', {'android:id': '@id/item_empty_list_text', style: '?Hint', 'android:layout_width': 'wrap_content', 'android:layout_height': 'wrap_content',
-    'android:layout_marginLeft': '18.0dip', 'android:layout_marginRight': '18.0dip', 'android:maxLines': '1', 'android:ellipsize': 'end',
-    'layout_attachLeft': 'parent', 'layout_attachTop': 'parent', 'layout_attachBottom': 'parent', 'android:gravity': 'center_vertical'}],
-]];
 
 export const WORDS = {
   upNext: 'Up next', history: 'History', playNext: 'Play next', addToQueue: 'Add to queue',
@@ -326,38 +319,12 @@ function upNextRows(ctx, p, aheadN, clear) {
   return {rows, more: ahead.length >= aheadN};
 }
 
-/** Back (the browser's history) closes the window; a window closed otherwise takes its entry back. */
-function closeOnBack(dialog) {
-  let done = false;
-  history.pushState({cpWindow: 1}, '');
-  const onPop = e => {
-    window.removeEventListener('popstate', onPop, true);
-    if (done) return;
-    done = true;
-    // The app's own Back (app.js) waits: this Back was the window's.
-    e.stopImmediatePropagation();
-    if (!dialog.closed) dialog.cancel();
-  };
-  window.addEventListener('popstate', onPop, true);
-  return () => {
-    window.removeEventListener('popstate', onPop, true);
-    if (done) return;
-    done = true;
-    if (!history.state?.cpWindow) return;
-    // The entry goes; the Back that takes it is the window's, not the app's.
-    const swallow = e => { e.stopImmediatePropagation(); window.removeEventListener('popstate', swallow, true); };
-    window.addEventListener('popstate', swallow, true);
-    setTimeout(() => window.removeEventListener('popstate', swallow, true), 1000);
-    history.back();
-  };
-}
-
-/** Opens a window of rows (Up next, History): the dialog, its list, and its life. */
+/** Opens a window of rows (Up next, History): the dialog, its list, and its life (Back closes it). */
 function openWindow(ctx, title, build) {
-  let content = null, unsub = [], back = null;
+  let content = null, unsub = [];
   const dialog = openDialog(ctx, {
-    style: 'dialog_AlertDialogActivity_list', title,
-    onClosed: () => { unsub.forEach(u => u()); back?.(); },
+    style: 'dialog_AlertDialogActivity_list', title, back: true,
+    onClosed: () => unsub.forEach(u => u()),
     setup: d => {
       const host = d.find('content');
       if (!host) return;
@@ -373,7 +340,6 @@ function openWindow(ctx, title, build) {
       unsub = build(content.list, d) ?? [];
     },
   });
-  back = closeOnBack(dialog);
   dialog.list = content?.list ?? null;
   return dialog;
 }

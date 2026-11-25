@@ -2,9 +2,11 @@
 // item_playlist_select_plus_checkbox rows (listItemSize 50 dp) under title
 // buttons for a new playlist, sort (name, date added, date modified, number
 // of tracks), insert position (top, bottom, shuffled) and the select type:
-// add to one playlist (a tap adds, the frame shows "Added" with Open, then
-// closes after 2 s), add to several (checks, then Add) or toggle (a tap adds
-// to or removes from the playlist). PlaylistSelectAndAddToListLayout.
+// add to one playlist (a tap adds, the frame shows "Added to <name>" with
+// Open, then closes after 2 s), add to several (checks, then Add) or toggle
+// (a tap adds to or removes from the playlist). PlaylistSelectAndAddToListLayout.
+// Rows count their songs; songs already there are asked about first, and a
+// new playlist is named first and then takes the songs (playlist-edit.js).
 import {FastLayout} from '../view/fast-layout.js';
 import {MeasureSpec} from '../view/view.js';
 import {register} from '../view/inflater.js';
@@ -12,8 +14,20 @@ import {GONE, VISIBLE} from '../res/values.js';
 import {PowerList, LAYOUT_FOR_TYPE} from '../list/power-list.js';
 import {openDialog} from './dialog.js';
 import {INSERT_BOTTOM, SORT_NAME} from '../library/playlists.js';
+import {groupMeta} from '../list/sources.js';
+import {askDuplicates, newPlaylist, WORDS} from './playlist-edit.js';
 
-LAYOUT_FOR_TYPE.plsel = 'item_playlist_select_plus_checkbox';
+// The rows count their songs: the reference's row with its two-line title and the simple popup
+// row's second line under it (item_popup_simple_2line_no_select's ItemPopupSimpleLine2).
+LAYOUT_FOR_TYPE.plsel = 'item_playlist_select_plus_checkbox_2line';
+function twoLineRow(res) {
+  const L = res?.model?.layouts;
+  if (!L || L.item_playlist_select_plus_checkbox_2line || !L.item_playlist_select_plus_checkbox) return;
+  const [[[tag, attrs, kids], q]] = L.item_playlist_select_plus_checkbox;
+  const rows = kids.map(k => (k[1]?.['android:id'] === '@id/title' ? [k[0], {...k[1], style: '@style/ItemPopupListTitleLarger_2line'}] : k));
+  rows.push(['com.maxmpz.widget.base.FastTextView', {'android:id': '@id/line2', style: '@style/ItemPopupSimpleLine2'}]);
+  L.item_playlist_select_plus_checkbox_2line = [[[tag, attrs, rows], q]];
+}
 const STORE = 'cp-pl-select';
 const TYPE_SINGLE = 0, TYPE_MULTIPLE = 1, TYPE_TOGGLE = 2;
 
@@ -25,6 +39,7 @@ export class PlaylistSelectAndAddToListLayout extends FastLayout {
   constructor(ctx, a) {
     super(ctx, a);
     this.itemSize = a.dim('listItemSize', Math.round(50 * ctx.dpr));
+    twoLineRow(ctx.res);
     const p = loadPrefs();
     this.sort = p.sort ?? SORT_NAME;
     this.insert = p.insert ?? (ctx.settings?.playlist_insert_pos ?? INSERT_BOTTOM);
@@ -69,7 +84,8 @@ export class PlaylistSelectAndAddToListLayout extends FastLayout {
     this.dialog = dialog;
     this.tracks = tracks;
     const add = dialog.find('add_to_pl_button');
-    if (add) add.onClick = () => this.ctx.playlists.create();
+    // A new playlist is named first, then the songs go into it.
+    if (add) add.onClick = () => newPlaylist(this.ctx, {onMade: pl => this.done(this.ctx.playlists.add(pl, this.tracks, this.insert, {skipDups: false}), pl)});
     // Only the select-type button for the current types shows.
     dialog.find('state_playlist_select_type_multiple')?.setVisibility(GONE);
     this.syncButtons();
@@ -101,7 +117,9 @@ export class PlaylistSelectAndAddToListLayout extends FastLayout {
       bindItem: (v, i) => {
         const pl = pls[i];
         const first = lib.byId.get(pl.ids[0]);
-        v.bind({id: 'pl:' + pl.id + ':' + pl.ids.length, group: true, title: pl.name, artist: '', art: first?.art, thumb: first?.thumb, artId: first?.artId, meta: ''});
+        // Each row counts its songs as the Playlists list does.
+        const tracks = this.ctx.playlists.tracksOf(pl);
+        v.bind({id: 'pl:' + pl.id + ':' + pl.ids.length, group: true, title: pl.name, artist: groupMeta({tracks, pl}), art: first?.art, thumb: first?.thumb, artId: first?.artId, meta: ''});
         const box = v.findViewById('select_box');
         if (box) {
           const rec = box.sceneParams?.get('defaultScene');
@@ -129,25 +147,27 @@ export class PlaylistSelectAndAddToListLayout extends FastLayout {
       else P.add(pl, this.tracks.filter(t => !pl.ids.includes(t.id)), this.insert);
       return;
     }
-    const n = P.add(pl, this.tracks, this.insert);
-    this.done(n, pl);
+    askDuplicates(this.ctx, [pl], this.tracks, skipDups => this.done(P.add(pl, this.tracks, this.insert, {skipDups}), pl));
   }
 
   addChecked() {
     const P = this.ctx.playlists;
-    let n = 0, last = null;
-    for (const id of this.checked) {
-      const pl = P.get(id);
-      if (pl) { n += P.add(pl, this.tracks, this.insert); last = pl; }
-    }
-    this.done(n, this.checked.size === 1 ? last : null);
+    const pls = [...this.checked].map(id => P.get(id)).filter(Boolean);
+    if (!pls.length) return;
+    askDuplicates(this.ctx, pls, this.tracks, skipDups => {
+      let n = 0;
+      for (const pl of pls) n += P.add(pl, this.tracks, this.insert, {skipDups});
+      this.done(n, pls.length === 1 ? pls[0] : null);
+    });
   }
 
-  /** "Added" (or duplicates not added) in the frame, with Open for one playlist. */
+  /** "Added to <name>" ("Added" for several, or duplicates not added) in the frame, with Open for one playlist. */
   done(n, pl) {
+    if (this.dialog?.closed) return;
     const str = k => this.ctx.res.stringByName(k) ?? k;
     const open = pl ? () => this.ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', this, {playlist: pl}) : null;
-    this.dialog?.toast(n ? str('added') : str('duplicate_tracks_nothing_added'), 2000, open ? {button: str('open'), onButton: open} : {});
+    const text = !n ? str('duplicate_tracks_nothing_added') : pl ? WORDS.addedTo.replace('%s', pl.name) : str('added');
+    this.dialog?.toast(text, 2000, open ? {button: str('open'), onButton: open} : {});
   }
 
   onMeasure(wSpec, hSpec) {
@@ -169,7 +189,7 @@ export function openAddToPlaylist(ctx, tracks) {
   if (!tracks?.length || !ctx.playlists) return null;
   let content = null;
   const dialog = openDialog(ctx, {
-    style: 'dialog_PlaylistSelectActivity', title: ctx.res.stringByName('add_to_playlist') ?? 'Add to Playlist',
+    style: 'dialog_PlaylistSelectActivity', title: ctx.res.stringByName('add_to_playlist') ?? 'Add to Playlist', back: true,
     onClosed: () => content?.unsub.forEach(u => u()),
     setup: d => { content = d.find('playlist_list_layout'); content?.setup(d, tracks); },
   });

@@ -413,8 +413,8 @@ async function pushNow(ctx) {
       delete latest.sent[id];
     }
   }
-  // Deletions found here (a playlist gone while the player was closed) that did not go up stay queued.
-  for (const [id, at] of Object.entries(mem.gone)) if (!done.lists.some(([x]) => x === id)) latest.gone[id] ??= at;
+  // Deletions found here (a playlist gone while the player was closed) that did not go up stay queued, unless undone.
+  for (const [id, at] of Object.entries(mem.gone)) if (!done.lists.some(([x]) => x === id) && !ctx.playlists?.get?.(id)) latest.gone[id] ??= at;
   if (done.reset !== null) {
     latest.resetSeen = Math.max(latest.resetSeen ?? 0, reset);
     if (latest.reset === done.reset) delete latest.reset;
@@ -447,7 +447,8 @@ export const push = serial(pushNow);
 export function reset() { token = null; }
 
 /** The owner's own changes, remembered for the next push: a rating (stamped now), a play, a
- * playlist changed or deleted. Changes this module makes are not the owner's. @param {any} ctx @param {() => void} soon */
+ * playlist changed or deleted (one deleted and then undone drops its queued deletion: it goes up as
+ * changed). Changes this module makes are not the owner's. @param {any} ctx @param {() => void} soon */
 export function watch(ctx, soon) {
   const mark = (/** @type {(m: Memory) => void} */ fn) => {
     const storage = deps.storage(), mem = loadMemory(storage);
@@ -466,9 +467,8 @@ export function watch(ctx, soon) {
     // Settings → Reset stats (the library's resetStats posts a played message with no track).
     else if (msg === 'msg_data_track_played' && !t) mark((m) => (m.reset = deps.now()));
     else if (msg === 'msg_playlists_changed' && !applying) {
-      const pl = d?.playlist;
-      const gone = pl?.id && !(ctx.playlists?.items ?? []).includes(pl);
-      mark((m) => void (gone && (m.gone[pl.id] = deps.now())));
+      const pl = d?.playlist, gone = pl?.id && !(ctx.playlists?.items ?? []).includes(pl);
+      mark((m) => void (gone ? (m.gone[pl.id] = deps.now()) : pl?.id && delete m.gone[pl.id]));
     }
   });
 }

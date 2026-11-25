@@ -29,9 +29,30 @@ function searchButton(v, s) {
   v.itemScene = null;
 }
 
+/**
+ * A list header's title takes a tap where its source says what it does (onTitleClick: a playlist's
+ * name renames it); a recycled header loses it for any other source.
+ */
+function titleTap(v, s) {
+  const t = v.findViewById?.('title');
+  if (!t || t.onTitleFor === s) return;
+  t.onTitleFor = s;
+  const click = s.onTitleClick ?? null;
+  t.titleTap0 ??= {clickable: t.clickable, onClick: t.onClick};
+  t.clickable = click ? true : t.titleTap0.clickable;
+  t.onClick = click ? () => { if (!v.parent?.selection) click(); } : t.titleTap0.onClick;
+}
+
+/** The quiet line of an empty list (emptyLine rows): the settings' hint text (?Hint), one line. */
+export const EMPTY_ROW = ['FastLayout', {'android:layout_width': 'fill_parent', 'android:layout_height': 'fill_parent'}, [
+  ['TextView', {'android:id': '@id/item_empty_list_text', style: '?Hint', 'android:layout_width': 'wrap_content', 'android:layout_height': 'wrap_content',
+    'android:layout_marginLeft': '18.0dip', 'android:layout_marginRight': '18.0dip', 'android:maxLines': '1', 'android:ellipsize': 'end',
+    'layout_attachLeft': 'parent', 'layout_attachTop': 'parent', 'layout_attachBottom': 'parent', 'android:gravity': 'center_vertical'}],
+]];
+
 export const LAYOUT_FOR_TYPE = {track: 'item_track', text: 'item_text', separator: 'item_separator_button', history: 'item_search_history', clearHistory: 'item_clear_search_history'};
 // Row types without item scenes (SeparatorItemView): laid out at the row's size.
-const PLAIN_TYPES = new Set(['separator', 'history', 'clearHistory']);
+const PLAIN_TYPES = new Set(['separator', 'history', 'clearHistory', 'emptyLine']);
 
 // Scenes whose parts a prewarmed header row loads (merge_item_*header).
 const HEAD_SCENES = ['scene_header', 'scene_bottom_toolbar'];
@@ -318,6 +339,12 @@ export class PowerList extends FastLayout {
 
   /** A new view of a type and role; clicks go to whichever list holds it. */
   create(type, role = ROW) {
+    if (type === 'emptyLine') {
+      const e = this.ctx.inflater.inflateNode(EMPTY_ROW, null)[0];
+      e.listItemType = type;
+      e.poolKey = poolKey(type, role);
+      return e;
+    }
     const v = this.ctx.inflater.inflate(LAYOUT_FOR_TYPE[type], null)[0];
     v.listItemType = type;
     v.poolKey = poolKey(type, role);
@@ -509,7 +536,7 @@ export class PowerList extends FastLayout {
       let x, y, w, h, scene;
       if (i === -1) {
         x = 0; y = g.top - sy; w = this.width; h = g.headH; scene = s.header.scene;
-        if (fresh || v._boundKey !== 'h') { s.bindHeader(v); searchButton(v, s); v._boundKey = 'h'; }
+        if (fresh || v._boundKey !== 'h') { s.bindHeader(v); searchButton(v, s); titleTap(v, s); v._boundKey = 'h'; }
         // AAImageView.E: the header's art reaches up over the pulled gap.
         v.image?.setStretch?.(this.over > 0 ? this.over : 0);
       } else if (i === SUBHEAD) {
@@ -622,7 +649,7 @@ export class PowerList extends FastLayout {
       v._boundSource = null;
     }
     if (v.inMenu) return;
-    if (v._boundSource !== s) { s.bindHeader(v); searchButton(v, s); v._boundSource = s; }
+    if (v._boundSource !== s) { s.bindHeader(v); searchButton(v, s); titleTap(v, s); v._boundSource = s; }
     let f = 1;
     if (bt.headerButtons) {
       const first = this.indexAtY(g, Math.max(0, this.scrollY - g.top - g.headerH));
@@ -654,7 +681,7 @@ export class PowerList extends FastLayout {
     switch (msg) {
       case 'cmd_list_toggle_selection_mode': this.setSelectionMode(!sel); break;
       case 'cmd_end_selection_mode': if (sel) this.setSelectionMode(false, false); break;
-      case 'cmd_list_select_all': if (sel) { for (let i = 0; i < this.source.count; i++) sel.add(i); this.selectionChanged(); } break;
+      case 'cmd_list_select_all': if (sel) { for (let i = 0; i < this.source.count; i++) if (!this.source.isSeparator?.(i)) sel.add(i); this.selectionChanged(); } break;
       case 'cmd_list_select_none': if (sel) { sel.clear(); this.selectionChanged(); } break;
       case 'cmd_list_select_range': if (sel?.size) {
         const lo = Math.min(...sel), hi = Math.max(...sel);

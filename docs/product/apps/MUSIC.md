@@ -302,9 +302,13 @@ cover advances exactly one track; long-press opens home with the track attached.
 
 ### 2.6 Library
 
-- **Songs:** virtual list, row height 64, A–Z fast-scroll rail on the right edge (letters
-  accent-folded; Á is under A; digits and symbols under `#`). Sort: Title (default) · Artist ·
-  Album · Recently added · Most played. The sort is remembered.
+- **Songs:** virtual list, row height 64, a fast-scroll rail on the right edge that follows the
+  list's sort (`list/sections.js`): letters for a name sort (accent-folded; Á is under A; digits
+  and symbols under `#`; Z to A when reversed); for a sort by artist, album, album artist, genre,
+  composer or folder, the first letter of that field; years for a year sort; months for a date sort,
+  with the month and day in the bubble; the plain thumb, without sections, where the sort has none
+  (number sorts). Sort: Title (default) · Artist · Album · Recently added · Most played. The sort is
+  remembered.
 - **Albums:** two-column grid of covers (radius 16) with title and artist under each. Sort: Title ·
   Artist · Year · Recently added.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
@@ -409,6 +413,8 @@ shuffle with no repeat across 1,000 seeded runs.
 ## 4. Playlists and mixes
 
 ### 4.1 Owner playlists
+
+As built in the ported player: §21 (2026-11-25). The original plan, kept for reference:
 
 - Create from: Playlists tab "New playlist" button, any song's "Add to playlist › New playlist", or
   by asking the Thunderhead.
@@ -1699,6 +1705,42 @@ unchanged).
   the list's previous song. Off: always the list's previous song. The swipes keep the list's order.
 
 Tests: `tests/music-up-next.test.mjs`, `tests/music-up-next-browser.test.mjs`.
+
+## 21. Playlists (2026-11-25, owner's rulings)
+
+No new button on the player or the mini-player. Everything uses the app's own dialogs, the Undo bar
+(§20) and its menus (`widgets/playlist-edit.js`; the model in `library/playlists.js`).
+
+- **A new playlist asks its name first**: the text dialog with "Playlist N" offered and selected,
+  the keyboard up; Cancel makes nothing. From Add to Playlist (its + button) the songs go straight
+  into it and the dialog says "Added to *Name*" with Open, as when a playlist is picked. A name is
+  trimmed, at most 100 characters, and one in use (letter case aside) takes " 2", " 3"… instead of
+  an error; the same for Rename.
+- **Rename** inside a playlist: a tap on its title in the header, or its menu's **Rename**; the menu
+  also has **Delete** and **Clear** (`playlistMenuItems`). Rename from the Playlists list's
+  selection stays. Rescan / Resolve Playlists is not offered in a playlist made here (nothing to
+  resolve), so the menu keeps its height.
+- **Undo** (the Undo bar, 5 s): songs removed from a playlist (no question asked) come back at their
+  places; Clear (asked first) brings every song back; a deleted playlist (asked first; from inside
+  it, the list then goes back to Playlists) comes back whole, with its id, and the deletion the sync
+  had queued is dropped (`th/music/sync.js` `watch`), so it goes up as a changed playlist, not a new one.
+- **Re-Sort shows, Save keeps**: a choice in a playlist's Re-Sort shows it in that order and stores
+  nothing; the order lasts while the playlist is open (Random keeps the order it drew). **Save this
+  order** makes it the playlist's (with Undo). Rows drag (selection mode) only in the playlist's own
+  order. The Queue's Re-Sort is as before.
+- **Duplicates**: adding songs a playlist holds asks *Add anyway* or *Skip duplicates* in the confirm
+  dialog, saying how many are there; nothing is asked when none are; with **Don't Add Duplicates**
+  (`pl_no_dups`) on they are skipped without asking.
+- **Back** closes any of these dialogs (Add to Playlist, the name, the confirm, Re-Sort), one at a
+  time, newest first, without moving the list (`dialog.js` `closeOnBack`).
+- **Counts agree**: the Playlists list's count and its "Number of tracks" sort both count the songs
+  in the library; the Add to Playlist rows show each playlist's count and length. An empty playlist
+  shows "No songs yet. Hold a song and choose Add to playlist." in the hint text; its Play and
+  Shuffle do nothing.
+- **Library home**: Streams and Bookmarks, which can hold nothing here, are neither shown nor
+  offered in List Options, whatever a saved setting says.
+
+Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs`.
 
 ## Not built
 

@@ -1,6 +1,8 @@
-// Re-Sort (PlaylistSortActivity, dialog_content_resort; notebook F66): a
-// playlist's or the Queue's entries take a new stored order. Each choice
-// re-sorts at once (cmd_data_resort); Reverse (bit 30) flips every key.
+// Re-Sort (PlaylistSortActivity, dialog_content_resort; notebook F66): the
+// Queue's entries take a new stored order; a playlist shows in the order
+// chosen while it is open, and "Save this order" stores it (owner,
+// 2026-11-25). Each choice re-sorts at once (cmd_data_resort); Reverse (bit
+// 30) flips every key.
 // The orders are cm2.q's: names case folded (COLLATE NOCASE), album and
 // artist by their sort fields (no leading article unless no_sort_field),
 // ties broken by the title; Random ignores Reverse. "By added to list"
@@ -64,29 +66,50 @@ export function resortEntries(ctx, entries, value) {
   });
 }
 
+export const SAVE_ORDER = 'Save this order';
+const VIEW_HINT = 'The playlist shows in this order while it is open. Save this order to keep it.';
+
 /**
  * Opens Re-Sort for a list: name (the title's %s), entries, hasAddedTime
- * (shows "by added to list"), apply(sorted entries).
+ * (shows "by added to list"), apply(sorted entries, sort value). A playlist's
+ * choice only shows it in that order (owner, 2026-11-25): it passes the sort
+ * shown (current, the radio and Reverse checked) and save(), which "Save this
+ * order" calls to keep the order shown; the dialog then closes.
  */
-export function openResortDialog(ctx, {name, entries, hasAddedTime = false, apply}) {
+export function openResortDialog(ctx, {name, entries, hasAddedTime = false, apply, current = null, save = null}) {
   const str = (k, f = k) => ctx.res.stringByName(k) ?? f;
   // Reverse alone re-sorts by the last order, track number at first (h = 0).
-  let value = 0, reverse = false;
-  const run = () => {
-    const sorted = resortEntries(ctx, entries(), value | (reverse ? REVERSE : 0));
-    if (sorted) apply(sorted);
+  let value = current == null ? 0 : current & ~REVERSE, reverse = current != null && (current & REVERSE) !== 0;
+  let dialog = null;
+  const saveButton = () => {
+    if (!save || !dialog) return;
+    dialog.setButton(2, SAVE_ORDER, () => { save(); dialog.close(); });
+    dialog.host.forceLayoutTree?.();
+    ctx.scheduleLayout();
   };
-  return openDialog(ctx, {
-    style: 'dialog_PlaylistSortActivity', title: str('sort_s', 'Re-Sort %s').replace('%s', name),
+  const run = () => {
+    const v = value | (reverse ? REVERSE : 0);
+    const sorted = resortEntries(ctx, entries(), v);
+    if (!sorted) return;
+    apply(sorted, v);
+    saveButton();
+  };
+  dialog = openDialog(ctx, {
+    style: 'dialog_PlaylistSortActivity', title: str('sort_s', 'Re-Sort %s').replace('%s', name), back: true,
     buttons: {positive: str('close', 'Close')},
     setup: d => {
       const group = d.find('song_sorting_group');
       if (!group) return;
-      const radios = [];
-      group.walk?.(v => { if (v instanceof FastRadioButton) radios.push(v); });
+      const radios = [], hint = str('resort_hint');
+      group.walk?.(v => {
+        if (v instanceof FastRadioButton) radios.push(v);
+        // The hint says what a choice does: for a playlist, nothing permanent until saved.
+        else if (save && v.text === hint) v.setText(VIEW_HINT);
+      });
       for (const r of radios) {
         const tag = parseInt(String(r.tag ?? ''), 10);
         if (tag === 14 && !hasAddedTime) { r.setVisibility(GONE); continue; }
+        if (current != null && tag === value) r.setChecked(true);
         r.onCheckedChanged = on => {
           if (!on) return;
           for (const x of radios) if (x !== r) x.setChecked(false);
@@ -95,7 +118,13 @@ export function openResortDialog(ctx, {name, entries, hasAddedTime = false, appl
         };
       }
       const rev = d.find('song_sort_reverse');
-      if (rev instanceof FastCheckBox) rev.onCheckedChanged = on => { reverse = on; run(); };
+      if (rev instanceof FastCheckBox) {
+        if (reverse) rev.setChecked(true);
+        rev.onCheckedChanged = on => { reverse = on; run(); };
+      }
     },
   });
+  // A playlist shown in a sort already: it can be kept from the start.
+  if (current != null) saveButton();
+  return dialog;
 }
