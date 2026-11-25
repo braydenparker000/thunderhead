@@ -7,6 +7,7 @@ import { sha256Hex } from '../areas/auth/crypto';
 import * as day from '../areas/conversation/day';
 import { Hub } from '../areas/feed/hub';
 import * as feed from '../areas/feed/store';
+import { laneToday } from '../areas/jobs/lane';
 import * as jobs from '../areas/jobs/store';
 import { fireConfig } from '../areas/mind/fire';
 import * as mstore from '../areas/mind/store';
@@ -134,10 +135,19 @@ export abstract class CoreBase extends OwnerObject {
     this.ctx.storage.transactionSync(() => ops.putPerf(this.db, p));
   }
 
-  deepHealth(): ClassHealth & { errors_open: number; min_client: number; wakes_today: number; jobs_backlog: number } {
+  /** Deep health's Core part; `bulk_lane`: today's bulk lane (areas/jobs/lane.ts). */
+  deepHealth(): ClassHealth & {
+    errors_open: number;
+    min_client: number;
+    wakes_today: number;
+    jobs_backlog: number;
+    bulk_lane: { day: string; rows: number; cap: number };
+  } {
+    const { day, rows, cap } = laneToday(this.db, Date.now());
     return {
       ...this.health(),
       jobs_backlog: jobs.backlog(this.db),
+      bulk_lane: { day, rows, cap },
       errors_open: ops.countOpenErrors(this.db),
       min_client: this.minClient(),
       wakes_today: mstore.wakesToday(this.db, Date.now() - 24 * HOUR),

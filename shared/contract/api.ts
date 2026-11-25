@@ -9,7 +9,7 @@ export type { Permit, PermitClass, PermitFloor, PermitPosition, PermitRefusal } 
 export type * from './proposals';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
-export type { MeterItem, MeterResponse, QuotaToday } from './meter';
+export type { BulkLane, MeterItem, MeterResponse, QuotaToday } from './meter';
 import type { BackupsHealth } from './backups';
 export type { Ref, RefKind } from './refs';
 import type { SettingValue, WorkerSettingKey } from './settings';
@@ -58,7 +58,12 @@ export interface DeepHealthResponse {
   version: Version;
   schema: Record<string, number>;
   objects: Record<string, ObjectHealth>;
-  meter_today: { rows_written: number; rows_read: number; bulk_rows_written: number; bulk_lane: string | null };
+  meter_today: {
+    rows_written: number;
+    rows_read: number;
+    bulk_rows_written: number;
+    bulk_lane: import('./meter.ts').BulkLane | null;
+  };
   last_backup: { date: Day; age_h: number } | null;
   last_events_export: Day | null;
   errors_open: number;

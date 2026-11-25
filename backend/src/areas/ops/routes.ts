@@ -110,8 +110,9 @@ export const opsRoutes = new Hono<AppEnv>()
         rows_written:
           core.rows_written + auth.rows_written + music.rows_written + senses.rows_written + library.rows_written,
         rows_read: core.rows_read + auth.rows_read + music.rows_read + senses.rows_read + library.rows_read,
-        bulk_rows_written: 0,
-        bulk_lane: null,
+        // Today's bulk lane, counted in Core (a Core on the release before it reports none).
+        bulk_rows_written: core.bulk_lane?.rows ?? 0,
+        bulk_lane: core.bulk_lane ?? null,
       },
       last_backup: lastBackup,
       last_events_export: null,

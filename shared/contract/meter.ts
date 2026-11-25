@@ -34,7 +34,17 @@ export interface MeterItem {
   class: string;
   rows_written: number;
   rows_read: number;
+  /** Today's `core` row: the bulk lane's rows today (counted in Core, whichever object they went to).
+   * Other classes, and past days (the lane keeps only today's count), are 0. */
   bulk_rows_written: number;
+}
+
+/** Today's bulk lane (DATA.md §8.3), in deep health's `meter_today` (`bulk_rows_written` is its rows,
+ * every object's): the UTC day, rows written under it, and the day's cap. Null from a Core before it. */
+export interface BulkLane {
+  day: string;
+  rows: number;
+  cap: number;
 }
 
 /** Today's use across the five objects (UTC day) against the day's budget, as the watchdogs, the

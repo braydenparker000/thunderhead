@@ -13,10 +13,13 @@ import { musicObject } from '../../objects/music';
 import type { DayRow } from './store';
 
 let kept: { until: number | null; at: number } | null = null;
+/** When this isolate last logged a refusal (`held`): at most once a minute. */
+let loggedAt = 0;
 
 /** For tests: forget the kept answer. */
 export function forgetHold(): void {
   kept = null;
+  loggedAt = 0;
 }
 
 /** Music's day as its meter stands now, or none when it can't answer. */
@@ -42,10 +45,15 @@ export async function refuseWhileHeld(env: Env, now = Date.now()): Promise<void>
       .catch(() => null);
     kept = { until, at: now };
   }
-  if (kept.until !== null && now < kept.until)
+  if (kept.until !== null && now < kept.until) {
+    if (Math.abs(now - loggedAt) >= MINUTE) {
+      loggedAt = now;
+      console.log(JSON.stringify({ evt: 'held', until: kept.until }));
+    }
     throw new ApiError(
       'rate_limited',
       { reason: 'daily_quota' },
       { retry_after: Math.ceil((kept.until - now) / 1000), scope: 'account' },
     );
+  }
 }
