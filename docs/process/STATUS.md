@@ -26,7 +26,7 @@ Appearance › Look with Classic as the other choice ([INK-AND-LAMP.md](../desig
 decisions.md), all in `frontend/look/`, kept on the phone after one load; the island shows the artwork.
 
 **Music knowledge and the day's rows (2026-11-23 to 25; PRs #223 to #239):** `music.know` and picks (MUSIC.md §19), a pick's preview, the budget on the old Worker's measured use (90,000 written), the job's true lane count, `GET /v1/ops/diag` for the lead.
-Left: the picks rated by the owner (under about 70 % worth it means tuning), ListenBrainz's token (SETUP.md N6.5), the diagnostics key working in a session.
+Left: the picks rated by the owner (under about 70 % worth it means tuning), ListenBrainz's token (SETUP.md N6, step 5), the diagnostics key working in a session.
 
 ## Current phase: what is live
 
