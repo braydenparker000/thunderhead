@@ -70,6 +70,7 @@ const SECRETS = [
 ];
 const VARS = [
   'SITE_ORIGINS',
+  'MUSIC_KNOW',
   'OWNER_TZ',
   'AUTH_HIBP',
   'LIVE_WAIT',
