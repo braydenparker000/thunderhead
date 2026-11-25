@@ -185,3 +185,38 @@ test('picture: a canvas over the video with the film\'s colours and sharper edge
   assert.match(r.refused.reason, /does not let the page read/);
   assert.deepEqual(errors, []);
 });
+
+test('picture: a lost GPU context hides the canvas, and when it comes back the sharper picture draws again without an error', opts, async (t) => {
+  if (!h264) return t.skip('this browser has no H.264 decoder');
+  const { page: p, errors } = await page(t);
+  const r = await p.evaluate(async (url) => {
+    const { Picture } = await import('/astra/src/enhance/picture.js');
+    const out = { reports: [] };
+    const { video, layer } = await film(url);
+    const pic = new Picture(video, layer, { onReport: (why) => out.reports.push(why) });
+    pic.set({ sharpen: 1 });
+    const until = (f) => new Promise((r) => { const t0 = performance.now(); const on = () => (f() || performance.now() - t0 > 5000 ? r() : setTimeout(on, 50)); on(); });
+    await until(() => pic.canvas?.isConnected);
+    const canvas = pic.canvas, lose = pic.filter.gl.getExtension('WEBGL_lose_context');
+    out.lose = !!lose;
+    lose.loseContext();
+    await until(() => !canvas.isConnected);
+    out.hidden = !canvas.isConnected;
+    let draws = 0; const draw = pic.draw.bind(pic); pic.draw = () => { draws++; draw(); };
+    lose.restoreContext();
+    await until(() => canvas.isConnected && draws > 2);
+    out.back = canvas.isConnected; out.draws = draws; out.same = pic.canvas === canvas;
+    out.gl = !pic.filter.gl.isContextLost(); out.state = pic.state();
+    pic.close();
+    return out;
+  }, host.url('multi.mkv'));
+  assert.equal(r.lose, true, 'the browser can lose the context on purpose');
+  assert.equal(r.hidden, true, 'lost: the canvas is taken away, so the plain video shows');
+  assert.equal(r.back, true, 'restored: the canvas is over the video again');
+  assert.ok(r.draws > 2, `and drawing goes on (${r.draws} frames)`);
+  assert.equal(r.same, true, 'on the same canvas');
+  assert.equal(r.gl, true, 'through a working context');
+  assert.equal(r.state.on, true);
+  assert.deepEqual(r.reports, []);
+  assert.deepEqual(errors, [], 'no error (once "this.restore is not a function")');
+});

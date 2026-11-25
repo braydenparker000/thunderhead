@@ -45,7 +45,11 @@ test('an item never carries what was typed: quoted text and patterns cut, anothe
   assert.equal(words(undefined, 'rejection'), 'Rejected: not an Error (undefined)');
   assert.equal(words('my typed words', 'error', 'Uncaught my typed words'), 'Thrown: not an Error (string)');
   // An "error" event with no value at all: the browser's own words, cleaned the same way.
-  assert.equal(words(null, 'error', 'ResizeObserver loop completed with undelivered notifications.'), 'ResizeObserver loop completed with undelivered notifications.');
+  assert.equal(words(null, 'error', 'Uncaught InternalError: too much recursion'), 'Uncaught InternalError: too much recursion');
+  // Except the browser's harmless ResizeObserver loop notice, in either wording: never an item.
+  for (const message of ['ResizeObserver loop completed with undelivered notifications.', 'ResizeObserver loop limit exceeded', 'Uncaught ResizeObserver loop limit exceeded'])
+    assert.equal(itemOf({ ...base0, error: null, message }), null, message);
+  assert.equal(itemOf({ ...base0, error: new Error('ResizeObserver callback failed') }).message, 'Error: ResizeObserver callback failed', 'a real error still goes');
   const a = itemOf({ ...base0, error: new SyntaxError('Unexpected identifier "one"') });
   const b = itemOf({ ...base0, error: new SyntaxError('Unexpected identifier "two"') });
   assert.equal(a.fingerprint, b.fingerprint, 'the same error whatever was typed');
@@ -111,8 +115,11 @@ const inbox = (api) => api.calls.filter((c) => c.call === 'POST /v1/ops/errors')
 test('signed in, an error thrown on home reaches the inbox once, with the session', opts, async () => {
   const { context, page, api } = await home(true);
   await page.waitForFunction(() => document.documentElement.dataset.signedIn !== undefined);
-  // The same error twice (a repeat is its count), then the page hidden: one request, one item.
+  // The same error twice (a repeat is its count), then the page hidden: one request, one item. The
+  // browser's ResizeObserver loop notices (an "error" event with no Error) are not among them.
   await page.evaluate(() => {
+    for (const message of ['ResizeObserver loop completed with undelivered notifications.', 'ResizeObserver loop limit exceeded'])
+      window.dispatchEvent(new ErrorEvent('error', { message }));
     for (let i = 0; i < 2; i++) setTimeout(() => { throw new Error('test boom on home https://h.example/x?k=1'); });
   });
   await page.waitForTimeout(300);
