@@ -526,6 +526,10 @@ export class ListWidget extends FastLayout {
         if (top?.kind === 'queue' && !this.libList.reorder) whenStill(this.ctx, () => { const t = this.stack[this.stack.length - 1]; if (t?.kind === 'queue' && !this.libList.reorder) this.replaceTop(t.rebuild?.()); }, 'queue-rebuild');
         this.schedulePrepare();
       }
+      // The Library home's Queue row counts the Queue as it is (also when the home was built hidden, prepareLibrary).
+      if (msg === 'msg_player_queue_changed' || (msg === 'msg_player_track_changed' && !d?.meta)) {
+        whenStill(this.ctx, () => this.rebindHome(), 'home-queue-counter');
+      }
     });
     ctx.bus.subscribe('bus_library', msg => { this.allSongsKept = null; if (msg === 'msg_library_changed') this.schedulePrepare(); });
     ctx.bus.subscribe('bus_gui', msg => { if (msg === 'msg_nav_changed') this.setPlayingMode(); });
@@ -2281,6 +2285,20 @@ export class ListWidget extends FastLayout {
     ll.visibility = GONE;
     this.preparedLib = this.startSource = home;
     return true;
+  }
+
+  /** The Library home's rows bound again (its Queue row's counter); a hidden home is written hidden, as prepareLibrary does. */
+  rebindHome() {
+    const ll = this.libList;
+    if (!ll.source?.home) return;
+    if (ll.visibility !== GONE) { ll.rebindAll(); return; }
+    const noScroller = ll.noScroller;
+    ll.visibility = INVISIBLE;
+    ll.noScroller = true;
+    ll.rebindAll();
+    ll.sync();
+    ll.noScroller = noScroller;
+    ll.visibility = GONE;
   }
 
   placeItems() {
