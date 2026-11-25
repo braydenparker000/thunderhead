@@ -11,7 +11,7 @@ import type { CreditsResponse, FactsResponse, KnowStatus, UnmatchedResponse } fr
 import { useKeys } from '../../src/areas/music/know-fetch';
 import { metadata } from '../../src/areas/music/validate';
 import { musicObject } from '../../src/objects/music';
-import { apiJson, core, coreSql, rowsDuring } from '../helpers';
+import { apiJson, core, coreSql, makeAgent, rowsDuring } from '../helpers';
 import { ARTIST, mbidOf } from '../history-helpers';
 import {
   fakeWorld,
@@ -206,6 +206,10 @@ describe('facts, credits and the status', () => {
     expect(s.hosts.musicbrainz.ok_at).toBeGreaterThan(0);
     expect(s.hosts.musicbrainz.refused_at).toBeNull();
     expect(s.waveforms).toEqual({ rms: 0, peak: 0, none: 6 });
+    // The CI key reads the same counts (the lead's diagnosis from outside); Muse does not.
+    const ci = await apiJson<KnowStatus>('GET', '/v1/music/know', { token: await makeAgent(p.D, 'ci') });
+    expect([ci.status, ci.body.albums]).toEqual([200, s.albums]);
+    expect((await apiJson('GET', '/v1/music/know', { token: await makeAgent(p.D, 'muse') })).status).toBe(403);
   });
 });
 

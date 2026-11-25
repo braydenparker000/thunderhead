@@ -120,3 +120,12 @@ export function stuckJob(
     attempts,
   );
 }
+
+/** GET /v1/ops/diag: the jobs without their payload or cursor, newest change first, at most `max`. */
+export function diagJobs(db: Db, max: number): Omit<JobRow, 'payload_json' | 'cursor_json'>[] {
+  return db.all(
+    `SELECT id, kind, state, due_at, attempts, last_error, rows_written, created_at, updated_at
+     FROM jobs ORDER BY updated_at DESC LIMIT ?`,
+    max,
+  );
+}

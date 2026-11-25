@@ -1,7 +1,7 @@
 // The music knowledge's routes (know.ts, MUSIC.md §19), kept beside routes.ts, which spreads them into
 // ROUTES: no import here, so the registry stays importable on its own. Every read is by key.
 export const KNOW_ROUTES = {
-  'GET /v1/music/know': { who: ['D', 'C', 'N'], phase: 'P5', note: 'how far the matching and the facts are, what each source filled, picks made, declined and added: counts only' },
+  'GET /v1/music/know': { who: ['D', 'C', 'N', 'I'], phase: 'P5', note: 'how far the matching and the facts are, what each source filled, picks made, declined and added: counts only' },
   'GET /v1/music/facts': { who: ['C', 'N'], phase: 'P5', note: '?ref=<MusicBrainz id or name>: an artist or album, everything known, compact; free text from elsewhere under outside' },
   'GET /v1/music/credits': { who: ['C', 'N'], phase: 'P5', note: '?ref=<MusicBrainz id or name>: what in the library a person worked on, and their other work' },
   'GET /v1/music/unmatched': { who: ['D', 'C', 'N'], phase: 'P5', note: 'catalog albums left unmatched, with why, ≤ 200' },

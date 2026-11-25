@@ -22,7 +22,7 @@ import { SYNC_SQL, SYNC_TABLES } from '../areas/music/sync-sql';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
-import { MusicPicks } from './music-picks';
+import { MusicDiag } from './music-diag';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -111,7 +111,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends MusicPicks {
+export class Music extends MusicDiag {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */

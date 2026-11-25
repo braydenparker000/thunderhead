@@ -1,8 +1,8 @@
 // /v1/ops/reports (API.md §11.16, NEXT-BATCH.md part 1): a batch from the phone is one row, taken
 // only from a device, kept to its known fields (any other dropped, every text with its addresses cut
 // to their host, quoted text cut, at most 160 characters), at most 32 KB as JSON, at most 6 from one
-// device in any 5 minutes (then 429 with Retry-After); the list goes to the devices and the mind,
-// never CI or Muse, newest first, reads the rows it returns, not the table, and ends a page before
+// device in any 5 minutes (then 429 with Retry-After); the list goes to the devices, the mind and CI,
+// never Muse, newest first, reads the rows it returns, not the table, and ends a page before
 // 512 KB; the daily prune drops rows older than 30 days, at most 2,000 a step.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -57,7 +57,7 @@ beforeAll(async () => {
 });
 
 describe('a batch from the phone', () => {
-  it('is one row from a device, given back to the devices and the mind, never to CI or Muse', async () => {
+  it('is one row from a device, given back to the devices, the mind and CI, never to Muse', async () => {
     expect((await post(undefined, batch())).status).toBe(401);
     for (const t of [agents.chat, agents.ci]) expect((await post(t, batch())).status).toBe(403);
     const d = await device();
@@ -70,7 +70,7 @@ describe('a batch from the phone', () => {
       r.body.id,
     );
     expect(rows).toHaveLength(1);
-    for (const t of [d, agents.chat, agents.night, agents.reflex]) {
+    for (const t of [d, agents.chat, agents.night, agents.reflex, agents.ci]) {
       const got = await list(t, `?since=${before}`);
       expect(got.status).toBe(200);
       expect(got.body.items.map((i) => i.id)).toContain(r.body.id);
@@ -83,11 +83,9 @@ describe('a batch from the phone', () => {
       at: r.body.at,
       body: batch().body,
     });
-    // Listening history by track id: never to CI, whose logs are public, nor to Muse.
-    for (const t of [agents.ci, agents.muse]) {
-      const no = await list(t);
-      expect([no.status, (no.body as unknown as ErrorBody).error.code]).toEqual([403, 'forbidden']);
-    }
+    // CI reads it for the lead's diagnosis (owner, 2026-11-25); Muse never does.
+    const no = await list(agents.muse);
+    expect([no.status, (no.body as unknown as ErrorBody).error.code]).toEqual([403, 'forbidden']);
     expect((await api('GET', '/v1/ops/reports')).status).toBe(401);
   });
 

@@ -3,6 +3,7 @@
 // and the generated appendix docs/engineering/CONTRACT.md. A route is added here first; the
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
+import { DIAG_ROUTES } from './routes-diag.ts';
 import { ISSUE_ROUTES } from './routes-issues.ts';
 import { KNOW_ROUTES } from './routes-know.ts';
 import { PHOTO_ROUTES } from './routes-photos.ts';
@@ -38,8 +39,7 @@ export const JOBS_KEY = 'jobs-audio';
 export const CONFINED_KEYS: readonly string[] = [JOBS_KEY];
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
 const MIND: Who[] = ['C', 'N', 'R'];
-/** Memory is read by the owner, chat and night only: reflex handles breakage and reads no
- * memory (RUNTIME.md §7.1, least privilege; decisions.md 2026-10-29). */
+/** Memory is read by the owner, chat and night only, not reflex (RUNTIME.md §7.1; decisions.md 2026-10-29). */
 const MEMORY_READ: Who[] = ['D', 'C', 'N'];
 
 export const ROUTES = {
@@ -283,12 +283,12 @@ export const ROUTES = {
   'DELETE /v1/reminders/:id': { who: ['D', 'C'], phase: 'P8', note: 'takes back one not yet delivered; the row stays' },
   // The phone's reports (NEXT-BATCH.md part 1): Music's playback log in batches, one row each, kept 30 days.
   'POST /v1/ops/reports': { who: D, phase: 'P8', note: '{kind, body ≤ 32 KB}; at most 6 in any 5 minutes' },
-  // Not CI: a batch is listening history by track id, and CI's logs are public.
-  'GET /v1/ops/reports': { who: AGENTS_READ, phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB' },
+  'GET /v1/ops/reports': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB' },
   ...PHOTO_ROUTES,
   ...WATCH_ROUTES,
   ...VOICE_ROUTES,
   ...ISSUE_ROUTES,
+  ...DIAG_ROUTES,
 } as const satisfies Record<string, RouteSpec>;
 export type RouteKey = keyof typeof ROUTES;
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
