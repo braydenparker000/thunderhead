@@ -21,7 +21,7 @@ P1's measurements and findings are historical, in
 | `src/areas/auth/` | `routes`, `schema`, `flows` (setup, login, recover), `common`, `account` (token checks, `/me`, notices, sessions, password), `agents`, `reset` (state, break-glass, tickets, cron), `tokens`, `crypto`, `passwords` (rules + HIBP), `throttle`, `store` + `store-keys` (all SQL). |
 | `src/areas/ops/`, `src/areas/settings/` | Health, deep health, error inbox, perf, meter; Core settings (`owner.tz`, `min_client`). |
 | `src/areas/astra/` | Astra's relay (SECURITY.md §8.2): `POST /v1/astra/play` finds a film's direct address from TorBox with `TORBOX_KEY` (`direct`, `torbox`, `links`, `files`, `kept`: half an hour in memory); following an add-on's forward (`follow`) only with `ASTRA_FOLLOW` `on`; `GET /v1/astra/torbox`; `GET /v1/astra/torbox/servers`, TorBox's speed-test files for the lab (`servers`). Nothing stored or logged; notes from fixed words (`words`). |
-| `tests/unit/` | Pure rules: tokens and checksums, codes, back-off numbers, password rules, the HIBP client against a fake, source rules (no timers, env inventory, expand-only, ≤ 300 lines). |
+| `tests/unit/` | Pure rules: tokens and checksums, codes, back-off numbers, password rules, the HIBP client against a fake, source rules (no timers, env inventory, expand-only, ≤ 500 lines). |
 | `tests/integration/` | Through the real fetch handler on workerd: `route-scopes` (API.md §13 walk), setup, login and sessions, back-off, recovery, reset tickets, account and agent keys, the HTTP edge, ops, objects, scrypt timing. |
 | `tests/cost/` | Rows per endpoint against `budgets.json`; workerd's row-accounting facts. |
 | `tests/migrations/` | Empty → current schema equals `auth.schema.sql` / `core.schema.sql`. |

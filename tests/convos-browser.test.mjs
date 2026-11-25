@@ -16,7 +16,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { resting, until } from './fixtures/waits.mjs';
-import { PLAN, T } from './fixtures/mock-threads.mjs';
+import { PICK, PLAN, T } from './fixtures/mock-threads.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -213,7 +213,7 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
   }
 });
 
-test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, code, a table and a link, tags kept as text', opts, async () => {
+test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, code, a table, a link and a pick, tags kept as text', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme });
     await menu(page);
@@ -230,6 +230,9 @@ test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, 
     assert.equal(await page.$('#app img'), null, 'a tag in a reply is text');
     assert.ok((await page.textContent(p)).includes('<img src=x onerror="document.title=1">'));
     assert.equal(PLAN.split('\n')[0], '## Practice plan for the weekend');
+    // A pick the mind offered: its token is a Play button for the preview, as on home (th/chat/pick.js).
+    assert.equal(await page.getAttribute(`${p} .pick[data-pick="${PICK}"] button.pickplay`, 'aria-label'), 'Play a preview of this pick');
+    assert.ok(!(await page.textContent(p)).includes('(pick:'), 'the token itself is not shown');
     assert.ok(await page.$eval('#convo', (c) => c.scrollWidth <= c.clientWidth), 'nothing scrolls sideways');
     await shot(page, 'prose', theme);
     assert.deepEqual(errors, []);

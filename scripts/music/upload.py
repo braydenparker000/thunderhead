@@ -196,6 +196,23 @@ def prepared(file):
             'dur': song.info.length, 'sr': 48000, 'ch': song.info.channels, 'codec': 'Opus'}
     if not tags['title'].strip() or not tags['artist'].strip() or tags['dur'] <= 0:
         raise RuntimeError('Prepared title, artist and positive duration are required.')
+    # The server requires the album and a track from 1 (2026-11-25); a disc of 0 is one disc.
+    if not tags['album'].strip() or tags['track'] < 1:
+        raise RuntimeError('Prepared album and track number (from 1) are required.')
+    if tags['disc'] < 1:
+        tags['disc'] = 1
+    # The extra tags the server keeps (docs/engineering/MUSE-SOP.md step 6), when the file has them.
+    isrc = tag('isrc').strip()
+    if re.fullmatch(r'[A-Za-z0-9]{12}', isrc):
+        tags['isrc'] = isrc.upper()
+    if tag('label').strip() or tag('organization').strip():
+        tags['label'] = re.sub(r'[\x00-\x1f\x7f]', ' ', tag('label') or tag('organization')).strip()[:512]
+    for name, field in [('tracktotal', 'trackTotal'), ('totaltracks', 'trackTotal'), ('disctotal', 'discTotal'),
+                        ('totaldiscs', 'discTotal'), ('originalyear', 'originalYear'), ('originaldate', 'originalYear')]:
+        if field not in tags and number(name) >= 1:
+            tags[field] = number(name)
+    if tag('compilation') in ('0', '1'):
+        tags['compilation'] = tag('compilation') == '1'
     # Reject malformed/duplicate gain tags rather than choosing a random value.
     for name, field in [('replaygain_track_gain','rgTrack'),('replaygain_album_gain','rgAlbum'),('replaygain_track_peak','rgTrackPeak'),('replaygain_album_peak','rgAlbumPeak'),('r128_track_gain','r128TrackGain'),('r128_album_gain','r128AlbumGain')]:
         values=song.tags.get(name,[])

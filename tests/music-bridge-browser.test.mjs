@@ -18,7 +18,7 @@ const ID = `r2_native_${'c'.repeat(64)}`;
 const TONE = readFileSync(new URL('./fixtures/tone.opus', import.meta.url));
 const TOKEN = `th1_${'A'.repeat(43)}abcdef`;
 let site, mock, browser, base, api;
-const seen = { catalog: 0, revalidated: 0, sign: 0, ranges: [], auth: [], bucketAuth: [] };
+const seen = { catalog: 0, revalidated: 0, since: [], sign: 0, ranges: [], auth: [], bucketAuth: [] };
 
 before(async () => {
   if (live) return;
@@ -32,6 +32,7 @@ before(async () => {
     }
     if (url.pathname === '/v1/music/catalog') {
       seen.catalog++;
+      seen.since.push(url.searchParams.get('since') ?? '');
       seen.auth.push(req.headers.authorization ?? '');
       if (req.headers['if-none-match'] === '"m1-a"') {
         seen.revalidated++;
@@ -146,6 +147,7 @@ test('the player’s library, audio and Web Audio come from the new Worker and t
   // once; every later ask of the unchanged catalog cost a 304.
   assert.ok(seen.catalog >= 2, `asked ${seen.catalog} times`);
   assert.equal(seen.catalog - seen.revalidated, 1);
+  assert.deepEqual([...new Set(seen.since)], ['', '2026-10-29T00:00:00.000Z'], 'later asks are since the copy kept');
   assert.ok(seen.sign >= 1);
   assert.ok(seen.ranges.some((r) => r.startsWith('bytes=')), `range requests reached the bucket: ${seen.ranges}`);
   assert.deepEqual([...new Set(seen.auth)], [`Bearer ${TOKEN}`], 'the Worker gets the session');

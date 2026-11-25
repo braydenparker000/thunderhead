@@ -1,19 +1,23 @@
 // @ts-check
 // The Thunderhead's replies as rich text (HOME.md §4.3): Markdown's everyday marks, https links,
-// and cited blocks of the owner's books as numbered taps into Study (STUDY.md §8). `parse` is plain
-// data (tested in node); `rich` builds nodes and sets text, never markup.
+// cited blocks of the owner's books as numbered taps into Study (STUDY.md §8), and a pick the mind
+// offers as a Play button for its preview (th/chat/pick.js, MUSIC.md §19.7). `parse` is plain data
+// (tested in node); `rich` builds nodes and sets text, never markup.
 import { citeHref, label } from './model.js';
 import { codeBlock } from './code.js';
+import { pickButton } from './pick.js';
 
 const LIST_AFTER = /(?<=[.!?:])\s+(?=– )/;
 const LINK = /https:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]*_]/;
 const CITE = /\[\[book:(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#p(?<pg>\d{1,5})\.b(?<bk>\d{1,4})\]\]/;
+/** A pick the mind offers (mind/skills/music.md): its line ends with `(pick:<MusicBrainz id>)`, a Play button here. */
+const PICK = /\(pick:(?<pick>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)/;
 const INLINE = new RegExp(
-  `\\*\\*(?<b>[^*]+)\\*\\*|(?<![\\w*])\\*(?<i>[^*\\s](?:[^*]*[^*\\s])?)\\*(?![\\w*])|(?<![\\w_])_(?<u>[^_\\s](?:[^_]*[^_\\s])?)_(?![\\w_])|\`(?<c>[^\`]+)\`|(?<a>${LINK.source})|${CITE.source}`,
+  `\\*\\*(?<b>[^*]+)\\*\\*|(?<![\\w*])\\*(?<i>[^*\\s](?:[^*]*[^*\\s])?)\\*(?![\\w*])|(?<![\\w_])_(?<u>[^_\\s](?:[^_]*[^_\\s])?)_(?![\\w_])|\`(?<c>[^\`]+)\`|(?<a>${LINK.source})|${PICK.source}|${CITE.source}`,
   'g',
 );
 
-/** @typedef {{ text: string } | { b: string } | { i: string } | { code: string } | { href: string, label: string, cite?: true }} Part */
+/** @typedef {{ text: string } | { b: string } | { i: string } | { code: string } | { pick: string } | { href: string, label: string, cite?: true }} Part */
 /** @typedef {{ t: 'p', lines: Part[][] } | { t: 'h', parts: Part[] } | { t: 'q', parts: Part[] } | { t: 'ul', start: number, items: Part[][] } | { t: 'ol', start: number, items: Part[][] } | { t: 'pre', text: string, lang?: string, open?: true } | { t: 'table', rows: Part[][][] } | { t: 'hr' }} Block */
 
 /** The text as blocks. @param {string} text @returns {Block[]} */
@@ -32,6 +36,7 @@ export function parse(text) {
       else if (g.i !== undefined || g.u !== undefined) parts.push({ i: /** @type {string} */ (g.i ?? g.u) });
       else if (g.c !== undefined) parts.push({ code: g.c });
       else if (g.a !== undefined) parts.push({ href: g.a, label: label(g.a) });
+      else if (g.pick !== undefined) parts.push({ pick: g.pick });
       else {
         const ref = `book:${g.id}#p${g.pg}.b${g.bk}`;
         if (!cited.includes(ref)) cited.push(ref);
@@ -132,6 +137,7 @@ function fill(host, parts) {
     else if ('b' in p) host.append(el('b', p.b));
     else if ('i' in p) host.append(el('i', p.i));
     else if ('code' in p) host.append(el('code', p.code));
+    else if ('pick' in p) host.append(pickButton(p.pick));
     else {
       const a = el('a', p.label);
       a.href = p.href;

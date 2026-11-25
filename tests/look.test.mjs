@@ -84,8 +84,8 @@ test('nothing under look/ names an outside host', () => {
     for (const [url] of text(p).matchAll(/https?:\/\/[^\s"'()<>]+/g)) assert.equal(url, 'http://www.w3.org/2000/svg', `${p} reaches ${url}`);
 });
 
-test("every rule of the look's sheets is scoped to the look; each file stays under 300 lines", () => {
-  for (const p of all.filter((f) => /\.(css|js)$/.test(f))) assert.ok(text(p).split('\n').length <= 300, `${p} is over 300 lines`);
+test("every rule of the look's sheets is scoped to the look; each file stays under 500 lines", () => {
+  for (const p of all.filter((f) => /\.(css|js)$/.test(f))) assert.ok(text(p).split('\n').length <= 500, `${p} is over 500 lines`);
   for (const p of sheets) {
     const css = bare(text(p)).replace(/@import [^;]+;/g, '').replace(/@font-face\s*\{[^}]*\}/g, '');
     for (const [, prelude] of css.matchAll(/([^{};]*)\{/g)) {

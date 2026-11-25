@@ -130,7 +130,7 @@ Everything is under `frontend/look/`, with its own size limits (`scripts/look-co
 - The browser tests' server (`scripts/serve.mjs`) serves a phone that has chosen Classic, which most
   suites were written on; the look's own suites choose it, and `tests/look-default-browser.test.mjs`
   holds the default.
-- `look/look.css` is a list of `@import`s, one per part, so each source stays under 300 lines; when
+- `look/look.css` is a list of `@import`s, one per part, so each source stays under 500 lines; when
   published (`stageLook`, `joinSheets` in `scripts/look-config.mjs`) it is one file, each import
   replaced by its sheet in order with every `url()` named from `look.css`, and the joined sheets are
   not published again. The tests' server serves the sources as they are.

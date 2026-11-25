@@ -7,7 +7,7 @@
 // listed by plates.json) are the exception: each names its own bytes, so they are published unmoved at
 // /look/pictures/ and left out of the tag, and a change elsewhere never fetches them again.
 // stage.mjs publishes it so (stageLook), serve.mjs serves it so for the tests (lookTag, themeJs).
-// The look's sheet, look.css, is a list of @imports in the source (each part its own file, under 300
+// The look's sheet, look.css, is a list of @imports in the source (each part its own file, under 500
 // lines); published, it is one file (joinSheets): each import replaced by its sheet, in order, every
 // relative url() rewritten to resolve from look.css, and the joined sheets left out, so the phone asks
 // once and the size limits count each rule once. serve.mjs serves the sources as they are.

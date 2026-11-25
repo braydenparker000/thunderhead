@@ -1,7 +1,8 @@
 // Settings' one index (frontend/apps/settings/finder.js), without a browser: what Settings' search and
 // the menu's "Search everything" find for the words people type (owner, 2026-11-21), each result on
 // its page with the row it opens at; every catalogue setting and listed page is in it; the grouped
-// list (pages.js) has its headings in order and leaves Agents and Quiet hours out.
+// list (pages.js) has its headings in order, Agents with its line under Account and data, and leaves
+// Quiet hours out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { entries, find } from '../frontend/apps/settings/finder.js';
@@ -43,7 +44,10 @@ test('every catalogue setting and every listed page is in the index, on its page
   for (const [page] of PAGES) assert.ok(all.some((e) => e.page === page && !e.focus), page);
 });
 
-test('Settings lists its pages under six headings, without Agents or Quiet hours', () => {
+test('Settings lists its pages under six headings, Agents with its line, without Quiet hours', () => {
   assert.deepEqual(SECTIONS.map(([h]) => h), ['Look', 'Home and gestures', 'Apps', 'The mind', 'Account and data', 'About']);
-  assert.deepEqual(PAGES.map(([p]) => p), ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
+  assert.deepEqual(PAGES.map(([p]) => p), ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'agents', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
+  assert.deepEqual(PAGES.find(([p]) => p === 'agents'), ['agents', 'Agents', 'plugs-connected', 'Keys for the mind and other tools']);
+  assert.deepEqual(first('agents'), ['Agents', 'agents', undefined]);
+  assert.deepEqual(first('tokens'), ['Agents', 'agents', undefined]);
 });

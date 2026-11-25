@@ -1,5 +1,5 @@
 // GET /v1/ops/diag in the cost suite (cost.test.ts checks every budget), from report-calls.ts's `it`
-// (cost.test.ts stays under 300 lines): measured once in Music, whose knowledge counts it may count
+// (cost.test.ts stays under 500 lines): measured once in Music, whose knowledge counts it may count
 // again (every album and facts row, at most every 10 minutes) besides its one pass over the facts
 // rows, and once in Core, which reads its jobs table, the lane, and the meter as GET /v1/ops/meter does.
 import type { SignedIn } from '../../../shared/contract/api';

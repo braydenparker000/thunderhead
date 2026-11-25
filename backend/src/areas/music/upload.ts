@@ -137,7 +137,9 @@ function answer(status: number, b: Record<string, unknown>): never {
   if (status === 404) throw new ApiError('not_found');
   if (status === 409) throw new ApiError('conflict', { ...b, reason });
   if (status === 413) throw new ApiError('too_large');
-  if (status === 422) throw new ApiError('validation', [{ path: 'body', issue: reason }]);
+  // A field the writer names (`metadata.album`) is the problem's path.
+  const path = typeof b.field === 'string' ? b.field : 'body';
+  if (status === 422) throw new ApiError('validation', [{ path, issue: reason }]);
   throw new ApiError(status === 503 ? 'not_configured' : 'unavailable');
 }
 

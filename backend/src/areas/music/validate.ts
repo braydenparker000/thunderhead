@@ -4,6 +4,7 @@
 // the exact audio it measured, and the message an upload tool signs. The upload routes and the
 // Music object's writer use them, so the catalog never holds a track the ported player's own
 // reader would refuse.
+import { ALIASES, EXTRA_KEYS, extras } from './meta-extra';
 import { ART_KEY, AUDIO_KEY, SONG_ID } from './shapes';
 
 export const HEX = /^[a-f0-9]{64}$/;
@@ -28,6 +29,14 @@ const NUM = [
 /** MusicBrainz ids Muse may send with a song (MUSIC.md §19.1), optional: they match it exactly. */
 const MB_IDS = ['mbRecording', 'mbReleaseGroup', 'mbArtist'];
 const MB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Every key a song's metadata may carry (`albumId` is the Worker's own, album-id.ts). */
+const KNOWN = new Set([...TEXT, ...NUM, ...MB_IDS, ...EXTRA_KEYS, ...Object.keys(ALIASES), 'audioAnalysis', 'albumId']);
+
+/** The keys of sent metadata that are not stored (the answer's `ignored`). */
+export function ignoredKeys(input: unknown): string[] {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return [];
+  return Object.keys(input).filter((k) => !KNOWN.has(k));
+}
 
 export class Invalid extends Error {}
 const bad = (): never => {
@@ -41,7 +50,8 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** A track's tags: known text and number fields only, a title, an artist and a duration (and
- * MusicBrainz ids, when given, each a lowercase MusicBrainz id). */
+ * MusicBrainz ids, when given, each a lowercase MusicBrainz id; and the extra tags, meta-extra.ts,
+ * whose bad values throw BadTag naming the field). */
 export function metadata(input: unknown, { copyAnalysis = true } = {}): Obj {
   if (!isObj(input)) return bad();
   const out: Record<string, unknown> = {};
@@ -60,6 +70,7 @@ export function metadata(input: unknown, { copyAnalysis = true } = {}): Obj {
       if (typeof input[k] !== 'number' || !Number.isFinite(input[k])) bad();
       out[k] = input[k];
     }
+  extras(input, out);
   const n = out as Record<string, number | undefined> & { title?: string; artist?: string };
   if (
     !n.title?.trim() ||

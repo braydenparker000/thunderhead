@@ -1203,7 +1203,7 @@ The HaldCLUT film collections (RawTherapee's, G'MIC's) are pictures, not `.cube`
 - Merge PRs as merge commits. Check `/release.json` and the served files before saying something is live.
 - Headless: Chromium with `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader`, the page with `?readback`.
   Its timings mean nothing; the phone is the instrument. Public sample RAFs (raw.pixls.us) are not in the repo.
-- Every source file stays under 300 lines. The dial's adjustments live in `editor/app/adjust.js`; `session.js`
+- Every source file stays under 500 lines. The dial's adjustments live in `editor/app/adjust.js`; `session.js`
   hands them on as its own (a deliberate import cycle: `adjust.js` must not use anything of `session.js` at its
   top level).
 - Port methods plainly from open work (darktable, RawTherapee, vkdt); the fine tuning waits for the owner's eye.

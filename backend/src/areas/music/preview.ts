@@ -1,7 +1,8 @@
 // A pick's preview (MUSIC.md §19.7), the pure parts: the search address sent to Apple's iTunes Search
-// API (a pick's artist and album as MusicBrainz names them, nothing of the owner), the one result
-// whose artist and album are the pick's, and the allow-list a preview address must pass before the
-// Worker fetches it. Apple's answer is outside data: read here for one address and never kept.
+// API, and to Deezer's search when Apple refuses or lacks it (a pick's artist and album as MusicBrainz
+// names them, nothing of the owner), the one result whose artist and album are the pick's, and the
+// allow-list a preview address must pass before the Worker fetches it. The answers are outside data:
+// read here for one address and never kept.
 import { fold, norm } from './know-match';
 
 export const PREVIEW = {
@@ -12,6 +13,8 @@ export const PREVIEW = {
   max_bytes: 3 * 1024 * 1024,
   /** Pick ids remembered per isolate, with their preview address or a miss. */
   remembered: 200,
+  /** The second source, asked when Apple refuses or has no such album (no key), its own gap. */
+  deezer: 'api.deezer.com',
 } as const;
 
 /** The search for one album's songs: artist and album, the words alone. */
@@ -20,7 +23,8 @@ export function searchUrl(artist: string, album: string): string {
   return `https://${PREVIEW.host}/search?media=music&entity=song&limit=25&term=${encodeURIComponent(term)}`;
 }
 
-/** A preview address the Worker may fetch: https on Apple's hosts only, no port or credentials. */
+/** A preview address the Worker may fetch: https on Apple's or Deezer's preview hosts only, no port or
+ * credentials. */
 export function allowedPreview(v: unknown): string | null {
   if (typeof v !== 'string' || v.length > 2_000) return null;
   let u: URL;
@@ -31,7 +35,7 @@ export function allowedPreview(v: unknown): string | null {
   }
   if (u.protocol !== 'https:' || u.port || u.username || u.password) return null;
   const h = u.hostname.toLowerCase();
-  return h.endsWith('.apple.com') || h.endsWith('.mzstatic.com') ? u.href : null;
+  return h.endsWith('.apple.com') || h.endsWith('.mzstatic.com') || h.endsWith('.dzcdn.net') ? u.href : null;
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -57,4 +61,36 @@ export function matchPreview(answer: unknown, artist: string, album: string): st
     if (!best || rank < best.rank || (rank === best.rank && track < best.track)) best = { rank, track, url };
   }
   return best?.url ?? null;
+}
+
+/** Deezer's search for the album's songs: `artist:"…" album:"…"` (quotes inside a name dropped). */
+export function deezerUrl(artist: string, album: string): string {
+  const term = (s: string) => s.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
+  const q = `artist:"${term(artist)}" album:"${term(album)}"`;
+  return `https://${PREVIEW.deezer}/search?q=${encodeURIComponent(q)}&limit=25`;
+}
+
+/** The preview address of the pick's album in Deezer's answer, matched as Apple's (`matchPreview`):
+ * the artist the same after folding, the album the same or the start of Deezer's title; the first
+ * result of the same album, else the first of a longer one. Null when none matches. */
+export function matchDeezer(answer: unknown, artist: string, album: string): string | null {
+  const data = (answer as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) return null;
+  const a = norm(artist);
+  const t = fold(album);
+  if (!a || !t) return null;
+  let longer: string | null = null;
+  for (const r of data as Record<string, unknown>[]) {
+    if (!r || typeof r !== 'object') continue;
+    const name = (r.artist as { name?: unknown } | null)?.name;
+    const title = (r.album as { title?: unknown } | null)?.title;
+    if (norm(str(name)) !== a) continue;
+    const c = fold(str(title));
+    if (c !== t && !c.startsWith(`${t} `)) continue;
+    const url = allowedPreview(r.preview);
+    if (!url) continue;
+    if (c === t) return url;
+    longer ??= url;
+  }
+  return longer;
 }

@@ -26,7 +26,7 @@ async function song(i: number) {
     sha256: h,
     size: bytes.length,
     name: `Cost upload ${i}.opus`,
-    metadata: { title: `Cost upload ${i}`, artist: 'An Invented Duo', dur: 200 + i },
+    metadata: { title: `Cost upload ${i}`, artist: 'An Invented Duo', album: 'Cost Album', track: i + 1, dur: 200 + i },
     waveform: WAVE,
     waveformKind: 'rms',
   };
@@ -37,11 +37,20 @@ export async function museCalls(cost: Cost, m: never) {
     answered(((await music().write(op, body)) as unknown as { status: number }).status);
   // One registration first, so the catalog's count and size are kept (read once per start).
   expect200(await write('register', await song(0))());
+  // The copy a phone holds from here: the batch below is what changed since.
+  const since = (JSON.parse(String(await music().exportPage(1, null, false))) as { generatedAt: string }).generatedAt;
   const tracks: Awaited<ReturnType<typeof song>>[] = [];
   for (let i = 1; i <= 20; i++) tracks.push(await song(i));
   await cost(
     'POST /v1/music/uploads/register-batch, 20 new songs with waveforms (Music, the operation alone)',
     write('register-batch', { tracks }),
+    200,
+    m,
+  );
+  // The log's rows since and the 20 songs, never the 12,000 (null would be the whole catalog: 409 here).
+  await cost(
+    'GET /v1/music/catalog?since=, 20 songs changed (Music, the delta alone)',
+    async () => answered((await music().catalogSince(since)) ? 200 : 409),
     200,
     m,
   );

@@ -614,7 +614,10 @@ export class Library {
     const map = new Map();
     for (const t of this.tracks) {
       let key;
-      if (!t.album) key = '\u0001';
+      // The catalog's album id (the same for every song of one release, however its tags are spelled)
+      // groups first; without one, the album's name and album artist, as typed.
+      if (t.albumId) key = '\u0002' + t.albumId;
+      else if (!t.album) key = '\u0001';
       else {
         let aa = lc(t.albumArtist);
         if (!aa && t.artist && tagged.has(lc(t.album) + '\u0000' + lc(t.artist))) aa = lc(t.artist);

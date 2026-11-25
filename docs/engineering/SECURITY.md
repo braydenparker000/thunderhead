@@ -533,7 +533,8 @@ An Actions run is public and anyone who can push a workflow to `main` controls i
 
 - One structured line per request: `{evt, route, status, ms, rows_w, rows_r, principal_kind}`. Never bodies, tokens, push endpoints, presigned URLs, titles, message text or the username.
 - `/v1/auth/*` logs only the outcome code.
-- `/v1/astra/*` logs nothing of its own; a crash there logs the error's name only (§8.2).
+- `/v1/astra/*` logs nothing of its own; a crash there logs the error's name and scrubbed message (§8.2).
+- An unexpected server error logs one line `{evt: 'error', route, name, message, request_id}` (since 2026-11-25). The message passes `backend/src/http/scrub.ts` first: whitespace collapsed, at most 300 characters, and every address (query and path), email, quoted string over 40 characters and run of 24 or more hex or base64 characters replaced with `…`. Core's error inbox still gets the name only; an expected client error (`ApiError`) logs nothing of its own.
 - Workers Logs may record request headers (T5). Tokens are in headers, not URLs; if T5 shows `Authorization` is recorded, note it in [OPERATIONS.md](OPERATIONS.md) and keep logs on (route counts are needed). The 30-second live ticket in the WebSocket URL is single-use, so a logged one is useless.
 - Client errors go to `POST /v1/ops/errors` with a fingerprint, message and stack; no page content.
 

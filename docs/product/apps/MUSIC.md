@@ -126,10 +126,21 @@ imported plays and ratings line up (§11).
    tracks this is about 1.3 MB compressed; at 20k about 3.5 MB.
 2. The phone revalidates on Music open and every 10 minutes while Music is visible. An unchanged
    catalog costs a 304.
-3. **[proposal]** After the first full load the phone asks `?since=<seq>` and gets only changed
-   rows (the catalog log keeps sequence numbers). A full reload happens if the gap is over 5,000
-   changes or the server says `410`.
-4. A catalog that fails validation is never applied; the phone keeps the last good one.
+3. **Built (2026-11-25)** After a full load the phone asks `?since=<the copy's generatedAt>`. When the
+   change log can say exactly what changed after that moment, the Worker answers a delta
+   (`kind: 'r2-library-delta'`, `MusicCatalogDelta`): every song changed since, as the whole catalog
+   gives it, the ids removed since, and `count`, the whole catalog's songs now, under the whole
+   catalog's `ETag` (`objects/music-delta.ts`, `areas/music/catalog-delta.ts`). It reads the log back
+   from its newest row to the copy's time (each commit's time is after the last one's), so its rows
+   follow the change, not the catalog. Otherwise (a time the catalog never had, one at or before an
+   import, older than the log's 20,000 kept rows, more than 2,000 songs changed, or no `since`) it
+   answers the whole catalog. `If-None-Match` still answers 304 first.
+4. Every song carries `metadata.albumId`: `rg:<mbReleaseGroup>` when it has one, else
+   `al:<artist>|<title>`, the album's artist (`albumArtist`, else `artist` without a featured tail)
+   and title folded (case, accents, punctuation, edition words, a leading "The";
+   `areas/music/album-id.ts`). Stored when a song is registered or patched; a record from before gets
+   it as the catalog is built, without a row written.
+5. A catalog that fails validation is never applied; the phone keeps the last good one.
 
 **Acceptance:** with a 7,494-track fixture, a second open with no catalog change makes exactly one
 catalog request and receives 304; a fixture change of 3 tracks via `since` transfers ≤ 5 KB.
@@ -1628,7 +1639,9 @@ Below **Listening history**, **What I know about your music** (`frontend/apps/se
 
 ### 19.7 A pick's preview
 
-In Settings › Music, under the counts, **Picks to add** lists the picks still `new` (at most 10), each by its line with a **Play** button (`frontend/apps/settings/music-picks.js`). Play asks `GET /v1/music/picks/:id/preview` (device only, [API.md §11.9](../../engineering/API.md)). The Worker asks Apple's iTunes Search API, without a key, for the pick's artist and album as MusicBrainz names them (nothing of the owner), takes the song whose artist is the pick's and whose album is the pick's or starts with it (" - EP") after the titles' folding (`fold`, §19.1), the same album first and then the lowest track, and passes its 30-second clip through: audio only, at most 3 MB, from `https` on `*.apple.com` or `*.mzstatic.com` only (`areas/music/preview.ts`, `preview-fetch.ts`). So the phone talks only to the Worker, and Apple never sees the phone. No preview, or Apple refusing, is 404 and the row says "No preview for this one."; a second lookup within a second (per isolate) is 429. Nothing is written: the address found, or a miss, is remembered in the isolate's memory (200 picks). The phone plays the clip from a blob (the shell's CSP has `media-src blob:` for it). One plays at a time, a second tap stops it, leaving the page stops it, and nothing plays without a tap. Loading, offline and error lines as the page's others.
+In Settings › Music, under the counts, **Picks to add** lists the picks still `new` (at most 10), each by its line with a **Play** button (`frontend/apps/settings/music-picks.js`). Play asks `GET /v1/music/picks/:id/preview` (device only, [API.md §11.9](../../engineering/API.md)). The Worker asks Apple's iTunes Search API, without a key, for the pick's artist and album as MusicBrainz names them (nothing of the owner), takes the song whose artist is the pick's and whose album is the pick's or starts with it (" - EP") after the titles' folding (`fold`, §19.1), the same album first and then the lowest track, and passes its 30-second clip through: audio only, at most 3 MB, from `https` on `*.apple.com`, `*.mzstatic.com` or `*.dzcdn.net` only (`areas/music/preview.ts`, `preview-fetch.ts`). Apple answers the Worker 429 in production, so when Apple refuses or has no such album the Worker asks Deezer's search the same way (`artist:"…" album:"…"`, no key; 2026-11-25) and takes the first song of the pick's album (or of one whose title starts with it). So the phone talks only to the Worker, and neither service sees the phone. No preview, or both refusing, is 404 and the row says "No preview for this one."; a lookup while both were asked within the last second (each host its own gate, per isolate) is 429. Nothing is written: the address found, or a miss (both asked, one answered without the album), is remembered in the isolate's memory (200 picks). The phone plays the clip from a blob (the shell's CSP has `media-src blob:` for it). One plays at a time, a second tap stops it, leaving the page stops it, and nothing plays without a tap. Loading, offline and error lines as the page's others.
+
+**In a reply (2026-11-25).** When the mind offers a pick by its line, the line ends with `(pick:<MusicBrainz id>)` (`mind/skills/music.md`). The chat renderer (`frontend/th/chat/rich.js`, the token parsed as a `pick` part; `th/chat/pick.js` draws it) shows a small **Play** in its place, on home and in an older conversation alike (`th/convos/past.js` uses the same renderer). The playing is one module for both places (`frontend/th/music/preview.js`, loaded by a reply on its first tap): one preview at a time across Settings and chat, a second tap stops it, leaving the page or the button leaving the screen stops it, nothing plays without a tap, and a 404 reads "No preview for this one." beside the button. Only a lower-case UUID makes a button; any other text stays as it is.
 
 ## Not built
 

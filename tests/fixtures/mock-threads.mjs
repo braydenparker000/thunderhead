@@ -20,7 +20,9 @@ export const T = {
   yesterday: id(101), monday: id(102), imported: id(103), september: id(104), lastYear: id(105), markup: id(106), saturday: id(107),
 };
 
-/** Last Saturday's reply, in the Markdown the old Chats wrote (and a tag that must stay text). */
+/** An invented MusicBrainz id for a pick the reply offers (its Play button, th/chat/pick.js). */
+export const PICK = '0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e';
+/** Last Saturday's reply, in the Markdown the old Chats wrote (and a tag that must stay text), and a pick. */
 export const PLAN = [
   '## Practice plan for the weekend',
   '- **Scales** first, ten minutes',
@@ -32,6 +34,8 @@ export const PLAN = [
   '| Wed | 45 |',
   '',
   'Tags stay <img src=x onerror="document.title=1"> text. The metronome: https://example.com/metronome',
+  '',
+  `To add: Harbour Lights (2006) by Invented Artist 0 (pick:${PICK})`,
 ].join('\n');
 
 const msg = (thread, seq, author, body, created) => ({

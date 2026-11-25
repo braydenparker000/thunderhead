@@ -20,7 +20,15 @@ page is the exact sequence. History: [archive/MUSE.md](../archive/MUSE.md); rout
   (2026-11-25; [API.md](API.md) has the shapes): `export` in pages (`{ limit, after, waveforms:
   false }`, follow `next` until `complete`), `track` (`{ id }` or `{ sha256, size }`: one record,
   no waveform bytes), and `quota` (`{}`: the day's rows, the hold level, `held` and `retry_after`;
-  it answers while the day is held, the other operations answer 429).
+  it answers while the day is held, the other operations answer 429). What a registration keeps
+  (2026-11-25; [MUSE-SOP.md](MUSE-SOP.md) steps 4 to 6): a new song needs `album` and `track` (a
+  whole number from 1), else `422` with the field as the problem's `path` (`metadata.album`; in a
+  `register-batch`, that item alone answers `registered: false, status: 422`); a missing `disc` is 1;
+  `isrc`, `label`, `trackTotal`, `discTotal`, `compilation` and `originalYear` are kept (also spelled
+  `tracktotal`, `disctotal`, `originalyear`); any other metadata key is not stored and comes back in
+  `ignored: [...]` on the answer (or that batch item's result); a `waveform` without `waveformKind`
+  is `rms`. Every song gets `metadata.albumId` from the server (`rg:<mbReleaseGroup>`, else the
+  album's artist and title folded): never send one.
 
 ## 2. The loop
 

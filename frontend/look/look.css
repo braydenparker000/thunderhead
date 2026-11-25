@@ -7,7 +7,7 @@
    (scripts/look-config.mjs) and the service worker keeps each file for good (sw.js), so a change to
    any file here reaches the phone under a new name. Name a file by a path relative to this one.
 
-   One @import per part, so each stays under 300 lines. */
+   One @import per part, so each stays under 500 lines. */
 @import url("fonts.css");
 @import url("tokens.css");
 @import url("kit.css");

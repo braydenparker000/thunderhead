@@ -359,7 +359,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.devices` | Devices | Row (proposal) |
 | `set.devices.this` | This device | (proposal) |
 | `set.devices.out` / `.outall` | Sign out / Sign out everywhere | (plan §17) |
-| `set.agents` | Agents | Row (review) |
+| `set.agents` | Agents · Keys for the mind and other tools | Row, with Devices and Password (built; listed again 2026-11-25) |
 | `set.agents.new` | New token | (proposal) |
 | `set.agents.once` | This shows once. Paste it where it's needed, then close this. | (proposal) |
 | `set.agents.revoke` | Revoke | (proposal) |
@@ -371,6 +371,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.account.unforgotten` | 1 Forget hasn't gone through yet. Sign out anyway? / If you sign out now, I'll keep remembering that fact. | Sign-out (this device or everywhere) while a Forget still waits after one more try; "2 Forgets haven't…", "those facts" for more; after the unsent-messages title the line starts "1 Forget hasn't gone through either."; buttons "Sign out" · "Cancel" (built, P3 B.6) |
 | `set.leave.unsaved` | What you typed isn't saved. Leave anyway? | Leaving a Settings page (Back, a drag, its Back button) with typed text not saved; buttons "Leave" · "Cancel" (built 2026-11-23) |
 | `set.music.picks` | Picks to add: | Settings › Music under "What I know about your music" (built 2026-11-25): each pick's line with **Play** ("Stop" while it loads or plays); the row's line "Loading the preview…", "Playing 30 seconds.", "No preview for this one.", "You’re offline. Previews play once you’re back.", "I couldn’t play this just now."; the list's "Reading…", "No picks yet.", offline and error lines as the counts' (MUSIC.md §19.7) |
+| `chat.pick` | Play · Stop | A pick the mind offers in a reply, its line ending `(pick:<id>)` (built 2026-11-25): a small **Play** for its 30-second preview, "Stop" while it loads or plays (labelled "Play a preview of this pick" / "Stop the preview"); beside it the same lines as `set.music.picks`, one preview at a time across both (MUSIC.md §19.7) |
 | `set.unloaded` | Couldn't load these settings, so they can't be changed yet. <reason> I'll try again by myself. | A catalogue page's first read failed; at its top, the group dimmed (built 2026-11-23) |
 | `set.recovery.unconfirmed` | Your new recovery code isn't confirmed. <reason> Make a new one to try again. | Devices: the confirm of a new code failed (built 2026-11-23) |
 | `toast.storage.full` / `toast.notforgotten.full` / `set.goquiet.full` | This phone's storage is full, so that won't stay. See Settings › On this phone. / Not forgotten yet. This phone's storage is full: see Settings › On this phone. / Not changed: this phone's storage is full and the Thunderhead can't be reached. See Settings › On this phone. | A phone setting, a Forget, or Go quiet now the full storage couldn't keep (built 2026-11-23) |
