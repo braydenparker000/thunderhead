@@ -4,7 +4,7 @@ Where the project is right now. Every agent session reads this first and updates
 At most 80 lines ([RUNTIME.md §14](../mind/RUNTIME.md#14-statusmd-upkeep)): older entries leave for git
 history; October's and the deploy log are in [archive/STATUS-2026-10.md](../archive/STATUS-2026-10.md).
 
-## Now (2026-11-21)
+## Now (2026-11-25)
 
 The owner enjoys the product; the agent leads, and work lands as pull requests the owner merges
 (AGENTS.md). The plan is [PLAN.md](PLAN.md); fixed decisions are [decisions.md](decisions.md). Owner,
@@ -25,8 +25,8 @@ behaviour change only after talking with the owner.
 Appearance › Look with Classic as the other choice ([INK-AND-LAMP.md](../design/INK-AND-LAMP.md);
 decisions.md), all in `frontend/look/`, kept on the phone after one load; the island shows the artwork.
 
-**The audit of 2026-11-20** (read-only, eight areas) found faults in delivery, the Worker and the docs;
-one pull request fixes them (the live watch, the rollback, the test-scope rule, these documents among them).
+**Music knowledge and the day's rows (2026-11-23 to 25; PRs #223 to #239):** `music.know` and picks (MUSIC.md §19), a pick's preview, the budget on the old Worker's measured use (90,000 written), the job's true lane count, `GET /v1/ops/diag` for the lead.
+Left: the picks rated by the owner (under about 70 % worth it means tuning), ListenBrainz's token (SETUP.md N6.5), the diagnostics key working in a session.
 
 ## Current phase: what is live
 
@@ -76,5 +76,5 @@ one pull request fixes them (the live watch, the rollback, the test-scope rule, 
 
 ## Last deploy
 
-- 2026-11-20: the newest merge to `main` is `5fd0bd9` (PR #215, Ink and Lamp the default; before it
-  #214 and #213). What is live is on `/release.json` and `/v1/health`; earlier ones in git history.
+- 2026-11-25: the newest merges to `main` are PRs #236 to #239 (code blocks and seeking, previews and the budget,
+  the lane's count, diagnostics). What is live is on `/release.json` and `/v1/health`; earlier ones in git history.
