@@ -56,7 +56,10 @@ export const EDIT_OPS: Record<string, Op> = {
         }
         next.metadata = tagsOrFail(merged);
         // An album or track changed stays one a song needs; the album id follows the tags.
-        songOrFail(next.metadata, ['album', 'track'].filter((k) => Object.hasOwn(changes, k)));
+        songOrFail(
+          next.metadata,
+          ['album', 'track'].filter((k) => Object.hasOwn(changes, k)),
+        );
         next.metadata.albumId = albumIdOf(next.metadata);
       }
       for (const k of ['path', 'folder'] as const)

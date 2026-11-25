@@ -35,8 +35,7 @@ const METADATA = /"metadata"\s*:\s*\{(\s*\})?/;
 export function withAlbumId(json: string): string {
   if (json.includes('"albumId":')) return json;
   const tags: Record<string, string> = {};
-  for (const m of json.matchAll(TAG))
-    tags[m[1]] ??= m[2].includes('\\') ? (JSON.parse(`"${m[2]}"`) as string) : m[2];
+  for (const m of json.matchAll(TAG)) tags[m[1]] ??= m[2].includes('\\') ? (JSON.parse(`"${m[2]}"`) as string) : m[2];
   const id = JSON.stringify(albumIdOf(tags));
   return json.replace(METADATA, (_m, empty?: string) => `"metadata":{"albumId":${id}${empty ? '}' : ','}`);
 }
