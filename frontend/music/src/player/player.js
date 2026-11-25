@@ -776,6 +776,8 @@ export class Player {
         log,
         onFallback: ({ms, reason}) => this.streamFailed(el, t, ms, reason),
         onLength: () => this.lengthFrom(el),
+        // Every byte read: kept whole (played-cache.js), so playing it again costs no network.
+        onWhole: bytes => { this.ctx.audioCache?.keepPlayed?.(url, bytes, +t.size || 0)?.catch?.(() => {}); },
       });
       this.ctx.playbackLog?.songNet?.add(String(t.id), el._stream.feed);
       // The feed's own tries again after a network failure, a timeout or a 5xx (0.5, 1, 2, 4 s): a wait

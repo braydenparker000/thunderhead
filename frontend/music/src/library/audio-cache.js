@@ -6,7 +6,10 @@
 // index's size before they count. A stored copy plays as a blob URL (same
 // origin, so the audio engine processes it). Least recently used copies go
 // when the budget is full; wanted ones and ones playing never do. The index
-// (URL → bytes, last use) lives in localStorage.
+// (URL → bytes, last use) lives in localStorage. Songs kept from playing them
+// (played-cache.js, `played`) are answered here too, as copies of their own.
+import {PlayedCache} from './played-cache.js';
+
 const CACHE = 'claude-player-audio';
 const STORE = 'cp-audio-cache';
 export const AUDIO_BUDGET = 512 * 1024 * 1024;
@@ -57,7 +60,7 @@ export class AudioCache {
   constructor({
     caches = globalThis.caches, fetch = (...a) => globalThis.fetch(...a), storage = globalThis.localStorage,
     estimate = () => globalThis.navigator?.storage?.estimate?.(), online = () => globalThis.navigator?.onLine !== false,
-    budget = AUDIO_BUDGET, now = () => Date.now(),
+    budget = AUDIO_BUDGET, now = () => Date.now(), played = undefined,
   } = {}) {
     this.caches = caches;
     this.fetch = fetch;
@@ -76,6 +79,8 @@ export class AudioCache {
     this.tooBig = new Set();
     this.checkedAt = 0;
     this.counts = {downloads: 0, downloadedBytes: 0, failures: 0, plays: 0};
+    /** Songs kept from playing them (null: none kept here). @type {PlayedCache | null} */
+    this.played = played !== undefined ? played : caches ? new PlayedCache({caches, storage, now}) : null;
     this.ready = this.caches ? this.load() : Promise.resolve();
     globalThis.addEventListener?.('online', () => this.pump());
   }
@@ -108,7 +113,13 @@ export class AudioCache {
     try { this.storage?.setItem(STORE, JSON.stringify({v: 1, e})); } catch { /* storage full or unavailable */ }
   }
 
-  has(url) { return this.index.has(url); }
+  /** Whether url plays from the phone: an offline copy, or a song kept from playing it. */
+  has(url) { return this.index.has(url) || !!this.played?.has(url); }
+
+  /** Keeps a streamed song's whole file, every byte of it read by its stream (no download): played-cache.js. */
+  keepPlayed(url, bytes, expected = 0) {
+    return this.played?.keep(url, bytes, {expected}) ?? Promise.resolve(false);
+  }
 
   get bytes() {
     let n = 0;
@@ -119,7 +130,7 @@ export class AudioCache {
   /** A blob URL for the stored copy of url (marked used), or null. Release it when the deck lets go. */
   async open(url) {
     await this.ready;
-    if (!this.index.has(url)) return null;
+    if (!this.index.has(url)) return this.openPlayed(url);
     try {
       const r = await (await this.caches.open(CACHE)).match(url, {ignoreVary: true});
       if (!r) { this.index.delete(url); this.save(); return null; }
@@ -137,8 +148,19 @@ export class AudioCache {
     }
   }
 
+  /** A blob URL for the song kept from playing url, or null. */
+  async openPlayed(url) {
+    const blob = await this.played?.open(url);
+    if (!blob) return null;
+    const local = URL.createObjectURL(blob);
+    this.blobs.set(local, url);
+    this.counts.plays++;
+    return local;
+  }
+
   /** Drops the copy of url (unreadable, or one that would not play); it downloads again when wanted. */
   async forget(url) {
+    await this.played?.forget(url);
     if (!this.index.delete(url)) return;
     this.save();
     try { await (await this.caches.open(CACHE)).delete(url, {ignoreVary: true}); } catch { /* storage unavailable */ }
@@ -200,7 +222,7 @@ export class AudioCache {
         for (;;) {
           if (this.held || !this.online()) return;
           const t = this.now();
-          const next = this.wanted.find(w => !this.index.has(w.url) && !tried.has(w.url) && !(this.failed.get(w.url)?.until > t));
+          const next = this.wanted.find(w => !this.has(w.url) && !tried.has(w.url) && !(this.failed.get(w.url)?.until > t));
           if (!next) return;
           tried.add(next.url);
           await this.download(next);

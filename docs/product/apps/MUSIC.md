@@ -1079,6 +1079,14 @@ step (ask first). Without it the EQ path outputs silence.
 - New downloads wait until the current track has sounded for 30 s, so skipped songs cost nothing.
 - `navigator.storage.persist()` is requested after the first "Keep offline".
 - Settings shows: used / budget, number of songs, **Delete offline copies** (asks once).
+- **[built] Songs played** (owner, 2026-11-25; `library/played-cache.js`, cache `claude-player-played`):
+  a streamed song whose stream read every byte, from its first to its last, is kept whole from those
+  bytes (`track.js` `keep`, `feed.js` `keep`, `deck.js` `onWhole`), so playing it again costs no network:
+  it opens as a blob URL like an offline copy and needs no head. No download is ever made for it; a song
+  whose stream skipped bytes with a seek is not kept, since filling the gap would cost one (it is kept
+  next time it is played through). At most 200 MB, the song played longest ago out first; on by default
+  on every connection; Settings › On this phone › **Music · Songs played** clears it. Tested in
+  `tests/music-played.test.mjs`.
 
 ### 7.3 Offline browsing and search
 

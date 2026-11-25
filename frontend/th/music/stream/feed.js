@@ -19,7 +19,8 @@
 // {index, ms} the element ran out of data; `error` {code, attempt} a failure being tried again;
 // `fallback` {reason, index, ms, failed} nothing more can be done here, so the player goes back to
 // its plain element path at song `index`, `ms` in (`failed`: the song whose bytes or decoding
-// failed, which may be the next one); `ended` the queue played out.
+// failed, which may be the next one); `ended` the queue played out. With the `keep` option, a song whose
+// every byte was read (from its first to its last, no seek leaving a gap) is handed to it once, whole.
 
 import { aheadOf, append, covered, openSource, remove } from './buffer.js';
 import { RATE } from './ogg.js';
@@ -39,7 +40,7 @@ export { CAP_S } from './plan.js';
 export class StreamFeed extends EventTarget {
   /**
    * @param {HTMLAudioElement} audio
-   * @param {{ capS?: number, resumeS?: number, behindS?: number, fetch?: typeof fetch }} [o]
+   * @param {{ capS?: number, resumeS?: number, behindS?: number, fetch?: typeof fetch, keep?: (track: StreamTrack, bytes: Uint8Array) => void }} [o]
    */
   constructor(audio, o = {}) {
     super();
@@ -48,6 +49,7 @@ export class StreamFeed extends EventTarget {
     this.resumeS = o.resumeS ?? RESUME_S;
     this.behindS = o.behindS ?? BEHIND_S;
     this.fetchFn = o.fetch;
+    this.keepFn = o.keep ?? null;
     /** @type {StreamTrack[]} */
     this.queue = [];
     /** @type {Item[]} Songs on the timeline, in order; the last is the one being fed. */
@@ -212,7 +214,7 @@ export class StreamFeed extends EventTarget {
   }
 
   /** A song to feed, its first sample at timeline sample `start`. @param {number} index @param {StreamTrack} track @param {number} start @returns {Item} */
-  item(index, track, start, reader = new TrackReader(track, { fetch: this.fetchFn, onRetry: (code, attempt) => this.emit('error', { code, attempt }) })) {
+  item(index, track, start, reader = new TrackReader(track, { fetch: this.fetchFn, keep: !!this.keepFn, onRetry: (code, attempt) => this.emit('error', { code, attempt }) })) {
     return { index, track, reader, start, end: -1, ready: false, endSet: false, final: false };
   }
 
@@ -340,9 +342,21 @@ export class StreamFeed extends EventTarget {
     const gen = this.gen;
     this.reading = r;
     this.fetching = r.fill(plan.bytes, () => this.pump(), this.ctrl.signal).then(
-      () => gen === this.gen && ((this.fetching = null), this.pump()),
+      () => gen === this.gen && ((this.fetching = null), this.keepWhole(r, item.track), this.pump()),
       (e) => gen === this.gen && ((this.fetching = null), this.fail(e, gen, item.index)),
     );
+  }
+
+  /** A song read to its end with every byte of it: handed to `keep` once, and the reader lets go of
+   * its pieces (a gap a seek left: they stay, and a later read may fill it). @param {TrackReader} r @param {StreamTrack} track */
+  keepWhole(r, track) {
+    if (!this.keepFn || !r.done || !r.pieces) return;
+    const bytes = r.whole();
+    if (!bytes) return;
+    r.pieces = null;
+    try {
+      this.keepFn(track, bytes);
+    } catch {}
   }
 
   /** The link as the stall guard reads it (track.js linkOf): any of its readers' requests under way, a seek's included. */

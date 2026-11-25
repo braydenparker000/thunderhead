@@ -88,6 +88,14 @@ export const STORES = [
       await c.ready;
       await c.clear();
     } },
+  { id: 'music-played', title: 'Music · Songs played', detail: 'Songs you played, kept so playing them again uses no data.', unit: ['song', 'songs'], units: { caches: /^claude-player-played$/ },
+    lost: 'songs kept from playing them',
+    clear: async () => {
+      const { PlayedCache } = await import('/music/src/library/played-cache.js');
+      const c = new PlayedCache();
+      await c.ready;
+      await c.clear();
+    } },
   { id: 'music-heads', title: 'Music · Song starts', detail: 'The first seconds of the songs that come next.', unit: ['piece', 'pieces'], units: { caches: /^claude-player-heads$/ },
     lost: 'the first seconds kept of the songs that come next', clear: () => dropCaches(['claude-player-heads']) },
   // Music's own "clear_aa_cache" (library.js clearArtCache) deletes these two caches.

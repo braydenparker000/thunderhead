@@ -51,6 +51,7 @@ const seed = (token) => (async () => {
   const put = async (name, entries) => { const c = await caches.open(name); for (const [path, n] of entries) await c.put(path, new Response(new Uint8Array(n), { headers: { 'Content-Type': 'application/octet-stream' } })); };
   await put('claude-player-audio', [['/music/a1', 3_000_000], ['/music/a2', 2_000_000]]);
   await put('claude-player-covers', [['/music/c1', 40_000]]);
+  await put('claude-player-played', [['/music/p1', 4_000_000]]);
   await put('jarvis-podcast-audio-v1', [['/podcasts/offline/e1', 1_500_000]]);
   const idb = (name, run) => new Promise((resolve) => { const req = indexedDB.open(name, 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); run(tx.objectStore('kv')); tx.oncomplete = () => { req.result.close(); resolve(); }; }; });
   await idb('th-auth', (s) => s.put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'));
@@ -67,7 +68,7 @@ const stored = (page) => page.evaluate(async () => {
   const entries = async (n) => ((await caches.has(n)) ? (await (await caches.open(n)).keys()).length : 0);
   const keys = await new Promise((resolve) => { const req = indexedDB.open('th-photos'); req.onsuccess = () => { const g = req.result.transaction('kv').objectStore('kv').getAllKeys(); g.onsuccess = () => { req.result.close(); resolve(g.result.sort()); }; }; });
   const study = (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).getFileHandle('b1.pdf')).getFile()).size;
-  return { songs: await entries('claude-player-audio'), covers: await entries('claude-player-covers'), podcasts: await entries('jarvis-podcast-audio-v1'), photos: keys, study, local: localStorage.getItem('cp-settings') };
+  return { songs: await entries('claude-player-audio'), played: await entries('claude-player-played'), covers: await entries('claude-player-covers'), podcasts: await entries('jarvis-podcast-audio-v1'), photos: keys, study, local: localStorage.getItem('cp-settings') };
 });
 
 const row = (page, id) => page.evaluate((i) => { const r = document.querySelector(`#phone-list [data-store="${i}"]`); return r && { value: r.querySelector('.row-value')?.textContent, detail: r.querySelector('.row-detail')?.textContent, clear: Boolean(r.querySelector('button')) }; }, id);
@@ -88,6 +89,7 @@ test('On this phone measures each app’s stores, clears one, and leaves the oth
   const words = (n) => page.evaluate(async (b) => (await import('/th/data/tally.js')).words(b), n);
 
   assert.deepEqual(await row(page, 'music-songs'), { value: await words(5_000_000), detail: 'Whole songs kept to play without a signal. 2 songs.', clear: true });
+  assert.deepEqual(await row(page, 'music-played'), { value: await words(4_000_000), detail: 'Songs you played, kept so playing them again uses no data. 1 song.', clear: true });
   assert.deepEqual(await row(page, 'podcasts-downloads'), { value: await words(1_500_000), detail: 'Episodes downloaded to play offline. 1 episode.', clear: true });
   assert.deepEqual(await row(page, 'study-books'), { value: await words(700_000), detail: 'Books kept to read without a signal. 1 file.', clear: true });
   assert.equal((await row(page, 'photos-kept')).value, await words(500_000 + 'thumb:p1'.length + 'preview:p1'.length));
@@ -109,6 +111,14 @@ test('On this phone measures each app’s stores, clears one, and leaves the oth
   await until(async () => (await stored(page)).songs === 0, { message: 'the offline songs went' });
   await until(async () => (await row(page, 'music-songs')) === null, { message: 'the row went with its cache' });
   assert.deepEqual({ ...(await stored(page)), songs: before.songs }, before, 'every other app’s data is untouched');
+
+  // Clear the songs kept from playing them: only that store goes.
+  await page.click('#phone-list [data-store="music-played"] button');
+  await page.waitForSelector('.csheet');
+  await page.click('.csheet .btn.danger');
+  await until(async () => (await stored(page)).played === 0, { message: 'the songs played went' });
+  await until(async () => (await row(page, 'music-played')) === null, { message: 'the row went with its cache' });
+  assert.deepEqual({ ...(await stored(page)), songs: before.songs, played: before.played }, before, 'every other store is untouched');
 
   // Clear Photos' shelf: the thumbnails and previews go, the upload waiting stays.
   await page.click('#phone-list [data-store="photos-kept"] button');

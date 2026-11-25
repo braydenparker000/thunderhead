@@ -5,7 +5,9 @@
 // byte offset guessed from the granules either side, find the next page, keep the half that holds
 // the target, then read pages in order. A link refused as expired (401, 403, 410) is asked for again
 // once; network failures, 408, 429 and 5xx are tried again after growing waits; anything else is a
-// StreamError, which sends the player back to its plain element path.
+// StreamError, which sends the player back to its plain element path. With `keep`, the bytes read are
+// held as they came, so a song read from its first byte to its last can be kept whole (whole()) with no
+// download of its own (music/src/library/played-cache.js).
 // No DOM; tests/music-stream-track.test.mjs runs it against a fake fetch.
 
 import { MAX_PAGE, OggError, OggOpusDemuxer, RATE, findPage, readPage } from './ogg.js';
@@ -46,7 +48,7 @@ const wait = (ms, signal) =>
 export class TrackReader {
   /**
    * @param {StreamTrack} track
-   * @param {{ fetch?: typeof fetch, sleep?: typeof wait, onRetry?: (code: string, attempt: number) => void, now?: () => number }} [o]
+   * @param {{ fetch?: typeof fetch, sleep?: typeof wait, onRetry?: (code: string, attempt: number) => void, now?: () => number, keep?: boolean }} [o]
    */
   constructor(track, o = {}) {
     this.track = track;
@@ -79,6 +81,29 @@ export class TrackReader {
     this.pending = 0;
     /** The report's figures (music/src/player/song-net.js): first request, first and last byte, bytes, the worker's sign ms. */
     this.net = { firstAt: 0, firstByteAt: 0, lastByteAt: 0, bytes: 0, signMs: /** @type {number | null} */ (null), firstRange: 0 };
+    /** @type {[number, Uint8Array][] | null} With `keep`: each piece read, at its byte offset (null: not kept, or let go). */
+    this.pieces = o.keep ? [] : null;
+  }
+
+  /** The whole file, when the pieces read cover every byte of it (a seek can leave a gap: then null). */
+  whole() {
+    const size = this.size;
+    if (!this.pieces || !size) return null;
+    const sorted = this.pieces.slice().sort((a, b) => a[0] - b[0]);
+    let reach = 0;
+    for (const [at, b] of sorted) {
+      if (at > reach) return null;
+      reach = Math.max(reach, at + b.length);
+    }
+    if (reach < size) return null;
+    const out = new Uint8Array(size);
+    reach = 0;
+    for (const [at, b] of sorted) {
+      const end = Math.min(size, at + b.length);
+      if (end > reach) out.set(b.subarray(reach - at, end - at), reach);
+      reach = Math.max(reach, end);
+    }
+    return out;
   }
 
   /** Samples waiting for the feeder. */
@@ -153,7 +178,9 @@ export class TrackReader {
   /** @param {Uint8Array} bytes @returns {boolean} whether packets came out */
   consume(bytes) {
     const last = this.size > 0 && this.pos + bytes.length >= this.size;
-    const r = this.demux.push(last ? bytes.subarray(0, this.size - this.pos) : bytes, { last });
+    const piece = last ? bytes.subarray(0, this.size - this.pos) : bytes;
+    if (this.pieces && piece.length) this.pieces.push([this.pos, piece]);
+    const r = this.demux.push(piece, { last });
     this.pos += bytes.length;
     if (r.head) this.head = r.head;
     if (this.audioStart < 0 && this.demux.audioStart >= 0) this.audioStart = this.demux.audioStart;

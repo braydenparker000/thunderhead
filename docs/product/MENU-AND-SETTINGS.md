@@ -611,6 +611,7 @@ Where the site keeps data in this browser (`phone-stores.js`; **C** = has Clear)
 | Row | Where | Clear |
 |---|---|---|
 | Music · Offline songs | cache `claude-player-audio` (index `cp-audio-cache`) | **C**, Music's `AudioCache.clear()` |
+| Music · Songs played | cache `claude-player-played` (index `cp-played-cache`): songs whose stream read every byte, at most 200 MB, the one played longest ago out first | **C**, Music's `PlayedCache.clear()` |
 | Music · Song starts | cache `claude-player-heads` | **C** |
 | Music · Covers | caches `claude-player-covers`, `claude-player-thumbs` | **C**, as Music's `clearArtCache` |
 | Music · Songs from this phone | IndexedDB `claude-player` (tracks, files, art, playlists) | no: files picked on this phone |
