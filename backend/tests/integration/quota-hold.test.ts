@@ -94,7 +94,7 @@ describe('the upload tools', () => {
     const day = utcDay(now);
     forgetHold();
     expect((await op('audit')).status).toBe(200);
-    await seed(day, 'music', budgetAt(80, 'rows_read') + 1, 0);
+    await seed(day, 'music', budgetAt(85, 'rows_read') + 1, 0);
     // The isolate keeps Core's answer for a minute.
     vi.setSystemTime(now + MINUTE + SECOND);
     const held = await op('audit');
@@ -125,7 +125,7 @@ describe('the upload tools', () => {
       s.storage.sql.exec(
         "INSERT OR REPLACE INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, 'music', ?, 0, ?)",
         day,
-        budgetAt(80, 'rows_read') + 1,
+        budgetAt(85, 'rows_read') + 1,
         Date.now(),
       ),
     );
@@ -150,7 +150,7 @@ describe('the heavy jobs', () => {
   });
 
   it('the weekly backup waits past 80% until 00:00 UTC, then finishes', async () => {
-    await seed(utcDay(Date.now()), 'music', budgetAt(80, 'rows_read') + 1, 0);
+    await seed(utcDay(Date.now()), 'music', budgetAt(85, 'rows_read') + 1, 0);
     const r = await apiJson<BackupRunResponse>('POST', '/v1/ops/backups/run', { token: p.N, body: {} });
     expect(r.status).toBe(202);
     const now = Date.now() + SECOND;
@@ -177,7 +177,7 @@ describe('the heavy jobs', () => {
       'SELECT coalesce(sum(rows_written), 0) AS w FROM meter_days WHERE day = ?',
       day,
     );
-    await seed(day, 'music', 0, budgetAt(80, 'rows_written') - 300 - own.w);
+    await seed(day, 'music', 0, budgetAt(85, 'rows_written') - 300 - own.w);
     const r = await apiJson<DrillRunResponse>('POST', '/v1/ops/drill/run', { token: I, body: {} });
     expect(r.status).toBe(202);
     now += SECOND;
@@ -226,7 +226,7 @@ describe('the heavy jobs', () => {
     const now = Date.now();
     const day = utcDay(now);
     await coreSql('DELETE FROM meter_days WHERE day = ? AND class != ?', day, 'core');
-    await seed(day, 'music', budgetAt(80, 'rows_read') - 900_000, 0);
+    await seed(day, 'music', budgetAt(85, 'rows_read') - 900_000, 0);
     const heavy = {
       kind: 'test.heavy',
       lane: false,

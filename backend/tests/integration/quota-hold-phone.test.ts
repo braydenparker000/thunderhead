@@ -54,7 +54,7 @@ it("holds the phone's senses, marks and playlists from 80%, never its messages",
   forgetOwner();
   expect((await senses()).status).toBe(200);
   expect((await say('Before the hold.')).status).toBe(201);
-  await seed(budgetAt(80, 'rows_written') + 1);
+  await seed(budgetAt(85, 'rows_written') + 1);
   forgetHold();
   for (const call of [senses, marks, lists]) {
     const r = await call();

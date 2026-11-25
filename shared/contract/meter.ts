@@ -22,8 +22,9 @@ export const DAY_BUDGET = {
 
 /** Percent of either side of the day's budget. `note`: the quota watchdogs trip and the Briefing and
  * the mind's briefing say so. `hold`: one push to the owner, and the heavy work (the backup and
- * drill, the bulk lane, the senses archive, the upload tools) waits for 00:00 UTC. */
-export const QUOTA_LEVELS = { note: 60, hold: 80 } as const;
+ * drill, the bulk lane, the senses archive, the upload tools) waits for 00:00 UTC. The hold was 80
+ * until 2026-11-25 (the owner's word: 85, so the upload tools have more of the day). */
+export const QUOTA_LEVELS = { note: 60, hold: 85 } as const;
 
 /** Rows at a level of the day's budget (`quota.rows_read` trips at 2,820,000, say). */
 export const budgetAt = (pct: number, key: keyof typeof DAY_BUDGET) => Math.floor((DAY_BUDGET[key] * pct) / 100);

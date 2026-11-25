@@ -8,8 +8,12 @@ calls and their signing are in [MUSE-PROTOCOL.md](MUSE-PROTOCOL.md); the wavefor
 
 1. Decode the source once to PCM (float32, 48 kHz, all channels). From that one decode: encode the Opus
    (libopus, 192k VBR, 48 kHz), make the waveform, measure loudness. Never decode a file twice.
-2. Embed no cover and rely on no file tags: the server reads only the JSON sent with the song. An
-   embedded cover only makes the file larger (the phone reads one only when no cover was registered).
+2. Embed no cover, and write plain text tags into the file (Vorbis comments: title, artist, album,
+   album artist, track and disc numbers, year, genre, ISRC, the MusicBrainz ids and ReplayGain values
+   sent in the JSON), before its sha256 and size are taken. The server reads only the JSON sent with
+   the song, so the tags change nothing in the app: they let a file say what it is should the catalog
+   be lost or the library moved. An embedded cover only makes the file larger (the phone reads one
+   only when no cover was registered).
 3. The waveform (`rms`): 1,000 equal bins over the whole song; per bin the mean square of all samples;
    `byte = min(255, round(255 · ms^(1/4)))`; standard base64 (1,336 characters). The decoded length is
    within 0.5 s of `dur`. Always send `"waveformKind": "rms"`: without it the phone draws it as peaks.

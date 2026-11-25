@@ -78,7 +78,7 @@ describe('picks', () => {
       "UPDATE music_state SET value_json = json_set(value_json, '$.picks_at', 0, '$.built_v', '') WHERE key = 'know.state'",
     );
     await tick(Date.now() + 2 * 3_600_000);
-    await runJob(fake, 20);
+    await runJob(fake, 60);
     const added = (await apiJson<PicksResponse>('GET', '/v1/music/picks?state=added', chat())).body;
     expect(added.items.map((i) => i.id)).toEqual([gid(104)]);
     expect(added.weights.gap).toBe(1.05);

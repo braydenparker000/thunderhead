@@ -272,7 +272,7 @@ describe('what holds the notes back', () => {
     await coreSql(
       "INSERT OR REPLACE INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, 'senses', ?, 0, 0)",
       day,
-      budgetAt(80, 'rows_read') + 1,
+      budgetAt(85, 'rows_read') + 1,
     );
     forgetHold();
     const held = await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.8 } })]);

@@ -154,7 +154,7 @@ describe('steps and the rows guard', () => {
         'music',
         n,
       );
-    await seed(budgetAt(80, 'rows_written') + 1);
+    await seed(budgetAt(85, 'rows_written') + 1);
     await tick(due);
     expect(await threadRow(t.id)).toBeDefined();
     await seed(0);
