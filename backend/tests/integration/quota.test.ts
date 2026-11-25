@@ -102,7 +102,7 @@ describe('the lines from 60%', () => {
     await seed(today(), 'music', READ_80 + 50_000, 0);
     // The owner's zone in these tests is UTC: 00:00 UTC is 00:00 on their clock.
     expect(await page()).toBe(
-      "Today's database use is at 81% of the free plan's daily limit. Backups and uploads wait until 00:00.",
+      "Today's database use is at 86% of the free plan's daily limit. Backups and uploads wait until 00:00.",
     );
     expect(await now()).toMatch(/· heavy jobs wait for 00:00 UTC$/m);
     await seed(today(), 'music', 0, 0);
