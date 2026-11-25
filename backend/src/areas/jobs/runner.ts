@@ -60,6 +60,7 @@ export interface JobHost {
 }
 
 export { LANE_ROWS_PER_DAY, laneRows, nextLaneDay } from './lane';
+
 const RETRY_MS = [MINUTE, 5 * MINUTE, 30 * MINUTE, 120 * MINUTE, 720 * MINUTE];
 const STEPS_PER_ALARM = 5;
 const WALL_MS = 1_000;
