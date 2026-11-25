@@ -27,21 +27,22 @@ export async function knowStep(env: Env, now = Date.now()): Promise<Input> {
   useSite(env.SITE_ORIGINS);
   const music = musicObject(env);
   const task = await music.knowNext(now);
-  if (task.t === 'idle') return { know: 0, wait: task.wait, idle: true };
+  // `task.rows`: what finding the task wrote in Music, counted with the step's own rows.
+  if (task.t === 'idle') return { know: task.rows, wait: task.wait, idle: true };
   if (task.t === 'picks') {
     const skips = await sensesObject(env).earlySkips(now);
-    return { know: await music.picksBuild(skips, now), wait: L.mb_gap_ms };
+    return { know: task.rows + (await music.picksBuild(skips, now)), wait: L.mb_gap_ms };
   }
   if (task.t === 'lookup') {
     const r = await lookup(task.name, now);
-    if (r === 'wait') return { know: 0, wait: L.mb_gap_ms };
-    return { know: await music.knowLookup(task.key, r, now), wait: L.mb_gap_ms };
+    if (r === 'wait') return { know: task.rows, wait: L.mb_gap_ms };
+    return { know: task.rows + (await music.knowLookup(task.key, r, now)), wait: L.mb_gap_ms };
   }
   const got = await fetchAsk(env, task.source, task.ask, now);
-  if (got === 'wait') return { know: 0, wait: L.mb_gap_ms };
+  if (got === 'wait') return { know: task.rows, wait: L.mb_gap_ms };
   // The RPC types can't carry `unknown`; the answer is the parser's own plain data.
   return {
-    know: await music.knowPut(task.id, task.source, got as Got & Record<string, never>, now),
+    know: task.rows + (await music.knowPut(task.id, task.source, got as Got & Record<string, never>, now)),
     wait: L.mb_gap_ms,
   };
 }
@@ -53,7 +54,7 @@ export const knowJob: JobHandler = {
   step(w, _payload, cursor, input) {
     const i = input as Input;
     // A short wait is waited out here; only a long one ends the job until the cron's tick.
-    if (i.idle && i.wait <= K.stay_ms) return { next: cursor ?? { n: 0 }, after: i.wait, rows: 0 };
+    if (i.idle && i.wait <= K.stay_ms) return { next: cursor ?? { n: 0 }, after: i.wait, rows: i.know };
     if (i.idle) {
       putSetting(w.db, KNOW_NEXT, w.at + Math.min(i.wait, K.idle_ms), 'worker', w.at);
       return { done: true, rows: i.know };
