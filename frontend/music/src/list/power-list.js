@@ -662,7 +662,10 @@ export class PowerList extends FastLayout {
         this.selectionChanged();
       } break;
       case 'cmd_list_add_to_q': case 'cmd_list_add_as_next_to_q': if (sel?.size) {
-        this.ctx.player?.enqueue?.(this.selectedTracks(), msg === 'cmd_list_add_as_next_to_q', modeState(this.ctx, msg === 'cmd_list_add_to_q' ? 'state_queue_insert_pos' : 'state_play_next_insert_pos'));
+        const next = msg === 'cmd_list_add_as_next_to_q';
+        const added = this.ctx.player?.enqueue?.(this.selectedTracks(), next, modeState(this.ctx, next ? 'state_play_next_insert_pos' : 'state_queue_insert_pos'));
+        // "Playing next" / "Added to queue", with Undo (widgets/undo-bar.js).
+        this.ctx.undoBar?.queued(added, next);
         this.endSelection();
       } break;
       case 'cmd_list_send_dialog': if (sel?.size && navigator.share) {

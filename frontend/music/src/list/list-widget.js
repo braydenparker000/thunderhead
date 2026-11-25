@@ -26,6 +26,7 @@ import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {alertDialog, editNameDialog} from '../widgets/dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
+import {queueMenuItems} from '../widgets/up-next.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
 import {keepPlace} from './relocate.js';
@@ -508,7 +509,8 @@ export class ListWidget extends FastLayout {
     this.items = new Map(); // rel -> AAItemView
     this.spare = [];
     ctx.bus.subscribe('bus_player', (msg, src, d) => {
-      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed') {
+      // (The Queue too: the pages show the song Next and Previous really play, Player.previewAt.)
+      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed' || msg === 'msg_player_queue_changed') {
         const dir = msg === 'msg_player_track_changed' ? this.advanceDir() : 0;
         this.rebind();
         this.requestLayout();
@@ -896,8 +898,9 @@ export class ListWidget extends FastLayout {
   }
 
   /**
-   * Search Play / Shuffle (vo1.g0): the results play through a fresh Queue
-   * (clean_and_play) with a toast. With search_play_tracks, when songs are
+   * Search Play / Shuffle (vo1.g0): the results play as the list (the
+   * reference played them through a fresh Queue, which cleared the songs
+   * queued: Player.playAsQueue). With search_play_tracks, when songs are
    * the last results, only the found songs; otherwise every result row's
    * songs in order.
    */
@@ -908,8 +911,6 @@ export class ListWidget extends FastLayout {
     const tracks = rows.flatMap(r => (r.sep ? [] : r.track ? [r.track] : onlySongs ? [] : r.group.tracks));
     if (!tracks.length) return;
     this.ctx.player.playAsQueue(tracks, shuffle ? 2 : 0);
-    const str = this.ctx.res.stringByName('playing_q_from_search') ?? 'Playing Queue from search';
-    this.ctx.bus.post('bus_gui', 'cmd_gui_show_toast', this, {title: str});
     if ((this.ctx.settings.list_item_action ?? 1) === 1) this.ctx.bus.post('bus_gui', 'cmd_nav_to_main', this);
   }
 
@@ -2312,6 +2313,8 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     this.ctx.inflater.inflate(itemsLayout, items);
     // Deleting music files is out of scope (owner decision): the cover menu has no Delete.
     if (itemsLayout === 'merge_menu_items_aa') items.findViewById('delete')?.setVisibility(GONE);
+    // Play next, Add to queue, Up next and History for the playing song (widgets/up-next.js).
+    if (itemsLayout === 'merge_menu_items_aa') queueMenuItems(this.ctx, items);
     items.walk(c => {
       if (c === items || !c.clickable) return;
       const click = c.onClick?.bind(c);

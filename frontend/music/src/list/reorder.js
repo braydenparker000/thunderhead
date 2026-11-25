@@ -19,6 +19,10 @@
 // selection lands as one block at the drop slot in its original order,
 // spreading out of the dropped row (from 0.85 scale, fading in). Both moves
 // run 250 ms, accelerate-decelerate.
+//
+// Up next (widgets/up-next.js) reorders its Next up rows the same way, without selection mode: its
+// source says reorderAlways and keeps the drag to reorderRange (the first and last row that move),
+// and its rows have subheads between them (separators), which keep their own heights here.
 import {GONE, VISIBLE} from '../res/values.js';
 import {accelDecel} from '../gesture.js';
 import {FastTextView} from '../view/text.js';
@@ -43,7 +47,8 @@ export class ListReorder {
   /** Starts a drag of the row at index (view shown); null when it cannot start. */
   static start(list, view, index) {
     const s = list.source;
-    if (!s?.reorderable || !list.selection || list.reorder || index < 0 || index >= s.count) return null;
+    if (!s?.reorderable || !(list.selection || s.reorderAlways) || list.reorder || index < 0 || index >= s.count) return null;
+    if (s.reorderRange && (index < s.reorderRange[0] || index > s.reorderRange[1])) return null;
     return new ListReorder(list, view, index);
   }
 
@@ -56,7 +61,9 @@ export class ListReorder {
     const n = s.count;
     const sel = list.selection;
     // Several selected rows travel together when the dragged one is selected.
-    this.multi = sel.size > 1 && sel.has(index);
+    this.multi = !!sel && sel.size > 1 && sel.has(index);
+    // The rows a drag may move among ([first, last]), or all.
+    this.range = s.reorderRange ?? null;
     this.group = this.multi ? [...sel].sort((a, b) => a - b) : null;
     // map: slot -> item (iw0.K); the carried rows leave it (-1 at the end).
     this.map = [];
@@ -87,6 +94,10 @@ export class ListReorder {
     else if (r.top + r.height > this.zoneBottom) { this.zoneBottom = r.top + r.height + Math.round(4 * ctx.dpr); this.inBottom = true; }
     // The lifted row.
     view.setActivated?.(false);
+    // Rows share their background drawable (the drawables' cache): the lifted one takes its own copy
+    // first, so its level is its own and the other rows stay as they are.
+    const bg = view.background;
+    if (bg && view._ownBg !== bg) view.background = view._ownBg = Object.assign(Object.create(Object.getPrototypeOf(bg)), bg, {fade: null, fadeCancel: null});
     this.bgLevel = view.background?.level ?? 0;
     this.setBgLevel(ctx.res.integer('@integer/ITEM_BG_LEVEL_INTERMEDIATE', ctx.theme) ?? 32, true);
     list.el.appendChild(view.el);
@@ -120,6 +131,8 @@ export class ListReorder {
 
   slotRect(slot) {
     const list = this.list, g = list.geometry();
+    // Rows with subheads between them: each at its own place and height.
+    if (g.seps) return {left: g.left, top: g.top + g.headerH - list.scrollY + list.itemTop(g, slot), width: g.colW, height: list.itemHeightAt(g, slot)};
     const r = Math.floor(slot / g.cols), c = slot % g.cols;
     return {left: g.left + c * (g.colW + g.gap), top: g.top + g.headerH - list.scrollY + r * g.itemH, width: g.colW, height: g.itemH};
   }
@@ -185,9 +198,10 @@ export class ListReorder {
     const rect = {left: this.x, top: this.y, width: this.gapRect.width, height: this.gapRect.height};
     const cx = Math.round(this.x) + Math.trunc(rect.width / 2), cy = Math.round(this.y) + Math.trunc(rect.height / 2);
     if (this.state === 'drag') {
-      const g = list.geometry(), last = this.slots - 1, pad = this.pad;
-      const first = Math.max(0, Math.floor((list.scrollY - g.top - g.headerH) / g.itemH) * g.cols);
-      const lastVisible = Math.min(last, (Math.floor((list.scrollY + list.height - g.top - g.headerH) / g.itemH) + 1) * g.cols - 1);
+      const g = list.geometry(), pad = this.pad;
+      const lo = this.range?.[0] ?? 0, last = this.range?.[1] ?? this.slots - 1;
+      const first = this.range ? lo : Math.max(0, Math.floor((list.scrollY - g.top - g.headerH) / g.itemH) * g.cols);
+      const lastVisible = this.range ? last : Math.min(last, (Math.floor((list.scrollY + list.height - g.top - g.headerH) / g.itemH) + 1) * g.cols - 1);
       let hit = -1;
       for (let q = first; q <= lastVisible; q++) {
         if (q === this.gap) continue;
@@ -195,7 +209,7 @@ export class ListReorder {
         if (r.width <= 0 || r.height <= 0) continue;
         if (cx <= r.left + pad) continue;
         if (cx >= r.left + r.width - pad && q !== last) continue;
-        if (cy <= r.top + pad && q !== 0) continue;
+        if (cy <= r.top + pad && q !== lo) continue;
         if (cy >= r.top + r.height - pad && q !== last) continue;
         hit = q;
         break;
@@ -411,7 +425,7 @@ export class ListReorder {
     for (const [i, w] of want) {
       let v = list.active.get(i);
       const fresh = !v;
-      if (fresh) { v = i === -1 ? list.obtain(s.header.type, HEAD) : list.obtain(s.itemType); list.active.set(i, v); }
+      if (fresh) { v = i === -1 ? list.obtain(s.header.type, HEAD) : list.obtain(s.typeAt?.(i) ?? s.itemType); list.active.set(i, v); }
       v.listIndex = i;
       if (i === -1) {
         if (fresh || v._boundKey !== 'h') { s.bindHeader(v); v._boundKey = 'h'; }
@@ -420,7 +434,16 @@ export class ListReorder {
         v.translationX = 0; v.translationY = g.top - list.scrollY;
       } else {
         if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; }
-        v.setSelection?.(true, !!list.selection?.has(i), true);
+        if (s.isSeparator?.(i)) {
+          // A subhead keeps its place (it never moves in a drag).
+          v.left = 0; v.top = 0;
+          v.measure(MeasureSpec.make(w.r.width, MeasureSpec.EXACTLY), MeasureSpec.make(w.r.height, MeasureSpec.EXACTLY));
+          v.layout(0, 0, w.r.width, w.r.height);
+          v.translationX = w.r.left; v.translationY = w.r.top;
+          v.invalidate();
+          continue;
+        }
+        if (list.selectable) v.setSelection?.(true, !!list.selection?.has(i), true);
         v.left = 0; v.top = 0;
         v.setItemScene(s.itemScene, w.r.width, w.r.height);
         v.translationX = w.r.left; v.translationY = w.r.top;

@@ -165,6 +165,7 @@ data made on one phone now appears on the other. `frontend/th/music/sync.js` (lo
 | List memory (List Position flags and the entry last played per folder or playlist), the queue and its place | `state` `lm:<key>`, `queue`, `queue-list` | No: where this phone is, and what it plays next, stay this phone's |
 | EQ and reverb presets, the visualizer's preset ratings, search history, list and sort options, settings | `cp-eq-presets`, `cp-reverb-presets`, `cp-milk`, `cp-search-history`, `cp-list-opts`, `cp-settings`, … | No: device settings, and the sound must not change |
 | The DJ's learned moves | `th.music.dj` | No: outside the player's stores; it is how this phone has learned to order |
+| The songs heard (History, Previous): an id and a time per play, at most 500 | `cp-play-history` (localStorage) | No: this phone's own, sent nowhere (§20) |
 
 - **When:** a pull when Music opens (once its library is there) and when it becomes visible; a push
   20 s after a change, on hiding the page and when the network returns. The first time, every song
@@ -1668,6 +1669,36 @@ Below **Listening history**, **What I know about your music** (`frontend/apps/se
 In Settings › Music, under the counts, **Picks to add** lists the picks still `new` (at most 10), each by its line with a **Play** button (`frontend/apps/settings/music-picks.js`). Play asks `GET /v1/music/picks/:id/preview` (device only, [API.md §11.9](../../engineering/API.md)). The Worker asks Apple's iTunes Search API, without a key, for the pick's artist and album as MusicBrainz names them (nothing of the owner), takes the song whose artist is the pick's and whose album is the pick's or starts with it (" - EP") after the titles' folding (`fold`, §19.1), the same album first and then the lowest track, and passes its 30-second clip through: audio only, at most 3 MB, from `https` on `*.apple.com`, `*.mzstatic.com` or `*.dzcdn.net` only (`areas/music/preview.ts`, `preview-fetch.ts`). Apple answers the Worker 429 in production, so when Apple refuses or has no such album the Worker asks Deezer's search the same way (`artist:"…" album:"…"`, no key; 2026-11-25) and takes the first song of the pick's album (or of one whose title starts with it). So the phone talks only to the Worker, and neither service sees the phone. No preview, or both refusing, is 404 and the row says "No preview for this one."; a lookup while both were asked within the last second (each host its own gate, per isolate) is 429. Nothing is written: the address found, or a miss (both asked, one answered without the album), is remembered in the isolate's memory (200 picks). The phone plays the clip from a blob (the shell's CSP has `media-src blob:` for it). One plays at a time, a second tap stops it, leaving the page stops it, and nothing plays without a tap. Loading, offline and error lines as the page's others.
 
 **In a reply (2026-11-25).** When the mind offers a pick by its line, the line ends with `(pick:<MusicBrainz id>)` (`mind/skills/music.md`). The chat renderer (`frontend/th/chat/rich.js`, the token parsed as a `pick` part; `th/chat/pick.js` draws it) shows a small **Play** in its place, on home and in an older conversation alike (`th/convos/past.js` uses the same renderer). The playing is one module for both places (`frontend/th/music/preview.js`, loaded by a reply on its first tap): one preview at a time across Settings and chat, a second tap stops it, leaving the page or the button leaving the screen stops it, nothing plays without a tap, and a 404 reads "No preview for this one." beside the button. Only a lower-case UUID makes a button; any other text stays as it is.
+
+## 20. Up next and History (2026-11-25, owner's rulings)
+
+No new button anywhere. The playing song's menu (the cover held, or its three dots) has a row of
+four at its top, in the selection bar's button style: **Play next**, **Add to queue**, **Up next**,
+**History** (`widgets/up-next.js`, added in code by `queueMenuItems`; the reference's menu is
+unchanged).
+
+- **Up next** is the app's list dialog over the player (a bottom sheet; Back, a tap outside or a drag
+  down closes it): *Now playing* (the row marked as the playing row is), *Next up* (the songs queued
+  by hand and not played yet, in their order, each with its drag handle; Clear in the subhead's
+  button; empty: "Nothing queued. Hold a song and choose Play next."), then *Then, from <the list>*:
+  the next 30 songs of the playing list in their real order (its order, shuffle or the DJ's plan,
+  `Player.ahead`), 30 more as the end shows. A tap plays a row now; a swipe left takes a Next up row
+  out, or passes over a list song this time round (`Player.skipOnce`). Rows slide to their new places.
+- **History**: the songs heard, newest first, with when ("2 min ago", "Yesterday 21:14"); a tap plays
+  it (where it is in the playing list, else now, ahead of the queued songs). A play is written once it
+  has sounded 10 s (`player/play-history.js`); one entry per play; at most 500; on this phone only.
+- **The Undo bar** (`widgets/undo-bar.js`, `ctx.undoBar.show(message, onUndo)`): the lower toast's
+  frame with Undo at its right, above the mini-player, 5 s, one at a time, also over a dialog. Clear,
+  a swipe, Play next / Add to queue (also from the selection bar) use it.
+- **Queue rules** (`player/queue-moves.js`): queued songs play in the order chosen whatever the
+  shuffle or the DJ (they order only the list; "Ignore Shuffle" is now always so); a song tapped
+  elsewhere, or search's Play / Shuffle, keeps them: they play after it; played ones leave Next up;
+  the cover's and mini-player's pages show what Next and Previous really play (a queued song, a wrap).
+  **Previous** (with "<< Button Resets Current Track", now on by default): after 5 s the song starts
+  again; within them, the song heard before plays, pressed again the one before that; with no history,
+  the list's previous song. Off: always the list's previous song. The swipes keep the list's order.
+
+Tests: `tests/music-up-next.test.mjs`, `tests/music-up-next-browser.test.mjs`.
 
 ## Not built
 
