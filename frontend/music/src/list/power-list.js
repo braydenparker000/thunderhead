@@ -144,12 +144,14 @@ export class PowerList extends FastLayout {
   /**
    * Scroller mode for the source (sd.s()): a list whose sort has sections
    * (sections.js: letters, years, months) shows its section column with
-   * az_scroll on (default) or a thumb (3); others a thumb (1).
+   * az_scroll on (default) or a thumb (3); others a thumb (1). A letter sort
+   * keeps its column while the list has no rows (the plain alphabet, as before
+   * the rail followed every sort): emptying or filling a list does not swap it.
    */
   scrollerMode() {
     const s = this.source;
     if (!s) return 0;
-    if (this.sectionIndex()) return (this.ctx.settings.az_scroll ?? true) ? 2 : 3;
+    if (this.sectionIndex() || s.sections?.type === 'letters') return (this.ctx.settings.az_scroll ?? true) ? 2 : 3;
     return 1;
   }
 
