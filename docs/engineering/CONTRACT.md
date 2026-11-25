@@ -145,7 +145,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/briefing/report/:day` | N | P4 | built | night step 12, the night's report (night-report.ts): a claimed, live, untainted night session; the same body again answers the stored report, a new one from the same session replaces it (undo), another session's is 409 |
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
 | `GET /v1/briefing/calendar` | D C N | P8 | built | ?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words |
-| `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
+| `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; ?since= the changes only, when the log can say; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
 | `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night's next ≤ 200 songs needing a note, `more` |
 | `PUT /v1/music/notes` | C N | P5 | built | {items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 85% of the day's budget |
@@ -162,7 +162,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/credits` | C N | P5 | built | ?ref=<MusicBrainz id or name>: what in the library a person worked on, and their other work |
 | `GET /v1/music/unmatched` | D C N | P5 | built | catalog albums left unmatched, with why, ≤ 200 |
 | `GET /v1/music/picks` | D C N | P5 | built | ?kind=&state=&limit=1-50: albums to add, scored over stored facts and the owner's listening; a mixed list |
-| `GET /v1/music/picks/:id/preview` | D | P5 | built | a 30-second clip of the album from Apple's iTunes search, passed through (audio, ≤ 3 MB); 404 for none, 429 under a second after the last lookup |
+| `GET /v1/music/picks/:id/preview` | D | P5 | built | a 30-second clip of the album from Apple's iTunes search, or Deezer's when Apple refuses or lacks it, passed through (audio, ≤ 3 MB); 404 for none, 429 under a second after the last lookup |
 | `POST /v1/music/picks/:id/decline` | D C | P5 | built | {why? ≤ 200}: never offered again; its artist weighs less |
 | `POST /v1/music/picks/:id/order` | D C | P5 | built | {order_id?}: without, the words of a Muse order for that album; with the order th order new placed, the pick is ordered |
 | `GET /v1/music/mixes/:id` | D | P5 | built | one mix's songs in order, for the owner's tap on Music's "tonight" (404 not_found) |

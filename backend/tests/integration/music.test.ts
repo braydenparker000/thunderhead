@@ -105,13 +105,18 @@ describe('the music catalog, imported (I7)', () => {
     expect(Number.isFinite(Date.parse(cat.generatedAt))).toBe(true);
     // In the old catalog's order, each record exactly as stored; a waveform to fetch is flagged, with
     // its row's last change (a waveform registered again moves it, so the phone fetches it again).
+    // An older record gets its album id as the catalog is built (album-id.ts), its row unchanged.
+    const withId = (json: string) => {
+      const r = JSON.parse(json);
+      return { ...r, metadata: { ...r.metadata, albumId: 'al:an-artist|' } };
+    };
     expect(cat.tracks.map((t) => t.id)).toEqual([B, C, A]);
     expect(cat.tracks[2]).toEqual({
-      ...JSON.parse(TRACKS[0][0].record),
+      ...withId(TRACKS[0][0].record),
       waveformBars: true,
       waveformAt: expect.any(Number),
     });
-    expect(cat.tracks[0]).toEqual(JSON.parse(TRACKS[0][1].record));
+    expect(cat.tracks[0]).toEqual(withId(TRACKS[0][1].record));
     expect(cat.tracks[1]).not.toHaveProperty('waveformBars');
 
     const again = await api('GET', '/v1/music/catalog', { token: p.D, headers: { 'If-None-Match': etag } });
@@ -144,7 +149,7 @@ describe('the music catalog, imported (I7)', () => {
       sha256: h,
       size: 1234,
       name: 'Uploaded.opus',
-      metadata: { title: 'Uploaded', artist: 'Someone', dur: 10 },
+      metadata: { title: 'Uploaded', artist: 'Someone', album: 'Uploads', track: 1, dur: 10 },
     })) as unknown as { status: number; body: { id: string } };
     expect(reg.status).toBe(200);
     const rerun = uuidv7();

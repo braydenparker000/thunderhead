@@ -80,6 +80,8 @@ export function r2Tracks(data, url = R2_LIBRARY_URL) {
       opusHeadGainDb: m.opusHeadGainDb ?? null,
     };
     if (/^video\//.test(t.mimeType || '') || m.video) rec.video = true;
+    // One album's songs share an id (`rg:<release group>` or `al:<key>`): library.js groups albums by it.
+    if (typeof m.albumId === 'string' && m.albumId) rec.albumId = m.albumId;
     // Pre-generated seek-bar waveforms: served per track at <base>/waveform/<id>
     // (waveformBars: one byte per bar; waveformVersion 1: a DCW1 file), or
     // inline in an older index (metadata.waveform). Inline base64 waveforms stay

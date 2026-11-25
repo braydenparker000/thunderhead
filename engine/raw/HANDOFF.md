@@ -202,7 +202,7 @@ No Adobe camera profile is in the repository (the owner's are private, in the ph
 is developed by the camera's matrix and a plain curve. Detail, noise, geometry and files can be judged; **colour
 as the owner sees it cannot**.
 
-Rules of the house that bite (AGENTS.md has all of them): every source file under 300 lines (`wc -l` 299);
+Rules of the house that bite (AGENTS.md has all of them): every source file under 500 lines (`wc -l` 499);
 `npm run preflight` before a push; work lands as pull requests the owner merges; a change the owner will notice
 gets a line in `frontend/whats-new.json`; a change that moves a picture fails
 `tests/lab-engine-pictures-browser.test.mjs` until the reference is made again on purpose

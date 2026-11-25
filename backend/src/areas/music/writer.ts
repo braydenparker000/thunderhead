@@ -7,9 +7,11 @@
 // replaced track's objects stay, and the audit lists them. There is no catalog file to publish:
 // phones read the catalog from the Music object.
 import type { Db } from '../../objects/base';
+import { albumIdOf } from './album-id';
+import { BadTag } from './meta-extra';
 import { SONG_ID, waveBytes } from './shapes';
 import * as store from './store';
-import { checkTrack, HEX, metadata, validateAnalysis } from './validate';
+import { checkTrack, HEX, ignoredKeys, metadata, validateAnalysis } from './validate';
 
 export const BATCH_MAX = 100;
 export const WAVE_BATCH_MAX = 200;
@@ -52,11 +54,6 @@ export const verifiedBlob = (o: R2Object | null, sha: string, size: number) =>
   o?.size === size &&
   o.customMetadata?.['verified-sha256'] === sha &&
   o.customMetadata?.verification === 'worker-upload-sha256-v1';
-const sameIdentity = (o: R2Object | null, p: { size?: number; etag?: string; lastModified?: string } | undefined) =>
-  !!o &&
-  o.size === p?.size &&
-  o.etag === p?.etag &&
-  Math.floor(o.uploaded.getTime() / 1000) === Math.floor(Date.parse(String(p?.lastModified)) / 1000);
 
 export const record = (r: store.TrackRow) => JSON.parse(r.record_json) as Obj & { metadata: Obj };
 export function check(t: Obj): void {
@@ -72,7 +69,8 @@ export const waveOrFail = (w: unknown): string | null => {
   return w as string;
 };
 export const kindOrFail = (k: unknown): string => {
-  if (k === undefined) return 'peak';
+  // Without a kind a waveform is the upload tool's own, `rms` (MUSE-SOP.md step 3).
+  if (k === undefined) return 'rms';
   if (!WAVE_KINDS.includes(k as string)) fail(422, 'waveformKind is "rms" or "peak"');
   return k as string;
 };
@@ -89,7 +87,31 @@ export function put(c: Ctx, rec: Obj, waveform: string | null): void {
   delete stored.waveformBars;
   store.writeTrack(c.db, stored, waveform, c.now);
 }
-export const changed = (c: Ctx) => store.bump(c.db, c.now);
+/** The catalog's version moves, keeping its song count (the delta's `count`, music-delta.ts). */
+export const changed = (c: Ctx) => store.bump(c.db, c.now, { count: c.tracks() });
+/** Sent tags, checked: a bad one is 422, naming its field when it is one of the extra tags. */
+export function tagsOrFail(input: unknown): Obj {
+  try {
+    return metadata(input);
+  } catch (e) {
+    if (e instanceof BadTag) fail(422, `Invalid metadata.${e.message}`, { field: `metadata.${e.message}` });
+    return fail(422, 'Invalid track metadata');
+  }
+}
+/** Each of `keys` a song needs: `album` (text) and `track` (a whole number from 1); 422 naming it. */
+export function songOrFail(meta: Obj, keys: readonly string[] = ['album', 'track']): void {
+  const ok: Record<string, boolean> = {
+    album: typeof meta.album === 'string' && meta.album.trim() !== '',
+    track: Number.isInteger(meta.track) && (meta.track as number) >= 1,
+  };
+  const issue: Record<string, string> = { album: 'the album title', track: 'a whole number from 1' };
+  for (const k of keys) if (!ok[k]) fail(422, `metadata.${k} is required: ${issue[k]}`, { field: `metadata.${k}` });
+}
+/** The answer's `ignored`: sent metadata keys not stored, only when there are any. */
+export const ignoredOf = (input: unknown): Obj => {
+  const keys = ignoredKeys(input);
+  return keys.length ? { ignored: keys } : {};
+};
 export const validName = (n: unknown) =>
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses
   typeof n === 'string' && n.length <= 512 && !/[\x00-\x1f/\\]/.test(n) && n.endsWith('.opus');
@@ -124,16 +146,15 @@ export async function verifiedAudio(c: Ctx, sha256: unknown, size: unknown): Pro
   return { audioKey, sha256, size, mimeType: 'audio/ogg', r2Identity: proof(o as R2Object) };
 }
 
-type Prepared = { track: Obj; waveform: string | null };
+type Prepared = { track: Obj; waveform: string | null; ignored: Obj };
 
 /** A registration to a new track record and its waveform, checked against the bucket. */
 async function prepare(c: Ctx, body: Obj): Promise<Prepared> {
-  let meta: Obj;
-  try {
-    meta = metadata(body?.metadata);
-  } catch {
-    return fail(422, 'Invalid track metadata');
-  }
+  const meta = tagsOrFail(body?.metadata);
+  // A new song names its album and track (a missing disc is 1), and gets its album id (album-id.ts).
+  songOrFail(meta);
+  meta.disc ??= 1;
+  meta.albumId = albumIdOf(meta);
   if (meta.audioAnalysis)
     try {
       meta.audioAnalysis = validateAnalysis(meta.audioAnalysis, String(body.sha256), Number(body.size));
@@ -152,7 +173,8 @@ async function prepare(c: Ctx, body: Obj): Promise<Prepared> {
   };
   if (body.cover) Object.assign(track, await verifiedCover(c, body.cover));
   const waveform = waveOrFail(body.waveform);
-  return { track: withKind(track, waveform, kindOrFail(body.waveformKind)), waveform };
+  const ignored = ignoredOf(body?.metadata);
+  return { track: withKind(track, waveform, kindOrFail(body.waveformKind)), waveform, ignored };
 }
 
 /** `moved`: what a change does to the catalog's version (a batch moves it once, after its songs). */
@@ -162,7 +184,10 @@ function insert(c: Ctx, { track, waveform }: Prepared, moved: () => unknown = ()
     // The same audio again: a waveform it brings fills a missing one.
     const row = store.trackRow(c.db, existing) as store.TrackRow;
     if (waveform && !row.waveform) {
-      put(c, withKind(record(row), waveform, (track.waveformKind as string) ?? 'peak'), waveform);
+      const before = record(row);
+      put(c, withKind(before, waveform, (track.waveformKind as string) ?? 'peak'), waveform);
+      // Logged, as every change is: the catalog's delta reads its changes from the log.
+      store.logOp(c.db, c.now, 'waveform', existing, { waveform: null, waveformKind: before.waveformKind ?? null });
       moved();
     }
     return { registered: true, duplicate: true, id: existing };
@@ -187,7 +212,7 @@ export type Op = (c: Ctx, body: Obj) => Promise<Obj>;
 export const OPS: Record<string, Op> = {
   async register(c, body) {
     const prepared = await prepare(c, body);
-    return { ...c.tx(() => insert(c, prepared)), count: c.tracks() };
+    return { ...c.tx(() => insert(c, prepared)), count: c.tracks(), ...prepared.ignored };
   },
   async 'register-batch'(c, body) {
     const items = body?.tracks;
@@ -207,9 +232,10 @@ export const OPS: Record<string, Op> = {
         const r = ready[i];
         if (r.refused) return r.refused as Obj;
         try {
-          return insert(c, r as Prepared, () => {
+          const done = insert(c, r as Prepared, () => {
             moved = true;
           });
+          return { ...done, ...(r as Prepared).ignored };
         } catch (e) {
           return refused(item, e);
         }
@@ -223,63 +249,4 @@ export const OPS: Record<string, Op> = {
       count: c.tracks(),
     };
   },
-  async analysis(c, body) {
-    const prev = body.previousAnalysisSha256;
-    if (
-      !SONG_ID.test(String(body.id)) ||
-      !HEX.test(String(body.sha256)) ||
-      !Number.isSafeInteger(body.size) ||
-      !(prev === null || HEX.test(String(prev)) || (prev === undefined && Object.hasOwn(body, 'previousAnalysis')))
-    )
-      fail(422, 'Invalid analysis identity');
-    let analysis: Obj;
-    try {
-      analysis = validateAnalysis(body.audioAnalysis, body.sha256 as string, body.size as number);
-    } catch {
-      return fail(422, 'Invalid audio analysis');
-    }
-    const row = store.trackRow(c.db, body.id as string);
-    const existing = row && record(row);
-    const id = existing?.r2Identity as { size: number; etag: string; lastModified: string } | undefined;
-    const claimed = body.r2Identity as { size?: number; etag?: string; lastModified?: string } | undefined;
-    const proofMatches =
-      existing &&
-      existing.sha256 === body.sha256 &&
-      existing.size === body.size &&
-      claimed?.size === id?.size &&
-      claimed?.etag === id?.etag &&
-      Math.floor(Date.parse(String(claimed?.lastModified)) / 1000) ===
-        Math.floor(Date.parse(String(id?.lastModified)) / 1000);
-    if (!existing || !proofMatches) return fail(409, 'Analysis object identity conflict');
-    const object = await c.media.head(existing.audioKey as string);
-    const native = (existing.audioKey as string).startsWith('native/');
-    const verified = native
-      ? verifiedBlob(object, existing.sha256 as string, existing.size as number)
-      : object?.customMetadata?.['source-sha256'] === existing.sha256 &&
-        object?.customMetadata?.['source-size'] === String(existing.size);
-    if (!sameIdentity(object, id) || !verified) fail(409, 'Verified audio is unavailable');
-    const old = existing.metadata.audioAnalysis;
-    const revision = old ? await hashOf(old) : null;
-    if (JSON.stringify(old) === JSON.stringify(analysis))
-      return { registered: true, analysisUpdated: false, id: existing.id, count: c.tracks() };
-    const expected = prev === undefined ? (body.previousAnalysis ? await hashOf(body.previousAnalysis) : null) : prev;
-    if (revision !== expected) fail(409, 'Analysis changed concurrently; review before retry');
-    return c.tx(() => {
-      const current = store.trackRow(c.db, body.id as string);
-      if (!current || current.record_json !== row.record_json)
-        fail(409, 'Analysis changed concurrently; review before retry');
-      const next = record(current as store.TrackRow);
-      next.metadata.audioAnalysis = analysis;
-      check(next);
-      put(c, next, (current as store.TrackRow).waveform);
-      store.logOp(c.db, c.now, 'analysis', next.id as string, record(current as store.TrackRow));
-      changed(c);
-      return { registered: true, analysisUpdated: true, id: next.id, count: c.tracks() };
-    });
-  },
 };
-
-async function hashOf(v: unknown): Promise<string> {
-  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(v)));
-  return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, '0')).join('');
-}

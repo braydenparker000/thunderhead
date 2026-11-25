@@ -145,11 +145,12 @@ async function open(context, p, link) {
     if (!e.request.url.startsWith('data:')) events.push({ url: e.request.url, parent });
   });
   await page.addInitScript(`window.__go = ${JSON.stringify(p.go ?? null)};(${probe})(${JSON.stringify(p.ready)})`);
-  const before = { ...link.seen };
+  const before = { ...link.seen }, from = link.seen.paths.length;
   await page.goto(`${link.base}${p.path}`, { waitUntil: 'commit' });
   const got = await read(page);
   await page.close();
-  return { ...got, requests: link.seen.requests - before.requests, bytes: link.seen.bytes - before.bytes, notModified: link.seen.notModified - before.notModified, chain: chains(events) };
+  // `paths`: what went over the link, in order, so a count over its budget says which requests it was.
+  return { ...got, requests: link.seen.requests - before.requests, paths: link.seen.paths.slice(from), bytes: link.seen.bytes - before.bytes, notModified: link.seen.notModified - before.notModified, chain: chains(events) };
 }
 
 /** The mock API (tests/fixtures/mock-api.mjs) as a real host on this machine, answering after twice the

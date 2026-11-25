@@ -24,6 +24,21 @@ export interface MusicCatalog {
   tracks: (Record<string, unknown> & { id: string; waveformBars?: true })[];
 }
 
+/** GET /v1/music/catalog?since=<the held copy's generatedAt>, when the change log can say exactly what
+ * changed after it (else the whole `MusicCatalog`): each song changed since, as the whole catalog gives
+ * it, and the ids removed since; `count` is the whole catalog's now, `ETag` the whole catalog's. A song's
+ * `metadata.albumId` is `rg:<mbReleaseGroup>` or `al:<artist>|<title>` folded. */
+export interface MusicCatalogDelta {
+  version: 1;
+  kind: 'r2-library-delta';
+  complete: true;
+  count: number;
+  since: string;
+  generatedAt: string;
+  tracks: MusicCatalog['tracks'];
+  removed: string[];
+}
+
 /** One track as the mind sees it (GET /v1/music/tracks?q=&limit=&untagged=1): its tags, for picking
  * songs; with `untagged=1`, only songs with no note of the current version (the night's next page). */
 export interface MusicTrackRow {

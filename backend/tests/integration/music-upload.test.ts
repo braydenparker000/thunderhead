@@ -141,7 +141,7 @@ describe('the catalog writer', () => {
       sha256: h,
       size: bytes.length,
       name: 'A Song.opus',
-      metadata: { title: 'A Song', artist: 'Someone', dur: 187.2 },
+      metadata: { title: 'A Song', artist: 'Someone', album: 'Some Album', track: 1, dur: 187.2 },
       cover: { sha256: cover, ext: 'jpg', size: art.length },
       waveform: WAVE,
       waveformKind: 'rms',
@@ -174,7 +174,7 @@ describe('the catalog writer', () => {
       folder: 'Cloudflare R2/Someone',
       waveformKind: 'rms',
       waveformBars: true,
-      metadata: { title: 'A Song', artist: 'Someone', dur: 187.2 },
+      metadata: { title: 'A Song', artist: 'Someone', album: 'Some Album', track: 1, dur: 187.2 },
     });
   });
 

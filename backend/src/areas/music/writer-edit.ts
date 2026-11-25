@@ -2,20 +2,24 @@
 // the registrations): a track's tags, path, waveform or cover changed in place; new audio under
 // the same id; waveforms in bulk; tracks out of the catalog; and the audit of the bucket against
 // the catalog. Each change is logged with what it replaced. No object is ever deleted.
+import { albumIdOf } from './album-id';
+import { canonical } from './meta-extra';
 import { SONG_ID } from './shapes';
 import * as store from './store';
-import { metadata } from './validate';
 import {
   BATCH_MAX,
   changed,
   check,
   fail,
+  ignoredOf,
   kindOrFail,
   type Obj,
   type Op,
   one,
   put,
   record,
+  songOrFail,
+  tagsOrFail,
   validName,
   verifiedAudio,
   verifiedCover,
@@ -43,16 +47,20 @@ export const EDIT_OPS: Record<string, Op> = {
         if (!body.metadata || typeof body.metadata !== 'object' || Array.isArray(body.metadata))
           fail(422, 'metadata is an object of changes');
         const merged: Obj = { ...next.metadata };
-        for (const [k, v] of Object.entries(body.metadata as Obj)) {
+        // The lower-case spellings (`tracktotal`…) change their field (meta-extra.ts).
+        const changes = canonical(body.metadata as Obj);
+        for (const [k, v] of Object.entries(changes)) {
           if (k === 'audioAnalysis' || k === 'waveform') fail(422, `Change ${k} with its own operation`);
           if (v === null) delete merged[k];
           else merged[k] = v;
         }
-        try {
-          next.metadata = metadata(merged);
-        } catch {
-          fail(422, 'Invalid track metadata');
-        }
+        next.metadata = tagsOrFail(merged);
+        // An album or track changed stays one a song needs; the album id follows the tags.
+        songOrFail(
+          next.metadata,
+          ['album', 'track'].filter((k) => Object.hasOwn(changes, k)),
+        );
+        next.metadata.albumId = albumIdOf(next.metadata);
       }
       for (const k of ['path', 'folder'] as const)
         if (body[k] !== undefined) {
@@ -71,7 +79,7 @@ export const EDIT_OPS: Record<string, Op> = {
       put(c, next, waveform === undefined ? current.waveform : waveform);
       store.logOp(c.db, c.now, 'patch', next.id as string, before);
       changed(c);
-      return { patched: true, id: next.id, count: c.tracks() };
+      return { patched: true, id: next.id, count: c.tracks(), ...ignoredOf(body.metadata) };
     });
   },
   /** New audio for a track, keeping its id. The old audio stays in the bucket. */

@@ -1191,7 +1191,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "the ported player's format; ETag, 304; 409 before the import"
+      "note": "the ported player's format; ETag, 304; ?since= the changes only, when the log can say; 409 before the import"
     },
     "GET /v1/music/waveforms/:id": {
       "who": [
@@ -1346,7 +1346,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "a 30-second clip of the album from Apple's iTunes search, passed through (audio, ≤ 3 MB); 404 for none, 429 under a second after the last lookup"
+      "note": "a 30-second clip of the album from Apple's iTunes search, or Deezer's when Apple refuses or lacks it, passed through (audio, ≤ 3 MB); 404 for none, 429 under a second after the last lookup"
     },
     "POST /v1/music/picks/:id/decline": {
       "who": [

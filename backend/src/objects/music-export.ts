@@ -2,7 +2,8 @@
 // `track`): the catalog in pages by its order (`ord`, so a song added while a tool pages comes on a
 // later page), with its waveforms or without, and one track's record without its waveform. A code
 // layer of the one Music class (music-diag.ts extends it). Answers are JSON text: the records are
-// the old catalog's own, which the RPC types can't carry.
+// the old catalog's own, which the RPC types can't carry, each with its album id (album-id.ts).
+import { withAlbumId } from '../areas/music/album-id';
 import * as store from '../areas/music/store';
 import { MAX_TRACKS } from '../areas/music/writer';
 import { MusicPicks } from './music-picks';
@@ -11,15 +12,15 @@ type Rec = Record<string, unknown> & { metadata: Record<string, unknown> };
 
 /** A record with its waveform inline, as the whole export gives it. */
 function full(r: store.BriefRow): string {
-  if (!r.waveform) return r.record_json;
-  const t = JSON.parse(r.record_json) as Rec;
+  if (!r.waveform) return withAlbumId(r.record_json);
+  const t = JSON.parse(withAlbumId(r.record_json)) as Rec;
   t.metadata.waveform = r.waveform;
   return JSON.stringify(t);
 }
 
 /** A record without its waveform: whether it has one, and its kind ("rms" or "peak"; null without). */
 export function bare(r: store.BriefRow): string {
-  const t = JSON.parse(r.record_json) as Rec;
+  const t = JSON.parse(withAlbumId(r.record_json)) as Rec;
   delete t.metadata.waveform;
   t.hasWaveform = !!r.w;
   t.waveformKind = r.w ? (t.waveformKind === 'rms' ? 'rms' : 'peak') : null;

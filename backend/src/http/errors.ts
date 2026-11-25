@@ -5,6 +5,7 @@ import type { ErrorBody, ErrorCode, ErrorDetails } from '../../../shared/contrac
 import { DAY, utcDay } from '../lib/time';
 import { CODES } from './codes';
 import { reportServerError } from './report';
+import { scrubMessage } from './scrub';
 
 export interface RateInfo {
   retry_after?: number;
@@ -65,17 +66,19 @@ export function spentError(now = Date.now()): ApiError {
 }
 
 /** Hono onError: known errors keep their code; a spent day answers 429 `budget_exhausted` (nothing
- * is recorded: the error inbox would fail the same way); anything else is logged and recorded by
- * name only. */
+ * is recorded: the error inbox would fail the same way); anything else is logged by name and
+ * scrubbed message (since 2026-11-25) and recorded by name only. */
 export function onError(err: Error, c: Context): Response {
   if (err instanceof ApiError) return errorResponse(c, err);
   if (spentDay(err)) {
     console.error(JSON.stringify({ evt: 'budget_exhausted', route: c.req.routePath, request_id: c.get('requestId') }));
     return errorResponse(c, spentError());
   }
-  // The name only: messages can carry request data, and auth bodies must never reach logs.
+  // The message only through scrubMessage (http/scrub.ts): it can carry request data, and addresses,
+  // keys, emails and long quoted text must never reach logs.
+  const message = scrubMessage((err as { message?: unknown })?.message);
   console.error(
-    JSON.stringify({ evt: 'error', route: c.req.routePath, name: err.name, request_id: c.get('requestId') }),
+    JSON.stringify({ evt: 'error', route: c.req.routePath, name: err.name, message, request_id: c.get('requestId') }),
   );
   // And into Core's error inbox for the errors.spike watchdog (http/report.ts), capped, after the response.
   reportServerError(c, err.name);

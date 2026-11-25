@@ -4,14 +4,15 @@
 // back). P5 step 2 fills it from the old export (areas/import, datasets `music` and `music_log`) and
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
-// tools (areas/music/writer.ts), one operation at a time. The owner's listening history (schema step 5,
-// MUSIC.md §16) is its code layer music-taste.ts; what the mind reads and writes here (the tags, its
-// notes about each song, songs by feeling) is the layers above it, music-packs.ts and music-mind.ts;
-// the owner's marks and playlists on every phone (schema step 6) are music-sync.ts; what it knows of the
-// music beyond the files and the picks to add (schema step 7) are music-know.ts and music-picks.ts.
+// tools (areas/music/writer.ts), one operation at a time. Its code layers: the listening history
+// (step 5, MUSIC.md §16) music-taste.ts; the mind's tags, notes and songs by feeling music-packs.ts and
+// music-mind.ts; the owner's marks and playlists (step 6) music-sync.ts; the knowledge and picks
+// (step 7) music-know.ts and music-picks.ts; the catalog in changes (`?since=`) music-delta.ts.
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { withAlbumId } from '../areas/music/album-id';
+import { catalogTrack } from '../areas/music/catalog-delta';
 import { HISTORY_SQL, HISTORY_TABLES } from '../areas/music/history-store';
 import { KNOW_SQL, KNOW_TABLES } from '../areas/music/know-sql';
 import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
@@ -20,9 +21,10 @@ import * as store from '../areas/music/store';
 import { lowerCursor } from '../areas/music/store-notes';
 import { SYNC_SQL, SYNC_TABLES } from '../areas/music/sync-sql';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
+import { ANALYSIS_OPS } from '../areas/music/writer-analysis';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
-import { MusicDiag } from './music-diag';
+import { MusicDelta } from './music-delta';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -95,7 +97,7 @@ export function musicObject(env: Env): DurableObjectStub<Music> {
 }
 
 /** The upload tools' operations (POST /v1/music/uploads/:op). */
-export const WRITE_OPS: Readonly<Record<string, Op>> = { ...OPS, ...EDIT_OPS };
+export const WRITE_OPS: Readonly<Record<string, Op>> = { ...OPS, ...ANALYSIS_OPS, ...EDIT_OPS };
 
 /** An operation's answer: the old writer's own body, or its status and why not. */
 export interface WriteResult {
@@ -111,7 +113,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends MusicDiag {
+export class Music extends MusicDelta {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */
@@ -148,7 +150,8 @@ export class Music extends MusicDiag {
         }
       }
       if (changed) {
-        store.bump(this.db, at);
+        // Not in the change log: a phone's copy from before is sent whole (catalog-delta.ts).
+        store.bump(this.db, at, { unlogged: true });
         // An imported song keeps its old place, maybe below the night's: the night offers it.
         lowerCursor(this.db, low);
         this.forget();
@@ -193,9 +196,7 @@ export class Music extends MusicDiag {
     if (this.built?.etag === etag) return this.built;
     const rows = store.catalogRows(this.db);
     // `waveformAt`: the row's last change, so a phone fetches a waveform registered again.
-    const tracks = rows.map((r) =>
-      r.w ? `${r.record_json.slice(0, -1)},"waveformBars":true,"waveformAt":${r.u}}` : r.record_json,
-    );
+    const tracks = rows.map(catalogTrack);
     const head = { version: 1, kind: 'r2-library', complete: true, count: rows.length };
     const generatedAt = new Date(v.changed_at).toISOString();
     const text = `${JSON.stringify({ ...head, generatedAt }).slice(0, -1)},"tracks":[${tracks.join(',')}]}`;
@@ -203,9 +204,8 @@ export class Music extends MusicDiag {
     return this.built;
   }
 
-  /** The catalog for the route, as an answer whose body streams. One RPC answer holds 32 MiB at most,
-   * and the text as a string (two bytes a character on the way) passed it at about 14,200 songs: the
-   * route answered 500 from 2026-11-25 02:20 UTC, and the phones kept their last copy. */
+  /** The catalog for the route, as an answer whose body streams: one RPC answer holds 32 MiB at most,
+   * which the text as a string passed at about 14,200 songs (500s from 2026-11-25 02:20 UTC). */
   catalogAnswer(): Response {
     const c = this.catalog();
     return new Response(c.text, { headers: { ETag: c.etag } });
@@ -236,7 +236,12 @@ export class Music extends MusicDiag {
     if (!media) return { status: 503, body: { error: 'Music storage is not configured' } };
     const c: Ctx = {
       db: this.db,
-      tx: (f) => this.ctx.storage.transactionSync(f),
+      // Each commit's time is after the last one's (writes interleave across their bucket checks).
+      tx: (f) =>
+        this.ctx.storage.transactionSync(() => {
+          c.now = Math.max(c.now, store.version(this.db).changed_at + 1);
+          return f();
+        }),
       media,
       now,
       bytes: () => {
@@ -282,8 +287,8 @@ export class Music extends MusicDiag {
   exportCatalog(): string {
     const v = store.version(this.db);
     const tracks = store.exportRows(this.db).map((r) => {
-      if (!r.waveform) return r.record_json;
-      const t = JSON.parse(r.record_json) as { metadata: Record<string, unknown> };
+      if (!r.waveform) return withAlbumId(r.record_json);
+      const t = JSON.parse(withAlbumId(r.record_json)) as { metadata: Record<string, unknown> };
       t.metadata.waveform = r.waveform;
       return JSON.stringify(t);
     });

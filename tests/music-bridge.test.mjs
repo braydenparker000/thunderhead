@@ -43,9 +43,13 @@ function load({ token = 'th1_session', top = true } = {}) {
     calls.push({ url, method: init.method ?? (typeof input === 'string' ? 'GET' : input.method), headers, body: init.body, signal: init.signal, cache: init.cache });
     const hang = () => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
     if (url.startsWith(OLD)) return new Response('old', { status: 200, headers: { 'Content-Type': 'text/plain' } });
-    if (url === `${API}/v1/music/catalog`) {
+    if (url.split('?')[0] === `${API}/v1/music/catalog`) {
       if (state.catalog === 'hang') return hang();
       if (state.catalog !== 200) return new Response('{}', { status: state.catalog });
+      // Answers queued by a test: {status: 304, etag} or {body, etag}.
+      const next = state.catalogs?.shift();
+      if (next?.status === 304) return new Response(null, { status: 304, headers: { ETag: next.etag } });
+      if (next) return new Response(JSON.stringify(next.body), { status: 200, headers: { ETag: next.etag, 'Content-Type': 'application/json' } });
       if (headers.get('If-None-Match') === '"m1-x"') return new Response(null, { status: 304, headers: { ETag: '"m1-x"' } });
       return new Response('{"version":1,"tracks":[]}', { status: 200, headers: { ETag: '"m1-x"', 'Content-Type': 'application/json' } });
     }
@@ -175,6 +179,123 @@ test('a bucket that refuses a fresh link is that refusal; one that fails as a ne
   const b = load({ top: false });
   assert.equal((await b.get('/music/library.json')).status, 401, 'a frame home did not open: signed out to it');
   assert.deepEqual(b.calls, [], 'nothing asked of either Worker');
+});
+
+// The catalog in changes (GET /v1/music/catalog?since=<generatedAt of the copy kept>).
+const song = (id, title) => ({ id, metadata: { title } });
+const FULL = { version: 1, kind: 'r2-library', complete: true, count: 2, generatedAt: '2026-11-01T00:00:00.000Z', tracks: [song('a', 'One'), song('b', 'Two')] };
+const delta = (since, generatedAt, count, tracks, removed = []) => ({ version: 1, kind: 'r2-library-delta', complete: true, count, since, generatedAt, tracks, removed });
+const catalogCalls = (calls) => calls.filter((c) => c.url.startsWith(`${API}/v1/music/catalog`));
+const sinceOf = (c) => new URL(c.url).searchParams.get('since');
+
+test('a changed catalog comes as its changes, merged into the copy kept: the player still gets the whole catalog', async () => {
+  const { calls, get, state } = load();
+  const T2 = '2026-11-02T00:00:00.000Z';
+  const T3 = '2026-11-03T00:00:00.000Z';
+  state.catalogs = [
+    { body: FULL, etag: '"m1-1"' },
+    { body: delta(FULL.generatedAt, T2, 3, [song('b', 'Two, again'), song('c', 'Three')]), etag: '"m1-2"' },
+    { body: delta(T2, T3, 2, [], ['a']), etag: '"m1-3"' },
+    { status: 304, etag: '"m1-3"' },
+  ];
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL);
+  assert.equal(sinceOf(catalogCalls(calls)[0]), null, 'nothing kept: the whole catalog, no since');
+  const r = await get('/music/library.json');
+  const asked = catalogCalls(calls)[1];
+  assert.equal(sinceOf(asked), FULL.generatedAt, 'since the copy kept');
+  assert.equal(asked.headers.get('If-None-Match'), '"m1-1"', 'with its ETag');
+  assert.equal(r.headers.get('ETag'), '"m1-2"');
+  assert.equal(r.headers.get('TH-Generated'), null, 'what the bridge keeps beside the copy is its own');
+  const whole = await r.json();
+  assert.equal(whole.kind, 'r2-library', 'the whole catalog, as the player reads it');
+  assert.equal(whole.count, 3);
+  assert.equal(whole.generatedAt, T2);
+  assert.deepEqual(whole.tracks.map((t) => [t.id, t.metadata.title]), [['a', 'One'], ['b', 'Two, again'], ['c', 'Three']], 'changed in place, new ones after');
+  const less = await (await get('/music/library.json')).json();
+  assert.equal(sinceOf(catalogCalls(calls)[2]), T2);
+  assert.deepEqual(less.tracks.map((t) => t.id), ['b', 'c'], 'a removed song is gone');
+  assert.equal(less.count, 2);
+  const same = await get('/music/library.json');
+  assert.equal(same.status, 200);
+  assert.equal(catalogCalls(calls)[3].headers.get('If-None-Match'), '"m1-3"');
+  assert.deepEqual(await same.json(), less, 'unchanged: a 304, the copy kept');
+  assert.equal(catalogCalls(calls).length, 4, 'one request each time');
+  assert.ok(onlyNew(calls));
+});
+
+test('changes that don’t add up to the count, or a kept copy that can’t be read, bring the whole catalog again; a whole answer is kept as it is', async () => {
+  const { calls, get, state, store } = load();
+  const FULL2 = { ...FULL, count: 3, generatedAt: '2026-11-04T00:00:00.000Z', tracks: [...FULL.tracks, song('c', 'Three')] };
+  state.catalogs = [
+    { body: FULL, etag: '"m1-1"' },
+    { body: delta(FULL.generatedAt, FULL2.generatedAt, 5, [song('c', 'Three')]), etag: '"m1-2"' },
+    { body: FULL2, etag: '"m1-4"' },
+  ];
+  await get('/music/library.json');
+  const r = await get('/music/library.json');
+  assert.deepEqual(await r.json(), FULL2, 'three songs, not five: the whole catalog');
+  assert.equal(r.headers.get('ETag'), '"m1-4"');
+  const [, mismatch, full] = catalogCalls(calls);
+  assert.equal(sinceOf(mismatch), FULL.generatedAt);
+  assert.equal(sinceOf(full), null, 'asked again without since');
+  assert.equal(full.headers.get('If-None-Match'), null, 'and without the ETag');
+  // The copy kept can't be read: the changes can't be merged.
+  store.set('/music/th-catalog.json', new Response('not json', { headers: { ETag: '"m1-4"', 'TH-Generated': FULL2.generatedAt } }));
+  state.catalogs.push({ body: delta(FULL2.generatedAt, '2026-11-05T00:00:00.000Z', 3, []), etag: '"m1-5"' }, { body: FULL2, etag: '"m1-4"' });
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL2);
+  assert.equal(sinceOf(catalogCalls(calls).at(-1)), null);
+  // Asked since, the Worker may answer with the whole catalog: kept as it comes.
+  const FULL3 = { ...FULL, generatedAt: '2026-11-06T00:00:00.000Z' };
+  state.catalogs.push({ body: FULL3, etag: '"m1-6"' });
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL3);
+  assert.equal(sinceOf(catalogCalls(calls).at(-1)), FULL2.generatedAt);
+  state.catalogs.push({ status: 304, etag: '"m1-6"' });
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL3);
+  assert.equal(sinceOf(catalogCalls(calls).at(-1)), FULL3.generatedAt, 'the next ask is since the whole one kept');
+  assert.ok(onlyNew(calls));
+});
+
+test('a copy kept without its time (the app before `since`) has it read from its body once and recorded; never through the HTTP cache', async () => {
+  const { calls, get, state, store } = load();
+  // Kept by the app before: its ETag, no TH-Generated.
+  store.set('/music/th-catalog.json', new Response(JSON.stringify(FULL), { headers: { 'Content-Type': 'application/json', ETag: '"m1-1"' } }));
+  state.catalogs = [{ status: 304, etag: '"m1-1"' }, { status: 304, etag: '"m1-1"' }];
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL);
+  const [first] = catalogCalls(calls);
+  assert.equal(sinceOf(first), FULL.generatedAt, 'since the time in the copy');
+  assert.equal(first.headers.get('If-None-Match'), '"m1-1"');
+  assert.equal(first.cache, 'no-store', 'the browser never revalidates it on its own, without since');
+  assert.equal(store.get('/music/th-catalog.json').headers.get('TH-Generated'), FULL.generatedAt, 'recorded beside the copy');
+  assert.deepEqual(await store.get('/music/th-catalog.json').clone().json(), FULL, 'the copy kept as it was');
+  assert.deepEqual(await (await get('/music/library.json')).json(), FULL);
+  assert.equal(sinceOf(catalogCalls(calls)[1]), FULL.generatedAt);
+});
+
+test('generatedAt is found past the head too: a long head, or the time last', async () => {
+  for (const body of [
+    `{"version":1,"kind":"r2-library","note":"${'x'.repeat(5000)}","count":0,"tracks":[],"generatedAt":"2026-11-07T00:00:00.000Z"}`,
+    `{"version":1,"kind":"r2-library","count":1,"tracks":[{"id":"a","path":"${'y'.repeat(6000)}"}],"generatedAt":"2026-11-07T00:00:00.000Z"}`,
+  ]) {
+    const { calls, get, state, store } = load();
+    state.catalogs = [{ body: JSON.parse(body), etag: '"m1-7"' }, { status: 304, etag: '"m1-7"' }];
+    await get('/music/library.json');
+    assert.equal(store.get('/music/th-catalog.json').headers.get('TH-Generated'), '2026-11-07T00:00:00.000Z');
+    // And from the body of a copy kept without it.
+    store.set('/music/th-catalog.json', new Response(body, { headers: { ETag: '"m1-7"' } }));
+    await get('/music/library.json');
+    assert.equal(sinceOf(catalogCalls(calls).at(-1)), '2026-11-07T00:00:00.000Z');
+  }
+});
+
+test('asks at once are asked one after another: the later ones since the copy the first kept', async () => {
+  const { calls, get, state, store } = load();
+  state.catalogs = [{ body: FULL, etag: '"m1-1"' }, { status: 304, etag: '"m1-1"' }, { status: 304, etag: '"m1-1"' }];
+  const all = await Promise.all([get('/music/library.json'), get('/music/library.json'), get('/music/library.json')]);
+  for (const r of all) assert.deepEqual(await r.json(), FULL);
+  const asks = catalogCalls(calls);
+  assert.deepEqual(asks.map(sinceOf), [null, FULL.generatedAt, FULL.generatedAt]);
+  assert.deepEqual(asks.map((c) => c.headers.get('If-None-Match')), [null, '"m1-1"', '"m1-1"']);
+  assert.equal(store.get('/music/th-catalog.json').headers.get('TH-Generated'), FULL.generatedAt);
 });
 
 const ID2 = `r2_native_${'b'.repeat(64)}`;

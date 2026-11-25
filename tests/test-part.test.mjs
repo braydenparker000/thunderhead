@@ -74,13 +74,15 @@ test('the files that draw on the software GPU are known, and a part has time for
   }
 });
 
-test('on a branch a re-run of the checks cannot pass: a failing test is fixed, not retried into green', () => {
-  // TESTING.md §1 rule 8, kept by the workflow itself since the day it was broken by hand three times (2026-11-14).
-  const checks = readFileSync(new URL('../.github/workflows/checks.yml', import.meta.url), 'utf8'), ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  const steps = checks.slice(checks.indexOf('    steps:'));
-  assert.match(steps, /^    steps:\n(      #.*\n)*      - if: \$\{\{ inputs\.first_only && github\.run_attempt > 1 \}\}\n        run: \|\n.*\n          exit 1\n/, 'the first step of every part fails a re-run');
-  assert.match(ci, /uses: \.\/\.github\/workflows\/checks\.yml\n    with:\n(      .*\n)*?      first_only: true\n/, 'Test asks for it');
-  assert.doesNotMatch(readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8'), /first_only/, 'Deploy does not: its re-run after an outage stays possible');
+test('a failure clearly unrelated to the change may be re-run once; one that recurs is fixed at its cause', () => {
+  // TESTING.md §1 rule 8 (owner, 2026-11-25): the guard that failed every re-run on a branch (2026-11-14) is gone, and
+  // every part still runs to its end, so one part's failure hides no other's result.
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const checks = read('../.github/workflows/checks.yml'), ci = read('../.github/workflows/ci.yml');
+  assert.doesNotMatch(checks, /first_only|run_attempt/, 'no step fails a re-run');
+  assert.doesNotMatch(ci, /first_only/, 'Test passes no such input');
+  assert.match(checks, /\n      fail-fast: false\n/, 'every part runs to its end');
+  assert.match(read('../docs/engineering/TESTING.md'), /A failure clearly unrelated to the change may be re-run once; a failure that recurs is fixed at its cause/, 'the rule says so');
 });
 
 test('a run that reports nothing for long enough is ended, and says the last test that finished', async () => {

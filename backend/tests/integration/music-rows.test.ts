@@ -102,7 +102,7 @@ describe('the catalog is read once, not per song', () => {
         sha256: h,
         size: bytes.length,
         name: `New ${i}.opus`,
-        metadata: { title: `New ${i}`, artist: 'Someone', dur: 180 + i },
+        metadata: { title: `New ${i}`, artist: 'Someone', album: 'New Songs', track: i + 1, dur: 180 + i },
       });
     }
     const before = await rowsRead();

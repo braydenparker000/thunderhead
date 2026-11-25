@@ -1,19 +1,19 @@
 // @ts-check
 // Settings' listed pages under their headings (owner, 2026-11-21), apart from home.js so the one index
-// (finder.js) reads them without the page's own modules, in a test too. Agents is not listed (reachable
-// by /settings/agents/); Quiet hours is a section of Notifications.
+// (finder.js) reads them without the page's own modules, in a test too. Agents is listed again under
+// Account and data (2026-11-25; also reachable by /settings/agents/); Quiet hours is a section of Notifications.
 
-/** The listed pages under their headings, in order: [heading, [page, name, icon][]]. Look's own
- * controls (theme, text size, still background) come first under Look. */
-/** @type {readonly (readonly [string, readonly (readonly [string, string, string])[]])[]} */
+/** The listed pages under their headings, in order: [heading, [page, name, icon, line?][]] (a line: the
+ * row's short second line). Look's own controls (theme, text size, still background) come first under Look. */
+/** @type {readonly (readonly [string, readonly (readonly [string, string, string, string?])[]])[]} */
 export const SECTIONS = ([
   ['Look', [['appearance', 'More appearance', 'palette']]],
   ['Home and gestures', [['chat', 'Home and chat', 'chat-circle'], ['gestures', 'Ring and gestures', 'hand-pointing']]],
   ['Apps', [['music', 'Music', 'music-notes-simple'], ['photos', 'Photos', 'aperture'], ['island', 'Island', 'music-notes-simple'], ['briefing', 'Briefing', 'newspaper']]],
   ['The mind', [['mind', 'The mind', 'sparkle'], ['memory', 'What I remember', 'brain'], ['notifications', 'Notifications', 'bell']]],
-  ['Account and data', [['account', 'Password', 'key'], ['devices', 'Devices', 'devices'], ['privacy', 'Privacy and data', 'shield-check'], ['data', 'Data use', 'arrow-down'], ['phone', 'On this phone', 'device-mobile'], ['export', 'Export', 'download-simple'], ['deleted', 'Recently deleted', 'trash'], ['workshop', 'Files for the workshop', 'cloud-arrow-up']]],
+  ['Account and data', [['account', 'Password', 'key'], ['devices', 'Devices', 'devices'], ['agents', 'Agents', 'plugs-connected', 'Keys for the mind and other tools'], ['privacy', 'Privacy and data', 'shield-check'], ['data', 'Data use', 'arrow-down'], ['phone', 'On this phone', 'device-mobile'], ['export', 'Export', 'download-simple'], ['deleted', 'Recently deleted', 'trash'], ['workshop', 'Files for the workshop', 'cloud-arrow-up']]],
   ['About', [['about', 'About and diagnostics', 'info'], ['builder', 'For the builder', 'flag']]],
 ]);
 
-/** Every listed page, in order: [page, name, icon]. @type {readonly (readonly [string, string, string])[]} */
+/** Every listed page, in order: [page, name, icon, line?]. @type {readonly (readonly [string, string, string, string?])[]} */
 export const PAGES = SECTIONS.flatMap(([, pages]) => pages);

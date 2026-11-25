@@ -75,7 +75,7 @@ async function songs(from: number, n: number) {
       sha256: h,
       size: bytes.length,
       name: `Invented ${i}.opus`,
-      metadata: { title: `Invented ${i}`, artist: 'A Made-up Band', dur: 120 + i },
+      metadata: { title: `Invented ${i}`, artist: 'A Made-up Band', album: 'Made-up', track: i + 1, dur: 120 + i },
       ...(i % 2 ? {} : { waveform: WAVE, waveformKind: i % 4 ? 'peak' : 'rms' }),
     });
   }

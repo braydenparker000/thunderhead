@@ -4,7 +4,8 @@
 // Apps, The mind, Account and data, About. Each page opens over this one and its back button returns
 // here (settings.js keeps the stack). Quiet hours is a section of Notifications (quietPart below): when
 // the day's quiet starts and ends (never before 06:30), and "go quiet" for a while (BEHAVIOR.md §8).
-// Agents stays reachable by its address (/settings/agents/) but is not listed.
+// Agents (keys for the mind and other tools) is listed under Account and data again (2026-11-25), with a
+// short line under its name; it is also reachable by its address (/settings/agents/).
 import { api, signedIn } from '/th/client.js';
 import { quietLine, quietUntil, setQuiet } from '/th/chat/quiet.js';
 import { lineFor, mindName } from '/th/copy.js';
@@ -86,8 +87,8 @@ export function settingsHome(body, open, focus) {
   find.addEventListener('focus', () => void import('./search.js').then((m) => m.attach(find, body)), { once: true });
   body.append(el('div', { class: 'field-box ssearch' }, [icon('magnifying-glass'), find]));
   for (const [heading, pages] of SECTIONS) {
-    const rows = pages.map(([page, name, symbol]) => {
-      const button = row({ title: page === 'mind' ? mindName(true) : name, icon: symbol, open: true, onClick: () => open(page) });
+    const rows = pages.map(([page, name, symbol, line]) => {
+      const button = row({ title: page === 'mind' ? mindName(true) : name, detail: line, icon: symbol, open: true, onClick: () => open(page) });
       button.classList.add('slink');
       button.dataset.page = page;
       return button;

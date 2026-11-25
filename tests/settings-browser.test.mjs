@@ -505,17 +505,18 @@ test('MENU-AND-SETTINGS.md documents every key with its scope, its default and w
   }
 });
 
-test('Settings lists its pages under six headings; Agents is reachable but not listed; the old site is under Privacy', opts, async () => {
+test('Settings lists its pages under six headings, Agents with its line beside Devices; the old site is under Privacy', opts, async () => {
   const { page, context, errors } = await open();
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
   await page.waitForSelector('.spage.in [data-page="about"]');
   const list = await page.$$eval('.spage.in .sbody > .group-title, .spage.in .sbody > .group-section > .group-title', (h) => h.map((x) => x.textContent));
   assert.deepEqual(list, ['Look', 'Home and gestures', 'Apps', 'The mind', 'Account and data', 'About']);
   assert.deepEqual(await page.$$eval('.spage.in [data-page]', (r) => r.map((x) => x.dataset.page)),
-    ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
+    ['appearance', 'chat', 'gestures', 'music', 'photos', 'island', 'briefing', 'mind', 'memory', 'notifications', 'account', 'devices', 'agents', 'privacy', 'data', 'phone', 'export', 'deleted', 'workshop', 'about', 'builder']);
   assert.ok(await page.$('.spage.in .sappear #set-theme'), 'Theme is under Look');
-  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'agents' } })));
-  await page.waitForFunction(() => document.querySelector('.spage.in .page-title')?.textContent === 'Agents');
+  assert.deepEqual(await page.$eval('.spage.in [data-page="agents"]', (r) => [r.querySelector('.row-title')?.textContent, r.querySelector('.row-detail')?.textContent, r.getBoundingClientRect().height >= 44]), ['Agents', 'Keys for the mind and other tools', true]);
+  await page.click('.spage.in [data-page="agents"]');
+  await page.waitForFunction(() => [...document.querySelectorAll('.spage.in .page-title')].some((h) => h.textContent === 'Agents'));
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'account' } })));
   await page.waitForSelector('.spage.in #password');
   assert.equal(await page.$('.spage.in a[href="/import/"]'), null, 'not on Password');

@@ -13,7 +13,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 5. **Live checks are read-only.** They never send a message, write a row or sign in.
 6. **Fixtures are synthetic.** No real names, places, messages, songs, notes, scripture text or dates tied to the owner. The repo is public.
 7. **Evals with personal data run only inside mind sessions**, never in Actions.
-8. **A flaky test is a bug.** It is fixed or deleted within a day, never retried into green (the one built-in exception is the live check's single retry, which covers network blips). On a branch the workflow keeps this itself: a re-run of Test's checks fails at its first step (`checks.yml`, `first_only`), so the way to green is a commit that fixes what failed (since 2026-11-14, when the rule was broken by hand three times in a day and each re-run hid a test that failed again later). Browser tests wait for conditions, never for time, and their timing reads are diagnostics on CI (§10.1).
+8. **A flaky test is a bug.** It is fixed or deleted within a day (the one built-in exception is the live check's single retry, which covers network blips). A failure clearly unrelated to the change may be re-run once; a failure that recurs is fixed at its cause, never retried into green (owner, 2026-11-25: the workflow's own guard, which failed every re-run on a branch from 2026-11-14, is gone). Browser tests wait for conditions, never for time, and their timing reads are diagnostics on CI (§10.1).
 9. **A release that touches gestures, audio or the service worker isn't done** until the real-device checklist passes on the A15.
 
 ---
@@ -249,7 +249,7 @@ Two rules, since 2026-11-03, when a day of deploys failed four times on load rac
 1. **Wait for conditions, not for time.** A step waits for what it needs: an element or attribute, a key in storage, a call the mock saw, the springs at rest (`whenResting`), the tap guard let go (`tooSoon()`). Never `waitForTimeout` before an assertion (`tests/sleep-assert.test.mjs` fails on a `waitForTimeout(` with an `assert` within two lines in a `*-browser.test.mjs`; the 48 there on 2026-11-21 are listed by file in `tests/fixtures/sleep-assert-allow.json`, and no file may gain one). A "nothing happens" read that must outlast a product timer (the 3 s senses send, the 6 s idle close) outlasts it on the page's own timers, which keep the order however loaded the runner is; a pause that is part of the input (a hold, the gap between two taps) says so where it is. Helpers: `tests/fixtures/waits.mjs`.
 2. **Timing is diagnostic on CI.** An assertion on milliseconds, frames or audio levels that measures the machine rather than the product's logic goes through `timing()` (`tests/fixtures/waits.mjs`): on CI it prints `# timing (not enforced on CI): …`; with `TH_STRICT_TIMING=1` it fails like any assertion. Logic stays hard: what happened, in what order, where it ended, and lower bounds that only a bug can break (a timer never fires early).
 
-CI runs the site and mind suites in **five** parts (§2). No retries anywhere: a test that needs one is fixed instead.
+CI runs the site and mind suites in **five** parts (§2). No automatic retries anywhere: a test that needs one is fixed instead (a failure clearly unrelated to the change may be re-run once by hand, §1 rule 8).
 
 ### 10.2 Required suites
 

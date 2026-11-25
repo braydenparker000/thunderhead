@@ -76,7 +76,7 @@ the profiles' home on the Worker behind sign-in; backups; replacing the old edit
 - Check the live site yourself (`/release.json`'s commit) before telling the owner something is live.
 - Test headless with `?readback` (SwiftShader can't present a WebGPU canvas). The public sample RAFs
   (raw.pixls.us, CC0) are not in the repo; fetch them.
-- Every source file stays under 300 lines.
+- Every source file stays under 500 lines.
 - Headless timings say nothing about stage costs (SwiftShader, and the readback dominates): the phone is the
   instrument. The first frame of a photo makes the table and is the pipelines' first run (about 200 ms on the
   A15); it is not what an edit costs.

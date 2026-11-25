@@ -1,7 +1,8 @@
 // /v1/music (MUSIC.md §1.3, API.md §11.21) and /v1/media/sign (API.md §11.15, SECURITY.md §9): the
 // catalog in the ported player's own format under one ETag (an unchanged catalog costs a 304 and
-// one row read), one track's waveform, and signed links to a track's audio and art in the shared
-// bucket `jarvis-music`, so audio never passes through the Worker. Before the catalog is imported
+// one row read; `?since=` the songs changed since the phone's copy, when the log can say), one
+// track's waveform, and signed links to a track's audio and art in the shared bucket `jarvis-music`,
+// so audio never passes through the Worker. Before the catalog is imported
 // (I7) there is none to give: 409, never an empty library a phone would take as the real one.
 // Study's books are not signed: the phone reads them through the Worker (GET /v1/library/books/:id/file).
 import { Hono } from 'hono';
@@ -45,6 +46,14 @@ export const musicRoutes = new Hono<AppEnv>()
       throw new ApiError('conflict', { reason: 'no catalog yet: the import (I7) has not run' });
     c.header('ETag', etag);
     if (unchanged(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
+    // `since`, the `generatedAt` of the phone's copy: only what changed after it, when the change log
+    // can say exactly (objects/music-delta.ts); else the whole catalog, as without it.
+    const since = c.req.query('since');
+    const delta = since ? await fresh(music.catalogSince(since.slice(0, 40))) : null;
+    if (delta) {
+      c.header('ETag', delta.headers.get('ETag') ?? etag);
+      return c.body(await delta.arrayBuffer(), 200, { 'Content-Type': 'application/json; charset=utf-8' });
+    }
     if (held?.etag !== etag) {
       // As a streamed answer, not a string: a string this long does not fit one RPC answer (music.ts).
       const r = await fresh(music.catalogAnswer());

@@ -22,6 +22,7 @@ const ALSO = /** @type {Record<string, string>} */ ({
   notifications: 'push alerts notify sound quiet',
   account: 'password log in login',
   devices: 'sign out logout log out sessions phones',
+  agents: 'tokens api access tools',
   export: 'backup download',
   memory: 'memory facts forget',
   deleted: 'trash bin restore undelete',
@@ -63,7 +64,7 @@ export function entries() {
   const hidden = /** @type {Record<string, string[]>} */ (HIDDEN)[globalThis.document?.documentElement.dataset.look ?? ''] ?? [];
   /** @type {Entry[]} */
   const out = [...FIXED];
-  for (const [page, name, icon] of PAGES) out.push({ title: name, detail: '', page, icon, words: ALSO[page] ?? '' });
+  for (const [page, name, icon, line = ''] of PAGES) out.push({ title: name, detail: line, page, icon, words: ALSO[page] ?? '' });
   for (const s of /** @type {readonly Spec[]} */ (SETTINGS)) {
     if (hidden.includes(s.key)) continue;
     const at = title[s.group] ?? { name: s.group, icon: 'gear-six' };

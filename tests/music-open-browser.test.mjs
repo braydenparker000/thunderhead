@@ -33,7 +33,7 @@ test('Music opens warm in a fraction of its cold time, measured in the page, and
   console.log(`# music cold ${r.cold.ready} ms (${r.cold.requests} requests), warm ${r.warms.map((w) => `${w.ready} ms (${w.requests} requests)`).join(', ')}`);
   assert.ok(r.cold.ready <= COLD_MS, `cold open ${r.cold.ready} ms, budget ${COLD_MS}`);
   assert.ok(r.warm.ready <= WARM_MS, `warm open ${r.warm.ready} ms, budget ${WARM_MS}`);
-  for (const w of r.warms) assert.ok(w.requests <= WARM_REQUESTS, `warm open made ${w.requests} requests, budget ${WARM_REQUESTS}`);
+  for (const w of r.warms) assert.ok(w.requests <= WARM_REQUESTS, `warm open made ${w.requests} requests, budget ${WARM_REQUESTS}: ${w.paths.join(' ')}`);
 });
 
 test('the release\'s cache: what the owner sees on the same release, a new one, a silent link, no signal, a broken worker file, and Repair', opts, async () => {

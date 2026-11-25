@@ -125,8 +125,8 @@ Navigation (2026-11-21, `apps/settings/pages.js`), under headings: **Look** (The
 Still background, More appearance) · **Home and gestures** (Home and chat, Ring and gestures) ·
 **Apps** (Music, Photos, Island, Briefing) · **The mind** (The mind, What I remember,
 Notifications) · **Account and data** (Password, Devices, Privacy and data, Data use, Export,
-Recently deleted, Files for the workshop) · **About** (About and diagnostics, For the builder, Check for update). Agents
-is not listed (§4.7). The catalogue's pages (§6), Data use, Files for the workshop and About open over
+Recently deleted, Files for the workshop, Agents) · **About** (About and diagnostics, For the builder, Check for update). Agents
+is listed again since 2026-11-25 (§4.7). The catalogue's pages (§6), Data use, Files for the workshop and About open over
 Settings like the others. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours

@@ -27,6 +27,11 @@ export interface LogRow {
 export interface CatalogVersion {
   version: number;
   changed_at: number;
+  /** The songs in the catalog at this version, when the writer moved it (catalog-delta.ts). */
+  count?: number;
+  /** The last change the change log does not hold (an import): a copy from then or before is sent
+   * whole. Missing on a version from before 2026-11-25: every copy before it is sent whole. */
+  floor?: number;
 }
 
 /** New tracks from the upload tools take places from here on, so the old catalog's places (from 1,
@@ -118,9 +123,13 @@ export function version(db: Db): CatalogVersion {
   return r ? (JSON.parse(r.value_json) as CatalogVersion) : { version: 0, changed_at: 0 };
 }
 
-/** The catalog changed: its version moves on, so every phone's copy is out of date. */
-export function bump(db: Db, at: number): CatalogVersion {
-  const v = { version: version(db).version + 1, changed_at: at };
+/** The catalog changed: its version moves on, so every phone's copy is out of date. The writer's
+ * changes say how many songs there are now; an import's (`unlogged`) are not in the log. */
+export function bump(db: Db, at: number, o: { count?: number; unlogged?: boolean } = {}): CatalogVersion {
+  const prev = version(db);
+  const floor = o.unlogged ? Math.max(at, prev.changed_at) : (prev.floor ?? prev.changed_at);
+  const v: CatalogVersion = { version: prev.version + 1, changed_at: at, floor };
+  if (o.count !== undefined && !o.unlogged) v.count = o.count;
   db.run(
     "INSERT INTO music_state (key, value_json) VALUES ('catalog', ?) ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json",
     JSON.stringify(v),

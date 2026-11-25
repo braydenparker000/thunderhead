@@ -324,7 +324,14 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     // The bars and title melt away by 45% of the shape (36 + 144 × .45 = 100.8 px); the details arrive from 30% (79.2 px).
     assert.ok(expansion.samples.filter(s=>s.height<79).every(s=>s.opacity===0),'details wait for 30%');
     assert.ok(expansion.samples.filter(s=>s.height>101.5).every(s=>s.compact===0),'compact content is gone by 45%');
-    assert.ok(expansion.samples.some(s=>s.compact>0&&s.compact<1&&s.opacity>0),'the two cross-fade');
+    // The two cross-fade: read at set moments of the island's own spring value (shape.set paints as a frame does), not
+    // at whatever frames the runner gives, since a slow runner's 32 ms steps can jump the 30-45% window (2026-11-25).
+    const cross=await page.evaluate(async()=>{
+      const {shape,box}=await import('/th/island/shape.js'),e=document.querySelector('.th-island'),o=s=>Number(getComputedStyle(e.querySelector(s)).opacity),out=[];
+      for(let v=.3;v<=.45+1e-9;v+=.025){shape.set(v);out.push({height:box()[3],compact:o('.compact'),opacity:o('.details')});}
+      shape.set(1); return out;
+    });
+    assert.ok(cross.some(s=>s.height>79.2&&s.height<100.8&&s.compact>0&&s.compact<1&&s.opacity>0&&s.opacity<1),`the two cross-fade: ${JSON.stringify(cross)}`);
     assert.ok(expansion.samples.some(s=>s.compact>0&&s.compact<1),'compact content fades rather than cuts');
     assert.equal(await page.evaluate(()=>capsule===document.querySelector('.th-island')),true,'same element');
     // One artwork node: its layout box never changes; it travels and scales by transform only.
