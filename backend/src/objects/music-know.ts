@@ -60,8 +60,14 @@ export abstract class MusicKnow extends MusicSync {
     return 0;
   }
 
-  /** What the job does next. At most one outside request comes of it. */
-  knowNext(now = Date.now()): KnowTask {
+  /** What the job does next, and the rows finding it wrote here, which the job counts in the bulk lane. */
+  knowNext(now = Date.now()): KnowTask & { rows: number } {
+    const before = this.db.meter.rowsWritten;
+    const task = this.nextTask(now);
+    return { ...task, rows: this.db.meter.rowsWritten - before };
+  }
+
+  private nextTask(now: number): KnowTask {
     const later = this.seed(now);
     const hosts = ks.hostsOf(this.db);
     const mbBlocked = plan.blockedUntil(hosts, MB, now);

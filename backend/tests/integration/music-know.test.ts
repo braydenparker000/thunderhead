@@ -221,7 +221,13 @@ describe('a catalog change', () => {
     expect(t.t === 'idle' && t.wait).toBeLessThanOrEqual(10 * 60_000);
     expect(await musicSql<{ n: number }>('SELECT count(*) AS n FROM know_albums')).toEqual(before);
     await quietCatalog();
-    const rows = await rowsDuring(music() as never, () => m.knowNext(Date.now()));
+    let told = -1;
+    const rows = await rowsDuring(music() as never, async () => {
+      told = (await m.knowNext(Date.now())).rows;
+    });
+    // The task says what finding it wrote, so the job counts those rows in the day's bulk lane.
+    expect(told).toBe(rows.written);
+    expect(told).toBeGreaterThan(0);
     expect(await musicSql<{ n: number }>('SELECT count(*) AS n FROM know_albums')).toEqual([{ n: before[0].n + 1 }]);
     // Measured 7: the new album's row and its index entries, its artist's id, the state row; no other album.
     expect(rows.written).toBeLessThanOrEqual(7);
