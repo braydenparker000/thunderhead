@@ -6038,7 +6038,7 @@
         "phase": "P4"
       },
       "quota.rows_written": {
-        "trips": "rows written today by the five objects and a drill's scratch copy ≥ 54,000 (60% of the 90,000 a day the Free plan leaves after the old Worker's share)",
+        "trips": "rows written today by the five objects and a drill's scratch copy ≥ 60,000 (60% of the Free plan's 100,000 a day)",
         "severity": "S3",
         "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
@@ -6046,7 +6046,7 @@
         "phase": "P4"
       },
       "quota.rows_read": {
-        "trips": "rows read today across the five objects ≥ 2,820,000 (60% of the 4,700,000 a day the Free plan leaves after the old Worker's share)",
+        "trips": "rows read today across the five objects ≥ 3,000,000 (60% of the Free plan's 5,000,000 a day)",
         "severity": "S3",
         "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
@@ -6054,7 +6054,7 @@
         "phase": "P4"
       },
       "quota.do_calls": {
-        "trips": "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside)",
+        "trips": "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day)",
         "severity": "S3",
         "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,

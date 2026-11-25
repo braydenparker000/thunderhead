@@ -15,6 +15,8 @@ the old system is ask-first; `jarvis-music` is shared and never deleted from (AG
 
 ## 8. Retiring the old Worker
 
+**2026-11-25: the owner deleted the old Worker (`jarvis-hub-api`).** Its share of the Free plan's daily rows is no longer kept back from this Worker's budget (`shared/contract/meter.ts`).
+
 **Gate:** zero requests to the old Worker for **7 consecutive days**, then the owner's approval (a tap or their own words).
 
 **Nothing on the site sends a request to the old Worker (2026-11-22).** Live it still had 60 to 100 an

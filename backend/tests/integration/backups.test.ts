@@ -245,7 +245,7 @@ describe('the monthly drill', () => {
   const drillRow = (job: string) => async () =>
     (await coreSql<DrillRow>('SELECT * FROM drills WHERE job_id = ?', job))[0];
   // Each drill writes its rows into the scratch instance against the day's bulk lane (40,000) and
-  // the day's meter (from 80% of 90,000 the drill waits for 00:00 UTC): these fixtures' 12,000
+  // the day's meter (from 85% of 100,000 the drill waits for 00:00 UTC): these fixtures' 12,000
   // ledger rows and their indexes would pause the second until tomorrow.
   const freshLane = async () => {
     await coreSql("DELETE FROM settings WHERE key = 'bulk.day'");
