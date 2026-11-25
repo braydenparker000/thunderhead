@@ -28,6 +28,7 @@ import {alertDialog, editNameDialog} from '../widgets/dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
+import {keepPlace} from './relocate.js';
 import {openResortDialog} from '../widgets/resort-dialog.js';
 import {exportPlaylists} from '../library/playlist-files.js';
 import {LyricsPage} from './lyrics.js';
@@ -630,11 +631,9 @@ export class ListWidget extends FastLayout {
       if (top?.isPlaylists) this.replaceTop(playlistsSource(ctx, this.libList, this.nav));
       else if (top?.playlist) this.replaceTop(playlistSource(ctx, this.libList, this.nav, top.playlist));
     });
+    // A catalogue refresh keeps the list where it is (relocate.js): its levels made again in place.
     ctx.bus.subscribe('bus_library', () => {
-      if (this.stack.length) {
-        this.stack = [];
-        if (this.mode === 'list') this.openHome();
-      }
+      if (this.stack.length) whenStill(ctx, () => keepPlace(this), 'library-keep-place');
     });
   }
 
@@ -1626,7 +1625,9 @@ export class ListWidget extends FastLayout {
           this.trans = null;
           this.stack = saved.stack;
           if (fromPage === 'list' || target === 'list') { this.libList.setSource(saved.source); this.libList.scrollTo(saved.scroll); }
-          if (toPage === 'list' && fromPage !== 'list') this.libList.visibility = GONE;
+          // The list goes again, and its rail with it (setMode's mode 0): left up, it would stand over
+          // the player and take the waveform's drags at the screen's edge.
+          if (toPage === 'list' && fromPage !== 'list') { this.libList.visibility = GONE; this.ctx.listScroller?.setMode(0); }
           if (toPage === 'lyrics') this.lyricsPage.show(false);
           if (toPage === 'aa') for (const v of this.items.values()) v.visibility = GONE;
         }

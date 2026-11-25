@@ -59,6 +59,7 @@ import {STATE_PLAYING} from '../player/player.js';
 import {searchHistory, removeSearch, clearSearchHistory} from '../library/search-history.js';
 import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
 import {smartSongs} from '/th/music/search.js';
+import {letters, sectionsFor} from './sections.js';
 
 // The search categories after "All" (jj1.v1 order).
 const SEARCH_KINDS = SEARCH_CATS.slice(1);
@@ -121,7 +122,9 @@ const GROUP_SORT_FOR = {
 
 /**
  * Applies a list's saved options (List Options): zoom geometry and, with a
- * sort kind, the order of its rows. Name/title order shows the A–Z column.
+ * sort kind, the order of its rows and the rail's sections for that order
+ * (sections.js). A list without a sort kind has no sections (the plain thumb)
+ * unless it gives its own order's (Singles, Possible duplicates).
  */
 function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0, defaultZoom = null}) {
   applyZoom(src, list.host.substyle, zoomKind, key, defaultZoom);
@@ -135,9 +138,8 @@ function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0
     articles = articled(key) && !src.ctx?.pref?.('no_sort_field');
     try { src.groups = [...src.groups].sort(cmp); } finally { articles = false; }
     if (rev) src.groups.reverse();
-    src.byName = v === 0 && !rev;
-    // The A-Z column follows the sort field.
-    if (articled(key) && !src.ctx?.pref?.('no_sort_field')) src.sectionTitle = i => (src.groups[i]?.title ?? '').replace(ARTICLE, '');
+    // The rail follows the sort field (without "the", "a", "an" where the sort leaves them out).
+    src.sections = sectionsFor({group: GROUP_SORT_FOR[sortKind]?.[v] ?? '0', reversed: rev, articles: articled(key) && !src.ctx?.pref?.('no_sort_field'), yearTitles: sortKind === 'years'});
   } else if (src.tracks) {
     let t = [...src.tracks];
     if (v === 11) {
@@ -145,7 +147,7 @@ function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0
     } else t.sort(TRACK_SORT[v] ?? TRACK_SORT[0]);
     if (rev) t.reverse();
     src.tracks = t;
-    src.sortedByName = v === 1 && !rev;
+    src.sections = sectionsFor({value: v, reversed: rev});
   }
   return src;
 }
@@ -354,6 +356,7 @@ export function categorySource(ctx, list, nav, cat) {
   else if (cat.kind === 'singles') {
     // Releases of one or two songs and songs with no album, by artist then title.
     src = withOptions(new TrackSource(ctx, list, nav, title, lib.shelves().singles), list, {key: 'tracks:singles', zoomKind: 'tracks'});
+    src.sections = letters(t => t?.artist);
   }
   else if (cat.kind === 'duplicates') src = duplicatesSource(ctx, list, nav, title);
   else if (cat.kind === 'playlists') return playlistsSource(ctx, list, nav);
@@ -439,6 +442,8 @@ function duplicatesSource(ctx, list, nav, title) {
     for (const t of d.tracks) { rows.push({track: t, at: tracks.length}); tracks.push(t); }
   }
   const src = withOptions(new TrackSource(ctx, list, nav, title, tracks), list, {key: 'tracks:duplicates', zoomKind: 'tracks'});
+  // By title, as the groups are (shelves.js); a subhead counts under its first song.
+  src.sections = letters(t => t?.title);
   src.rowLabels = t => ({line2: [albumLabel(ctx, t), t.format, t.bitrate ? t.bitrate + 'kbps' : '', t.durationMs ? durationMeta(t.durationMs) : ''].filter(Boolean).join(' · '), meta: ''});
   return trackRows(ctx, list, src, rows);
 }
@@ -514,8 +519,6 @@ export class GroupSource {
   get selectionLayout() { return this.isPlaylists ? 'merge_selection_menu_playlist_items' : 'merge_selection_menu_list_items_w_aa'; }
   tracksAt(i) { return this.groups[i]?.tracks ?? []; }
 
-  // Groups sorted by name show the A–Z scroller.
-  get sortedByName() { return this.byName !== false; }
   sectionTitle(i) { return this.groups[i]?.title; }
 
   bindHeader(v) {
@@ -596,7 +599,6 @@ function artistPage(ctx, list, nav, g, icon) {
   src.secondLevel = true;
   src.parentGroup = g;
   src.icon = icon;
-  src.byName = false;
   src.tracks = singles;
   const sub = list.host.substyle;
   src.subhead = {type: 'track', scene: 'scene_1', height: sub.dim('allTracksSubheadSize', 0)};
@@ -910,7 +912,6 @@ export function searchSource(ctx, list, nav, query, mask = -1, target = null) {
   src.separators = separators;
   src.separatorHeight = list.host.substyle.dim('separatorSize', d.itemSizeSmall);
   src.tracks = rows.filter(r => r.track).map(r => r.track);
-  src.byName = false;
   Object.defineProperty(src, 'count', {get: () => rows.length});
   src.isSeparator = i => !!rows[i]?.sep;
   src.typeAt = i => (rows[i]?.sep ? 'separator' : undefined);
@@ -975,7 +976,6 @@ function targetedRows(ctx, list, nav, title, target, {has, line1, titlesOnly}) {
   src.separators = separators;
   src.separatorHeight = list.host.substyle.dim('separatorSize', dims(list).itemSizeSmall);
   src.tracks = rows.filter(r => r.track).map(r => r.track);
-  src.byName = false;
   Object.defineProperty(src, 'count', {get: () => rows.length});
   src.isSeparator = i => !!rows[i]?.sep;
   src.typeAt = i => (rows[i]?.sep ? 'separator' : undefined);
