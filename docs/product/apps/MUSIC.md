@@ -869,8 +869,8 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   little freshness, none just after a release), over HTTP/1.1's six connections at 300 ms each. Lab (the
   real page and worker against a site that answers like Azure, a mock Worker, one 1.35 Mbps link with
   300 ms per request, cache warm, worker started afresh): 69–104 requests and 0.9–1.1 MB before `modules`.
-  Home's ring frame is created at home's idle (`th/island/warm.js`, signed in, no Data Saver) and the
-  worker controls it; the cost was the requests. Not fixed: a worker that served a release kept whole
+  Home's ring frame was created at home's idle (`th/island/warm.js`; since 2026-11-25 only when Music is
+  first opened) and the worker controls it; the cost was the requests. Not fixed: a worker that served a release kept whole
   first cut `modules` to about 0.7 s in the lab (4x), but a second reading found it could leave a phone on
   an old release or mix two releases' modules; it was taken out. A safe one needs the build to write
   Music's file list (as `precache.json` is written for the shell), a cache per release pinned per page,
