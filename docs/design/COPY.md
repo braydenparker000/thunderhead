@@ -359,7 +359,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.devices` | Devices | Row (proposal) |
 | `set.devices.this` | This device | (proposal) |
 | `set.devices.out` / `.outall` | Sign out / Sign out everywhere | (plan §17) |
-| `set.agents` | Agents · Keys for the mind and other tools | Row, with Devices and Password (built; listed again 2026-11-25) |
+| `set.agents` | Agents | Row, with Devices and Password (built; listed again 2026-11-25, no second line) |
 | `set.agents.new` | New token | (proposal) |
 | `set.agents.once` | This shows once. Paste it where it's needed, then close this. | (proposal) |
 | `set.agents.revoke` | Revoke | (proposal) |
