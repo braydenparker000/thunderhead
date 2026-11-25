@@ -413,29 +413,36 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
   } finally {await context.close();}
 });
 
-test('signed-in idle warms Music then Podcasts; frames stay hidden, inert and alive across opens', opts, async t => {
+test('signed-in idle warms Podcasts only, never Music; frames stay hidden, inert and alive across opens', opts, async t => {
   const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
   try {
     const page=await signedIn(context,{saveData:false});
     await page.goto(`${base}/`);
     await page.waitForSelector('iframe.th-app[data-app=podcasts][data-ready=true]',{state:'attached',timeout:20000});
     const parked=await page.locator('iframe.th-app').evaluateAll(frames=>frames.map(f=>({app:f.dataset.app,inert:f.inert,visibility:getComputedStyle(f).visibility,y:f.getBoundingClientRect().y,ready:f.dataset.ready})));
-    assert.deepEqual(parked.map(f=>f.app),['music','podcasts'],'Music warms first');
+    // Music is not loaded until it is opened (the owner, 2026-11-25: its boot costs data).
+    assert.deepEqual(parked.map(f=>f.app),['podcasts'],'only Podcasts warms');
+    assert.deepEqual(await page.evaluate(async()=>(await import('/th/island/island.js')).WARMED),['podcasts']);
     for(const frame of parked){assert.equal(frame.inert,true);assert.equal(frame.visibility,'hidden');assert.ok(frame.y<0);assert.equal(frame.ready,'true');}
-    await page.evaluate(()=>window.retained=[...document.querySelectorAll('iframe.th-app')].map(f=>f.contentWindow));
     const podFirst=await readyOpen(page,'podcasts');await settle(page);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     const podSecond=await readyOpen(page,'podcasts');await settle(page);
     timing(podFirst.ms<300 && podSecond.ms<300,`${JSON.stringify({podFirst,podSecond})}`);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.collapse('test')));
     await page.locator('.compact').click();await settle(page);
+    // Music's first open is cold (under its cover); from then on its frame stays like a warm one.
     const musicFirst=await readyOpen(page,'music');await settle(page);
-    timing(musicFirst.ms<300,`Music ready after idle: ${musicFirst.ms}`);
-    t.diagnostic(JSON.stringify({surface:'music',idleFirstMs:musicFirst.ms,device:'Chromium 390x844, not an A15'}));
+    assert.equal(musicFirst.cold,true,'Music opens cold');
+    timing(musicFirst.ms<3000,`Music cold ready after idle: ${musicFirst.ms}`);
+    t.diagnostic(JSON.stringify({surface:'music',idleColdMs:musicFirst.ms,device:'Chromium 390x844, not an A15'}));
+    await page.evaluate(()=>window.retained=Object.fromEntries([...document.querySelectorAll('iframe.th-app')].map(f=>[f.dataset.app,f.contentWindow])));
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     await page.locator('.compact').click();await settle(page);
     near((await shape(page)).height,180,'switching apps keeps compact controls operable');
-    assert.equal(await page.evaluate(()=>retained.every((w,i)=>w===document.querySelectorAll('iframe.th-app')[i].contentWindow)),true,'same contexts after closing and switching');
+    const musicSecond=await readyOpen(page,'music');await settle(page);
+    timing(musicSecond.ms<300,`Music second ready: ${musicSecond.ms}`);
+    await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
+    assert.equal(await page.evaluate(()=>{const now=Object.fromEntries([...document.querySelectorAll('iframe.th-app')].map(f=>[f.dataset.app,f.contentWindow]));return Object.keys(retained).length===2&&Object.entries(retained).every(([k,w])=>now[k]===w);}),true,'same contexts after closing and switching');
     t.diagnostic(JSON.stringify({surface:'podcasts',idleFirstMs:podFirst.ms,secondMs:podSecond.ms,device:'Chromium 390x844, not an A15'}));
   }finally{await context.close();}
 });
@@ -538,7 +545,8 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     const page=await signedIn(context,{saveData:false});await page.goto(`${base}/`);
     await page.waitForFunction(()=>window.chatLoadedAt!==undefined);
     assert.equal(await page.locator('iframe.th-app').count(),0);
-    await page.waitForSelector('iframe.th-app[data-app=music]',{state:'attached',timeout:8000});
+    // The idle warm loads Podcasts only (Music loads when opened, the owner, 2026-11-25).
+    await page.waitForSelector('iframe.th-app[data-app=podcasts]',{state:'attached',timeout:8000});
     assert.ok(await page.evaluate(()=>performance.now()-chatLoadedAt>=2900),'three-second fallback');
     await readyOpen(page,'music');await settle(page);await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     // A title past 60% of the viewport: the capsule stops at 234 px and fades the title's last 16 px.

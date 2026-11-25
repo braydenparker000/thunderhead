@@ -60,6 +60,8 @@
     new Response(JSON.stringify({ error: WORDS[status] ?? WORDS[503] }), { status, headers: { 'Content-Type': 'application/json' } });
   /** An answer from the network, counted by its headers for the page that asked (th/data/worker.js). */
   const counted = (r, part, client) => (self.thData?.count(part, r, client), r);
+  /** The same, but an answer with no size (the catalogue, compressed and streamed) is counted by the bytes read: use what it returns. */
+  const measured = (r, part, client) => (self.thData?.read ? self.thData.read(part, r, client) : counted(r, part, client));
 
   const deps = {
     fetch: (...a) => fetch(...a),
@@ -322,7 +324,8 @@
       const query = since ? `?since=${encodeURIComponent(since)}` : '';
       // Never through the browser's HTTP cache: the copy is kept here (not twice), and the browser must
       // not revalidate it on its own, with the ETag and without `since`.
-      const r = counted(await upstream(`${base}/v1/music/catalog${query}`, { headers, cache: 'no-store' }, cap.signal, t.bytes), 'music.rest', cap.client);
+      // Its own row in Settings › Data use (`music.catalog`), by the bytes read: it comes with no length.
+      const r = measured(await upstream(`${base}/v1/music/catalog${query}`, { headers, cache: 'no-store' }, cap.signal, t.bytes), 'music.catalog', cap.client);
       // Its answer has started: the download takes as long as it takes.
       cap.done();
       return r;

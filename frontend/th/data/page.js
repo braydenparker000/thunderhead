@@ -13,7 +13,7 @@ import { mergeIn } from './store.js';
 
 /** The part a document is, by its path; everything else is home and the shell. */
 const DOCS = /** @type {const} */ ([
-  [/^\/music\//, 'music.rest'],
+  [/^\/music\//, 'music.app'],
   [/^\/podcasts\//, 'podcasts'],
   [/^\/astra\//, 'astra'],
   [/^\/guitar\//, 'guitar'],
@@ -59,8 +59,10 @@ function start() {
     later();
   };
 
-  /** The part an entry is: a release's file, an app's file by its path, the Worker's API from home; else this document. @param {URL} url */
-  const partOf = (url) => (url.origin === location.origin ? partOfPath(url.pathname) || doc : url.origin === api && doc === 'home' ? 'api' : doc);
+  /** What a file from another site is: this document's part (Music's page: the rest, its app files being its own). */
+  const elsewhere = doc === 'music.app' ? 'music.rest' : doc;
+  /** The part an entry is: a release's file, an app's file by its path, the Worker's API from home; else `elsewhere`. @param {URL} url */
+  const partOf = (url) => (url.origin === location.origin ? partOfPath(url.pathname) || doc : url.origin === api && doc === 'home' ? 'api' : elsewhere);
   const fresh = firstSight();
   /** @param {PerformanceEntryList} list */
   const seen = (list) => {

@@ -123,7 +123,10 @@ imported plays and ratings line up (§11).
 ### 1.3 Catalog delivery
 
 1. `GET /v1/music/catalog` returns the whole catalog without waveforms, with an `ETag`. At 7.5k
-   tracks this is about 1.3 MB compressed; at 20k about 3.5 MB.
+   tracks this is about 1.3 MB compressed; at 20k about 3.5 MB. Cloudflare's edge compresses it
+   (gzip or brotli, as the phone's browser asks): the Worker answers `application/json` with
+   `Cache-Control: no-store`, never `no-transform` or a `Content-Encoding` of its own
+   (`tests/integration/music-delta.test.ts` checks the headers).
 2. The phone revalidates on Music open and every 10 minutes while Music is visible. An unchanged
    catalog costs a 304.
 3. **Built (2026-11-25)** After a full load the phone asks `?since=<the copy's generatedAt>`. When the
@@ -133,7 +136,7 @@ imported plays and ratings line up (§11).
    catalog's `ETag` (`objects/music-delta.ts`, `areas/music/catalog-delta.ts`). It reads the log back
    from its newest row to the copy's time (each commit's time is after the last one's), so its rows
    follow the change, not the catalog. Otherwise (a time the catalog never had, one at or before an
-   import, older than the log's 20,000 kept rows, more than 2,000 songs changed, or no `since`) it
+   import, older than the log's 20,000 kept rows, more than 6,000 songs changed, or no `since`) it
    answers the whole catalog. `If-None-Match` still answers 304 first.
 4. Every song carries `metadata.albumId`: `rg:<mbReleaseGroup>` when it has one, else
    `al:<artist>|<title>`, the album's artist (`albumArtist`, else `artist` without a featured tail)
@@ -162,6 +165,7 @@ data made on one phone now appears on the other. `frontend/th/music/sync.js` (lo
 | List memory (List Position flags and the entry last played per folder or playlist), the queue and its place | `state` `lm:<key>`, `queue`, `queue-list` | No: where this phone is, and what it plays next, stay this phone's |
 | EQ and reverb presets, the visualizer's preset ratings, search history, list and sort options, settings | `cp-eq-presets`, `cp-reverb-presets`, `cp-milk`, `cp-search-history`, `cp-list-opts`, `cp-settings`, … | No: device settings, and the sound must not change |
 | The DJ's learned moves | `th.music.dj` | No: outside the player's stores; it is how this phone has learned to order |
+| The songs heard (History, Previous): an id and a time per play, at most 500 | `cp-play-history` (localStorage) | No: this phone's own, sent nowhere (§20) |
 
 - **When:** a pull when Music opens (once its library is there) and when it becomes visible; a push
   20 s after a change, on hiding the page and when the network returns. The first time, every song
@@ -184,6 +188,15 @@ data made on one phone now appears on the other. `frontend/th/music/sync.js` (lo
   in place and post nothing.
 - A change made while its push is on the way stays queued: a song is cleared only if its change count
   is still the one sent, a playlist's sent stamp is the `modified` that went up.
+- **Saving never loses an edit (2026-11-25).** A pull never replaces a playlist this phone has edited
+  (or deleted) and not yet sent: the push sends it, the Worker's newer-wins decides, and the next pull
+  starts again from where that copy came and takes what the Worker kept. A playlist longer than the
+  Worker takes (5,000 entries, or 450,000 characters) is never cut, since a shorter copy would come back
+  as the newer one: it stays whole on this phone and does not go up, and `th.p.music.sync` names it
+  under `long` (its id and entries). The two PUTs are never held by the rows guard; after the
+  platform's own 429 or 503 the phone sends nothing before its `Retry-After` (or the body's
+  `retry_after`), at most an hour, 60 s when none is given, remembered across reloads, and the
+  playlists wait when the songs were refused. Nothing queued is dropped.
 - **Settings → Reset stats** is a record with its own time (`reset_at`, the newest kept): on the
   Worker, plays last played at or before it read as none and an older count sent later changes
   nothing; on each phone, every song last played before it goes back to no plays at the next pull.
@@ -289,9 +302,13 @@ cover advances exactly one track; long-press opens home with the track attached.
 
 ### 2.6 Library
 
-- **Songs:** virtual list, row height 64, A–Z fast-scroll rail on the right edge (letters
-  accent-folded; Á is under A; digits and symbols under `#`). Sort: Title (default) · Artist ·
-  Album · Recently added · Most played. The sort is remembered.
+- **Songs:** virtual list, row height 64, a fast-scroll rail on the right edge that follows the
+  list's sort (`list/sections.js`): letters for a name sort (accent-folded; Á is under A; digits
+  and symbols under `#`; Z to A when reversed); for a sort by artist, album, album artist, genre,
+  composer or folder, the first letter of that field; years for a year sort; months for a date sort,
+  with the month and day in the bubble; the plain thumb, without sections, where the sort has none
+  (number sorts). Sort: Title (default) · Artist · Album · Recently added · Most played. The sort is
+  remembered.
 - **Albums:** two-column grid of covers (radius 16) with title and artist under each. Sort: Title ·
   Artist · Year · Recently added.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
@@ -397,6 +414,8 @@ shuffle with no repeat across 1,000 seeded runs.
 
 ### 4.1 Owner playlists
 
+As built in the ported player: §21 (2026-11-25). The original plan, kept for reference:
+
 - Create from: Playlists tab "New playlist" button, any song's "Add to playlist › New playlist", or
   by asking the Thunderhead.
 - Default name "Playlist N" (lowest unused N). Rename from the playlist's menu. Names ≤ 100
@@ -459,10 +478,12 @@ loads that way when its turn comes. Switched off on one phone with `localStorage
 fetched twice). The feed itself can play a whole queue on one element (the lab uses that). Each song's Ogg Opus file is read in Range requests of 32–128 KB on its signed link
 (`track.js`). Its pages are demuxed as they arrive (`ogg.js`: the capture pattern and CRC of every
 page are checked) and the same Opus packets are written as WebM (`webm.js`). Nothing is re-encoded and
-nothing changes in the bucket. At most 60 s is appended ahead of the play position (the owner,
-2026-11-01; it was 15 s, which a tunnel or a switch between Wi-Fi and mobile data outlasted): fetching
-stops at the cap and starts again under 30 s, so the refill comes in bursts and the radio rests between
-them, and what lies more than 10 s behind is removed (`plan.js`). The
+nothing changes in the bucket. At most 20 s is appended ahead of the play position, the same on every
+connection (the owner, 2026-11-25; it was 60 s from 2026-11-01, which fetched a minute of every song
+skipped): fetching stops at the cap and starts again under 12 s, so the refill comes in bursts and the
+radio rests between them; 12 s rather than 10 so a link that keeps up stays above the 10 s that covers
+and song heads wait for (`player.js` `HEADS_AFTER_BUFFERED_S`). The next song's deck, preloaded 30 s
+before the end, fills its own 20 s and no more. What lies more than 10 s behind is removed (`plan.js`). The
 next song joins at the exact sample where the last one ended. Its pre-skip is trimmed by
 `appendWindowStart`, the last song's end padding by `appendWindowEnd`, and the init segment's OpusHead
 says pre-skip 0. Chromium's decoder drops a head's pre-skip itself only when the head changes, so a
@@ -855,8 +876,8 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   little freshness, none just after a release), over HTTP/1.1's six connections at 300 ms each. Lab (the
   real page and worker against a site that answers like Azure, a mock Worker, one 1.35 Mbps link with
   300 ms per request, cache warm, worker started afresh): 69–104 requests and 0.9–1.1 MB before `modules`.
-  Home's ring frame is created at home's idle (`th/island/warm.js`, signed in, no Data Saver) and the
-  worker controls it; the cost was the requests. Not fixed: a worker that served a release kept whole
+  Home's ring frame was created at home's idle (`th/island/warm.js`; since 2026-11-25 only when Music is
+  first opened) and the worker controls it; the cost was the requests. Not fixed: a worker that served a release kept whole
   first cut `modules` to about 0.7 s in the lab (4x), but a second reading found it could leave a phone on
   an old release or mix two releases' modules; it was taken out. A safe one needs the build to write
   Music's file list (as `precache.json` is written for the shell), a cache per release pinned per page,
@@ -1006,7 +1027,11 @@ covers are in their files (`artId` `embedded:`). Found:
   download slot, until the playing song pauses or sounds with 10 s of its stream ahead, at most 3 s
   (`Player.linkFree`, `frontend/music/src/player/link-free.js`: read on the deck's own events, one wait for
   every caller, no polling); past 3 s covers load one at a time at low priority (`Library.lowSlot`). A cover
-  is read once for every caller (`Library.remoteCover`). The tapped song's first 10 s were on the phone after
+  is read once for every caller (`Library.remoteCover`). Since 2026-11-25 only grid covers wait: the player's
+  covers are a small request each and go at once, also by joining a grid read that waits; until a full cover is
+  there the player shows its thumbnail. A cover that fails is asked again after 2 s, 8 s and 30 s, then at a bind
+  or when the phone is back online (a 404 stays final), and songs sharing one bucket cover (`coverKey`) share
+  its download, thumbnail and memo. The tapped song's first 10 s were on the phone after
   5.0–6.9 s, now 3.0–3.4 s; first sound 708 / 1,278 / 609 ms, now 583–601 / 925–940 / 626 ms (one run each).
 - **A stall reloaded a song whose request was about to deliver.** With the link dead from 3 s to 18 s after
   a tap, the guard reloaded at 10 s of waiting: the new deck sought the file again (five ranges) and played
@@ -1061,6 +1086,14 @@ step (ask first). Without it the EQ path outputs silence.
 - New downloads wait until the current track has sounded for 30 s, so skipped songs cost nothing.
 - `navigator.storage.persist()` is requested after the first "Keep offline".
 - Settings shows: used / budget, number of songs, **Delete offline copies** (asks once).
+- **[built] Songs played** (owner, 2026-11-25; `library/played-cache.js`, cache `claude-player-played`):
+  a streamed song whose stream read every byte, from its first to its last, is kept whole from those
+  bytes (`track.js` `keep`, `feed.js` `keep`, `deck.js` `onWhole`), so playing it again costs no network:
+  it opens as a blob URL like an offline copy and needs no head. No download is ever made for it; a song
+  whose stream skipped bytes with a seek is not kept, since filling the gap would cost one (it is kept
+  next time it is played through). At most 200 MB, the song played longest ago out first; on by default
+  on every connection; Settings › On this phone › **Music · Songs played** clears it. Tested in
+  `tests/music-played.test.mjs`.
 
 ### 7.3 Offline browsing and search
 
@@ -1642,6 +1675,72 @@ Below **Listening history**, **What I know about your music** (`frontend/apps/se
 In Settings › Music, under the counts, **Picks to add** lists the picks still `new` (at most 10), each by its line with a **Play** button (`frontend/apps/settings/music-picks.js`). Play asks `GET /v1/music/picks/:id/preview` (device only, [API.md §11.9](../../engineering/API.md)). The Worker asks Apple's iTunes Search API, without a key, for the pick's artist and album as MusicBrainz names them (nothing of the owner), takes the song whose artist is the pick's and whose album is the pick's or starts with it (" - EP") after the titles' folding (`fold`, §19.1), the same album first and then the lowest track, and passes its 30-second clip through: audio only, at most 3 MB, from `https` on `*.apple.com`, `*.mzstatic.com` or `*.dzcdn.net` only (`areas/music/preview.ts`, `preview-fetch.ts`). Apple answers the Worker 429 in production, so when Apple refuses or has no such album the Worker asks Deezer's search the same way (`artist:"…" album:"…"`, no key; 2026-11-25) and takes the first song of the pick's album (or of one whose title starts with it). So the phone talks only to the Worker, and neither service sees the phone. No preview, or both refusing, is 404 and the row says "No preview for this one."; a lookup while both were asked within the last second (each host its own gate, per isolate) is 429. Nothing is written: the address found, or a miss (both asked, one answered without the album), is remembered in the isolate's memory (200 picks). The phone plays the clip from a blob (the shell's CSP has `media-src blob:` for it). One plays at a time, a second tap stops it, leaving the page stops it, and nothing plays without a tap. Loading, offline and error lines as the page's others.
 
 **In a reply (2026-11-25).** When the mind offers a pick by its line, the line ends with `(pick:<MusicBrainz id>)` (`mind/skills/music.md`). The chat renderer (`frontend/th/chat/rich.js`, the token parsed as a `pick` part; `th/chat/pick.js` draws it) shows a small **Play** in its place, on home and in an older conversation alike (`th/convos/past.js` uses the same renderer). The playing is one module for both places (`frontend/th/music/preview.js`, loaded by a reply on its first tap): one preview at a time across Settings and chat, a second tap stops it, leaving the page or the button leaving the screen stops it, nothing plays without a tap, and a 404 reads "No preview for this one." beside the button. Only a lower-case UUID makes a button; any other text stays as it is.
+
+## 20. Up next and History (2026-11-25, owner's rulings)
+
+No new button anywhere. The playing song's menu (the cover held, or its three dots) has a row of
+four at its top, in the selection bar's button style: **Play next**, **Add to queue**, **Up next**,
+**History** (`widgets/up-next.js`, added in code by `queueMenuItems`; the reference's menu is
+unchanged).
+
+- **Up next** is the app's list dialog over the player (a bottom sheet; Back, a tap outside or a drag
+  down closes it): *Now playing* (the row marked as the playing row is), *Next up* (the songs queued
+  by hand and not played yet, in their order, each with its drag handle; Clear in the subhead's
+  button; empty: "Nothing queued. Hold a song and choose Play next."), then *Then, from <the list>*:
+  the next 30 songs of the playing list in their real order (its order, shuffle or the DJ's plan,
+  `Player.ahead`), 30 more as the end shows. A tap plays a row now; a swipe left takes a Next up row
+  out, or passes over a list song this time round (`Player.skipOnce`). Rows slide to their new places.
+- **History**: the songs heard, newest first, with when ("2 min ago", "Yesterday 21:14"); a tap plays
+  it (where it is in the playing list, else now, ahead of the queued songs). A play is written once it
+  has sounded 10 s (`player/play-history.js`); one entry per play; at most 500; on this phone only.
+- **The Undo bar** (`widgets/undo-bar.js`, `ctx.undoBar.show(message, onUndo)`): the lower toast's
+  frame with Undo at its right, above the mini-player, 5 s, one at a time, also over a dialog. Clear,
+  a swipe, Play next / Add to queue (also from the selection bar) use it.
+- **Queue rules** (`player/queue-moves.js`): queued songs play in the order chosen whatever the
+  shuffle or the DJ (they order only the list; "Ignore Shuffle" is now always so); a song tapped
+  elsewhere, or search's Play / Shuffle, keeps them: they play after it; played ones leave Next up;
+  the cover's and mini-player's pages show what Next and Previous really play (a queued song, a wrap).
+  **Previous** (with "<< Button Resets Current Track", now on by default): after 5 s the song starts
+  again; within them, the song heard before plays, pressed again the one before that; with no history,
+  the list's previous song. Off: always the list's previous song. The swipes keep the list's order.
+
+Tests: `tests/music-up-next.test.mjs`, `tests/music-up-next-browser.test.mjs`.
+
+## 21. Playlists (2026-11-25, owner's rulings)
+
+No new button on the player or the mini-player. Everything uses the app's own dialogs, the Undo bar
+(§20) and its menus (`widgets/playlist-edit.js`; the model in `library/playlists.js`).
+
+- **A new playlist asks its name first**: the text dialog with "Playlist N" offered and selected,
+  the keyboard up; Cancel makes nothing. From Add to Playlist (its + button) the songs go straight
+  into it and the dialog says "Added to *Name*" with Open, as when a playlist is picked. A name is
+  trimmed, at most 100 characters, and one in use (letter case aside) takes " 2", " 3"… instead of
+  an error; the same for Rename.
+- **Rename** inside a playlist: a tap on its title in the header, or its menu's **Rename**; the menu
+  also has **Delete** and **Clear** (`playlistMenuItems`). Rename from the Playlists list's
+  selection stays. Rescan / Resolve Playlists is not offered in a playlist made here (nothing to
+  resolve), so the menu keeps its height.
+- **Undo** (the Undo bar, 5 s): songs removed from a playlist (no question asked) come back at their
+  places; Clear (asked first) brings every song back; a deleted playlist (asked first; from inside
+  it, the list then goes back to Playlists) comes back whole, with its id, and the deletion the sync
+  had queued is dropped (`th/music/sync.js` `watch`), so it goes up as a changed playlist, not a new one.
+- **Re-Sort shows, Save keeps**: a choice in a playlist's Re-Sort shows it in that order and stores
+  nothing; the order lasts while the playlist is open (Random keeps the order it drew). **Save this
+  order** makes it the playlist's (with Undo). Rows drag (selection mode) only in the playlist's own
+  order. The Queue's Re-Sort is as before.
+- **Duplicates**: adding songs a playlist holds asks *Add anyway* or *Skip duplicates* in the confirm
+  dialog, saying how many are there; nothing is asked when none are; with **Don't Add Duplicates**
+  (`pl_no_dups`) on they are skipped without asking.
+- **Back** closes any of these dialogs (Add to Playlist, the name, the confirm, Re-Sort), one at a
+  time, newest first, without moving the list (`dialog.js` `closeOnBack`).
+- **Counts agree**: the Playlists list's count and its "Number of tracks" sort both count the songs
+  in the library; the Add to Playlist rows show each playlist's count and length. An empty playlist
+  shows "No songs yet. Hold a song and choose Add to playlist." in the hint text; its Play and
+  Shuffle do nothing.
+- **Library home**: Streams and Bookmarks, which can hold nothing here, are neither shown nor
+  offered in List Options, whatever a saved setting says.
+
+Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs`.
 
 ## Not built
 

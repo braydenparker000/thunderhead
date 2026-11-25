@@ -79,5 +79,11 @@ export async function catalogGet(E: Env, token: string, query = '', headers: Rec
     createExecutionContext(),
   );
   const text = await r.text();
-  return { status: r.status, etag: r.headers.get('ETag'), text, body: text ? JSON.parse(text) : null };
+  return {
+    status: r.status,
+    etag: r.headers.get('ETag'),
+    headers: r.headers,
+    text,
+    body: text ? JSON.parse(text) : null,
+  };
 }

@@ -7,6 +7,8 @@ import { drop } from './line.js';
 import { holdHeight } from './hold-height.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 export const layered = (/** @type {string} */ id) => LAYERED.includes(id);
+/** Loaded at idle; not Music (owner, 2026-11-25): its boot costs data, so it loads when opened. */
+export const WARMED = Object.freeze(LAYERED.filter(id => id !== 'music'));
 /** Shared state; c, s, h are the modules. @type {{layer:import('./frames.js').Layer|null,island:HTMLDivElement|null,expanded:boolean,touching:boolean,held:boolean,flight:number,dir:number,from:number,c:any,s:any,h:any}} */
 export const st = { layer: null, island: null, expanded: false, touching: false, held: false, flight: 0, dir: 0, from: 0, c: null, s: null, h: null };
 /** @type {{end:number,timer:number}|null} */
@@ -78,9 +80,9 @@ export async function warm() {
   await navigator.serviceWorker.ready;
   await styles();
   for (const f of ['capsule', 'shape', 'hand']) document.head.append(Object.assign(document.createElement('link'), { rel: 'modulepreload', href: `/th/island/${f}.js` }));
-  for (const id of LAYERED) {
+  for (const id of WARMED) {
     if (no()) return;
-    // A failed Music boot must not keep Podcasts from warming forever.
+    // A failed boot must not keep the next from warming forever.
     await Promise.race([retain(id, watch).loaded, new Promise(r => setTimeout(r, 15_000))]);
   }
 }

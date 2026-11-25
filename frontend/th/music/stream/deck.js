@@ -2,15 +2,16 @@
 // One deck of Music's player, streamed (NEXT-BATCH.md part 2; MUSIC.md §5): the player's decks stay as
 // they are (its cross-fades, gapless joins, the lock screen and the AirPods all work as before), but a
 // deck playing a song from the network gets it through the stream feed instead of `src`: it starts
-// from the first bytes (the song heads the worker keeps, so at once), holds at most 60 s ahead, and
+// from the first bytes (the song heads the worker keeps, so at once), holds at most 20 s ahead, and
 // never asks for the whole file. The song starts at the element's time 0, so the player's own
 // position, length, seeks and end are the song's. Every move of the deck's position (the player's
 // seeks, a reload or a restored place, from wherever it sets `currentTime`) goes through here: before
 // the song streams it is where it starts; after, inside the buffer the element moves itself, outside
 // it the feed fetches from there, and a later move wins over one still on its way. A deck the player
 // isn't going to play yet ('none') waits for its first play before it fetches anything. The feed's
-// exact length (at its end of stream) corrects the catalog's (onLength). On any trouble the feed gives
-// up (`fallback`) and the player goes back to the plain element for that song.
+// exact length (at its end of stream) corrects the catalog's (onLength). Once every byte of the song is
+// read, `onWhole` gets the file (the player keeps it, so a replay costs no network). On any trouble the
+// feed gives up (`fallback`) and the player goes back to the plain element for that song.
 import { covered, supported } from './buffer.js';
 import { StreamFeed } from './feed.js';
 
@@ -42,10 +43,11 @@ const TIME = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(
  * Streams `url` (the song `t`) into the deck `el`. `before`: waited for before the first read (the
  * song's head finishing its download, so the start comes from the phone).
  * @param {HTMLAudioElement} el @param {string} url @param {any} t
- * @param {{ lazy?: boolean, before?: (() => Promise<unknown>) | null, onFallback: (d: { reason: string, ms: number }) => void, onLength?: (s: number) => void, log?: (type: string, data: object) => void }} o
+ * @param {{ lazy?: boolean, before?: (() => Promise<unknown>) | null, onFallback: (d: { reason: string, ms: number }) => void, onLength?: (s: number) => void, onWhole?: (bytes: Uint8Array) => void, log?: (type: string, data: object) => void }} o
  */
 export function streamInto(el, url, t, o) {
-  const feed = new StreamFeed(el);
+  const onWhole = o.onWhole;
+  const feed = new StreamFeed(el, onWhole ? { keep: (_track, bytes) => onWhole(bytes) } : {});
   const track = { id: String(t.id), url: () => url, bytes: Number(t.size) || undefined, durationMs: Number(t.durationMs) || undefined };
   let asked = false;
   let loaded = false;

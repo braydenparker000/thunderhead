@@ -26,8 +26,14 @@ const NOT_READY = Symbol('not ready');
 const SIGNED_OUT = Symbol('signed out');
 /** The words for it (COPY.md: plain, short). */
 const NOT_YET = { signedOut: 'Sign in to use Podcasts.', down: "Podcasts can't be reached right now." };
-/** An answer from the network, counted for the data meter by its headers. @param {Response} r */
-const counted = (r) => (/** @type {any} */ (self).thData?.count('podcasts', r), r);
+/** An answer from the network, counted for the data meter: by its headers, or by the bytes read when they give no size
+ * (th/data/worker.js `read`, which hands back the answer to use). @param {Response} r @returns {Response} */
+const counted = (r) => {
+  const meter = /** @type {any} */ (self).thData;
+  if (meter?.read) return meter.read('podcasts', r);
+  meter?.count('podcasts', r);
+  return r;
+};
 
 const deps = {
   /** @type {typeof fetch} */

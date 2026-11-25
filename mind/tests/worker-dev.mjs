@@ -17,16 +17,41 @@ export const USERNAME = 'example-owner';
 export const PASSWORD = 'correct horse battery staple 42';
 const DEVICE = {platform: 'Android', browser: 'Chrome', standalone: false};
 
-const freePort = () => new Promise((resolve, reject) => {
-  const s = createServer();
-  s.on('error', reject);
-  s.listen(0, '127.0.0.1', () => { const {port} = s.address(); s.close(() => resolve(port)); });
-});
+// n distinct free ports: each is held open until all are picked, so two of them are never the same.
+const freePorts = async n => {
+  const servers = [];
+  try {
+    for (let i = 0; i < n; i++) {
+      servers.push(await new Promise((resolve, reject) => {
+        const s = createServer();
+        s.on('error', reject);
+        s.listen(0, '127.0.0.1', () => resolve(s));
+      }));
+    }
+    return servers.map(s => s.address().port);
+  } finally {
+    await Promise.all(servers.map(s => new Promise(r => s.close(r))));
+  }
+};
+// A port picked free can be taken by another test's server before wrangler binds it: wrangler then
+// exits saying so, and the start is tried again on fresh ports (a few times).
+const PORT_TAKEN = /Address already in use/;
+const PORT_TRIES = 3;
 
 export const available = () => existsSync(WRANGLER);
 
 /** @returns {Promise<{url: string, call: Function, stop: () => Promise<void>, log: () => string}>} */
 export async function startWorker({timeoutMs = 120_000, vars = {}} = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startOnce({timeoutMs, vars});
+    } catch (e) {
+      if (!(e.portTaken && attempt < PORT_TRIES)) throw e;
+    }
+  }
+}
+
+async function startOnce({timeoutMs, vars}) {
   const dir = mkdtempSync(join(tmpdir(), 'th-e2e-'));
   const envFile = join(dir, '.env');
   writeFileSync(envFile, [
@@ -47,8 +72,7 @@ export async function startWorker({timeoutMs = 120_000, vars = {}} = {}) {
     ...Object.entries(vars).map(([k, v]) => `${k}=${v}`),
     '',
   ].join('\n'));
-  const port = await freePort();
-  const inspector = await freePort();
+  const [port, inspector] = await freePorts(2);
   const child = spawn(process.execPath, [WRANGLER, 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port),
     '--inspector-port', String(inspector), '--persist-to', join(dir, 'state'), '--env-file', envFile,
     '--var', 'AUTH_HIBP:off', '--show-interactive-dev-session=false'],
@@ -66,7 +90,10 @@ export async function startWorker({timeoutMs = 120_000, vars = {}} = {}) {
   };
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    if (child.exitCode !== null) { await stop(); throw new Error(`wrangler dev exited (${child.exitCode}):\n${log.slice(-2000)}`); }
+    if (child.exitCode !== null) {
+      await stop();
+      throw Object.assign(new Error(`wrangler dev exited (${child.exitCode}):\n${log.slice(-2000)}`), {portTaken: PORT_TAKEN.test(log)});
+    }
     try { if ((await fetch(`${url}/v1/health`)).status === 200) break; } catch { /* not up yet */ }
     if (Date.now() > deadline) { await stop(); throw new Error(`wrangler dev did not start in ${timeoutMs} ms:\n${log.slice(-2000)}`); }
     await new Promise(r => setTimeout(r, 300));

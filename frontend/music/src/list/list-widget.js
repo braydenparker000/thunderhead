@@ -24,11 +24,14 @@ import {whenStill} from '../view/motion.js';
 import {VelocityTracker, TOUCH_SLOP_DP, MAX_FLING_DP, cubicOut, elastic, pagerScroll} from '../gesture.js';
 import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
-import {alertDialog, editNameDialog} from '../widgets/dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
+import {queueMenuItems} from '../widgets/up-next.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
-import {openResortDialog} from '../widgets/resort-dialog.js';
+import {keepPlace} from './relocate.js';
+import {openResortDialog, REVERSE as RESORT_REVERSE} from '../widgets/resort-dialog.js';
+import {orderShown} from '../library/playlists.js';
+import {clearPlaylist, deletePlaylists, newPlaylist, playlistMenuItems, removeSongs, renamePlaylist, saveOrder} from '../widgets/playlist-edit.js';
 import {exportPlaylists} from '../library/playlist-files.js';
 import {LyricsPage} from './lyrics.js';
 import {elevationShadow} from '../view/drawables.js';
@@ -172,18 +175,19 @@ export class AAItemView extends SceneFastLayout {
       this.num?.setText(n.num ?? '');
       if (labels) for (const k of ['title', 'line2', 'meta', 'num']) if (labels[k] != null) this[k]?.setText(labels[k]);
     }
-    // List rows use cached thumbnails; the player's cover items the full image.
+    // List rows use cached thumbnails; the player's cover items the full image, with the thumbnail until it is decoded.
     const field = this.useThumb ? 'thumb' : 'art';
-    const have = track?.[field] ?? (this.useThumb ? track?.art : null) ?? null;
+    const have = track?.[field] ?? track?.[this.useThumb ? 'art' : 'thumb'] ?? null;
     this.image?.setArt(have);
-    if (track && !have && (track.artId || this.ctx.library?.customArt?.size) && this.ctx.library) {
+    const lib = this.ctx.library;
+    if (track && !(this.useThumb ? have : track.art) && (track.artId || lib?.customArt?.size) && lib) {
+      const show = (art, f) => { if (art && this.track === track) { track[f] = art; this.image?.setArt(art); } };
       // Rows only download once they stay on screen (still bound to this track).
-      (this.useThumb ? this.ctx.library.thumbFor(track, () => this.track === track && this.visibility === VISIBLE) : this.ctx.library.artFor(track)).then(art => {
-        if (art && this.track === track) {
-          track[field] = art;
-          this.image?.setArt(art);
-        }
-      });
+      if (this.useThumb) lib.thumbFor(track, () => this.track === track && this.visibility === VISIBLE).then(art => show(art, 'thumb'));
+      else {
+        if (!have) lib.thumbFor(track).then(art => { if (!track.art) show(art, 'thumb'); });
+        lib.artFor(track).then(art => art && decoded(art)).then(art => show(art, 'art'));
+      }
     }
   }
 
@@ -228,6 +232,14 @@ export class AAItemView extends SceneFastLayout {
     if (hidden?.size) for (const id of hidden) this.findViewById(id)?.setVisibility(GONE);
   }
 }
+
+/** The cover once its image is decoded: a thumbnail it replaces leaves no blank frame between. */
+const decoded = art => {
+  if (typeof Image !== 'function') return Promise.resolve(art);
+  const img = new Image();
+  img.src = art.url;
+  return img.decode().then(() => art, () => art);
+};
 
 /** Album art: fit rule of the reference (width-fit unless clearly portrait), rounded corners, elevation shadow. */
 export class AAImageView extends View {
@@ -498,7 +510,8 @@ export class ListWidget extends FastLayout {
     this.items = new Map(); // rel -> AAItemView
     this.spare = [];
     ctx.bus.subscribe('bus_player', (msg, src, d) => {
-      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed') {
+      // (The Queue too: the pages show the song Next and Previous really play, Player.previewAt.)
+      if (msg === 'msg_player_track_changed' || msg === 'msg_player_shuffle_mode_changed' || msg === 'msg_player_repeat_mode_changed' || msg === 'msg_player_category_changed' || msg === 'msg_player_queue_changed') {
         const dir = msg === 'msg_player_track_changed' ? this.advanceDir() : 0;
         this.rebind();
         this.requestLayout();
@@ -512,6 +525,10 @@ export class ListWidget extends FastLayout {
         // Rebuilt once no transition moves (view/motion.js), from the Queue as it is then.
         if (top?.kind === 'queue' && !this.libList.reorder) whenStill(this.ctx, () => { const t = this.stack[this.stack.length - 1]; if (t?.kind === 'queue' && !this.libList.reorder) this.replaceTop(t.rebuild?.()); }, 'queue-rebuild');
         this.schedulePrepare();
+      }
+      // The Library home's Queue row counts the Queue as it is (also when the home was built hidden, prepareLibrary).
+      if (msg === 'msg_player_queue_changed' || (msg === 'msg_player_track_changed' && !d?.meta)) {
+        whenStill(this.ctx, () => this.rebindHome(), 'home-queue-counter');
       }
     });
     ctx.bus.subscribe('bus_library', msg => { this.allSongsKept = null; if (msg === 'msg_library_changed') this.schedulePrepare(); });
@@ -617,15 +634,20 @@ export class ListWidget extends FastLayout {
     ctx.bus.subscribe('bus_data', msg => {
       if (msg !== 'msg_playlists_changed') return;
       const top = this.stack[this.stack.length - 1];
+      // A Playlists list under the shown level is made again too (a playlist deleted or renamed from inside it).
+      for (let i = 0; i < this.stack.length - 1; i++) {
+        const was = this.stack[i];
+        if (!was.isPlaylists) continue;
+        const {savedScroll, openedFrom, fromSearch, searchParent} = was;
+        this.stack[i] = Object.assign(playlistsSource(ctx, this.libList, this.nav), {savedScroll, openedFrom, fromSearch, searchParent});
+      }
       if (top?.ownChange) return;
       if (top?.isPlaylists) this.replaceTop(playlistsSource(ctx, this.libList, this.nav));
-      else if (top?.playlist) this.replaceTop(playlistSource(ctx, this.libList, this.nav, top.playlist));
+      else if (top?.playlist) this.replaceTop(playlistSource(ctx, this.libList, this.nav, top.playlist, top.view));
     });
+    // A catalogue refresh keeps the list where it is (relocate.js): its levels made again in place.
     ctx.bus.subscribe('bus_library', () => {
-      if (this.stack.length) {
-        this.stack = [];
-        if (this.mode === 'list') this.openHome();
-      }
+      if (this.stack.length) whenStill(ctx, () => keepPlace(this), 'library-keep-place');
     });
   }
 
@@ -656,7 +678,13 @@ export class ListWidget extends FastLayout {
         openAlbumArt(ctx, t);
         break;
       }
-      case 'cmd_data_add_playlist': P?.create(); break;
+      // A new playlist is named first (Cancel makes none).
+      case 'cmd_data_add_playlist': newPlaylist(ctx); break;
+      case 'cmd_list_pl_rename': if (src?.playlist && P?.get(src.playlist.id)) renamePlaylist(ctx, src.playlist); break;
+      // Delete from inside the playlist: asked, then back to the Playlists list (Undo brings it back there).
+      case 'cmd_list_pl_delete':
+        if (src?.playlist && P?.get(src.playlist.id)) deletePlaylists(ctx, [src.playlist], {then: () => this.upToPlaylists(src.playlist)});
+        break;
       case 'cmd_list_share': {
         // The current track through the platform share sheet (as text).
         const t = ctx.player?.track;
@@ -678,12 +706,14 @@ export class ListWidget extends FastLayout {
         break;
       case 'cmd_list_resort_dialog':
         if (src?.playlist) {
+          // A playlist shows in the order chosen while it is open; Save this order keeps it (with Undo).
           const pl = src.playlist, byId = ctx.library?.byId;
           openResortDialog(ctx, {
-            name: pl.name,
+            name: pl.name, current: src.view?.value ?? null,
             entries: () => pl.ids.filter(id => byId?.has(id)).map(id => ({track: byId.get(id)})),
-            // Entries whose files are missing keep their order after the sorted ones.
-            apply: sorted => P.reorder(pl, [...sorted.map(e => e.track.id), ...pl.ids.filter(id => !byId?.has(id))]),
+            // Random keeps the order it drew for as long as it is shown.
+            apply: (sorted, value) => this.viewPlaylist(pl, {value, rank: (value & ~RESORT_REVERSE) === 9 ? new Map(sorted.map((e, i) => [e.track.id, i])) : null}),
+            save: () => this.saveShownOrder(pl),
           });
         } else if (src?.kind === 'queue') {
           const p = ctx.player;
@@ -699,13 +729,13 @@ export class ListWidget extends FastLayout {
         if (src?.clearable) {
           saveListOpts(src.optsKey, {from: msg === 'cmd_list_clear_list' ? Date.now() : 0});
           this.replaceTop(src.rebuild?.());
-        } else if (msg === 'cmd_list_clear_list' && src?.playlist) alertDialog(ctx, {title: src.playlist.name, message: str('clear') + '?', positive: str('clear'), onPositive: () => P.removeAt(src.playlist, src.playlist.ids.map((_, i) => i))});
+        } else if (msg === 'cmd_list_clear_list' && src?.playlist) clearPlaylist(ctx, src.playlist);
         break;
       case 'cmd_list_rename_dialog': {
         const g = src?.isPlaylists ? src.groups[selected()[0]] : null;
         if (!g) break;
         list.endSelection();
-        editNameDialog(ctx, {title: str('rename'), value: g.pl.name, onDone: name => P.rename(g.pl, name)});
+        renamePlaylist(ctx, g.pl);
         break;
       }
       case 'cmd_list_delete_dialog': {
@@ -714,12 +744,12 @@ export class ListWidget extends FastLayout {
         if (src?.isPlaylists) {
           const pls = idx.map(i => src.groups[i].pl);
           list.endSelection();
-          alertDialog(ctx, {title: str('delete'), message: pls.map(p => p.name).join(', '), positive: str('delete'), onPositive: () => pls.forEach(p => P.remove(p))});
+          deletePlaylists(ctx, pls);
         } else if (src?.playlist) {
-          // In a playlist, Delete removes the entries (the music stays).
+          // In a playlist, Delete removes the entries at once (the music stays), with Undo.
           const pl = src.playlist, pos = idx.map(i => src.entryIndex?.[i] ?? i);
           list.endSelection();
-          P.removeAt(pl, pos);
+          removeSongs(ctx, pl, pos);
         } else if (src?.kind === 'queue') {
           // In the Queue, Delete takes the entries out of it (the list follows msg_player_queue_changed).
           list.endSelection();
@@ -746,6 +776,9 @@ export class ListWidget extends FastLayout {
     if (!src?.playlist && !src?.clearable) hide.add('clear');
     if (!src?.clearable) hide.add('show_all');
     if (src?.kind !== 'queue') hide.add('clear_q');
+    // Resolve Playlists has nothing to resolve in a playlist made here (no file behind it), and its
+    // Rename and Delete then fit the menu's height.
+    if (src?.playlist && !src.playlist.path) hide.add('rescan');
     if (!src?.optsKey) hide.add('list_options');
     // Album Art (g32.d0): an entry's songs of an art-bearing category (rg1:
     // albums, artists, album artists, composers, genres, playlists); the
@@ -763,7 +796,11 @@ export class ListWidget extends FastLayout {
       if (c.id === 'rescan') { c._menuText ??= c.text; c.setText(src?.playlist ? this.ctx.res.stringByName('rescan_resolve_playlists') : kind === 'folder' ? this.ctx.res.stringByName('rescan_this_folder') : c._menuText); }
       if (c.id === 'album_art') { c.setVisibility(VISIBLE); c.setText(this.ctx.res.stringByName(HUMAN_ENTRY_KINDS.has(kind) ? 'art_image' : 'album_art') ?? c.text); }
       if (src?.clearable && (c.id === 'clear' || c.id === 'show_all')) c.setVisibility(VISIBLE);
+      // A playlist's Clear (asked, with Undo), which its menu never showed.
+      if (src?.playlist && c.id === 'clear') c.setVisibility(VISIBLE);
       if (c.id === 'resort' && !hide.has('resort')) c.setVisibility(VISIBLE);
+      // Rename and Delete: a playlist's own (playlist-edit.js playlistMenuItems).
+      if (c.id === 'pl_rename' || c.id === 'pl_delete') c.setVisibility(src?.playlist ? VISIBLE : GONE);
       if (!c.id && c.text === exportText) c.onClick = () => exportPlaylists(this.ctx);
     }
   }
@@ -790,6 +827,31 @@ export class ListWidget extends FastLayout {
     this.open(playlistsSource(this.ctx, this.libList, this.nav));
     const src = playlistSource(this.ctx, this.libList, this.nav, pl);
     if (src) this.open(src);
+  }
+
+  /** The open playlist shown in a Re-Sort order (view), nothing stored; null: its own order. */
+  viewPlaylist(pl, view) {
+    const top = this.stack[this.stack.length - 1];
+    if (top?.playlist !== pl) return;
+    this.replaceTop(playlistSource(this.ctx, this.libList, this.nav, pl, view));
+  }
+
+  /** Save this order: the order shown becomes the playlist's (missing entries after it), with Undo. */
+  saveShownOrder(pl) {
+    const top = this.stack[this.stack.length - 1];
+    if (top?.playlist !== pl || !top.view) return;
+    const ids = orderShown(pl, top.entryIndex);
+    // The list then shows the playlist's own order, which is now this one.
+    top.view = null;
+    saveOrder(this.ctx, pl, ids);
+  }
+
+  /** After the open playlist is deleted: the Playlists list (Back to it when it is the level below). */
+  upToPlaylists(pl) {
+    const top = this.stack[this.stack.length - 1];
+    if (top?.playlist !== pl || this.mode !== 'list') return;
+    if (this.stack[this.stack.length - 2]?.isPlaylists && !this.searchShown) history.back();
+    else this.replaceTop(playlistsSource(this.ctx, this.libList, this.nav));
   }
 
   get nav() {
@@ -888,8 +950,9 @@ export class ListWidget extends FastLayout {
   }
 
   /**
-   * Search Play / Shuffle (vo1.g0): the results play through a fresh Queue
-   * (clean_and_play) with a toast. With search_play_tracks, when songs are
+   * Search Play / Shuffle (vo1.g0): the results play as the list (the
+   * reference played them through a fresh Queue, which cleared the songs
+   * queued: Player.playAsQueue). With search_play_tracks, when songs are
    * the last results, only the found songs; otherwise every result row's
    * songs in order.
    */
@@ -900,8 +963,6 @@ export class ListWidget extends FastLayout {
     const tracks = rows.flatMap(r => (r.sep ? [] : r.track ? [r.track] : onlySongs ? [] : r.group.tracks));
     if (!tracks.length) return;
     this.ctx.player.playAsQueue(tracks, shuffle ? 2 : 0);
-    const str = this.ctx.res.stringByName('playing_q_from_search') ?? 'Playing Queue from search';
-    this.ctx.bus.post('bus_gui', 'cmd_gui_show_toast', this, {title: str});
     if ((this.ctx.settings.list_item_action ?? 1) === 1) this.ctx.bus.post('bus_gui', 'cmd_nav_to_main', this);
   }
 
@@ -1617,7 +1678,9 @@ export class ListWidget extends FastLayout {
           this.trans = null;
           this.stack = saved.stack;
           if (fromPage === 'list' || target === 'list') { this.libList.setSource(saved.source); this.libList.scrollTo(saved.scroll); }
-          if (toPage === 'list' && fromPage !== 'list') this.libList.visibility = GONE;
+          // The list goes again, and its rail with it (setMode's mode 0): left up, it would stand over
+          // the player and take the waveform's drags at the screen's edge.
+          if (toPage === 'list' && fromPage !== 'list') { this.libList.visibility = GONE; this.ctx.listScroller?.setMode(0); }
           if (toPage === 'lyrics') this.lyricsPage.show(false);
           if (toPage === 'aa') for (const v of this.items.values()) v.visibility = GONE;
         }
@@ -2224,6 +2287,20 @@ export class ListWidget extends FastLayout {
     return true;
   }
 
+  /** The Library home's rows bound again (its Queue row's counter); a hidden home is written hidden, as prepareLibrary does. */
+  rebindHome() {
+    const ll = this.libList;
+    if (!ll.source?.home) return;
+    if (ll.visibility !== GONE) { ll.rebindAll(); return; }
+    const noScroller = ll.noScroller;
+    ll.visibility = INVISIBLE;
+    ll.noScroller = true;
+    ll.rebindAll();
+    ll.sync();
+    ll.noScroller = noScroller;
+    ll.visibility = GONE;
+  }
+
   placeItems() {
     const g = this.geometry;
     this.placeDecor();
@@ -2302,6 +2379,10 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     this.ctx.inflater.inflate(itemsLayout, items);
     // Deleting music files is out of scope (owner decision): the cover menu has no Delete.
     if (itemsLayout === 'merge_menu_items_aa') items.findViewById('delete')?.setVisibility(GONE);
+    // Play next, Add to queue, Up next and History for the playing song (widgets/up-next.js).
+    if (itemsLayout === 'merge_menu_items_aa') queueMenuItems(this.ctx, items);
+    // A playlist's Rename and Delete (shown for playlists only, prepareListMenu).
+    if (itemsLayout === 'merge_menu_items_tracks') playlistMenuItems(this.ctx, items);
     items.walk(c => {
       if (c === items || !c.clickable) return;
       const click = c.onClick?.bind(c);

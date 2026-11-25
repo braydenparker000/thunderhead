@@ -18,10 +18,13 @@ const COVERS = 'claude-player-covers', THUMBS = 'claude-player-thumbs';
 const COVER_CAP = 1500, THUMB_PX = 256, MEM_FULL = 60, MEM_THUMB = 800;
 const COVER_SLOTS = 3, ROW_SETTLE_MS = 150;
 const R2_REFRESH_MS = 10 * 60 * 1000; // a revalidation: an unchanged index costs a 304
-const SKIPPED = Symbol('skipped');
+const SKIPPED = Symbol('skipped'), FAILED = Symbol('failed'), HURRY = Symbol('hurry');
+// A cover that did not arrive (not a "no cover") is asked again after these, then at a bind as long after it.
+const RETRY_MS = [2000, 8000, 30000];
 const isRemoteArt = key => /^(https:|embedded:)/.test(key);
-// Cache Storage needs URL keys: embedded covers get a local pseudo-URL.
-const cacheKey = key => (key.startsWith('embedded:') ? new URL('covers/embedded/' + encodeURIComponent(key.slice(9)), location.href).href : key);
+// Cache Storage needs URL keys: embedded covers and shared bucket covers ('cover:<coverKey>') get a local pseudo-URL.
+const localKey = (dir, k) => new URL(dir + encodeURIComponent(k), location.href).href;
+const cacheKey = key => (key.startsWith('embedded:') ? localKey('covers/embedded/', key.slice(9)) : key.startsWith('cover:') ? localKey('covers/shared/', key.slice(6)) : key);
 
 // Per-track listening data for remote tracks (state store, key u:<id>); ratedAt: when the rating
 // was set, for the sync between phones (th/music/sync.js).
@@ -85,7 +88,9 @@ export class Library {
       if (u) for (const k of USER_FIELDS) if (u[k] !== undefined && !stale(k)) t[k] = u[k];
       t.meta = trackMetaLabel(t);
       // Remote covers: the Worker's image, else the audio file's embedded cover (artFor).
+      // Songs that share a bucket cover (coverKey) share its download, thumbnail and memo (coverOf).
       if (t.remote) t.artId = t.artUrl || 'embedded:' + t.id;
+      if (t.remote && t.artUrl && t.coverKey) (this.coverIds ??= new Map()).set(t.artUrl, 'cover:' + t.coverKey);
     }
     return list;
   }
@@ -262,7 +267,56 @@ export class Library {
       return p;
     }
     // The player's cover goes ahead of list thumbnails.
-    return this.memo(this.artCache, MEM_FULL, t, 'art', () => this.remoteCover(t.artId, {priority: true}).then(b => (b ? loadArt(b) : null)));
+    return this.memo(this.artCache, MEM_FULL, t, 'art', () => this.remoteCover(t.artId, {priority: true}).then(b => {
+      if (b === FAILED) throw b;
+      return b ? loadArt(b) : null;
+    })).catch(e => this.coverMissed(e, t));
+  }
+
+  /** The identity a cover is cached and read by: the bucket cover's own (shared by its songs), else the song's address. */
+  coverOf(artId) {
+    return this.coverIds?.get(artId) ?? artId;
+  }
+
+  /** A cover that could not be read now: null, and the song is told when it is asked again (coverAgain). */
+  coverMissed(e, t) {
+    if (e === FAILED) this.coverFails?.get(cacheKey(this.coverOf(t.artId)))?.owners.add(t);
+    return null;
+  }
+
+  /**
+   * A cover that did not arrive (a network failure or a refusal, never a 404): nothing remembers it.
+   * It is asked again after 2 s, 8 s and 30 s, then at a bind 30 s on, or at once when the phone is back online.
+   */
+  coverFailed(ck) {
+    this.coverFails ??= new Map();
+    const f = this.coverFails.get(ck) ?? {n: 0, owners: new Set()};
+    this.coverFails.set(ck, f);
+    const wait = RETRY_MS[Math.min(f.n, RETRY_MS.length - 1)];
+    f.at = Date.now() + wait;
+    clearTimeout(f.timer);
+    if (++f.n <= RETRY_MS.length) f.timer = setTimeout(() => this.coverAgain(ck), wait);
+    if (!this.coverOnline) {
+      this.coverOnline = true;
+      globalThis.addEventListener?.('online', () => { for (const k of this.coverFails.keys()) this.coverAgain(k); });
+    }
+  }
+
+  /** A cover's songs ask for it again (their items and the player rebind on msg_data_art_changed). */
+  coverAgain(ck) {
+    const f = this.coverFails?.get(ck);
+    // Signed out, its songs wait for the session (coversAgain).
+    if (!f || this.ctx.access?.state === 'signin') return;
+    clearTimeout(f.timer);
+    f.at = 0;
+    const tracks = [...f.owners];
+    f.owners.clear();
+    if (tracks.length) this.ctx.bus?.post('bus_data', 'msg_data_art_changed', this, {tracks});
+  }
+
+  /** Every cover that could not be read asks again (the session is back: access.js). */
+  coversAgain() {
+    for (const ck of this.coverFails?.keys() ?? []) this.coverAgain(ck);
   }
 
   /**
@@ -274,36 +328,37 @@ export class Library {
     if (this.customArt.size && this.customArtFor(t)) return this.artFor(t);
     if (!t.artId || !isRemoteArt(t.artId)) return this.artFor(t);
     if (t.thumb) return Promise.resolve(t.thumb);
-    const key = t.artId;
-    const p = this.memo(this.thumbCache, MEM_THUMB, t, 'thumb', async () => {
+    const key = t.artId, ck = cacheKey(this.coverOf(key)), old = cacheKey(key);
+    // A skipped row or a failed read is not remembered (memo): it loads when shown again, or when asked again (coverAgain).
+    return this.memo(this.thumbCache, MEM_THUMB, t, 'thumb', async () => {
       const store = globalThis.caches ? await caches.open(THUMBS).catch(() => null) : null;
-      const hit = await store?.match(cacheKey(key)).catch(() => null);
+      let hit = await store?.match(ck).catch(() => null);
+      // One kept under the song's own address (before songs shared their cover) is found there, and kept under the cover's.
+      if (!hit && old !== ck && (hit = await store?.match(old).catch(() => null))) store.put(ck, hit.clone()).catch(() => {});
       if (hit) return hit.headers.get('x-cover-none') ? null : loadArt(await hit.blob());
       const full = await this.remoteCover(key, {wanted});
-      if (full === SKIPPED) throw SKIPPED;
+      if (full === SKIPPED || full === FAILED) throw full;
       if (!full) return null;
       const blob = await makeThumb(full) ?? full;
-      store?.put(cacheKey(key), new Response(blob, {headers: {'content-type': blob.type || 'image/jpeg'}})).catch(() => {});
+      store?.put(ck, new Response(blob, {headers: {'content-type': blob.type || 'image/jpeg'}})).catch(() => {});
       return loadArt(blob);
-    });
-    // A skipped row forgets the attempt so it can load when shown again.
-    return p.catch(e => {
-      if (e === SKIPPED) { this.thumbCache.delete(key); return null; }
-      return null;
-    });
+    }).catch(e => this.coverMissed(e, t));
   }
 
   /**
-   * In-memory LRU of object-URL images keyed by cover key: an evicted entry
-   * revokes its URL and clears the field on the records that used it.
+   * In-memory LRU of object-URL images keyed by cover (coverOf): an evicted entry
+   * revokes its URL and clears the field on the records that used it. A read that
+   * fails (rejects) leaves it at once.
    */
   memo(map, cap, t, field, make) {
-    const key = t.artId;
+    const key = this.coverOf(t.artId);
     let e = map.get(key);
     if (e) { map.delete(key); map.set(key, e); }
     else {
       e = {p: make(), owners: new Set()};
-      map.set(key, e);
+      const made = e;
+      made.p.catch(() => { if (map.get(key) === made) map.delete(key); });
+      map.set(key, made);
       while (map.size > cap) {
         const [k, old] = map.entries().next().value;
         map.delete(k);
@@ -319,36 +374,77 @@ export class Library {
    * A remote cover's bytes: Cache Storage first (including "no cover"
    * markers), else the network through the download slots, then cached.
    * Worker covers are images; "embedded:<id>" covers come from the audio
-   * file's own tags with range requests.
+   * file's own tags with range requests. Kept and read once per cover
+   * (coverOf), though addressed by a song; FAILED: not now (coverFailed).
    */
   async remoteCover(key, {priority = false, wanted = null} = {}) {
     const store = globalThis.caches ? await caches.open(COVERS).catch(() => null) : null;
-    const ck = cacheKey(key);
-    const hit = await store?.match(ck).catch(() => null);
+    const ck = cacheKey(this.coverOf(key)), old = cacheKey(key);
+    // (One kept under the song's own address, before songs shared their cover, is found there.)
+    const hit = (await store?.match(ck).catch(() => null)) ?? (old !== ck ? await store?.match(old).catch(() => null) : null);
     if (hit) return hit.headers.get('x-cover-none') ? null : hit.blob();
+    // A cover that failed lately is not asked for again before its time.
+    if (Date.now() < (this.coverFails?.get(ck)?.at ?? 0)) return FAILED;
+    // Signed out (access.js): nothing goes out; the session back asks again (coversAgain).
+    if (this.ctx.access?.state === 'signin') {
+      this.coverFails ??= new Map();
+      if (!this.coverFails.has(ck)) this.coverFails.set(ck, {n: 0, at: 0, owners: new Set()});
+      return FAILED;
+    }
     if (wanted) {
       await new Promise(r => setTimeout(r, ROW_SETTLE_MS));
       if (!wanted()) return SKIPPED;
     }
-    // One read of a cover at a time (the player's cover and its row's thumbnail asked for the same file's bytes twice).
+    // One read of a cover at a time (the player's cover and its row's thumbnail asked for the same file's bytes twice;
+    // an album's songs share one). The player's cover joining a grid read that waits makes it go at once (hurry).
     this.coverReads ??= new Map();
     const reading = this.coverReads.get(ck);
-    if (reading) { const r = await reading; if (r !== SKIPPED) return r; }
-    const job = this.readCover(key, ck, store, priority, wanted);
-    this.coverReads.set(ck, job);
-    try { return await job; } finally { if (this.coverReads.get(ck) === job) this.coverReads.delete(ck); }
+    if (reading) {
+      if (priority) reading.hurry();
+      const r = await reading.job;
+      if (r !== SKIPPED) return r;
+    }
+    let hurry;
+    const hurried = new Promise(r => { hurry = r; });
+    const read = {job: this.readCover(key, ck, store, priority, wanted, hurried), hurry};
+    this.coverReads.set(ck, read);
+    try {
+      const r = await read.job;
+      if (r === FAILED) this.coverFailed(ck);
+      // Read at last: the songs that were told "not now" ask again (from the cache).
+      else if (r !== SKIPPED && this.coverFails?.has(ck)) { this.coverAgain(ck); this.coverFails.delete(ck); }
+      return r;
+    } finally {
+      if (this.coverReads.get(ck) === read) this.coverReads.delete(ck);
+    }
   }
 
-  async readCover(key, ck, store, priority, wanted) {
-    // The playing song's stream first (Player.linkFree), before taking a slot: up to 3 s, or until it pauses
-    // or has 10 s ahead. Past that (a link that never gets so far) covers load one at a time, at low priority.
-    const free = (await this.ctx.player?.linkFree?.()) !== false;
-    if (wanted && !wanted()) return SKIPPED;
-    const release = free ? await this.coverSlot(priority, wanted) : await this.lowSlot();
-    if (!release) return SKIPPED;
-    const low = free ? {} : {priority: 'low'};
+  async readCover(key, ck, store, priority, wanted, hurried) {
+    // A read of the same cover that ended after this caller looked has kept it (it keeps before it leaves coverReads).
+    const kept = await store?.match(ck).catch(() => null);
+    if (kept) return kept.headers.get('x-cover-none') ? null : kept.blob();
+    // The player's cover (priority, or hurried: it joined this read) is one small request: no wait, no queue.
+    let urgent = priority;
+    const hurry = hurried.then(() => { urgent = true; return HURRY; });
+    const want = () => urgent || !wanted || wanted();
+    let release = null, low = {};
+    if (!urgent) {
+      // Grid covers: the playing song's stream first (Player.linkFree), before taking a slot: up to 3 s, or until it
+      // pauses or has 10 s ahead. Past that (a link that never gets so far) they load one at a time, at low priority.
+      const free = (await Promise.race([this.ctx.player?.linkFree?.(), hurry])) !== false;
+      if (!want()) return SKIPPED;
+      if (!urgent) {
+        const slot = free ? this.coverSlot(wanted) : this.lowSlot();
+        release = await Promise.race([slot, hurry]);
+        if (release === HURRY) { slot.then(r => r?.()); release = null; }
+        else if (!release) return SKIPPED;
+        else if (!free) low = {priority: 'low'};
+      }
+    }
     try {
-      if (wanted && !wanted()) return SKIPPED;
+      if (!want()) return SKIPPED;
+      // Signed out while it waited: not now (asked again once the session is back).
+      if (this.ctx.access?.state === 'signin') return FAILED;
       let blob = null;
       if (key.startsWith('embedded:')) {
         const t = this.byId.get(key.slice(9));
@@ -357,7 +453,7 @@ export class Library {
       } else {
         const r = await fetch(key, {mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', ...low});
         if (r.ok) blob = await r.blob();
-        else if (r.status !== 404) return null; // transient: try again another time
+        else if (r.status !== 404) return FAILED; // asked again later (coverFailed); a 404 is final
       }
       if (store) {
         const res = blob ? new Response(blob, {headers: {'content-type': blob.type || 'image/jpeg'}}) : new Response('', {headers: {'x-cover-none': '1'}});
@@ -366,13 +462,13 @@ export class Library {
       }
       return blob;
     } catch {
-      return null;
+      return FAILED;
     } finally {
-      release();
+      release?.();
     }
   }
 
-  /** The one low-priority slot: covers read while the playing song is short of its stream, one at a time. */
+  /** The one low-priority slot: grid covers read while the playing song is short of its stream, one at a time. */
   lowSlot() {
     const prev = this.lowTail ?? Promise.resolve();
     let free;
@@ -380,18 +476,15 @@ export class Library {
     return prev.then(() => free);
   }
 
-  /** Download slots (COVER_SLOTS at once); the player's cover jumps the line. */
-  coverSlot(priority, wanted) {
+  /** Download slots for grid covers (COVER_SLOTS at once), in turn (the player's cover takes none). */
+  coverSlot(wanted) {
     this.slotWaiters ??= [];
     this.slotsBusy ??= 0;
     if (this.slotsBusy < COVER_SLOTS) {
       this.slotsBusy++;
       return Promise.resolve(() => this.freeSlot());
     }
-    return new Promise(resolve => {
-      const w = {resolve, wanted};
-      if (priority) this.slotWaiters.unshift(w); else this.slotWaiters.push(w);
-    });
+    return new Promise(resolve => this.slotWaiters.push({resolve, wanted}));
   }
 
   freeSlot() {

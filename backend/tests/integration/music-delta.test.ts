@@ -3,7 +3,8 @@
 // read from the change log, each song exactly as the whole catalog gives it, under the whole
 // catalog's ETag and with its whole count; an unchanged catalog is still a 304 first; a time the
 // catalog never had, one older than the log, or no `since` at all gives the whole catalog. Rows read
-// follow the change, not the catalog. Every song is invented.
+// follow the change, not the catalog. Its headers leave the edge free to compress it. Every song is
+// invented.
 import { describe, expect, it } from 'vitest';
 import { setupOwner } from '../helpers';
 import { musicRows } from '../music-helpers';
@@ -26,6 +27,11 @@ describe('the catalog since a copy', () => {
     const first = await get();
     const c0 = first.body as Cat;
     expect([c0.kind, c0.count]).toEqual(['r2-library', 3]);
+    // Nothing set here keeps Cloudflare's edge from compressing it on the wire: a JSON type, no
+    // `no-transform`, no encoding of its own.
+    expect(first.headers.get('Content-Type')).toMatch(/^application\/json/);
+    expect(first.headers.get('Cache-Control') ?? '').not.toMatch(/no-transform/i);
+    expect(first.headers.get('Content-Encoding')).toBeNull();
 
     // Unchanged: the ETag still answers 304 first; with no ETag, an empty delta.
     expect((await get(since(c0), { 'If-None-Match': String(first.etag) })).status).toBe(304);

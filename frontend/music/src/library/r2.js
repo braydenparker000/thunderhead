@@ -1,7 +1,7 @@
 // The owner's R2 music library: an index (library.json, served by the
 // jarvis-hub Worker) listing every track with its tags, duration and cover.
 // Audio streams from <base>/audio/<id> (byte ranges, CORS for the site's
-// origin); covers from <base>/art/<id> when the index has a cover key,
+// origin); covers from <base>/art/<id> when the index has a cover key (kept, so songs sharing it share one download),
 // else embedded in the audio file (read with range requests). The Worker only answers the site's own
 // origin, so this works when the player is served from that site.
 
@@ -74,8 +74,10 @@ export function r2Tracks(data, url = R2_LIBRARY_URL) {
       added: Date.parse(t.r2Identity?.lastModified) || 0,
       src: base + 'audio/' + t.id,
       // Covers stay on R2: the Worker's image when indexed, else the file's embedded cover
-      // (the index's legacy coverURL points elsewhere and is not used).
+      // (the index's legacy coverURL points elsewhere and is not used). The address stays the song's (the
+      // Worker signs `music:<id>#art`); coverKey names the picture itself, which an album's songs share (library.js coverOf).
       artUrl: t.coverKey ? base + 'art/' + t.id : null,
+      coverKey: typeof t.coverKey === 'string' && t.coverKey ? t.coverKey : null,
       replayGain: m.rgTrack != null ? {track: m.rgTrack, album: m.rgAlbum, trackPeak: m.rgTrackPeak, albumPeak: m.rgAlbumPeak} : null,
       opusHeadGainDb: m.opusHeadGainDb ?? null,
     };

@@ -2,7 +2,9 @@
 // The data meter in a service worker (docs/engineering/DATA-METER.md): bytes a worker fetches and answers
 // a page with reach that page as "from a service worker", without a size, so the worker counts them here,
 // from the answer's headers (th/data/tally.js sizeOf: Content-Length, a range answer's range, a 304's
-// headers; never by reading the body), and posts the counts to one page of the site, which keeps them
+// headers), or, through `read`, for an answer whose headers give no size (a compressed answer streamed
+// without a length: Music's catalogue), by the bytes of its body as they pass on their way to whoever
+// reads it (nothing buffered, nothing waited for), and posts the counts to one page of the site, which keeps them
 // (th/data/page.js). It fetches nothing itself and never opens the tally. Counts wait here while no page
 // is open, and go with the next page that says hello. Classic script with no imports: music/sw.js (through
 // th/music/bridge.js) and frontend/sw.js load it with importScripts, Podcasts' module worker imports it.
@@ -10,6 +12,8 @@
   const s = /** @type {any} */ (self);
   if (s.thData) return;
   const HEADERS = 300;
+  /** Bytes read are posted in steps of this much while a body is read, and the rest at its end. */
+  const STEP = 256 * 1024;
   /** Counts not yet posted, by day, part and network. @type {Map<string, { id: string, net: number, at: number, bytes: number }>} */
   const waiting = new Map();
   let unsized = 0;
@@ -61,6 +65,33 @@
     if (n === null) { unsized++; post(client).catch(() => {}); } else bytes(id, n, client);
   }
 
+  /**
+   * An answer this worker fetched, counted: by its headers as `count` does, or, when they give no size, by
+   * the bytes of its body as they are read. The answer handed back then carries the same body, counted on
+   * its way (status and headers as they came), so use what this returns; the one given is no longer readable.
+   * @param {string} id @param {Response} r @param {string} [client] @returns {Response}
+   */
+  function read(id, r, client) {
+    if (!r || r.type === 'opaque' || r.type === 'error' || size(r) !== null || !r.body || typeof TransformStream !== 'function') {
+      count(id, r, client);
+      return r;
+    }
+    let pending = HEADERS;
+    const out = () => { if (pending > 0) bytes(id, pending, client); pending = 0; };
+    // (`cancel` is newer than some type libraries: the transformer is typed loosely.)
+    const body = r.body.pipeThrough(new TransformStream(/** @type {any} */ ({
+      transform(/** @type {Uint8Array} */ chunk, /** @type {TransformStreamDefaultController} */ c) {
+        pending += chunk?.byteLength ?? 0;
+        if (pending >= STEP) out();
+        c.enqueue(chunk);
+      },
+      flush: out,
+      // (A body let go of part-way: what was read is counted.)
+      cancel: out,
+    })));
+    return new Response(body, { status: r.status, statusText: r.statusText, headers: r.headers });
+  }
+
   /** The part a path on this site is (th/data/page.js partOfPath): an app's, a release's, else home's. @param {string} path */
   const partOf = (path) =>
     /^\/(release\.json|precache\.json|sw\.js|lab\/offline\.json)$/.test(path) ? 'updates'
@@ -73,5 +104,5 @@
     e.waitUntil?.(post(e.source.id).catch(() => {}));
   });
 
-  s.thData = { count, bytes, partOf, post };
+  s.thData = { count, read, bytes, partOf, post };
 })();

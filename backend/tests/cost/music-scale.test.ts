@@ -4,10 +4,12 @@
 // The night's untagged page looks at most 1,000 places on (51,275 rows with every song noted and its
 // place lost, before). A phone's first pull of marks, every song rated and played, lists each song
 // once, so it ends within the phone's pages (th/music/sync.js PAGES) and is never asked again from
-// the start; each page reads rows in proportion to what it returns. Invented songs only.
+// the start; each page reads rows in proportion to what it returns. The catalog in changes at its
+// song limit reads the log's rows since and those songs. Invented songs only.
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { expect, it } from 'vitest';
 import syncJs from '../../../frontend/th/music/sync.js?raw';
+import { DELTA } from '../../src/areas/music/catalog-delta';
 import type { Music } from '../../src/objects/music';
 import { music, seedCatalog } from '../music-helpers';
 
@@ -97,6 +99,29 @@ it(`bounds every read path at ${N} songs`, async () => {
     );
   got.marksPages = pages;
   got.marksPageMax = pageMax;
+  // The catalog in changes at its limit (catalog-delta.ts DELTA.max_songs): that many songs changed
+  // after the copy's time, logged once each (the log written here as the writer writes it, with the
+  // version a writer leaves): the log's rows since and the songs, never the whole table.
+  const t0 = Date.now() + 60_000;
+  const changed = DELTA.max_songs;
+  await sql(
+    "INSERT INTO catalog_log (at, op, track_id) SELECT ? + ord, 'patch', id FROM tracks WHERE ord <= ? ORDER BY ord",
+    t0,
+    changed + 1,
+  );
+  await sql(
+    `UPDATE music_state SET value_json = json_set(value_json, '$.version', json_extract(value_json, '$.version') + 1,
+       '$.changed_at', ?, '$.count', ?) WHERE key = 'catalog'`,
+    t0 + changed + 1,
+    N,
+  );
+  let delta = { tracks: -1, bytes: -1 };
+  got.deltaAtLimit = await rows(async (o) => {
+    const text = await o.catalogSince(new Date(t0 + 1).toISOString())?.text();
+    if (text) delta = { tracks: (JSON.parse(text) as { tracks: unknown[] }).tracks.length, bytes: text.length };
+  });
+  got.deltaTracks = delta.tracks;
+  got.deltaChars = delta.bytes;
   console.log(JSON.stringify(got));
   expect(got.catalogBuild).toBeLessThanOrEqual(N + 2);
   expect(got.catalogWarm).toBeLessThanOrEqual(1);
@@ -114,4 +139,7 @@ it(`bounds every read path at ${N} songs`, async () => {
   expect(got.marksPages).toBeLessThanOrEqual(Math.ceil(N / 200) + 1);
   expect(got.marksPages).toBeLessThanOrEqual(PHONE_PAGES);
   expect(got.marksPageMax).toBeLessThanOrEqual(1_300);
+  expect(got.deltaTracks).toBe(changed);
+  // About 2 rows a song (its log row and its own); 4 leaves room for how the meter counts the lookup.
+  expect(got.deltaAtLimit).toBeLessThanOrEqual(4 * changed);
 }, 300_000);

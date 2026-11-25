@@ -4,7 +4,8 @@
 //   zoom 0: scene_grid, 2 columns
 //   tracks/categories, zoom 0: scene_small, 1 column, itemSizeSmall rows
 // Home categories follow the reference order and default visibility mask
-// (library_lists = 1048511: all but "Albums by Artist").
+// (library_lists = 1048511: all but "Albums by Artist"), without Streams and
+// Bookmarks, which can hold nothing here.
 
 const HOME = [
   {id: 0, title: 'all_songs', icon: '?all_songs', kind: 'all'},
@@ -20,9 +21,9 @@ const HOME = [
   {id: 17, title: 'years', icon: '?years', kind: 'years'},
   {id: 8, title: 'composers', icon: '?composers', kind: 'composers'},
   {id: 9, title: 'playlists', icon: '?playlists', kind: 'playlists'},
-  {id: 18, title: 'streams', icon: '?streams', kind: 'empty'},
+  // Streams (18) and Bookmarks (19) can never hold anything here: not offered (owner, 2026-11-25),
+  // and a saved mask with their bits shows nothing for them.
   {id: 10, title: 'queue', icon: '?queue', kind: 'queue'},
-  {id: 19, title: 'bookmarks', icon: '?bookmarks', kind: 'empty'},
   {id: 11, title: 'most_played', icon: '?most_played', kind: 'mostPlayed'},
   {id: 13, title: 'top_rated', icon: '?top_rated', kind: 'topRated'},
   {id: 15, title: 'low_rated', icon: '?low_rated', kind: 'lowRated'},
@@ -46,7 +47,7 @@ function shelfIcons(res) {
 }
 const DEFAULT_HOME_MASK = 1048511;
 // Notes under categories in List Options (th1.c()).
-const HOME_HINTS = {album_artists: 'summary_album_artists', albums_by_artist: 'summary_albums_by_artists', bookmarks: 'bookmarks_hint'};
+const HOME_HINTS = {album_artists: 'summary_album_artists', albums_by_artist: 'summary_albums_by_artists'};
 
 /** A library category by id (library_home). */
 export const homeCategory = id => HOME.find(c => c.id === id) ?? null;
@@ -59,6 +60,10 @@ import {STATE_PLAYING} from '../player/player.js';
 import {searchHistory, removeSearch, clearSearchHistory} from '../library/search-history.js';
 import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
 import {smartSongs} from '/th/music/search.js';
+import {letters, sectionsFor} from './sections.js';
+import {resortEntries} from '../widgets/resort-dialog.js';
+import {shownEntries} from '../library/playlists.js';
+import {WORDS} from '../widgets/playlist-edit.js';
 
 // The search categories after "All" (jj1.v1 order).
 const SEARCH_KINDS = SEARCH_CATS.slice(1);
@@ -102,7 +107,8 @@ const byName = (a, b) => cmpStr(sortKey(a.title), sortKey(b.title));
 const GROUP_SORT = {
   0: byName,
   added: (a, b) => (b.pl?.created ?? gAdded(b)) - (a.pl?.created ?? gAdded(a)) || byName(a, b),
-  count: (a, b) => (b.pl?.ids.length ?? b.tracks.length) - (a.pl?.ids.length ?? a.tracks.length) || byName(a, b),
+  // A playlist counts the songs its row counts (those in the library), not its entries.
+  count: (a, b) => b.tracks.length - a.tracks.length || byName(a, b),
   year: (a, b) => gYear(a) - gYear(b) || byName(a, b),
   artist: (a, b) => cmpStr(sortKey(a.artist ?? a.tracks[0]?.artist), sortKey(b.artist ?? b.tracks[0]?.artist)) || byName(a, b),
   albumArtist: (a, b) => cmpStr(sortKey(a.tracks[0]?.albumArtist || a.tracks[0]?.artist), sortKey(b.tracks[0]?.albumArtist || b.tracks[0]?.artist)) || byName(a, b),
@@ -121,7 +127,9 @@ const GROUP_SORT_FOR = {
 
 /**
  * Applies a list's saved options (List Options): zoom geometry and, with a
- * sort kind, the order of its rows. Name/title order shows the A–Z column.
+ * sort kind, the order of its rows and the rail's sections for that order
+ * (sections.js). A list without a sort kind has no sections (the plain thumb)
+ * unless it gives its own order's (Singles, Possible duplicates).
  */
 function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0, defaultZoom = null}) {
   applyZoom(src, list.host.substyle, zoomKind, key, defaultZoom);
@@ -135,9 +143,8 @@ function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0
     articles = articled(key) && !src.ctx?.pref?.('no_sort_field');
     try { src.groups = [...src.groups].sort(cmp); } finally { articles = false; }
     if (rev) src.groups.reverse();
-    src.byName = v === 0 && !rev;
-    // The A-Z column follows the sort field.
-    if (articled(key) && !src.ctx?.pref?.('no_sort_field')) src.sectionTitle = i => (src.groups[i]?.title ?? '').replace(ARTICLE, '');
+    // The rail follows the sort field (without "the", "a", "an" where the sort leaves them out).
+    src.sections = sectionsFor({group: GROUP_SORT_FOR[sortKind]?.[v] ?? '0', reversed: rev, articles: articled(key) && !src.ctx?.pref?.('no_sort_field'), yearTitles: sortKind === 'years'});
   } else if (src.tracks) {
     let t = [...src.tracks];
     if (v === 11) {
@@ -145,7 +152,7 @@ function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0
     } else t.sort(TRACK_SORT[v] ?? TRACK_SORT[0]);
     if (rev) t.reverse();
     src.tracks = t;
-    src.sortedByName = v === 1 && !rev;
+    src.sections = sectionsFor({value: v, reversed: rev});
   }
   return src;
 }
@@ -354,6 +361,7 @@ export function categorySource(ctx, list, nav, cat) {
   else if (cat.kind === 'singles') {
     // Releases of one or two songs and songs with no album, by artist then title.
     src = withOptions(new TrackSource(ctx, list, nav, title, lib.shelves().singles), list, {key: 'tracks:singles', zoomKind: 'tracks'});
+    src.sections = letters(t => t?.artist);
   }
   else if (cat.kind === 'duplicates') src = duplicatesSource(ctx, list, nav, title);
   else if (cat.kind === 'playlists') return playlistsSource(ctx, list, nav);
@@ -439,6 +447,8 @@ function duplicatesSource(ctx, list, nav, title) {
     for (const t of d.tracks) { rows.push({track: t, at: tracks.length}); tracks.push(t); }
   }
   const src = withOptions(new TrackSource(ctx, list, nav, title, tracks), list, {key: 'tracks:duplicates', zoomKind: 'tracks'});
+  // By title, as the groups are (shelves.js); a subhead counts under its first song.
+  src.sections = letters(t => t?.title);
   src.rowLabels = t => ({line2: [albumLabel(ctx, t), t.format, t.bitrate ? t.bitrate + 'kbps' : '', t.durationMs ? durationMeta(t.durationMs) : ''].filter(Boolean).join(' · '), meta: ''});
   return trackRows(ctx, list, src, rows);
 }
@@ -514,8 +524,6 @@ export class GroupSource {
   get selectionLayout() { return this.isPlaylists ? 'merge_selection_menu_playlist_items' : 'merge_selection_menu_list_items_w_aa'; }
   tracksAt(i) { return this.groups[i]?.tracks ?? []; }
 
-  // Groups sorted by name show the A–Z scroller.
-  get sortedByName() { return this.byName !== false; }
   sectionTitle(i) { return this.groups[i]?.title; }
 
   bindHeader(v) {
@@ -596,7 +604,6 @@ function artistPage(ctx, list, nav, g, icon) {
   src.secondLevel = true;
   src.parentGroup = g;
   src.icon = icon;
-  src.byName = false;
   src.tracks = singles;
   const sub = list.host.substyle;
   src.subhead = {type: 'track', scene: 'scene_1', height: sub.dim('allTracksSubheadSize', 0)};
@@ -910,7 +917,6 @@ export function searchSource(ctx, list, nav, query, mask = -1, target = null) {
   src.separators = separators;
   src.separatorHeight = list.host.substyle.dim('separatorSize', d.itemSizeSmall);
   src.tracks = rows.filter(r => r.track).map(r => r.track);
-  src.byName = false;
   Object.defineProperty(src, 'count', {get: () => rows.length});
   src.isSeparator = i => !!rows[i]?.sep;
   src.typeAt = i => (rows[i]?.sep ? 'separator' : undefined);
@@ -975,7 +981,6 @@ function targetedRows(ctx, list, nav, title, target, {has, line1, titlesOnly}) {
   src.separators = separators;
   src.separatorHeight = list.host.substyle.dim('separatorSize', dims(list).itemSizeSmall);
   src.tracks = rows.filter(r => r.track).map(r => r.track);
-  src.byName = false;
   Object.defineProperty(src, 'count', {get: () => rows.length});
   src.isSeparator = i => !!rows[i]?.sep;
   src.typeAt = i => (rows[i]?.sep ? 'separator' : undefined);
@@ -1002,21 +1007,29 @@ export function playlistsSource(ctx, list, nav) {
   return src;
 }
 
-/** A playlist's tracks in playlist order. */
-export function playlistSource(ctx, list, nav, pl) {
+/**
+ * A playlist's tracks in playlist order, or as Re-Sort shows them (view: {value, rank}, the sort
+ * value and, for Random, each song's place), which changes nothing stored (owner, 2026-11-25).
+ * Rows move by drag in the playlist's own order only. An empty playlist shows one quiet line.
+ */
+export function playlistSource(ctx, list, nav, pl, view = null) {
   const P = ctx.playlists;
   if (!P || !pl) return null;
   // Entries whose track left the library are skipped; entryIndex maps rows to entries.
-  const tracks = [], entryIndex = [];
-  pl.ids.forEach((id, i) => { const t = ctx.library.byId.get(id); if (t) { tracks.push(t); entryIndex.push(i); } });
+  const entries = shownEntries(pl, ctx.library.byId, view, (e, value) => resortEntries(ctx, e, value));
+  const tracks = entries.map(e => e.track), entryIndex = entries.map(e => e.at);
   // Playlist order (no sort options; zoom applies).
   const src = withOptions(new TrackSource(ctx, list, nav, pl.name, tracks), list, {key: 'tracks:playlist', zoomKind: 'tracks'});
   src.icon = '?playlists';
   src.playlist = pl;
   src.entryIndex = entryIndex;
-  // si1: under Playlists (tg1), title only.
+  src.view = view;
+  // si1: under Playlists (tg1), title only; a tap on the title renames it.
   entryHeader(ctx, list, src, {kind: 'playlist', title: pl.name, tracks, pl}, {scene1: true});
-  src.rebuild = () => playlistSource(ctx, list, nav, pl);
+  src.onTitleClick = () => ctx.bus.post('list', 'cmd_list_pl_rename', src, {});
+  src.rebuild = () => playlistSource(ctx, list, nav, pl, src.view);
+  if (!tracks.length) emptyLine(src, WORDS.empty);
+  if (view) return src;
   // Rows move between the shown entries' places; missing entries stay put.
   reorderable(src, map => {
     const ids = pl.ids.slice();
@@ -1027,6 +1040,16 @@ export function playlistSource(ctx, list, nav, pl) {
     src.ownChange = false;
   });
   return src;
+}
+
+/** An empty list's one row: a quiet line in the hint text (power-list.js EMPTY_ROW), not a song. */
+function emptyLine(src, text) {
+  Object.defineProperty(src, 'count', {get: () => (src.tracks.length ? src.tracks.length : 1)});
+  src.typeAt = i => (src.tracks.length || i !== 0 ? undefined : 'emptyLine');
+  src.isSeparator = i => !src.tracks.length && i === 0;
+  const bind = src.bindItem.bind(src);
+  src.bindItem = (v, i) => (src.isSeparator(i) ? v.findViewById('item_empty_list_text')?.setText(text) : bind(v, i));
+  src.sectionTitle = i => src.tracks[i]?.title;
 }
 
 /**

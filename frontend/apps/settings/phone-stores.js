@@ -84,7 +84,16 @@ export const STORES = [
     lost: 'songs kept to play without a signal',
     clear: async () => {
       const { AudioCache } = await import('/music/src/library/audio-cache.js');
-      const c = new AudioCache();
+      // Without the songs played (played: null): opening those would tidy their store, and only this one is cleared.
+      const c = new AudioCache({ played: null });
+      await c.ready;
+      await c.clear();
+    } },
+  { id: 'music-played', title: 'Music · Songs played', detail: 'Songs you played, kept so playing them again uses no data.', unit: ['song', 'songs'], units: { caches: /^claude-player-played$/ },
+    lost: 'songs kept from playing them',
+    clear: async () => {
+      const { PlayedCache } = await import('/music/src/library/played-cache.js');
+      const c = new PlayedCache();
       await c.ready;
       await c.clear();
     } },

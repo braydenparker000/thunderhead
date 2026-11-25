@@ -4,7 +4,7 @@
 // through speculation rules); when the finger lifts and the launch circle has covered the screen,
 // the page is already built and is simply shown. Sliding to another app drops the first and starts
 // the next, so at most one page is ever held. Nothing is loaded for:
-//   - Music and Podcasts while they open inside home (the island warms those itself);
+//   - Music and Podcasts while they open inside home (their own frame there; the island warms Podcasts);
 //   - a phone on data saver, or a browser without prerendering (the app then loads as before);
 //   - the owner's "Open apps ahead" switch off (Settings → Ring and gestures).
 // A page loaded this way knows it (`document.prerendering`); what should only happen once it is

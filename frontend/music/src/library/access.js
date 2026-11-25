@@ -113,14 +113,16 @@ export class Access {
     this.tokenTimer = setTimeout(look, TOKEN_EVERY_MS);
   }
 
-  /** The session is back: the words go; an empty library loads (Play then plays where it was). */
+  /** The session is back: the words go; an empty library loads (Play then plays where it was, and asks again for the covers not read meanwhile). */
   back() {
     this.clear();
+    this.coversHeld = true;
     if (!this.library.tracks.length) this.retry();
   }
 
   /** Play, before the player acts: true when it was this module's to answer (sign-in, or the library again). */
   onPlay() {
+    if (this.coversHeld && this.state !== 'signin') { this.coversHeld = false; this.library.coversAgain?.(); }
     if (this.state === 'signin') {
       // (An offline copy plays without the session: the player goes on.)
       if (this.player?.track && this.ctx.audioCache?.has?.(this.player.track.src)) return false;

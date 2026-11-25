@@ -23,13 +23,17 @@ const WIPED_KEYS = ['jarvis.podcasts.v1', 'jarvis.guitar.library.v1', 'th.p.guit
 const KEPT_KEYS = ['cp-settings', 'cp-settings-tags', 'cp-list-opts', 'cp-search-history', 'cp-first-run', 'th.music.dj', 'mymedia.progress.v1', 'mymedia.saved.v1', 'mymedia.queue.v1', 'th-theme'];
 const WIPED_DBS = ['th-auth', 'th-data', 'jarvis-podcasts'];
 const KEPT_DBS = ['claude-player', 'th-report', 'th-setup', 'th-recover'];
+// Music's catalogue stays (its snapshot `r2:index` in `claude-player` stays too, so it keeps nothing more),
+// so the next sign-in asks what changed since instead of downloading it whole; every other non-code cache goes.
+const WIPED_CACHES = ['claude-player-audio', 'claude-player-played', 'claude-player-heads', 'claude-player-covers', 'jarvis-podcast-audio-v1'];
+const KEPT_CACHES = ['th-7', 'th-vendor', 'th-music-catalog'];
 
 test('wipe() removes the synced stores and keeps the phone-only ones', opts, async () => {
   const page = await browser.newPage({ serviceWorkers: 'block' });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/no-such-page`);
-  await page.evaluate(async ([keys, dbs]) => {
+  await page.evaluate(async ([keys, dbs, cacheNames]) => {
     for (const k of keys) localStorage.setItem(k, '{"example":1}');
     for (const name of dbs) await new Promise((resolve, reject) => {
       const req = indexedDB.open(name, 1);
@@ -39,14 +43,16 @@ test('wipe() removes the synced stores and keeps the phone-only ones', opts, asy
     });
     // Guitar's store: its songs, practice log and searches go; its preferences are the phone's and stay.
     localStorage.setItem('jarvis.guitar.v2', JSON.stringify({ songs: { s1: { key: 's1' } }, log: { '2026-11-01': 60 }, searches: ['an invented song'], prefs: { tabScale: 1 } }));
-  }, [[...WIPED_KEYS, ...KEPT_KEYS], [...WIPED_DBS, ...KEPT_DBS]]);
+    for (const name of cacheNames) await (await caches.open(name)).put(`/example/${name}`, new Response('x'));
+  }, [[...WIPED_KEYS, ...KEPT_KEYS], [...WIPED_DBS, ...KEPT_DBS], [...WIPED_CACHES, ...KEPT_CACHES]]);
   await page.evaluate(() => import('/th/session.js').then((m) => m.wipe()));
-  const left = await page.evaluate(async () => ({ keys: Object.keys(localStorage), dbs: (await indexedDB.databases()).map((d) => d.name) }));
+  const left = await page.evaluate(async () => ({ keys: Object.keys(localStorage), dbs: (await indexedDB.databases()).map((d) => d.name), caches: await caches.keys() }));
   for (const k of WIPED_KEYS) assert.ok(!left.keys.includes(k), `wiped ${k}`);
   assert.equal(await page.evaluate(() => localStorage.getItem('jarvis.guitar.v2')), '{"prefs":{"tabScale":1}}');
   for (const k of KEPT_KEYS) assert.ok(left.keys.includes(k), `kept ${k}`);
   for (const d of WIPED_DBS) assert.ok(!left.dbs.includes(d), `wiped ${d}`);
   for (const d of KEPT_DBS) assert.ok(left.dbs.includes(d), `kept ${d}`);
+  assert.deepEqual([...left.caches].sort(), [...KEPT_CACHES].sort(), 'only code caches and Music’s catalogue stay');
   assert.deepEqual(errors, []);
   await page.close();
 });

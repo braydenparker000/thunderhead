@@ -148,7 +148,8 @@ const budgets = [
   // (2026-11-14) +568 measured (80,311 → 80,879): th/update.js reloads at its next safe moment when another
   // page applied a release (the editor's pages do as they open, lab/engine/fresh.js: a phone that went straight
   // to them ran the release before's code for days).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 96_868], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
+  // (2026-11-25) +162 measured (96,868 → 97,030): th/session.js keeps Music's catalogue at a sign-out.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 97_030], // (2026-11-21) the ceiling round: th/layers.js (Android Back), safer releases, the push re-send; this and the island, attach, briefing and commands limits moved with it
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -212,7 +213,8 @@ const budgets = [
   // measured (43,972 → 52,157), under the 8 KB allowed for it: one continuous-corner surface for capsule, card and
   // app (shape.js), touch that follows the finger (hand.js), the song's slide, loaded when the island first appears.
   // (2026-11-19) +44 measured: the drag-down reads the finger from the app's own pixels and its zoom, not screenY.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 58_207],
+  // (2026-11-25) +168 measured (58,207 → 58,375): home warms Podcasts only, Music loads when opened (WARMED).
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 58_375],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads

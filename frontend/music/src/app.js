@@ -39,6 +39,8 @@ import './widgets/vispanel.js';
 import './widgets/rating.js';
 import './widgets/cast.js';
 import {installHelp} from './widgets/help.js';
+import {installUndoBar} from './widgets/undo-bar.js';
+import {installUpNext} from './widgets/up-next.js';
 import {installMetaInfo} from './widgets/meta-info.js';
 import {openLyricsDialog} from './widgets/lyrics-dialog.js';
 import {installSubAAEditor} from './widgets/subaa-edit.js';
@@ -49,6 +51,8 @@ import {installCategoryRestore} from './list/category-ref.js';
 import {prebuildLikely} from './view/prebuild.js';
 import {topViewport, visibleHeight} from './ui/viewport-top.js';
 import './list/list-widget.js';
+// The list's scroller and its rail (registered here: no module imports it for a name any more).
+import './list/scroller.js';
 import './list/selection.js';
 
 export async function loadModel(url) {
@@ -194,6 +198,9 @@ export async function boot() {
   const library = await new Library(ctx).open();
   mark('library');
   installHelp(ctx);
+  // The Undo bar (ctx.undoBar), and Up next / History from the playing song's menu.
+  installUndoBar(ctx);
+  installUpNext(ctx);
   installMetaInfo(ctx);
   installSubAAEditor(ctx);
   ctx.screenPrefs = installScreenPrefs(ctx);

@@ -1,31 +1,30 @@
 // List scroller (ListScrollerView) and its letter bubble (ListIndexerPopupView).
 // Modes come from the list (sd.s()): 0 hidden, 1 scrollbar thumb, 3 thumb on a
-// name-sorted list with az_scroll off, 2 A–Z column (name-sorted, az_scroll on,
-// default). The thumb shows while the list can scroll; the column and the
-// thumb fade over 250 ms. A–Z: the column is the chars "0ABC…Z#" (plus the
-// scroll-up item when azScrollUp is set) laid out in azSize of the height,
-// letter size = azTextScale × cell, touched cell on azTouchedBackground.
+// list with sections (sections.js) and az_scroll off, 2 the section column
+// (az_scroll on, default). The thumb shows while the list can scroll; the column
+// and the thumb fade over 250 ms. The column is the list's section labels (the
+// chars "0ABC…Z#" for a name sort, years, months; plus the scroll-up item when
+// azScrollUp is set) laid out in azSize of the height, label size = azTextScale
+// × cell, touched cell on azTouchedBackground. When the labels do not all fit at
+// a legible size the column shows an even spread of them (the finger still
+// reaches every section); labels too wide shrink, then the column widens a little.
 // Pressing runs anim_scrollbar_pressed (scroller scaleX 1.5 at its right edge,
 // bubble fades/scales in) and the bubble follows the touched cell or thumb.
-import {FastTextView} from '../view/text.js';
+import {FastTextView, measureText} from '../view/text.js';
 import {MeasureSpec} from '../view/view.js';
 import {register} from '../view/inflater.js';
 import {renderOps} from '../view/drawables.js';
 import {colorForState} from '../res/resources.js';
 import {colorToCss} from '../res/values.js';
 import {cssFontFamily} from '../fonts.js';
+import {AZ_CHARS, columnLabels, thinned} from './sections.js';
 
-export const AZ_CHARS = '0ABCDEFGHIJKLMNOPQRSTUVWXYZ#';
+export {AZ_CHARS, sectionChar} from './sections.js';
 const FADE_MS = 250;
 const MIN = -0x80000000;
-
-/** Section char of a title: digits under '0', Latin letters by letter, the rest under '#'. */
-export function sectionChar(title, chars = AZ_CHARS) {
-  const c = (title ?? '').trim().normalize('NFD').charAt(0).toUpperCase();
-  if (!c) return chars[chars.length - 1];
-  if (/[0-9]/.test(c)) return chars[0];
-  return chars.includes(c) ? c : chars[chars.length - 1];
-}
+// The smallest label (dp): fewer labels are shown rather than smaller ones. The column widens by at
+// most MAX_WIDEN_DP for labels wider than it (months, years); a label fills at most FILL of it.
+const MIN_TEXT_DP = 7, MAX_WIDEN_DP = 14, FILL = 0.9;
 
 export class ListScrollerView extends FastTextView {
   constructor(ctx, a) {
@@ -52,7 +51,13 @@ export class ListScrollerView extends FastTextView {
     // The alphabet resource: localized_azChars with the Localized A-Z option.
     this.chars = (ctx.settings?.localized_az ? ctx.res.stringByName('localized_azChars') : ctx.res.stringByName('azChars')) || AZ_CHARS;
     this.mode = -1;
+    this.index = null;
+    this.extraW = 0;
+    this.shown = [];
+    this.labels = [];
     this.pressedIndex = MIN;
+    this.pressedSlot = MIN;
+    this.pressedRow = MIN;
     this.thumbAlpha = 0;
     this.textAlpha = 0;
     this.thumbPos = 0;
@@ -66,7 +71,9 @@ export class ListScrollerView extends FastTextView {
   }
 
   onMeasure(wSpec, hSpec) {
-    const want = Math.max(this.minWidth, this.thumbW + this.paddingLeft + this.paddingRight);
+    // The width it was measured with (computeAZ takes the column's own width from it).
+    this.measuredExtra = this.extraW;
+    const want = Math.max(this.minWidth, this.thumbW + this.paddingLeft + this.paddingRight) + this.extraW;
     const wm = MeasureSpec.getMode(wSpec), ws = MeasureSpec.getSize(wSpec);
     const w = wm === MeasureSpec.EXACTLY ? ws : wm === MeasureSpec.AT_MOST ? Math.min(want, ws) : want;
     const h = MeasureSpec.getMode(hSpec) === MeasureSpec.UNSPECIFIED ? this.thumbH : MeasureSpec.getSize(hSpec);
@@ -83,20 +90,48 @@ export class ListScrollerView extends FastTextView {
     this.computeAZ();
   }
 
-  /** A–Z geometry (e()): column top r, height q, cell f, baseline offset e, text size. */
+  /** The list's section index (sections.js): the column's entries; null shows the alphabet. */
+  setIndex(index) {
+    if (this.index === index) return;
+    this.index = index;
+    this.pressedIndex = this.pressedSlot = this.pressedRow = MIN;
+    this.computeAZ();
+  }
+
+  /**
+   * Column geometry (e()): top r, height q, cell f, baseline offset e, text size; which entries show
+   * (all, or an even spread when a cell would be smaller than a legible label), their labels, and
+   * the text size and extra width that fit the widest label.
+   */
   computeAZ() {
     const H = this.height;
     let avail = H - this.azPadT - this.azPadB;
     if (this.azSizeFrac !== null) { avail = Math.trunc(H * this.azSizeFrac + 0.5); this.azTop = Math.trunc((H - avail) / 2); }
     else if (this.azSizePx !== 0x7fffffff && this.azSizePx > 0) { avail = this.azSizePx; this.azTop = Math.trunc((H - avail) / 2); }
     else this.azTop = this.azPadT;
-    const n = this.chars.length + (this.scrollUp ? 1 : 0);
+    const entries = this.index?.entries ?? [...this.chars].map(text => ({text}));
+    const up = this.scrollUp ? 1 : 0, dpr = this.ctx.dpr || 1, minText = MIN_TEXT_DP * dpr;
+    const fit = Math.max(1, Math.floor(avail / (minText / Math.max(0.01, this.textScale))) - up);
+    this.shown = thinned(entries.length, fit);
+    this.labels = columnLabels(entries, this.shown);
     this.azH = avail;
-    this.cell = avail / Math.max(1, n);
-    this.azTextSize = this.textScale * this.cell;
+    this.cell = avail / Math.max(1, this.shown.length + up);
+    // A short column (a few years) keeps the alphabet's letter size (at least the smallest label), its cells taller.
+    let size = Math.min(this.textScale * this.cell, Math.max(minText, (this.textScale * avail) / Math.max(1, this.chars.length + up)));
+    // Labels wider than the column: smaller text first, down to the smallest label; then a wider column.
+    let extra = 0;
+    const baseW = this.width - (this.measuredExtra ?? 0) - this.azPadL - this.azPadR;
+    const widest = this.font && this.mode === 2 ? Math.max(0, ...this.labels.map(t => measureText(t, this.font, size))) : 0;
+    if (baseW > 0 && widest > baseW * FILL) {
+      const shrunk = Math.max(Math.min(size, minText), (size * baseW * FILL) / widest);
+      extra = Math.min(MAX_WIDEN_DP * dpr, Math.max(0, Math.ceil((widest * shrunk) / size / FILL - baseW)));
+      size = shrunk;
+    }
+    this.azTextSize = size;
     // Paint.ascent()/descent() approximated by the font's bounding metrics.
     const asc = (this.font.yMax / this.font.upm) * this.azTextSize, desc = (-this.font.yMin / this.font.upm) * this.azTextSize;
     this.baseOff = this.cell - (this.cell - (asc - desc)) / 2;
+    if (extra !== this.extraW) { this.extraW = extra; this.requestLayout(); }
     this.invalidate();
   }
 
@@ -104,6 +139,9 @@ export class ListScrollerView extends FastTextView {
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
+    // Only the column may widen the scroller (hidden, it stands narrow over the player's waveform).
+    if (mode === 2) this.computeAZ();
+    else if (this.extraW) { this.extraW = 0; this.requestLayout(); }
     this.fade('textAlpha', mode === 2);
     if (mode !== 1 && mode !== 3) this.fade('thumbAlpha', false);
     this.syncThumb();
@@ -143,11 +181,17 @@ export class ListScrollerView extends FastTextView {
     this.syncThumb();
   }
 
-  /** Cell index under y (f(F)): -1 is the scroll-up item. */
-  indexAt(y) {
-    let i = Math.floor((y - this.azTop) / this.cell);
-    if (this.scrollUp) { i -= 1; return Math.max(-1, Math.min(this.chars.length - 1, i)); }
-    return Math.max(0, Math.min(this.chars.length - 1, i));
+  /**
+   * What lies under y (f(F)): {slot, entry, sub}. slot is the shown cell (-1 the scroll-up item);
+   * entry the section under the finger among all of them (shown or thinned out), sub how far into it.
+   */
+  touchAt(y) {
+    const up = this.scrollUp ? 1 : 0, slots = Math.max(1, this.shown.length), yy = y - this.azTop;
+    if (up && yy < this.cell) return {slot: -1, entry: -1, sub: 0};
+    const n = this.index?.entries.length ?? this.chars.length;
+    const frac = Math.max(0, Math.min(1, (yy - up * this.cell) / (slots * this.cell)));
+    const pos = Math.min(n - 1e-6, frac * n), entry = Math.floor(pos);
+    return {slot: Math.min(slots - 1, Math.floor(frac * slots)), entry, sub: pos - entry};
   }
 
   onPointerDown(e) {
@@ -190,7 +234,7 @@ export class ListScrollerView extends FastTextView {
   press(on) {
     if (this.state.pressed === on) return;
     this.setPressed(on);
-    if (!on) { this.pressedIndex = MIN; this.invalidate(); }
+    if (!on) { this.pressedIndex = this.pressedSlot = this.pressedRow = MIN; this.invalidate(); }
     this.ctx.topNav?.stateAnim('anim_scrollbar_pressed', on, FADE_MS);
     const pop = this.popup();
     if (pop) {
@@ -205,15 +249,18 @@ export class ListScrollerView extends FastTextView {
   }
 
   touchAZ(y) {
-    const i = this.indexAt(y);
-    if (i === this.pressedIndex) return;
-    this.pressedIndex = i;
+    const {slot, entry, sub} = this.touchAt(y);
+    const row = entry >= 0 && this.index ? this.index.rowFor(entry, sub) : MIN;
+    if (slot === this.pressedSlot && entry === this.pressedIndex && row === this.pressedRow) return;
+    this.pressedSlot = slot;
+    this.pressedIndex = entry;
+    this.pressedRow = row;
     this.invalidate();
     const list = this.list;
-    if (i === -1) { list?.scrollToIndex?.(0, true); this.showPopup(null, this.azTop + this.cell / 2); return; }
-    const ch = this.chars[i];
-    list?.scrollToSection?.(ch, this.chars);
-    this.showPopup(ch, this.azTop + (i + (this.scrollUp ? 1 : 0)) * this.cell + this.cell / 2);
+    if (slot === -1) { list?.scrollToIndex?.(0, true); this.showPopup(null, this.azTop + this.cell / 2); return; }
+    if (!this.index) return;
+    list?.scrollToSection?.(entry, sub);
+    this.showPopup(this.index.touchBubble(entry, row), this.azTop + (slot + (this.scrollUp ? 1 : 0)) * this.cell + this.cell / 2);
   }
 
   dragThumb(y) {
@@ -223,7 +270,7 @@ export class ListScrollerView extends FastTextView {
     const frac = range > 0 ? Math.max(0, Math.min(1, (y - this.grab - this.paddingTop) / range)) : 0;
     list.scrollTo?.(frac * list.maxScroll());
     this.syncThumb();
-    const ch = this.mode === 3 ? list.sectionAtTop?.(this.chars) : null;
+    const ch = this.mode === 3 ? list.sectionAtTop?.() : null;
     this.showPopup(ch, this.thumbPos + this.thumbH / 2);
   }
 
@@ -231,13 +278,29 @@ export class ListScrollerView extends FastTextView {
   showPopup(text, anchorY) {
     const pop = this.popup();
     if (!pop) return;
-    if (text !== null) pop.setText(text);
+    if (text !== null) this.fitPopup(pop, text);
     const myTop = this.getLocationIn(pop.parent).y;
     const ph = pop.height, parentH = pop.parent?.height ?? 0;
     let ty = myTop + anchorY - ph / 2 - pop.top;
     ty = Math.max(-pop.top, Math.min(parentH - pop.top - ph, ty));
     pop.translationY = Math.round(ty);
     pop.invalidate();
+  }
+
+  /** The bubble's text, smaller than its style's size when it is too wide for it (a year, "Nov 24"). */
+  fitPopup(pop, text) {
+    pop.baseTextSize ??= pop.textSize;
+    const base = pop.baseTextSize, mult = this.ctx.textSizeMultiplier ?? 1;
+    const room = (pop.width - (pop.paddingLeft ?? 0) - (pop.paddingRight ?? 0)) * 0.84;
+    const w = pop.font ? measureText(text, pop.font, Math.max(1, Math.round(base * mult))) : 0;
+    const size = room > 0 && w > room ? Math.max(1, Math.floor((base * room) / w)) : base;
+    if (size !== pop.textSize) {
+      pop.textSize = size;
+      pop.updateFont?.();
+      pop._textKey = null;
+      pop.requestLayout();
+    }
+    pop.setText(text);
   }
 
   draw() {
@@ -264,7 +327,7 @@ export class ListScrollerView extends FastTextView {
     el.style.opacity = String(this.textAlpha);
     if (this.textAlpha <= 0 || !this.cell) { el.replaceChildren(); this._azKey = null; return; }
     const W = this.width - this.azPadL - this.azPadR;
-    const key = [W, this.azTop, this.cell, this.pressedIndex, this.chars, this.state.enabled].join('|');
+    const key = [W, this.azTop, this.cell, this.azTextSize, this.pressedSlot, this.labels.join('\u0001'), this.state.enabled].join('|');
     if (key === this._azKey) return;
     this._azKey = key;
     el.replaceChildren();
@@ -273,14 +336,15 @@ export class ListScrollerView extends FastTextView {
     this.azBg?.ops(W, this.azH, this.state, ops, ox, oy);
     let y = 0;
     if (this.scrollUp) {
-      if (this.pressedIndex === -1 && this.azTouched) this.azTouched.ops(W, Math.round(f), this.state, ops, ox, oy);
+      if (this.pressedSlot === -1 && this.azTouched) this.azTouched.ops(W, Math.round(f), this.state, ops, ox, oy);
       const s = Math.min(W, Math.round(f));
       this.scrollUp.ops(s, s, this.state, ops, ox + Math.trunc((W - s) / 2), oy + Math.trunc((Math.round(f) - s) / 2));
       y += f;
     }
     const sepCss = this.sepColor ? colorToCss(this.sepColor) : null;
-    for (let i = 0; i < this.chars.length; i++) {
-      if (i === this.pressedIndex && this.azTouched) this.azTouched.ops(W, Math.round(y + f) - Math.round(y), this.state, ops, ox, oy + Math.round(y));
+    const labels = this.labels;
+    for (let i = 0; i < labels.length; i++) {
+      if (i === this.pressedSlot && this.azTouched) this.azTouched.ops(W, Math.round(y + f) - Math.round(y), this.state, ops, ox, oy + Math.round(y));
       if ((i > 0 || this.scrollUp) && sepCss) ops.push({x: ox, y: oy + Math.round(y), w: W, h: 1, bg: sepCss});
       y += f;
     }
@@ -295,15 +359,15 @@ export class ListScrollerView extends FastTextView {
     const pressed = colorToCss(colorForState(this.textColor, {enabled: true, pressed: true, activated: true, selected: true}) ?? 0xffffffff);
     const asc = (this.font.yMax / this.font.upm) * this.azTextSize;
     y = this.scrollUp ? f : 0;
-    for (let i = 0; i < this.chars.length; i++) {
+    for (let i = 0; i < labels.length; i++) {
       const ln = document.createElement('div');
       ln.className = 'ln';
-      ln.textContent = this.chars[i];
+      ln.textContent = labels[i];
       ln.style.width = px(W) + 'px';
       ln.style.textAlign = 'center';
       ln.style.lineHeight = px(this.azTextSize * (this.font.yMax - this.font.yMin) / this.font.upm) + 'px';
       ln.style.transform = `translate(${px(ox)}px,${px(oy + y + this.baseOff - asc)}px)`;
-      ln.style.color = i === this.pressedIndex ? pressed : normal;
+      ln.style.color = i === this.pressedSlot ? pressed : normal;
       txt.appendChild(ln);
       y += f;
     }
