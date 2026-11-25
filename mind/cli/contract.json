@@ -1216,7 +1216,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "{items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget"
+      "note": "{items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 85% of the day's budget"
     },
     "GET /v1/music/notes": {
       "who": [
@@ -6042,7 +6042,7 @@
         "severity": "S3",
         "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
-        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 85% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
         "phase": "P4"
       },
       "quota.rows_read": {
@@ -6050,7 +6050,7 @@
         "severity": "S3",
         "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
-        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 85% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
         "phase": "P4"
       },
       "quota.do_calls": {

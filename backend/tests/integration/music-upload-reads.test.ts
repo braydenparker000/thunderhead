@@ -130,9 +130,9 @@ describe('quota', () => {
     expect(r.body).toMatchObject({
       day: utcDay(Date.now()),
       budget_rows_written: DAY_BUDGET.rows_written,
-      hold_at_rows_written: budgetAt(80, 'rows_written'),
+      hold_at_rows_written: budgetAt(85, 'rows_written'),
       budget_rows_read: DAY_BUDGET.rows_read,
-      hold_at_rows_read: budgetAt(80, 'rows_read'),
+      hold_at_rows_read: budgetAt(85, 'rows_read'),
       held: false,
       hold_until: null,
       retry_after: null,
@@ -151,7 +151,7 @@ describe('quota', () => {
         day,
         read,
       );
-    await seed(budgetAt(80, 'rows_read') + 1);
+    await seed(budgetAt(85, 'rows_read') + 1);
     try {
       forgetHold();
       expect((await op('audit', {})).status).toBe(429);

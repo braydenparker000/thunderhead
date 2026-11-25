@@ -30,7 +30,7 @@ const seed = (day: string, cls: string, read: number, written: number) =>
     written,
   );
 const READ_60 = budgetAt(60, 'rows_read');
-const READ_80 = budgetAt(80, 'rows_read');
+const READ_80 = budgetAt(85, 'rows_read');
 
 beforeAll(async () => {
   const p = await setupWatchdogs();
@@ -56,7 +56,7 @@ describe('the quota watchdogs', () => {
     const items = (await apiJson<WatchdogsResponse>('GET', '/v1/ops/watchdogs', { token: D })).body.items;
     expect(items.find((i) => i.name === 'quota.rows_read')).toMatchObject({
       state: 'tripped',
-      detail: "rows read today passed 80% of the day's budget of 4,700,000; the heavy work waits for 00:00 UTC",
+      detail: "rows read today passed 85% of the day's budget of 4,700,000; the heavy work waits for 00:00 UTC",
     });
     await watch(nextUtcDay(T0) + 15 * MINUTE);
     expect(await notes('quota.rows_read')).toEqual([
@@ -139,7 +139,7 @@ describe('the push from 80%', () => {
     expect(await quotaPushes()).toEqual([{ k: 'quota', id: `quota-${day}` }]);
     expect((await apiJson('GET', `/v1/push/items/quota-${day}`, { token: D })).body).toEqual({
       title: 'Thunderhead',
-      body: "Today's database use is at 80% of the free plan's daily limit. Backups and uploads wait until 00:00.",
+      body: "Today's database use is at 85% of the free plan's daily limit. Backups and uploads wait until 00:00.",
       url: '/',
     });
     // The next UTC day past 80% again: that day's own push.

@@ -42,7 +42,7 @@ const REPORT =
   'Report it: th say system --kind error "<what tripped, since when, what you checked, what you left>"';
 
 const n = (x: number) => x.toLocaleString('en-US');
-const QUOTA_HANDLE = `Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. ${REPORT}.`;
+const QUOTA_HANDLE = `Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 85% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. ${REPORT}.`;
 
 /** What a mind-reflex session does, in order; `th reflex` prints it with each tripped watchdog's
  * `handle` (mind/ROLES.md stays under 6,000 characters, so the procedure lives here). */
