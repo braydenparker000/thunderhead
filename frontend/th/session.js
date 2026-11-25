@@ -18,8 +18,11 @@ const tabs = () => {
   } catch {}
   return channel;
 };
-/** Code-only caches that survive a sign-out: `th-<build>`, `th-vendor`. */
-const CODE_CACHE = /^th-(\d+|vendor)$/;
+/** Caches that survive a sign-out: the code-only `th-<build>` and `th-vendor`, and Music's catalogue
+ * `th-music-catalog` (th/music/bridge.js), which holds nothing Music's own snapshot of it (`r2:index` in
+ * `claude-player`, kept as phone-only) does not already keep on this phone; wiped, the next sign-in paid
+ * for the whole catalogue again (about 35 MB) instead of asking what changed since. */
+const KEPT_CACHE = /^(th-(\d+|vendor)|th-music-catalog)$/;
 /** The ported apps' stores the account also holds (SIGN-IN.md §11.3): Podcasts' positions and follows
  * (and its feeds, Up Next and speed, which the account keeps too), Guitar's library and practice
  * (th/guitar/progress.js; its ladder is `th.p.guitar.ladder`), Music's taste weights. What lives only on
@@ -126,9 +129,9 @@ async function wipeNow(reason) {
   // leaves it (one in another tab, which reads no session or no outbox, must not drop what the first kept).
   const dbs = ['th-data', 'th-study', 'th-photos', 'jarvis-podcasts', ...(byHand ? ['th-kept'] : [])];
   await Promise.all([auth.drop(), ...dbs.map((n) => kv(n).drop())]);
-  // 4. Cache Storage, except code caches.
+  // 4. Cache Storage, except code caches and Music's catalogue.
   try {
-    for (const name of await caches.keys()) if (!CODE_CACHE.test(name)) await caches.delete(name);
+    for (const name of await caches.keys()) if (!KEPT_CACHE.test(name)) await caches.delete(name);
   } catch {}
   // 5. The Origin Private File System (offline songs, downloads, PDFs).
   try {
