@@ -37,7 +37,7 @@ export async function museCalls(cost: Cost, m: never) {
     answered(((await music().write(op, body)) as unknown as { status: number }).status);
   // One registration first, so the catalog's count and size are kept (read once per start).
   expect200(await write('register', await song(0))());
-  const tracks = [];
+  const tracks: Awaited<ReturnType<typeof song>>[] = [];
   for (let i = 1; i <= 20; i++) tracks.push(await song(i));
   await cost(
     'POST /v1/music/uploads/register-batch, 20 new songs with waveforms (Music, the operation alone)',

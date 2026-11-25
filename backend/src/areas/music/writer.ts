@@ -156,7 +156,7 @@ async function prepare(c: Ctx, body: Obj): Promise<Prepared> {
 }
 
 /** `moved`: what a change does to the catalog's version (a batch moves it once, after its songs). */
-function insert(c: Ctx, { track, waveform }: Prepared, moved = () => changed(c)): Obj {
+function insert(c: Ctx, { track, waveform }: Prepared, moved: () => unknown = () => changed(c)): Obj {
   const existing = store.byContent(c.db, track.sha256 as string, track.size as number);
   if (existing) {
     // The same audio again: a waveform it brings fills a missing one.
