@@ -9,13 +9,14 @@
 // or a backup stops between two parts and goes on after midnight. Rows a step wrote in an object
 // no meter counts (the drill's scratch copy) are added to the day's meter, and the next step
 // checks again, so the drill's own writes stop it. `last_error` keeps a code and the error's name
-// only, never a message that could hold data.
-import { DAY, MINUTE, utcDay } from '../../lib/time';
+// only, never a message that could hold data. A pause is logged (`job_paused`: kind, why, lane rows, until).
+import { MINUTE, utcDay } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
 import { quotaHold } from '../meter/quota';
 import { addRows } from '../meter/store';
 import * as settings from '../settings/store';
+import { LANE_ROWS_PER_DAY, lane, nextLaneDay } from './lane';
 import * as store from './store';
 
 /** A failure with a code from the job's own fixed list (e.g. `missing_part`). */
@@ -58,24 +59,15 @@ export interface JobHost {
   write<T>(fn: (w: Writer) => T, at?: number): T;
 }
 
-export const LANE_ROWS_PER_DAY = 40_000;
+export { LANE_ROWS_PER_DAY, laneRows, nextLaneDay } from './lane';
+
 const RETRY_MS = [MINUTE, 5 * MINUTE, 30 * MINUTE, 120 * MINUTE, 720 * MINUTE];
 const STEPS_PER_ALARM = 5;
 const WALL_MS = 1_000;
 
-interface Lane {
-  day: string;
-  rows: number;
-}
-const lane = (db: Db, now: number): Lane => {
-  const l = settings.getSetting(db, 'bulk.day') as Lane | undefined;
-  return l && l.day === utcDay(now) ? l : { day: utcDay(now), rows: 0 };
-};
-/** 00:05 UTC of the next day, when the lane opens again. */
-export const nextLaneDay = (now: number) => Date.parse(`${utcDay(now + DAY)}T00:05:00Z`);
-
-/** Rows the bulk lane has written today (UTC), for writers in other objects (library ingestion). */
-export const laneRows = (db: Db, now: number): number => lane(db, now).rows;
+/** A job set to wait for the lane or the day's hold, logged by its kind and counts alone. */
+const paused = (kind: string, why: 'lane' | 'hold', rows: number, until: number) =>
+  console.log(JSON.stringify({ evt: 'job_paused', job: kind, why, lane_rows: rows, until }));
 
 /** Adds rows another object wrote under the lane to today's count. */
 export function useLane(w: Writer, rows: number, now: number): void {
@@ -100,10 +92,12 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
       host.write((w) => fail(w, job, 'unknown_kind', undefined));
       continue;
     }
-    if (h.lane && lane(host.db, now).rows >= LANE_ROWS_PER_DAY) {
+    const used = h.lane ? lane(host.db, now).rows : 0;
+    if (h.lane && used >= LANE_ROWS_PER_DAY) {
       host.write((w) =>
         store.updateJob(w.db, job.id, { ...same(job), state: 'paused', due_at: nextLaneDay(now), rows: 0, at: now }),
       );
+      paused(job.kind, 'lane', used, nextLaneDay(now));
       continue;
     }
     if (h.lane || h.heavy) hold ??= quotaHold(host.db, now);
@@ -112,6 +106,7 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
       host.write((w) =>
         store.updateJob(w.db, job.id, { ...same(job), state: 'paused', due_at: until, rows: 0, at: now }),
       );
+      paused(job.kind, 'hold', h.lane ? used : lane(host.db, now).rows, until);
       continue;
     }
     steps++;

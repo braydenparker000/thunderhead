@@ -1,4 +1,4 @@
-// /v1/health (public), /v1/ops (API.md §11.1, §11.16) and /v1/settings (§11.20).
+// /v1/health (public), /v1/ops (API.md §11.1, §11.16; /ops/diag beside them) and /v1/settings (§11.20).
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type {
@@ -10,6 +10,7 @@ import type {
   Settings,
   Version,
 } from '../../../../shared/contract/api';
+import type { DiagResponse } from '../../../../shared/contract/diag.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { cachedMinClient, rememberMinClient } from '../../http/client-version';
 import { ApiError } from '../../http/errors';
@@ -110,8 +111,9 @@ export const opsRoutes = new Hono<AppEnv>()
         rows_written:
           core.rows_written + auth.rows_written + music.rows_written + senses.rows_written + library.rows_written,
         rows_read: core.rows_read + auth.rows_read + music.rows_read + senses.rows_read + library.rows_read,
-        bulk_rows_written: 0,
-        bulk_lane: null,
+        // Today's bulk lane, counted in Core (a Core on the release before it reports none).
+        bulk_rows_written: core.bulk_lane?.rows ?? 0,
+        bulk_lane: core.bulk_lane ?? null,
       },
       last_backup: lastBackup,
       last_events_export: null,
@@ -122,6 +124,18 @@ export const opsRoutes = new Hono<AppEnv>()
       backups,
     };
     return c.json(body);
+  })
+  // The lead's diagnosis from outside (shared/contract/diag.ts): counts, states, times, codes and host
+  // names, never content. A Music before `knowDiag` (a moment of a deploy) leaves `know` null.
+  .get('/ops/diag', guard('GET /v1/ops/diag'), async (c) => {
+    const now = Date.now();
+    const [core, know] = await Promise.all([
+      fresh(coreObject(c.env).diag(now)),
+      musicObject(c.env)
+        .knowDiag(now)
+        .catch(() => null),
+    ]);
+    return c.json({ version: version(c.env), at: now, ...core, know } satisfies DiagResponse);
   })
   .post(
     '/ops/errors',

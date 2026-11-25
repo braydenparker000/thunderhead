@@ -43,6 +43,15 @@ const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_TH
 export const softwareVideo = track => SOFTWARE_VIDEO.has(track.codec) || (!track.codec && OTHER_VIDEO.test(String(track.internalCodec ?? '')));
 export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm') || (!track.codec && OTHER_AUDIO.test(String(track.internalCodec ?? '')));
 
+// libmedia rejects its threads' pending calls with "ipc port close" as they stop, and nothing of its own awaits
+// them: handled here, or each would be an error on the page. Listened for from the module's first load (not
+// from the script's, which a page that already has the library never runs), and as a thrown error too.
+const portClosed = v => String(v?.message ?? v) === 'ipc port close';
+if (typeof addEventListener === 'function') {
+  addEventListener('unhandledrejection', e => { if (portClosed(e.reason)) e.preventDefault(); });
+  addEventListener('error', e => { if (portClosed(e.error ?? e.message) || /ipc port close$/.test(String(e.message))) e.preventDefault(); });
+}
+
 let library = null;
 export function loadLibmedia() {
   if (globalThis.AVPlayer) return Promise.resolve(globalThis.AVPlayer);
@@ -59,9 +68,6 @@ export function loadLibmedia() {
     script.async = true;
     script.onload = () => done(true); script.onerror = () => done(false);
     prepareThreads(); // libmedia reads its thread switches as its script runs
-    // libmedia rejects its threads' pending calls with "ipc port close" as they stop, and nothing of its own awaits
-    // them: handled here, or each would be an error on the page.
-    addEventListener('unhandledrejection', e => { if (String(e.reason?.message ?? e.reason) === 'ipc port close') e.preventDefault(); });
     document.head.append(script);
   });
 }

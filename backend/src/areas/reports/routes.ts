@@ -1,7 +1,8 @@
 // /v1/ops/reports (API.md §11.16): batches the phone sends about how the apps run (NEXT-BATCH.md
 // part 1; Music's playback log first), and the list the owner's devices and the mind read back,
-// newest first (never CI: a batch is listening history, and CI's logs are public). A batch is one
-// row, kept 30 days. The list passes each batch's stored JSON on as it is, never parsed again.
+// newest first; the CI key reads it too, for the lead's diagnosis from outside (owner, 2026-11-25): a
+// batch is listening history by track id, so keep it out of CI's public logs. A batch is one row, kept
+// 30 days. The list passes each batch's stored JSON on as it is, never parsed again.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';

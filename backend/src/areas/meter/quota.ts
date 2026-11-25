@@ -10,6 +10,7 @@ import type { MeterResponse } from '../../../../shared/contract/api';
 import { DAY_BUDGET, QUOTA_LEVELS, type QuotaToday } from '../../../../shared/contract/meter.ts';
 import { DAY, dayBefore, utcDay, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { laneRows } from '../jobs/lane';
 import { type DayRow, dayRows, daysFrom } from './store';
 
 const pct = (n: number, of: number) => Math.floor((n * 100) / of);
@@ -93,11 +94,13 @@ export function quotaBriefLine(q: QuotaToday | null): string | null {
 }
 
 /** GET /v1/ops/meter: each class's stored rows for the last `days` UTC days (today's raised to Core's
- * live numbers, as `today` is), and today's use. */
+ * live numbers, as `today` is), and today's use. Today's `core` row carries the bulk lane's rows (counted
+ * in Core, whichever object they were written in); other rows, and past days (not kept), have 0. */
 export function meterResponse(db: Db, days: number, now: number): MeterResponse {
   const today = merged(db, now, []);
+  const bulk = laneRows(db, now);
   const items = [...today, ...daysFrom(db, dayBefore(utcDay(now), days - 1)).filter((r) => r.day !== utcDay(now))].map(
-    (r) => ({ ...r, bulk_rows_written: 0 }),
+    (r) => ({ ...r, bulk_rows_written: r.day === utcDay(now) && r.class === 'core' ? bulk : 0 }),
   );
   return { items, today: summed(today, now) };
 }

@@ -83,7 +83,7 @@ describe('deep health', () => {
           rows_written: expect.any(Number),
           rows_read: expect.any(Number),
           bulk_rows_written: 0,
-          bulk_lane: null,
+          bulk_lane: { day: expect.any(String), rows: 0, cap: 40_000 },
         },
         last_backup: null,
         last_events_export: null,

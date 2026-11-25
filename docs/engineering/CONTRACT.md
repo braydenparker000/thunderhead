@@ -157,7 +157,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/taste/weights` | D | P5 | built | the DJ shuffle's history weights by song id, none while music.history is off |
 | `GET /v1/music/taste` | C N | P5 | built | ?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays |
 | `GET /v1/music/similar/:mbid` | C N | P5 | built | ListenBrainz's similar artists, kept a week; plays and catalog songs of each |
-| `GET /v1/music/know` | D C N | P5 | built | how far the matching and the facts are, what each source filled, picks made, declined and added: counts only |
+| `GET /v1/music/know` | D C N I | P5 | built | how far the matching and the facts are, what each source filled, picks made, declined and added: counts only |
 | `GET /v1/music/facts` | C N | P5 | built | ?ref=<MusicBrainz id or name>: an artist or album, everything known, compact; free text from elsewhere under outside |
 | `GET /v1/music/credits` | C N | P5 | built | ?ref=<MusicBrainz id or name>: what in the library a person worked on, and their other work |
 | `GET /v1/music/unmatched` | D C N | P5 | built | catalog albums left unmatched, with why, ≤ 200 |
@@ -222,7 +222,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/reminders` | D C N | P8 | built |  |
 | `DELETE /v1/reminders/:id` | D C | P8 | built | takes back one not yet delivered; the row stays |
 | `POST /v1/ops/reports` | D | P8 | built | {kind, body ≤ 32 KB}; at most 6 in any 5 minutes |
-| `GET /v1/ops/reports` | D C N R | P8 | built | ?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB |
+| `GET /v1/ops/reports` | D C N R I | P8 | built | ?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB |
 | `GET /v1/photos/drive` | D | P9 | built | connected or not, the folder by name, a revoked grant |
 | `POST /v1/photos/drive/connect` | D | P9 | built | Google's consent address, scope drive.file, a state good for 10 minutes |
 | `GET /v1/photos/drive/callback` | public | P9 | built | Google's redirect: ?code=&state=; stores the grant sealed, makes the folder, back to /photos/ |
@@ -276,6 +276,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/issues/:id` | D C | P9 | built | {title ≤ 120, what ≤ 1,000, where?, kind?, from_message_id?}: mind:chat names the owner-device message of the last 48 h it came from, from a clean claimed session |
 | `PATCH /v1/issues/:id` | D | P9 | built | {title?, what?, where?, kind?, state?: open\|done}: edit, mark done, reopen |
 | `POST /v1/issues/:id/notes` | D C | P9 | built | {text ≤ 1,000}: a note added (never changed or removed), at most 50 an item |
+| `GET /v1/ops/diag` | D I | P9 | built | jobs, the bulk lane, quota, meter, the music knowledge job and the version: counts, states, times, codes and host names, never content |
 
 ## Verbs
 
