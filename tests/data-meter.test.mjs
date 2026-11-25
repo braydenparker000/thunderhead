@@ -1,7 +1,9 @@
 // The data meter's arithmetic and its workers' side (frontend/th/data/, docs/engineering/DATA-METER.md):
 // a count's size from headers (a range is its range, a 304 its headers), from a timeline entry; the day
 // and the month at the owner's local midnight; the Wi-Fi / mobile / unknown split; the 62-day cut; a
-// reset; sizes in words; Settings' search finds the page; and nothing in the meter sends anything.
+// reset; sizes in words; an answer with no size counted by the bytes read, as they pass; Music's catalogue
+// and its app's own files as rows of their own, its worker's release files among them; Settings' search
+// finds the page; and nothing in the meter sends anything.
 // Invented numbers only.
 process.env.TZ = 'America/Denver';
 import { test } from 'node:test';
@@ -57,7 +59,13 @@ test('today and this month turn over at the owner’s local midnight, split by n
   assert.deepEqual(month.rows.slice(0, 2).map((r) => r.id), ['api', 'music']);
   const music = month.rows.find((r) => r.id === 'music');
   assert.deepEqual(music.split, [1000, 2000, 300]);
-  assert.deepEqual(music.pieces.map((p) => [p.name, p.split]), [['Songs', [1000, 2000, 0]], ['Covers', [0, 0, 300]], ['The rest', [0, 0, 0]]]);
+  assert.deepEqual(music.pieces.map((p) => [p.name, p.split]), [['Songs', [1000, 2000, 0]], ['Covers', [0, 0, 300]], ['Catalogue', [0, 0, 0]], ['App files', [0, 0, 0]], ['The rest', [0, 0, 0]]]);
+  // The catalogue and the app's own files are Music's, each its own row.
+  add(t, '2026-11-21', 'music.catalog', 0, 400);
+  add(t, '2026-11-21', 'music.app', 1, 500);
+  const after = totals(t, at(2026, 11, 21, 9)).month.rows.find((r) => r.id === 'music');
+  assert.deepEqual(after.split, [1400, 2500, 300]);
+  assert.deepEqual(after.pieces.slice(2, 4).map((p) => [p.name, p.split]), [['Catalogue', [400, 0, 0]], ['App files', [0, 500, 0]]]);
   // The next month starts empty.
   assert.deepEqual(totals(t, at(2026, 12, 1, 0, 0, 1)).month.all, [0, 0, 0]);
   // Unknown parts and nothing at all are not counted.
@@ -126,6 +134,40 @@ test('a worker counts an answer by its headers and posts it to a page that said 
   assert.equal(posted.reduce((n, m) => n + m.unsized, 0), 2, 'answers with no size are said, not guessed');
   assert.ok(posted.every((m) => m.type === 'th-data'));
   assert.deepEqual(['/precache.json', '/apps/photos/main.js', '/vendor/pdfjs-6.4.299/pdf.mjs', '/ui/theme.js'].map(self.thData.partOf), ['updates', 'photos', 'study', 'home']);
+});
+
+test('an answer with no size (the streamed, compressed catalogue) is counted by the bytes read, as they pass', async () => {
+  const posted = [];
+  const page = { id: 'page-1', postMessage: (m) => posted.push(m) };
+  const self = { navigator: { connection: { type: 'wifi' } }, clients: { get: async () => page, matchAll: async () => [page] }, addEventListener() {} };
+  self.self = self;
+  runInNewContext(await readFile(new URL('../frontend/th/data/worker.js', import.meta.url), 'utf8'), { self, Date, Map, Set, Number, String, URL, Promise, Response, TransformStream });
+  const chunks = [new Uint8Array(200_000), new Uint8Array(200_000), new Uint8Array(1234)];
+  let pulled = 0;
+  const body = new ReadableStream({ pull(c) { if (pulled < chunks.length) c.enqueue(chunks[pulled++]); else c.close(); } });
+  const raw = new Response(body, { status: 200, headers: { 'Content-Type': 'application/json', ETag: '"v7"' } });
+  const r = self.thData.read('music.catalog', raw, 'page-1');
+  assert.notEqual(r, raw, 'a counted answer in its place');
+  assert.deepEqual([r.status, r.headers.get('ETag')], [200, '"v7"']);
+  assert.equal((await r.arrayBuffer()).byteLength, 401_234, 'the same body, whole');
+  await new Promise((res) => setTimeout(res, 10));
+  const items = posted.flatMap((m) => m.items);
+  assert.ok(items.every((i) => i.id === 'music.catalog' && i.net === 0));
+  assert.equal(items.reduce((n, i) => n + i.bytes, 0), 401_234 + HEADERS, 'every byte read, plus its headers');
+  assert.equal(posted.reduce((n, m) => n + m.unsized, 0), 0, 'not an answer without a size any more');
+  // An answer whose headers say its size is counted by them and handed back as it is.
+  const sized = new Response(new Uint8Array(10), { status: 200, headers: { 'Content-Length': '10' } });
+  assert.equal(self.thData.read('music.rest', sized), sized);
+});
+
+test('Music’s worker counts the files it fetches for its release and its own files, as App files; the catalogue as Catalogue', async () => {
+  const sw = await readFile(new URL('../frontend/music/sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /const own = \(req, init\) => fetch\(req, init\)\.then\(r => \{ self\.thData\?\.count\('music\.app', r\); return r; \}\);/);
+  assert.match(sw, /thMusicRelease\?\.make\(\{ fetch: own, caches \}\)/, 'release.js fetches through it');
+  assert.equal((sw.match(/own\(req\)/g) ?? []).length, 2, 'and the files it fetches network first, or when the release gives none');
+  const bridge = await readFile(new URL('../frontend/th/music/bridge.js', import.meta.url), 'utf8');
+  assert.match(bridge, /measured\(await upstream\(`\$\{base\}\/v1\/music\/catalog/, 'the catalogue is measured by the bytes read');
+  assert.match(bridge, /'music\.catalog'/);
 });
 
 test('Settings’ search finds Data use by the words people use', () => {

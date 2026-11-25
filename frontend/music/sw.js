@@ -20,7 +20,10 @@
 // is only the name they and the offline copies carry: every request to it is answered here, none leaves the phone (§8).
 importScripts('/th/music/bridge.js');
 try { importScripts('/th/music/release.js'); } catch { /* without it, every file asks the network as before */ }
-const release = self.thMusicRelease?.make({ fetch: (...a) => fetch(...a), caches });
+// The app's own files this worker fetches (its release's, and the network-first ones), counted as Music's app files in
+// Settings › Data use by their headers (th/data/worker.js, loaded by the bridge); the answer itself is untouched.
+const own = (req, init) => fetch(req, init).then(r => { self.thData?.count('music.app', r); return r; });
+const release = self.thMusicRelease?.make({ fetch: own, caches });
 self.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
 const net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);
 const CACHE = 'claude-player-v1';
@@ -91,7 +94,7 @@ self.addEventListener('fetch', e => {
   // The site's shared files the player loads (th/, assets/, ui/, config.js): from the release's cache too, else
   // the network exactly as without this worker (they have no offline copies here).
   if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && /^\/(th|assets|ui)\/[^?]*\.js$|^\/config\.js$/.test(url.pathname) && !/^\/th\/music\/(dj|dj-tags|search|ratings)\.js$/.test(url.pathname)) {
-    if (release && Date.now() >= badUntil) e.respondWith(release.answer(req).catch(() => null).then(r => r ?? (noRelease(), fetch(req))));
+    if (release && Date.now() >= badUntil) e.respondWith(release.answer(req).catch(() => null).then(r => r ?? (noRelease(), own(req))));
     return;
   }
   // The DJ shuffle's planner (with the tags it reads), the better search and the ratings (th/music/dj.js, dj-tags.js, search.js, ratings.js) are part of the app, offline too.
@@ -115,7 +118,7 @@ function appFile(req) {
       if (copy) return copy;
     }
     // The request goes as it came (a navigation cannot be re-made with options).
-    const network = fetch(req).then(r => { if (r.ok && r.type === 'basic') cache.put(req, r.clone()); return r; });
+    const network = own(req).then(r => { if (r.ok && r.type === 'basic') cache.put(req, r.clone()); return r; });
     let timer;
     const late = new Promise(resolve => { timer = setTimeout(resolve, NETWORK_MS, null); });
     try {
