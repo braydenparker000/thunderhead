@@ -66,7 +66,8 @@ export function unmatchedParts(u) {
   ];
 }
 
-export function knowBlock() {
+/** @param {Node[]} [after] what stands under the counts (the picks to add, music-picks.js) */
+export function knowBlock(after = []) {
   const counts = el('div', { class: 'mmeters', 'data-know': '', 'aria-busy': 'true' }, [el('p', { class: 'sempty', text: 'Reading…' })]);
   const load = async () => {
     if (navigator.onLine === false) {
@@ -94,6 +95,7 @@ export function knowBlock() {
       ]),
     ]),
     counts,
+    ...after,
   ]);
   window.addEventListener('online', load, { once: true });
   load();
