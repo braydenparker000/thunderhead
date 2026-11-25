@@ -68,7 +68,8 @@
   // TORBOX_KEY is the owner's TorBox API key for Astra's relay (SECURITY.md §8.2); only the owner
   // sets it (backend/README.md); while it is `none`, /v1/astra/play skips TorBox and answers no address.
   // DISCOGS_TOKEN is the owner's Discogs personal token (optional, MUSIC.md §19.2): while it is `none`,
-  // the music knowledge asks Discogs nothing.
+  // the music knowledge asks Discogs nothing. LISTENBRAINZ_TOKEN is the owner's ListenBrainz user token
+  // (optional, MUSIC.md §19.2): while it is `none`, the music knowledge asks ListenBrainz's popularity nothing.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -88,7 +89,8 @@
       "GOOGLE_CLIENT_ID",
       "GOOGLE_CLIENT_SECRET",
       "TORBOX_KEY",
-      "DISCOGS_TOKEN"
+      "DISCOGS_TOKEN",
+      "LISTENBRAINZ_TOKEN"
     ]
   },
   "vars": {
