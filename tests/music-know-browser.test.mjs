@@ -1,7 +1,8 @@
 // Settings › Music's "What I know about your music" (MUSIC.md §19.6), in Chromium at 360 px wide
 // against the mocked Worker: the counts (albums matched, artists, what each source filled, the picks,
 // each source answering or refusing, the waveforms by kind)
-// and the unmatched albums with why; then the error line when the Worker can't answer. Invented
+// and the unmatched albums with why; the picks to add with a Play button each (a pick with no preview
+// says so); then the error line when the Worker can't answer. Invented
 // albums and artists only.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,6 +39,8 @@ const STATUS = {
   },
   waveforms: { rms: 120, peak: 30, none: 5 },
 };
+const PICK = { id: '00000000-0000-4000-9000-000000000068', kind: 'gap', album: 'Harbour Lights', artist: 'Invented Artist 0', artist_mbid: '00000000-0000-4000-8000-000000000000', year: 2006, type: 'Album', score: 0.8, reason: { kind: 'gap' }, line: 'Harbour Lights (2006) by Invented Artist 0: one of their best-loved albums, and not in your library.', state: 'new', made_at: 1, state_at: 1 };
+const PICKS = { items: [PICK], built_at: 1, weights: { gap: 1, new: 1, neighbour: 1, credit: 1, influence: 1 } };
 const UNMATCHED = { items: [{ artist: 'Invented Artist 0', album: 'Night Orchard', songs: 1, reason: 'several_release_groups' }], total: 1 };
 
 async function open(failing) {
@@ -51,6 +54,8 @@ async function open(failing) {
   await page.route(`${API}/v1/music/know`, (route) => failing
     ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'x' } }) })
     : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STATUS) }));
+  await page.route((url) => url.pathname === '/v1/music/picks', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PICKS) }));
+  await page.route((url) => /^\/v1\/music\/picks\/[^/]+\/preview$/.test(url.pathname), (route) => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'x' } }) }));
   await page.route(`${API}/v1/music/unmatched`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(UNMATCHED) }));
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve) => { const req = indexedDB.open('th-auth', 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'); tx.oncomplete = () => { req.result.close(); resolve(); }; }; }), TOKEN);
@@ -78,6 +83,20 @@ test('Settings › Music: what is known, matched out of how many, by which sourc
   assert.ok(box && box.x >= 0 && box.x + box.width <= 360, 'the block fits a 360 px phone');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= 360), true, 'no sideways scroll');
   if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/music-know.png`, fullPage: true });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Settings › Music: the picks to add, each with a Play button; a pick with no preview says so', opts, async () => {
+  const { context, page, errors } = await open(false);
+  await page.waitForSelector('#music-picks [data-picks]:not([aria-busy])');
+  assert.match(await page.textContent('#music-picks'), /Picks to add:.*Harbour Lights \(2006\) by Invented Artist 0/);
+  const name = 'Play a preview of Harbour Lights by Invented Artist 0';
+  const box = await page.getByRole('button', { name }).boundingBox();
+  assert.ok(box && box.height >= 44, 'a 44 px target');
+  await page.getByRole('button', { name }).click();
+  await page.waitForFunction(() => /No preview for this one\./.test(document.querySelector('#music-picks [data-pick]')?.textContent ?? ''));
+  assert.equal(await page.getByRole('button', { name }).count(), 1, 'back to Play: nothing plays');
   assert.deepEqual(errors, []);
   await context.close();
 });

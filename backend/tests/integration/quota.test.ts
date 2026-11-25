@@ -45,7 +45,7 @@ describe('the quota watchdogs', () => {
   it('quota.rows_read trips at 60% of the day’s budget, holds, notes 80%, and clears the next day', async () => {
     await resetWatchdogs();
     const day = utcDay(T0);
-    expect(READ_60).toBe(2_880_000);
+    expect(READ_60).toBe(2_820_000);
     await seed(day, 'music', READ_60 - 1_000, 100);
     await watch(T0);
     await seed(day, 'music', READ_60 + 20_000, 100);
@@ -56,26 +56,26 @@ describe('the quota watchdogs', () => {
     const items = (await apiJson<WatchdogsResponse>('GET', '/v1/ops/watchdogs', { token: D })).body.items;
     expect(items.find((i) => i.name === 'quota.rows_read')).toMatchObject({
       state: 'tripped',
-      detail: "rows read today passed 80% of the day's budget of 4,800,000; the heavy work waits for 00:00 UTC",
+      detail: "rows read today passed 80% of the day's budget of 4,700,000; the heavy work waits for 00:00 UTC",
     });
     await watch(nextUtcDay(T0) + 15 * MINUTE);
     expect(await notes('quota.rows_read')).toEqual([
-      "watchdog quota.rows_read tripped: rows read today passed 60% of the day's budget of 4,800,000",
+      "watchdog quota.rows_read tripped: rows read today passed 60% of the day's budget of 4,700,000",
       CLEAR('quota.rows_read'),
     ]);
   });
 
-  it('quota.rows_written trips at 60% of what the old Worker leaves (40,800 of 68,000)', async () => {
+  it('quota.rows_written trips at 60% of what the old Worker leaves (54,000 of 90,000)', async () => {
     await resetWatchdogs();
     const day = utcDay(T0 + DAY);
-    expect(DAY_BUDGET.rows_written).toBe(68_000);
-    await seed(day, 'core', 10_000, 30_000);
+    expect(DAY_BUDGET.rows_written).toBe(90_000);
+    await seed(day, 'core', 10_000, 43_200);
     await seed(day, 'scratch', 0, 10_000);
     await watch(T0 + DAY);
     await seed(day, 'scratch', 0, 10_800);
     await watch(T0 + DAY + 15 * MINUTE);
     expect(await notes('quota.rows_written')).toEqual([
-      "watchdog quota.rows_written tripped: rows written today passed 60% of the day's budget of 68,000",
+      "watchdog quota.rows_written tripped: rows written today passed 60% of the day's budget of 90,000",
     ]);
     expect(await notes('quota.rows_read')).toEqual([]);
   });
@@ -98,7 +98,7 @@ describe('the lines from 60%', () => {
     expect(await now()).not.toMatch(/quota:/);
     await seed(today(), 'music', READ_60 + 10_000, 0);
     expect(await page()).toBe("Today's database use is at 60% of the free plan's daily limit.");
-    expect(await now()).toMatch(/^quota: 60% of today's budget \(read 2,8\d\d,\d{3} of 4,800,000; written /m);
+    expect(await now()).toMatch(/^quota: 60% of today's budget \(read 2,8\d\d,\d{3} of 4,700,000; written /m);
     await seed(today(), 'music', READ_80 + 50_000, 0);
     // The owner's zone in these tests is UTC: 00:00 UTC is 00:00 on their clock.
     expect(await page()).toBe(

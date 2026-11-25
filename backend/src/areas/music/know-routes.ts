@@ -1,4 +1,4 @@
-// /v1/music/know, /facts, /credits, /unmatched and /picks (MUSIC.md §19.3–19.5, API.md §11.9): what the
+// /v1/music/know, /facts, /credits, /unmatched and /picks (MUSIC.md §19.3–19.7, API.md §11.9): what the
 // Worker knows of the owner's music beyond their files, and the albums it suggests adding. Keyed reads
 // only. Facts, credits and picks hold names and text from elsewhere (canonical names, Wikipedia,
 // tags), and the unmatched list the owner's own catalog names: they are handed to the mind as songs'
@@ -25,6 +25,7 @@ import { fresh } from '../../objects/rpc';
 import { MBID } from './history-mb';
 import { clip } from './know-parse-mb';
 import { isKind } from './picks-store';
+import { previewResponse } from './preview-fetch';
 import { tagsRead } from './tags-read';
 
 const CONTROL = /\p{Cc}/u;
@@ -88,6 +89,13 @@ export const knowRoutes = new Hono<AppEnv>()
       musicObject(c.env).picks({ kind: kind as PickKind | undefined, state: state as PickState, limit }),
     );
     return c.json(r satisfies PicksResponse);
+  })
+  // A pick's 30-second preview from Apple, passed through (preview-fetch.ts, MUSIC.md §19.7): the
+  // owner's tap only; nothing is written.
+  .get('/music/picks/:id/preview', guard('GET /v1/music/picks/:id/preview'), async (c) => {
+    const pick = await fresh(musicObject(c.env).pickNames(pickId(c.req.param('id'))));
+    if (!pick) throw new ApiError('not_found');
+    return previewResponse(pick);
   })
   .post('/music/picks/:id/decline', guard('POST /v1/music/picks/:id/decline'), async (c) => {
     noSandbox();

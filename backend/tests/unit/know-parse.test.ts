@@ -11,7 +11,7 @@ import * as mb from '../../src/areas/music/know-parse-mb';
 import * as web from '../../src/areas/music/know-parse-web';
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
-const keys = { lastfm: true, discogs: true };
+const keys = { lastfm: true, discogs: true, listenbrainz: true };
 
 describe('MusicBrainz and ListenBrainz', () => {
   it('a discography page: groups with types and dates, the total, bad ids left out', () => {
@@ -252,8 +252,12 @@ describe('the requests', () => {
     const fm = askFor('fmalb', { ...row, title: 'Paper Lanterns' }, { named: true }, keys);
     expect(fm?.url).toContain('artist=Invented%20Band&album=Paper%20Lanterns');
     expect(fm?.url).not.toContain('api_key');
-    expect(askFor('fmtags', row, {}, { lastfm: false, discogs: false })).toBeNull();
-    expect(askFor('dcm', row, { discogs: 'master/5' }, { lastfm: false, discogs: false })).toBeNull();
+    const none = { lastfm: false, discogs: false, listenbrainz: false };
+    expect(askFor('fmtags', row, {}, none)).toBeNull();
+    expect(askFor('dcm', row, { discogs: 'master/5' }, none)).toBeNull();
+    expect(askFor('lbtop', row, {}, none)).toBeNull();
+    // ListenBrainz's labs host is asked without its token.
+    expect(askFor('lbsim', row, {}, none)?.auth).toBeUndefined();
     expect(askFor('wd', row, {}, keys)).toBeNull();
     expect(askFor('wp', row, { wiki: 'Invented Band' }, keys)?.host).toBe('en.wikipedia.org');
   });

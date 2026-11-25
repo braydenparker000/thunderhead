@@ -14,7 +14,7 @@ import { nextAsk, refused, rowFailed } from '../../src/areas/music/know-plan';
 import type { FactsRow } from '../../src/areas/music/know-store';
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
-const keys = { lastfm: true, discogs: true };
+const keys = { lastfm: true, discogs: true, listenbrainz: true };
 
 const ODD: unknown[] = [
   null,
@@ -150,27 +150,55 @@ describe('failures and their cost', () => {
     };
     expect(nextAsk(row, {}, all, keys, 0)).toEqual({ park: 3_000, drop: ['wds'] });
     // A keyed source with no key goes, whatever waits before it.
-    expect(nextAsk(row, {}, all, { lastfm: false, discogs: false }, 0)).toEqual({ park: 3_000, drop: ['wds', 'dcm'] });
+    const none = { lastfm: false, discogs: false, listenbrainz: false };
+    expect(nextAsk(row, {}, all, none, 0)).toEqual({ park: 3_000, drop: ['wds', 'dcm'] });
+    // ListenBrainz's popularity without its token goes too; its labs host needs none.
+    const artist = { ...row, id: `a:${id(1)}`, todo: 'lbtop,lbsim', work_json: '{}' } as FactsRow;
+    expect(nextAsk(artist, {}, {}, none, 0)).toMatchObject({ source: 'lbsim', drop: ['lbtop'] });
   });
 
   it('an answer over the size cap is nothing, not a failure (not asked again this round); a bad one is the row’s', async () => {
     const big = 'x'.repeat(MAX_BYTES + 10);
     useFetch(async () => new Response(`[${JSON.stringify(big)}]`));
     const ask = askFor('lbtop', { mbid: id(1), name: 'x' }, {}, keys);
-    expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 5000)).toEqual({ none: true });
+    const lbEnv = { LISTENBRAINZ_TOKEN: 'invented-lb-token' } as unknown as Env;
+    expect(await fetchAsk(lbEnv, 'lbtop', ask as NonNullable<typeof ask>, 5000)).toEqual({ none: true });
     useFetch(async () => new Response('<html>no</html>'));
-    expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 10000)).toEqual({ error: 'row' });
+    expect(await fetchAsk(lbEnv, 'lbtop', ask as NonNullable<typeof ask>, 10000)).toEqual({ error: 'row' });
     // Not allowed is the host's, for the longest rest: no row pays three requests for it.
     useFetch(async () => new Response('no', { status: 401 }));
-    expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 12000)).toEqual({
+    expect(await fetchAsk(lbEnv, 'lbtop', ask as NonNullable<typeof ask>, 12000)).toEqual({
       error: 'host',
       retry: 6 * 3_600_000,
     });
     useFetch(async () => new Response('busy', { status: 429, headers: { 'Retry-After': '30' } }));
-    expect(await fetchAsk({} as Env, 'lbtop', ask as NonNullable<typeof ask>, 15000)).toEqual({
+    expect(await fetchAsk(lbEnv, 'lbtop', ask as NonNullable<typeof ask>, 15000)).toEqual({
       error: 'host',
       retry: 30_000,
     });
+  });
+
+  it("ListenBrainz's token goes in a header to its API host alone, never in the address; without it, nothing is asked", async () => {
+    const seen: { url: string; auth: string | null }[] = [];
+    useFetch(async (input, init) => {
+      seen.push({ url: String(input), auth: new Headers(init?.headers).get('Authorization') });
+      return new Response('[]');
+    });
+    const ask = askFor('lbtop', { mbid: id(1), name: 'x' }, {}, keys);
+    expect(ask).toEqual({
+      host: 'api.listenbrainz.org',
+      url: `https://api.listenbrainz.org/1/popularity/top-release-groups-for-artist/${id(1)}`,
+      auth: 'listenbrainz',
+    });
+    const env = { LISTENBRAINZ_TOKEN: 'invented-lb-token' } as unknown as Env;
+    const got = await fetchAsk(env, 'lbtop', ask as NonNullable<typeof ask>, 20_000);
+    expect(got).toEqual({ ok: {} });
+    expect(seen).toEqual([{ url: ask?.url, auth: 'Token invented-lb-token' }]);
+    const none = { LISTENBRAINZ_TOKEN: 'none' } as unknown as Env;
+    expect(await fetchAsk(none, 'lbtop', ask as NonNullable<typeof ask>, 30_000)).toEqual({ none: true });
+    const sim = askFor('lbsim', { mbid: id(1), name: 'x' }, {}, { lastfm: false, discogs: false, listenbrainz: false });
+    expect(sim?.auth).toBeUndefined();
+    expect(seen).toHaveLength(1);
   });
 });
 

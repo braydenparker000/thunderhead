@@ -66,7 +66,8 @@ export function unmatchedParts(u) {
   ];
 }
 
-export function knowBlock() {
+/** @param {Node[]} [after] what stands under the counts (the picks to add, music-picks.js) */
+export function knowBlock(after = []) {
   const counts = el('div', { class: 'mmeters', 'data-know': '', 'aria-busy': 'true' }, [el('p', { class: 'sempty', text: 'Reading…' })]);
   const load = async () => {
     if (navigator.onLine === false) {
@@ -90,10 +91,11 @@ export function knowBlock() {
       icon('book-open-text'),
       el('div', { class: 'row-copy stext' }, [
         el('div', { class: 'st1', text: 'What I know about your music' }),
-        el('div', { class: 'st2', text: 'Facts from MusicBrainz, ListenBrainz, Wikidata and Wikipedia (Last.fm and Discogs with their keys), found by each album’s and artist’s id. Only those ids and names leave, never your plays.' }),
+        el('div', { class: 'st2', text: 'Facts from MusicBrainz, ListenBrainz, Wikidata and Wikipedia (Last.fm, Discogs and ListenBrainz’s listen counts with their keys), found by each album’s and artist’s id. Only those ids and names leave, never your plays.' }),
       ]),
     ]),
     counts,
+    ...after,
   ]);
   window.addEventListener('online', load, { once: true });
   load();

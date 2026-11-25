@@ -154,10 +154,11 @@ describe('a key the owner adds later', () => {
       );
     // As the job left them with no keys: done, and nothing of Discogs or Last.fm filled.
     await musicSql("UPDATE know_facts SET todo = '', busy = 0, filled_json = '{\"musicbrainz\":1}'");
-    await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: false }, SOURCES));
+    await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: false, listenbrainz: false }, SOURCES));
     expect((await todo('album')).every((t) => t.length === 0)).toBe(true);
     // Discogs's token arrives: albums ask Discogs again; artists (no Discogs source) and Last.fm's stay.
-    const n = await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES));
+    const dc = { lastfm: false, discogs: true, listenbrainz: false };
+    const n = await inMusic((o) => keysArrived(dbOf(o), dc, SOURCES));
     const albumsNow = await todo('album');
     // (What it answers is the rows written, index entries with them.)
     expect(n).toBeGreaterThan(0);
@@ -165,10 +166,18 @@ describe('a key the owner adds later', () => {
     expect(albumsNow.every((t) => t.join() === 'dcm,dcr')).toBe(true);
     expect((await todo('artist')).every((t) => t.length === 0)).toBe(true);
     // Seen now: a second look changes nothing, and a row Discogs has filled is not asked again.
-    expect(await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES))).toBe(0);
+    expect(await inMusic((o) => keysArrived(dbOf(o), dc, SOURCES))).toBe(0);
     await musicSql("UPDATE know_facts SET todo = '', filled_json = '{\"discogs\":1}' WHERE kind = 'album'");
     await musicSql("DELETE FROM music_state WHERE key = 'know.keys'");
-    await inMusic((o) => keysArrived(dbOf(o), { lastfm: false, discogs: true }, SOURCES));
+    await inMusic((o) => keysArrived(dbOf(o), dc, SOURCES));
     expect((await todo('album')).every((t) => t.length === 0)).toBe(true);
+    // ListenBrainz's token arrives: artists ask its popularity again, even where its labs host (no
+    // token) filled the family; albums (no ListenBrainz source) stay.
+    await musicSql("UPDATE know_facts SET filled_json = '{\"listenbrainz\":1}' WHERE kind = 'artist'");
+    const all = { lastfm: false, discogs: true, listenbrainz: true };
+    expect(await inMusic((o) => keysArrived(dbOf(o), all, SOURCES))).toBeGreaterThan(0);
+    expect((await todo('artist')).every((t) => t.join() === 'lbtop')).toBe(true);
+    expect((await todo('album')).every((t) => t.length === 0)).toBe(true);
+    expect(await inMusic((o) => keysArrived(dbOf(o), all, SOURCES))).toBe(0);
   });
 });

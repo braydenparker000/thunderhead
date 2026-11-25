@@ -7,12 +7,13 @@ import type { Ms } from './api.ts';
 export const FREE_PLAN_DAY = { rows_read: 5_000_000, rows_written: 100_000 } as const;
 
 /** What the old Worker (`jarvis-hub-api`, its Hub object, not in this repository) uses of the same
- * account's limits each day, which this Worker's meter cannot see: about 180,000 rows read and
- * 32,000 written (Cloudflare's analytics, 2026-10-25 to 2026-10-31). Kept back from our budget;
+ * account's limits each day, which this Worker's meter cannot see. Cloudflare's analytics,
+ * 2026-11-04 to 2026-11-24 (21 days): 52,818 to 263,192 rows read and 4,398 to 8,744 written a day
+ * (under 5,400 written since 2026-11-21). Kept back from our budget with room above those highs;
  * both drop to 0 once the old Worker retires (SETUP.md N5, M4). */
-export const OLD_WORKER_RESERVE = { rows_read: 200_000, rows_written: 32_000 } as const;
+export const OLD_WORKER_RESERVE = { rows_read: 300_000, rows_written: 10_000 } as const;
 
-/** What is left for this Worker's five objects each day: 4,800,000 rows read, 68,000 written. The
+/** What is left for this Worker's five objects each day: 4,700,000 rows read, 90,000 written. The
  * quota levels are percentages of this budget. */
 export const DAY_BUDGET = {
   rows_read: FREE_PLAN_DAY.rows_read - OLD_WORKER_RESERVE.rows_read,
@@ -24,7 +25,7 @@ export const DAY_BUDGET = {
  * drill, the bulk lane, the senses archive, the upload tools) waits for 00:00 UTC. */
 export const QUOTA_LEVELS = { note: 60, hold: 80 } as const;
 
-/** Rows at a level of the day's budget (`quota.rows_read` trips at 2,880,000, say). */
+/** Rows at a level of the day's budget (`quota.rows_read` trips at 2,820,000, say). */
 export const budgetAt = (pct: number, key: keyof typeof DAY_BUDGET) => Math.floor((DAY_BUDGET[key] * pct) / 100);
 
 /** One object class's rows on one UTC day. */

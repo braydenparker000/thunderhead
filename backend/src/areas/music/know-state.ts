@@ -36,21 +36,24 @@ export type Hosts = Record<string, { fails: number; until: number; ok_at?: numbe
 export const hostsOf = (db: Db): Hosts => getState<Hosts>(db, 'know.hosts') ?? {};
 export const putHosts = (db: Db, h: Hosts) => putState(db, 'know.hosts', h);
 
-/** The keys the job last saw (`know.keys`). A key that has arrived since (the owner added Last.fm's
- * or Discogs's) puts its sources back on every row that could ask them and that the service has
- * never filled: such a row dropped them for want of the key and would otherwise wait for its monthly
- * round. Rows put back. */
+/** The keys the job last saw (`know.keys`). A key that has arrived since (the owner added Last.fm's,
+ * Discogs's or ListenBrainz's) puts its sources back on every row that could ask them and that the
+ * service has never filled: such a row dropped them for want of the key and would otherwise wait for
+ * its monthly round. ListenBrainz's labs host fills the same family without a token, so its token puts
+ * `lbtop` back on every row its popularity never answered (`work_json.lbtop_at`). Rows put back. */
 export function keysArrived(
   db: Db,
-  keys: { lastfm: boolean; discogs: boolean },
+  keys: { lastfm: boolean; discogs: boolean; listenbrainz: boolean },
   sources: Record<string, readonly string[]>,
 ): number {
-  const seen = getState<{ lastfm: boolean; discogs: boolean }>(db, 'know.keys');
-  if (seen && seen.lastfm === keys.lastfm && seen.discogs === keys.discogs) return 0;
+  const seen = getState<Partial<typeof keys>>(db, 'know.keys');
+  const families = ['lastfm', 'discogs', 'listenbrainz'] as const;
+  if (seen && families.every((f) => !!seen[f] === keys[f])) return 0;
   let n = 0;
-  for (const [family, prefix] of [
-    ['lastfm', 'fm'],
-    ['discogs', 'dc'],
+  for (const [family, prefix, never] of [
+    ['lastfm', 'fm', "json_extract(filled_json, '$.lastfm') IS NULL"],
+    ['discogs', 'dc', "json_extract(filled_json, '$.discogs') IS NULL"],
+    ['listenbrainz', 'lbtop', "json_extract(work_json, '$.lbtop_at') IS NULL"],
   ] as const) {
     if (!keys[family] || seen?.[family]) continue;
     for (const [kind, all] of Object.entries(sources)) {
@@ -58,10 +61,9 @@ export function keysArrived(
       if (!add.length) continue;
       n += db.run(
         `UPDATE know_facts SET busy = 1, todo = trim(todo || ',' || ?1, ',')
-         WHERE kind = ?2 AND json_extract(filled_json, ?3) IS NULL AND instr(',' || todo || ',', ?4) = 0`,
+         WHERE kind = ?2 AND ${never} AND instr(',' || todo || ',', ?3) = 0`,
         add.join(','),
         kind,
-        `$.${family}`,
         `,${add[0]},`,
       );
     }
