@@ -11,8 +11,9 @@
 // - POST …/<op>: the catalog writer's operations (areas/music/writer*.ts) in the Music object (the
 //   songs `register` and `register-batch` add also go to Muse's upload batch in Core, a task in the
 //   menu, areas/work);
-//   `export` (the catalog with its waveforms) and `links` (signed links to tracks' audio, for the
-//   waveform backfill) read only. Past 80% of a day's Free-plan rows they answer 429 with
+//   `export` (the catalog with its waveforms, or a page of it), `track` (one record), `quota` (the
+//   day's rows and the hold, upload-reads.ts) and `links` (signed links to tracks' audio, for the
+//   waveform backfill) read only. Past 80% of a day's Free-plan rows all but `quota` answer 429 with
 //   Retry-After until 00:00 UTC (areas/meter/hold.ts): their reads put the day near the cap once.
 import { Hono } from 'hono';
 import { KNOW_LIMITS } from '../../../../shared/contract/know.ts';
@@ -25,6 +26,7 @@ import { sha256 } from '../import/vault';
 import { refuseWhileHeld } from '../meter/hold';
 import { SONG_ID } from './shapes';
 import { signKey, signR2 } from './sign';
+import { exportText, quotaOf, trackText } from './upload-reads';
 import { HEX, signatureMessage } from './validate';
 import { proof, verifiedBlob } from './writer';
 
@@ -167,7 +169,7 @@ export const uploadRoutes = new Hono<AppEnv>()
     const op = c.req.param('op');
     if (!/^[a-z-]{1,40}$/.test(op)) throw new ApiError('not_found');
     const s = await signed(c);
-    await refuseWhileHeld(c.env);
+    if (op !== 'quota') await refuseWhileHeld(c.env);
     if (s.size > (BIG_OPS.has(op) ? UPLOAD_LIMITS.batch : UPLOAD_LIMITS.op)) throw new ApiError('too_large');
     if (s.type !== 'application/json') throw new ApiError('unsupported_media_type');
     let input: unknown;
@@ -179,9 +181,11 @@ export const uploadRoutes = new Hono<AppEnv>()
     }
     if (!input || typeof input !== 'object' || Array.isArray(input))
       throw new ApiError('validation', [{ path: 'body', issue: 'a JSON object' }]);
+    const json = { 'Content-Type': 'application/json; charset=utf-8' };
+    if (op === 'export') return c.body(await exportText(c.env, input as Record<string, unknown>), 200, json);
+    if (op === 'track') return c.body(await trackText(c.env, input as Record<string, unknown>), 200, json);
+    if (op === 'quota') return c.json(await quotaOf(c.env));
     const music = musicObject(c.env);
-    if (op === 'export')
-      return c.body(await fresh(music.exportCatalog()), 200, { 'Content-Type': 'application/json; charset=utf-8' });
     if (op === 'links') return c.json(await links(c.env, (input as { ids?: unknown }).ids));
     // The RPC types can't carry `unknown`; the body is the writer's own JSON.
     const r = (await fresh(music.write(op, input as Record<string, unknown>))) as unknown as WriteResult;

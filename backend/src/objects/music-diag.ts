@@ -3,9 +3,9 @@
 // and the facts rows by kind and by the sources each still has to ask. A code layer of the one Music class.
 import type { DiagKnow } from '../../../shared/contract/diag.ts';
 import * as ks from '../areas/music/know-store';
-import { MusicPicks } from './music-picks';
+import { MusicExport } from './music-export';
 
-export abstract class MusicDiag extends MusicPicks {
+export abstract class MusicDiag extends MusicExport {
   /** One pass over `know_facts` (kind, busy and todo only), besides the status's own counts. */
   knowDiag(now = Date.now()): DiagKnow {
     const st = ks.knowState(this.db);

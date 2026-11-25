@@ -60,15 +60,20 @@ in archive/MUSE-UPLOADS.md, your upload key, no `Origin`, no bearer token):
 
 ## 4. Redoing the songs already uploaded
 
-1. **Once:** `POST /v1/music/uploads/export` (body `{}`): the whole catalog, each track with its
-   id and `metadata.dur`. Keep the list; do not call it again during the redo (it reads every track).
+1. **Once:** `POST /v1/music/uploads/export` with `{ "waveforms": false, "limit": 2000 }`, then
+   again with `"after"` set to each answer's `next` until `complete` is true: the whole catalog in
+   catalog order, each track with its id, `metadata.dur`, `hasWaveform` and `waveformKind`, without
+   the waveforms themselves. Keep the list; do not page it again during the redo (it reads every
+   track). One song's record alone: `POST /v1/music/uploads/track` with `{ "id": … }`.
 2. **For each 100 songs:** `POST /v1/music/uploads/links` with `{ "ids": [up to 100] }` gives signed
    links to their audio, good for 3 hours. Download straight from those links (the bucket, not the
    Worker), measure (§2), delete your copy.
 3. **Send** in batches of 200 (§3).
 4. **The day's budget:** the Worker shares 100,000 rows written a day with everything else, and each
    song costs about four (the track, its indexes, the undo log). Do **at most 2,000 songs a day**
-   (10 batches). On `429` stop at once and start again after the `Retry-After` it gives (00:00 UTC);
+   (10 batches). `POST /v1/music/uploads/quota` (body `{}`) tells you the day's rows written, the
+   level the hold starts at and, while held, `retry_after`; it answers even then. On `429` stop at
+   once and start again after the `Retry-After` it gives (00:00 UTC);
    on `5xx` wait and retry the same batch: it is safe to send twice.
 5. Order: songs with no waveform first, then those whose catalog record has no `"waveformKind":
    "rms"`, then the rest. Keep a list of the ids done, so a restart goes on where it stopped.

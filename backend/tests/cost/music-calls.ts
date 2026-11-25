@@ -7,7 +7,7 @@
 // index; in Core, the current rules. The phone's ratings go to Music as two rows each (three for a 1,
 // with its indexes), and its one-time catch-up of the songs rated 1 goes 100 a batch. Songs' tags
 // served to a night session record it as a reader (no taint since 2026-11-22). Last,
-// the phone's marks and playlists (music-sync-calls.ts).
+// the phone's marks and playlists (music-sync-calls.ts), then Muse's upload operations (muse-calls.ts).
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
@@ -17,6 +17,7 @@ import { sensesObject } from '../../src/objects/senses';
 import { api, apiJson, coreSql, core as coreStub, PASSWORD } from '../helpers';
 import { brief } from '../memory-helpers';
 import { music, note, seedCatalog } from '../music-helpers';
+import { museCalls } from './muse-calls';
 import { musicSyncCalls } from './music-sync-calls';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
@@ -188,4 +189,6 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   );
   // The owner's marks and playlists on every phone (music-sync-calls.ts).
   await musicSyncCalls(cost, d.token, m);
+  // Muse's upload operations, the operation alone (muse-calls.ts).
+  await museCalls(cost, m);
 }

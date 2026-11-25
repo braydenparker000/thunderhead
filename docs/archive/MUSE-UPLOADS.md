@@ -60,7 +60,7 @@ Each answers `{ key, sha256, size, r2Identity }`.
 - `waveforms` (up to 200)
 - `delete`
 - `audit`
-- `export` and `links`, which only read
+- `export` and `links`, which only read (since 2026-11-25 also `track` and `quota`, and `export` in pages: [MUSE-PROTOCOL.md](../engineering/MUSE-PROTOCOL.md) §1)
 
 Waveforms follow the same rule as before: send `"waveformKind": "rms"` with waveforms made by `waveform.py`.
 

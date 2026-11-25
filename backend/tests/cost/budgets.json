@@ -890,5 +890,29 @@
   "GET /v1/music/catalog, 304 after the marks and playlists synced (Music)": {
     "rows_read_max": 1,
     "rows_written_max": 0
+  },
+  "POST /v1/music/uploads/register-batch, 20 new songs with waveforms (Music, the operation alone)": {
+    "rows_read_max": 400,
+    "rows_written_max": 120
+  },
+  "POST /v1/music/uploads/waveforms, 20 (Music, the operation alone)": {
+    "rows_read_max": 300,
+    "rows_written_max": 100
+  },
+  "POST /v1/music/uploads/track, by id (Music, the operation alone)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "POST /v1/music/uploads/track, by sha256 and size (Music, the operation alone)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "POST /v1/music/uploads/export, a page of 2,000 without waveforms (Music, the operation alone)": {
+    "rows_read_max": 2010,
+    "rows_written_max": 0
+  },
+  "POST /v1/music/uploads/quota (Core, the operation alone)": {
+    "rows_read_max": 20,
+    "rows_written_max": 5
   }
 }

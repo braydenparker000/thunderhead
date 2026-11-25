@@ -16,7 +16,11 @@ page is the exact sequence. History: [archive/MUSE.md](../archive/MUSE.md); rout
   line, a note or a result (the Worker refuses anything shaped like a key).
 - **Uploads** stay as they are: signed with your Ed25519 key on `/v1/music/uploads/*`
   ([archive/MUSE-UPLOADS.md](../archive/MUSE-UPLOADS.md)). Songs you register there also show the
-  owner as one task, "Songs Muse uploaded", until 30 minutes pass without another.
+  owner as one task, "Songs Muse uploaded", until 30 minutes pass without another. Reads there
+  (2026-11-25; [API.md](API.md) has the shapes): `export` in pages (`{ limit, after, waveforms:
+  false }`, follow `next` until `complete`), `track` (`{ id }` or `{ sha256, size }`: one record,
+  no waveform bytes), and `quota` (`{}`: the day's rows, the hold level, `held` and `retry_after`;
+  it answers while the day is held, the other operations answer 429).
 
 ## 2. The loop
 
