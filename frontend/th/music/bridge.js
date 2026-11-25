@@ -223,9 +223,49 @@
 
   /** The kept catalog's `generatedAt`, kept beside it (never passed to the player): the `since` of the next ask. */
   const SINCE = 'TH-Generated';
-  /** A catalog's head (version, kind, count, generatedAt come first), read from its first bytes without decoding the rest. */
-  const headOf = (buf) => String.fromCharCode(...new Uint8Array(buf, 0, Math.min(buf.byteLength, 400)));
-  const generatedOf = (buf) => /"generatedAt":"([^"]{1,64})"/.exec(headOf(buf))?.[1] ?? '';
+  /** Where `generatedAt` is looked for: the head (version, kind, count, generatedAt come first), then the tail. */
+  const HEAD = 4096;
+  const TAIL = 512;
+  const latin = (u8) => String.fromCharCode(...u8);
+  const timeIn = (u8) => /"generatedAt":\s*"([^"]{1,64})"/.exec(latin(u8))?.[1] ?? '';
+  const headOf = (buf) => latin(new Uint8Array(buf, 0, Math.min(buf.byteLength, HEAD)));
+  /** A catalog's generatedAt, from its first bytes (or its last) without decoding the rest. */
+  const generatedOf = (buf) => {
+    const u8 = new Uint8Array(buf);
+    return timeIn(u8.subarray(0, HEAD)) || timeIn(u8.subarray(Math.max(HEAD, u8.length - TAIL)));
+  };
+  const joined = (a, b) => {
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a);
+    out.set(b, a.length);
+    return out;
+  };
+  /**
+   * The generatedAt of a copy kept without it beside it (kept by the app before `since`): read from the
+   * copy's own stream, its head and else its tail, holding no more than HEAD + TAIL bytes of it.
+   */
+  async function keptTime(r) {
+    const reader = r?.body?.getReader();
+    if (!reader) return '';
+    let head = new Uint8Array(0);
+    let tail = new Uint8Array(0);
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (head.length < HEAD) {
+          head = joined(head, value.subarray(0, HEAD - head.length));
+          if (head.length === HEAD && timeIn(head)) return timeIn(head);
+        }
+        tail = value.length >= TAIL ? value.slice(-TAIL) : joined(tail, value).slice(-TAIL);
+      }
+      return timeIn(head) || timeIn(tail);
+    } catch {
+      return '';
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+  }
   /**
    * The kept catalog (its text) with a delta merged in: changed tracks replaced by id, new ones appended
    * in the order given, removed ones dropped, its generatedAt and count the delta's. null when the kept
@@ -257,20 +297,52 @@
   // The catalog is asked for in changes: `since` the kept copy's generatedAt, with its ETag. The answer
   // is a 304, the whole catalog, or what changed since (`r2-library-delta`), merged here into the kept
   // copy; either way the player gets the whole catalog, as before.
+  // One at a time: an ask waits until the one before it has kept its copy, then asks since that copy
+  // (two at once would both ask for the whole catalog, and the one kept last decide what is kept).
+  let keeping = Promise.resolve();
   async function catalog(base, auth, t, cap) {
+    let release;
+    const mine = new Promise((r) => (release = r));
+    const turn = keeping;
+    keeping = turn.then(() => mine);
+    try {
+      await within(turn, cap.signal);
+      return await catalogNow(base, auth, t, cap);
+    } finally {
+      release();
+    }
+  }
+
+  async function catalogNow(base, auth, t, cap) {
     const cache = await deps.caches().open(CATALOG_CACHE);
     const had = await cache.match(CATALOG_KEY);
     const ask = async (since, etag) => {
       const headers = { Authorization: `Bearer ${auth}` };
       if (etag) headers['If-None-Match'] = etag;
       const query = since ? `?since=${encodeURIComponent(since)}` : '';
-      const r = counted(await upstream(`${base}/v1/music/catalog${query}`, { headers }, cap.signal, t.bytes), 'music.rest', cap.client);
+      // Never through the browser's HTTP cache: the copy is kept here (not twice), and the browser must
+      // not revalidate it on its own, with the ETag and without `since`.
+      const r = counted(await upstream(`${base}/v1/music/catalog${query}`, { headers, cache: 'no-store' }, cap.signal, t.bytes), 'music.rest', cap.client);
       // Its answer has started: the download takes as long as it takes.
       cap.done();
       return r;
     };
-    const r = await ask(had?.headers.get(SINCE), had?.headers.get('ETag'));
-    if (r.status === 304 && had) return copy(had, 200);
+    // A copy kept without its time (by the app before `since`): read from its body, once (recorded below).
+    const recorded = had?.headers.get(SINCE) ?? '';
+    const since = had ? recorded || (await keptTime(await cache.match(CATALOG_KEY))) : '';
+    const r = await ask(since, had?.headers.get('ETag'));
+    if (r.status === 304 && had) {
+      if (since && !recorded) {
+        // Kept again with its time beside it, its body streamed from the cache (no copy in memory).
+        const again = await cache.match(CATALOG_KEY);
+        if (again) {
+          const headers = new Headers(again.headers);
+          headers.set(SINCE, since);
+          await cache.put(CATALOG_KEY, new Response(again.body, { headers }));
+        }
+      }
+      return copy(had, 200);
+    }
     if (r.status !== 200) throw refused(r.status) ? notReady(r.status) : new Error('catalog');
     const buf = await r.arrayBuffer();
     let etag = r.headers.get('ETag') ?? '';
