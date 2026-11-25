@@ -5,8 +5,9 @@
 // added and raises its kind. And the rebuild's rows at the size of the library, measured.
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PickOrderResponse, PicksResponse } from '../../../shared/contract/know.ts';
+import { useKeys } from '../../src/areas/music/know-fetch';
 import { type Music, musicObject } from '../../src/objects/music';
 import { apiJson, rowsDuring } from '../helpers';
 import { ARTIST, mbidOf } from '../history-helpers';
@@ -20,10 +21,13 @@ const chat = () => as(p.C, CHAT_SESSION);
 
 beforeAll(async () => {
   p = await principals();
+  // ListenBrainz's popularity (its token) says which album is loved most.
+  useKeys({ key: null, token: null, lb: 'invented-listenbrainz-token' });
   await seedKnow();
   await tick();
   await runJob(fake);
 });
+afterAll(() => useKeys(null));
 
 describe('picks', () => {
   it('builds a mixed list from the plays: the loved album the library lacks, the new release', async () => {

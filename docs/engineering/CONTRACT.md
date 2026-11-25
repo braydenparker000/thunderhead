@@ -162,6 +162,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/credits` | C N | P5 | built | ?ref=<MusicBrainz id or name>: what in the library a person worked on, and their other work |
 | `GET /v1/music/unmatched` | D C N | P5 | built | catalog albums left unmatched, with why, ≤ 200 |
 | `GET /v1/music/picks` | D C N | P5 | built | ?kind=&state=&limit=1-50: albums to add, scored over stored facts and the owner's listening; a mixed list |
+| `GET /v1/music/picks/:id/preview` | D | P5 | built | a 30-second clip of the album from Apple's iTunes search, passed through (audio, ≤ 3 MB); 404 for none, 429 under a second after the last lookup |
 | `POST /v1/music/picks/:id/decline` | D C | P5 | built | {why? ≤ 200}: never offered again; its artist weighs less |
 | `POST /v1/music/picks/:id/order` | D C | P5 | built | {order_id?}: without, the words of a Muse order for that album; with the order th order new placed, the pick is ordered |
 | `GET /v1/music/mixes/:id` | D | P5 | built | one mix's songs in order, for the owner's tap on Music's "tonight" (404 not_found) |
@@ -569,8 +570,8 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `night.late` | no day note for the night's day by 09:00 local (the night shift is connected) | S3 | Night shift: done by 09:00 local on ≥ 6 nights of 7 | yes | P4 | built |
 | `jobs.stuck` | a job running for more than 2 hours, or one tried 5 times | S3 | Jobs: every job finishes or fails within its runs | yes | P4 | built |
 | `db.size` | the Core object holds more than 700 MB | S3 | Budgets: storage stays inside the Free plan | yes | P4 | built |
-| `quota.rows_written` | rows written today by the five objects and a drill's scratch copy ≥ 40,800 (60% of the 68,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
-| `quota.rows_read` | rows read today across the five objects ≥ 2,880,000 (60% of the 4,800,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
+| `quota.rows_written` | rows written today by the five objects and a drill's scratch copy ≥ 54,000 (60% of the 90,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
+| `quota.rows_read` | rows read today across the five objects ≥ 2,820,000 (60% of the 4,700,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
 | `quota.do_calls` | object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | waits for a count of object calls: an RPC reaches its method directly, so an object has no one place to count them |
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |

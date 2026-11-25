@@ -32,6 +32,7 @@ import { music } from '../music-helpers';
 
 const KEY = 'invented-lastfm-key';
 const TOKEN = 'invented-discogs-token';
+const LB = 'invented-listenbrainz-token';
 const wd = world();
 let p: Principals;
 /** The first whole run: steps, outside requests, and rows read and written in Music and Core. */
@@ -46,7 +47,7 @@ const chat = () => as(p.C, CHAT_SESSION);
 
 beforeAll(async () => {
   p = await principals();
-  useKeys({ key: KEY, token: TOKEN });
+  useKeys({ key: KEY, token: TOKEN, lb: LB });
   await seedKnow();
   cost.core = await rowsDuring(core(), async () => {
     cost.rows = await rowsDuring(music() as never, async () => {
@@ -142,6 +143,11 @@ describe('matching', () => {
     }
     expect(wd.heads.filter((h) => h.includes(TOKEN)).length).toBe(wd.calls.filter((u) => u.includes('discogs')).length);
     expect(wd.calls.filter((u) => u.includes(TOKEN))).toEqual([]);
+    // ListenBrainz's token goes to its API host only, never to its labs host, and never in an address.
+    const lbApi = (u: string) => new URL(u).host === 'api.listenbrainz.org';
+    expect(wd.heads.filter((h) => h.includes(`Token ${LB}`)).length).toBe(wd.calls.filter(lbApi).length);
+    expect(wd.calls.filter(lbApi).length).toBeGreaterThan(0);
+    expect(wd.calls.filter((u) => u.includes(LB))).toEqual([]);
   });
 
   it('takes MusicBrainz ids from Muse with a song, and refuses ids that are not', () => {

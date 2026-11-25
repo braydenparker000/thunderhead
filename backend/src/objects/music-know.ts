@@ -44,7 +44,7 @@ export abstract class MusicKnow extends MusicSync {
 
   protected knowKeys(): plan.Keys {
     const k = secretsOf(this.env);
-    return { lastfm: !!k.key, discogs: !!k.token };
+    return { lastfm: !!k.key, discogs: !!k.token, listenbrainz: !!k.lb };
   }
 
   /** The catalog's albums read again once the catalog changed and has been still `seed_quiet_ms` (an

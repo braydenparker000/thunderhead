@@ -2,8 +2,9 @@
 // carrying only MusicBrainz ids, Wikidata ids and canonical names (never the owner's text, plays or
 // anything of theirs), with the app's User-Agent. MusicBrainz shares lookup()'s 1.1 s gate; every other
 // host has its own of 1 s. A key or token is added here, at the call, never in a URL that is stored,
-// logged or answered in an error: Last.fm's key in its query (its only way), Discogs's token in a
-// header. Each answer is read by its parser (know-parse-*.ts) into facts.
+// logged or answered in an error: Last.fm's key in its query (its only way), Discogs's and
+// ListenBrainz's tokens in a header (ListenBrainz's to api.listenbrainz.org only). Each answer is
+// read by its parser (know-parse-*.ts) into facts.
 import { KNOW_LIMITS as K } from '../../../../shared/contract/know.ts';
 import { present } from '../../lib/secrets';
 import { fmParse, fmSimilarUrl, hostTurn, lbParse, lbSimilarUrl, mbTurn, outsideGet } from './history-mb';
@@ -65,11 +66,11 @@ export interface Work {
   tries?: Record<string, number>;
 }
 
-/** One request: its host and URL (no key), and whether it needs Last.fm's key or Discogs's token. */
+/** One request: its host and URL (no key), and whether it needs Last.fm's key or a token. */
 export interface Ask {
   host: string;
   url: string;
-  auth?: 'lastfm' | 'discogs';
+  auth?: 'lastfm' | 'discogs' | 'listenbrainz';
   /** The Wikidata item an entity read is about. */
   q?: string;
 }
@@ -85,7 +86,7 @@ export function askFor(
   source: Source,
   row: { mbid: string; name: string; artist?: string; title?: string },
   w: Work,
-  keys: { lastfm: boolean; discogs: boolean },
+  keys: { lastfm: boolean; discogs: boolean; listenbrainz: boolean },
 ): Ask | null {
   const id = row.mbid;
   const mbAsk = (path: string): Ask => ({ host: 'musicbrainz.org', url: `${MB}/${path}&fmt=json` });
@@ -111,10 +112,14 @@ export function askFor(
     case 'rg':
       return mbAsk(`release-group/${id}?inc=url-rels+artist-credits`);
     case 'lbtop':
-      return {
-        host: 'api.listenbrainz.org',
-        url: `https://api.listenbrainz.org/1/popularity/top-release-groups-for-artist/${id}`,
-      };
+      // ListenBrainz's popularity needs its token (401 without one, 2026-11); its labs host is asked without.
+      return keys.listenbrainz
+        ? {
+            host: 'api.listenbrainz.org',
+            url: `https://api.listenbrainz.org/1/popularity/top-release-groups-for-artist/${id}`,
+            auth: 'listenbrainz',
+          }
+        : null;
     case 'lbsim':
       return { host: 'labs.api.listenbrainz.org', url: lbSimilarUrl(id), q: id };
     case 'wd':
@@ -190,15 +195,21 @@ export const MAX_BYTES = 4 * 1024 * 1024;
 /** A Retry-After is honoured up to this long. */
 const RETRY_MAX = 6 * 3_600_000;
 
-let given: { key: string | null; token: string | null } | null = null;
-/** For tests: Last.fm's key and Discogs's token as if set (invented values), or back to the env's. */
-export function useKeys(k: { key: string | null; token: string | null } | null): void {
-  given = k;
+type Secrets = { key: string | null; token: string | null; lb: string | null };
+let given: Secrets | null = null;
+/** For tests: Last.fm's key and the Discogs and ListenBrainz tokens as if set (invented values), or
+ * back to the env's. */
+export function useKeys(k: { key: string | null; token: string | null; lb?: string | null } | null): void {
+  given = k && { ...k, lb: k.lb ?? null };
 }
-/** Last.fm's key and Discogs's token, each null when not set (`none`). */
-export function secretsOf(env: Env): { key: string | null; token: string | null } {
+/** Last.fm's key, Discogs's token and ListenBrainz's token, each null when not set (`none`). */
+export function secretsOf(env: Env): Secrets {
   return (
-    given ?? { key: present((env as { LASTFM_API_KEY?: string }).LASTFM_API_KEY), token: present(env.DISCOGS_TOKEN) }
+    given ?? {
+      key: present((env as { LASTFM_API_KEY?: string }).LASTFM_API_KEY),
+      token: present(env.DISCOGS_TOKEN),
+      lb: present(env.LISTENBRAINZ_TOKEN),
+    }
   );
 }
 
@@ -244,13 +255,14 @@ async function capped(r: Response, max: number): Promise<string | null> {
 export async function fetchAsk(env: Env, source: Source, ask: Ask, now = Date.now()): Promise<Got | 'wait'> {
   const open = ask.host === 'musicbrainz.org' ? mbTurn(now) : hostTurn(ask.host, K.host_gap_ms, now);
   if (!open) return 'wait';
-  const { key, token } = secretsOf(env);
-  if ((ask.auth === 'lastfm' && !key) || (ask.auth === 'discogs' && !token)) return { none: true };
+  const { key, token, lb } = secretsOf(env);
+  if ((ask.auth === 'lastfm' && !key) || (ask.auth === 'discogs' && !token) || (ask.auth === 'listenbrainz' && !lb))
+    return { none: true };
   let r: Response;
   try {
     const url = ask.auth === 'lastfm' ? `${ask.url}&api_key=${e(key ?? '')}` : ask.url;
-    const headers: Record<string, string> = ask.auth === 'discogs' ? { Authorization: `Discogs token=${token}` } : {};
-    r = await outsideGet(url, headers);
+    const auth = ask.auth === 'discogs' ? `Discogs token=${token}` : ask.auth === 'listenbrainz' ? `Token ${lb}` : '';
+    r = await outsideGet(url, auth ? { Authorization: auth } : {});
   } catch {
     return { error: 'host' };
   }

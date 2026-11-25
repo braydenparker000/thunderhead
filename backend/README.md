@@ -92,6 +92,7 @@ and statuses of API.md §6 (429 adds `retry_after` and `scope`).
 | `WORKER_DEPLOY_ENABLED` | repository variable | the owner, when the Worker is ready |
 | `TORBOX_KEY` | Worker secret (`none` until set) | the owner only, below; never an agent |
 | `DISCOGS_TOKEN` | Worker secret (`none` until set; optional) | the owner only (SETUP.md N6); never an agent. Without it the music knowledge asks Discogs nothing (MUSIC.md §19.2) |
+| `LISTENBRAINZ_TOKEN` | Worker secret (`none` until set; optional) | the owner only (SETUP.md N6); never an agent. Without it the music knowledge asks ListenBrainz's popularity nothing (MUSIC.md §19.2) |
 | `SITE_ORIGINS`, `OWNER_TZ` (`UTC` fallback), `AUTH_HIBP` | `wrangler.jsonc` vars | the repo (placeholders only) |
 | `ASTRA_FOLLOW` (`off`) | `wrangler.jsonc` var | the repo: `on` lets Astra's relay follow add-on forwards (off since 2026-11-18, SECURITY.md §8.2) |
 

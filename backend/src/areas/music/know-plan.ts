@@ -10,7 +10,7 @@ import type { Db } from '../../objects/base';
 import { type Ask, askFor, type Got, type Source, type Work } from './know-fetch';
 import type { FactsRow, Hosts } from './know-store';
 
-export type Keys = { lastfm: boolean; discogs: boolean };
+export type Keys = { lastfm: boolean; discogs: boolean; listenbrainz: boolean };
 
 /** When the host may be asked again (0: now). */
 export const blockedUntil = (hosts: Hosts, host: string, now: number) =>
@@ -46,7 +46,10 @@ export function nextAsk(
   let park = 0;
   for (const source of row.todo.split(',').filter(Boolean) as Source[]) {
     const ask = askFor(source, { mbid: row.id.slice(2), name: row.name, ...named }, w, keys);
-    const unkeyed = (source.startsWith('fm') && !keys.lastfm) || (source.startsWith('dc') && !keys.discogs);
+    const unkeyed =
+      (source.startsWith('fm') && !keys.lastfm) ||
+      (source.startsWith('dc') && !keys.discogs) ||
+      (source === 'lbtop' && !keys.listenbrainz);
     if (!ask) {
       if (!park || unkeyed) drop.push(source);
       continue;
