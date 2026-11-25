@@ -8,11 +8,13 @@
 // - when Music opens and when it is shown again, what the Worker took since the last time is merged:
 //   a rating newer than this phone's (its `ratedAt`, stamped here when the owner rates) replaces it;
 //   plays keep the larger count and the later time; a playlist newer than this phone's replaces it
-//   whole, and a newer deletion removes it;
+//   whole, a newer deletion removes it, but never over an edit here not yet sent (the push decides);
 // - after a change (debounced, 20 s), on hiding the page and when the network returns, the songs and
 //   playlists changed since the last push go up; a playlist deleted here goes up as a deleted record
 //   (the Worker keeps it 30 days, so another phone's older copy does not bring it back). The first
-//   time, every song this phone has rated or played goes up, at most CATCH_UP a push.
+//   time, every song this phone has rated or played goes up, at most CATCH_UP a push. A playlist
+//   too long for the Worker is never cut: it stays whole here and does not go up (`long`). After a
+//   429 or 503 nothing goes before its Retry-After (≤ 1 hour, else 60 s); nothing queued is dropped.
 // It changes nothing about how Music looks or what plays: only data from another phone lands, into
 // the same fields the player already reads (a remote rating tells the rows with the player's own
 // message, marked `synced` so th/music/ratings.js does not send it back as a sense). Songs imported
@@ -24,7 +26,7 @@ import { framedByOther, sessionToken } from '../ported/session.js';
 
 /** The Worker's limits this module keeps to (MUSIC_SYNC_LIMITS in shared/contract/music-sync.ts;
  * tests/music-sync.test.mjs checks they agree). */
-export const L = Object.freeze({ batch_marks: 200, batch_playlists: 20, playlist_ids: 5000, page_max: 200 });
+export const L = Object.freeze({ batch_marks: 200, batch_playlists: 20, playlist_ids: 5000, playlist_chars: 450_000, page_max: 200 });
 /** The Worker's song ids (SONG_ID in backend/src/areas/music/shapes.ts). */
 export const SONG_ID = /^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
 export const SYNC_KEY = 'th.p.music.sync';
@@ -38,15 +40,19 @@ const KEEPALIVE_BYTES = 8_000;
  * songs). A pull cut short saves nothing and starts again from the beginning at the next open. */
 const PAGES = 300;
 const LIBRARY_WAIT_MS = 30_000;
+const WAIT_MAX_MS = 3_600_000, WAIT_DEFAULT_MS = 60_000; // a refusal's wait: the longest kept; when it names none
 
 /** `marks`/`lists`: each route's `next_since`. `dirty`: songs changed since the Worker took them,
  * each with a count of its changes (a push clears a song only if no change came while it was sent).
  * `sent`: per playlist, the `modified` (phone clock) the Worker has. `gone`: playlists deleted here,
  * when (phone clock), not yet taken. `caught`: the first sync's songs are queued. `reset`: Settings →
  * Reset stats here (phone clock), not yet taken; `resetSeen`: the newest reset applied or sent (the
- * Worker's clock). `offset`: the Worker's clock minus the phone's, ms.
+ * Worker's clock). `offset`: the Worker's clock minus the phone's, ms. `until`: no request before
+ * (phone clock), after a 429 or 503. `held`: playlists a pull left for an unsent edit here, with its
+ * `lists`, read again once the edit went up. `long`: playlists too long to send (entries), kept here.
  * @typedef {{ v: 1, marks: number, lists: number, dirty: Record<string, number>, sent: Record<string, number>,
- *   gone: Record<string, number>, caught?: boolean, reset?: number, resetSeen?: number, offset?: number }} Memory */
+ *   gone: Record<string, number>, caught?: boolean, reset?: number, resetSeen?: number, offset?: number,
+ *   until?: number, held?: Record<string, number>, long?: Record<string, number> }} Memory */
 /** @typedef {import('../../../shared/contract/music-sync.ts').MusicMark} Mark */
 /** @typedef {import('../../../shared/contract/music-sync.ts').MusicPlaylist} Playlist */
 
@@ -71,9 +77,7 @@ export function loadMemory(storage) {
 }
 /** @param {Storage} storage @param {Memory} mem */
 function saveMemory(storage, mem) {
-  try {
-    storage.setItem(SYNC_KEY, JSON.stringify(mem));
-  } catch {}
+  try { storage.setItem(SYNC_KEY, JSON.stringify(mem)); } catch {}
 }
 /** @param {Memory} mem @param {unknown} at @param {number} t0 @param {number} t1 */
 function setOffset(mem, at, t0, t1) {
@@ -168,7 +172,8 @@ export function marksToSend(ctx, mem, max = CATCH_UP) {
 }
 
 /** The Worker's playlists into the player where they are newer than this phone's (a deletion
- * removes it). Returns how many were taken. @param {any} ctx @param {Memory} mem @param {Playlist[]} items */
+ * removes it), except over an edit or deletion here not yet sent (`held`: the push sends it, the
+ * Worker decides). Returns how many were taken. @param {any} ctx @param {Memory} mem @param {Playlist[]} items */
 export function applyPlaylists(ctx, mem, items) {
   const P = ctx.playlists, off = mem.offset ?? 0;
   if (!P) return 0;
@@ -178,33 +183,32 @@ export function applyPlaylists(ctx, mem, items) {
     const local = P.get(p.id);
     const here = local ? Number(local.modified) || 0 : mem.gone[p.id] ?? 0;
     if (here && here + off >= p.updated_at) continue;
+    // Not over an unsent edit or deletion here (both deleted: nothing to keep).
+    if (local ? here > (mem.sent[p.id] ?? 0) : p.id in mem.gone && !p.deleted) {
+      mem.held = { ...mem.held, [p.id]: Math.min(mem.held?.[p.id] ?? mem.lists, mem.lists) };
+      continue;
+    }
     const at = Math.round(p.updated_at - off);
     delete mem.gone[p.id];
+    if (p.deleted) delete mem.sent[p.id];
+    if (p.deleted && !local) continue;
+    const pl = p.deleted ? local : local ?? { id: p.id };
     if (p.deleted) {
-      delete mem.sent[p.id];
-      if (!local) continue;
-      applying = true;
-      try {
-        P.items = P.items.filter((/** @type {any} */ x) => x !== local);
-        P.library?.db?.deleteState?.('pl:' + p.id)?.catch?.(() => {});
-        P.changed(local);
-      } finally {
-        applying = false;
-      }
+      P.items = P.items.filter((/** @type {any} */ x) => x !== local);
+      P.library?.db?.deleteState?.('pl:' + p.id)?.catch?.(() => {});
     } else {
-      const pl = local ?? { id: p.id };
       Object.assign(pl, { name: p.name, ids: [...p.ids], created: p.created, modified: at });
       if (p.path) pl.path = p.path;
       else delete pl.path;
       if (!local) P.items.push(pl);
       mem.sent[p.id] = at;
       P.library?.db?.setState?.('pl:' + p.id, pl)?.catch?.(() => {});
-      applying = true;
-      try {
-        P.changed(pl);
-      } finally {
-        applying = false;
-      }
+    }
+    applying = true;
+    try {
+      P.changed(pl);
+    } finally {
+      applying = false;
     }
     n++;
   }
@@ -221,11 +225,15 @@ export function playlistsToSend(ctx, mem) {
   for (const id of Object.keys(mem.sent)) if (!have.has(id) && !(id in mem.gone)) mem.gone[id] = now;
   /** @type {Playlist[]} */
   const out = [];
+  mem.long = {};
   for (const p of items) {
     const at = Math.round(Number(p.modified) || 0);
     if (at <= 0 || (mem.sent[p.id] ?? 0) >= at || !/^[a-z0-9]{4,40}$/.test(p.id)) continue;
-    const ids = (Array.isArray(p.ids) ? p.ids : []).filter((/** @type {unknown} */ x) => typeof x === 'string' && x).slice(0, L.playlist_ids);
-    out.push({ id: p.id, name: String(p.name ?? ''), ids, created: Math.max(0, Number(p.created) || 0), path: typeof p.path === 'string' ? p.path : null, deleted: false, updated_at: at + off });
+    const ids = (Array.isArray(p.ids) ? p.ids : []).filter((/** @type {unknown} */ x) => typeof x === 'string' && x);
+    const item = { id: p.id, name: String(p.name ?? ''), ids, created: Math.max(0, Number(p.created) || 0), path: typeof p.path === 'string' ? p.path : null, deleted: false, updated_at: at + off };
+    // Never cut: a copy with fewer songs would come back to this phone as the newer one.
+    if (ids.length > L.playlist_ids || JSON.stringify(item).length > L.playlist_chars) mem.long[p.id] = ids.length;
+    else out.push(item);
   }
   for (const [id, at] of Object.entries(mem.gone))
     if (/^[a-z0-9]{4,40}$/.test(id)) out.push({ id, name: '', ids: [], created: 0, path: null, deleted: true, updated_at: Math.max(1, Math.round(at + off)) });
@@ -236,8 +244,7 @@ export function playlistsToSend(ctx, mem) {
 export function chunks(items, max, bytes) {
   /** @type {T[][]} */
   const out = [];
-  let cur = /** @type {T[]} */ ([]);
-  let size = 20;
+  let cur = /** @type {T[]} */ ([]), size = 20;
   for (const it of items) {
     const s = JSON.stringify(it).length + 1;
     if (cur.length && (cur.length >= max || size + s > bytes)) {
@@ -257,8 +264,25 @@ let applying = false;
 let token = null;
 const tokenOf = async () => (token ??= deps.framed() ? null : await deps.token());
 
-/** @param {string} method @param {string} path @param {string} t @param {unknown} [body] */
+/** When the next request may go (phone clock): after a 429 or 503's wait. */
+const waitUntil = () => Number(loadMemory(deps.storage()).until) || 0;
+/** A 429 or 503: nothing goes before its `Retry-After` (s), else the body's `retry_after`, at most an
+ * hour, 60 s when neither says; remembered, so a reload waits too. @param {Response} r */
+async function backOff(r) {
+  const h = r.headers?.get?.('Retry-After');
+  let s = h ? Number(h) : NaN;
+  if (!(s >= 0)) {
+    const e = (await r.clone().json().catch(() => null))?.error;
+    s = Number(e?.retry_after ?? e?.details?.retry_after ?? NaN);
+  }
+  const storage = deps.storage(), mem = loadMemory(storage);
+  mem.until = deps.now() + Math.min(WAIT_MAX_MS, s >= 0 ? s * 1000 : WAIT_DEFAULT_MS);
+  saveMemory(storage, mem);
+}
+
+/** One request, or null when it failed or may not go yet. @param {string} method @param {string} path @param {string} t @param {unknown} [body] */
 async function call(method, path, t, body) {
+  if (deps.now() < waitUntil()) return null;
   const text = body === undefined ? undefined : JSON.stringify(body);
   try {
     const r = await deps.fetch(`${deps.api()}/v1/music/${path}`, {
@@ -271,6 +295,7 @@ async function call(method, path, t, body) {
       cache: 'no-store',
     });
     if ([401, 403].includes(r.status)) token = null;
+    if ([429, 503].includes(r.status)) await backOff(r);
     return r;
   } catch {
     return null;
@@ -307,17 +332,14 @@ function keepLatest(mem, latest) {
 async function pullNow(ctx) {
   const t = deps.api() && deps.online() ? await tokenOf() : null;
   if (!t) return;
-  const storage = deps.storage();
-  const mem = loadMemory(storage);
+  const storage = deps.storage(), mem = loadMemory(storage);
   const marks = await pages('marks', mem.marks, t, mem);
   const lists = marks && (await pages('playlists', mem.lists, t, mem));
   if (!marks || !lists) return;
   const latest = loadMemory(storage);
   keepLatest(mem, latest);
   // Changes made here while the pages came are in the storage, not in `mem`.
-  mem.dirty = latest.dirty;
-  mem.gone = latest.gone;
-  mem.reset = latest.reset;
+  Object.assign(mem, { dirty: latest.dirty, gone: latest.gone, reset: latest.reset, until: latest.until, held: latest.held, long: latest.long });
   mem.resetSeen = Math.max(mem.resetSeen ?? 0, latest.resetSeen ?? 0);
   // A reset first, so the plays that come with it are counted from it.
   applyReset(ctx, mem, marks.reset_at);
@@ -329,7 +351,8 @@ async function pullNow(ctx) {
     mem.caught = true;
   }
   mem.marks = marks.since;
-  mem.lists = lists.since;
+  // A push that sent an edit over a Worker copy a pull left asked to read from earlier again.
+  mem.lists = latest.lists < mem.lists ? latest.lists : lists.since;
   saveMemory(storage, mem);
 }
 
@@ -337,8 +360,7 @@ async function pullNow(ctx) {
 async function pushNow(ctx) {
   const t = deps.api() && deps.online() ? await tokenOf() : null;
   if (!t) return;
-  const storage = deps.storage();
-  const mem = loadMemory(storage);
+  const storage = deps.storage(), mem = loadMemory(storage);
   // Not before a pull has come back: until then the clock's offset is unknown.
   if (!mem.marks) return;
   // What went up, as it was when it went: each song's change count, each playlist's own stamp
@@ -353,19 +375,21 @@ async function pushNow(ctx) {
   const reset = Number(mem.reset) > 0 ? Math.round(Number(mem.reset) + (mem.offset ?? 0)) : 0;
   const markBatches = chunks(marks, L.batch_marks, 60_000);
   if (reset && !markBatches.length) markBatches.push([]);
+  let stopped = false;
   for (const [k, batch] of markBatches.entries()) {
     const t0 = deps.now();
     const withReset = reset && k === 0;
     const r = await call('PUT', 'marks', t, withReset ? { items: batch, reset_at: reset } : { items: batch });
     const b = r?.ok ? await r.json().catch(() => null) : null;
-    if (!b) break;
+    if (!b) { stopped = true; break; }
     setOffset(mem, b.at, t0, deps.now());
     if (withReset) done.reset = Number(mem.reset);
     const refused = new Set((Array.isArray(b.refused) ? b.refused : []).map((/** @type {{ index: number }} */ x) => x.index));
     batch.forEach((m, i) => refused.has(i) || done.songs.push([m.id, counts[m.id]]));
   }
   const listOffset = mem.offset ?? 0;
-  for (const batch of chunks(playlistsToSend(ctx, mem), L.batch_playlists, BODY_BYTES)) {
+  // Refused or unreachable for the songs: the playlists wait for the next push too.
+  for (const batch of stopped ? [] : chunks(playlistsToSend(ctx, mem), L.batch_playlists, BODY_BYTES)) {
     const t0 = deps.now();
     const r = await call('PUT', 'playlists', t, { items: batch });
     const b = r?.ok ? await r.json().catch(() => null) : null;
@@ -378,6 +402,11 @@ async function pushNow(ctx) {
   const latest = loadMemory(storage);
   for (const [id, n] of done.songs) if (latest.dirty[id] === n) delete latest.dirty[id];
   for (const [id, at, deleted] of done.lists) {
+    // An edit sent over a Worker copy a pull left: the next pull starts there again and takes what the Worker kept.
+    if (latest.held && id in latest.held) {
+      latest.lists = Math.min(latest.lists, latest.held[id]);
+      delete latest.held[id];
+    }
     if (!deleted) latest.sent[id] = Math.max(latest.sent[id] ?? 0, at);
     else if (!(id in latest.gone) || Math.round(latest.gone[id]) === at) {
       delete latest.gone[id];
@@ -391,6 +420,7 @@ async function pushNow(ctx) {
     if (latest.reset === done.reset) delete latest.reset;
   }
   latest.offset = mem.offset ?? latest.offset;
+  if (!stopped) latest.long = mem.long;
   saveMemory(storage, latest);
 }
 
@@ -401,19 +431,11 @@ function serial(fn) {
   let again = false;
   /** @param {any} ctx @returns {Promise<void>} */
   const go = (ctx) => {
-    if (running) {
-      again = true;
-      return running;
-    }
-    running = fn(ctx)
-      .catch(() => {})
-      .finally(() => {
-        running = null;
-        if (again) {
-          again = false;
-          void go(ctx);
-        }
-      });
+    if (running) return (again = true), running;
+    running = fn(ctx).catch(() => {}).finally(() => {
+      running = null;
+      if (again) (again = false), void go(ctx);
+    });
     return running;
   };
   return go;
@@ -422,16 +444,13 @@ export const pull = serial(pullNow);
 export const push = serial(pushNow);
 
 /** For tests: forget the token. */
-export function reset() {
-  token = null;
-}
+export function reset() { token = null; }
 
 /** The owner's own changes, remembered for the next push: a rating (stamped now), a play, a
  * playlist changed or deleted. Changes this module makes are not the owner's. @param {any} ctx @param {() => void} soon */
 export function watch(ctx, soon) {
   const mark = (/** @type {(m: Memory) => void} */ fn) => {
-    const storage = deps.storage();
-    const mem = loadMemory(storage);
+    const storage = deps.storage(), mem = loadMemory(storage);
     fn(mem);
     saveMemory(storage, mem);
     soon();
@@ -449,9 +468,7 @@ export function watch(ctx, soon) {
     else if (msg === 'msg_playlists_changed' && !applying) {
       const pl = d?.playlist;
       const gone = pl?.id && !(ctx.playlists?.items ?? []).includes(pl);
-      mark((m) => {
-        if (gone) m.gone[pl.id] = deps.now();
-      });
+      mark((m) => void (gone && (m.gone[pl.id] = deps.now())));
     }
   });
 }
@@ -464,14 +481,11 @@ export function installSync(ctx) {
   started = true;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
+  // While a refusal's wait lasts, one push when it ends.
   const soon = () => {
-    if (timer === undefined) timer = setTimeout(() => ((timer = undefined), void push(ctx)), DEBOUNCE_MS);
+    if (timer === undefined) timer = setTimeout(() => ((timer = undefined), void push(ctx)), Math.max(DEBOUNCE_MS, waitUntil() - deps.now()));
   };
-  const now = () => {
-    clearTimeout(timer);
-    timer = undefined;
-    void push(ctx);
-  };
+  const now = () => (clearTimeout(timer), (timer = undefined), void push(ctx));
   watch(ctx, soon);
   const begin = Date.now();
   const wait = setInterval(() => {

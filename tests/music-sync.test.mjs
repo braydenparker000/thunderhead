@@ -5,7 +5,10 @@
 // rename and a playlist delete (a deleted playlist does not come back); plays keep the larger count;
 // a fresh phone gets everything; with nothing on the Worker nothing in the library changes (so
 // nothing about what plays, or in what order); a rating from another phone is marked `synced`, so
-// it is not sent back as a sense. The limits agree with the contract. Invented songs only.
+// it is not sent back as a sense. The limits agree with the contract. A 429 or 503 stops every
+// request until its Retry-After (capped at an hour, 60 s when none is given) and loses nothing; an
+// edit not yet sent survives a pull and the push decides; a playlist too long for the Worker is never
+// cut. Invented songs only.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { MUSIC_PLAYLIST_ID, MUSIC_SYNC_LIMITS } from '../shared/contract/music-sync.ts';
@@ -24,7 +27,7 @@ function memoryStorage() {
 /** The Worker's four routes: a rating's newer `rated_at` wins, plays the larger, a playlist's newer
  * `updated_at` wins; pages by when it took each. */
 function fakeWorker() {
-  const w = { marks: new Map(), lists: new Map(), requests: [], reset: 0, during: null };
+  const w = { marks: new Map(), lists: new Map(), requests: [], reset: 0, during: null, refuse: null };
   const page = (rows, u) => {
     const since = Number(u.searchParams.get('since') ?? 0);
     const items = [...rows.values()].filter((r) => r.synced_at >= since).sort((a, b) => a.synced_at - b.synced_at);
@@ -36,6 +39,11 @@ function fakeWorker() {
     const body = init.body ? JSON.parse(init.body) : undefined;
     w.requests.push({ method: init.method, path: u.pathname, body });
     world.t += 1;
+    // The platform's refusal: `{ status, after?, body? }`.
+    if (w.refuse) {
+      const { status, after, body: b = { error: { code: 'rate_limited' } } } = w.refuse;
+      return new Response(JSON.stringify(b), { status, headers: after === undefined ? {} : { 'Retry-After': String(after) } });
+    }
     // Something the owner does while this request is on its way.
     if (init.method === 'PUT' && w.during) {
       const fn = w.during;
@@ -317,4 +325,88 @@ test('Reset stats is a record with its own time: the next pull does not undo it,
   act(b, () => b.library.markPlayed(b.song(1)));
   await push(b), await pull(a);
   assert.equal(a.song(1).plays, 1);
+});
+
+test('a 429 with Retry-After: nothing goes again before it, nothing queued is lost', async () => {
+  const a = phone();
+  await pull(a);
+  let pl;
+  act(a, () => {
+    a.library.markPlayed(a.song(1));
+    pl = a.ctx.playlists.create('Waiting');
+  });
+  worker.refuse = { status: 429, after: 120 };
+  await push(a);
+  // Refused on the songs: the playlists are not tried in the same push.
+  assert.deepEqual(worker.requests.filter((r) => r.method === 'PUT').map((r) => r.path), ['/v1/music/marks']);
+  const until = JSON.parse(a.storage.getItem(sync.SYNC_KEY)).until;
+  assert.ok(until >= world.t + 119_000 && until <= world.t + 120_000, 'kept with the rest of the memory, so a reload waits too');
+  worker.refuse = null;
+  // Songs played meanwhile, pushes and pulls asked for: nothing goes before the time.
+  const sent = worker.requests.length;
+  for (let i = 0; i < 3; i++) {
+    act(a, () => a.library.markPlayed(a.song(2)));
+    await push(a), await pull(a);
+  }
+  assert.equal(worker.requests.length, sent);
+  // Once it has passed, everything queued goes up.
+  world.t += 120_000;
+  await push(a);
+  assert.deepEqual([worker.marks.get(song(1))?.plays, worker.marks.get(song(2))?.plays, worker.lists.get(pl.id)?.name], [1, 3, 'Waiting']);
+});
+
+test("a refusal's wait: the body's retry_after without the header, at most an hour, 60 s when none is given", async () => {
+  const a = phone();
+  await pull(a);
+  const waited = async (refuse) => {
+    a.storage.setItem(sync.SYNC_KEY, JSON.stringify({ ...JSON.parse(a.storage.getItem(sync.SYNC_KEY)), until: 0 }));
+    act(a, () => a.library.markPlayed(a.song(1)));
+    worker.refuse = refuse;
+    await push(a);
+    worker.refuse = null;
+    return JSON.parse(a.storage.getItem(sync.SYNC_KEY)).until - world.t;
+  };
+  const near = (got, want) => assert.ok(got > want - 1_000 && got <= want, `${got} near ${want}`);
+  near(await waited({ status: 429, body: { error: { code: 'rate_limited', retry_after: 300 } } }), 300_000);
+  near(await waited({ status: 503, body: { error: { code: 'unavailable', details: { retry_after: 86_400 } } } }), 3_600_000);
+  near(await waited({ status: 429, after: 9_999_999 }), 3_600_000);
+  near(await waited({ status: 503, body: 'not json' }), 60_000);
+});
+
+test('an unsent edit here survives a pull; its push decides, and both phones end the same', async () => {
+  const a = phone(), b = phone();
+  await pull(a), await pull(b);
+  let pl;
+  act(a, () => (pl = a.ctx.playlists.create('Shared')));
+  await push(a), await pull(b);
+  // A adds a song and has not sent it yet; B renames the playlist later and sends that.
+  act(a, () => a.ctx.playlists.add(a.ctx.playlists.get(pl.id), [a.song(3)]));
+  act(b, () => b.ctx.playlists.rename(b.ctx.playlists.get(pl.id), 'Renamed on B'));
+  await push(b);
+  await pull(a);
+  assert.deepEqual([a.ctx.playlists.get(pl.id).name, a.ctx.playlists.get(pl.id).ids], ['Shared', [song(3)]], 'not replaced before it went up');
+  // A's edit goes up; the Worker keeps the newer record (B's), and A's next pull takes it.
+  await push(a), await pull(a);
+  assert.equal(worker.lists.get(pl.id).name, 'Renamed on B');
+  assert.deepEqual([a.ctx.playlists.get(pl.id).name, a.ctx.playlists.get(pl.id).ids], ['Renamed on B', []]);
+  // An edit here newer than the Worker's wins there and reaches B.
+  act(b, () => b.ctx.playlists.rename(b.ctx.playlists.get(pl.id), 'B again'));
+  await push(b);
+  act(a, () => a.ctx.playlists.add(a.ctx.playlists.get(pl.id), [a.song(4)]));
+  await pull(a), await push(a), await pull(b);
+  assert.deepEqual([b.ctx.playlists.get(pl.id).name, b.ctx.playlists.get(pl.id).ids], ['Renamed on B', [song(4)]]);
+});
+
+test('a playlist longer than the Worker takes is never cut: kept whole here, not sent, named in the memory', async () => {
+  const a = phone();
+  await pull(a);
+  let pl;
+  act(a, () => {
+    pl = a.ctx.playlists.create('Everything');
+    a.ctx.playlists.reorder(pl, Array.from({ length: sync.L.playlist_ids + 1 }, (_, i) => song(i + 1)));
+  });
+  await push(a);
+  assert.equal(worker.lists.has(pl.id), false);
+  assert.equal(a.ctx.playlists.get(pl.id).ids.length, sync.L.playlist_ids + 1);
+  assert.deepEqual(JSON.parse(a.storage.getItem(sync.SYNC_KEY)).long, { [pl.id]: sync.L.playlist_ids + 1 });
 });

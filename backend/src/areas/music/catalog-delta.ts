@@ -4,14 +4,18 @@
 // so the log walked back from its newest row, by its key, to the first row at or before `since` names
 // every song changed since, and a `delete` row names one removed. The log cannot say exactly, and the whole catalog is
 // sent, when `since` is not a time the catalog had, is at or before the last change the log does not
-// hold (an import, `floor`), is older than the log's oldest kept row, or more than 2,000 songs (or
-// 8,000 log rows) changed. Rows read: the log's rows since, one more, and the changed songs.
+// hold (an import, `floor`), is older than the log's oldest kept row, or more than 6,000 songs
+// changed. Rows read: the log's rows since (at most its 20,000 kept), a page more, and the changed
+// songs by key: 6,000 songs changed once each about 12,400 (the cost suite's music-scale test bounds
+// it), at most about 26,500 (the whole log), half a percent of the day's 5,000,000 at worst; the
+// answer about 14 MB, 40% of the whole catalog's 35 MB (2.4 KB a song), which it spares. It was
+// 2,000 songs (and 8,000 log rows) until 2026-11-25.
 import type { Db } from '../../objects/base';
 import { withAlbumId } from './album-id';
-import type { CatalogVersion } from './store';
+import { type CatalogVersion, LOG_KEEP } from './store';
 
 /** Pages of the log grow from 25 rows to 400, so a small change reads a few rows. */
-export const DELTA = { max_songs: 2_000, max_log_rows: 8_000, first_page: 25, page: 400 } as const;
+export const DELTA = { max_songs: 6_000, max_log_rows: LOG_KEEP, first_page: 25, page: 400 } as const;
 
 /** A catalog row as the catalog's build reads it. */
 export interface CatalogRow {

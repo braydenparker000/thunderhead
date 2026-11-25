@@ -1,7 +1,8 @@
-// The phone's writes that can wait (meter/hold.ts, DATA.md §8.1): from 80% of the day's budget its
-// senses batches and its song marks and playlists answer 429 `rate_limited` (`daily_quota`) until
-// 00:00 UTC, so a message, a reminder and a setting keep the last 20%; below 80% all go through. The
-// meter's rows are synthetic fixtures in Core's meter_days.
+// The phone's writes and the hold (meter/hold.ts, DATA.md §8.1): from 85% of the day's budget its
+// senses batches answer 429 `rate_limited` (`daily_quota`) until 00:00 UTC, so a message, a reminder
+// and a setting keep the rest; its own song marks and playlists are never held (2026-11-25), while a
+// heavy route (the mind's songs by feeling) still is; below the hold all go through. The meter's rows are
+// synthetic fixtures in Core's meter_days.
 import { afterEach, beforeAll, expect, it } from 'vitest';
 import { budgetAt } from '../../../shared/contract/meter.ts';
 import { forgetHold } from '../../src/areas/meter/hold';
@@ -9,7 +10,7 @@ import { forgetOwner } from '../../src/areas/senses/routes';
 import { uuidv7 } from '../../src/lib/ids';
 import { utcDay } from '../../src/lib/time';
 import { api, coreSql } from '../helpers';
-import { type Principals, principals } from '../memory-helpers';
+import { asNight, type Principals, principals } from '../memory-helpers';
 
 let p: Principals;
 const seed = (written: number) =>
@@ -36,9 +37,11 @@ const lists = () =>
   api('PUT', '/v1/music/playlists', {
     token: p.D,
     body: {
-      items: [{ id: 'pl_invented', name: 'Invented', ids: [], created: 1, path: null, deleted: false, updated_at: 1 }],
+      items: [{ id: 'plinvented', name: 'Invented', ids: [], created: 1, path: null, deleted: false, updated_at: 1 }],
     },
   });
+// A heavy route the hold still answers: the mind's songs by feeling, held past the hold like a batch.
+const find = () => api('GET', '/v1/music/find?moods=calm', asNight(p));
 const say = (body: string) => api('PUT', `/v1/messages/${uuidv7()}`, { token: p.D, body: { body } });
 
 beforeAll(async () => {
@@ -49,19 +52,25 @@ afterEach(async () => {
   forgetHold();
 });
 
-it("holds the phone's senses, marks and playlists from 80%, never its messages", async () => {
+it("holds the phone's senses from 85%, never its messages, song marks or playlists", async () => {
   forgetHold();
   forgetOwner();
   expect((await senses()).status).toBe(200);
   expect((await say('Before the hold.')).status).toBe(201);
   await seed(budgetAt(85, 'rows_written') + 1);
   forgetHold();
-  for (const call of [senses, marks, lists]) {
+  for (const call of [senses, find]) {
     const r = await call();
     expect(r.status).toBe(429);
     const e = ((await r.json()) as { error: { code: string; details: unknown; retry_after: number } }).error;
     expect(e).toMatchObject({ code: 'rate_limited', details: { reason: 'daily_quota' }, scope: 'account' });
     expect(e.retry_after).toBeGreaterThan(0);
+  }
+  // The owner's own small saves go through while held.
+  for (const call of [marks, lists]) {
+    const r = await call();
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ refused: [] });
   }
   expect((await say('During the hold.')).status).toBe(201);
 });

@@ -123,7 +123,10 @@ imported plays and ratings line up (§11).
 ### 1.3 Catalog delivery
 
 1. `GET /v1/music/catalog` returns the whole catalog without waveforms, with an `ETag`. At 7.5k
-   tracks this is about 1.3 MB compressed; at 20k about 3.5 MB.
+   tracks this is about 1.3 MB compressed; at 20k about 3.5 MB. Cloudflare's edge compresses it
+   (gzip or brotli, as the phone's browser asks): the Worker answers `application/json` with
+   `Cache-Control: no-store`, never `no-transform` or a `Content-Encoding` of its own
+   (`tests/integration/music-delta.test.ts` checks the headers).
 2. The phone revalidates on Music open and every 10 minutes while Music is visible. An unchanged
    catalog costs a 304.
 3. **Built (2026-11-25)** After a full load the phone asks `?since=<the copy's generatedAt>`. When the
@@ -133,7 +136,7 @@ imported plays and ratings line up (§11).
    catalog's `ETag` (`objects/music-delta.ts`, `areas/music/catalog-delta.ts`). It reads the log back
    from its newest row to the copy's time (each commit's time is after the last one's), so its rows
    follow the change, not the catalog. Otherwise (a time the catalog never had, one at or before an
-   import, older than the log's 20,000 kept rows, more than 2,000 songs changed, or no `since`) it
+   import, older than the log's 20,000 kept rows, more than 6,000 songs changed, or no `since`) it
    answers the whole catalog. `If-None-Match` still answers 304 first.
 4. Every song carries `metadata.albumId`: `rg:<mbReleaseGroup>` when it has one, else
    `al:<artist>|<title>`, the album's artist (`albumArtist`, else `artist` without a featured tail)
@@ -184,6 +187,15 @@ data made on one phone now appears on the other. `frontend/th/music/sync.js` (lo
   in place and post nothing.
 - A change made while its push is on the way stays queued: a song is cleared only if its change count
   is still the one sent, a playlist's sent stamp is the `modified` that went up.
+- **Saving never loses an edit (2026-11-25).** A pull never replaces a playlist this phone has edited
+  (or deleted) and not yet sent: the push sends it, the Worker's newer-wins decides, and the next pull
+  starts again from where that copy came and takes what the Worker kept. A playlist longer than the
+  Worker takes (5,000 entries, or 450,000 characters) is never cut, since a shorter copy would come back
+  as the newer one: it stays whole on this phone and does not go up, and `th.p.music.sync` names it
+  under `long` (its id and entries). The two PUTs are never held by the rows guard; after the
+  platform's own 429 or 503 the phone sends nothing before its `Retry-After` (or the body's
+  `retry_after`), at most an hour, 60 s when none is given, remembered across reloads, and the
+  playlists wait when the songs were refused. Nothing queued is dropped.
 - **Settings → Reset stats** is a record with its own time (`reset_at`, the newest kept): on the
   Worker, plays last played at or before it read as none and an older count sent later changes
   nothing; on each phone, every song last played before it goes back to no plays at the next pull.

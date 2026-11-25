@@ -3,7 +3,9 @@
 // (1–20), and a Settings → Reset stats (`reset_at`), and asks what changed since it last asked
 // (`?since=`, then `cursor` while there is more), oldest first. A PUT's items are checked one by one: one that can't be taken (malformed, too big, or
 // a time more than an hour ahead of the Worker's clock) is reported by its place in `refused` and the
-// rest are kept. The owner's device only; nothing here writes the change feed or the catalog.
+// rest are kept. The owner's device only; nothing here writes the change feed or the catalog. The
+// rows guard's hold never refuses these writes (about 130 rows a day, 2026-11-25): only the
+// platform's own refusal, once the day's quota is truly spent, stops them.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
@@ -21,7 +23,6 @@ import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
-import { refuseWhileHeld } from '../meter/hold';
 import { SONG_ID } from './shapes';
 
 const ms = z.number().check(z.int(), z.gte(0), z.lte(Number.MAX_SAFE_INTEGER));
@@ -93,8 +94,6 @@ function startOf(route: string, raw: Record<string, string>): { after: [number, 
 
 export const musicSyncRoutes = new Hono<AppEnv>()
   .put('/music/marks', guard('PUT /v1/music/marks'), async (c) => {
-    // From 80% of the day's budget marks and playlists wait (meter/hold.ts): the phone keeps them queued.
-    await refuseWhileHeld(c.env);
     const body = await json(c, marksBody);
     const now = Date.now();
     const { ok, refused } = sorted(markItem, body.items, now, (m) => [m.rated_at ?? 0, m.last_played, m.updated_at]);
@@ -113,7 +112,6 @@ export const musicSyncRoutes = new Hono<AppEnv>()
     } satisfies MusicMarksPage);
   })
   .put('/music/playlists', guard('PUT /v1/music/playlists'), async (c) => {
-    await refuseWhileHeld(c.env);
     const raw = (await json(c, batch(L.batch_playlists))).items;
     const { ok, refused } = sorted(playlistItem, raw, Date.now(), (p) => [p.updated_at], L.playlist_chars);
     return c.json(await fresh(musicObject(c.env).putPlaylists(ok, refused)));
