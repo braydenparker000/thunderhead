@@ -1,8 +1,8 @@
 // The quota watchdogs' checks (OPERATIONS.md §8.2): today's rows read and rows written across the
 // five objects, from Core's meter_days (gathered by the same tick just before), against 60% of the
-// day's budget (the Free plan's limits less the old Worker's share, shared/contract/meter.ts). A
-// check names the level passed, not the running count, so a trip writes its row once and once more
-// at 80%; the next UTC day starts at zero, and it clears.
+// day's budget (the Free plan's limits, shared/contract/meter.ts). A check names the level passed,
+// not the running count, so a trip writes its row once and once more at 85%; the next UTC day
+// starts at zero, and it clears.
 import { DAY_BUDGET, QUOTA_LEVELS } from '../../../../shared/contract/meter.ts';
 import type { WatchdogName } from '../../../../shared/contract/watchdogs.ts';
 import type { Check } from '../watchdogs/checks';

@@ -106,7 +106,7 @@ export const WATCHDOGS = {
     phase: 'P4',
   },
   'quota.rows_written': {
-    trips: `rows written today by the five objects and a drill's scratch copy ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_written'))} (${QUOTA_LEVELS.note}% of the ${n(DAY_BUDGET.rows_written)} a day the Free plan leaves after the old Worker's share)`,
+    trips: `rows written today by the five objects and a drill's scratch copy ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_written'))} (${QUOTA_LEVELS.note}% of the Free plan's ${n(DAY_BUDGET.rows_written)} a day)`,
     severity: 'S3',
     slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,
@@ -114,7 +114,7 @@ export const WATCHDOGS = {
     phase: 'P4',
   },
   'quota.rows_read': {
-    trips: `rows read today across the five objects ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_read'))} (${QUOTA_LEVELS.note}% of the ${n(DAY_BUDGET.rows_read)} a day the Free plan leaves after the old Worker's share)`,
+    trips: `rows read today across the five objects ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_read'))} (${QUOTA_LEVELS.note}% of the Free plan's ${n(DAY_BUDGET.rows_read)} a day)`,
     severity: 'S3',
     slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,
@@ -122,7 +122,7 @@ export const WATCHDOGS = {
     phase: 'P4',
   },
   'quota.do_calls': {
-    trips: "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside)",
+    trips: "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day)",
     severity: 'S3',
     slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,

@@ -232,8 +232,8 @@ export async function taint(argv) {
 }
 
 /** `th health [--deep]`: the Worker's health and, as `meter`, today's database use against the day's
- * budget (the Free plan's limits less the old Worker's share): `read_pct`, `written_pct`, `pct` and
- * `hold_until` (00:00 UTC while the heavy work waits, from 80%). `meter` is null when it can't be read. */
+ * budget (the Free plan's limits): `read_pct`, `written_pct`, `pct` and `hold_until` (00:00 UTC
+ * while the heavy work waits, from 85%). `meter` is null when it can't be read. */
 export async function health(argv) {
   const {flags} = parseArgs(argv, {bool: ['deep']});
   const {data} = await request('GET', flags.deep ? '/v1/ops/health/deep' : '/v1/health');

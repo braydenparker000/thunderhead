@@ -171,7 +171,7 @@ describe('the heavy jobs', () => {
     let now = Date.now();
     const day = utcDay(now);
     await coreSql("DELETE FROM settings WHERE key = 'bulk.day'");
-    // 300 rows written short of 80% of the day's 90,000 (more than Core's own writes before its
+    // 300 rows written short of 85% of the day's 100,000 (more than Core's own writes before its
     // meter's next write, fewer than the drill's first parts): the drill's own writes pass it.
     const [own] = await coreSql<{ w: number }>(
       'SELECT coalesce(sum(rows_written), 0) AS w FROM meter_days WHERE day = ?',
@@ -245,7 +245,7 @@ describe('the heavy jobs', () => {
     const [j] = await coreSql<{ state: string; due_at: number; cursor_json: string }>(
       "SELECT state, due_at, cursor_json FROM jobs WHERE id = 'job-q-heavy'",
     );
-    // Two steps ran (900,000 left below 80%, 500,000 each); the third waits for 00:00 UTC.
+    // Two steps ran (900,000 left below 85%, 500,000 each); the third waits for 00:00 UTC.
     expect(j).toMatchObject({ state: 'paused', due_at: nextUtcDay(now), cursor_json: '2' });
     const [lib] = await coreSql<{ rows_read: number }>(
       "SELECT rows_read FROM meter_days WHERE day = ? AND class = 'library'",

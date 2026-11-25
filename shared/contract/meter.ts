@@ -6,19 +6,10 @@ import type { Ms } from './api.ts';
  * on the account fails until 00:00 UTC. */
 export const FREE_PLAN_DAY = { rows_read: 5_000_000, rows_written: 100_000 } as const;
 
-/** What the old Worker (`jarvis-hub-api`, its Hub object, not in this repository) uses of the same
- * account's limits each day, which this Worker's meter cannot see. Cloudflare's analytics,
- * 2026-11-04 to 2026-11-24 (21 days): 52,818 to 263,192 rows read and 4,398 to 8,744 written a day
- * (under 5,400 written since 2026-11-21). Kept back from our budget with room above those highs;
- * both drop to 0 once the old Worker retires (SETUP.md N5, M4). */
-export const OLD_WORKER_RESERVE = { rows_read: 300_000, rows_written: 10_000 } as const;
-
-/** What is left for this Worker's five objects each day: 4,700,000 rows read, 90,000 written. The
- * quota levels are percentages of this budget. */
-export const DAY_BUDGET = {
-  rows_read: FREE_PLAN_DAY.rows_read - OLD_WORKER_RESERVE.rows_read,
-  rows_written: FREE_PLAN_DAY.rows_written - OLD_WORKER_RESERVE.rows_written,
-} as const;
+/** The day's budget for this Worker's five objects: the whole Free plan, 5,000,000 rows read and
+ * 100,000 written. The quota levels are percentages of it. Until 2026-11-25 the old Worker's share
+ * (300,000 read, 10,000 written) was kept back from it; the owner deleted the old Worker that day. */
+export const DAY_BUDGET = FREE_PLAN_DAY;
 
 /** Percent of either side of the day's budget. `note`: the quota watchdogs trip and the Briefing and
  * the mind's briefing say so. `hold`: one push to the owner, and the heavy work (the backup and
@@ -26,7 +17,7 @@ export const DAY_BUDGET = {
  * until 2026-11-25 (the owner's word: 85, so the upload tools have more of the day). */
 export const QUOTA_LEVELS = { note: 60, hold: 85 } as const;
 
-/** Rows at a level of the day's budget (`quota.rows_read` trips at 2,820,000, say). */
+/** Rows at a level of the day's budget (`quota.rows_read` trips at 3,000,000, say). */
 export const budgetAt = (pct: number, key: keyof typeof DAY_BUDGET) => Math.floor((DAY_BUDGET[key] * pct) / 100);
 
 /** One object class's rows on one UTC day. */
