@@ -68,7 +68,7 @@
     "rows_written_max": 0
   },
   "GET /v1/ops/health/deep (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 5,
     "rows_written_max": 0
   },
   "POST /v1/ops/errors, 1 item (Core)": {
@@ -196,11 +196,11 @@
     "rows_written_max": 5
   },
   "GET /v1/ops/meter (Core)": {
-    "rows_read_max": 15,
+    "rows_read_max": 16,
     "rows_written_max": 5
   },
   "GET /v1/ops/meter?days=30 (Core)": {
-    "rows_read_max": 160,
+    "rows_read_max": 161,
     "rows_written_max": 5
   },
   "POST /v1/memory/ops (1 add) (Core)": {
@@ -378,6 +378,14 @@
   "GET /v1/ops/reports (50 of 250) (Core)": {
     "rows_read_max": 51,
     "rows_written_max": 0
+  },
+  "GET /v1/ops/diag (Music)": {
+    "rows_read_max": 40,
+    "rows_written_max": 5
+  },
+  "GET /v1/ops/diag (Core)": {
+    "rows_read_max": 60,
+    "rows_written_max": 8
   },
   "PUT /v1/podcasts/progress (1 new) (Core)": {
     "rows_read_max": 0,

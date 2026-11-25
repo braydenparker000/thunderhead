@@ -1295,7 +1295,8 @@
       "who": [
         "D",
         "C",
-        "N"
+        "N",
+        "I"
       ],
       "phase": "P5",
       "status": "built",
@@ -1845,7 +1846,8 @@
         "D",
         "C",
         "N",
-        "R"
+        "R",
+        "I"
       ],
       "phase": "P8",
       "status": "built",
@@ -2286,6 +2288,15 @@
       "phase": "P9",
       "status": "built",
       "note": "{text ≤ 1,000}: a note added (never changed or removed), at most 50 an item"
+    },
+    "GET /v1/ops/diag": {
+      "who": [
+        "D",
+        "I"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "jobs, the bulk lane, quota, meter, the music knowledge job and the version: counts, states, times, codes and host names, never content"
     }
   },
   "verbs": {

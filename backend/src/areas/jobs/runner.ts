@@ -9,7 +9,7 @@
 // or a backup stops between two parts and goes on after midnight. Rows a step wrote in an object
 // no meter counts (the drill's scratch copy) are added to the day's meter, and the next step
 // checks again, so the drill's own writes stop it. `last_error` keeps a code and the error's name
-// only, never a message that could hold data.
+// only, never a message that could hold data. A pause is logged (`job_paused`: kind, why, lane rows, until).
 import { MINUTE, utcDay } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
