@@ -9,7 +9,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
-import { until } from './fixtures/waits.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 import { inventedLibrary } from './fixtures/music-shelves-library.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -133,7 +133,8 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   await dialogUp();
   await page.goBack();
   await until(async () => (await dialogs()) === 0, { message: 'Back did not close the dialog' });
-  await page.waitForTimeout(300);
+  // A Back that also went up a level would have done so by now (on the page's own timer queue).
+  await outlast(page, 300);
   assert.equal(await page.evaluate(() => window.__cp.ctx.listWidget.stack.length), levels, 'the list stayed where it was');
 
   // The playlist: a tap on its title renames it.

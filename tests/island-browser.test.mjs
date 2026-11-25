@@ -545,7 +545,8 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     const page=await signedIn(context,{saveData:false});await page.goto(`${base}/`);
     await page.waitForFunction(()=>window.chatLoadedAt!==undefined);
     assert.equal(await page.locator('iframe.th-app').count(),0);
-    await page.waitForSelector('iframe.th-app[data-app=music]',{state:'attached',timeout:8000});
+    // The idle warm loads Podcasts only (Music loads when opened, the owner, 2026-11-25).
+    await page.waitForSelector('iframe.th-app[data-app=podcasts]',{state:'attached',timeout:8000});
     assert.ok(await page.evaluate(()=>performance.now()-chatLoadedAt>=2900),'three-second fallback');
     await readyOpen(page,'music');await settle(page);await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     // A title past 60% of the viewport: the capsule stops at 234 px and fades the title's last 16 px.

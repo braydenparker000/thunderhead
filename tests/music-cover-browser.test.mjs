@@ -52,9 +52,9 @@ test("a player item shows the song's thumbnail while its full cover is missing, 
     giveFull(full);
     for (let i = 0; i < 100 && song.art !== full; i++) await new Promise((r) => setTimeout(r, 10));
     const after = { shown: shown.at(-1) === full.url, art: song.art === full, thumbKept: song.thumb === small };
-    // A song whose record already has its thumbnail: shown in the same bind.
+    // A song whose record already has its thumbnail (and no full cover yet): shown in the same bind.
     shown.length = 0;
-    item.bind({ ...song, id: 'r2_native_invented0002', thumb: small });
+    item.bind({ ...song, id: 'r2_native_invented0002', art: undefined, thumb: small });
     return { before, after, atOnce: shown[0] === small.url };
   });
   assert.deepEqual(got, {

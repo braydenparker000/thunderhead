@@ -71,7 +71,7 @@ test('today and this month turn over at the owner’s local midnight, split by n
   // Unknown parts and nothing at all are not counted.
   add(t, '2026-11-21', 'elsewhere', 0, 99);
   add(t, '2026-11-21', 'home', 0, 0);
-  assert.deepEqual(totals(t, at(2026, 11, 21, 9)).today.all, [5000, 2000, 300]);
+  assert.deepEqual(totals(t, at(2026, 11, 21, 9)).today.all, [5400, 2500, 300], 'today as it was with the catalogue and app files added');
 });
 
 test('62 days are kept, today included; a batch merges in; a broken store starts again', () => {

@@ -30,6 +30,8 @@ const IMPROVED = {
   'assets/error-report.js': ['/th/senses/send.js', '/th/data/page.js'],
   'music/src/app.js': ['/th/music/dj.js'],
   'music/src/player/player.js': ['/th/music/dj.js', '/th/music/stream/deck.js'],
+  // The queue's moves, split from player.js (it imports them), pass over "never" songs as the player does.
+  'music/src/player/queue-moves.js': ['/th/music/dj.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],
   'guitar/reader.js': ['/th/guitar/teacher.js', '/th/guitar/practice.js'],
   // The mind's arrangement in each app's slot (th/ported/arrangement.js), Guitar's intents and its progress's sync.
