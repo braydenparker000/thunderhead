@@ -13,10 +13,10 @@ import {AAGeometry, geometryParams, dynamicDimensionReader} from './aa-geometry.
 import {StyledAttributes} from '../res/resources.js';
 import {GONE, VISIBLE, INVISIBLE} from '../res/values.js';
 import {STATE_PLAYING} from '../player/player.js';
-import {PowerList} from './power-list.js';
+import {PowerList, HEAD} from './power-list.js';
 import {MoveableToolbar, ANCHOR_BOTTOM, ANCHOR_FIXED_BOTTOM} from './moveable-toolbar.js';
 import {ListReorder} from './reorder.js';
-import {HomeSource, currentCategorySource, searchSource, playlistsSource, playlistSource, allSongsSource, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
+import {HomeSource, currentCategorySource, searchSource, playlistsSource, playlistSource, allSongsSource, allSongsOrderSteps, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
 import {SEARCH_CATS, searchMask} from '../widgets/search.js';
 import {recordSearch} from '../library/search-history.js';
 import {ListTransition, ZOOM, pageFx} from './list-transition.js';
@@ -542,6 +542,8 @@ export class ListWidget extends FastLayout {
       if (msg === 'msg_app_setting_changed' && /^(search_track_titles_only|title_filename)$/.test(d?.key) && this.searching) this.showSearch();
     });
     ctx.listWidget = this;
+    // A refreshed library's All Songs order, made in idle slices before it shows (Library.replaceTracks).
+    ctx.orderSteps = tracks => allSongsOrderSteps(ctx, tracks);
     this.mode = 'aa';
     // Library mode: a PowerList over the same area, with a navigation stack.
     this.libList = new PowerList(ctx, this);
@@ -2239,7 +2241,10 @@ export class ListWidget extends FastLayout {
     if (this._prepQueued || !globalThis.requestIdleCallback) return;
     this._prepQueued = true;
     // An idle job (view/idle-work.js): not within 300 ms of an input, nor while a transition or a scroll runs.
-    idleWork(this.ctx, 'prepare-track-list', [() => { this._prepQueued = false; this.prepareTrackList(); }]);
+    // The library's views and a screen of rows first, in slices (each was a long task inside it).
+    const ll = this.libList;
+    idleWork(this.ctx, 'prepare-track-list', [() => this.ctx.library?.warmSteps?.(), () => allSongsOrderSteps(this.ctx), () => ll.spareSteps?.('track', 1, HEAD), () => ll.spareSteps?.('track', 16),
+      () => { this._prepQueued = false; this.prepareTrackList(); }]);
   }
 
   /**

@@ -11,6 +11,7 @@ import {colorToCss, GONE, VISIBLE} from '../res/values.js';
 import {cssFontFamily} from '../fonts.js';
 import {RECALC_NONE} from '../view/scene.js';
 import {VelocityTracker, Fling, TOUCH_SLOP_DP, MIN_FLING_DP, MAX_FLING_DP} from '../gesture.js';
+import {DEBOUNCE_MS, prepareSearch, warmSearch} from '../list/search-prep.js';
 
 // The searched categories (jj1.v1 order) after "All"; the chip titles are
 // the categories' names.
@@ -53,8 +54,13 @@ export class ListSearchEditText extends FastTextView {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     this.showHint();
     if (!new.target.listBound) return;
+    // A large library's search (list/search-prep.js): fields made in idle time, the text sent once typing
+    // pauses and its ranking worked out in slices; Enter or leaving the field sends it at once.
+    warmSearch(ctx);
+    input.addEventListener('blur', () => this.sendNow());
     ctx.bus.subscribe('list', (msg, src, d) => {
-      if (msg === 'cmd_list_search_text' && src !== this) { input.value = d?.string ?? ''; this.onQuery(input.value); }
+      // Set from elsewhere (a history row, a clear): the list has it already; nothing sent again.
+      if (msg === 'cmd_list_search_text' && src !== this) { input.value = d?.string ?? ''; this.onQuery(input.value, false); }
     });
     ctx.bus.subscribe('bus_gui', (msg, src, d) => {
       if (msg === 'msg_nav_changed' && d.nav === 'nav_search') setTimeout(() => input.focus({preventScroll: true}), 0);
@@ -82,10 +88,29 @@ export class ListSearchEditText extends FastTextView {
     }
   }
 
-  onQuery(q) {
+  onQuery(q, send = true) {
     this.query = q;
     this.showHint();
     this.invalidate();
+    this.stopSending();
+    if (send) this.sendTimer = setTimeout(() => { this.sendTimer = 0; this.stopPrep = prepareSearch(this.ctx, q, () => { this.stopPrep = null; this.send(q); }); }, DEBOUNCE_MS);
+  }
+
+  stopSending() {
+    clearTimeout(this.sendTimer);
+    this.sendTimer = 0;
+    this.stopPrep?.();
+    this.stopPrep = null;
+  }
+
+  /** The text not sent yet, sent now (Enter, the field let go). */
+  sendNow() {
+    if (!this.sendTimer && !this.stopPrep) return;
+    this.stopSending();
+    this.send(this.query);
+  }
+
+  send(q) {
     this.ctx.bus.post('list', 'cmd_list_search_text', this, {string: q});
   }
 

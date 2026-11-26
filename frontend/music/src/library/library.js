@@ -2,12 +2,14 @@
 // and category views (albums, artists, genres, folders).
 import {idleWork} from '../view/idle-work.js';
 import {LibraryDb} from './db.js';
+import {readSnapshot, readWave, saveSnapshot, touchSnapshot} from './snapshot.js';
 import {readRemotePicture} from './tags.js';
 import {makeSplitter, GENRE_DEFAULT_SPLIT} from './split.js';
 import {Playlists} from './playlists.js';
 import {ListMemory} from './list-memory.js';
 import {cueTracks} from './cue.js';
-import {buildShelves} from './shelves.js';
+import {shelfSteps} from './shelves.js';
+import {albumArtistSteps, albumSteps, folderSteps, namedSteps, PATHS, PLAIN, run} from './groups.js';
 import {fetchR2Library, r2Tracks, R2_LIBRARY_URL, fetchWaveform, peaksToBars, decodeWave} from './r2.js';
 import {barsFromMeanSquares, rmsBytesToMeanSquares, loudnessFromPeaks, waveSteps, MIN_WAVE_STEPS} from './waveform.js';
 
@@ -65,9 +67,12 @@ export class Library {
     try {
       this.db = await LibraryDb.open();
       for (const [k, v] of await this.db.stateEntries('u:')) this.userData.set(k.slice(2), v);
-      const snap = await this.db.getState('r2:index');
-      if (snap?.tracks) { this.r2Generated = snap.generatedAt; this.r2SavedAt = snap.savedAt ?? 0; this.remoteTracks = this.withUserData(snap.tracks); }
+      // The snapshot in parts (snapshot.js); the single record of before is read once and moved.
+      // Each part takes the songs' own data as it comes (a part at a time, not all in one task).
+      const snap = await readSnapshot(this.db, part => this.withUserData(part));
+      if (snap?.tracks) { this.r2Generated = snap.generatedAt; this.r2SavedAt = snap.savedAt ?? 0; this.remoteTracks = snap.old ? this.withUserData(snap.tracks) : snap.tracks; }
       this.setTracks([...this.remoteTracks]);
+      if (snap?.old) this.saveSnapshot();
       for (const [k, v] of await this.db.stateEntries('ca:')) if (v instanceof Blob) this.customArt.set(k.slice(3), v);
       await this.playlists.load();
       await this.listMemory.load();
@@ -95,10 +100,28 @@ export class Library {
     return list;
   }
 
-  /** Decodes a track's inline index waveform (peak bars) on first use. */
+  /**
+   * Decodes a track's inline index waveform (peak bars) on first use. One kept apart in the snapshot
+   * (`waveB64: true`, snapshot.js) is there once read (loadWave: waveFor, prefetchWave).
+   */
   ensureWave(t) {
-    if (t && !t.wave && t.waveB64) { const w = decodeWave(t.waveB64); if (w) t.wave = loudnessFromPeaks(w); }
+    if (t && !t.wave && typeof t.waveB64 === 'string') { const w = decodeWave(t.waveB64); if (w) t.wave = loudnessFromPeaks(w); }
     return t?.wave ?? null;
+  }
+
+  /** A waveform kept apart in the snapshot, read and decoded as ensureWave does an inline one. */
+  async loadWave(t) {
+    const w = this.db ? await readWave(this.db, t.id) : null;
+    if (!t.wave && typeof w === 'string') { const v = decodeWave(w); if (v) t.wave = loudnessFromPeaks(v); }
+    else if (!t.wave && Array.isArray(w)) t.wave = w;
+    return t.wave ?? null;
+  }
+
+  /** The snapshot written again from the shown songs, in their sorted order (snapshot.js), in the background. */
+  saveSnapshot() {
+    if (!this.db) return Promise.resolve();
+    const tracks = this.allTracks.filter(t => t.remote && !t.cueOf);
+    return saveSnapshot(this.db, {generatedAt: this.r2Generated, savedAt: this.r2SavedAt ?? 0, tracks}).catch(e => console.warn('[claude-player] snapshot', e));
   }
 
   /**
@@ -113,17 +136,16 @@ export class Library {
       this.r2Error = null;
       if (data.generatedAt && data.generatedAt === this.r2Generated) {
         this.r2SavedAt = Date.now();
-        this.db?.getState('r2:index').then(snap => snap && this.db.setState('r2:index', {...snap, savedAt: this.r2SavedAt})).catch(() => {});
+        // Only the head's time (snapshot.js), not the whole snapshot again.
+        if (this.db) touchSnapshot(this.db, this.r2SavedAt).catch(() => {});
         return false;
       }
       const tracks = r2Tracks(data, url);
       this.r2Generated = data.generatedAt;
       this.remoteTracks = this.withUserData(tracks);
-      this.setTracks([...this.remoteTracks]);
       this.r2SavedAt = Date.now();
-      // The snapshot keeps index data only (no decoded waves or images).
-      const snapshot = tracks.map(({art, thumb, wave, ...r}) => (r.waveB64 ? r : {...r, wave}));
-      this.db?.setState('r2:index', {generatedAt: data.generatedAt, savedAt: this.r2SavedAt, tracks: snapshot}).catch(() => {});
+      // The snapshot keeps index data only (no decoded waves or images), in parts, its waveforms apart.
+      if (await this.replaceTracks([...this.remoteTracks])) this.saveSnapshot();
       return true;
     } catch (e) {
       console.warn('[claude-player] R2 library unavailable:', e.message);
@@ -155,8 +177,39 @@ export class Library {
    * ignored, 0 keeps all; skip_video: files with a video stream are ignored).
    */
   setTracks(list) {
-    list.sort(compareTracks);
-    this.allTracks = list;
+    this.commitTracks(this.arrange(list));
+  }
+
+  /**
+   * A refreshed catalog's songs shown without a long task: sorted (sortTracks: the shown order as a
+   * hint), then, for a large library, the category views for them built ahead in idle slices
+   * (warmSteps, kept beside the shown ones), and only then shown, in one go, with their views made.
+   * False when a later refresh took its place meanwhile.
+   */
+  async replaceTracks(list) {
+    const token = this._replacing = {};
+    let a = this.arrange(list);
+    if (a.shown.length >= PREPARE_MIN && this.tracks.length && globalThis.requestIdleCallback) {
+      this._nextTracks = a.shown;
+      await idleWork(this.ctx, 'groups', [() => this.warmSteps(a.shown), () => this.ctx.orderSteps?.(a.shown)]);
+      if (this._nextTracks === a.shown) this._nextTracks = null;
+      if (token !== this._replacing) return false;
+      // A scan setting changed meanwhile: arranged again with it (the views then build on use).
+      if (a.prefs !== this.scanPrefs()) a = this.arrange(a.list);
+    }
+    this.commitTracks(a);
+    return true;
+  }
+
+  /** The scan settings that pick the shown songs (setTracks), as one key. */
+  scanPrefs() {
+    return ['scan_min_track_duration', 'skip_video', 'process_cues', 'show_cue_source'].map(k => String(this.ctx.pref?.(k) ?? '')).join('\u0002');
+  }
+
+  /** The songs sorted and the shown ones picked (setTracks), not yet shown. */
+  arrange(list) {
+    sortTracks(list, this.allTracks);
+    const prefs = this.scanPrefs();
     const minMs = (+(this.ctx.pref?.('scan_min_track_duration') ?? 6) || 0) * 1000, noVideo = !!this.ctx.pref?.('skip_video');
     // process_cues: disc images with a sheet show as their virtual tracks
     // (kept per image, so a playing one stays the same object); the image
@@ -176,18 +229,30 @@ export class Library {
       if (showSource) shown.push(t);
     }
     if (virtual.length) shown.sort(compareTracks);
-    this.tracks = shown.filter(t => !(minMs && t.durationMs && t.durationMs < minMs) && !(noVideo && t.video));
+    return {list, virtual, prefs, shown: shown.filter(t => !(minMs && t.durationMs && t.durationMs < minMs) && !(noVideo && t.video))};
+  }
+
+  commitTracks({list, shown, virtual}) {
+    this.allTracks = list;
+    this.tracks = shown;
     this.byId = new Map([...list, ...virtual].map(t => [t.id, t]));
     this.ctx.bus.post('bus_library', 'msg_library_changed', this, {count: this.tracks.length});
     this.warmGroups();
   }
 
-  /** The category views built in idle time (view/idle-work.js, one piece each), so the first search or category list finds them made. */
+  /**
+   * The category views built in idle time (view/idle-work.js), so the first search or category list
+   * finds them made: each view's steps (groups.js) run in slices of a few milliseconds.
+   */
   warmGroups() {
     if (!globalThis.requestIdleCallback || this._warmQueued) return;
     this._warmQueued = true;
-    const kinds = ['albums', 'artists', 'shelves', 'albumArtists', 'genres', 'composers', 'folders'];
-    idleWork(this.ctx, 'groups', kinds.map(k => () => this[k]())).then(() => { this._warmQueued = false; });
+    idleWork(this.ctx, 'groups', [() => this.warmSteps()]).then(() => { this._warmQueued = false; });
+  }
+
+  /** Every view for the shown tracks (or tracks still to show: replaceTracks), as steps. */
+  *warmSteps(tracks = this.tracks) {
+    for (const k of WARM_KINDS) yield* this.groupedSteps(k, tracks);
   }
 
   /** Media URL for a track (object URL over the stored file). */
@@ -514,7 +579,7 @@ export class Library {
     this.waveJobs ??= new Map();
     let job = this.waveJobs.get(t.id);
     if (!job) {
-      job = this.measureWave(t, bars).finally(() => this.waveJobs.delete(t.id));
+      job = (t.waveB64 === true ? this.loadWave(t) : this.measureWave(t, bars)).finally(() => this.waveJobs.delete(t.id));
       this.waveJobs.set(t.id, job);
     }
     return job;
@@ -558,7 +623,7 @@ export class Library {
 
   /** Waveforms ahead of time (the next song's): fetched quietly, kept with the track. */
   prefetchWave(t) {
-    if (t && t.remote && t.waveUrl && !t.wave && this.byId.has(t.id)) this.waveFor(t).catch(() => {});
+    if (t && t.remote && (t.waveUrl || t.waveB64 === true) && !t.wave && this.byId.has(t.id)) this.waveFor(t).catch(() => {});
   }
 
   /**
@@ -685,43 +750,52 @@ export class Library {
    * shape it (search and the category lists ask for them on every change;
    * the reference reads its tables). Callers copy before sorting.
    */
-  grouped(name, make) {
+  grouped(name) {
+    return run(this.groupedSteps(name));
+  }
+
+  /** The preferences that shape the views, as one key. */
+  groupKey() {
     const p = k => String(this.ctx.pref?.(k) ?? '');
-    const key = GROUP_PREFS.map(p).join('\u0002');
-    const c = (this._grouped ??= new Map()).get(name);
-    if (c && c.tracks === this.tracks && c.key === key) return c.value;
-    const value = make();
-    this._grouped.set(name, {tracks: this.tracks, key, value});
+    return GROUP_PREFS.map(p).join('\u0002');
+  }
+
+  /**
+   * grouped() as steps (groups.js): the view kept for these tracks, else built step by step and kept
+   * when the preferences did not change meanwhile. Two lists' views are kept (the shown one's and one
+   * built ahead for a refreshed library before it shows: replaceTracks).
+   */
+  *groupedSteps(name, tracks = this.tracks) {
+    const key = this.groupKey(), kept = (this._grouped ??= new Map()).get(name) ?? [];
+    const c = kept.find(e => e.tracks === tracks && e.key === key);
+    if (c) return c.value;
+    const value = yield* this.groupSteps(name, tracks);
+    if (key === this.groupKey()) {
+      const now = (this._grouped.get(name) ?? []).filter(e => e.tracks !== tracks && (e.tracks === this.tracks || e.tracks === this._nextTracks));
+      this._grouped.set(name, [...now.slice(-1), {tracks, key, value}]);
+    }
     return value;
   }
 
+  groupSteps(name, tracks) {
+    switch (name) {
+      case 'albums': return albumSteps(this, tracks);
+      case 'artists': return namedSteps(this, tracks, 'artist', 'artist', 'unknown_artist_name', 'Unknown artist');
+      case 'shelves': return this.shelvesSteps(tracks);
+      case 'albumArtists': return albumArtistSteps(this, tracks);
+      case 'composers': return namedSteps(this, tracks, 'composer', 'composer', 'unknown_composer_name', 'Unknown composer');
+      case 'genres': return namedSteps(this, tracks, 'genre', 'genre', 'unknown_genre_name', 'Unknown genre');
+      case 'folders': return folderSteps(tracks);
+      default: throw new Error('no view ' + name);
+    }
+  }
+
   albums() {
-    return this.grouped('albums', () => this.buildAlbums());
+    return this.grouped('albums');
   }
 
   buildAlbums() {
-    const unknown = this.ctx.res?.stringByName('unknown_album_name') ?? 'Unknown album';
-    const lc = s => (s ?? '').toLowerCase();
-    const tagged = new Set();
-    if (this.ctx.pref?.('join_albums') !== false) for (const t of this.tracks) if (t.album && t.albumArtist) tagged.add(lc(t.album) + '\u0000' + lc(t.albumArtist));
-    const map = new Map();
-    for (const t of this.tracks) {
-      let key;
-      // The catalog's album id (the same for every song of one release, however its tags are spelled)
-      // groups first; without one, the album's name and album artist, as typed.
-      if (t.albumId) key = '\u0002' + t.albumId;
-      else if (!t.album) key = '\u0001';
-      else {
-        let aa = lc(t.albumArtist);
-        if (!aa && t.artist && tagged.has(lc(t.album) + '\u0000' + lc(t.artist))) aa = lc(t.artist);
-        key = lc(t.album) + '\u0000' + aa;
-      }
-      let a = map.get(key);
-      if (!a) map.set(key, a = {kind: 'album', title: t.album || unknown, artist: t.albumArtist || t.artist || '', tracks: [], artId: t.artId});
-      a.tracks.push(t);
-      a.artId ||= t.artId;
-    }
-    return [...map.values()].sort((x, y) => PLAIN.compare(x.title, y.title));
+    return run(albumSteps(this, this.tracks));
   }
 
   /** The split symbols in effect (artists / album artists, composers, genres). */
@@ -753,61 +827,37 @@ export class Library {
 
   /** Artists, album artists, composers or genres as groups of tracks. */
   namedGroups(field, kind, unknownName, unknownFallback) {
-    const unknown = this.ctx.res?.stringByName(unknownName) ?? unknownFallback;
-    const showUnsplit = field !== 'genre' && !!this.ctx.pref?.('show_unsplit_cats');
-    const map = new Map();
-    const add = (name, t) => {
-      const k = name.toLowerCase();
-      let g = map.get(k);
-      if (!g) map.set(k, g = {kind, title: name || unknown, tracks: []});
-      if (g.tracks[g.tracks.length - 1] !== t) g.tracks.push(t);
-    };
-    const splitters = this.splitters();
-    for (const t of this.tracks) {
-      const {names, unsplit} = this.namesOf(t, field, splitters);
-      for (const n of names) add(n, t);
-      if (unsplit && showUnsplit) add(unsplit, t);
-    }
-    return [...map.values()].sort((x, y) => PLAIN.compare(x.title, y.title));
+    return run(namedSteps(this, this.tracks, field, kind, unknownName, unknownFallback));
   }
 
   artists() {
-    return this.grouped('artists', () => this.namedGroups('artist', 'artist', 'unknown_artist_name', 'Unknown artist'));
+    return this.grouped('artists');
   }
 
   /** Albums, Singles, Artists and Possible duplicates as the library lists show them (shelves.js). */
   shelves() {
-    return this.grouped('shelves', () => buildShelves({albumGroups: this.albums(), artistGroups: this.artists(), names: s => this.namesOf({albumArtist: s}, 'albumArtist').names}));
+    return this.grouped('shelves');
+  }
+
+  *shelvesSteps(tracks) {
+    const albumGroups = yield* this.groupedSteps('albums', tracks), artistGroups = yield* this.groupedSteps('artists', tracks);
+    return yield* shelfSteps({albumGroups, artistGroups, names: s => this.namesOf({albumArtist: s}, 'albumArtist').names});
   }
 
   albumArtists() {
-    return this.grouped('albumArtists', () => this.buildAlbumArtists());
+    return this.grouped('albumArtists');
   }
 
   buildAlbumArtists() {
-    // A track without an album artist counts under its artist (IFNULL(album_artist, artist)).
-    const unknown = this.ctx.res?.stringByName('unknown_artist_name') ?? 'Unknown artist';
-    const showUnsplit = !!this.ctx.pref?.('show_unsplit_cats');
-    const map = new Map(), splitters = this.splitters();
-    for (const t of this.tracks) {
-      const field = t.albumArtist ? 'albumArtist' : 'artist';
-      const {names, unsplit} = this.namesOf(t, field, splitters);
-      for (const n of unsplit && showUnsplit ? [...names, unsplit] : names) {
-        const k = n.toLowerCase();
-        let g = map.get(k);
-        if (!g) map.set(k, g = {kind: 'albumArtist', title: n || unknown, tracks: []});
-        g.tracks.push(t);
-      }
-    }
-    return [...map.values()].sort((x, y) => PLAIN.compare(x.title, y.title));
+    return run(albumArtistSteps(this, this.tracks));
   }
 
   composers() {
-    return this.grouped('composers', () => this.namedGroups('composer', 'composer', 'unknown_composer_name', 'Unknown composer'));
+    return this.grouped('composers');
   }
 
   genres() {
-    return this.grouped('genres', () => this.namedGroups('genre', 'genre', 'unknown_genre_name', 'Unknown genre'));
+    return this.grouped('genres');
   }
 
   /**
@@ -861,27 +911,50 @@ export class Library {
   }
 
   folders() {
-    return this.grouped('folders', () => this.buildFolders());
+    return this.grouped('folders');
   }
 
   buildFolders() {
-    const map = new Map();
-    for (const t of this.tracks) {
-      const k = t.folder || '/';
-      (map.get(k) ?? map.set(k, {kind: 'folder', title: k.split('/').pop() || k, path: k, tracks: []}).get(k)).tracks.push(t);
-    }
-    return [...map.values()].sort((x, y) => PLAIN.compare(x.path, y.path));
+    return run(folderSteps(this.tracks));
   }
 }
 
-// Collators shared by every sort (localeCompare builds one per call): the
-// default order, and paths case-insensitive with numbers by value.
-const PLAIN = new Intl.Collator(), PATHS = new Intl.Collator(undefined, {sensitivity: 'base', numeric: true});
-
 // Preferences that shape the category views (grouped).
+const WARM_KINDS = ['albums', 'artists', 'shelves', 'albumArtists', 'genres', 'composers', 'folders'];
 const GROUP_PREFS = ['join_albums', 'show_unsplit_cats', 'artists_split_chars', 'artists_split_ignore', 'composers_split_chars', 'genres_split_chars'];
 
-function compareTracks(a, b) {
+// A refreshed library of this many shown songs or more builds its views ahead, in idle slices (replaceTracks).
+const PREPARE_MIN = 2000;
+
+/**
+ * list.sort(compareTracks), in place, as fast as the order allows: the songs are laid out in the order
+ * they had (prev, the last sorted list, by id; new ones after) and sorted from there with ties kept in
+ * list's own order, so the result is the plain stable sort's while the engine's sort, finding the songs
+ * nearly in order, compares each about once. The snapshot keeps the sorted order too (snapshot.js).
+ */
+export function sortTracks(list, prev = []) {
+  if (list.length < 2) return list;
+  const at = new Map();
+  list.forEach((t, i) => at.set(t, i));
+  let laid = list;
+  if (prev.length && prev !== list) {
+    const pos = new Map(), slots = new Array(prev.length), rest = [];
+    prev.forEach((t, i) => pos.set(t.id, i));
+    for (const t of list) {
+      const p = pos.get(t.id);
+      if (p !== undefined && slots[p] === undefined) slots[p] = t;
+      else rest.push(t);
+    }
+    laid = [];
+    for (const t of slots) if (t !== undefined) laid.push(t);
+    for (const t of rest) laid.push(t);
+  } else laid = list.slice();
+  laid.sort((a, b) => compareTracks(a, b) || at.get(a) - at.get(b));
+  for (let i = 0; i < laid.length; i++) list[i] = laid[i];
+  return list;
+}
+
+export function compareTracks(a, b) {
   return PLAIN.compare(a.albumArtist || a.artist || '', b.albumArtist || b.artist || '') || PLAIN.compare(a.album || '', b.album || '') || (a.disc - b.disc) || (a.track - b.track) || PLAIN.compare(a.title, b.title);
 }
 

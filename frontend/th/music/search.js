@@ -34,18 +34,17 @@ export function oneOff(a, b) {
 }
 
 /** @typedef {{ title: string, artist: string, album: string, all: string, words: string[] }} Fields */
-/** @type {WeakMap<object, { key: string, f: Fields }>} */
+/** @type {WeakMap<object, { title: string, titlesOnly: boolean, f: Fields }>} */
 const cache = new WeakMap();
 
 /** A song's search fields, normalised once. @param {any} t @param {string} title @param {boolean} titlesOnly */
 function fieldsOf(t, title, titlesOnly) {
-  const key = `${titlesOnly ? 1 : 0}|${title}`;
   const had = cache.get(t);
-  if (had?.key === key) return had.f;
+  if (had && had.title === title && had.titlesOnly === titlesOnly) return had.f;
   const f = { title: norm(title), artist: titlesOnly ? '' : norm(t.artist), album: titlesOnly ? '' : norm(t.album), all: '', words: /** @type {string[]} */ ([]) };
   f.all = `${f.title} ${f.artist} ${f.album}`.trim();
   f.words = f.all.split(' ').filter(Boolean);
-  cache.set(t, { key, f });
+  cache.set(t, { title, titlesOnly, f });
   return f;
 }
 
@@ -75,14 +74,57 @@ export function smartSongs(pool, query, plain, title, titlesOnly = false) {
   const q = norm(query);
   const qw = q.split(' ').filter(Boolean);
   const place = new Map(plain.map((t, i) => [t, i]));
+  // Tiers worked out ahead for this very list and query (prepareSteps), where a song's fields are the same.
+  const ready = prepared?.pool === pool && prepared.q === q && prepared.titlesOnly === titlesOnly && prepared.done ? prepared : null;
   /** @type {[T, number, string][]} */
   const out = [];
+  let i = 0;
   for (const t of pool) {
     const f = fieldsOf(t, title(t) ?? '', titlesOnly);
-    let k = tier(f, q, qw);
+    let k = ready && ready.f[i] === f ? ready.k[i] : tier(f, q, qw);
+    i++;
     if (k < 0 && place.has(t)) k = 6;
     if (k >= 0) out.push([t, k, f.title]);
   }
   out.sort((a, b) => a[1] - b[1] || (place.get(a[0]) ?? Infinity) - (place.get(b[0]) ?? Infinity) || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0));
   return out.map((x) => x[0]);
+}
+
+// Work done ahead, so a keystroke over a large library holds the main thread a few milliseconds at a time
+// (Music's search field: music/src/list/search-prep.js). The results stay smartSongs' own.
+/** @type {{ pool: unknown[], q: string, titlesOnly: boolean, f: Fields[], k: number[], done: boolean } | null} */
+let prepared = null;
+const STEP = 250;
+
+/**
+ * Every song's search fields normalised ahead (in idle time after start), as steps: a generator that
+ * yields every STEP songs. @param {any[]} pool @param {(t: any) => string} title @param {boolean} [titlesOnly]
+ */
+export function* warmSteps(pool, title, titlesOnly = false) {
+  let n = 0;
+  for (const t of pool) {
+    fieldsOf(t, title(t) ?? '', titlesOnly);
+    if (++n % STEP === 0) yield;
+  }
+}
+
+/**
+ * Each song's tier for a query worked out ahead, as steps (stopped when a newer query comes: its caller
+ * stops asking); smartSongs then takes them for the same list, query and fields.
+ * @param {any[]} pool @param {string} query @param {(t: any) => string} title @param {boolean} [titlesOnly]
+ */
+export function* prepareSteps(pool, query, title, titlesOnly = false) {
+  const q = norm(query);
+  const qw = q.split(' ').filter(Boolean);
+  if (prepared?.pool === pool && prepared.q === q && prepared.titlesOnly === titlesOnly && prepared.done) return;
+  const job = { pool, q, titlesOnly, f: /** @type {Fields[]} */ ([]), k: /** @type {number[]} */ ([]), done: false };
+  prepared = job;
+  let n = 0;
+  for (const t of pool) {
+    const f = fieldsOf(t, title(t) ?? '', titlesOnly);
+    job.f.push(f);
+    job.k.push(tier(f, q, qw));
+    if (++n % STEP === 0) yield;
+  }
+  job.done = true;
 }

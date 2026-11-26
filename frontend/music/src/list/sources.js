@@ -64,6 +64,8 @@ import {letters, sectionsFor} from './sections.js';
 import {resortEntries} from '../widgets/resort-dialog.js';
 import {shownEntries} from '../library/playlists.js';
 import {WORDS} from '../widgets/playlist-edit.js';
+import {sortedSteps, sortedTracks} from './sort-cache.js';
+import {SEARCH_TEXT} from './search-prep.js';
 
 // The search categories after "All" (jj1.v1 order).
 const SEARCH_KINDS = SEARCH_CATS.slice(1);
@@ -146,10 +148,11 @@ function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0
     // The rail follows the sort field (without "the", "a", "an" where the sort leaves them out).
     src.sections = sectionsFor({group: GROUP_SORT_FOR[sortKind]?.[v] ?? '0', reversed: rev, articles: articled(key) && !src.ctx?.pref?.('no_sort_field'), yearTitles: sortKind === 'years'});
   } else if (src.tracks) {
-    let t = [...src.tracks];
+    let t;
     if (v === 11) {
+      t = [...src.tracks];
       for (let i = t.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [t[i], t[j]] = [t[j], t[i]]; }
-    } else t.sort(TRACK_SORT[v] ?? TRACK_SORT[0]);
+    } else t = sortedTracks(src.tracks, v, TRACK_SORT[v] ?? TRACK_SORT[0]); // (a copy; the order kept per library)
     if (rev) t.reverse();
     src.tracks = t;
     src.sections = sectionsFor({value: v, reversed: rev});
@@ -327,6 +330,12 @@ const DEFAULT_LONG_MS = 900000;
 // Sort kinds and default track orders of the categories.
 const GROUP_SORT_KIND = {albums: 'albums', artists: 'names', albumArtists: 'names', genres: 'names', composers: 'names', years: 'years', folders: 'folders'};
 const TRACKS_DEFAULT_SORT = {all: 1, recent: 12, long: 10, mostPlayed: 6, recentlyPlayed: 7, topRated: 5, lowRated: 5 | REVERSE, album: 13, artist: 9, albumArtist: 9, genre: 8, composer: 8, year: 15, folder: 2};
+
+/** All Songs' order made ahead, as steps (list/sort-cache.js; the list widget's idle preparing, a refreshed library's). */
+export function allSongsOrderSteps(ctx, tracks = ctx.library?.tracks) {
+  const v = (listOpts('tracks:all').sort ?? TRACKS_DEFAULT_SORT.all) & ~REVERSE;
+  return v === 11 || !tracks ? null : sortedSteps(tracks, v, TRACK_SORT[v] ?? TRACK_SORT[0]);
+}
 
 /** The All Songs list (the source list of a queue that came from no list). */
 export function allSongsSource(ctx, list, nav) {
@@ -830,7 +839,7 @@ function historySource(ctx, list, nav, title) {
  * decision) and find nothing.
  */
 // Search caches: items' lower-cased search texts, and the last query's hits per kind.
-const SEARCH_TEXT = new WeakMap();
+// (SEARCH_TEXT: made ahead in idle time too, list/search-prep.js.)
 const LAST_SEARCH = {q: null, mode: -1, hits: null};
 
 export function searchSource(ctx, list, nav, query, mask = -1, target = null) {

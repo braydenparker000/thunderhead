@@ -68,3 +68,22 @@ test('the screens built ahead go before spare rows already queued (a transition 
   await rows;
   assert.deepEqual(order.filter((x) => x.startsWith('row')), ['row0', 'row1', 'row2', 'row3', 'row4', 'row5'], 'each job keeps its order');
 });
+
+test('a piece that returns a generator goes on step by step across idle callbacks, in order, to its end', async () => {
+  const ctx = { moving: new Set() };
+  await new Promise((r) => setTimeout(r, QUIET_MS));
+  const seen = [];
+  let cb = 0;
+  const real = globalThis.requestIdleCallback;
+  globalThis.requestIdleCallback = (fn) => setTimeout(() => { cb++; fn({ timeRemaining: () => 40, didTimeout: false }); }, 1);
+  try {
+    await idleWork(ctx, 'test-steps', [
+      function* () { for (let k = 0; k < 5; k++) { seen.push(['a' + k, cb]); spin(SLICE_MS / 2 + 1); yield; } },
+      () => seen.push(['b', cb]),
+    ]);
+  } finally {
+    globalThis.requestIdleCallback = real;
+  }
+  assert.deepEqual(seen.map((s) => s[0]), ['a0', 'a1', 'a2', 'a3', 'a4', 'b']);
+  assert.ok(new Set(seen.map((s) => s[1])).size >= 3, 'the steps took several slices');
+});

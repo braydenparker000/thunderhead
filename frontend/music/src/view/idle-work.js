@@ -8,7 +8,9 @@
 //   the job yields to the next idle callback, and it waits again once any of the above begins;
 // - each piece runs under its job's name for the recorder (ui/long-work.js), so a long task it makes is
 //   named in the report. A piece is the smallest unit of its work (a scene's layout, one category view):
-//   one that takes longer than SLICE_MS on a slow phone is still one task (the report shows which).
+//   one that takes longer than SLICE_MS on a slow phone is still one task (the report shows which),
+//   unless it returns a generator: its steps then run one by one, the slice's time checked between them
+//   (the category views, the snapshot's sorted orders and the search fields work this way).
 import {isMoving} from './motion.js';
 import {pieceRan} from '../ui/long-work.js';
 
@@ -47,13 +49,18 @@ function pump(deadline) {
     const job = jobs[0];
     if (busy(job.ctx)) { schedule(QUIET_MS); return; }
     if (performance.now() - t0 >= SLICE_MS || (deadline && deadline.timeRemaining() <= 0 && !deadline.didTimeout)) { schedule(); return; }
-    const piece = job.pieces.shift();
+    // A piece that returns an iterator (a generator: work that yields every so often) goes on with it
+    // here, one step after another, across slices, until it is done.
+    const piece = job.steps ?? job.pieces.shift();
     if (piece) {
       const at = performance.now();
-      try { piece(); } catch (e) { console.warn('[claude-player] idle work', job.name, e); }
+      try {
+        if (job.steps) { if (job.steps.next().done) job.steps = null; }
+        else { const r = piece(); if (typeof r?.next === 'function' && typeof r[Symbol.iterator] === 'function') job.steps = r; }
+      } catch (e) { job.steps = null; console.warn('[claude-player] idle work', job.name, e); }
       pieceRan(job.name, at, performance.now() - at);
     }
-    if (!job.pieces.length) { jobs.shift(); job.done(); }
+    if (!job.pieces.length && !job.steps) { jobs.shift(); job.done(); }
   }
 }
 
@@ -65,8 +72,9 @@ function schedule(ms = 0) {
 
 /** Which jobs go first: the playing track's list (as before, ahead of the screens: the library's start
  * rows, built with the screens, then stay the list shown), the screens built ahead (the next transition
- * needs them), the category views, and the spare rows last; any other after them. */
-const RANK = {'prepare-track-list': 0, prebuild: 1, groups: 2, 'spare-rows': 3};
+ * needs them), the category views, the search's fields (list/search-prep.js), and the spare rows last;
+ * any other after them. */
+const RANK = {'prepare-track-list': 0, prebuild: 1, groups: 2, 'search-fields': 2.5, 'spare-rows': 3};
 
 /** Queues a job of pieces under name, behind the jobs that go before it; resolves when its last piece has run. */
 export function idleWork(ctx, name, pieces) {
