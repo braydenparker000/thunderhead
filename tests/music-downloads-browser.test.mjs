@@ -128,7 +128,10 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
       tx.onerror = () => reject(tx.error);
     };
   }), TOKEN);
-  await first.evaluate(async () => { await navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }); await navigator.serviceWorker.ready; });
+  // (navigator.serviceWorker.ready never settles here: this page is outside the worker's scope. Its registration's
+  // worker is waited for instead.)
+  await first.evaluate(() => navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }).then(() => {}));
+  await until(() => first.evaluate(async () => (await navigator.serviceWorker.getRegistration('/music/'))?.active?.state === 'activated'), { message: 'Music\'s worker never became active' });
   await first.close();
   oldCalls.length = 0;
 

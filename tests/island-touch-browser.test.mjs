@@ -192,7 +192,9 @@ test('over the mini player, Up next and the menu sheet close on a drag down and 
     await until(upNext, { message: 'Up next never opened' });
     assert.equal(await miniBox(page), null, 'a window over it: no mini player to pull');
     await stays(page, at, 'Up next open, from the mini player\'s place');
-    // (A release on the window's shim has closed it; on the window, its title drags it down.)
+    // (A release on the window's shim has closed it; a drag on its list springs it back. Once it is closed or at rest
+    // again, on the window, its title drags it down.)
+    await until(() => inMusic(page, () => { const d = window.__cp.ctx.dialogs ?? []; return !d.length || !d[0].host.scenes.running; }), { message: 'Up next never came to rest' });
     if (await upNext()) {
       const title = await viewBox(page, 'title');
       await stays(page, { x: centre(title).x, y: Math.min(centre(title).y, title.top + 16) }, 'Up next dragged down');
@@ -205,6 +207,7 @@ test('over the mini player, Up next and the menu sheet close on a drag down and 
     await until(sheet, { message: 'the menu sheet never opened' });
     assert.equal(await miniBox(page), null, 'the sheet open: no mini player to pull');
     await stays(page, at, 'the sheet open, from the mini player');
+    await until(() => inMusic(page, () => !window.__cp.ctx.navbar.container().scenes.running), { message: 'the menu sheet never came to rest' });
     if (await sheet()) await stays(page, centre(await viewBox(page, 'sheet')), 'the sheet dragged down');
     await until(() => inMusic(page, () => { const nb = window.__cp.ctx.navbar; return !nb.sheet && !nb.container().scenes.running; }), { message: 'the menu sheet did not close' });
     assert.ok(await until(() => miniBox(page), { message: 'the mini player did not come back after the sheet' }), 'all closed, it is the pull again');

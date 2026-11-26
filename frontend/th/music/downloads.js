@@ -34,7 +34,8 @@
   /** The job: {id, at, client, name, zip, files, m3u, missing, started, abort}. One at a time. */
   let job = null;
 
-  const scope = () => new URL(s.registration?.scope ?? '/music/', s.location?.href ?? 'https://x/').pathname;
+  // A registration's scope is always an absolute address; without one (a test), Music's own folder.
+  const scope = () => (s.registration?.scope ? new URL(s.registration.scope).pathname : '/music/');
   const idOf = (url) => (url.origin === s.location?.origin && url.pathname.startsWith(`${scope()}download/`) ? url.pathname.slice(scope().length + 9) : null);
   const handles = (url) => idOf(url) !== null;
   const text = (v, max) => typeof v === 'string' && v.length > 0 && v.length <= max;

@@ -122,7 +122,8 @@ export class AAItemView extends SceneFastLayout {
    * While the drag handle shows (a queued row in Up Next, a playlist's rows in selection), the title
    * and the meta end before it instead of at the row's right edge, which the handle covers: their
    * right side is attached to the handle in the scene's params now laid out (the handle's own
-   * padding is the gap), and back when it goes.
+   * padding is the gap), and back when it goes. Their boxes, padding included, end at the handle:
+   * layout_alignToContent lets a box's padding pass its attachment, so the margin gives that back.
    */
   fitHandle() {
     const h = this._handle ??= this.findViewById('drag_handler') ?? false;
@@ -134,7 +135,7 @@ export class AAItemView extends SceneFastLayout {
       if (on) {
         lp.beforeHandle = {attach: lp.attachRight, margin: lp.rightMargin};
         lp.attachRight = attachToView('drag_handler');
-        lp.rightMargin = 0;
+        lp.rightMargin = lp.alignToContent & 0x10000 ? Math.round((v.contentInsets?.().right ?? v.paddingRight) * (lp.compensateScale || 1)) : 0;
       } else {
         lp.attachRight = lp.beforeHandle.attach;
         lp.rightMargin = lp.beforeHandle.margin;
