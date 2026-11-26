@@ -63,6 +63,10 @@ const raw = () => ({
     decks: [{ index: 0, waits: 2, waitSeconds: 1.25, lastError: { code: 2, kind: 'network', message: 'at https://h.example/p' }, path: '/My Song', startMs: [120, 'x', 340] }],
     offline: { tracks: 3, lastError: 'GET HTTPS://h.example/My Song.opus', urls: ['https://h.example/a'] },
     output: { engine: 'worklet', state: 'running', latencyHint: 0.02 },
+    // The scroll recorder's summary and the start's steps (music/src/ui/scroll-log.js, ui/startup.js): counts and
+    // the fixed screen names only; a name of the owner's own (a list's, a song's) has no field to go in.
+    scrolls: [{ screen: 'library-songs', layout: 'grid', zoom: 5, scrolls: 4, frames: 120, late: 3, jank: 1, latePct: 2.5, p95Ms: 18, worstMs: 64, rows: 40, covers: 12, title: 'A Song' }, { screen: 'My Album', frames: 2 }],
+    start: { modules: 120, worker: 180.04, boot: 412.3, model: 901, firstFrame: 1500, path: '/My Song' },
   },
 });
 const WANT = {
@@ -81,6 +85,8 @@ const WANT = {
     decks: [{ index: 0, waits: 2, waitSeconds: 1.3, lastError: { code: 2, kind: 'network', message: 'at h.example/…' }, startMs: [120, 340] }],
     offline: { tracks: 3, lastError: 'GET h.example/…' },
     output: { engine: 'worklet', state: 'running' },
+    scrolls: [{ screen: 'library-songs', layout: 'grid', zoom: 5, scrolls: 4, frames: 120, late: 3, jank: 1, latePct: 2.5, p95Ms: 18, worstMs: 64, rows: 40, covers: 12 }, { frames: 2 }],
+    start: { modules: 120, worker: 180, boot: 412.3, model: 901, firstFrame: 1500 },
   },
 };
 

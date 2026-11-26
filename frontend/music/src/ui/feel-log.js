@@ -275,6 +275,8 @@ export class FeelLog {
       startup: startupReport(),
       // Each long task after start-up with what ran in it, and each idle job's longest piece (long-work.js).
       longWork: longWorkReport(),
+      // The last scrolls, one a gesture (scroll-log.js); their summary goes with the playback batches.
+      scrolls: this.ctx.scrollLog?.entries.slice() ?? [],
     };
   }
 }

@@ -15,6 +15,7 @@ import {Settings, loadStoredSettings, runtimeSettings, prefDefaults} from './set
 import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
 import {installFeelLog} from './ui/feel-log.js';
+import {ScrollLog} from './ui/scroll-log.js';
 import {LayoutHeight, CLOSE_MS, TALL_MS} from './ui/layout-height.js';
 import {VISIBLE} from './res/values.js';
 import {AudioCache, retireDefaultCopies} from './library/audio-cache.js';
@@ -202,6 +203,7 @@ export async function boot() {
   new DSP(ctx);
   new PlaybackLog(ctx);
   installFeelLog(ctx);
+  ctx.scrollLog = new ScrollLog();
   installEqPresets(ctx);
   new Settings(ctx);
   // Window decor: a plain FastLayout filling the viewport hosts the main layout.

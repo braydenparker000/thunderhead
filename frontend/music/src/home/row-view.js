@@ -51,6 +51,12 @@ export class RowView extends FastLayout {
     this.row = row;
     this.requestLayout();
   }
+
+  /** A child's ask for a layout while the row places its children itself (placing) stops here. */
+  requestLayout() {
+    if (this._placing) return;
+    super.requestLayout();
+  }
 }
 
 /** A copy of an icon drawable that draws another of the app's glyphs (icons.js names). */

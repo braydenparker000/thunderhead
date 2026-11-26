@@ -196,6 +196,38 @@ export const PLAYBACK_STATE = {
   longTasks: { count: 'n', totalMs: 'n', maxMs: 'n' },
   hidden: { count: 'n', seconds: 'n' },
   contextStates: [{ t: 'n', state: CONTEXT }],
+  /** Music's start: ms from the page's start to the end of each step (music/src/ui/startup.js). */
+  start: {
+    modules: 'n',
+    worker: 'n',
+    boot: 'n',
+    model: 'n',
+    theme: 'n',
+    inflate: 'n',
+    library: 'n',
+    restore: 'n',
+    ready: 'n',
+    firstFrame: 'n',
+    firstTap: 'n',
+  },
+  /** The session's scrolls, one entry a screen, layout and zoom (music/src/ui/scroll-log.js): counts and ms only. */
+  scrolls: [
+    {
+      screen: 'one:home|shelf|library-playlists|library-albums|library-artists|library-songs|library-folders|songs|albums|artists|playlists|folders|genres|album|artist|playlist|folder|search|queue|tracks|other',
+      layout: 'one:list|grid',
+      zoom: 'n',
+      scrolls: 'n',
+      ms: 'n',
+      frames: 'n',
+      late: 'n',
+      jank: 'n',
+      latePct: 'n',
+      p95Ms: 'n',
+      worstMs: 'n',
+      rows: 'n',
+      covers: 'n',
+    },
+  ],
 } as const satisfies Record<string, ReportField>;
 
 /** A playback batch's own fields (th/music/report-batch.js `batchOf`); then its events and counters. */

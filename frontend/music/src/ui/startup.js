@@ -17,6 +17,14 @@ try {
 globalThis.addEventListener?.('pointerdown', () => mark('firstTap'), {once: true, capture: true});
 mark('modules');
 
+/** The steps' times (ms from the page's start) by name, for the playback batches (`start`): the first of each. */
+export const START_STEPS = ['modules', 'worker', 'boot', 'model', 'theme', 'inflate', 'library', 'restore', 'ready', 'firstFrame', 'firstTap'];
+export function startTimes() {
+  const out = {};
+  for (const m of startup.marks) if (START_STEPS.includes(m.name) && !(m.name in out)) out[m.name] = m.ms;
+  return out;
+}
+
 /** The report: the steps, and each long task with the step it began in (the first step ending after it began). */
 export function startupReport() {
   const steps = startup.marks;

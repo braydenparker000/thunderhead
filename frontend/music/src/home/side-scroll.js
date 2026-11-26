@@ -22,6 +22,8 @@ export function sideScroll(v) {
     const vt = new VelocityTracker();
     vt.add(start.time, start.rootX, start.rootY);
     v.hScroll = {x: start.rootX + Math.sign(dx) * TOUCH_SLOP_DP * v.ctx.dpr, scroll: x, vt};
+    v.ctx.scrollLog?.begin(v);
+    v.ctx.scrolling?.add(v);
     return true;
   };
   v.onPointerMove = e => {
@@ -49,5 +51,8 @@ export function sideScroll(v) {
     });
   };
   v.onPointerCancel = () => v.onPointerUp({cancelled: true});
+  // The scroll recorder (ui/scroll-log.js): a sideways row of Home.
+  v.scrollMoving = () => !!(v.hScroll || v._fling);
+  v.scrollInfo = () => ({screen: 'shelf', layout: 'list', zoom: 0});
   return v;
 }
