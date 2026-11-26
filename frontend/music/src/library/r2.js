@@ -9,18 +9,29 @@
 // request to it from the new Worker (th/music/bridge.js), and the offline copies keep it as their key.
 // No request may leave the phone for it, so on the site (https, where app.js gives the player its
 // worker) nothing in the player starts until that worker controls the page, and signed out the page
-// goes to the sign-in door, as the site's other pages do.
+// goes to the sign-in door, as the site's other pages do. The sign-in is read alongside (signedIn): the
+// modules go on while it is read, and boot waits for it before anything is drawn (app.js, with the model).
+import {mark} from '../ui/startup.js';
+
 export const R2_LIBRARY_URL = 'https://jarvis-hub-api.braydenparker999.workers.dev/music/library.json';
+
+/** Resolves once the page is signed in (a top-level page; a frame is home's); never, when it goes to sign in. */
+export async function signedIn(g = globalThis) {
+  const loc = g.location;
+  if (loc?.protocol !== 'https:' || !g.document || g.top !== g) return;
+  const token = await import('/th/ported/session.js').then(m => m.sessionToken(), () => undefined);
+  if (token === null) { leaving = true; loc.replace('/signin/?' + new URLSearchParams({next: loc.pathname + loc.search})); return new Promise(() => {}); }
+}
+let leaving = false;
+
+/** Started with the modules: boot awaits it before its first drawing. */
+export const signInChecked = signedIn();
 
 /** Resolves once the page may ask for its library; never, when it leaves or can't. */
 export async function underWorker(g = globalThis) {
   const sw = g.navigator?.serviceWorker, loc = g.location;
   if (loc?.protocol !== 'https:' || !g.document) return;
   const never = new Promise(() => {});
-  if (g.top === g) {
-    const token = await import('/th/ported/session.js').then(m => m.sessionToken(), () => undefined);
-    if (token === null) { loc.replace('/signin/?' + new URLSearchParams({next: loc.pathname + loc.search})); return never; }
-  }
   const flag = 'th.music.reloaded', store = op => { try { return op(g.sessionStorage); } catch { return null; } };
   if (sw?.controller) { store(s => s.removeItem(flag)); return; }
   // A first visit: the worker installs and takes over (clients.claim). A reload that skipped it: one plain reload is under it.
@@ -28,12 +39,14 @@ export async function underWorker(g = globalThis) {
   if (reg) await Promise.race([sw.ready, new Promise(r => setTimeout(r, 15000))]);
   if (reg && !sw.controller) await new Promise(r => { sw.addEventListener('controllerchange', r, {once: true}); setTimeout(r, 3000); });
   if (sw?.controller) return;
+  if (leaving) return never;
   if (reg?.active && store(s => !s.getItem(flag) && (s.setItem(flag, '1'), true))) { loc.reload(); return never; }
   const boot = g.document.getElementById('cp-boot');
   if (boot) boot.textContent = "Music couldn't start. Close it and open it again.";
   return never;
 }
 await underWorker();
+mark('worker');
 const MAX_BYTES = 32 * 1024 * 1024;
 
 const CODECS = {opus: 'OPUS', aac: 'AAC', flac: 'FLAC', mp3: 'MP3', vorbis: 'OGG'};

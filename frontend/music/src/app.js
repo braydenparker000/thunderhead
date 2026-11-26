@@ -11,6 +11,7 @@ import {loadFonts} from './fonts.js';
 import {Player} from './player/player.js';
 import {installInput} from './input.js';
 import {Library} from './library/library.js';
+import {signInChecked} from './library/r2.js';
 import {Settings, loadStoredSettings, runtimeSettings, prefDefaults} from './settings/settings.js';
 import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
@@ -155,7 +156,8 @@ export async function boot() {
   const stored = loadStoredSettings();
   const settings = runtimeSettings(stored);
   mark('boot');
-  const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts()]);
+  // (Signed out, the page goes to sign in before anything is drawn: library/r2.js signedIn.)
+  const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts(), signInChecked]);
   mark('model');
   installDjMode(model);
   const {dpr, config} = deviceConfig();
@@ -329,6 +331,8 @@ export async function boot() {
   ctx.leaveField = () => { const f = document.activeElement; if (isField(f) && container.contains(f)) f.blur(); };
   document.getElementById('cp-boot')?.remove();
   mark('ready');
+  // The page started: the files it came from may open the next one at once (th/music/release.js).
+  try { navigator.serviceWorker?.controller?.postMessage({type: 'booted'}); } catch { /* no worker */ }
   requestAnimationFrame(() => requestAnimationFrame(() => mark('firstFrame')));
   // ?diag opens the playback diagnostics (Settings › Audio Outputs Detection Log).
   if (params.has('diag')) ctx.settingsUi?.open('audio_platform_log');

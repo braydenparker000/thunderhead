@@ -13,9 +13,12 @@
 // answered from it, as much as it holds; the rest of the song comes from the
 // network as usual. Requests a head does not cover are not touched, so the
 // browser's own retries keep working.
-// Each open asks the network for the site's release (th/music/release.js): the app's files of that
-// release then come from the release's own cache at once, without a round trip each to ask whether
-// they changed; the page itself, a new release, no signal or a cache error take the way described above.
+// The app's files kept whole for their release (th/music/release.js): once a page has started from a
+// complete kept set, each open takes the page and every file from it at once, with no request; the
+// site's release is asked in the background, and a new one is saved whole for the next open. Without
+// a usable kept set (none yet, a week old, one a page did not start from, an incomplete one), the
+// page comes from the network as described above and each open asks for the release, whose files then
+// come from its set; a new release, no signal or a cache error take the way described above.
 // P5 data move (MIGRATION.md §7 step 5): the library's requests are answered from the new Worker. The old Worker's origin
 // is only the name they and the offline copies carry: every request to it is answered here, none leaves the phone (§8).
 importScripts('/th/music/bridge.js');
@@ -26,7 +29,7 @@ try { importScripts('/th/music/downloads.js'); } catch { /* without it, Music sa
 // The app's own files this worker fetches (its release's, and the network-first ones), counted as Music's app files in
 // Settings › Data use by their headers (th/data/worker.js, loaded by the bridge); the answer itself is untouched.
 const own = (req, init) => fetch(req, init).then(r => { self.thData?.count('music.app', r); return r; });
-const release = self.thMusicRelease?.make({ fetch: own, caches });
+const release = self.thMusicRelease?.make({ fetch: own, caches, clients: () => self.clients.matchAll({ type: 'all' }).then(l => l.map(c => c.id)) });
 self.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
 const net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);
 const CACHE = 'claude-player-v1';
@@ -57,7 +60,11 @@ const headsLoaded = (async () => {
   headsKnown = true;
 })();
 // (The page's 'ping' every 20 s while in use needs no answer: a message keeps the worker from being stopped.)
-self.addEventListener('message', e => { if (e.data?.type === 'heads' && Array.isArray(e.data.list)) { heads = new Map(e.data.list); told = headsKnown = true; } });
+self.addEventListener('message', e => {
+  if (e.data?.type === 'heads' && Array.isArray(e.data.list)) { heads = new Map(e.data.list); told = headsKnown = true; }
+  // The page started (app.js): the kept set it came from may open the next page (th/music/release.js).
+  else if (e.data?.type === 'booted') e.waitUntil(release?.booted(e.source?.id ?? '') ?? Promise.resolve());
+});
 
 /** The part of a song's range request its head or tail covers: [start, end or null], or null. */
 function covered(req) {
@@ -85,7 +92,18 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   // A download the page asked for (th/music/downloads.js): its file, streamed.
   if (self.thMusicDownloads?.handles(url)) { e.respondWith(self.thMusicDownloads.answer(e)); return; }
-  // An open of the player (its page, or home's frame of it): which release is live, asked now.
+  // An open of the player (its page, or home's frame of it): from the kept set at once when it has one that
+  // may open it (the release asked in the background), else the network's way (the release asked now).
+  if (req.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) {
+    if (!release) { e.respondWith(appFile(req)); return; }
+    const id = e.resultingClientId || '';
+    const answer = release.open(req, id).catch(() => null);
+    let pageKept;
+    const kept = new Promise(ok => { pageKept = ok; });
+    e.respondWith(answer.then(r => r ?? appFile(req, res => pageKept(release.keepPage(req, res, id))).finally(() => pageKept())));
+    e.waitUntil(answer.then(r => Promise.all([release.behind(), r ? null : kept])).catch(() => {}));
+    return;
+  }
   if (req.mode === 'navigate' && url.origin === self.location.origin) release?.check();
   // A song's range request that its head or tail covers.
   if (req.method === 'GET' && req.headers.has('range')) {
@@ -99,14 +117,14 @@ self.addEventListener('fetch', e => {
   // The site's shared files the player loads (th/, assets/, ui/, config.js): from the release's cache too, else
   // the network exactly as without this worker (they have no offline copies here).
   if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && /^\/(th|assets|ui)\/[^?]*\.js$|^\/config\.js$/.test(url.pathname) && !/^\/th\/music\/(dj|dj-tags|search|ratings)\.js$/.test(url.pathname)) {
-    if (release && Date.now() >= badUntil) e.respondWith(release.answer(req).catch(() => null).then(r => r ?? (noRelease(), own(req))));
+    if (release && Date.now() >= badUntil) e.respondWith(release.answer(req, undefined, e.clientId).catch(() => null).then(r => r ?? (noRelease(), own(req))));
     return;
   }
   // The DJ shuffle's planner (with the tags it reads), the better search and the ratings (th/music/dj.js, dj-tags.js, search.js, ratings.js) are part of the app, offline too.
   if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\/th\/music\/(dj|dj-tags|search|ratings)\.js$/.test(url.pathname)) return;
   const keep = (r, res) => { caches.open(CACHE).then(c => c.put(r, res)).catch(() => {}); };
   // (After a network failure the offline copies answer at once, as before: the release is not asked.)
-  e.respondWith((release && Date.now() >= badUntil ? release.answer(req, keep) : Promise.resolve(null)).catch(() => null).then(r => r ?? (noRelease(), appFile(req))));
+  e.respondWith((release && Date.now() >= badUntil ? release.answer(req, keep, e.clientId) : Promise.resolve(null)).catch(() => null).then(r => r ?? (noRelease(), appFile(req))));
 });
 
 /** No answer from the release: when the network gave none (no signal, or none in time), the offline copies
@@ -115,15 +133,16 @@ function noRelease() {
   if (release?.down() && Date.now() >= badUntil) badUntil = Date.now() + BAD_NETWORK_MS;
 }
 
-/** One of the app's files: the network within NETWORK_MS, else the copy kept for offline. */
-function appFile(req) {
+/** One of the app's files: the network within NETWORK_MS, else the copy kept for offline. `fresh` hears a copy of
+ * the network's answer (a page, for its release's kept set). */
+function appFile(req, fresh) {
   return caches.open(CACHE).then(async cache => {
     if (Date.now() < badUntil) {
       const copy = await cache.match(req);
       if (copy) return copy;
     }
     // The request goes as it came (a navigation cannot be re-made with options).
-    const network = own(req).then(r => { if (r.ok && r.type === 'basic') cache.put(req, r.clone()); return r; });
+    const network = own(req).then(r => { if (r.ok && r.type === 'basic') { cache.put(req, r.clone()); fresh?.(r.clone()); } return r; });
     let timer;
     const late = new Promise(resolve => { timer = setTimeout(resolve, NETWORK_MS, null); });
     try {

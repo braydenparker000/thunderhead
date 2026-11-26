@@ -926,6 +926,53 @@ at once and became the full height: the player once laid out at 759. A resize is
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
 song the engine joins gaplessly to the one before (it is already sounding).
 
+**Scrolling** (2026-11-26, the owner: "less laggy especially on scrolls", on a Galaxy A35): a scroll's
+hitches are shorter than any long task, so `frontend/music/src/ui/scroll-log.js` records them. One gesture
+runs from a finger moving a list, a grid or a shelf of Home past the touch slop until it is at rest again
+(its drag, fling and spring back). While one runs, a single `requestAnimationFrame` loop counts each frame's
+time into fixed arrays (no allocation a frame) and asks the list whether it still moves; with nothing
+moving there is no loop and no timer. For each gesture, once it ends (the copied report's `movement.scrolls`,
+the last 40):
+
+| Field | What |
+|---|---|
+| `screen` | one of `home`, `shelf` (a shelf's sideways scroll), `library-playlists`, `library-albums`, `library-artists`, `library-songs`, `library-folders`, `songs`, `albums`, `artists`, `playlists`, `folders`, `genres`, `album`, `artist`, `playlist`, `folder`, `search`, `queue`, `tracks`, `other` (from the list's List Options kind, never its own name) |
+| `layout`, `zoom` | `list` or `grid`, and the list's zoom level (`list-opts.js` ZOOMS) |
+| `ms`, `frames` | how long it ran and the frames drawn |
+| `late`, `jank` | frames over 20 ms, and over 50 ms |
+| `worstMs` | the longest frame |
+| `rows`, `covers` | rows bound and covers put in place while it ran |
+
+Per session they add up, one entry per screen, layout and zoom (at most 24), into the playback state's
+`scrolls`, which every playback batch carries: `scrolls`, `ms`, `frames`, `late`, `jank`, `latePct` (late
+frames in % of frames), `p95Ms` (the 95th percentile frame, from a 1 ms histogram), `worstMs`, `rows`,
+`covers`. With it the state carries `start`, Music's start-up steps in ms from the page's start
+(`ui/startup.js` marks): `modules` (the first module ran), `worker` (the worker controls the page,
+`library/r2.js`), `boot` (the module graph has run), `model`, `theme`, `inflate`, `library` (the saved
+library open), `restore`, `ready`, `firstFrame`, `firstTap`. Counts and ms only, under the batch's limits.
+
+**Opening from the kept release** (`frontend/th/music/release.js`, `music/sw.js`; PERFORMANCE.md §3.1): the
+app's files (the page, its modules, styles, fonts, the model and the site's shared scripts it loads) are kept
+whole for the release they came with. The rule:
+
+1. A kept set is *complete* once a page has started from it (app.js posts `booted` to the worker at `ready`)
+   with every file it asked for kept.
+2. An open takes the page and every file from the newest kept set, at once and without the network, when that
+   set is complete, is at most 7 days old, and every page it opened before has said it started. It asks
+   `/release.json` in the background, once.
+3. If that names a new release, the files of the kept set's list are fetched again (`no-cache`) into a second
+   set; it is used only if `/release.json` still names that release once all are in, and then by the next
+   open, whole. The open that found it stays on its own set: a page takes every file from the set it opened
+   on for as long as it is open, so one page load never mixes two releases.
+4. A file the set lacks comes from the network: it joins the set while the set's release is the live one;
+   otherwise the set is marked incomplete and the next open takes the network's way.
+5. A page that never says it started (a broken set, a crash) leaves its set on trial: the next open does not
+   use it and takes the network's way, which fills it again. So a bad kept set never keeps Music from starting.
+6. The network's way is the old one: the page from the network (3 s, then the offline copy), `/release.json`
+   asked first and its files from the set of that release, each kept only while that release is still live; no
+   answer from `/release.json` sends the files to the offline copies at once. Repair deletes the kept sets
+   (`claude-player-release`).
+
 Only known fields go: each event type's own (`PLAYBACK_EVENTS` in `shared/contract/reports.ts`; the
 phone's copy is `th/music/report-fields.js`) and the counters' (`PLAYBACK_STATE`); any other field is
 dropped, on the phone and again on the Worker, and an event of a type not listed goes as `other`. So
