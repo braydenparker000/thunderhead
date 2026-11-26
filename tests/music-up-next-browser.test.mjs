@@ -6,7 +6,9 @@
 // play on a virtual clock: no audio, no network. At phone size (2026-11-26): a queued row's text ends
 // before its handle; a tap just after Back closed the window reaches what is under it; the Undo bar
 // follows a change of screen clear of the mini player, and sits at an open window's edge with room
-// below its last row; in landscape the playing song's menu scrolls to its last item.
+// below its last row; in landscape the playing song's menu scrolls to its last item. The Undo bar never
+// covers an open menu (2026-11-26): a line that only says something goes when the menu opens, a line with
+// Undo moves clear of it, and a tap on the menu's last entry reaches that entry.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -262,6 +264,94 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await page.mouse.up();
   const genre = await until(async () => { const g = await box('genre'); return g && g.bottom <= card.bottom + 0.5 && g; }, { message: 'Genre never scrolled into the menu' });
   assert.ok(genre.top >= card.top, `Genre inside the menu: ${JSON.stringify(genre)} in ${JSON.stringify(card)}`);
+
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the Undo bar keeps clear of an open menu: a plain line goes, a line with Undo moves, the last entry takes its tap', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/music/?demo`);
+  await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && window.__cp.ctx.listWidget?.items?.get(0), null, { timeout: 30_000 });
+
+  /** A view's box in CSS pixels (the cover's three dots, the open menu, the bar, else by id); null until it is drawn
+   * where it is laid out (it and every view above it written). */
+  const box = (what) => page.evaluate((what) => {
+    const { ctx } = window.__cp;
+    const v = what === 'cover-menu' ? ctx.listWidget.items.get(0)?.findViewById('menu') : what === 'menu' ? ctx.listWidget.menuItem?.v
+      : what === 'bar' ? ctx.root.findViewById('undo_bar') : ctx.root.findViewById(what);
+    if (!v || v.visibility !== 0 || !v.width) return null;
+    for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return null;
+    const r = v.el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  }, what);
+  const tap = async (what) => {
+    const b = await until(() => box(what), { message: `nothing to tap: ${what}` });
+    await page.mouse.click((b.left + b.right) / 2, (b.top + b.bottom) / 2);
+  };
+  const menuOpen = () => until(() => page.evaluate(() => {
+    const { ctx } = window.__cp, ph = ctx.root.findViewById('menu_placeholder'), m = ctx.listWidget.menuItem;
+    return !!m && !m.closing && !ph.scenes.running && !m.v.scenes?.running;
+  }), { message: 'the menu never opened' });
+  const menuClosed = () => until(() => page.evaluate(() => !window.__cp.ctx.listWidget.menuItem), { message: 'the menu never closed' });
+  const show = (undo) => page.evaluate((undo) => { window.__cp.ctx.undoBar.show(undo ? 'Example undo' : 'Example note', undo ? () => {} : null, { ms: 60_000 }); }, undo);
+  const barShown = () => until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !!u.current && u.frame.visibility === 0 && u.frame.alpha === 1 && !u.anim; }), { message: 'the bar never came to rest' });
+
+  // A line that only says something goes at once when the menu opens.
+  await show(false);
+  await barShown();
+  await tap('cover-menu');
+  await until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !u.current && u.frame.visibility !== 0; }), { message: 'the plain line stayed over the menu' });
+  await menuOpen();
+  await page.evaluate(() => window.__cp.ctx.listWidget.closeItemMenu());
+  await menuClosed();
+
+  // A line with Undo, then the menu: the bar stays, placed clear of the menu (read once the bar's place holds and
+  // both are drawn).
+  await show(true);
+  await barShown();
+  await tap('cover-menu');
+  await menuOpen();
+  const boxes = await until(async () => {
+    const held = await page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !!u.current && !u.anim && u.frame.lp.bottomMargin === u.place(); });
+    if (!held) return null;
+    const bar = await box('bar'), menu = await box('menu');
+    return bar && menu && { bar, menu };
+  }, { message: 'the bar and the menu were never both drawn' });
+  const { bar, menu } = boxes;
+  const apart = bar.bottom <= menu.top || bar.top >= menu.bottom || bar.right <= menu.left || bar.left >= menu.right;
+  assert.ok(apart, `the bar ${JSON.stringify(bar)} clear of the menu ${JSON.stringify(menu)}`);
+
+  // The menu's last entry (the lowest one shown inside the menu) takes a tap there while the bar is up.
+  const last = await page.evaluate(async () => {
+    const { ctx } = window.__cp, m = ctx.listWidget.menuItem.v, items = m.findViewById('menu_items');
+    const { hitTest } = await import('/music/src/input.js');
+    const shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
+    const mb = m.getLocationIn(null);
+    let low = null;
+    items.walk((c) => {
+      if (c === items || !c.clickable || !shown(c)) return;
+      const a = c.getLocationIn(null);
+      if (a.y + c.height > mb.y + m.height + 0.5) return;
+      if (!low || a.y > low.y) low = { v: c, x: a.x + c.width / 2, y: a.y + c.height / 2 };
+    });
+    if (!low) return null;
+    const hit = hitTest(ctx.root, low.x, low.y);
+    let reached = false;
+    for (let h = hit; h; h = h.parent) if (h === low.v) reached = true;
+    window.__lastTapped = false;
+    low.v.onClick = () => { window.__lastTapped = true; };
+    return { id: low.v.id, x: low.x, y: low.y, reached };
+  });
+  assert.ok(last, 'the menu has an entry shown');
+  assert.ok(last.reached, `a tap on the last entry (${last.id}) reaches it, not the bar`);
+  assert.ok(await page.evaluate(() => !!window.__cp.ctx.undoBar.current), 'the line with Undo is still up');
+  await page.mouse.click(last.x, last.y);
+  await until(() => page.evaluate(() => window.__lastTapped), { message: `the tap on ${last.id} never reached it` });
+  assert.ok(await page.evaluate(() => !!window.__cp.ctx.undoBar.current), 'the bar was up when the entry took the tap');
 
   assert.deepEqual(errors, []);
   await context.close();
