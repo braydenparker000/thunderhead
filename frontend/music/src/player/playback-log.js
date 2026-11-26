@@ -11,6 +11,7 @@
 
 import {offlineAhead, setOfflineAhead, AHEAD_MODES} from '../library/audio-cache.js';
 import {SongNet} from './song-net.js';
+import {startTimes} from '../ui/startup.js';
 
 const MAX_EVENTS = 300;
 const DECK_EVENTS = ['loadstart', 'loadedmetadata', 'canplaythrough', 'playing', 'waiting', 'stalled', 'error', 'emptied', 'seeking', 'seeked', 'ended', 'abort'];
@@ -220,6 +221,9 @@ export class PlaybackLog {
       longTasks: {count: this.longTasks.count, totalMs: Math.round(this.longTasks.totalMs), maxMs: Math.round(this.longTasks.maxMs)},
       hidden: {count: this.hidden.count, seconds: Math.round(hiddenMs / 1000)},
       contextStates: this.context?.states.slice(-20) ?? [],
+      // Music's start (ui/startup.js: ms from the page's start to each step) and its scrolls (ui/scroll-log.js).
+      start: startTimes(),
+      scrolls: this.ctx.scrollLog?.summary() ?? [],
       events: this.events.slice(-120),
     };
   }

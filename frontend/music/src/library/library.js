@@ -12,12 +12,18 @@ import {shelfSteps} from './shelves.js';
 import {albumArtistSteps, albumSteps, folderSteps, namedSteps, PATHS, PLAIN, run} from './groups.js';
 import {fetchR2Library, r2Tracks, R2_LIBRARY_URL, fetchWaveform, peaksToBars, decodeWave} from './r2.js';
 import {barsFromMeanSquares, rmsBytesToMeanSquares, loudnessFromPeaks, waveSteps, MIN_WAVE_STEPS} from './waveform.js';
+import {isWide, packRect} from './cover-crop.js';
+import {cropBlob, cropRect, decide, FIT_KEY, installCoverFit, later} from './cover-fit.js';
 
 // Remote covers: full images in Cache Storage on first view (capped, oldest
 // out first); 256 px thumbnails made once per cover for list rows (kept).
 // Object URLs live in small in-memory LRUs that release their images.
 const COVERS = 'claude-player-covers', THUMBS = 'claude-player-thumbs';
 const COVER_CAP = 1500, THUMB_PX = 256, MEM_FULL = 60, MEM_THUMB = 800;
+// A wide cover shown as its square (cover-fit.js): the full one cut at up to FIT_PX, its thumbnail kept beside
+// the whole one under its own key, tagged with the square it was cut to.
+const FIT_PX = 1600;
+const cropKey = ck => localKey('covers/crop/', ck);
 const COVER_SLOTS = 3, ROW_SETTLE_MS = 150;
 const R2_REFRESH_MS = 10 * 60 * 1000; // a revalidation: an unchanged index costs a 304
 const SKIPPED = Symbol('skipped'), FAILED = Symbol('failed'), HURRY = Symbol('hurry');
@@ -45,7 +51,8 @@ export class Library {
     this.byId = new Map();
     this.artCache = new Map();
     this.thumbCache = new Map();
-    ctx.bus.subscribe('bus_app', (msg, src, d) => { if (msg === 'msg_app_setting_changed' && d?.key === 'aa_force_default') this.refreshArt(); });
+    ctx.bus.subscribe('bus_app', (msg, src, d) => { if (msg === 'msg_app_setting_changed' && (d?.key === 'aa_force_default' || d?.key === FIT_KEY)) this.refreshArt(); });
+    installCoverFit(ctx);
     this.coverPuts = 0;
     this.fileUrls = new Map();
     this.remoteTracks = [];
@@ -328,14 +335,88 @@ export class Library {
     if (!t.artId) return Promise.resolve(null);
     if (!isRemoteArt(t.artId)) {
       let p = this.artCache.get(t.artId);
-      if (!p) this.artCache.set(t.artId, p = this.db.art(t.artId).then(b => (b ? loadArt(b) : null)));
+      if (!p) this.artCache.set(t.artId, p = this.db.art(t.artId).then(b => (b ? this.fitted(t, b) : null)));
       return p;
     }
     // The player's cover goes ahead of list thumbnails.
     return this.memo(this.artCache, MEM_FULL, t, 'art', () => this.remoteCover(t.artId, {priority: true}).then(b => {
       if (b === FAILED) throw b;
-      return b ? loadArt(b) : null;
+      return b ? this.fitted(t, b) : null;
     })).catch(e => this.coverMissed(e, t));
+  }
+
+  /** A full cover as shown: a wide one with filler sides cut to its square (cover-fit.js), else as it is. */
+  async fitted(t, b) {
+    const size = await imageSize(b), key = this.coverOf(t.artId);
+    if (!size || !isWide(size[0], size[1])) return loadArt(b);
+    await decide(key, b, size[0], size[1]);
+    // A thumbnail cut from the old whole one meanwhile is made again, sharp, from this cover.
+    if (this.softThumbs?.has(key)) later(this.ctx, () => this.sharpThumb(key, b, size));
+    const rect = cropRect(key), cut = rect ? await cropBlob(b, rect, size[0], size[1], FIT_PX) : null;
+    return loadArt(cut ?? b);
+  }
+
+  /**
+   * A thumbnail as shown, from the whole one kept (`whole`; `full`: the cover it was just made from). A wide cover
+   * shown as its square takes the square's own thumbnail (cropKey), made from the full cover: sharp, 256 px of
+   * the centre. One made before covers were cut has no such thumbnail: the whole one is cut for now, and the
+   * square's is made in idle time from the full cover on the phone (claude-player-covers), or, when there is
+   * none, once the cover is next read anyway (fitted); nothing is downloaded for it.
+   */
+  async fittedThumb(t, ck, whole, store, full = null) {
+    const size = await imageSize(whole), key = this.coverOf(t.artId);
+    if (!size || !isWide(size[0], size[1])) return loadArt(whole);
+    const fs = full ? await imageSize(full) : null;
+    await decide(key, full && fs ? full : whole, ...(full && fs ? fs : size));
+    const rect = cropRect(key);
+    if (!rect) return loadArt(whole);
+    const kept = await store?.match(cropKey(ck)).catch(() => null);
+    if (kept && kept.headers.get('x-cover-crop') === packRect(rect).join()) return loadArt(await kept.blob());
+    if (full && fs) return loadArt(await this.putSharp(store, ck, rect, full, fs) ?? whole);
+    (this.softThumbs ??= new Map()).set(key, ck);
+    later(this.ctx, async () => {
+      const covers = globalThis.caches ? await caches.open(COVERS).catch(() => null) : null;
+      const hit = (await covers?.match(cacheKey(key)).catch(() => null)) ?? (await covers?.match(cacheKey(t.artId)).catch(() => null));
+      const b = hit && !hit.headers.get('x-cover-none') ? await hit.blob() : null, bs = b ? await imageSize(b) : null;
+      if (bs) await this.sharpThumb(key, b, bs);
+    });
+    return loadArt(await cropBlob(whole, rect, size[0], size[1], THUMB_PX) ?? whole);
+  }
+
+  /** The square's thumbnail made from a full cover and kept (tagged with the square); the blob, or null. */
+  async putSharp(store, ck, rect, full, fs) {
+    const blob = await cropBlob(full, rect, fs[0], fs[1], THUMB_PX);
+    if (blob) store?.put(cropKey(ck), new Response(blob, {headers: {'content-type': 'image/jpeg', 'x-cover-crop': packRect(rect).join()}})).catch(() => {});
+    return blob;
+  }
+
+  /** A cut-for-now thumbnail made again from the full cover, and swapped in for the songs showing it. */
+  async sharpThumb(key, full, fs) {
+    const ck = this.softThumbs?.get(key), rect = cropRect(key);
+    if (!ck || !rect) return;
+    this.softThumbs.delete(key);
+    const store = globalThis.caches ? await caches.open(THUMBS).catch(() => null) : null;
+    const blob = await this.putSharp(store, ck, rect, full, fs), e = this.thumbCache.get(key);
+    if (!blob || !e) return;
+    const art = await loadArt(blob), old = e.p;
+    e.p = Promise.resolve(art);
+    old.then(a => { if (a?.url?.startsWith('blob:')) URL.revokeObjectURL(a.url); }, () => {});
+    for (const o of e.owners) o.thumb = art;
+    this.ctx.bus?.post('bus_data', 'msg_data_art_changed', this, {tracks: [...e.owners]});
+  }
+
+  /** The covers shown again after the owner's pick for them changed (cover-fit.js): their songs rebind. */
+  refreshCovers(keys) {
+    for (const map of [this.artCache, this.thumbCache]) for (const k of keys) {
+      const e = map.get(k);
+      if (!e) continue;
+      map.delete(k);
+      Promise.resolve(e?.p ?? e).then(a => { if (a?.url?.startsWith('blob:')) URL.revokeObjectURL(a.url); }, () => {});
+    }
+    const p = this.ctx.player?.track, all = p && !this.tracks.includes(p) ? [...this.tracks, p] : this.tracks;
+    const tracks = all.filter(x => x.artId && keys.has(this.coverOf(x.artId)));
+    for (const x of tracks) { x.art = null; x.thumb = null; }
+    if (tracks.length) this.ctx.bus.post('bus_data', 'msg_data_art_changed', this, {tracks});
   }
 
   /** The identity a cover is cached and read by: the bucket cover's own (shared by its songs), else the song's address. */
@@ -400,13 +481,13 @@ export class Library {
       let hit = await store?.match(ck).catch(() => null);
       // One kept under the song's own address (before songs shared their cover) is found there, and kept under the cover's.
       if (!hit && old !== ck && (hit = await store?.match(old).catch(() => null))) store.put(ck, hit.clone()).catch(() => {});
-      if (hit) return hit.headers.get('x-cover-none') ? null : loadArt(await hit.blob());
+      if (hit) return hit.headers.get('x-cover-none') ? null : this.fittedThumb(t, ck, await hit.blob(), store);
       const full = await this.remoteCover(key, {wanted});
       if (full === SKIPPED || full === FAILED) throw full;
       if (!full) return null;
       const blob = await makeThumb(full) ?? full;
       store?.put(ck, new Response(blob, {headers: {'content-type': blob.type || 'image/jpeg'}})).catch(() => {});
-      return loadArt(blob);
+      return this.fittedThumb(t, ck, blob, store, full);
     }).catch(e => this.coverMissed(e, t));
   }
 

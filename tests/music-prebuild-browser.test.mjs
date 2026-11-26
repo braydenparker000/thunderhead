@@ -54,7 +54,7 @@ test('the library\'s start rows and the navbar\'s lines are built before the fir
 
   // The recorder: the start-up's steps, in order, and its long tasks named by step.
   const s = await page.evaluate(() => window.__cp.ctx.feelLog.report().startup);
-  assert.deepEqual(s.steps.map((x) => x.name).slice(0, 8), ['modules', 'boot', 'model', 'theme', 'inflate', 'library', 'restore', 'ready']);
+  assert.deepEqual(s.steps.map((x) => x.name).slice(0, 9), ['modules', 'worker', 'boot', 'model', 'theme', 'inflate', 'library', 'restore', 'ready']);
   assert.ok(s.longTasks.every((t) => typeof t.during === 'string'));
   assert.deepEqual(errors, []);
   await context.close();

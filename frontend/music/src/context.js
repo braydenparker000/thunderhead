@@ -37,6 +37,9 @@ export class Context {
     // are written (view/motion.js).
     this.dirty = new Set();
     this.moving = new Set();
+    // Lists and shelves a finger or a fling moves (their scrollMoving() true): their frames, too, write only the
+    // views changed (view/motion.js syncMoving); the frame after the last one comes to rest writes the whole tree.
+    this.scrolling = new Set();
     this._raf = 0;
     this._layoutPending = false;
     this._renderPending = false;
@@ -152,12 +155,13 @@ export class Context {
       this._layoutPending = false;
       this.layoutRoot();
     }
+    if (this.scrolling.size) for (const s of this.scrolling) if (!s.scrollMoving()) this.scrolling.delete(s);
     if (this.root) {
-      if (this.moving.size) syncMoving(this);
+      if (this.moving.size || this.scrolling.size) syncMoving(this);
       else { this.dirty.clear(); this.root.sync(); }
     }
     this._renderPending = false;
-    if (this.animations.size || this.tweens.size || this.frameCallbacks.size || this._layoutPending) this.kick();
+    if (this.animations.size || this.tweens.size || this.frameCallbacks.size || this._layoutPending || this.scrolling.size) this.kick();
   }
 
   /** Lays out and writes the page now, in this frame (a resize: the browser paints next). */

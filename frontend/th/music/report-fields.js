@@ -52,6 +52,9 @@ export const PLAYBACK_STATE = {
   longTasks: { count: 'n', totalMs: 'n', maxMs: 'n' },
   hidden: { count: 'n', seconds: 'n' },
   contextStates: [{ t: 'n', state: CONTEXT }],
+  start: { modules: 'n', worker: 'n', boot: 'n', model: 'n', theme: 'n', inflate: 'n', library: 'n', restore: 'n', ready: 'n', firstFrame: 'n', firstTap: 'n' },
+  scrolls: [{ screen: 'one:home|shelf|library-playlists|library-albums|library-artists|library-songs|library-folders|songs|albums|artists|playlists|folders|genres|album|artist|playlist|folder|search|queue|tracks|other',
+    layout: 'one:list|grid', zoom: 'n', scrolls: 'n', ms: 'n', frames: 'n', late: 'n', jank: 'n', latePct: 'n', p95Ms: 'n', worstMs: 'n', rows: 'n', covers: 'n' }],
 };
 
 /** A batch's own fields; then its events and counters. */

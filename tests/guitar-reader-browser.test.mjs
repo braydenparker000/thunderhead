@@ -1,7 +1,8 @@
 // Guitar's reader keeps the screen on while practising and records the session when the owner leaves
 // (GUITAR.md §8.1, §9): a touch holds the screen lock, and 90 s later with nothing playing it is let
-// go (the page's clock is moved); a session is kept when the page goes with the reader open and sent
-// when the page comes back or Guitar next opens, never a second time when the reader then closes.
+// go (the page's clock is held, and moved by the test alone); a session is kept when the page goes
+// with the reader open and sent when the page comes back or Guitar next opens, never a second time
+// when the reader then closes.
 // The tab file is a saved copy on the phone (fixtures/guitar-saved.mjs); the screen lock is a stand-in that counts; no
 // network.
 import { test, before, after } from 'node:test';
@@ -70,15 +71,44 @@ test('the screen stays on for 90 s after a touch, then is let go', opts, async (
   await page.goto(`${base}/guitar/#play=${encodeURIComponent(SONG)}`);
   await ready(page);
   assert.equal(await page.evaluate(() => window.__held), 0, 'nothing held before a touch or a play');
-  await page.locator('.reader').dispatchEvent('pointerdown');
-  await page.waitForFunction(() => window.__held === 1);
-  await page.clock.fastForward(60_000);
-  assert.equal(await page.evaluate(() => window.__held), 1, 'still held 60 s after the touch');
-  await page.locator('.reader').dispatchEvent('pointerdown');
-  await page.clock.fastForward(60_000);
-  assert.equal(await page.evaluate(() => window.__held), 1, 'a touch starts the 90 s again; one lock, not two');
-  await page.clock.fastForward(31_000);
-  await page.waitForFunction(() => window.__held === 0);
+  // From here only the test moves the page's clock. A flowing clock runs its timers from a pump of its
+  // own, and a pump still finishing after a jump of the test's sets the clock back to the time the pump
+  // ran to (Playwright's _runTo ends on _advanceNow of its own end): the 60 s jump was undone, the
+  // reader's 90 s timer then lay a minute past the next jump, and the lock was still held (two runs
+  // timed out waiting for it to go, one read it held). Held 5 s ahead, past what the call can take.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 5000));
+  /** A touch on the reader, and when it was on the page's clock (the reader's own performance.now()). */
+  const touch = () => page.evaluate(() => {
+    document.querySelector('.reader').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    return performance.now();
+  });
+  /** What is held, read at the page's time, with how long after the last touch that is. */
+  const read = (since) => page.evaluate((t) => ({ held: window.__held, now: performance.now(), afterTouch: performance.now() - t }), since);
+  /** Moves the held clock to `t` on the page's performance.now(), firing each timer due by then, and reads
+   * it back: a pump of the flowing clock that was still finishing as it was held could set it back once,
+   * and the jump is made again from there. */
+  const jumpTo = async (t) => {
+    for (let i = 0; i < 3; i++) {
+      const now = await page.evaluate(() => performance.now());
+      if (now >= t) return;
+      await page.clock.fastForward(t - now);
+    }
+    assert.fail(`the page's clock never reached ${t} (${JSON.stringify(await read(t))})`);
+  };
+  const first = await touch();
+  let s = await read(first);
+  assert.equal(s.held, 1, `held at the touch (${JSON.stringify(s)})`);
+  await jumpTo(first + 60_000);
+  s = await read(first);
+  assert.equal(s.held, 1, `still held 60 s after the touch (${JSON.stringify(s)})`);
+  const second = await touch();
+  await jumpTo(second + 89_900);
+  s = await read(second);
+  assert.equal(s.held, 1, `a touch starts the 90 s again, one lock, not two: held 89.9 s after it, 149.9 s after the first (${JSON.stringify(s)})`);
+  // The reader looks again 50 ms past the 90 s (holdScreen's idle timer).
+  await jumpTo(second + 90_100);
+  s = await read(second);
+  assert.equal(s.held, 0, `let go by 90.1 s after the last touch (${JSON.stringify(s)})`);
   assert.deepEqual(errors, []);
   await c.close();
 });

@@ -331,17 +331,20 @@ cover advances exactly one track; long-press opens home with the track attached.
   ranking first ("the 500 most played, by title"). While nothing is cut (sorted another way, no Max
   Items chosen), List Options shows Max Items disabled, none picked, with the note "Sorted another way,
   every song shows: nothing is cut."
-- **List Options and pinch zoom belong to the list** (`list/entry-opts.js`, owner audit
-  2026-11-26): an entry's list (an album's songs, an artist's page, a genre's, album artist's,
-  composer's or year's albums, a playlist, a folder, a Folders Hierarchy level) keeps its own sort,
-  Reverse and "View as" level; re-sorting one album re-sorts that album only. A list with none of its
-  own takes its kind's (what all albums, all artists … had saved before this, kept as their
-  default). Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
-  Compact Header, Max Items and the rest stay per kind. Stored in `cp-list-opts`: the kind keys as
-  before (`tracks:album`, `sub:artist`, `cat:albums` …) and, under `"@"`, the entries' own
-  (`"tracks:album@kite weather|orchard lamps": {sort, zoom, zv}`; the id is a playlist's id, a
+- **The sort belongs to the list, the zoom to its type of screen** (`list/entry-opts.js`, owner
+  audit 2026-11-26, zoom ruled the same day): an entry's list (an album's songs, an artist's page, a
+  genre's, album artist's, composer's or year's albums, a playlist, a folder, a Folders Hierarchy
+  level) keeps its own sort and Reverse; re-sorting one album re-sorts that album only, and a list
+  with no sort of its own takes its kind's (what all albums, all artists … had saved before, kept as
+  their default). The "View as" level (List Options, pinch zoom) is the kind's: zooming one album's
+  songs zooms every album's song list, one artist page every artist page, one playlist every
+  playlist. Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
+  Compact Header, Max Items and the rest stay per kind too. Stored in `cp-list-opts`: the kind keys
+  as before (`tracks:album`, `sub:artist`, `cat:albums` …, with the zoom) and, under `"@"`, the
+  entries' own sort (`"tracks:album@kite weather|orchard lamps": {sort}`; the id is a playlist's id, a
   folder's path, an album's name and artist, else the entry's name), in order of last use, at most
-  300: the least recently used is dropped first. A level made again (a new sort, a zoom, a setting,
+  300: the least recently used is dropped first. A zoom an entry stored for itself in the hours it
+  could (`zoom`, `zv` under `"@"`) is dropped when the map is read. A level made again (a new sort, a zoom, a setting,
   a library change) keeps its way back: Back's scroll, the open/close morph and the search results
   it came from.
 - Folders Hierarchy's files have a sort (List Options; file name by default), per folder; its
@@ -444,6 +447,38 @@ load (the demo page and the tests).
 Album, artist, genre, playlist and mix pages share one layout: a header (cover or gradient, title,
 meta line, Play and Shuffle buttons), then the track list. An album lists by disc and track number;
 an artist page lists albums (grid) then "All songs".
+
+#### 2.7.1 Wide covers shown as their square (owner, 2026-11-26)
+
+Much of the owner's music has 16:9 thumbnails whose real cover is the square in the middle, the sides
+filler. Such a cover shows as a normal square cover everywhere: the 256 px thumbnails of lists and grids
+(made from the square of the full cover, so 256 × 256 of the centre), the player's full cover, the lock
+screen's MediaSession artwork, and downloads (the Opus songs' embedded cover and an album zip's
+`cover.jpg`). Nothing in the owner's storage changes; the phone decides, once per cover.
+
+- **The rule** (`library/cover-crop.js` `coverCrop`, pure, on a copy 64 px high): at least 1.3 times as
+  wide as high (16:9 and 4:3 alike); both side strips are filler: plain (each channel's spread ≤ 6),
+  a mirror of the picture next to them, the picture's edge columns smeared sideways, or a blur (detail
+  ≤ 0.4 of the centre's where the strip meets the picture at a clear edge or a step in detail); and a
+  centre with detail of its own. Otherwise the picture is genuinely wide and stays whole. The square is
+  centred, or placed at a clear vertical edge found within 5 % of the width of where it was expected (to
+  the sub-pixel, so an off-centre picture is cut exactly; a cut within 3 % of square is made square).
+- **Remembered** per cover in this phone's `cp-cover-fit` (`library/cover-fit.js`), keyed like the
+  cover caches (`cover:<coverKey>` when songs share a bucket cover, else the song's cover address):
+  aspect, the square, whether its sides are filler, and the owner's pick; at most 3,000 covers.
+- **Thumbnails:** the whole thumbnail stays in `claude-player-thumbs` as before; a cut cover's square
+  thumbnail is kept beside it (`covers/crop/<key>`, tagged `x-cover-crop` with the square it was cut to).
+  One made before this has no square thumbnail: the whole one is cut for now (soft) and shown at once,
+  then the sharp one is made in idle time from the full cover on the phone (`claude-player-covers`) and
+  swapped in, or, with no full cover there, when the cover is next read anyway (the player). Nothing is
+  downloaded for it.
+- **Override:** "Show Full Cover" / "Crop Cover" in the playing song's menu (under Download) and in an
+  album page's menu flips that cover (an album's covers) and keeps it on the phone. **Setting:** Settings ›
+  Album Art › Advanced Tweaks › "Crop wide covers to the centre" (`cp_crop_wide_covers`, on by default)
+  applies at once (every shown cover is bound again); a cover the owner picked a way for stays that way.
+- **Downloads:** the page passes the square with the job (`crop`, four fractions); Music's worker cuts the
+  cover with `createImageBitmap`/`OffscreenCanvas` (JPEG) before embedding it; without them it embeds the
+  cover whole.
 
 ### 2.8 Visual states of a row
 
@@ -891,6 +926,53 @@ at once and became the full height: the player once laid out at 759. A resize is
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
 song the engine joins gaplessly to the one before (it is already sounding).
 
+**Scrolling** (2026-11-26, the owner: "less laggy especially on scrolls", on a Galaxy A35): a scroll's
+hitches are shorter than any long task, so `frontend/music/src/ui/scroll-log.js` records them. One gesture
+runs from a finger moving a list, a grid or a shelf of Home past the touch slop until it is at rest again
+(its drag, fling and spring back). While one runs, a single `requestAnimationFrame` loop counts each frame's
+time into fixed arrays (no allocation a frame) and asks the list whether it still moves; with nothing
+moving there is no loop and no timer. For each gesture, once it ends (the copied report's `movement.scrolls`,
+the last 40):
+
+| Field | What |
+|---|---|
+| `screen` | one of `home`, `shelf` (a shelf's sideways scroll), `library-playlists`, `library-albums`, `library-artists`, `library-songs`, `library-folders`, `songs`, `albums`, `artists`, `playlists`, `folders`, `genres`, `album`, `artist`, `playlist`, `folder`, `search`, `queue`, `tracks`, `other` (from the list's List Options kind, never its own name) |
+| `layout`, `zoom` | `list` or `grid`, and the list's zoom level (`list-opts.js` ZOOMS) |
+| `ms`, `frames` | how long it ran and the frames drawn |
+| `late`, `jank` | frames over 20 ms, and over 50 ms |
+| `worstMs` | the longest frame |
+| `rows`, `covers` | rows bound and covers put in place while it ran |
+
+Per session they add up, one entry per screen, layout and zoom (at most 24), into the playback state's
+`scrolls`, which every playback batch carries: `scrolls`, `ms`, `frames`, `late`, `jank`, `latePct` (late
+frames in % of frames), `p95Ms` (the 95th percentile frame, from a 1 ms histogram), `worstMs`, `rows`,
+`covers`. With it the state carries `start`, Music's start-up steps in ms from the page's start
+(`ui/startup.js` marks): `modules` (the first module ran), `worker` (the worker controls the page,
+`library/r2.js`), `boot` (the module graph has run), `model`, `theme`, `inflate`, `library` (the saved
+library open), `restore`, `ready`, `firstFrame`, `firstTap`. Counts and ms only, under the batch's limits.
+
+**Opening from the kept release** (`frontend/th/music/release.js`, `music/sw.js`; PERFORMANCE.md §3.1): the
+app's files (the page, its modules, styles, fonts, the model and the site's shared scripts it loads) are kept
+whole for the release they came with. The rule:
+
+1. A kept set is *complete* once a page has started from it (app.js posts `booted` to the worker at `ready`)
+   with every file it asked for kept.
+2. An open takes the page and every file from the newest kept set, at once and without the network, when that
+   set is complete, is at most 7 days old, and every page it opened before has said it started. It asks
+   `/release.json` in the background, once.
+3. If that names a new release, the files of the kept set's list are fetched again (`no-cache`) into a second
+   set; it is used only if `/release.json` still names that release once all are in, and then by the next
+   open, whole. The open that found it stays on its own set: a page (and any worker it starts) takes every file from the set it
+   opened on for as long as it is open, so one page load never mixes two releases.
+4. A file the set lacks comes from the network: it joins the set while the set's release is the live one;
+   otherwise the set is marked incomplete and the next open takes the network's way.
+5. A page that never says it started (a broken set, a crash) leaves its set on trial: the next open does not
+   use it and takes the network's way, which fills it again. So a bad kept set never keeps Music from starting.
+6. The network's way is the old one: the page from the network (3 s, then the offline copy), `/release.json`
+   asked first and its files from the set of that release, each kept only while that release is still live; no
+   answer from `/release.json` sends the files to the offline copies at once. Repair deletes the kept sets
+   (`claude-player-release`).
+
 Only known fields go: each event type's own (`PLAYBACK_EVENTS` in `shared/contract/reports.ts`; the
 phone's copy is `th/music/report-fields.js`) and the counters' (`PLAYBACK_STATE`); any other field is
 dropped, on the phone and again on the Worker, and an event of a type not listed goes as `other`. So
@@ -1031,6 +1113,29 @@ frames recorded in the page (a gap over 50 ms is reported, enforced with `TH_STR
 state's boxes equal to those the code drew before (`tests/fixtures/music-transition-boxes.json`, taken with
 Playwright's Chromium; text widths move by a pixel on other Chromium builds, so a Playwright upgrade takes
 them again with `TH_CAPTURE_BOXES=<file>` after checking the look by eye).
+
+**Scrolling** (2026-11-26, the owner: "less laggy especially on scrolls", a Galaxy A35 among the phones).
+Profiled with 15,000 invented songs and 1,200 drawn covers at phone size, 4x and 6x CPU slowdown, touch
+flings and drags (frame times from `requestAnimationFrame`, the main thread's own time from DevTools'
+metrics, paint and raster from a trace). What it was, and what changed:
+- Every row was moved by its own `transform` inside the list's one layer, so each frame of a scroll repainted
+  and re-rasterized the whole list. The rows, the header and its decor now lie in a layer of their own
+  (`power-list.js` `contentEl`), written at their place in the content (`View.syncSelf`), and a scroll moves
+  only that layer's transform: raster a frame 2.8 → 0.6 ms on the Library's Songs, 3.5 → 0.7 ms on the Albums
+  grid, 3.6 → 1.5 ms on Home (6x, traced).
+- The v2 lists' fade above the floating toolbar (`home/bottom-room.js`, a CSS mask over the list) doubled that
+  repaint (raster 300–370 against 150 ms a fling with it off). With the rows in their own layer the mask's
+  layer is painted only when the toolbar moves (0–9 times a gesture, measured), so it stays, and the look with it.
+- Each frame wrote the whole view tree to the page; a scroll's frames now write only the views changed, as a
+  transition's do (`context.js` `scrolling`, `view/motion.js`), and a row bound during placement no longer lays
+  the whole page out in the next frame (`placeItems` keeps its rows' asks for a layout): script a frame down
+  15–55 % on every screen (4x and 6x, untraced).
+- The artwork backdrop behind the lists was a live CSS `blur()` over more than the screen; it is drawn once a
+  change into a small canvas (`widgets/milk.js`, a quarter of the blur's scale), the same image to a pixel.
+- The rail redrew at every placement; now only when its thumb moves.
+- Tried and taken out: binding rows ahead of the screen in idle time cost more in every frame of the next
+  scroll (the rows kept bound) than it saved. Covers decode off the main thread already (the browser's raster
+  workers; 5–15 ms a fling on the main thread), so they were left as they are.
 
 ## 6. Media URLs and failures
 

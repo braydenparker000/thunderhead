@@ -1157,7 +1157,7 @@ const HUMAN_SONGS = new Set(['artist', 'albumArtist', 'composer']);
  */
 export function groupTracksSource(ctx, list, nav, g, icon, parentGroup = null) {
   const kind = g.kind ?? 'group';
-  // This entry's own sort and zoom, its kind's until it has some (entry-opts.js).
+  // This entry's own sort (its kind's until it has one) and its kind's zoom (entry-opts.js).
   const src = withOptions(new TrackSource(ctx, list, nav, g.title, g.tracks), list, {key: entryKey('tracks:' + kind, g), zoomKind: 'tracks', sortKind: 'tracks', defaultSort: TRACKS_DEFAULT_SORT[kind] ?? 0});
   src.icon = icon;
   src.group = g;

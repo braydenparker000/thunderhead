@@ -267,7 +267,11 @@ export class View {
     const w = this.right - this.left, h = this.bottom - this.top;
     if (d.w !== w) { d.w = w; el.style.width = px(w) + 'px'; this._dirty = true; }
     if (d.h !== h) { d.h = h; el.style.height = px(h) + 'px'; this._dirty = true; }
-    const x = this.left + this.translationX, y = this.top + this.translationY;
+    let x = this.left + this.translationX, y = this.top + this.translationY;
+    // A list's rows lie in its scrolled content (power-list.js contentEl), which the compositor moves: they are
+    // written where they are in the content, a place that stays put while the list scrolls.
+    const content = this.parent?.contentEl;
+    if (content && el.parentNode === content) y = Math.round((y + this.parent.contentY) * 1000) / 1000;
     const sx = this.scaleX, sy = this.scaleY, rot = this.rotation, rx = this.rotationX, ry = this.rotationY;
     if (d.x !== x || d.y !== y || d.sx !== sx || d.sy !== sy || d.rot !== rot || d.rx !== rx || d.ry !== ry) {
       d.x = x; d.y = y; d.sx = sx; d.sy = sy; d.rot = rot; d.rx = rx; d.ry = ry;

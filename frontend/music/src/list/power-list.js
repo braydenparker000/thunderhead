@@ -14,6 +14,7 @@ import {EdgeGlow} from './edge-glow.js';
 import {colorToCss, argbAlpha} from '../res/values.js';
 import {nestedDragOf} from '../widgets/sheet-drag.js';
 import {signAhead, rowSong, shownSongs, SETTLE_MS} from '../player/sign-ahead.js';
+import {bound, screenOf} from '../ui/scroll-log.js';
 
 // Header buttons a list leaves out (they stay gone through its scenes):
 // search lists have no search-in-list button (applyEvenIfGone
@@ -99,6 +100,13 @@ export class PowerList extends FastLayout {
     // Its own compositor layer: page transitions scale and fade the whole
     // list every frame, which then moves without repainting its rows.
     this.el.style.willChange = 'transform, opacity';
+    // The rows, the header and its decor lie in one layer of their own, moved by its transform as the list
+    // scrolls (contentY: the content's scroll as shown), so a scroll repaints only rows that come into view.
+    this.contentEl = document.createElement('div');
+    this.contentEl.className = 'cp-list-content';
+    this.contentEl.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;will-change:transform';
+    this.el.appendChild(this.contentEl);
+    this.contentY = 0;
     this.source = null;
     this.scrollY = 0;
     // type -> [views]; lists of one host share it, so a page transition's
@@ -393,7 +401,10 @@ export class PowerList extends FastLayout {
 
   /** Moves a row view into this list (pooled rows may come from another list of the host). */
   adopt(v) {
-    if (v.parent === this) return;
+    if (v.parent === this) {
+      if (v.el.parentNode !== this.contentEl) this.contentEl.appendChild(v.el);
+      return;
+    }
     if (v.parent) {
       v.parent.children.splice(v.parent.children.indexOf(v), 1);
       if (!this.selectable) v.setSelection?.(false, false, false);
@@ -401,7 +412,18 @@ export class PowerList extends FastLayout {
     v.lp = this.generateLayoutParams(null);
     v.parent = this;
     this.children.push(v);
-    this.el.appendChild(v.el);
+    this.contentEl.appendChild(v.el);
+  }
+
+  /** The list's own write, and its content layer's place (rows are written in content coordinates, View.syncSelf). */
+  syncSelf() {
+    const shown = super.syncSelf();
+    const y = this.contentY;
+    if (this._contentDomY !== y) {
+      this._contentDomY = y;
+      this.contentEl.style.transform = `translate3d(0,${-this.ctx.px(y)}px,0)`;
+    }
+    return shown;
   }
 
   /**
@@ -523,7 +545,23 @@ export class PowerList extends FastLayout {
     this.placeItems();
   }
 
+  /**
+   * Binds and places the shown rows. A row bound here (new text) asks for a layout; it is measured and laid out
+   * here, at the size the list gives it, so the ask stops at the list (requestLayout) instead of laying the
+   * whole page out again in the next frame.
+   */
   placeItems() {
+    if (this._placing) { this.placeRows(); return; }
+    this._placing = true;
+    try { this.placeRows(); } finally { this._placing = false; }
+  }
+
+  requestLayout() {
+    if (this._placing) return;
+    super.requestLayout();
+  }
+
+  placeRows() {
     const s = this.source;
     if (!s) return;
     this.scrollY = Math.max(0, Math.min(this.scrollY, this.maxScroll()));
@@ -536,6 +574,7 @@ export class PowerList extends FastLayout {
     const g = this.geometry();
     // The content's scroll as shown: the overscroll moves it on past the end.
     const sy = this.scrollY - this.over;
+    if (this.contentY !== sy) { this.contentY = sy; this.invalidate(); }
     // A new source: the host places the moveable toolbar once the level change has started.
     if (this.levelChanged && this.width > 0 && !this._levelQueued) {
       this._levelQueued = true;
@@ -547,7 +586,8 @@ export class PowerList extends FastLayout {
       });
     }
     const y0 = g.top + g.headerH - sy;
-    const want = new Set();
+    const want = this._want ??= new Set();
+    want.clear();
     if (s.header && g.top + g.headH - sy > 0) want.add(-1);
     if (s.subhead && g.top + g.headerH - sy > 0) want.add(SUBHEAD);
     const first = this.indexAtY(g, Math.max(0, sy - g.top - g.headerH));
@@ -557,59 +597,62 @@ export class PowerList extends FastLayout {
     for (const [i, v] of this.active) {
       if (!want.has(i) && !v.inMenu) { this.recycle(i, v); this.active.delete(i); }
     }
-    for (const i of want) {
-      if (this.active.get(i)?.inMenu) continue;
-      let v = this.active.get(i);
-      const fresh = !v;
-      if (fresh) {
-        v = i === -1 ? this.obtain(s.header.type, HEAD) : i === SUBHEAD ? this.obtain(s.subhead.type, SUB) : this.obtain(s.typeAt?.(i) ?? s.itemType);
-        this.active.set(i, v);
-      }
-      v.listIndex = i;
-      let x, y, w, h, scene;
-      if (i === -1) {
-        x = 0; y = g.top - sy; w = this.width; h = g.headH; scene = s.header.scene;
-        if (fresh || v._boundKey !== 'h') { s.bindHeader(v); searchButton(v, s); titleTap(v, s); v._boundKey = 'h'; }
-        // AAImageView.E: the header's art reaches up over the pulled gap.
-        v.image?.setStretch?.(this.over > 0 ? this.over : 0);
-      } else if (i === SUBHEAD) {
-        x = 0; y = g.top + g.headH - sy; w = this.width; h = g.subH; scene = s.subhead.scene;
-        if (fresh || v._boundKey !== 's') { s.bindSubhead(v); v._boundKey = 's'; }
-        if (this.selectable) v.setSelection?.(false, false, false);
-      } else {
-        const col = this.itemColumn(g, i), row = !!g.split && i >= g.split.n;
-        x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = s.sceneAt?.(i) ?? (row ? s.rowScene : s.itemScene);
-        if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; }
-        // A row without a second line takes the level's one-line scene (z62.L).
-        const scene1 = row ? s.rowScene1 : s.itemScene1;
-        if (scene1 && v.line2 && !v.line2.text) scene = scene1;
-        if (PLAIN_TYPES.has(v.listItemType)) {
-          v.left = 0; v.top = 0;
-          v.measure(MeasureSpec.make(w, MeasureSpec.EXACTLY), MeasureSpec.make(h, MeasureSpec.EXACTLY));
-          v.layout(0, 0, w, h);
-          v.translationX = x;
-          v.translationY = y + (spread?.(i)?.dy ?? 0);
-          v.invalidate();
-          continue;
-        }
-        if (this.selectable) v.setSelection?.(!!this.selection, !!this.selection?.has(i), !!s.reorderable);
-      }
-      // Rows a drag reorder faded or scaled come back whole; overscroll spreads the shown rows.
-      const sp = i >= 0 ? spread?.(i) : null;
-      if (v.alpha !== 1 || v.scaleX !== 1) { v.alpha = 1; v.scaleX = 1; }
-      v.scaleY = sp ? sp.scale : 1;
-      if (sp) y += sp.dy;
-      // The row a shared item transition morphs into stays hidden until it ends (mo621).
-      const hide = i === this.sharedIndex;
-      if (hide !== !!v._sharedHidden) { v._sharedHidden = hide; v.el.classList.toggle('cp-shared-hidden', hide); }
-      v.left = 0; v.top = 0;
-      v.setItemScene(scene, w, h);
-      v.translationX = x;
-      v.translationY = y;
-      v.invalidate();
-    }
+    for (const i of want) this.placeOne(s, g, i, sy, y0, spread);
     this.placeBackDecor();
     this.placeBottomToolbar(g);
+  }
+
+  /** Binds (when new to it) and places the view of row i (-1 the header, SUBHEAD the subhead). */
+  placeOne(s, g, i, sy, y0, spread) {
+    if (this.active.get(i)?.inMenu) return;
+    let v = this.active.get(i);
+    const fresh = !v;
+    if (fresh) {
+      v = i === -1 ? this.obtain(s.header.type, HEAD) : i === SUBHEAD ? this.obtain(s.subhead.type, SUB) : this.obtain(s.typeAt?.(i) ?? s.itemType);
+      this.active.set(i, v);
+    }
+    v.listIndex = i;
+    let x, y, w, h, scene;
+    if (i === -1) {
+      x = 0; y = g.top - sy; w = this.width; h = g.headH; scene = s.header.scene;
+      if (fresh || v._boundKey !== 'h') { s.bindHeader(v); searchButton(v, s); titleTap(v, s); v._boundKey = 'h'; }
+      // AAImageView.E: the header's art reaches up over the pulled gap.
+      v.image?.setStretch?.(this.over > 0 ? this.over : 0);
+    } else if (i === SUBHEAD) {
+      x = 0; y = g.top + g.headH - sy; w = this.width; h = g.subH; scene = s.subhead.scene;
+      if (fresh || v._boundKey !== 's') { s.bindSubhead(v); v._boundKey = 's'; }
+      if (this.selectable) v.setSelection?.(false, false, false);
+    } else {
+      const col = this.itemColumn(g, i), row = !!g.split && i >= g.split.n;
+      x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = s.sceneAt?.(i) ?? (row ? s.rowScene : s.itemScene);
+      if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; bound.rows++; }
+      // A row without a second line takes the level's one-line scene (z62.L).
+      const scene1 = row ? s.rowScene1 : s.itemScene1;
+      if (scene1 && v.line2 && !v.line2.text) scene = scene1;
+      if (PLAIN_TYPES.has(v.listItemType)) {
+        v.left = 0; v.top = 0;
+        v.measure(MeasureSpec.make(w, MeasureSpec.EXACTLY), MeasureSpec.make(h, MeasureSpec.EXACTLY));
+        v.layout(0, 0, w, h);
+        v.translationX = x;
+        v.translationY = y + (spread?.(i)?.dy ?? 0);
+        v.invalidate();
+        return;
+      }
+      if (this.selectable) v.setSelection?.(!!this.selection, !!this.selection?.has(i), !!s.reorderable);
+    }
+    // Rows a drag reorder faded or scaled come back whole; overscroll spreads the shown rows.
+    const sp = i >= 0 ? spread?.(i) : null;
+    if (v.alpha !== 1 || v.scaleX !== 1) { v.alpha = 1; v.scaleX = 1; }
+    v.scaleY = sp ? sp.scale : 1;
+    if (sp) y += sp.dy;
+    // The row a shared item transition morphs into stays hidden until it ends (mo621).
+    const hide = i === this.sharedIndex;
+    if (hide !== !!v._sharedHidden) { v._sharedHidden = hide; v.el.classList.toggle('cp-shared-hidden', hide); }
+    v.left = 0; v.top = 0;
+    v.setItemScene(scene, w, h);
+    v.translationX = x;
+    v.translationY = y;
+    v.invalidate();
   }
 
   /**
@@ -633,7 +676,7 @@ export class PowerList extends FastLayout {
       v.listIndex = -5;
       v.titleView = v.findViewById('title');
       this.children.push(v);
-      this.el.appendChild(v.el);
+      this.contentEl.appendChild(v.el);
       this.decors.set(layout, v);
     }
     const title = this.host?.backTitleFor?.(s) ?? '';
@@ -676,6 +719,8 @@ export class PowerList extends FastLayout {
         this.recycle(-10, v);
       }
       v = this.toolbarView = this.obtain(s.header.type, HEAD);
+      // The toolbar stands still over the content: out of its layer.
+      this.el.appendChild(v.el);
       v.listIndex = -10;
       v._rowElevation = v.elevation;
       v.elevation = bt.z;
@@ -822,6 +867,8 @@ export class PowerList extends FastLayout {
     vt.add(start.time, start.rootX, start.rootY);
     this.drag = {y: start.rootY + Math.sign(now.rootY - start.rootY) * slop, scroll: this.scrollY, vt, started: true};
     this.startNested(start.time);
+    this.ctx.scrollLog?.begin(this);
+    this.ctx.scrolling?.add(this);
     return true;
   }
 
@@ -843,6 +890,8 @@ export class PowerList extends FastLayout {
       d.started = true;
       d.y += Math.sign(dy) * slop;
       this.startNested(e.time);
+      this.ctx.scrollLog?.begin(this);
+      this.ctx.scrolling?.add(this);
     }
     // Scroll by the step: the dialog frame first (pre-scroll), then the list, then the frame again.
     const step = d.last - e.rootY;
@@ -857,6 +906,16 @@ export class PowerList extends FastLayout {
     this.placeItems();
     const shown = this.scrollY - this.over;
     if (shown !== prevShown) this.scrolled(prevShown - shown, true);
+  }
+
+  /** For the scroll recorder (ui/scroll-log.js): whether the list still moves, and what it shows. */
+  scrollMoving() {
+    return !!(this.drag?.started || this._fling || this.springAnim);
+  }
+
+  scrollInfo() {
+    const s = this.source;
+    return {screen: screenOf(s), layout: (s?.columns ?? 1) > 1 ? 'grid' : 'list', zoom: s?.zoomLevel ?? 0};
   }
 
   get overMax() {

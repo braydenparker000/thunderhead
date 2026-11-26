@@ -1,13 +1,13 @@
-// Music's list options belong to the list (frontend/music/src/list/entry-opts.js; owner audit
-// 2026-11-26): an album's, artist's, playlist's or folder's sort and zoom are its own, over its kind's
-// (the options saved before, per kind, stay every entry's default), kept for at most ENTRY_CAP lists by
-// last use; the statistics lists cut their own ranking and nothing else (list/stat-lists.js); and an
+// Music's list sort belongs to the list (frontend/music/src/list/entry-opts.js; owner audit
+// 2026-11-26): an album's, artist's, playlist's or folder's sort is its own, over its kind's (the
+// sort saved before, per kind, stays every entry's default), kept for at most ENTRY_CAP lists by
+// last use, while the zoom is the kind's (every album's songs, every artist page …); the statistics lists cut their own ranking and nothing else (list/stat-lists.js); and an
 // entry's albums are the shelves' albums, its other songs Singles (library/shelves.js entryShelf).
 // Every name is invented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  baseKey, ENTRY_CAP, ENTRY_MAP, entryId, entryKey, ownOpts, putOpts, readOpts, touchOpts, writeOpts,
+  baseKey, dropStale, ENTRY_CAP, ENTRY_MAP, entryId, entryKey, ownOpts, putOpts, readOpts, touchOpts, writeOpts,
 } from '../frontend/music/src/list/entry-opts.js';
 import { DEFAULT_LIMIT, NO_LIMIT, ownRanking, STAT_LISTS, statTracks } from '../frontend/music/src/list/stat-lists.js';
 import { entryShelf } from '../frontend/music/src/library/shelves.js';
@@ -26,16 +26,22 @@ test('an entry key names the list: kind key, "@", the entry\'s stable id', () =>
   assert.equal(baseKey('cat:albums'), 'cat:albums');
 });
 
-test("sorting one album's songs leaves the other albums on the kind's sort", () => {
+test("sorting one album's songs leaves the other albums on the kind's sort; zooming one zooms them all", () => {
   // Saved before per kind: every album by title, zoom 3 (the old format, kept as it is).
   const all = { 'tracks:album': { sort: 1, zoom: 3, zv: 2, titlesOnly: true } };
   const a = entryKey('tracks:album', kite), b = entryKey('tracks:album', moss);
   assert.deepEqual(readOpts(all, a), { sort: 1, zoom: 3, zv: 2, titlesOnly: true }, 'no options of its own: the kind\'s');
   writeOpts(all, a, { sort: 13 | REVERSE });
+  assert.deepEqual(readOpts(all, a), { sort: 13 | REVERSE, zoom: 3, zv: 2, titlesOnly: true });
+  assert.deepEqual(readOpts(all, b), { sort: 1, zoom: 3, zv: 2, titlesOnly: true }, 'the other album keeps the kind\'s sort');
+  // The zoom follows the kind: every album's songs take it.
   writeOpts(all, a, { zoom: 5, zv: 2 });
   assert.deepEqual(readOpts(all, a), { sort: 13 | REVERSE, zoom: 5, zv: 2, titlesOnly: true });
-  assert.deepEqual(readOpts(all, b), { sort: 1, zoom: 3, zv: 2, titlesOnly: true }, 'the other album is untouched');
-  assert.deepEqual(all['tracks:album'], { sort: 1, zoom: 3, zv: 2, titlesOnly: true }, 'the kind\'s options are untouched');
+  assert.deepEqual(readOpts(all, b), { sort: 1, zoom: 5, zv: 2, titlesOnly: true }, 'the other album zooms with it');
+  assert.deepEqual(all['tracks:album'], { sort: 1, zoom: 5, zv: 2, titlesOnly: true }, 'the kind keeps its sort, takes the zoom');
+  assert.deepEqual(all[ENTRY_MAP][a], { sort: 13 | REVERSE }, 'the entry keeps only its sort');
+  // Another kind is untouched.
+  assert.equal(readOpts(all, entryKey('sub:artist', { kind: 'artist', title: 'Wren' })).zoom, undefined);
   // Show Titles Only (and the other options) stay the kind's.
   writeOpts(all, a, { titlesOnly: false });
   assert.equal(readOpts(all, b).titlesOnly, false);
@@ -45,21 +51,33 @@ test("sorting one album's songs leaves the other albums on the kind's sort", () 
   assert.deepEqual(readOpts(all, 'cat:albums'), { sort: 1 });
 });
 
-test('an own zoom reads with its own version; a cancelled change puts back exactly what was there', () => {
+test('a zoom an entry stored for itself before is dropped on read', () => {
+  const a = entryKey('tracks:album', kite), b = entryKey('tracks:album', moss);
+  const all = { 'tracks:album': { zoom: 2, zv: 2 }, [ENTRY_MAP]: { [a]: { sort: 3, zoom: 5, zv: 2 }, [b]: { zoom: 1 } } };
+  assert.equal(readOpts(all, a).zoom, 2, 'read as the kind\'s even before it is dropped');
+  assert.equal(dropStale(all), true);
+  assert.deepEqual(all[ENTRY_MAP], { [a]: { sort: 3 } }, 'an entry with nothing else goes');
+  assert.equal(dropStale(all), false, 'nothing left to drop');
+  assert.deepEqual(readOpts(all, b), { zoom: 2, zv: 2 });
+});
+
+test('a cancelled zoom or sort puts back exactly what the entry and its kind had', () => {
   const all = { 'tracks:album': { zoom: 1 } }; // a zoom saved before zv 2 (search levels)
-  const a = entryKey('tracks:album', kite);
+  const a = entryKey('tracks:album', kite), b = entryKey('tracks:album', moss);
   const before = ownOpts(all, a);
-  assert.equal(before, null);
-  writeOpts(all, a, { zoom: 4 });
-  assert.equal(readOpts(all, a).zv, undefined);
+  assert.deepEqual(before, { kind: { zoom: 1 }, mine: null });
+  writeOpts(all, a, { zoom: 4, zv: 2 });
+  assert.equal(readOpts(all, b).zoom, 4);
   putOpts(all, a, before);
-  assert.deepEqual(readOpts(all, a), { zoom: 1 }, 'back on the kind\'s zoom');
+  assert.deepEqual(readOpts(all, a), { zoom: 1 }, 'back on the kind\'s old zoom');
+  assert.deepEqual(readOpts(all, b), { zoom: 1 });
   assert.deepEqual(all[ENTRY_MAP], {});
   writeOpts(all, a, { sort: 2, zoom: 5, zv: 2 });
   const kept = ownOpts(all, a);
-  writeOpts(all, a, { zoom: 0, zv: 2 });
+  writeOpts(all, a, { zoom: 0, zv: 2, sort: 7 });
   putOpts(all, a, kept);
   assert.deepEqual(readOpts(all, a), { zoom: 5, sort: 2, zv: 2 });
+  assert.deepEqual(ownOpts(all, 'cat:albums'), null, 'a kind key: its own options');
   writeOpts(all, a, { sort: undefined });
   assert.equal(readOpts(all, a).sort, undefined, 'undefined removes an own option');
 });

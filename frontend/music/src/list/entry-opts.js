@@ -2,16 +2,20 @@
 // saved under its kind key in cp-list-opts ("cat:albums", "tracks:album", "sub:artist" …), as they
 // always were. An entry's list (this album's songs, this artist's page, this playlist, this genre's
 // albums, this folder …) has a key of its own, the kind key, "@" and the entry's id
-// ("tracks:album@kite weather|orchard lamps"): its sort (with Reverse) and zoom are saved for it
-// alone, in the "@" map of cp-list-opts, and a list with none of its own takes its kind's, so the
-// options saved before (per kind) stay as every entry's default. The other options (Show Titles
-// Only, Compact Header, Max Items …) stay per kind. The "@" map keeps its entries in the order they
+// ("tracks:album@kite weather|orchard lamps"): its sort (with Reverse) is saved for it alone, in the
+// "@" map of cp-list-opts, and a list with none of its own takes its kind's, so the sort saved before
+// (per kind) stays as every entry's default. Zoom belongs to the kind (owner, 2026-11-26): zooming one
+// album's songs zooms every album's, one artist page every artist page; a zoom an entry stored for
+// itself before (zoom, zv in the "@" map) is dropped when read. The other options (Show Titles Only,
+// Compact Header, Max Items …) stay per kind too. The "@" map keeps its entries in the order they
 // were last used, and at most ENTRY_CAP of them: the least recently used go first. No DOM here.
 
 export const ENTRY_MAP = '@';
 export const ENTRY_CAP = 300;
 /** The options an entry's list keeps for itself; the rest are its kind's. */
-export const OWN_OPTS = ['sort', 'zoom', 'zv'];
+export const OWN_OPTS = ['sort'];
+/** What an entry once kept for itself and no longer does (dropped on read). */
+const STALE_OPTS = ['zoom', 'zv'];
 
 const lc = s => String(s ?? '').toLowerCase();
 
@@ -34,8 +38,9 @@ export const entryKey = (key, g) => {
 export const baseKey = key => { const i = String(key).indexOf('@'); return i < 0 ? key : key.slice(0, i); };
 
 const own = o => o && typeof o === 'object' && !Array.isArray(o) ? o : null;
+const copy = o => o ? {...o} : null;
 
-/** A list's options from the stored map: its kind's, with its own sort and zoom over them. */
+/** A list's options from the stored map: its kind's, with its own sort over them. */
 export function readOpts(all, key) {
   const base = baseKey(key), kind = own(all?.[base]) ?? {};
   if (base === key) return kind;
@@ -43,16 +48,33 @@ export function readOpts(all, key) {
   if (!mine) return kind;
   const out = {...kind};
   for (const k of OWN_OPTS) if (mine[k] !== undefined) out[k] = mine[k];
-  // A zoom of its own is read with its own version (zv), never its kind's.
-  if (mine.zoom !== undefined && mine.zv === undefined) delete out.zv;
   return out;
 }
 
-/** What is stored for this key itself (an entry's own options, or the kind's), for putting back. */
+/**
+ * Drops what entries stored for themselves before zoom went back to the kind (in place): true when
+ * something went (the caller stores the map again); an entry left with nothing goes too.
+ */
+export function dropStale(all) {
+  const map = own(all?.[ENTRY_MAP]);
+  if (!map) return false;
+  let changed = false;
+  for (const [key, o] of Object.entries(map)) {
+    if (!own(o)) continue;
+    for (const k of STALE_OPTS) if (k in o) { delete o[k]; changed = true; }
+    if (!Object.keys(o).length) { delete map[key]; changed = true; }
+  }
+  return changed;
+}
+
+/**
+ * What is stored for this key, for putting back: a kind key's options; for an entry, its own options
+ * and its kind's ({kind, mine}), since a zoom changed from an entry's list is its kind's.
+ */
 export function ownOpts(all, key) {
   const base = baseKey(key);
-  const o = base === key ? own(all?.[key]) : own(own(all?.[ENTRY_MAP])?.[key]);
-  return o ? {...o} : null;
+  if (base === key) return copy(own(all?.[key]));
+  return {kind: copy(own(all?.[base])), mine: copy(own(own(all?.[ENTRY_MAP])?.[key]))};
 }
 
 function entries(all) {
@@ -67,8 +89,8 @@ function trim(map, cap) {
 }
 
 /**
- * Saves a patch for a list into the stored map (in place; returns it): an entry's sort and zoom
- * as its own (undefined removes one), the rest on its kind. The entry becomes the most recently used.
+ * Saves a patch for a list into the stored map (in place; returns it): an entry's sort as its own
+ * (undefined removes it), the rest (zoom too) on its kind. The entry becomes the most recently used.
  */
 export function writeOpts(all, key, patch, cap = ENTRY_CAP) {
   const base = baseKey(key);
@@ -89,13 +111,15 @@ export function writeOpts(all, key, patch, cap = ENTRY_CAP) {
   return all;
 }
 
-/** Puts back what ownOpts read (null: nothing of its own). */
+/** Puts back what ownOpts read (null: nothing stored). */
 export function putOpts(all, key, saved) {
   const base = baseKey(key);
-  if (base === key) { if (saved) all[key] = {...saved}; else delete all[key]; return all; }
-  const map = entries(all);
+  const put = (k, o) => { if (o) all[k] = {...o}; else delete all[k]; };
+  if (base === key) { put(key, saved); return all; }
+  put(base, saved?.kind);
+  const map = entries(all), mine = saved?.mine;
   delete map[key];
-  if (saved && Object.keys(saved).length) map[key] = {...saved};
+  if (mine && Object.keys(mine).length) map[key] = {...mine};
   return all;
 }
 

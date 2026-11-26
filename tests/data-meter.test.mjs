@@ -163,7 +163,7 @@ test('an answer with no size (the streamed, compressed catalogue) is counted by 
 test('Music’s worker counts the files it fetches for its release and its own files, as App files; the catalogue as Catalogue', async () => {
   const sw = await readFile(new URL('../frontend/music/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /const own = \(req, init\) => fetch\(req, init\)\.then\(r => \{ self\.thData\?\.count\('music\.app', r\); return r; \}\);/);
-  assert.match(sw, /thMusicRelease\?\.make\(\{ fetch: own, caches \}\)/, 'release.js fetches through it');
+  assert.match(sw, /thMusicRelease\?\.make\(\{ fetch: own, caches[,} ]/, 'release.js fetches through it');
   assert.equal((sw.match(/own\(req\)/g) ?? []).length, 2, 'and the files it fetches network first, or when the release gives none');
   const bridge = await readFile(new URL('../frontend/th/music/bridge.js', import.meta.url), 'utf8');
   assert.match(bridge, /measured\(await upstream\(`\$\{base\}\/v1\/music\/catalog/, 'the catalogue is measured by the bytes read');

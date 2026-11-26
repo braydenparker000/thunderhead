@@ -180,12 +180,17 @@ export class ListScrollerView extends FastTextView {
   /** Thumb position and visibility from the list's scroll state (d(), o()). */
   syncThumb() {
     const list = this.list;
+    let pos = this.thumbPos;
     if (this.mode === 1 || this.mode === 3) {
       const max = list?.maxScroll?.() ?? 0;
       this.fade('thumbAlpha', max > 0);
       const frac = max > 0 ? Math.max(0, Math.min(1, list.scrollY / max)) : 0;
-      this.thumbPos = (this.height - this.thumbH - this.paddingTop - this.paddingBottom) * frac + this.paddingTop;
+      pos = this.thumbPos = (this.height - this.thumbH - this.paddingTop - this.paddingBottom) * frac + this.paddingTop;
     }
+    // The list syncs it at every placement (each frame of a scroll): drawn again only when the thumb moved, or
+    // the list, its mode or the column's size changed (a fade draws itself).
+    if (this._synced?.pos === pos && this._synced.list === list && this._synced.mode === this.mode && this._synced.h === this.height) return;
+    this._synced = {pos, list, mode: this.mode, h: this.height};
     this.invalidate();
   }
 

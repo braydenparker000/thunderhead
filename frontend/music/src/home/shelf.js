@@ -6,6 +6,7 @@
 import {GONE, VISIBLE} from '../res/values.js';
 import {RowView, tileItem} from './row-view.js';
 import {sideScroll} from './side-scroll.js';
+import {bound} from '../ui/scroll-log.js';
 
 export class ShelfRow extends RowView {
   constructor(ctx) {
@@ -37,7 +38,9 @@ export class ShelfRow extends RowView {
     if (v === this.scrollX) return false;
     this.scrollX = v;
     if (this.row) { this.row.scrollX = v; (this.ctx.homeShelfX ??= new Map()).set(this.row.key, v); }
-    this.place(this.width, this.height);
+    // The covers it binds are laid out here, in their cells: their asks for a layout go no further.
+    this._placing = true;
+    try { this.place(this.width, this.height); } finally { this._placing = false; }
     return true;
   }
 
@@ -63,7 +66,7 @@ export class ShelfRow extends RowView {
         this.shown.set(i, v);
       }
       v.at = i;
-      if (fresh) { v.record = row.items[i].record; v.bind(v.record); this.put(v, 0, 0, cell, h, row.scene ?? 'scene_grid'); }
+      if (fresh) { bound.rows++; v.record = row.items[i].record; v.bind(v.record); this.put(v, 0, 0, cell, h, row.scene ?? 'scene_grid'); }
       v.translationX = pad + i * cell - this.scrollX;
       v.translationY = 0;
       v.invalidate();
