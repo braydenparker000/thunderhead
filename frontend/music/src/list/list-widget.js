@@ -1998,7 +1998,7 @@ export class ListWidget extends FastLayout {
     const at = levels.indexOf(src.zoomLevel);
     const level = at < 0 ? undefined : levels[at + (zoomIn ? 1 : -1)];
     if (level === undefined) return null;
-    // What the list had saved itself (an entry's own zoom, or none: its kind's), put back on a cancel.
+    // What the list and its kind had saved (the zoom is the kind's), put back on a cancel.
     const old = savedListOpts(key);
     saveListOpts(key, {zoom: level, zv: 2});
     const next = carryLevel(src, src.rebuild?.());

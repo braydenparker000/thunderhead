@@ -2,7 +2,8 @@
 // audit 2026-11-26), in Chromium at phone size over an invented library (tests/fixtures/
 // music-shelves-library.mjs, with more invented songs so the results scroll; no audio, no network):
 // - a level opened from the search results, re-sorted (List Options) and zoomed (pinch), still goes
-//   Back to the same results at the same scroll, and its sort and zoom are that album's alone;
+//   Back to the same results at the same scroll; its sort is that album's alone, its zoom every
+//   album's (the zoom follows the type of screen, owner 2026-11-26);
 // - the playing song's artist and album from its menu open the artist's page and the album's page the
 //   library opens (not a flat list), at the song's row;
 // - search lists albums as the shelves count them: a one-song release is found as a song.
@@ -92,6 +93,7 @@ test('a level opened from search keeps its way back through a re-sort and a zoom
       rebuilt: sorted !== before && top !== sorted, zoomed: !!zoom, key: top.optsKey, own: listOpts(top.optsKey),
       carried: [top.fromSearch, top.searchParent, top.openedFrom === before.openedFrom],
       order: top.tracks.map((t) => t.title), otherSort: other.sortValue, otherZoom: other.zoomLevel, zoomLevel: top.zoomLevel,
+      stored: ((s) => ({ entry: s['@']?.[top.optsKey], kindZoom: s['tracks:album']?.zoom }))(JSON.parse(localStorage.getItem('cp-list-opts'))),
     };
   });
   assert.ok(changed.rebuilt && changed.zoomed, 'the level was made again twice');
@@ -100,7 +102,9 @@ test('a level opened from search keeps its way back through a re-sort and a zoom
   assert.deepEqual(changed.carried, [true, true, true], 'it still knows it came from the results');
   assert.deepEqual(changed.order, [...changed.order].sort((a, b) => a.localeCompare(b)), 'by title');
   assert.notEqual(changed.otherSort, 1, "another album keeps the kind's sort");
-  assert.notEqual(changed.otherZoom, changed.zoomLevel, "another album keeps the kind's zoom");
+  assert.equal(changed.otherZoom, changed.zoomLevel, "the zoom is the kind's: another album's songs take it");
+  assert.equal(changed.own.zoom, changed.zoomLevel);
+  assert.deepEqual(changed.stored, { entry: { sort: 1 }, kindZoom: changed.zoomLevel }, 'the entry keeps only its sort');
   await settled(page);
 
   // Back: the same results, at the same scroll.

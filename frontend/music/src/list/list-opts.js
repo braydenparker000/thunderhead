@@ -1,8 +1,8 @@
 // List Options (dialog_ListOptsActivity): per list sort (with Reverse),
 // "View as" zoom level, Show Titles Only and Compact Header, saved per list
 // kind; an entry's list (an album's songs, an artist's page, a playlist …)
-// keeps its own sort and zoom over its kind's (entry-opts.js), from List
-// Options and pinch zoom alike.
+// keeps its own sort over its kind's (entry-opts.js); its zoom, from List
+// Options and pinch zoom alike, is its kind's (every album's songs …).
 // The option tables are the reference's (label, value, hint) triples per list
 // type; zoom levels map to item scene, columns and item size like the
 // reference (pd.P0 for categories and tracks, bk0.P0 for the library home;
@@ -18,7 +18,7 @@ import {FastRadioButton} from '../view/text.js';
 import {searchMask, setSearchMask, searchOrder, setSearchOrder} from '../widgets/search.js';
 import {KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
 import {SHELF_WORDS} from '../library/shelves.js';
-import {baseKey, ownOpts, putOpts, readOpts, touchOpts, writeOpts} from './entry-opts.js';
+import {baseKey, dropStale, ownOpts, putOpts, readOpts, touchOpts, writeOpts} from './entry-opts.js';
 import {limitApplies} from './stat-lists.js';
 
 // Max Items' note while it does not apply (a statistics list sorted another way).
@@ -53,7 +53,11 @@ export const ZOOMS = {
 const SEARCH_ZOOM = {'-3': -3, '-2': -2, '-1': -1, 0: 0, 1: 3, 2: 4};
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(STORE) ?? '{}') ?? {}; } catch { return {}; }
+  let all;
+  try { all = JSON.parse(localStorage.getItem(STORE) ?? '{}') ?? {}; } catch { return {}; }
+  // An entry's own zoom from before zoom went back to its kind does not linger.
+  if (dropStale(all)) store(all);
+  return all;
 }
 
 function store(all) {
@@ -62,13 +66,13 @@ function store(all) {
 
 /**
  * The saved options for a list key: {sort, zoom, titlesOnly}. An entry's key (entry-opts.js,
- * "tracks:album@…") reads its own sort and zoom over its kind's.
+ * "tracks:album@…") reads its own sort over its kind's; its zoom is the kind's.
  */
 export function listOpts(key) {
   return readOpts(load(), key);
 }
 
-/** Saves options for a list key: an entry's sort and zoom for that entry alone (entry-opts.js). */
+/** Saves options for a list key: an entry's sort for that entry alone, its zoom for its kind (entry-opts.js). */
 export function saveListOpts(key, patch) {
   store(writeOpts(load(), key, patch));
 }

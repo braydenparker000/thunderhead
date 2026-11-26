@@ -331,17 +331,20 @@ cover advances exactly one track; long-press opens home with the track attached.
   ranking first ("the 500 most played, by title"). While nothing is cut (sorted another way, no Max
   Items chosen), List Options shows Max Items disabled, none picked, with the note "Sorted another way,
   every song shows: nothing is cut."
-- **List Options and pinch zoom belong to the list** (`list/entry-opts.js`, owner audit
-  2026-11-26): an entry's list (an album's songs, an artist's page, a genre's, album artist's,
-  composer's or year's albums, a playlist, a folder, a Folders Hierarchy level) keeps its own sort,
-  Reverse and "View as" level; re-sorting one album re-sorts that album only. A list with none of its
-  own takes its kind's (what all albums, all artists … had saved before this, kept as their
-  default). Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
-  Compact Header, Max Items and the rest stay per kind. Stored in `cp-list-opts`: the kind keys as
-  before (`tracks:album`, `sub:artist`, `cat:albums` …) and, under `"@"`, the entries' own
-  (`"tracks:album@kite weather|orchard lamps": {sort, zoom, zv}`; the id is a playlist's id, a
+- **The sort belongs to the list, the zoom to its type of screen** (`list/entry-opts.js`, owner
+  audit 2026-11-26, zoom ruled the same day): an entry's list (an album's songs, an artist's page, a
+  genre's, album artist's, composer's or year's albums, a playlist, a folder, a Folders Hierarchy
+  level) keeps its own sort and Reverse; re-sorting one album re-sorts that album only, and a list
+  with no sort of its own takes its kind's (what all albums, all artists … had saved before, kept as
+  their default). The "View as" level (List Options, pinch zoom) is the kind's: zooming one album's
+  songs zooms every album's song list, one artist page every artist page, one playlist every
+  playlist. Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
+  Compact Header, Max Items and the rest stay per kind too. Stored in `cp-list-opts`: the kind keys
+  as before (`tracks:album`, `sub:artist`, `cat:albums` …, with the zoom) and, under `"@"`, the
+  entries' own sort (`"tracks:album@kite weather|orchard lamps": {sort}`; the id is a playlist's id, a
   folder's path, an album's name and artist, else the entry's name), in order of last use, at most
-  300: the least recently used is dropped first. A level made again (a new sort, a zoom, a setting,
+  300: the least recently used is dropped first. A zoom an entry stored for itself in the hours it
+  could (`zoom`, `zv` under `"@"`) is dropped when the map is read. A level made again (a new sort, a zoom, a setting,
   a library change) keeps its way back: Back's scroll, the open/close morph and the search results
   it came from.
 - Folders Hierarchy's files have a sort (List Options; file name by default), per folder; its
