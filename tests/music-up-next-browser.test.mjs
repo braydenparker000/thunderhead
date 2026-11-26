@@ -7,8 +7,9 @@
 // before its handle; a tap just after Back closed the window reaches what is under it; the Undo bar
 // follows a change of screen clear of the mini player, and sits at an open window's edge with room
 // below its last row; in landscape the playing song's menu scrolls to its last item. The Undo bar never
-// covers an open menu (2026-11-26): a line that only says something goes when the menu opens, a line with
-// Undo moves clear of it, and a tap on the menu's last entry reaches that entry.
+// covers an open menu (2026-11-26): a line that only says something and has been up a second goes when the
+// menu opens; a line just shown, and a line with Undo, move clear of it (the one just shown is still up once
+// the menu closes); a tap on the menu's last entry reaches that entry.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -269,7 +270,7 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await context.close();
 });
 
-test('the Undo bar keeps clear of an open menu: a plain line goes, a line with Undo moves, the last entry takes its tap', opts, async () => {
+test('the Undo bar keeps clear of an open menu: a plain line read goes, one just shown or with Undo moves, the last entry takes its tap', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
@@ -299,31 +300,52 @@ test('the Undo bar keeps clear of an open menu: a plain line goes, a line with U
   const menuClosed = () => until(() => page.evaluate(() => !window.__cp.ctx.listWidget.menuItem), { message: 'the menu never closed' });
   const show = (undo) => page.evaluate((undo) => { window.__cp.ctx.undoBar.show(undo ? 'Example undo' : 'Example note', undo ? () => {} : null, { ms: 60_000 }); }, undo);
   const barShown = () => until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !!u.current && u.frame.visibility === 0 && u.frame.alpha === 1 && !u.anim; }), { message: 'the bar never came to rest' });
+  /** Once the bar's place holds and both are drawn: the bar's box apart from the open menu's. */
+  const clearOfMenu = async (what) => {
+    const { bar, menu } = await until(async () => {
+      const held = await page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !!u.current && !u.anim && u.frame.lp.bottomMargin === u.place(); });
+      if (!held) return null;
+      const bar = await box('bar'), menu = await box('menu');
+      return bar && menu && { bar, menu };
+    }, { message: `${what}: the bar and the menu were never both drawn` });
+    const apart = bar.bottom <= menu.top || bar.top >= menu.bottom || bar.right <= menu.left || bar.left >= menu.right;
+    assert.ok(apart, `${what}: the bar ${JSON.stringify(bar)} clear of the menu ${JSON.stringify(menu)}`);
+  };
 
-  // A line that only says something goes at once when the menu opens.
+  // A line that only says something and has been up READ_MS (read, on the page's clock) goes at once when the menu
+  // opens.
   await show(false);
   await barShown();
+  await until(() => page.evaluate(async () => {
+    const { READ_MS } = await import('/music/src/widgets/undo-bar.js');
+    const c = window.__cp.ctx.undoBar.current;
+    return !!c && performance.now() - c.shownAt >= READ_MS;
+  }), { message: 'the plain line was never up a second' });
   await tap('cover-menu');
   await until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !u.current && u.frame.visibility !== 0; }), { message: 'the plain line stayed over the menu' });
   await menuOpen();
   await page.evaluate(() => window.__cp.ctx.listWidget.closeItemMenu());
   await menuClosed();
 
-  // A line with Undo, then the menu: the bar stays, placed clear of the menu (read once the bar's place holds and
-  // both are drawn).
+  // A line just shown as the menu opens (a result such as "Saved to Downloads" arriving as the owner opens a menu,
+  // here in the same moment): it stays, placed clear of the menu, and is still up once the menu has closed.
+  await page.evaluate(() => {
+    const { ctx } = window.__cp;
+    ctx.undoBar.show('Example result', null, { ms: 60_000 });
+    ctx.listWidget.openItemMenu(ctx.listWidget.items.get(0));
+  });
+  await menuOpen();
+  await clearOfMenu('a line just shown');
+  await page.evaluate(() => window.__cp.ctx.listWidget.closeItemMenu());
+  await menuClosed();
+  await until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar; return u.current?.message === 'Example result' && u.frame.visibility === 0; }), { message: 'the line just shown was lost to the menu' });
+
+  // A line with Undo, then the menu: the bar stays, placed clear of the menu.
   await show(true);
   await barShown();
   await tap('cover-menu');
   await menuOpen();
-  const boxes = await until(async () => {
-    const held = await page.evaluate(() => { const u = window.__cp.ctx.undoBar; return !!u.current && !u.anim && u.frame.lp.bottomMargin === u.place(); });
-    if (!held) return null;
-    const bar = await box('bar'), menu = await box('menu');
-    return bar && menu && { bar, menu };
-  }, { message: 'the bar and the menu were never both drawn' });
-  const { bar, menu } = boxes;
-  const apart = bar.bottom <= menu.top || bar.top >= menu.bottom || bar.right <= menu.left || bar.left >= menu.right;
-  assert.ok(apart, `the bar ${JSON.stringify(bar)} clear of the menu ${JSON.stringify(menu)}`);
+  await clearOfMenu('a line with Undo');
 
   // The menu's last entry (the lowest one shown inside the menu) takes a tap there while the bar is up.
   const last = await page.evaluate(async () => {

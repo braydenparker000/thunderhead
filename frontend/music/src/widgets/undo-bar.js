@@ -9,9 +9,12 @@
 // room at its end so its last rows scroll clear of the bar. It follows the screen while it shows: a
 // change of screen, of the window's size, or a window opening or closing places it again (follow).
 // Its icon takes the title's colour, as the toast's own (tinted) icons do. It never covers an open menu
-// (a popup's, the cover's or a header's item menu, the navbar sheet: each a GUI modal while open): a
-// line that only says something goes at once when one opens; a line with Undo moves clear of the
-// menu's box, above it or else below it, and goes only when neither has room.
+// (a popup's, the cover's or a header's item menu, the navbar sheet: each a GUI modal while open) and
+// never takes a tap meant for one. When one opens, a line that only says something and has been up
+// READ_MS goes at once; a line with Undo, and a line just shown (a download's "Saved to Downloads" may
+// come as the owner opens a menu), moves clear of the menu's box, above it or else below it. With no
+// room on either side it waits out of sight, and shows again for the rest of its time (READ_MS at
+// least) once the menus close: no line is lost before it could be read.
 //
 // API (installed at startup as ctx.undoBar):
 //   ctx.undoBar.show(message, onUndo, {ms = 5000, icon = null, action = 'Undo'} = {})
@@ -28,6 +31,8 @@ import {FastLayout} from '../view/fast-layout.js';
 import {animTime} from './topnav.js';
 
 export const UNDO_MS = 5000;
+/** A line that only says something and has been up this long may go when a menu opens: it has been read. */
+export const READ_MS = 1000;
 const IN_S = 0.3, OUT_S = 0.25;
 // Following a change: at least this long (a screen's or a window's scene), and until the place has held
 // for STILL_FRAMES frames; never longer than FOLLOW_MAX_MS.
@@ -119,12 +124,20 @@ export class UndoBar {
     this.button.setVisibility(onUndo ? VISIBLE : GONE);
     // With no action (a line that only says something: Music's downloads), the text takes the button's room too.
     for (const v of [f.findViewById('title'), f.findViewById('line2')]) if (v?.lp) { v._mr ??= v.lp.rightMargin; v.lp.rightMargin = onUndo ? v._mr : 0; }
-    const bar = this.current = {message, onUndo, undone: false};
+    const now = performance.now(), bar = this.current = {message, onUndo, undone: false, shownAt: now, ends: now + ms};
+    const handle = {hide: () => { if (this.current === bar) this.hide(); }};
     clearTimeout(this.timer);
     this.timer = setTimeout(() => { if (this.current === bar) this.hide(); }, ms);
-    // No room clear of an open menu: the line goes at once.
-    if (this.place() === null) return {hide() {}};
+    this.parked = false;
     const was = f.visibility === VISIBLE;
+    // With a menu open the bar is placed at its new size (unseen until then: alpha 0 takes no tap).
+    if (this.menus.length) {
+      if (!was) { f.alpha = 0; f.visibility = VISIBLE; }
+      f.forceLayoutTree?.();
+      ctx.layoutRoot();
+    }
+    // No room clear of an open menu: the line waits out of sight until the menus close (place, park).
+    if (this.place() === null) { this.follow(); return handle; }
     f.visibility = VISIBLE;
     f.forceLayoutTree?.();
     f.requestLayout();
@@ -135,7 +148,7 @@ export class UndoBar {
     // Once it has its size (the room it makes in a window), and while a screen it came with settles.
     this.follow();
     f.el?.setAttribute('role', 'status');
-    return {hide: () => { if (this.current === bar) this.hide(); }};
+    return handle;
   }
 
   /** A menu opened or closed (src: the PopupLayout, the ListWidget showing its item menu, the Navbar). */
@@ -143,7 +156,9 @@ export class UndoBar {
     const at = this.menus.indexOf(src);
     if (!open) { if (at >= 0) this.menus.splice(at, 1); this.follow(); return; }
     if (at < 0) this.menus.push(src);
-    if (this.current && !this.current.onUndo) this.hide(true);
+    // A line that only says something and has been read goes; any other moves clear (place).
+    const c = this.current;
+    if (c && !c.onUndo && !this.parked && performance.now() - c.shownAt >= READ_MS) this.hide(true);
     else this.follow();
   }
 
@@ -161,18 +176,19 @@ export class UndoBar {
 
   /**
    * The bottom margin `want` moved so the bar keeps clear of every open menu: above the menu, else
-   * below it; null when neither has room.
+   * below it; null when neither has room. Where the bar is drawn counts: the margin takes up its slide
+   * (translationY), so it stands still clear of the menu while it slides in.
    */
   clearOfMenus(want, inset) {
     const root = this.ctx.root, f = this.frame, h = f.height, gap = Math.round(ROW_GAP_DP * this.ctx.dpr);
-    const top = this.host.getInsets?.().top ?? 0, fx = f.getLocationIn(null).x;
+    const top = this.host.getInsets?.().top ?? 0, fx = f.getLocationIn(null).x, ty = f.translationY || 0;
     for (let tries = 0, moved = true; moved && tries < 4; tries++) {
       moved = false;
       for (const m of this.menuBoxes()) {
-        const barTop = root.height - inset - want - h;
+        const barTop = root.height - inset - want - h + ty;
         if (barTop >= m.y + m.h || barTop + h <= m.y || fx >= m.x + m.w || fx + f.width <= m.x) continue;
-        if (m.y - gap - h >= top) want = root.height - inset - (m.y - gap);
-        else if (m.y + m.h + gap + h <= root.height - inset) want = root.height - inset - (m.y + m.h + gap + h);
+        if (m.y - gap - h >= top) want = root.height - inset - (m.y - gap) + ty;
+        else if (m.y + m.h + gap + h <= root.height - inset) want = root.height - inset - (m.y + m.h + gap + h) + ty;
         else return null;
         moved = true;
       }
@@ -199,10 +215,13 @@ export class UndoBar {
       const top = nb && nb.visibility === VISIBLE ? nb.getLocationIn(null).y : null;
       want = top === null ? this.baseBottom : Math.max(this.baseBottom, root.height - inset - top);
     }
-    if (this.menus.length && this.current && f.height) {
-      want = this.clearOfMenus(want, inset);
-      if (want === null) { this.hide(true); return null; }
+    if (this.menus.length && this.current) {
+      // (A bar out of sight keeps the size it last had; one never laid out is placed once it has one.)
+      if (f.height) want = this.clearOfMenus(want, inset);
+      else if (this.parked) want = null;
+      if (want === null) { this.park(); return null; }
     }
+    if (this.parked) this.unpark();
     if (lp.bottomMargin !== want) { lp.bottomMargin = want; f.requestLayout(); ctx.scheduleLayout(); }
     this.makeRoom(win ? top : null, want);
     return want;
@@ -252,10 +271,47 @@ export class UndoBar {
     });
   }
 
+  /**
+   * No room clear of the open menus: the bar is out of sight at once (it takes no tap) and its line
+   * waits, its time stopped, to show again once there is room (unpark).
+   */
+  park() {
+    if (this.parked) return;
+    this.parked = true;
+    clearTimeout(this.timer);
+    const c = this.current;
+    c.left = Math.max(READ_MS, c.ends - performance.now());
+    this.makeRoom(null, 0);
+    this.anim?.();
+    this.anim = null;
+    this.frame.visibility = GONE;
+    this.frame.invalidate();
+    this.ctx.scheduleLayout();
+  }
+
+  /** Room again: the waiting line slides in for the rest of its time, as read from now. */
+  unpark() {
+    this.parked = false;
+    const c = this.current, f = this.frame, now = performance.now();
+    c.shownAt = now;
+    c.ends = now + c.left;
+    this.timer = setTimeout(() => { if (this.current === c) this.hide(); }, c.left);
+    f.visibility = VISIBLE;
+    f.alpha = 0;
+    f.translationY = this.travel();
+    f.forceLayoutTree?.();
+    f.requestLayout();
+    this.ctx.scheduleLayout();
+    this.move(0, 1, animTime(this.ctx, IN_S));
+  }
+
   /** Hides the bar: sliding down, or at once (now) when it must not stand over a menu even while it goes. */
   hide(now = false) {
+    // Over an open menu it never slides down across it.
+    if (this.menus.length) now = true;
     clearTimeout(this.timer);
     this.current = null;
+    this.parked = false;
     this.stopFollow?.();
     this.stopFollow = null;
     this.makeRoom(null, 0);
