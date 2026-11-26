@@ -16,6 +16,7 @@ import {DSP} from './dsp/dsp.js';
 import {PlaybackLog} from './player/playback-log.js';
 import {installFeelLog} from './ui/feel-log.js';
 import {LayoutHeight, CLOSE_MS, TALL_MS} from './ui/layout-height.js';
+import {VISIBLE} from './res/values.js';
 import {AudioCache, retireDefaultCopies} from './library/audio-cache.js';
 import {AudioHeads} from './library/heads.js';
 import {installEqPresets} from './widgets/eq-preset-ui.js';
@@ -60,6 +61,22 @@ export async function loadModel(url) {
   if (!resp.ok) throw new Error('model ' + resp.status);
   const stream = resp.body.pipeThrough(new DecompressionStream('gzip'));
   return JSON.parse(await new Response(stream).text());
+}
+
+/**
+ * Where the mini player is, for home's pull down into the island (th/island/hand.js): its box in the page's CSS
+ * pixels while it shows the song loaded, on screen and free to drag (a screen with the navbar's second line, the menu
+ * sheet closed, no window, menu or popup open, no screen or navbar change running); else null.
+ */
+export function miniBox(ctx, container) {
+  const nb = ctx.navbar, top = ctx.topNav, t = ctx.player?.track;
+  if (!nb || !t || nb.lines < 2 || nb.sheet || ctx.dialogs?.length || top?.modals?.length) return null;
+  if (top?.scenes.running || nb.container()?.scenes.running) return null;
+  const list = nb.parent?.findViewById('navbar_list');
+  if (!list?.item || list.item.track !== t || !list.width || !list.height || ctx.root.findViewById('menu_placeholder')?.popup) return null;
+  for (let v = list; v; v = v.parent) if (v.visibility !== VISIBLE || v.alpha <= 0) return null;
+  const at = list.getLocationIn(null), r = container.getBoundingClientRect(), k = ctx.dpr;
+  return {left: r.left + at.x / k, top: r.top + at.y / k, right: r.left + (at.x + list.width) / k, bottom: r.top + (at.y + list.height) / k};
 }
 
 /** Window basis: screen size in dp drives resource buckets (the app window on Android). */
@@ -303,7 +320,7 @@ export async function boot() {
   // ?diag opens the playback diagnostics (Settings › Audio Outputs Detection Log).
   if (params.has('diag')) ctx.settingsUi?.open('audio_platform_log');
   const diag = {skin: skin.name, applied, unknown: [...unknownClasses], missingIcons: [...ctx.drawables.missingIcons], config};
-  window.__cp = {ctx, res, theme, decor, skins, diag, player, library, dsp: ctx.dsp};
+  window.__cp = {ctx, res, theme, decor, skins, diag, player, library, dsp: ctx.dsp, miniBox: () => miniBox(ctx, container)};
   return window.__cp;
 }
 

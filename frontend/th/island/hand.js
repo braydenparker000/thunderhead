@@ -66,12 +66,13 @@ function card(dy, fy) {
   const y = rubber(dy, 0, 160, 80), s = 1 - .3 * y / 160, w = innerWidth * s;
   return [(innerWidth - w) / 2, fy * innerHeight * (1 - s) + y, w, innerHeight * s, 40 * clamp(y / 120)];
 }
-/** A touch on the app in front, from its bottom or Podcasts' players; p is null for a second finger.
+/** A touch on the app in front, on Music's mini player (its miniBox) or Podcasts' players; p is null for a second finger.
  * @param {string} kind @param {any} w @param {any} e @param {any} p */
 export function pull(kind, w, e, p) {
   const l = st.layer, r = motionReduced();
   if (kind === 'down') {
-    const zone = w.document.getElementById('mini-player') ? e.target?.closest?.('#mini-player,.podcast-nav') : p?.clientY > w.innerHeight - 150;
+    const b = l?.id === 'music' && p && w.__cp?.miniBox?.(), x = p?.clientX, y = p?.clientY;
+    const zone = b ? x >= b.left && x < b.right && y >= b.top && y < b.bottom : l?.id === 'podcasts' && e.target?.closest?.('#mini-player,.podcast-nav');
     d = zone && p ? { x: p.clientX, y: p.clientY, fy: p.clientY / innerHeight, t: e.timeStamp, dy: 0, vy: 0, on: false } : null;
   } else if (d && l && p && kind === 'move') {
     // On the screen: the app's own pixels under its zoom (a test's touch has no screenY).

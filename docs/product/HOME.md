@@ -527,7 +527,8 @@ exact current rect and radius as the full-screen frame's clip origin. The app-co
 three waiting dots appear immediately if the app has not finished booting. The capsule scales
 down and fades by 30% of the growth. Back, the app's own way home (Podcasts' top-left arrow, a link
 to `/`, which would otherwise load home inside the frame), or a downward swipe reverses the clip, and
-the capsule returns from 70% of the shrink. The swipe starts in Music's bottom 150 px, or on Podcasts'
+the capsule returns from 70% of the shrink. The swipe starts on Music's mini player, when it is on screen
+(a song loaded, no window, menu or sheet over it: Music says where, `__cp.miniBox()`), or on Podcasts'
 mini player or tab bar (its page scrolls, so its list is left alone). Touch is read from touch
 events: a page that pans gets its pointer stream cancelled after a few pixels. Interrupting either direction
 preserves the spring's velocity. Completion waits for `whenResting()`, not a guessed timeout.
