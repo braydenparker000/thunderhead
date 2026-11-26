@@ -869,6 +869,21 @@ menus keep what they did (a row's own scenes and the list's level and zoom chang
   long task after start-up (10 s) with `what` ran in it (`idle:<job>`, else the handler and file the browser
   names, else `unnamed`) and each idle job's `longestPiece`; a transition's longest task gets `longWhat`
   (`frontend/music/src/ui/long-work.js`). Guard: `tests/music-idle-work.test.mjs`.
+- **A 15,000-song library** (2026-11-26; the phone's reports: freezes of 250–650 ms, nearly all in the first
+  5 s). Lab: the real page, 15,000 invented songs, 6x CPU. The snapshot was one IndexedDB record (`r2:index`,
+  ~30 MB with each song's inline waveform): ~1 s to read at every start, ~0.5 s to write. It is now in parts
+  (`library/snapshot.js`: a head `r2:snap`, parts of 500 songs `r2:p:<id>:<n>` in the sorted order, inline
+  waveforms apart as `r2:w:<song id>`, read when a song loads or is next), written beside the old one and
+  switched in one put, so a cut-off write leaves the old one whole; the first start reads `r2:index` once and
+  moves it. An idle piece may return a generator (`idle-work.js`): the category views (`library/groups.js`),
+  the shelves, All Songs' order (`list/sort-cache.js`, kept per library and sort) and the search's fields
+  (`list/search-prep.js`) are built in steps; the playing track's list waits for them and for a screen of
+  rows. A refreshed catalogue is sorted with the shown order as a hint and shown once its views are built
+  in idle slices (`Library.replaceTracks`). Search sends its text after 120 ms of no typing, its ranking
+  worked out in slices first (stopped by a newer key); Up next's and History's rows are made in idle time;
+  the rail places the list once a frame. Results are unchanged (`tests/music-groups-steps.test.mjs`,
+  `music-search-prep.test.mjs`, `music-snapshot.test.mjs`). Start at 6x, second open: the longest task
+  1,041 → ~200 ms (the model's parse), long tasks 3.3 s → ~0.8 s.
 - **Five seconds before any code ran** (the fourth report: `modules 5,067 ms`, first frame 6,387). `modules` is
   marked when the first module runs, which is only once the whole static graph is loaded: 106 files,
   1.5 MB, three levels deep from `src/app.js`. Music's worker served them network first, so every launch

@@ -213,15 +213,28 @@ export class ListScrollerView extends FastTextView {
 
   onPointerMove(e) {
     if (!this.state.pressed) return;
-    if (this.mode === 2) this.touchAZ(e.y);
-    else this.dragThumb(e.y);
+    // A drag places the list once a frame at most: the latest finger position, in the frame before
+    // its layout (a phone sends moves faster than it draws; each placed a page of rows).
+    const queued = this.moveY != null;
+    this.moveY = e.y;
+    if (!queued) this.ctx.onFrame(() => { this.applyMove(); return false; });
+  }
+
+  applyMove() {
+    const y = this.moveY;
+    this.moveY = null;
+    if (y == null || !this.state.pressed) return;
+    if (this.mode === 2) this.touchAZ(y);
+    else this.dragThumb(y);
   }
 
   onPointerUp() {
+    this.applyMove();
     this.press(false);
   }
 
   onPointerCancel() {
+    this.applyMove();
     this.press(false);
   }
 

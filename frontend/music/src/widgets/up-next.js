@@ -28,6 +28,7 @@ import {accelDecel, animClock, VelocityTracker, MIN_FLING_DP, MAX_FLING_DP} from
 import {openDialog} from './dialog.js';
 import {animTime} from './topnav.js';
 import {heardWhen} from '../player/play-history.js';
+import {prewarmWindows} from './queue-prewarm.js';
 
 export const WORDS = {
   upNext: 'Up next', history: 'History', playNext: 'Play next', addToQueue: 'Add to queue',
@@ -328,10 +329,8 @@ function openWindow(ctx, title, build) {
     setup: d => {
       const host = d.find('content');
       if (!host) return;
-      // One content per window, kept: its list and rows are made once (lists and rows listen on the
-      // bus for as long as they live).
-      content = (ctx.queueWindows ??= new Map()).get(title) ?? new QueueWindowLayout(ctx);
-      ctx.queueWindows.set(title, content);
+      // One content per window, kept (windowContent; made ahead: queue-prewarm.js): its rows listen while they live.
+      content = windowContent(ctx, title);
       content.parent?.removeView(content);
       content.list.swipe = null;
       content.list.moves = null;
@@ -344,6 +343,7 @@ function openWindow(ctx, title, build) {
   return dialog;
 }
 
+const windowContent = (ctx, title) => (ctx.queueWindows ??= new Map()).get(title) ?? ctx.queueWindows.set(title, new QueueWindowLayout(ctx)).get(title);
 /** Up next (B). */
 export function openUpNext(ctx) {
   const p = ctx.player;
@@ -487,6 +487,7 @@ export function queueMenuItems(ctx, items) {
 
 /** The menu items' commands. */
 export function installUpNext(ctx) {
+  prewarmWindows(ctx, [WORDS.upNext, WORDS.history].map(title => () => windowContent(ctx, title)));
   ctx.bus.subscribe('bus_gui', msg => {
     switch (msg) {
       case 'cmd_queue_play_next': queuePlaying(ctx, true); break;
