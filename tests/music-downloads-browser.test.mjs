@@ -142,14 +142,16 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   await page.goto(`${base}/music/?demo`);
   await page.waitForFunction(() => !!navigator.serviceWorker.controller && window.__cp?.ctx?.library?.tracks?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
 
-  /** A view's centre: by id, the header's menu ('header-menu'), or the cover's three dots ('cover-menu'). */
+  /** A view's centre: by id, the header's menu ('header-menu'), or the cover's three dots ('cover-menu'); only a view
+   * shown with every view above it (a header the list has let go keeps its menu's entries, hidden with it in the pool). */
   const where = (what) => page.evaluate((what) => {
     const { ctx } = window.__cp;
+    const shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
     let v = null;
     if (what === 'header-menu') v = ctx.listWidget.libList.active.get(-1)?.findViewById('menu');
     else if (what === 'cover-menu') v = ctx.listWidget.items.get(0)?.findViewById('menu');
-    else ctx.root.walk((x) => { if (!v && x.id === what && x.visibility === 0 && x.width > 0) v = x; });
-    if (!v || v.visibility !== 0 || !v.width) return null;
+    else ctx.root.walk((x) => { if (!v && x.id === what && shown(x)) v = x; });
+    if (!v || !shown(v)) return null;
     const a = v.getLocationIn(null);
     return { x: a.x + v.width / 2, y: a.y + v.height / 2 };
   }, what);
@@ -164,7 +166,12 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
     }, { message: `nothing to tap: ${what}` });
     await page.mouse.click(c.x, c.y);
   };
-  const shownText = () => page.evaluate(() => { const out = []; window.__cp.ctx.root.walk((v) => { if (v.visibility === 0 && v.width > 0 && typeof v.text === 'string' && v.text) out.push(v.text); }); return out; });
+  /** The texts shown: each view visible with every view above it. */
+  const shownText = () => page.evaluate(() => {
+    const out = [], shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
+    window.__cp.ctx.root.walk((v) => { if (typeof v.text === 'string' && v.text && shown(v)) out.push(v.text); });
+    return out;
+  });
   const says = (text) => until(async () => (await shownText()).includes(text), { message: `never said "${text}"` });
   const atRest = () => until(() => page.evaluate(() => { const lw = window.__cp.ctx.listWidget; return lw.mode === 'list' && !lw.trans && lw.libList.source === lw.stack[lw.stack.length - 1]; }), { message: 'the list never came to rest' });
   const dialogs = () => page.evaluate(() => window.__cp.ctx.dialogs?.length ?? 0);

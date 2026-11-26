@@ -105,11 +105,11 @@ const inMusic = async (page, fn, arg) => (await (await page.$('iframe[data-app=m
 /** Music's mini player's box, from Music itself (null while it is not there to pull). */
 const miniBox = (page) => inMusic(page, () => window.__cp.miniBox());
 const centre = (b) => ({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 });
-/** A view's box in Music's pixels: the player screen's tabs, its seek bar, the open window's title (else its frame) or
- * the menu sheet. */
+/** A view's box in Music's pixels: the player screen's tabs, its seek bar, the open window's title (else its frame),
+ * its frame, or the menu sheet. */
 const viewBox = (page, name) => inMusic(page, (name) => {
   const { ctx } = window.__cp, d = ctx.dialogs?.at(-1), t = d?.find('title');
-  const v = { tabs: ctx.navbar.buttons, seek: ctx.root.findViewById('waveseek'), title: t?.visibility === 0 && t.width ? t : d?.find('dialog_frame'), sheet: ctx.navbar.ext }[name];
+  const v = { tabs: ctx.navbar.buttons, seek: ctx.root.findViewById('waveseek'), title: t?.visibility === 0 && t.width ? t : d?.find('dialog_frame'), frame: d?.find('dialog_frame'), sheet: ctx.navbar.ext }[name];
   const r = v.el.getBoundingClientRect();
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 }, name);
@@ -123,10 +123,10 @@ async function screen(page, to) {
 }
 const front = (page) => page.evaluate(() => { const f = document.querySelector('iframe[data-app=music]'); return { away: f.classList.contains('away'), island: document.body.dataset.island ?? null, clip: f.parentElement.style.clipPath, zoom: f.style.transform }; });
 const whole = { away: false, island: null, clip: '', zoom: '' };
-/** A fling down from `from` that would minimise the app were it the pull: the app never follows it, and is whole and
- * in front after. */
-async function stays(page, from, what) {
-  const seen = await drag(page, { from, by: 100, gap: 4 });
+/** A fling down from `from` (100 px unless `by`) that would minimise the app were it the pull: the app never follows
+ * it, and is whole and in front after. */
+async function stays(page, from, what, { by = 100 } = {}) {
+  const seen = await drag(page, { from, by, gap: 4 });
   assert.ok(seen.length && seen.every((s) => s.zoom === 1 && !s.clip), `${what}: the app does not follow the finger`);
   await settle(page);
   assert.deepEqual(await front(page), whole, `${what}: it stays whole, in front`);
@@ -193,11 +193,12 @@ test('over the mini player, Up next and the menu sheet close on a drag down and 
     assert.equal(await miniBox(page), null, 'a window over it: no mini player to pull');
     await stays(page, at, 'Up next open, from the mini player\'s place');
     // (A release on the window's shim has closed it; a drag on its list springs it back. Once it is closed or at rest
-    // again, on the window, its title drags it down.)
+    // again, on the window, its title drags it down: past half the window's height, the bottom sheet's own threshold
+    // (BaseDialog: dragThreshold 0.5, a fling only past 1800 dp/s), so it closes as it is let go.)
     await until(() => inMusic(page, () => { const d = window.__cp.ctx.dialogs ?? []; return !d.length || !d[0].host.scenes.running; }), { message: 'Up next never came to rest' });
     if (await upNext()) {
-      const title = await viewBox(page, 'title');
-      await stays(page, { x: centre(title).x, y: Math.min(centre(title).y, title.top + 16) }, 'Up next dragged down');
+      const title = await viewBox(page, 'title'), frame = await viewBox(page, 'frame');
+      await stays(page, { x: centre(title).x, y: Math.min(centre(title).y, title.top + 16) }, 'Up next dragged down', { by: Math.ceil((frame.bottom - frame.top) * 0.7) });
     }
     await until(() => inMusic(page, () => !window.__cp.ctx.dialogs?.length), { message: 'Up next did not close' });
     // The menu sheet: the same.
