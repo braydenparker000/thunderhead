@@ -19,6 +19,10 @@ import {searchMask, setSearchMask, searchOrder, setSearchOrder} from '../widgets
 import {KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
 import {SHELF_WORDS} from '../library/shelves.js';
 import {baseKey, ownOpts, putOpts, readOpts, touchOpts, writeOpts} from './entry-opts.js';
+import {limitApplies} from './stat-lists.js';
+
+// Max Items' note while it does not apply (a statistics list sorted another way).
+const LIMIT_OFF = 'Sorted another way, every song shows: nothing is cut.';
 
 const STORE = 'cp-list-opts';
 export const REVERSE = 0x40000000;
@@ -334,7 +338,8 @@ export function openListOptions(ctx, src, onChange, {fromSettings = false, onClo
   const sorts = src.sortKind ? SORTS[src.sortKind] : null;
   const zooms = ZOOMS[src.zoomKind];
   const title = (str(ctx, 'list_opts_s') ?? '%s').replace('%s', src.title || str(ctx, 'library'));
-  const change = patch => { saveListOpts(key, patch); onChange?.(); };
+  let limitState = null;
+  const change = patch => { saveListOpts(key, patch); limitState?.(); onChange?.(); };
   const d = openDialog(ctx, {
     style: 'dialog_ListOptsActivity', title, onClosed,
     buttons: {positive: str(ctx, 'close')},
@@ -362,10 +367,19 @@ export function openListOptions(ctx, src, onChange, {fromSettings = false, onClo
       if (src.limitable) {
         const g = d.find('limit_group');
         g.setVisibility(VISIBLE);
-        const cur = src.limit;
-        for (const r of radioGroup(g, r => change({limit: parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10)}))) {
-          r.setChecked(parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10) === cur);
-        }
+        const value = r => parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10);
+        const made = radioGroup(g, r => change({limit: value(r)}));
+        // A statistics list sorted another way cuts nothing (stat-lists.js): Max Items shows as not
+        // applying, none picked, with a short note, until a sort by its own ranking (or a limit kept).
+        let note = null;
+        limitState = () => {
+          const on = !src.statList || limitApplies(src.statList, listOpts(key));
+          const cur = listOpts(key).limit ?? src.limit;
+          for (const r of made) { r.setEnabled(on); r.setChecked(on && value(r) === cur); }
+          if (!on && !note && made.length) note = addHint(ctx, g, made[0], LIMIT_OFF);
+          note?.setVisibility(on ? GONE : VISIBLE);
+        };
+        limitState();
       }
       // Min Duration (hi1, Long Files): 2..120 minutes; saved when the drag ends.
       if (src.minDurationMs !== undefined) {

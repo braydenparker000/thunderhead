@@ -3,13 +3,15 @@
 // each chip and the rotating row. Built as steps (library/groups.js) in idle slices (idleSteps below),
 // every pass over the songs yielding each STEP songs, so Home opens at once on the last result and
 // takes the new one when it is ready; Home's row views are made ahead in the same slices. Kept until
-// the library, a playlist, a rating or the play history changes (stale), never stored. The rules of
-// each shelf are rules.js's.
+// the library, a playlist, a rating or the play history changes (stale); the last result is also kept
+// on the phone by reference (kept.js), so the next start shows its shelves at once and swaps in the new
+// ones when they are built. The rules of each shelf are rules.js's.
 import {busy, SLICE_MS, QUIET_MS} from '../view/idle-work.js';
 import {pieceRan} from '../ui/long-work.js';
 import {prewarmCovers} from './shelf.js';
 import {run, sortSteps, STEP} from '../library/groups.js';
 import {albumYear} from '../library/shelves.js';
+import {readKept, saveKept} from './kept.js';
 import {DAY, isLiked, isForgotten, playsLately, mostPlayedGroups, lastPlayOf, playlistRecent} from './rules.js';
 
 export const SHELF_MAX = 12, TILES = 6, RECENT_SONGS = 4, NEW_SONGS = 8;
@@ -128,7 +130,12 @@ function* rotatingSteps(ctx, albums, now) {
  * is built in idle time after a change (stale), and listeners hear when it is new.
  */
 export function homeData(ctx) {
-  const k = ctx.homeDataKept;
+  let k = ctx.homeDataKept;
+  // The first Home of this start: the shelves the phone kept from the last one, built again meanwhile.
+  if (!k && ctx.library?.tracks?.length) {
+    const value = readKept(ctx);
+    if (value) k = ctx.homeDataKept = {tracks: ctx.library.tracks, value, stale: true};
+  }
   if (!k || k.tracks !== ctx.library?.tracks || k.stale) warmHome(ctx);
   return ctx.homeDataKept?.value ?? null;
 }
@@ -137,6 +144,7 @@ export function homeData(ctx) {
 export function homeDataNow(ctx) {
   const value = run(homeDataSteps(ctx));
   ctx.homeDataKept = {tracks: ctx.library.tracks, value, stale: false};
+  saveKept(value);
   ctx.bus.post('bus_gui', 'msg_home_data_ready', null, {});
   return value;
 }
@@ -188,6 +196,7 @@ export function warmHome(ctx) {
     // Changed meanwhile (the library, or marked stale again): built once more.
     if (ctx.library.tracks !== tracks || ctx.homeGen !== gen) { warmHome(ctx); return; }
     ctx.homeDataKept = {tracks, value, stale: false};
+    saveKept(value);
     ctx.bus.post('bus_gui', 'msg_home_data_ready', null, {});
   });
   return ctx.homeWarming;

@@ -30,6 +30,9 @@ export const STAT_LISTS = {
 /** Whether a sort value is the list's own ranking (Reverse aside). */
 export const ownRanking = (stat, sort) => sort == null || ((sort ^ stat.sort) & ~REVERSE) === 0;
 
+/** Whether Max Items cuts anything under these options: sorted by the list's own ranking, or a limit the user chose. */
+export const limitApplies = (stat, opts = {}) => opts.limit != null || ownRanking(stat, opts.sort);
+
 /**
  * A statistics list's songs by the rule above: {tracks, limit, ranked}. opts are its saved List
  * Options ({sort, limit, from}); ranked: the songs are in the list's own ranking (turned round when
@@ -39,7 +42,7 @@ export function statTracks(tracks, stat, opts = {}) {
   const from = stat.clearable ? opts.from ?? 0 : 0;
   const ranked = ownRanking(stat, opts.sort);
   const limit = Math.max(2, opts.limit ?? DEFAULT_LIMIT);
-  const cut = opts.limit != null || ranked ? limit : NO_LIMIT;
+  const cut = limitApplies(stat, opts) ? limit : NO_LIMIT;
   let picked = tracks.filter(t => stat.keep(t, from));
   picked.sort((a, b) => stat.rank(a, b) || byTitle(a, b));
   if (cut !== NO_LIMIT) picked = picked.slice(0, cut);

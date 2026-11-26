@@ -34,7 +34,8 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): its category home's rows and List Options' categories are read.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
 
   /** The view's centre: by id, or by its text; in the newest dialog, the list header, or anywhere. Only a view shown
@@ -88,31 +89,30 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   }, inventedLibrary());
   await atRest();
 
-  // The Library home: no Streams or Bookmarks, not even with a saved setting that has them; Queue and
-  // Recently played stay where they were.
+  // The Library home: no Streams or Bookmarks, not even with a saved setting that has them; nor the Queue
+  // and Recently played (Up next and History in the playing song's menu), which still open as lists.
   const home = await page.evaluate(() => { const lw = window.__cp.ctx.listWidget; lw.openHome(); return { rows: lw.stack[0].items.map((c) => c.title), offered: lw.stack[0].homeCategories.map((c) => c.title) }; });
-  for (const gone of ['streams', 'bookmarks']) {
+  for (const gone of ['streams', 'bookmarks', 'queue', 'recently_played']) {
     assert.ok(!home.rows.includes(gone), `${gone} is not a row`);
     assert.ok(!home.offered.includes(gone), `${gone} is not offered in List Options`);
   }
-  assert.equal(home.rows[home.rows.indexOf('playlists') + 1], 'queue');
-  assert.ok(home.rows.indexOf('recently_played') > home.rows.indexOf('queue'));
+  assert.equal(home.rows[home.rows.indexOf('playlists') + 1], 'most_played');
   const saved = await page.evaluate(() => { const { ctx } = window.__cp; ctx.settings.library_lists = String((1 << 22) - 1); const lw = ctx.listWidget; lw.openHome(); return lw.stack[0].items.map((c) => c.title); });
-  assert.ok(!saved.includes('streams') && !saved.includes('bookmarks'), 'a saved mask with their bits shows neither');
+  assert.ok(['streams', 'bookmarks', 'queue', 'recently_played'].every((c) => !saved.includes(c)), 'a saved mask with their bits shows none of them');
   await atRest();
   const words = await page.evaluate(() => { const out = []; window.__cp.ctx.listWidget.libList.walk((v) => { if (v.visibility === 0 && typeof v.text === 'string') out.push(v.text); }); return out; });
   assert.ok(words.includes('All Songs') && !words.includes('Streams') && !words.includes('Bookmarks'), `the home's rows: ${words.join(' / ')}`);
 
   // With none yet, the Playlists list and the empty Queue each say so in one quiet line (and the Playlists
   // list draws no letter column beside it).
-  /** A home category open (by its kind), at rest; then its list shows `line` (its rows come with the list's next
-   * layout, after the source it opens is built). */
+  /** A home category open (by its kind: a row of the home, else the list itself, as the Queue opens), at rest; then
+   * its list shows `line` (its rows come with the list's next layout, after the source it opens is built). */
   const listSays = async (kind, line) => {
     await page.evaluate(async (kind) => {
       const { ctx } = window.__cp, lw = ctx.listWidget;
       lw.openHome();
       const m = await import('/music/src/list/sources.js');
-      lw.open(m.categorySource(ctx, lw.libList, lw.nav, lw.stack[0].items.find((c) => c.kind === kind)));
+      lw.open(m.categorySource(ctx, lw.libList, lw.nav, lw.stack[0].items.find((c) => c.kind === kind) ?? m.homeCategory({ queue: 10 }[kind])));
     }, kind);
     await atRest();
     await until(() => page.evaluate((line) => {

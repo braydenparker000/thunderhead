@@ -137,7 +137,8 @@ test('the navbar icons, the library symbols and the A–Z bar stay painted', opt
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): its navbar's Library and Equaliser icons and its home rows' symbols are checked.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.feelLog, null, { timeout: 60_000 });
   await until(() => page.evaluate(() => window.__cp.ctx.prebuilt?.done !== false), { message: 'the screens were never built' });
 

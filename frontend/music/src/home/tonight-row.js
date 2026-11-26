@@ -4,8 +4,11 @@
 // as the list header's play button, Why and Dismiss as its text buttons; Why opens the reason under
 // them in the second-line type. The card the shell made (th/ported/arrangement.js) stays the source:
 // its words are read from it and each button here presses its own (so the senses, the play and the
-// dismissal are the card's), and it is never shown while Home is on (app.css hides it).
+// dismissal are the card's), and it is never shown while Home is on (app.css hides it). Hidden, the
+// shell's card never comes on screen to report itself seen; this one does instead (watchSeen), as the
+// shell's would: once most of it has been on screen, the library shown (ctx.tonightSeen, tonight.js).
 import {MeasureSpec} from '../view/view.js';
+import {whenStill} from '../view/motion.js';
 import {FastButton} from '../view/text.js';
 import {GONE, VISIBLE} from '../res/values.js';
 import {RowView, styled, tileBacking, smallRadius} from './row-view.js';
@@ -50,6 +53,40 @@ export class TonightCard extends RowView {
     this.play.onClick = press('.th-arr-go');
     this.whyButton.onClick = () => { this.ctx.tonightWhy = !this.ctx.tonightWhy; this.ctx.homeRefresh?.(); };
     this.dismiss.onClick = () => { press('.th-arr-x')(); this.ctx.tonightWhy = false; this.ctx.homeRefresh?.(); };
+    // The library coming on screen (once its transition has ended): looked at again.
+    ctx.bus?.subscribe('bus_gui', msg => {
+      if (msg === 'msg_nav_changed' && this.card) requestAnimationFrame(() => whenStill(ctx, () => this.watchSeen(), this));
+    });
+  }
+
+  /** Whether the card is on the library's screen: the library shown, the card and every view above it shown. */
+  shown() {
+    const {ctx} = this;
+    if (ctx.listWidget?.mode !== 'list' || ctx.topNav?.nav !== 'nav_lib') return false;
+    for (let p = this; p; p = p.parent) { if (p.visibility !== VISIBLE) return false; if (p === ctx.root) return this.width > 0; }
+    return false;
+  }
+
+  /**
+   * "Seen", once a day (th/ported/arrangement.js seen), when 60 % of the card has been on screen with the
+   * library shown (the shell's card's own rule, its watch). Armed again on each bind and each trip to the
+   * library until it has been reported for this card.
+   */
+  watchSeen() {
+    const {ctx, card} = this, report = ctx.tonightSeen;
+    this.seenWatch?.disconnect();
+    this.seenWatch = null;
+    // (The measuring card, ctx.tonightMeasure, is never in the page: nothing to watch.)
+    if (this === ctx.tonightMeasure || !card || !report || ctx.tonightSeenFor === card || typeof IntersectionObserver === 'undefined' || !this.el) return;
+    const io = this.seenWatch = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting) || !this.shown()) return;
+      io.disconnect();
+      if (this.seenWatch === io) this.seenWatch = null;
+      if (ctx.tonightSeenFor === card) return;
+      ctx.tonightSeenFor = card;
+      report(card);
+    }, {threshold: 0.6});
+    io.observe(this.el);
   }
 
   bindCard(card, open) {
@@ -63,6 +100,7 @@ export class TonightCard extends RowView {
     this.why.visibility = open && w.why ? VISIBLE : GONE;
     this.whyButton.setActivated?.(!!open);
     this.requestLayout();
+    this.watchSeen();
   }
 
   /** Each piece's box for a width: {height, boxes: [[view, x, y, w, h]]}. */

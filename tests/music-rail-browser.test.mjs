@@ -68,7 +68,8 @@ test('the rail matches the sort; a library change leaves the list where it was',
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): the lists open from its home list, and "not thrown back to the home" is that home.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
   await page.evaluate(async (lib) => {
     const { ctx } = window.__cp;

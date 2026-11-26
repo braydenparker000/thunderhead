@@ -312,7 +312,9 @@ cover advances exactly one track; long-press opens home with the track attached.
   the strip beside it and moves along it is the rail's, a tap there still reaches the row
   (`list/scroller.js`, `input.js` `stripAt`). Month and year labels keep the letters' size, the column
   widening a little for them first (at most 14 dp), smaller only where they still do not fit. A list
-  that says it is empty (one quiet line) draws no rail.
+  that says it is empty (one quiet line) draws no rail, and an entry's albums with a "Singles" section
+  after them (an album artist's, genre's, composer's or year's) take the plain thumb: the albums' sort
+  field does not name the songs under Singles.
 - **Albums:** two-column grid of covers (radius 16) with title and artist under each. Sort: Title ·
   Artist · Year · Recently added.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
@@ -326,7 +328,9 @@ cover advances exactly one track; long-press opens home with the track attached.
   else: sorted by the list's own ranking (the default; Reverse only turns it round) the list is the
   top 200 in that ranking; sorted any other way it is every song the filter keeps, in that sort, with
   no silent cut, unless the user chose a Max Items themselves, which then takes the top of the
-  ranking first ("the 500 most played, by title").
+  ranking first ("the 500 most played, by title"). While nothing is cut (sorted another way, no Max
+  Items chosen), List Options shows Max Items disabled, none picked, with the note "Sorted another way,
+  every song shows: nothing is cut."
 - **List Options and pinch zoom belong to the list** (`list/entry-opts.js`, owner audit
   2026-11-26): an entry's list (an album's songs, an artist's page, a genre's, album artist's,
   composer's or year's albums, a playlist, a folder, a Folders Hierarchy level) keeps its own sort,
@@ -390,6 +394,50 @@ the lists in `list/sources.js`):
   deleted.
 - Singles and Possible duplicates are on for every saved home layout until unticked in List Options
   (`library_lists` bits 20 and 21; bit 22 marks a layout saved with them).
+- The classic home has no Queue or Recently played row, nor are they offered in its List Options
+  (owner, 2026-11-26): Up next and History in the playing song's menu took their place. Their lists
+  still open (the player's source list, Home's "See all", a start category saved before).
+
+#### 2.6.2 Home and Library: the layout (the default since 2026-11-26, owner-approved)
+
+The ported player's library has two layouts (`frontend/music/src/home/`, `switch.js`). The new one is
+the default; Settings › Lists › Look and feel › **Classic library layout** (`cp_classic_library`, off by
+default) brings back the classic one: the navbar's Library, Equaliser, Search, More and the category
+home of §2.6. The option applies at once, without a reload: the navbar is redressed and the library's
+first screen is made again where it is (shown, in place; under levels, which stay; built ahead, dropped
+and built again when shown), and what plays, the queue and the player's screens stay as they are
+(`home/install.js` `setLayout`). `?home2` forces the new layout and `?home1` the classic one for a page
+load (the demo page and the tests).
+
+- **The bar:** Home, Search, Library, More, the same buttons in the same bar (Home and Library with
+  glyphs of their own). Home and Library are two roots of the library screen: a tab's button from
+  elsewhere shows it where it was left; on its root it scrolls to the top; above the root it goes back
+  to it. Each root keeps its scroll per chip, and Back from a tab's root goes once to the tab before.
+- **Home:** the chips All, Playlists, Albums, Artists, New, then what the chip shows. All: six tiles of
+  what was played last (Liked songs first), the "tonight" mix as a card when there is one (§10.4; it
+  reports itself seen as the shell's card would, once most of it has been on screen with the library
+  shown), then the shelves Recently added, Most played lately, Forgotten favourites, Recently played
+  (song rows) and a decade or genre that changes each day. Each shelf is a header with "See all" over a
+  sideways strip of covers in the album grid's look. The other chips show their kind's tiles and shelves.
+- **Shelves' rules** (`home/rules.js`): liked is a song rated like; Forgotten favourites are liked or
+  played 5 times or more and last played 90 days ago or longer, newest forgotten first; Most played
+  lately counts the play history of the last 30 days (the songs' play counts while it holds fewer than
+  25 plays of that span); a playlist's recent is the later of its change and its songs' last play; the
+  rotating shelf is a decade on even days and a genre on odd days, the next one with four albums or more.
+- **Home's data** is built in idle slices (`home/data.js`) and kept until the library, a playlist, a
+  rating or the play history changes. The last result is also kept on the phone by reference
+  (`home/kept.js`, `cp-home-shelves`: song and playlist ids, albums by their songs, artists and genres
+  by the name the library groups them under), so a start shows the shelves at once; they are built again
+  in idle time and the new ones take the same rows with the scroll kept.
+- **Library:** one screen: the kind chips Playlists, Albums, Artists, Songs, Folders and a sort line
+  (Recent, Name, Added; a hold opens List Options) with a list or grid toggle, over the existing list of
+  that kind. Playlists starts with Liked songs and All music (All Songs), then the playlists, the most
+  recent first. Sort and view are the lists' own List Options values.
+- **Pinch zoom** on every Library list steps through the lists' own levels and is kept as List Options
+  keep it.
+- **The Equaliser** is a sheet: held on More and drawn up it rises with the finger from behind the mini
+  player; let go past a third (or flung) it opens, else it falls back. Back, a swipe down from its top or
+  another button closes it the same way; the menu sheet's Equaliser line raises it too.
 
 ### 2.7 Detail pages
 
@@ -1500,6 +1548,7 @@ small `/export/` page (owner OK needed, it deploys to the old repo). Full proced
 | Offline space | 256 MB … 4 GB | 512 MB |
 | Data saver | on/off | off (follows the browser's Data Saver when that is on) |
 | Keep playing when the list ends | on/off | on **[proposal]** |
+| Classic library layout (the player's Settings › Lists › Look and feel; §2.6.2) | on/off | off |
 | Playback log | opens §5.10 | — |
 
 Sound (EQ) is reached from Now Playing, not here, because it is used while listening.

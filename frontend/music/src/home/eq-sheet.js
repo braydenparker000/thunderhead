@@ -41,7 +41,7 @@ export function installEqSheet(ctx, buttons, more) {
   // any screen but the library's), so it is there as it was when the sheet goes down again.
   const lw = ctx.listWidget;
   if (lw) {
-    const keep = mode => mode === 'aa' && top.nav === 'nav_eq' && lw.mode === 'list';
+    const keep = mode => ctx.homeV2 && mode === 'aa' && top.nav === 'nav_eq' && lw.mode === 'list';
     const setMode = lw.setMode.bind(lw), animate = lw.animateModeChange.bind(lw);
     lw.setMode = (mode, ...rest) => (keep(mode) ? undefined : setMode(mode, ...rest));
     lw.animateModeChange = (mode, ...rest) => (keep(mode) ? true : animate(mode, ...rest));
@@ -123,7 +123,9 @@ export function installEqSheet(ctx, buttons, more) {
   };
 
   // Every way to the Equaliser and from it goes as the sheet (the menu's line, Back, another button).
+  // (Only while the v2 layout is on: the classic one keeps the Equaliser a screen of its own.)
   top.go = (scene, nav, animate = true) => {
+    if (!ctx.homeV2 && !s) return go(scene, nav, animate);
     if (s?.drag) return;
     if (animate && nav === 'nav_eq' && top.nav !== 'nav_eq' && !s && !top.scenes.running) {
       ctx.navbar?.sheet && ctx.bus.post('bus_gui', 'cmd_navbar_sheet_close', null);
@@ -140,7 +142,7 @@ export function installEqSheet(ctx, buttons, more) {
   };
   // Back from the Equaliser: down to the screen it rose over (before the library takes Back for its levels).
   window.addEventListener('popstate', e => {
-    if (top.nav !== 'nav_eq' || ctx.dialogs?.length || ctx.settingsUi?.isOpen || ctx.subAAEditor?.editing) return;
+    if (!ctx.homeV2 || top.nav !== 'nav_eq' || ctx.dialogs?.length || ctx.settingsUi?.isOpen || ctx.subAAEditor?.editing) return;
     e.stopImmediatePropagation();
     top.navigate(navBefore);
   }, true);
@@ -152,7 +154,7 @@ export function installEqSheet(ctx, buttons, more) {
 
   // Up from More (held or not): the sheet follows the finger.
   buttons.onInterceptStart = (start, now) => {
-    if (start.target !== more || s || ctx.navbar?.sheet || top.nav === 'nav_eq' || top.scenes.running) return false;
+    if (!ctx.homeV2 || start.target !== more || s || ctx.navbar?.sheet || top.nav === 'nav_eq' || top.scenes.running) return false;
     const dy = now.rootY - start.rootY, dx = now.rootX - start.rootX;
     if (dy > -slop || Math.abs(dx) > Math.abs(dy)) return false;
     more.setPressed(false);
@@ -186,7 +188,7 @@ export function installEqSheet(ctx, buttons, more) {
     if (!eq || eq._sheetDown) return;
     eq._sheetDown = true;
     eq.onInterceptStart = (start, now) => {
-      if (top.nav !== 'nav_eq' || s || top.scenes.running) return false;
+      if (!ctx.homeV2 || top.nav !== 'nav_eq' || s || top.scenes.running) return false;
       const y = start.rootY - eq.getLocationIn(null).y, dy = now.rootY - start.rootY;
       if (y > TOP_DP * dpr || dy < slop || Math.abs(now.rootX - start.rootX) > dy) return false;
       begin(false, top.sceneFor(navBefore));

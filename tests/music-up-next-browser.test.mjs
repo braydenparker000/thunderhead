@@ -151,7 +151,8 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): the Undo bar's place over the library is measured against its library screen.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && window.__cp.ctx.listWidget?.items?.get(0), null, { timeout: 30_000 });
 
   /** A view's box in CSS pixels: the cover's three dots ('cover-menu'), the open menu ('menu'), the Undo bar ('bar'), the

@@ -191,16 +191,16 @@ export function watch(a, el) {
 }
 
 /** Reads the app's arrangement and, if there is one, puts its card where `place` says (it is given
- * the card) and watches it come on screen. Never throws; the card, or null.
+ * the card and the arrangement) and watches it come on screen. Never throws; the card, or null.
  * @param {string} app @param {string} slot @param {(a: Arrangement) => Face | null} face
- * @param {(card: HTMLElement) => void} place @param {() => void} [gone] */
+ * @param {(card: HTMLElement, a: Arrangement) => void} place @param {() => void} [gone] */
 export async function mount(app, slot, face, place, gone) {
   try {
     const a = await current(app, slot);
     const f = a && face(a);
     if (!a || !f) return null;
     const el = card(a, f, gone);
-    place(el);
+    place(el, a);
     watch(a, el);
     return el;
   } catch {

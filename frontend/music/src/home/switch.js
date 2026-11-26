@@ -1,14 +1,27 @@
-// The v2 library layout (a prototype the owner chooses, 2026-11-26): Home, Search, Library and More in
-// the navbar, a Home of shelves and a one-screen Library with chips. Off unless the setting home_v2 is
-// on, or the page is opened with ?home2 (the demo page shows it that way). Nothing else changes while
-// it is off: the navbar, the library home and its lists are as they were.
+// The library layout (owner, 2026-11-26): the v2 layout is the default — Home, Search, Library and More
+// in the navbar, a Home of shelves and a one-screen Library with chips. Settings › Lists › Look and feel ›
+// "Classic library layout" (cp_classic_library) brings back the classic one: Library, Equaliser, Search,
+// More and the category home. The page can force either: ?home2 the v2 layout, ?home1 the classic one
+// (the demo page and the tests). The option applies at once, without a reload (install.js setLayout).
+
+/** The option's key (settings.js withClassicSwitch). */
+export const CLASSIC_KEY = 'cp_classic_library';
+
+/** The layout the page asks for: true (?home2), false (?home1), or null (none). */
+export function forcedLayout() {
+  try {
+    const q = new URLSearchParams(globalThis.location?.search ?? '');
+    if (q.has('home2')) return true;
+    if (q.has('home1')) return false;
+  } catch { /* no location */ }
+  return null;
+}
 
 /** Whether the v2 layout is on for this page. */
 export function homeV2(ctx) {
   if (ctx?.homeV2 !== undefined) return ctx.homeV2;
-  let query = false;
-  try { query = new URLSearchParams(globalThis.location?.search ?? '').has('home2'); } catch { /* no location */ }
-  const on = query || ctx?.settings?.home_v2 === true || ctx?.settings?.home_v2 === 'true';
+  const v = ctx?.settings?.[CLASSIC_KEY];
+  const on = forcedLayout() ?? !(v === true || v === 'true');
   if (ctx) ctx.homeV2 = on;
   return on;
 }

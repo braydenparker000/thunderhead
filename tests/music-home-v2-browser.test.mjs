@@ -48,27 +48,8 @@ function inventLibrary() {
   return tracks;
 }
 
-test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zoom, the Equaliser sheet, Forgotten favourites', opts, async () => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo&home2`);
-  await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget && !!window.__cp.ctx.homeTabs, null, { timeout: 60_000 });
-  await page.evaluate(async (src) => {
-    const { ctx } = window.__cp;
-    await ctx.library.r2Ready?.catch(() => {});
-    const tracks = eval(`(${src})`)();
-    ctx.library.withUserData(tracks);
-    ctx.library.setTracks(tracks);
-    const now = Date.now(), DAY = 86_400_000;
-    ctx.playlists.items = [['Late drive', 2, 3], ['Sunday', 9, 17], ['Focus', 40, 29]].map(([name, ago, step], i) => ({
-      id: 'hvp' + i, name, ids: Array.from({ length: 10 }, (_, k) => tracks[(k * step + i) % tracks.length].id), created: now - (ago + 30) * DAY, modified: now - ago * DAY,
-    }));
-    ctx.playlists.changed();
-    ctx.bus.post('bus_gui', 'cmd_nav_to_lib');
-  }, inventLibrary.toString());
-
+/** The helpers the tests share, for a page with touch: the screen's state, the list at rest, taps, touches and reads. */
+async function helpers(context, page) {
   const cdp = await context.newCDPSession(page);
   const state = () => page.evaluate(() => {
     const { ctx } = window.__cp, lw = ctx.listWidget, top = lw.stack[lw.stack.length - 1];
@@ -80,6 +61,23 @@ test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zo
     const { ctx } = window.__cp, lw = ctx.listWidget;
     return ctx.topNav.nav === 'nav_lib' && !ctx.topNav.scenes.running && lw.mode === 'list' && !lw.trans && !lw.pinch && lw.libList.source === lw.stack[lw.stack.length - 1] && lw.libList.active.size > 0;
   }), { message: 'the list never came to rest' });
+  const { where, tap } = tapper(page);
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, i) => ({ x: p.x, y: p.y, id: i + 1 })) });
+  /** Two fingers about (x, y) from d0 apart to d1 apart. */
+  const pinch = async (x, y, d0, d1) => {
+    const at = (d) => [{ x, y: y - d / 2 }, { x, y: y + d / 2 }];
+    await touch('touchStart', at(d0));
+    for (let i = 1; i <= 12; i++) await touch('touchMove', at(d0 + ((d1 - d0) * i) / 12));
+    await touch('touchEnd', []);
+  };
+  const saved = (key) => page.evaluate((key) => JSON.parse(localStorage.getItem('cp-list-opts') || '{}')[key] ?? {}, key);
+  const levels = (kind) => page.evaluate(async (kind) => (await import('/music/src/list/list-opts.js')).ZOOMS[kind].map((z) => z.value), kind);
+  const rowsOf = () => page.evaluate(() => (window.__cp.ctx.listWidget.libList.source.rows ?? []).map((r) => ({ type: r.type, title: r.title ?? null, items: r.items?.map((it) => it.record.title) ?? null })));
+  return { cdp, state, atRest, where, tap, touch, pinch, saved, levels, rowsOf };
+}
+
+/** Taps for a page: where(q) is a view's centre where a tap reaches it, or null; tap(q) taps it once it is shown, reachable and still. */
+function tapper(page) {
   /** A view's centre where a tap reaches it (input.js hitTest: it or the view above it that takes taps), or null. */
   const where = (q) => page.evaluate(async (q) => {
     const { ctx } = window.__cp;
@@ -113,17 +111,30 @@ test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zo
     }, { message: `nothing to tap: ${JSON.stringify(q)}` });
     await page.mouse.click(c.x, c.y);
   };
-  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, i) => ({ x: p.x, y: p.y, id: i + 1 })) });
-  /** Two fingers about (x, y) from d0 apart to d1 apart. */
-  const pinch = async (x, y, d0, d1) => {
-    const at = (d) => [{ x, y: y - d / 2 }, { x, y: y + d / 2 }];
-    await touch('touchStart', at(d0));
-    for (let i = 1; i <= 12; i++) await touch('touchMove', at(d0 + ((d1 - d0) * i) / 12));
-    await touch('touchEnd', []);
-  };
-  const saved = (key) => page.evaluate((key) => JSON.parse(localStorage.getItem('cp-list-opts') || '{}')[key] ?? {}, key);
-  const levels = (kind) => page.evaluate(async (kind) => (await import('/music/src/list/list-opts.js')).ZOOMS[kind].map((z) => z.value), kind);
-  const rowsOf = () => page.evaluate(() => (window.__cp.ctx.listWidget.libList.source.rows ?? []).map((r) => ({ type: r.type, title: r.title ?? null, items: r.items?.map((it) => it.record.title) ?? null })));
+  return { where, tap };
+}
+
+test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zoom, the Equaliser sheet, Forgotten favourites', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/music/?demo&home2`);
+  await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget && !!window.__cp.ctx.homeTabs, null, { timeout: 60_000 });
+  await page.evaluate(async (src) => {
+    const { ctx } = window.__cp;
+    await ctx.library.r2Ready?.catch(() => {});
+    const tracks = eval(`(${src})`)();
+    ctx.library.withUserData(tracks);
+    ctx.library.setTracks(tracks);
+    const now = Date.now(), DAY = 86_400_000;
+    ctx.playlists.items = [['Late drive', 2, 3], ['Sunday', 9, 17], ['Focus', 40, 29]].map(([name, ago, step], i) => ({
+      id: 'hvp' + i, name, ids: Array.from({ length: 10 }, (_, k) => tracks[(k * step + i) % tracks.length].id), created: now - (ago + 30) * DAY, modified: now - ago * DAY,
+    }));
+    ctx.playlists.changed();
+    ctx.bus.post('bus_gui', 'cmd_nav_to_lib');
+  }, inventLibrary.toString());
+  const { state, atRest, where, tap, touch, pinch, saved, levels, rowsOf } = await helpers(context, page);
 
   // Home: its data in (the shelves come in idle time), on the Home tab.
   await atRest();
@@ -275,6 +286,80 @@ test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zo
   });
   assert.ok(want.length > 3, 'the invented library has forgotten favourites');
   assert.deepEqual(listed.map((t) => t.id), want);
+
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the default layout: no query opens the v2 layout; Classic library layout in Settings turns it in place, kept for the next start, and back', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const ready = () => page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
+  await page.goto(`${base}/music/?demo`);
+  await ready();
+  const { state, atRest, tap } = await helpers(context, page);
+  /** The navbar's buttons (id and words, in order), the menu's Equaliser line, the library's first screen, what the player holds. */
+  const layout = () => page.evaluate(() => {
+    const { ctx, player } = window.__cp, lw = ctx.listWidget;
+    return {
+      v2: ctx.homeV2, bar: ctx.navbar.buttons.children.map((b) => `${b.id}:${b.contentDescription}`), eqLine: ctx.navbar.ext.findViewById('navbar_ext_eq')?.visibility ?? null,
+      root: lw.stack[0]?.isHomeV2 ? 'home' : lw.stack[0]?.isLibraryV2 ? 'library' : lw.stack[0]?.home ? 'classic' : null, shown: lw.libList.source === lw.stack[0],
+      player: { queue: player.queue.map((t) => t.id).join(), index: player.index, state: player.state }, same: window.__samePage === true,
+    };
+  });
+  const V2 = ['cmd_nav_to_lib:Home', 'cmd_nav_to_search:Search', 'cmd_nav_to_eq:Library', 'cmd_nav_more:Main Menu'];
+  /** Settings › Lists, its Classic library layout row tapped (once Settings takes taps: settings.js openedAt), Settings closed. */
+  const flip = async () => {
+    await page.evaluate(() => window.__cp.ctx.settingsUi.open('library_lists'));
+    await until(() => page.evaluate(() => performance.now() - window.__cp.ctx.settingsUi.openedAt > 450), { message: 'Settings never took taps' });
+    const was = await page.evaluate(() => window.__cp.ctx.homeV2);
+    const row = page.locator('.cps-row', { hasText: 'Classic library layout' });
+    await row.click();
+    await until(() => page.evaluate((was) => window.__cp.ctx.homeV2 === !was, was), { message: 'the layout never changed' });
+    assert.equal(await row.locator('.cps-switch.on').count(), was ? 1 : 0, 'the switch shows the classic layout on or off');
+    await page.locator('.cps-bar-btn[aria-label="Close"]').click();
+    await until(() => page.evaluate(() => !window.__cp.ctx.settingsUi.isOpen), { message: 'Settings never closed' });
+    await atRest();
+  };
+
+  // With no query and nothing saved: the v2 layout.
+  await page.evaluate(() => { window.__samePage = true; window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_lib'); });
+  await atRest();
+  let l = await layout();
+  const player = l.player;
+  assert.deepEqual({ v2: l.v2, bar: l.bar, eqLine: l.eqLine, root: l.root, shown: l.shown }, { v2: true, bar: V2, eqLine: 0, root: 'home', shown: true });
+
+  // On: the classic navbar and category home, in place: the same page (no reload), the player as it was.
+  await flip();
+  l = await layout();
+  assert.deepEqual(l, { v2: false, bar: ['cmd_nav_to_lib:Library', 'cmd_nav_to_eq:Equ/Effects', 'cmd_nav_to_search:Search', 'cmd_nav_more:Main Menu'], eqLine: 8, root: 'classic', shown: true, player, same: true });
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('cp-settings')).cp_classic_library), true, 'the option is kept');
+  // Its Equaliser button opens the Equaliser screen (not the sheet), and its Library button the category home.
+  await tap({ nav: 1 });
+  await until(async () => { const t = await state(); return t.nav === 'nav_eq' && t.scene === 'scene_eq'; }, { message: 'the Equaliser never opened' });
+  assert.equal(await page.evaluate(() => window.__cp.ctx.eqSheet.shown), false, 'no sheet in the classic layout');
+  await tap({ nav: 0 });
+  await atRest();
+  assert.equal((await layout()).root, 'classic');
+
+  // The next start keeps it.
+  await page.reload();
+  await ready();
+  await page.evaluate(() => { window.__samePage = true; window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_lib'); });
+  await atRest();
+  l = await layout();
+  assert.deepEqual({ v2: l.v2, root: l.root, bar: l.bar[0] }, { v2: false, root: 'classic', bar: 'cmd_nav_to_lib:Library' });
+
+  // Off again: the v2 layout in place, its Library tab working.
+  const now = l.player;
+  await flip();
+  l = await layout();
+  assert.deepEqual(l, { v2: true, bar: V2, eqLine: 0, root: 'home', shown: true, player: now, same: true });
+  await tap({ nav: 2 });
+  await atRest();
+  assert.equal((await state()).root, 'library');
 
   assert.deepEqual(errors, []);
   await context.close();

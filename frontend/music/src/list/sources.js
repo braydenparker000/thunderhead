@@ -46,6 +46,10 @@ function shelfIcons(res) {
   }
 }
 const DEFAULT_HOME_MASK = 1048511;
+// Not rows of the home nor offered in its List Options (owner, 2026-11-26): the Queue and Recently played
+// are Up next and History in the playing song's menu. Their lists still open (homeCategory: the player's
+// source list, the v2 Home's "See all", a start category saved before).
+const OFF_HOME = new Set(['queue', 'recentlyPlayed']);
 // Notes under categories in List Options (th1.c()).
 const HOME_HINTS = {album_artists: 'summary_album_artists', albums_by_artist: 'summary_albums_by_artists'};
 
@@ -241,7 +245,7 @@ export class HomeSource {
     shelfIcons(ctx.res);
     const mask = homeMask(+(ctx.settings.library_lists ?? DEFAULT_HOME_MASK));
     // Possible duplicates shows only when there are any.
-    this.items = HOME.filter(c => (mask & (1 << c.id)) !== 0 && (c.kind !== 'duplicates' || ctx.library?.shelves?.().duplicates.length));
+    this.items = HOME.filter(c => !OFF_HOME.has(c.kind) && (mask & (1 << c.id)) !== 0 && (c.kind !== 'duplicates' || ctx.library?.shelves?.().duplicates.length));
     const d = dims(list);
     // The header's title (bk0: the Library string).
     this.title = str(ctx, 'library');
@@ -256,7 +260,7 @@ export class HomeSource {
     this.headerHeight = d.topTextHeaderSize + ctx.windowInsets.top;
     // No stored zoom: bk0.P0's default case, one column of textItemSize rows (level 1).
     withOptions(this, list, {key: 'home', zoomKind: 'home', defaultZoom: 1});
-    this.homeCategories = HOME.map(c => ({...c, hint: HOME_HINTS[c.title] ?? null}));
+    this.homeCategories = HOME.filter(c => !OFF_HOME.has(c.kind)).map(c => ({...c, hint: HOME_HINTS[c.title] ?? null}));
     this.rebuild = () => new HomeSource(ctx, list, nav);
     // The library's home: Music's "tonight" card shows over it (th/music/tonight.js).
     this.home = true;
@@ -277,8 +281,7 @@ export class HomeSource {
   bindItem(v, i) {
     const c = this.items[i];
     v.findViewById('title')?.setText(str(this.ctx, c.title));
-    // The Queue row's counter (merge_item_queue_counter) takes the line-2 place.
-    v.findViewById('line2')?.setText(c.kind === 'queue' ? this.ctx.player?.queueCounter?.(str(this.ctx, '_empty')) ?? '' : '');
+    v.findViewById('line2')?.setText('');
     // The row shows its category icon: no track's cover (nor one still loading for it).
     v.track = null;
     const icon = v.findViewById('aa_image');
@@ -356,6 +359,8 @@ export function categorySource(ctx, list, nav, cat) {
     if (pick.ranked) src.tracks = pick.tracks;
     src.limitable = true;
     src.limit = pick.limit;
+    // (List Options shows Max Items as not applying while it is sorted another way: limitApplies.)
+    src.statList = stat;
     src.clearable = !!stat.clearable;
   }
   else if (cat.kind === 'singles') {
@@ -580,6 +585,9 @@ export function subAlbumsSource(ctx, list, nav, g, icon) {
   if (singles.length) {
     const bind = src.bindItem.bind(src), click = src.onItemClick.bind(src);
     gridThenSingles(ctx, list, nav, src, g, icon, singles, {bind: (v, r) => bind(v, r.at), click: r => click(r.at)});
+    // The albums' sort field does not name the Singles rows (songs by title, under their own subhead):
+    // the plain thumb, so the rail never shows sections the rows do not follow.
+    src.sections = null;
   }
   // u3: the entry's header (scene_header_1, the parents being tg1); year
   // albums (ug1) take the human sizes, the others headerSize / compactHeaderSize.

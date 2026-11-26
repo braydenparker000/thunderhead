@@ -1,5 +1,6 @@
 // The apps' arrangements on the phone at 390×844 (th/ported/arrangement.js; MIND-PLAN §3.7):
-// Guitar's "today's section" on My songs and Music's "tonight" over the library's home, each with
+// Guitar's "today's section" on My songs and Music's "tonight" over the classic library's home (and as
+// a card of the v2 Home, which reports it seen in the shell's card's place), each with
 // its why behind a tap; the senses go out to the Worker by the arrangement's ledger row (seen once,
 // the tap, the dismissal), Dismiss hides it and DELETEs the slot, and a reload keeps it gone. Guitar's
 // Start, and the mind's `guitar.start_practice` claimed as Guitar opens, land in the reader on the
@@ -145,7 +146,8 @@ test('guitar.start_practice: claimed as Guitar opens, the reader lands on the se
 
 test("Music: tonight's mix over the library's home, its why, Dismiss hides it", opts, async () => {
   const p = await phone([surface('music', 'tonight', 'mix', { mix_id: MIX, name: 'Slow evening', tracks: 24 })]);
-  await p.page.goto(`${base}/music/?demo`, { waitUntil: 'load' });
+  // The classic layout (?home1): the shell's own card shows over its home (the v2 Home draws it as a row of its own).
+  await p.page.goto(`${base}/music/?demo&home1`, { waitUntil: 'load' });
   await p.page.waitForFunction(() => window.__cp?.player?.queue?.length >= 1, null, { timeout: 30_000 });
   const card = p.page.locator('.th-arr[data-app=music]');
   await card.waitFor({ state: 'attached', timeout: 15_000 });
@@ -161,6 +163,22 @@ test("Music: tonight's mix over the library's home, its why, Dismiss hides it", 
   await p.went('arrangement.dismiss');
   // The DELETE goes after the sense (th/ported/arrangement.js, dismissed), so it is waited for, not read at once.
   await until(() => p.calls.some((c) => c.method === 'DELETE' && c.path === '/v1/surfaces/music/tonight'), { message: 'the DELETE of the slot never went' });
+  assert.deepEqual(p.errors, []);
+  await p.context.close();
+});
+
+test("Music's v2 Home: tonight's mix is a card of Home, and it is reported seen once it has been on screen", opts, async () => {
+  const p = await phone([surface('music', 'tonight', 'mix', { mix_id: MIX, name: 'Slow evening', tracks: 24 })]);
+  await p.page.goto(`${base}/music/?demo&home2`, { waitUntil: 'load' });
+  await p.page.waitForFunction(() => window.__cp?.player?.queue?.length >= 1, null, { timeout: 30_000 });
+  const card = p.page.locator('.th-arr[data-app=music]');
+  await card.waitFor({ state: 'attached', timeout: 15_000 });
+  await p.page.evaluate(() => window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_lib'));
+  await until(() => p.page.evaluate(() => (window.__cp.ctx.listWidget.libList.source?.rows ?? []).some((r) => r.type === 'homeTonight')), { message: 'Home never showed the mix' });
+  // The shell's card is Home's source and never shows; Home's own card says it was seen (home/tonight-row.js).
+  assert.equal(await card.isVisible(), false, "the shell's card stays hidden");
+  await until(() => p.page.evaluate((id) => JSON.parse(localStorage.getItem('th.p.arrange.seen') || '{}')[id], ROW), { message: 'the mix was never reported seen' });
+  await p.went('arrangement.seen');
   assert.deepEqual(p.errors, []);
   await p.context.close();
 });

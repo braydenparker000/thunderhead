@@ -48,6 +48,8 @@ const shape = (page) => page.evaluate(() => import('/th/island/shape.js').then((
 /** Music in front, ready, with three invented tones queued and playing (or, `song: false`, nothing loaded). */
 async function music(context, { song = true } = {}) {
   await context.addInitScript(() => Object.defineProperty(navigator, 'connection', { value: { saveData: true }, configurable: true }));
+  // The classic layout (Settings › Lists, Classic library layout; Music's frame takes no ?home1): the pulls are measured over its library screen.
+  await context.addInitScript(() => { try { localStorage.setItem('cp-settings', JSON.stringify({ ...JSON.parse(localStorage.getItem('cp-settings') || '{}'), cp_classic_library: true })); } catch { /* no storage: the default layout */ } });
   await context.route(`${OLD}/**`, (route) => route.abort());
   const page = await context.newPage();
   await page.goto(`${base}/no-such-page`);

@@ -66,6 +66,11 @@ export function installTabs(ctx) {
       ctx.libraryChip = chip;
       tabs.go('library');
     },
+    /** The layout changed (install.js setLayout): no change of tab to step back over; Home is the tab. */
+    reset() {
+      tabBack = null;
+      lw.tab = 'home';
+    },
   };
 
   // The one history entry for a change of tab: Back from the new tab's root shows the old one's.
@@ -76,7 +81,7 @@ export function installTabs(ctx) {
   }
   const back = lw.back.bind(lw);
   lw.back = () => {
-    if (lw.ignorePop || !tabBack || ctx.dialogs?.length) return back();
+    if (!ctx.homeV2 || lw.ignorePop || !tabBack || ctx.dialogs?.length) return back();
     if (ctx.topNav?.nav !== 'nav_lib' || lw.mode !== 'list' || lw.searching || lw.searchShown || lw.stack.length > 1) return back();
     const to = tabBack;
     tabBack = null;
