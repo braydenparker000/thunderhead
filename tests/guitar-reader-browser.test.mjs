@@ -1,7 +1,8 @@
 // Guitar's reader keeps the screen on while practising and records the session when the owner leaves
 // (GUITAR.md §8.1, §9): a touch holds the screen lock, and 90 s later with nothing playing it is let
-// go (the page's clock is moved); a session is kept when the page goes with the reader open and sent
-// when the page comes back or Guitar next opens, never a second time when the reader then closes.
+// go (the page's clock is moved), however the reader scrolls its own sheet meanwhile; a session is kept
+// when the page goes with the reader open and sent when the page comes back or Guitar next opens, never
+// a second time when the reader then closes.
 // The tab file is a saved copy on the phone (fixtures/guitar-saved.mjs); the screen lock is a stand-in that counts; no
 // network.
 import { test, before, after } from 'node:test';
@@ -79,6 +80,21 @@ test('the screen stays on for 90 s after a touch, then is let go', opts, async (
   assert.equal(await page.evaluate(() => window.__held), 1, 'a touch starts the 90 s again; one lock, not two');
   await page.clock.fastForward(31_000);
   await page.waitForFunction(() => window.__held === 0);
+  // The sheet scrolling itself (following the playing line, drawn again for a new width) is not a touch:
+  // 60 s after a touch the reader scrolls its sheet, and the screen is still let go 90 s after the touch.
+  await page.locator('.reader').dispatchEvent('pointerdown');
+  await page.waitForFunction(() => window.__held === 1);
+  await page.clock.fastForward(60_000);
+  const scrolled = await page.evaluate(() => new Promise((resolve) => {
+    const s = document.querySelector('.rd-scroll');
+    s.querySelector('.rd-sheet').style.paddingBottom = '2000px'; // room to scroll, whatever the tab's length
+    // Heard after the reader's own listener (added first), so the reader has seen this scroll.
+    s.addEventListener('scroll', () => resolve(s.scrollTop), { once: true });
+    s.scrollTo({ top: 300 });
+  }));
+  assert.ok(scrolled > 0, `the sheet scrolled (to ${scrolled})`);
+  await page.clock.fastForward(31_000);
+  assert.equal(await page.evaluate(() => window.__held), 0, 'the reader scrolling its own sheet does not keep the screen on');
   assert.deepEqual(errors, []);
   await c.close();
 });
