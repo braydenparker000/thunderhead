@@ -81,6 +81,43 @@ test('rows after drags and flings are the rows of their places, where the list p
     clock = hold ? at(steps) + 0.1 : at(steps) + 0.008;
     await touch('touchEnd', [], clock);
   };
+  /** In the page: the lowest point at x (CSS px) where a finger lands on the list itself, not on what lies over its
+   * foot (the navbar with its mini player, the list's bottom toolbar): a drag from there is the list's. From a
+   * fixed y of 700 the fling moved the Songs not at all, in two runs: the finger was not on the list. */
+  const footOf = (x) => page.evaluate(async (x) => {
+    const { ctx } = window.__cp, l = ctx.listWidget.libList, k = ctx.dpr;
+    const { hitTest } = await import('/music/src/input.js');
+    const r = document.getElementById('cp-root').getBoundingClientRect();
+    const lists = (y) => {
+      for (let v = hitTest(ctx.root, (x - r.left) * k, (y - r.top) * k); v; v = v.parent) {
+        if (v === l.toolbarView) return false;
+        if (v === l) return true;
+      }
+      return false;
+    };
+    for (let y = Math.floor(r.bottom) - 1; y > r.top + 4; y--) if (lists(y) && lists(y - 2) && lists(y - 4)) return y - 2;
+    return null;
+  }, x);
+  const scrollOf = () => page.evaluate(() => { const l = window.__cp.ctx.listWidget.libList; return { y: l.scrollY, over: l.over, k: window.__cp.ctx.dpr }; });
+  /** A drag up by `dist` px from the list's own foot (footOf), as `drag`; returns the list's scroll before and after, once at rest. */
+  const swipe = async (dist, steps, how) => {
+    const y0 = await footOf(200);
+    assert.ok(y0 != null && y0 - dist > 0, `a drag of ${dist} px from the list's foot fits on screen (foot at ${y0})`);
+    const from = await scrollOf();
+    await drag(200, y0, y0 - dist, steps, how);
+    await atRest();
+    return { y0, from, to: await scrollOf() };
+  };
+  /** A slow drag moved the list exactly as far as the finger went after its touch slop (gesture.js TOUCH_SLOP_DP). */
+  const followed = (what, dist, { y0, from, to }) => {
+    const want = (dist - 8) * to.k, got = to.y - from.y;
+    assert.ok(Math.abs(got - want) <= 2 && !to.over, `${what}: the list followed the finger from y ${y0}: scrolled ${got} px, the finger ${want} px past its slop (overscroll ${to.over})`);
+  };
+  /** A fling carried the list on past where the finger let go. */
+  const flung = (what, dist, { y0, from, to }) => {
+    const finger = (dist - 8) * to.k, got = to.y - from.y;
+    assert.ok(got > finger, `${what}: the fling from y ${y0} scrolled on past the finger: ${got} px, the finger ${finger} px (scroll ${from.y} → ${to.y})`);
+  };
   /** The list at rest: no transition, no drag, fling or spring, nothing moving, rows placed; the recorder idle. */
   const atRest = () => until(() => page.evaluate(() => {
     const { ctx } = window.__cp, lw = ctx.listWidget, l = lw.libList;
@@ -111,11 +148,10 @@ test('rows after drags and flings are the rows of their places, where the list p
   await page.evaluate(() => { window.__cp.ctx.libraryChip = 'songs'; window.__cp.ctx.homeTabs.go('library'); });
   await atRest();
   const before = (await entries()).length;
-  await drag(200, 650, 250, 20, { hold: true });
+  followed('songs, first drag', 400, await swipe(400, 20, { hold: true }));
   await check('songs, dragged');
-  await drag(200, 650, 300, 20, { hold: true });
-  await atRest();
-  await drag(200, 700, 200, 4);
+  followed('songs, second drag', 350, await swipe(350, 20, { hold: true }));
+  flung('songs', 500, await swipe(500, 4));
   const songs = await check('songs, flung');
   assert.ok(songs[0].i > 10, `the fling scrolled on (first row ${songs[0].i})`);
   const log = (await entries()).slice(before);
@@ -132,8 +168,8 @@ test('rows after drags and flings are the rows of their places, where the list p
   // (A tab's button on its own tab only scrolls it to the top: by Home, the Library comes back at the chip.)
   await page.evaluate(() => { localStorage.setItem('cp-list-opts', JSON.stringify({ 'cat:albums': { zoom: 5 } })); window.__cp.ctx.libraryChip = 'albums'; window.__cp.ctx.homeTabs.go('home'); window.__cp.ctx.homeTabs.go('library'); });
   await atRest();
-  await drag(200, 650, 250, 20, { hold: true });
-  await drag(200, 700, 200, 4);
+  followed('albums grid, drag', 400, await swipe(400, 20, { hold: true }));
+  flung('albums grid', 500, await swipe(500, 4));
   assert.equal(await page.evaluate(() => window.__cp.ctx.listWidget.libList.source.libraryChip), 'albums');
   const grid = await check('albums grid, flung');
   assert.ok(new Set(grid.map((r) => r.at[0])).size > 1, 'a grid: tiles side by side');
@@ -142,7 +178,8 @@ test('rows after drags and flings are the rows of their places, where the list p
   // Home: down past its shelves.
   await page.evaluate(() => window.__cp.ctx.homeTabs.go('home'));
   await atRest();
-  await drag(200, 700, 200, 4);
+  const home = await swipe(500, 4);
+  assert.ok(home.to.y > home.from.y, `home: the fling from y ${home.y0} moved it (scroll ${home.from.y} → ${home.to.y})`);
   await check('home, flung', 2);
 
   // The session's summary goes with the playback batches: per screen, counts only.
