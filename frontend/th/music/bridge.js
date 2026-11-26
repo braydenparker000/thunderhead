@@ -386,7 +386,7 @@
     // Never through the browser's HTTP cache: a read cut short (a skip, a head stopped) left part of a
     // range there, and the next read of it went out as a conditional request first (If-Range), one more
     // round trip before the first byte (MUSIC.md §6.1). Heads and offline copies keep what is kept.
-    const get = async (url) => counted(await upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes), art ? 'music.covers' : cap.part || 'music.songs', cap.client);
+    const get = async (url) => counted(await upstream(url, { headers, mode: 'cors', credentials: 'omit', cache: 'no-store' }, cap.signal, t.bytes), cap.part || (art ? 'music.covers' : 'music.songs'), cap.client);
     const signedAt = deps.now();
     let url = await within(sign(base, auth, ref, false, t.sign), cap.signal);
     // The signature's wait, for the player's report (0: signed ahead): music/src/player/song-net.js.
@@ -432,7 +432,7 @@
     // A frame home didn't open never gets the session: to it, the owner is signed out.
     if (!(await deps.topLevel(event))) return refusalOf(401);
     // The whole answer starts, or fails, within ANSWER_MS; once it has started its body streams on. (A song's bytes count as
-    // Songs in Settings › Data use, or as `event.part` says: Downloads, th/music/downloads.js.)
+    // Songs in Settings › Data use, a cover's as Covers, or either as `event.part` says: Downloads, th/music/downloads.js.)
     const cap = deadline(ANSWER_MS, req.signal);
     Object.assign(cap, { client: event?.clientId, part: event?.part });
     try {

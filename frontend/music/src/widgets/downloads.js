@@ -7,13 +7,16 @@
 //   an album page's: one zip, its songs numbered in the playlist's stored order or by disc and track as the
 //   album page has them; a playlist's zip carries its .m3u8 too (playlist-files.js m3uText). Songs the
 //   library no longer has are left out and counted (skipped.txt in the zip says so).
+// Covers (owner, 2026-11-26): each Opus song is saved with its cover embedded (the worker's th/music/ogg-cover.js),
+// the cover from the phone's own covers when it is there; an album's zip also carries the album's cover (cover.jpg
+// or cover.png); a song in another format is saved as stored. The size and the ask count the songs only.
 // Names: library/download-names.js. Over ASK_BYTES in all (the catalogue's sizes), the confirm dialog asks
 // first; under it the download just starts. Music's worker streams the file (th/music/downloads.js): the
 // page posts it the job, then goes to its address, which the browser takes as a download with its own
 // notification; here, one Undo-bar line as it starts and one when the worker says it has ended. One at a
 // time; signed out, nothing starts.
 import {alertDialog} from './dialog.js';
-import {albumName, cleanName, entryNames, songFile} from '../library/download-names.js';
+import {albumName, cleanName, entryNames, extensionOf, songFile} from '../library/download-names.js';
 import {m3uText} from '../library/playlist-files.js';
 import {albumRows} from '../library/shelves.js';
 import {VISIBLE} from '../res/values.js';
@@ -48,7 +51,14 @@ export function askText(name, count, bytes) {
 
 /** A song the worker can fetch: one of the library's (its address the player's). */
 const fetchable = t => typeof t?.src === 'string' && SONG.test(t.src);
-const fileOf = (t, name) => ({src: t.src, name, size: +t.size || 0, type: t.mime || 'audio/ogg'});
+/** A song's cover as the worker reads it: its address (the player's), and the keys library.js keeps it under in
+ * claude-player-covers (cacheKey: a shared cover's own, then the song's address), so one on the phone costs no data. */
+function coverOf(t) {
+  if (typeof t?.artUrl !== 'string' || !t.artUrl) return null;
+  const shared = t.coverKey ? new URL('covers/shared/' + encodeURIComponent(t.coverKey), location.href).href : null;
+  return {src: t.artUrl, keys: shared ? [shared, t.artUrl] : [t.artUrl]};
+}
+const fileOf = (t, name) => ({src: t.src, name, size: +t.size || 0, type: t.mime || 'audio/ogg', art: extensionOf(t) === 'opus' ? coverOf(t) : null});
 
 /** The job for songs: one as its file, several as one zip named after `title`. */
 export function songsJob(tracks, title = '') {
@@ -74,7 +84,8 @@ export function albumJob(g) {
   const all = albumRows(g.tracks).tracks, tracks = all.filter(fetchable);
   const artist = g.artist || g.tracks.find(t => t.albumArtist)?.albumArtist || g.tracks[0]?.artist || '';
   const label = albumName(artist, g.title), names = entryNames(tracks, {numbered: true});
-  return {name: `${label}.zip`, label, zip: true, files: tracks.map((t, i) => fileOf(t, names[i])), missing: all.length - tracks.length};
+  const cover = coverOf(tracks.find(t => t.artUrl));
+  return {name: `${label}.zip`, label, zip: true, files: tracks.map((t, i) => fileOf(t, names[i])), missing: all.length - tracks.length, cover};
 }
 
 /** The worker's answer to a job: {id} or {error}. */
@@ -83,8 +94,8 @@ function post(sw, job) {
     const ch = new MessageChannel();
     const timer = setTimeout(() => resolve({error: 'timeout'}), ANSWER_MS);
     ch.port1.onmessage = e => { clearTimeout(timer); resolve(e.data ?? {error: 'bad'}); };
-    const {name, zip, files, m3u, missing} = job;
-    sw.postMessage({type: 'th-music-download', job: {name, zip, files, m3u, missing}}, [ch.port2]);
+    const {name, zip, files, m3u, missing, cover} = job;
+    sw.postMessage({type: 'th-music-download', job: {name, zip, files, m3u, missing, cover}}, [ch.port2]);
   });
 }
 

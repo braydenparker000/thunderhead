@@ -1778,8 +1778,8 @@ Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs
 
 ## 22. Downloads (2026-11-26, owner's rulings)
 
-The owner's own files saved to the phone's Downloads, exactly as stored (the Opus file, its bytes
-unchanged). No new button on the player or the mini-player.
+The owner's own files saved to the phone's Downloads, as stored, with one addition: an Opus song
+carries its cover (below). No new button on the player or the mini-player.
 
 - **Where**: **Download** in the playing song's menu (a row of its own under the row of four, §20),
   on the selection toolbar of a list of songs (after Share), in a playlist's menu beside Rename and
@@ -1789,7 +1789,9 @@ unchanged). No new button on the player or the mini-player.
   few that are not Opus); several selected songs are one zip named after the list; a playlist is a zip
   named after it, its songs numbered in its stored order ("01 - Artist - Title.opus", as wide as the
   count needs) with a `.m3u8` listing them by those names (`playlist-files.js` `m3uText`); an album is a
-  zip "Album Artist - Album", numbered by disc and track as its page orders them. Names lose
+  zip "Album Artist - Album", numbered by disc and track as its page orders them, with the album's
+  cover beside them as `cover.jpg` (or `cover.png`, as stored; a playlist's zip has none: its songs
+  come from many albums). Names lose
   `\ / : * ? " < > |` and control characters, have their spaces collapsed and their ends trimmed, are cut
   at 120 characters before the extension, and alike ones (letter case aside) take " (2)"
   (`library/download-names.js`). Songs the library no longer has are left out and counted.
@@ -1808,8 +1810,29 @@ unchanged). No new button on the player or the mini-player.
   for playback. A song that fails is tried once more (from where it broke); failing again it is left
   out and the zip ends with `skipped.txt` naming what is missing. Its bytes count as Music's
   **Downloads** in Settings › Data use, not as Songs.
+- **Covers** (owner, 2026-11-26): the stored files carry no picture (covers are objects of their own,
+  `…/art/<id>`), so a downloaded song showed none in other players. Each Opus song is now saved with its
+  cover embedded in its OpusTags header as a `METADATA_BLOCK_PICTURE` comment (a FLAC picture block,
+  type 3 "front cover", its mime type, no description, its width, height and depth when its JPEG or PNG
+  header gives them, else 0), by `th/music/ogg-cover.js` as the song streams. The worker holds only the
+  song's header (to the end of OpusTags, at most 1 MiB: past it the song is saved as stored), writes the
+  tags packet again with every comment kept (a front cover already there is replaced, other pictures
+  kept), lays it on as many pages as it needs, and then moves each later page's sequence number on by
+  the pages added and makes its CRC again; the audio's bytes and granule positions are untouched, so it
+  plays exactly as stored. Anything that is not one Ogg Opus stream (several streams, a wrong CRC in the
+  head) is saved as stored; a page after the head that is not as it should be passes as it came, and so
+  does everything after it. The cover comes from the phone's covers (`claude-player-covers`, under
+  library.js's keys) when it is there, at no data; else through the bridge as the player's is, its bytes
+  counted as **Downloads**. An album's songs read it once. A stored cover up to 1 MiB goes in as it is;
+  a larger one is made a JPEG of at most 1,200 px on its long side (quality 0.9) where the worker can
+  draw, else goes in as it is. No cover (none stored, or one that does not load): the song as stored;
+  a cover never fails a download. One song's file then has its exact new length (the stored length and
+  what the header added, known before its first byte); a zip's entries have theirs in their data
+  descriptors as before. The size and the 200 MB ask count the songs only.
+- **Not Opus**: the few AAC, FLAC and MP3 songs are saved exactly as stored, with no cover added (no
+  cover is fetched for them).
 
-Tests: `tests/music-downloads.test.mjs`, `tests/music-downloads-browser.test.mjs`.
+Tests: `tests/music-downloads.test.mjs`, `tests/music-ogg-cover.test.mjs`, `tests/music-downloads-browser.test.mjs`.
 
 ## Not built
 
