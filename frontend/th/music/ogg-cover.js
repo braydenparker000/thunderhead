@@ -247,7 +247,8 @@
       this.len += chunk.length;
       const r = this.readHead();
       if (r === 'wait') return this.len > HEAD_LIMIT ? this.giveUp() : [];
-      if (r === 'no') return this.giveUp();
+      // (The head must end within HEAD_LIMIT: a chunk can bring its end past it, as well as the bytes to wait for.)
+      if (r === 'no' || this.pos > HEAD_LIMIT) return this.giveUp();
       return this.writeHead();
     }
 

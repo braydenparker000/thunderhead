@@ -1093,7 +1093,8 @@ export function playlistSource(ctx, list, nav, pl, view = null) {
 /** An empty list's one row: a quiet line in the hint text (power-list.js EMPTY_ROW), not a song or an entry. */
 function emptyLine(src, text) {
   const rows = () => src.groups ?? src.tracks;
-  Object.defineProperty(src, 'count', {get: () => rows().length || 1});
+  // (Configurable: the v2 Library's Playlists puts its own rows over an empty one, home/library-source.js.)
+  Object.defineProperty(src, 'count', {get: () => rows().length || 1, configurable: true});
   src.typeAt = i => (rows().length || i !== 0 ? undefined : 'emptyLine');
   src.isSeparator = i => !rows().length && i === 0;
   const bind = src.bindItem.bind(src);

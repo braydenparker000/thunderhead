@@ -40,7 +40,9 @@ test('the release\'s cache: what the owner sees on the same release, a new one, 
   const site = env.site, base = `http://127.0.0.1:${site.address().port}`;
   const started = () => window.__cp && !document.getElementById('cp-boot');   // only the app's running scripts make this true
   const appFiles = () => site.asked.filter((p) => p.startsWith('music/') && !p.endsWith('index.html') && p !== 'music/sw.js');
-  const shared = () => site.asked.filter((p) => /^(th|assets|ui)\/.*\.js$|^config\.js$/.test(p) && !/^th\/(music\/(bridge|release)|ported\/frames|data\/worker)\.js$/.test(p));
+  // (Not the worker's own scripts, music/sw.js's importScripts and theirs: the browser's update check revalidates
+  // those on an open, each after the one before, so how many it has asked by now is a matter of timing.)
+  const shared = () => site.asked.filter((p) => /^(th|assets|ui)\/.*\.js$|^config\.js$/.test(p) && !/^th\/(music\/(bridge|release|downloads|zip-stream|ogg-cover)|ported\/frames|data\/worker)\.js$/.test(p));
   /** A phone with Music's worker, opened twice under it (the first fills the release's cache). */
   const prepared = async () => {
     const { context } = await phone(browser, { base });

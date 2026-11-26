@@ -260,7 +260,8 @@ test('v2 layout: tabs, chips, tiles and shelves, Library sort and view, pinch zo
   await touch('touchStart', [more]);
   await outlast(page, 500);
   for (let i = 1; i <= 24; i++) await touch('touchMove', [{ x: more.x, y: more.y - i * 24 }]);
-  assert.equal(await page.evaluate(() => window.__cp.ctx.eqSheet.shown), true, 'the sheet follows the finger');
+  // (The finger still down: the moves reach the app with the page's frames, so the sheet is there once they have.)
+  await until(() => page.evaluate(() => window.__cp.ctx.eqSheet.shown), { message: 'the sheet never followed the finger' });
   await touch('touchEnd', []);
   await until(async () => { const t = await state(); return t.nav === 'nav_eq' && t.scene === 'scene_eq'; }, { message: 'the Equaliser never opened' });
   await until(() => page.evaluate(() => !window.__cp.ctx.eqSheet.shown), { message: 'the sheet never settled' });
@@ -320,7 +321,9 @@ test('the default layout: no query opens the v2 layout; Classic library layout i
     await until(() => page.evaluate((was) => window.__cp.ctx.homeV2 === !was, was), { message: 'the layout never changed' });
     assert.equal(await row.locator('.cps-switch.on').count(), was ? 1 : 0, 'the switch shows the classic layout on or off');
     await page.locator('.cps-bar-btn[aria-label="Close"]').click();
-    await until(() => page.evaluate(() => !window.__cp.ctx.settingsUi.isOpen), { message: 'Settings never closed' });
+    // Closed once its history entries are gone too (closeAll's popstate, settings.js consumeClose): a tap before then
+    // would race that Back.
+    await until(() => page.evaluate(() => !window.__cp.ctx.settingsUi.isOpen && !window.__cp.ctx.settingsUi.closing), { message: 'Settings never closed' });
     await atRest();
   };
 
