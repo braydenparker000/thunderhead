@@ -5,6 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (the demo songs)', timeout: 120_000 };
@@ -25,7 +26,8 @@ test("a player item shows the song's thumbnail while its full cover is missing, 
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/music/?demo`);
   await page.waitForFunction(() => window.__cp?.ctx?.library, null, { timeout: 60_000 });
-  const got = await page.evaluate(async () => {
+  // The item and what it showed are kept on the page (window.__cover) between reads; each step waits for what it needs.
+  await page.evaluate(async () => {
     const { AAItemView } = await import('/music/src/list/list-widget.js');
     const picture = async (color) => {
       const c = new OffscreenCanvas(8, 8), g = c.getContext('2d');
@@ -46,18 +48,24 @@ test("a player item shows the song's thumbnail while its full cover is missing, 
     // A player item (useThumb unset), with no views but its image.
     const item = Object.assign(Object.create(AAItemView.prototype), { ctx, image: { setArt: (a) => shown.push(a?.url ?? null) }, findViewById: () => null });
     const song = { id: 'r2_native_invented0001', title: 'Invented song', remote: true, artId: 'https://old.example.test/music/library/art/r2_native_invented0001' };
+    window.__cover = { small, full, asked, shown, item, song, give: () => giveFull(full) };
     item.bind(song);
-    for (let i = 0; i < 100 && shown.length < 2; i++) await new Promise((r) => setTimeout(r, 10));
-    const before = { shown: shown.map((u) => (u === small.url ? 'small' : u)), asked: [...asked] };
-    giveFull(full);
-    for (let i = 0; i < 100 && song.art !== full; i++) await new Promise((r) => setTimeout(r, 10));
-    const after = { shown: shown.at(-1) === full.url, art: song.art === full, thumbKept: song.thumb === small };
-    // A song whose record already has its thumbnail (and no full cover yet): shown in the same bind.
-    shown.length = 0;
-    item.bind({ ...song, id: 'r2_native_invented0002', art: undefined, thumb: small });
-    return { before, after, atOnce: shown[0] === small.url };
   });
-  assert.deepEqual(got, {
+  // The thumbnail follows the empty first frame once it is read.
+  await until(() => page.evaluate(() => window.__cover.shown.length >= 2), { message: 'the thumbnail never showed' });
+  const before = await page.evaluate(() => { const c = window.__cover; return { shown: c.shown.map((u) => (u === c.small.url ? 'small' : u)), asked: [...c.asked] }; });
+  // The full cover, once decoded, takes its place.
+  await page.evaluate(() => window.__cover.give());
+  await until(() => page.evaluate(() => window.__cover.song.art === window.__cover.full), { message: 'the full cover never arrived' });
+  const after = await page.evaluate(() => { const c = window.__cover; return { shown: c.shown.at(-1) === c.full.url, art: c.song.art === c.full, thumbKept: c.song.thumb === c.small }; });
+  // A song whose record already has its thumbnail (and no full cover yet): shown in the same bind.
+  const atOnce = await page.evaluate(() => {
+    const c = window.__cover;
+    c.shown.length = 0;
+    c.item.bind({ ...c.song, id: 'r2_native_invented0002', art: undefined, thumb: c.small });
+    return c.shown[0] === c.small.url;
+  });
+  assert.deepEqual({ before, after, atOnce }, {
     before: { shown: [null, 'small'], asked: ['thumb', 'art'] },
     after: { shown: true, art: true, thumbKept: true },
     atOnce: true,

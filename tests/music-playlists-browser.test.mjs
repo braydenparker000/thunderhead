@@ -37,29 +37,47 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   await page.goto(`${base}/music/?demo`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
 
-  /** The view's centre: by id, or by its text; in the newest dialog, the list header, or anywhere. */
-  const where = (q) => page.evaluate((q) => {
+  /** The view's centre: by id, or by its text; in the newest dialog, the list header, or anywhere. Only a view shown
+   * with every view above it, where a tap reaches it (input.js hitTest: not under the Undo bar or a window coming in). */
+  const where = (q) => page.evaluate(async (q) => {
     const { ctx } = window.__cp;
+    const { hitTest } = await import('/music/src/input.js');
+    const shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
     const root = q.in === 'dialog' ? ctx.dialogs.at(-1)?.host : q.in === 'header' ? ctx.listWidget.libList.active.get(-1) : ctx.root;
     let v = null;
-    root?.walk((x) => { if (!v && (q.text ? x.text === q.text : x.id === q.id) && x.visibility === 0 && x.width > 0) v = x; });
+    root?.walk((x) => { if (!v && (q.text ? x.text === q.text : x.id === q.id) && shown(x)) v = x; });
     if (!v) return null;
-    const a = v.getLocationIn(null);
-    return { x: a.x + Math.min(v.width / 2, 40), y: a.y + v.height / 2 };
+    const a = v.getLocationIn(null), at = { x: a.x + Math.min(v.width / 2, 40), y: a.y + v.height / 2 };
+    // The tap lands on it or in it, or on the nearest view above it that takes taps (a row holding a line of text).
+    const hit = hitTest(ctx.root, at.x, at.y);
+    for (let h = hit; h; h = h.parent) if (h === v) return at;
+    let own = v;
+    while (own && !(own.clickable || own.longClickable || typeof own.onPointerDown === 'function')) own = own.parent;
+    return hit && hit === own ? at : null;
   }, q);
+  /** Taps a view once it is shown, reachable and still (two reads alike). */
   const tap = async (q) => {
-    const c = await until(() => where(q), { message: `nothing to tap: ${JSON.stringify(q)}` });
+    let last = null;
+    const c = await until(async () => {
+      const now = await where(q);
+      const still = now && last && now.x === last.x && now.y === last.y;
+      last = now;
+      return still && now;
+    }, { message: `nothing to tap: ${JSON.stringify(q)}` });
     await page.mouse.click(c.x, c.y);
   };
   const atRest = () => until(() => page.evaluate(() => { const lw = window.__cp.ctx.listWidget; return lw.mode === 'list' && !lw.trans && lw.libList.source === lw.stack[lw.stack.length - 1]; }), { message: 'the list never came to rest' });
   const dialogs = () => page.evaluate(() => window.__cp.ctx.dialogs?.length ?? 0);
-  /** n dialogs are open and the newest has come in (its enter scene is 350 ms). */
-  const dialogUp = async (n = 1) => {
-    await until(async () => (await dialogs()) === n, { message: `${n} dialog(s) never showed` });
-    await page.waitForTimeout(450);
-  };
+  /** n dialogs are open and the newest has come in: its enter scene (dialog.js, started as it opens) has ended. */
+  const dialogUp = (n = 1) => until(() => page.evaluate((n) => { const d = window.__cp.ctx.dialogs ?? []; return d.length === n && !d[n - 1].host.scenes.running; }, n), { message: `${n} dialog(s) never showed` });
   const playlist = (name) => page.evaluate((name) => { const p = window.__cp.ctx.playlists.items.find((x) => x.name === name); return p && { id: p.id, ids: [...p.ids] }; }, name);
-  const shownText = () => page.evaluate(() => { const out = []; window.__cp.ctx.root.walk((v) => { if (v.visibility === 0 && v.width > 0 && typeof v.text === 'string' && v.text) out.push(v.text); }); return out; });
+  /** The texts shown: each view visible with every view above it. */
+  const shownText = () => page.evaluate(() => {
+    const out = [], shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
+    window.__cp.ctx.root.walk((v) => { if (typeof v.text === 'string' && v.text && shown(v)) out.push(v.text); });
+    return out;
+  });
+  const says = (text) => until(async () => (await shownText()).includes(text), { message: `never said "${text}"` });
 
   await page.evaluate(async (lib) => {
     const { ctx } = window.__cp;
@@ -87,8 +105,9 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
 
   // With none yet, the Playlists list and the empty Queue each say so in one quiet line (and the Playlists
   // list draws no letter column beside it).
-  /** The library list's shown texts with a home category open (by its kind). */
-  const listOf = async (kind) => {
+  /** A home category open (by its kind), at rest; then its list shows `line` (its rows come with the list's next
+   * layout, after the source it opens is built). */
+  const listSays = async (kind, line) => {
     await page.evaluate(async (kind) => {
       const { ctx } = window.__cp, lw = ctx.listWidget;
       lw.openHome();
@@ -96,11 +115,16 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
       lw.open(m.categorySource(ctx, lw.libList, lw.nav, lw.stack[0].items.find((c) => c.kind === kind)));
     }, kind);
     await atRest();
-    return page.evaluate(() => { const out = []; window.__cp.ctx.listWidget.libList.walk((v) => { if (v.visibility === 0 && typeof v.text === 'string' && v.text) out.push(v.text); }); return out; });
+    await until(() => page.evaluate((line) => {
+      const out = [];
+      window.__cp.ctx.listWidget.libList.walk((v) => { if (v.visibility === 0 && typeof v.text === 'string' && v.text) out.push(v.text); });
+      return out.includes(line);
+    }, line), { message: `the ${kind} list never said "${line}"` });
   };
-  assert.ok((await listOf('playlists')).includes('No playlists yet.'), 'the Playlists list says it has none');
+  await listSays('playlists', 'No playlists yet.');
+  // (Read once the line shows: the rail takes its mode for the list then.)
   assert.notEqual(await page.evaluate(() => window.__cp.ctx.listScroller.mode), 2, 'no letter column beside the line');
-  assert.ok((await listOf('queue')).includes('Nothing queued.'), 'the Queue says it is empty');
+  await listSays('queue', 'Nothing queued.');
 
   // Add to Playlist's +: the name dialog with "Playlist 1" selected; the two songs held go straight in.
   await page.evaluate(async () => {
@@ -112,7 +136,7 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   const two = await page.evaluate(() => { const l = window.__cp.ctx.listWidget.libList; l.setSelectionMode(true); l.toggleSelected(0); l.toggleSelected(1); return l.selectedTracks().map((t) => t.id); });
   await page.evaluate(() => window.__cp.ctx.bus.post('list', 'cmd_list_add_to_pl_dialog', null, {}));
   await dialogUp();
-  assert.ok((await shownText()).includes('No playlists yet. Tap + to make one.'), 'Add to Playlist says how to make one');
+  await says('No playlists yet. Tap + to make one.');
   await tap({ in: 'dialog', id: 'add_to_pl_button' });
   await dialogUp(2);
   await until(() => page.evaluate(() => { const i = document.activeElement; return i instanceof HTMLInputElement && i.value === 'Playlist 1' && i.selectionStart === 0 && i.selectionEnd === 10; }), { message: 'the name field is not focused with "Playlist 1" selected' });
@@ -120,7 +144,7 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   await page.keyboard.press('Enter');
   await until(async () => (await playlist('Weekend Mix'))?.ids.length === 2, { message: 'the songs never reached the new playlist' });
   assert.deepEqual((await playlist('Weekend Mix')).ids, two);
-  await until(async () => (await shownText()).includes('Added to Weekend Mix'), { message: 'no "Added to Weekend Mix"' });
+  await says('Added to Weekend Mix');
   await until(async () => (await dialogs()) === 0, { message: 'Add to Playlist never closed' });
 
   // Cancel makes nothing.
@@ -187,14 +211,17 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   // (Shuffle) is in view or comes into view when the body is dragged up, above Close.
   await page.evaluate(() => window.__cp.ctx.bus.post('list', 'cmd_list_resort_dialog', null, {}));
   await dialogUp();
-  const sortBox = (what) => page.evaluate((what) => {
+  /** A view's box on the page, read once the page shows it where it is laid out: it and every view above it written
+   * (view.js sync: a change is written on the next frame). */
+  const sortBox = (what) => until(() => page.evaluate((what) => {
     const d = window.__cp.ctx.dialogs.at(-1), group = d.find('song_sorting_group');
     let v = null;
     if (what === 'last') group.walk((x) => { if (String(x.tag) === '9' && x.visibility === 0) v = x; });
     else v = what === 'body' ? group.parent : d.find(what);
+    for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return null;
     const r = v.el.getBoundingClientRect();
     return { top: r.top, bottom: r.bottom, h: v.height / window.__cp.ctx.dpr, size: v.textSize };
-  }, what);
+  }, what), { message: `Re-Sort's ${what} was never drawn where it is laid out` });
   const choice = await sortBox('last');
   assert.ok(choice.h >= 44, `a choice is ${choice.h} px high`);
   const hint = await page.evaluate(() => { let t = null; window.__cp.ctx.dialogs.at(-1).find('song_sorting_group').walk((x) => { if (!t && x.text?.startsWith('The playlist shows')) t = x; }); return t.textSize / window.__cp.ctx.dpr; });

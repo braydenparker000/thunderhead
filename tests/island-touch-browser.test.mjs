@@ -106,13 +106,25 @@ const inMusic = async (page, fn, arg) => (await (await page.$('iframe[data-app=m
 const miniBox = (page) => inMusic(page, () => window.__cp.miniBox());
 const centre = (b) => ({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 });
 /** A view's box in Music's pixels: the player screen's tabs, its seek bar, the open window's title (else its frame),
- * its frame, or the menu sheet. */
-const viewBox = (page, name) => inMusic(page, (name) => {
-  const { ctx } = window.__cp, d = ctx.dialogs?.at(-1), t = d?.find('title');
-  const v = { tabs: ctx.navbar.buttons, seek: ctx.root.findViewById('waveseek'), title: t?.visibility === 0 && t.width ? t : d?.find('dialog_frame'), frame: d?.find('dialog_frame'), sheet: ctx.navbar.ext }[name];
-  const r = v.el.getBoundingClientRect();
-  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-}, name);
+ * its frame, or the menu sheet. Read once the page shows it where it is laid out (it and every view above it written:
+ * view.js sync writes a change on the next frame) and it has stopped moving (two reads alike: a window or the sheet
+ * springing back from a drag). */
+const viewBox = async (page, name) => {
+  let last = null;
+  return until(async () => {
+    const now = await inMusic(page, (name) => {
+      const { ctx } = window.__cp, d = ctx.dialogs?.at(-1), t = d?.find('title');
+      const v = { tabs: ctx.navbar.buttons, seek: ctx.root.findViewById('waveseek'), title: t?.visibility === 0 && t.width ? t : d?.find('dialog_frame'), frame: d?.find('dialog_frame'), sheet: ctx.navbar.ext }[name];
+      if (!v) return null;
+      for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return null;
+      const r = v.el.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    }, name);
+    const still = now && last && ['left', 'top', 'right', 'bottom'].every((k) => now[k] === last[k]);
+    last = now;
+    return still && now;
+  }, { message: `Music's ${name} was never drawn still` });
+};
 /** Music on its screen `to` (lib, main), its screen and navbar changes over. */
 async function screen(page, to) {
   await inMusic(page, (to) => window.__cp.ctx.bus.post('bus_gui', `cmd_nav_to_${to}`), to);

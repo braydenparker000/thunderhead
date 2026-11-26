@@ -143,19 +143,27 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   await page.waitForFunction(() => !!navigator.serviceWorker.controller && window.__cp?.ctx?.library?.tracks?.length === 4 && !!window.__cp.ctx.listWidget, null, { timeout: 60_000 });
 
   /** A view's centre: by id, the header's menu ('header-menu'), or the cover's three dots ('cover-menu'); only a view
-   * shown with every view above it (a header the list has let go keeps its menu's entries, hidden with it in the pool). */
-  const where = (what) => page.evaluate((what) => {
+   * shown with every view above it (a header the list has let go keeps its menu's entries, hidden with it in the pool),
+   * and only where a tap reaches it (input.js hitTest): not under the Undo bar, which stands above everything for its
+   * 5 s and takes a tap itself, nor in a menu's end that its growing height still cuts off. */
+  const where = (what) => page.evaluate(async (what) => {
     const { ctx } = window.__cp;
+    const { hitTest } = await import('/music/src/input.js');
     const shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
     let v = null;
     if (what === 'header-menu') v = ctx.listWidget.libList.active.get(-1)?.findViewById('menu');
     else if (what === 'cover-menu') v = ctx.listWidget.items.get(0)?.findViewById('menu');
     else ctx.root.walk((x) => { if (!v && x.id === what && shown(x)) v = x; });
     if (!v || !shown(v)) return null;
-    const a = v.getLocationIn(null);
-    return { x: a.x + v.width / 2, y: a.y + v.height / 2 };
+    const a = v.getLocationIn(null), at = { x: a.x + v.width / 2, y: a.y + v.height / 2 };
+    // The tap lands on it or in it, or on the nearest view above it that takes taps (a row holding a line of text).
+    const hit = hitTest(ctx.root, at.x, at.y);
+    for (let h = hit; h; h = h.parent) if (h === v) return at;
+    let own = v;
+    while (own && !(own.clickable || own.longClickable || typeof own.onPointerDown === 'function')) own = own.parent;
+    return hit && hit === own ? at : null;
   }, what);
-  /** Taps a view once it is shown and has stopped moving (a menu grows into place): two reads alike. */
+  /** Taps a view once it is shown, reachable and has stopped moving (a menu grows into place): two reads alike. */
   const tap = async (what) => {
     let last = null;
     const c = await until(async () => {

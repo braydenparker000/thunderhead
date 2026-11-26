@@ -28,7 +28,8 @@ after(async () => {
   site?.close();
 });
 
-/** Opens a home category (by id) with a sort saved for its list key, and waits for the rail to rest. */
+/** Opens a home category (by id) with a sort saved for its list key, and waits for the rail to rest and to be written
+ * to the page as it is now (view.js sync draws a change on the next frame: its marks, its place). */
 const open = async (page, home, key, sort) => {
   await page.evaluate(async ([home, key, sort]) => {
     const { ctx } = window.__cp, lw = ctx.listWidget;
@@ -39,7 +40,9 @@ const open = async (page, home, key, sort) => {
   }, [home, key, sort]);
   await until(() => page.evaluate(() => {
     const { ctx } = window.__cp, lw = ctx.listWidget, sc = ctx.listScroller;
-    return lw.mode === 'list' && !lw.trans && lw.libList.source === lw.stack[lw.stack.length - 1] && sc.mode === 2 && sc.textAlpha === 1;
+    if (!(lw.mode === 'list' && !lw.trans && lw.libList.source === lw.stack[lw.stack.length - 1] && sc.mode === 2 && sc.textAlpha === 1)) return false;
+    for (let p = sc; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return false;
+    return true;
   }), { message: 'the list or its rail never came to rest' });
 };
 

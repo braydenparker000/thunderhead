@@ -14,9 +14,10 @@ const TAP_TIMEOUT_MS = 100; // ViewConfiguration.getTapTimeout()
 /**
  * Deepest visible view under (x, y) that accepts touch. A view that is `inert` (a dialog on its way
  * out) takes none, nor does anything in it; one that clips its touches (`clipTouch`, a height: a
- * scrolled menu's entries) gives none to children outside its box or below that height.
+ * scrolled menu's entries) gives none to children outside its box or below that height. (Exported for the
+ * browser checks, which tap a view only where a tap reaches it.)
  */
-function hitTest(view, x, y) {
+export function hitTest(view, x, y) {
   if (view.visibility !== VISIBLE || view.alpha <= 0 || view.inert) return null;
   const l = localPoint(view, x, y);
   const inside = l.x >= 0 && l.y >= 0 && l.x < view.width && l.y < view.height;

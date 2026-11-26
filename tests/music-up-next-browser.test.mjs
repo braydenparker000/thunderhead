@@ -152,15 +152,19 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && window.__cp.ctx.listWidget?.items?.get(0), null, { timeout: 30_000 });
 
   /** A view's box in CSS pixels: the cover's three dots ('cover-menu'), the open menu ('menu'), the Undo bar ('bar'), the
-   * window's frame ('window'), else a view by id. */
+   * window's frame ('window'), else a view by id; null until the page shows it where it is laid out (it and every view
+   * above it written: view.js sync writes a change on the next frame). */
   const box = (what) => page.evaluate((what) => {
     const { ctx } = window.__cp;
     const v = what === 'cover-menu' ? ctx.listWidget.items.get(0)?.findViewById('menu') : what === 'menu' ? ctx.listWidget.menuItem?.v
       : what === 'bar' ? ctx.root.findViewById('undo_bar') : what === 'window' ? ctx.dialogs?.at(-1)?.find('dialog_frame') : ctx.root.findViewById(what);
     if (!v || v.visibility !== 0 || !v.width) return null;
+    for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return null;
     const r = v.el.getBoundingClientRect();
     return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
   }, what);
+  /** The box once it is drawn. */
+  const drawn = (what) => until(() => box(what), { message: `${what} was never drawn where it is laid out` });
   const tap = async (what) => {
     const b = await until(() => box(what), { message: `nothing to tap: ${what}` });
     await page.mouse.click((b.left + b.right) / 2, (b.top + b.bottom) / 2);
@@ -168,7 +172,8 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   /** The playing song's menu is open and still. */
   const menuOpen = () => until(() => page.evaluate(() => {
     const { ctx } = window.__cp, ph = ctx.root.findViewById('menu_placeholder'), v = ctx.root.findViewById('queue_up_next');
-    return !!ctx.listWidget.menuItem && !ph.scenes.running && v?.visibility === 0 && v.width > 0;
+    const m = ctx.listWidget.menuItem;
+    return !!m && !m.closing && !ph.scenes.running && !m.v.scenes?.running && v?.visibility === 0 && v.width > 0;
   }), { message: 'the menu never opened' });
   /** The window is open and still, with its rows. */
   const windowOpen = () => until(() => page.evaluate(() => { const d = window.__cp.ctx.dialogs ?? []; return d.length === 1 && !d[0].host.scenes.running && d[0].list?.active.size > 4; }), { message: 'the window never opened' });
@@ -181,14 +186,19 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await menuOpen();
   await tap('queue_up_next');
   await windowOpen();
-  const queued = await page.evaluate(() => {
+  // (Read once each queued row's title, meta and handle are written where they are laid out.)
+  const queued = await until(() => page.evaluate(() => {
     const r = (v) => v.el.getBoundingClientRect();
-    return [...window.__cp.ctx.dialogs[0].list.active.values()].flatMap((row) => {
+    const drawn = (v) => { for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return false; return true; };
+    const out = [...window.__cp.ctx.dialogs[0].list.active.values()].flatMap((row) => {
       const h = row.findViewById?.('drag_handler');
       if (!h || h.visibility !== 0) return [];
-      return [{ title: r(row.findViewById('title')).right, meta: r(row.findViewById('meta')).right, handle: r(h).left, metaText: row.findViewById('meta').text }];
+      const title = row.findViewById('title'), meta = row.findViewById('meta');
+      if (![title, meta, h].every(drawn)) return [null];
+      return [{ title: r(title).right, meta: r(meta).right, handle: r(h).left, metaText: meta.text }];
     });
-  });
+    return out.every(Boolean) && out;
+  }), { message: 'the queued rows were never drawn where they are laid out' });
   assert.equal(queued.length, 3, 'three queued rows with their handle');
   for (const q of queued) {
     assert.ok(q.metaText, 'the row has its meta');
@@ -202,7 +212,7 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   });
   await until(() => page.evaluate(() => window.__cp.player.nextUp().length === 0), { message: 'Clear emptied nothing' });
   await barStill();
-  const atWindow = { bar: await box('bar'), window: await box('window') };
+  const atWindow = { bar: await drawn('bar'), window: await drawn('window') };
   assert.ok(atWindow.bar.bottom <= atWindow.window.bottom + 0.5 && atWindow.bar.bottom >= atWindow.window.bottom - 24, `the bar at the window's edge: ${JSON.stringify(atWindow)}`);
   // The list places its rows at once and writes them to the page on its next frame (view.js invalidate): the
   // last row is read once it is placed at the end and written there (more rows may join as the end shows).
@@ -231,7 +241,7 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await page.evaluate(() => window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_lib'));
   const mini = await until(() => page.evaluate(() => window.__cp.miniBox()), { message: 'the mini player never showed' });
   await barStill();
-  const bar = await box('bar');
+  const bar = await drawn('bar');
   assert.ok(bar.bottom <= mini.top + 0.5 || bar.top >= mini.bottom - 0.5, `the bar ${JSON.stringify(bar)} clear of the mini player ${JSON.stringify(mini)}`);
 
   // Landscape: the menu fits the screen, and its last item (Genre) scrolls into it.
@@ -241,10 +251,10 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await until(() => page.evaluate(() => { const { ctx } = window.__cp; return ctx.topNav?.nav === 'nav_main' && !ctx.topNav.scenes.running && ctx.root.width === Math.round(844 * ctx.dpr); }), { message: 'the player never came back in landscape' });
   await tap('cover-menu');
   await menuOpen();
-  const card = await box('menu');
+  const card = await drawn('menu');
   assert.ok(card.top >= 0 && card.bottom <= 390, `the menu inside the screen: ${JSON.stringify(card)}`);
-  assert.ok((await box('genre')).bottom > card.bottom, 'Genre starts below the menu (it does not all fit)');
-  const from = await box('download_song');
+  assert.ok((await drawn('genre')).bottom > card.bottom, 'Genre starts below the menu (it does not all fit)');
+  const from = await drawn('download_song');
   const x = (from.left + from.right) / 2;
   await page.mouse.move(x, from.top + 10);
   await page.mouse.down();
