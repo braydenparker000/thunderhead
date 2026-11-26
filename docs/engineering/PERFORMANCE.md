@@ -112,6 +112,12 @@ Measured 2026-11-22 (agents' 4-core VM; seconds to the useful paint, requests on
 
 `tests/music-open-browser.test.mjs` holds Music to cold ≤ 19 s, warm ≤ 2.5 s and ≤ 10 requests.
 
+Music's kept release (2026-11-26, MUSIC.md §5.10): a warm open takes its page and every file from the kept set
+and asks only `/release.json`, in the background. Its own start steps (ms from the page's start, three warm
+opens, same link and 4x CPU): the first module ran at 450–575 before and 300–410 after; the first frame at
+1,340–1,555 before and 1,246–1,652 after. On a 600 ms link the first module ran at 890–1,050 before and
+355–420 after, the first frame at 1,780–2,000 before and 1,240–1,780 after: the open no longer waits on the link.
+
 ### 3.2 Interaction
 
 | Metric | Budget | Measured by |

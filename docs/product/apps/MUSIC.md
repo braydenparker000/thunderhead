@@ -1114,6 +1114,29 @@ state's boxes equal to those the code drew before (`tests/fixtures/music-transit
 Playwright's Chromium; text widths move by a pixel on other Chromium builds, so a Playwright upgrade takes
 them again with `TH_CAPTURE_BOXES=<file>` after checking the look by eye).
 
+**Scrolling** (2026-11-26, the owner: "less laggy especially on scrolls", a Galaxy A35 among the phones).
+Profiled with 15,000 invented songs and 1,200 drawn covers at phone size, 4x and 6x CPU slowdown, touch
+flings and drags (frame times from `requestAnimationFrame`, the main thread's own time from DevTools'
+metrics, paint and raster from a trace). What it was, and what changed:
+- Every row was moved by its own `transform` inside the list's one layer, so each frame of a scroll repainted
+  and re-rasterized the whole list. The rows, the header and its decor now lie in a layer of their own
+  (`power-list.js` `contentEl`), written at their place in the content (`View.syncSelf`), and a scroll moves
+  only that layer's transform: raster a frame 2.8 → 0.6 ms on the Library's Songs, 3.5 → 0.7 ms on the Albums
+  grid, 3.6 → 1.5 ms on Home (6x, traced).
+- The v2 lists' fade above the floating toolbar (`home/bottom-room.js`, a CSS mask over the list) doubled that
+  repaint (raster 300–370 against 150 ms a fling with it off). With the rows in their own layer the mask's
+  layer is painted only when the toolbar moves (0–9 times a gesture, measured), so it stays, and the look with it.
+- Each frame wrote the whole view tree to the page; a scroll's frames now write only the views changed, as a
+  transition's do (`context.js` `scrolling`, `view/motion.js`), and a row bound during placement no longer lays
+  the whole page out in the next frame (`placeItems` keeps its rows' asks for a layout): script a frame down
+  15–55 % on every screen (4x and 6x, untraced).
+- The artwork backdrop behind the lists was a live CSS `blur()` over more than the screen; it is drawn once a
+  change into a small canvas (`widgets/milk.js`, a quarter of the blur's scale), the same image to a pixel.
+- The rail redrew at every placement; now only when its thumb moves.
+- Tried and taken out: binding rows ahead of the screen in idle time cost more in every frame of the next
+  scroll (the rows kept bound) than it saved. Covers decode off the main thread already (the browser's raster
+  workers; 5–15 ms a fling on the main thread), so they were left as they are.
+
 ## 6. Media URLs and failures
 
 ### 6.1 Signing
