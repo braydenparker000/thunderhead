@@ -146,24 +146,40 @@ test('Up Next: three sections, swipe out and Undo, Clear and Undo, reorder, Back
   await context.close();
 });
 
+/** In the page (an init script): window.__drawn(v), whether v and every view above it are written where they are laid
+ * out (view.js sync writes a change on the next frame). A list's rows lie in its scrolled content layer
+ * (power-list.js contentEl) and are written at their place in that content (top + translationY + the list's
+ * contentY, view.js syncSelf), the layer at the list's contentY. */
+function installDrawn() {
+  window.__drawn = (v) => {
+    for (let p = v; p; p = p.parent) {
+      const inContent = !!p.parent?.contentEl && p.el.parentNode === p.parent.contentEl;
+      const y = inContent ? Math.round((p.top + p.translationY + p.parent.contentY) * 1000) / 1000 : p.top + p.translationY;
+      if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== y) return false;
+      if (p.contentEl && p._contentDomY !== p.contentY) return false;
+    }
+    return true;
+  };
+}
+
 test('Up Next at phone size: text before the handle, a tap just after Back, the Undo bar with the screen and at the window, the menu in landscape', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await context.addInitScript(installDrawn);
   // The classic layout (?home1): the Undo bar's place over the library is measured against its library screen.
   await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && window.__cp.ctx.listWidget?.items?.get(0), null, { timeout: 30_000 });
 
   /** A view's box in CSS pixels: the cover's three dots ('cover-menu'), the open menu ('menu'), the Undo bar ('bar'), the
    * window's frame ('window'), else a view by id; null until the page shows it where it is laid out (it and every view
-   * above it written: view.js sync writes a change on the next frame). */
+   * above it written: window.__drawn). */
   const box = (what) => page.evaluate((what) => {
     const { ctx } = window.__cp;
     const v = what === 'cover-menu' ? ctx.listWidget.items.get(0)?.findViewById('menu') : what === 'menu' ? ctx.listWidget.menuItem?.v
       : what === 'bar' ? ctx.root.findViewById('undo_bar') : what === 'window' ? ctx.dialogs?.at(-1)?.find('dialog_frame') : ctx.root.findViewById(what);
-    if (!v || v.visibility !== 0 || !v.width) return null;
-    for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return null;
+    if (!v || v.visibility !== 0 || !v.width || !window.__drawn(v)) return null;
     const r = v.el.getBoundingClientRect();
     return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
   }, what);
@@ -193,12 +209,11 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   // (Read once each queued row's title, meta and handle are written where they are laid out.)
   const queued = await until(() => page.evaluate(() => {
     const r = (v) => v.el.getBoundingClientRect();
-    const drawn = (v) => { for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return false; return true; };
     const out = [...window.__cp.ctx.dialogs[0].list.active.values()].flatMap((row) => {
       const h = row.findViewById?.('drag_handler');
       if (!h || h.visibility !== 0) return [];
       const title = row.findViewById('title'), meta = row.findViewById('meta');
-      if (![title, meta, h].every(drawn)) return [null];
+      if (![title, meta, h].every(window.__drawn)) return [null];
       return [{ title: r(title).right, meta: r(meta).right, handle: r(h).left, metaText: meta.text }];
     });
     return out.every(Boolean) && out;
@@ -219,12 +234,14 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   const atWindow = { bar: await drawn('bar'), window: await drawn('window') };
   assert.ok(atWindow.bar.bottom <= atWindow.window.bottom + 0.5 && atWindow.bar.bottom >= atWindow.window.bottom - 24, `the bar at the window's edge: ${JSON.stringify(atWindow)}`);
   // The list places its rows at once and writes them to the page on its next frame (view.js invalidate): the
-  // last row is read once it is placed at the end and written there (more rows may join as the end shows).
+  // last row is read once it is placed at the end and written there, its scrolled content layer too (more rows
+  // may join as the end shows). (Rows are written in content coordinates: a check of the row's own place alone
+  // never held once the list scrolled, and the read waited until the bar left with its room.)
   const lastRow = await until(() => page.evaluate(() => {
     const l = window.__cp.ctx.dialogs[0].list;
     if (l.scrollY < l.maxScroll()) l.scrollTo(l.maxScroll());
     const last = l.active.get(l.source.count - 1);
-    if (!last || last._dirty || last._dom?.y !== last.top + last.translationY) return null;
+    if (!last || !window.__drawn(last)) return null;
     return { bottom: last.el.getBoundingClientRect().bottom };
   }), { message: 'the last row was never placed at the end' });
   assert.ok(lastRow.bottom <= atWindow.bar.top, `the last row (${lastRow.bottom}) ends above the bar (${atWindow.bar.top})`);

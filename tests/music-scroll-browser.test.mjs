@@ -67,12 +67,19 @@ test('rows after drags and flings are the rows of their places, where the list p
     ctx.bus.post('bus_gui', 'cmd_nav_to_lib');
   }, inventLibrary.toString());
   const cdp = await context.newCDPSession(page);
-  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p) => ({ x: p.x, y: p.y, id: 1 })) });
-  /** A drag from y0 to y1 at x, in steps; fast steps leave a fling. */
-  const drag = async (x, y0, y1, steps = 10) => {
-    await touch('touchStart', [{ x, y: y0 }]);
-    for (let i = 1; i <= steps; i++) await touch('touchMove', [{ x, y: y0 + ((y1 - y0) * i) / steps }]);
-    await touch('touchEnd', []);
+  const touch = (type, pts, timestamp) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p) => ({ x: p.x, y: p.y, id: 1 })), timestamp });
+  // Each event says when it happened, 16 ms apart, so a finger's speed is the same on any machine: by the machine's
+  // own clock a slow frame between two moves (over 40 ms, gesture.js VelocityTracker) read as a finger that had
+  // stopped, and the fling never came. The times only go forward, gesture after gesture.
+  let clock = 0;
+  /** A drag from y0 to y1 at x, in steps 16 ms apart: let go while moving it flings (few steps, fast); with `hold` the
+   * finger rests 100 ms before it lifts, a drag alone. */
+  const drag = async (x, y0, y1, steps = 10, { hold = false } = {}) => {
+    const t0 = Math.max(Date.now() / 1000, clock + 0.05), at = (/** @type {number} */ i) => t0 + (i * 16) / 1000;
+    await touch('touchStart', [{ x, y: y0 }], at(0));
+    for (let i = 1; i <= steps; i++) await touch('touchMove', [{ x, y: y0 + ((y1 - y0) * i) / steps }], at(i));
+    clock = hold ? at(steps) + 0.1 : at(steps) + 0.008;
+    await touch('touchEnd', [], clock);
   };
   /** The list at rest: no transition, no drag, fling or spring, nothing moving, rows placed; the recorder idle. */
   const atRest = () => until(() => page.evaluate(() => {
@@ -104,9 +111,9 @@ test('rows after drags and flings are the rows of their places, where the list p
   await page.evaluate(() => { window.__cp.ctx.libraryChip = 'songs'; window.__cp.ctx.homeTabs.go('library'); });
   await atRest();
   const before = (await entries()).length;
-  await drag(200, 650, 250, 20);
+  await drag(200, 650, 250, 20, { hold: true });
   await check('songs, dragged');
-  await drag(200, 650, 300, 20);
+  await drag(200, 650, 300, 20, { hold: true });
   await atRest();
   await drag(200, 700, 200, 4);
   const songs = await check('songs, flung');
@@ -125,7 +132,7 @@ test('rows after drags and flings are the rows of their places, where the list p
   // (A tab's button on its own tab only scrolls it to the top: by Home, the Library comes back at the chip.)
   await page.evaluate(() => { localStorage.setItem('cp-list-opts', JSON.stringify({ 'cat:albums': { zoom: 5 } })); window.__cp.ctx.libraryChip = 'albums'; window.__cp.ctx.homeTabs.go('home'); window.__cp.ctx.homeTabs.go('library'); });
   await atRest();
-  await drag(200, 650, 250, 20);
+  await drag(200, 650, 250, 20, { hold: true });
   await drag(200, 700, 200, 4);
   assert.equal(await page.evaluate(() => window.__cp.ctx.listWidget.libList.source.libraryChip), 'albums');
   const grid = await check('albums grid, flung');
