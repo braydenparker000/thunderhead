@@ -105,6 +105,8 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (req.mode === 'navigate' && url.origin === self.location.origin) release?.check();
+  // A worker the page starts: its files from the page's kept set too.
+  else if (e.resultingClientId && e.clientId) release?.follow(e.resultingClientId, e.clientId);
   // A song's range request that its head or tail covers.
   if (req.method === 'GET' && req.headers.has('range')) {
     if (!headsKnown) { e.respondWith(headsLoaded.then(() => { const c = covered(req); return c ? fromHead(req, ...c, e) : net(req, e); })); return; }

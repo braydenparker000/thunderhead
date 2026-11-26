@@ -229,6 +229,8 @@ test('a new release is saved whole in the background and the next open takes it 
   await release.behind();
   await release.booted('p2');
   assert.equal(await text(await release.answer(file('/music/src/app.js'), undefined, 'p2')), 'v1 app', 'a later file of that page: still its set');
+  release.follow('w2', 'p2');
+  assert.equal(await text(await release.answer(file('/music/app.css'), undefined, 'w2')), 'v1 css', 'and of a worker it started');
   net.asked.length = 0;
   assert.equal(await text(await release.open(page(), 'p3')), '<html>v2</html>', 'the next open: the new set');
   assert.equal(await text(await release.answer(file('/music/src/app.js'), undefined, 'p3')), 'v2 app');

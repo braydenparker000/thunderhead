@@ -962,8 +962,8 @@ whole for the release they came with. The rule:
    `/release.json` in the background, once.
 3. If that names a new release, the files of the kept set's list are fetched again (`no-cache`) into a second
    set; it is used only if `/release.json` still names that release once all are in, and then by the next
-   open, whole. The open that found it stays on its own set: a page takes every file from the set it opened
-   on for as long as it is open, so one page load never mixes two releases.
+   open, whole. The open that found it stays on its own set: a page (and any worker it starts) takes every file from the set it
+   opened on for as long as it is open, so one page load never mixes two releases.
 4. A file the set lacks comes from the network: it joins the set while the set's release is the live one;
    otherwise the set is marked incomplete and the next open takes the network's way.
 5. A page that never says it started (a broken set, a crash) leaves its set on trial: the next open does not

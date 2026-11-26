@@ -107,8 +107,10 @@
       return s.sets[slot];
     };
 
-    /** A set that may open a page by itself: complete, every page it opened has started, within its 7 days. */
-    const usable = (set) => !!set && set.complete && !set.missed && set.trial < 1 && now() - set.started <= LIFE_MS;
+    /** A set whose files may be answered whole: complete, nothing missed, within its 7 days. */
+    const whole = (set) => !!set && set.complete && !set.missed && now() - set.started <= LIFE_MS;
+    /** A set that may open a page by itself: whole, and every page it opened has started. */
+    const usable = (set) => whole(set) && set.trial < 1;
 
     /** A file kept into a set. */
     const keep = async (slot, set, req, res) => {
@@ -241,7 +243,7 @@
       }
       // A page opened on a kept set: its files from that set only (a page not known here, that of a worker
       // stopped and started since: the kept set while it may open pages).
-      if (set && (own ? own.kept : usable(set))) {
+      if (set && (own ? own.kept : whole(set))) {
         try {
           const hit = await kept(slot, set, req);
           if (hit) return hit;
@@ -291,7 +293,10 @@
       return res;
     };
 
-    return { check, answer, open, keepPage, booted, behind: () => behind, saved: () => writing, state, down: () => unreached, NAME, LIFE_MS, keyOf };
+    /** A worker a page starts takes its files from the page's set. @param {string} child @param {string} parent */
+    const follow = (child, parent) => { if (child && pages.has(parent)) pages.set(child, pages.get(parent)); };
+
+    return { check, answer, open, follow, keepPage, booted, behind: () => behind, saved: () => writing, state, down: () => unreached, NAME, LIFE_MS, keyOf };
   };
   g.thMusicRelease = { make };
 })();
