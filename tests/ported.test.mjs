@@ -33,13 +33,17 @@ const IMPROVED = {
   // The queue's moves, split from player.js (it imports them), pass over "never" songs as the player does.
   'music/src/player/queue-moves.js': ['/th/music/dj.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],
+  // The search worked out ahead in slices (2026-11-26): each song's fields and tiers, taken by sources.js's search.
+  'music/src/list/search-prep.js': ['/th/music/search.js'],
   'guitar/reader.js': ['/th/guitar/teacher.js', '/th/guitar/practice.js'],
   // The mind's arrangement in each app's slot (th/ported/arrangement.js), Guitar's intents and its progress's sync.
   'guitar/app.js': ['/th/guitar/intents.js', '/th/ported/arrangement.js', '/th/guitar/progress.js'],
   'astra/src/ui/components.js': ['/th/ported/arrangement.js'],
   'astra/src/main.js': ['/th/astra/open.js'],
   'podcasts/app.js': ['/th/podcasts/progress.js', '/th/ported/arrangement.js'],
-  'music/sw.js': ['/th/music/release.js'],
+  // Downloads (2026-11-26): songs, playlists and albums streamed to the phone's Downloads by Music's worker,
+  // each song fetched through the bridge's own answer (th/music/downloads.js, which loads th/music/zip-stream.js).
+  'music/sw.js': ['/th/music/release.js', '/th/music/downloads.js'],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));

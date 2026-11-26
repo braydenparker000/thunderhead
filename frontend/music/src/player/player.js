@@ -812,7 +812,8 @@ export class Player {
     const url = t.src || await this.ctx.library?.mediaUrl(t);
     if (!url) return null;
     t.src = url;
-    return (/^https?:/.test(url) && await this.ctx.audioCache?.open(url)) || url;
+    // A song kept from playing it is used only at the catalogue's size (a file replaced upstream streams again).
+    return (/^https?:/.test(url) && await this.ctx.audioCache?.open(url, {expected: +t.size || 0})) || url;
   }
 
   /** Starts a deck (and the audio thread); a play the browser refuses (no user gesture yet) leaves the player paused. */

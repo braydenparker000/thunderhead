@@ -112,9 +112,14 @@ export class PlaylistSelectAndAddToListLayout extends FastLayout {
     this.items = pls;
     const lib = this.ctx.library;
     const contains = pl => this.tracks.length > 0 && this.tracks.every(t => pl.ids.includes(t.id));
+    // None yet: the empty list's quiet line (power-list.js EMPTY_ROW) says how to make one.
+    const none = !pls.length;
     this.list.setSource({
-      count: pls.length, itemType: 'plsel', itemScene: 'defaultScene', itemHeight: this.itemSize, header: null,
+      count: none ? 1 : pls.length, itemType: 'plsel', itemScene: 'defaultScene', itemHeight: this.itemSize, header: null,
+      typeAt: () => (none ? 'emptyLine' : undefined),
+      isSeparator: () => none,
       bindItem: (v, i) => {
+        if (none) { v.findViewById('item_empty_list_text')?.setText(WORDS.noPlaylistsAdd); return; }
         const pl = pls[i];
         const first = lib.byId.get(pl.ids[0]);
         // Each row counts its songs as the Playlists list does.

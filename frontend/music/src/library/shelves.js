@@ -8,6 +8,8 @@
 // - possible duplicates: songs whose title and artist are equal once case, spacing and punctuation
 //   are left out (nothing else is stripped), two songs or more, wherever they are.
 
+import {run, sortSteps, STEP} from './groups.js';
+
 export const ALBUM_MIN = 3;
 export const ARTIST_MIN = 5;
 
@@ -29,23 +31,36 @@ export const byDiscTrack = (a, b) => (a.disc || 0) - (b.disc || 0) || (a.track |
  * owners (lower-cased artist names with an album of their own), duplicates}. names(albumArtist)
  * gives an album artist's split names (Library.namesOf).
  */
-export function buildShelves({albumGroups, artistGroups, names = s => [s]}) {
+export function buildShelves(groups) {
+  return run(shelfSteps(groups));
+}
+
+/** buildShelves as steps (a generator yielding every STEP songs: Library's idle warm-up, groups.js). */
+export function* shelfSteps({albumGroups, artistGroups, names = s => [s]}) {
   const albums = [], albumOf = new Map(), singles = [], owners = new Set();
+  let n = 0;
   for (const g of albumGroups) {
     if (!isAlbum(g)) { singles.push(...g.tracks); continue; }
     albums.push(g);
     for (const t of g.tracks) albumOf.set(t, g);
-    for (const n of names(g.artist)) owners.add(lc(n));
+    for (const name of names(g.artist)) owners.add(lc(name));
+    if ((n += g.tracks.length) >= STEP) { n = 0; yield; }
   }
-  singles.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
+  yield* sortSteps(singles, (a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
   const artists = artistGroups.filter(g => g.tracks.length >= ARTIST_MIN || owners.has(lc(g.title)));
-  return {albums, albumOf, singles, artists, owners, duplicates: duplicateGroups(albumGroups.flatMap(g => g.tracks))};
+  return {albums, albumOf, singles, artists, owners, duplicates: yield* duplicateSteps(albumGroups.flatMap(g => g.tracks))};
 }
 
 /** Groups of two songs or more with the same title and artist (dupKey), by title then artist. */
 export function duplicateGroups(tracks) {
+  return run(duplicateSteps(tracks));
+}
+
+function* duplicateSteps(tracks) {
   const map = new Map();
+  let n = 0;
   for (const t of tracks) {
+    if (++n % STEP === 0) yield;
     const title = dupKey(t.title);
     if (!title) continue;
     const k = title + '\u0000' + dupKey(t.artist);
@@ -57,7 +72,7 @@ export function duplicateGroups(tracks) {
     list.sort((a, b) => cmp(a.album, b.album) || (a.durationMs || 0) - (b.durationMs || 0));
     out.push({title: list[0].title, artist: list[0].artist, tracks: list});
   }
-  return out.sort((a, b) => cmp(a.title, b.title) || cmp(a.artist, b.artist));
+  return yield* sortSteps(out, (a, b) => cmp(a.title, b.title) || cmp(a.artist, b.artist));
 }
 
 /** An album's year: the earliest a song has, or 0. */

@@ -71,11 +71,42 @@ export class LibraryDb {
     return req(this.store('state', 'readwrite').delete(key));
   }
 
-  /** State entries whose keys start with prefix, as [key, value] pairs. */
+  /** Several state records in one transaction ([key, value] pairs). */
+  putStates(pairs) {
+    return this.inTx(st => { for (const [k, v] of pairs) st.put(v, k); });
+  }
+
+  /** Several state records deleted in one transaction. */
+  deleteStates(keys) {
+    return this.inTx(st => { for (const k of keys) st.delete(k); });
+  }
+
+  inTx(fill) {
+    const tx = this.db.transaction('state', 'readwrite');
+    fill(tx.objectStore('state'));
+    return new Promise((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error); });
+  }
+
+  /** The state keys that start with prefix. */
+  stateKeys(prefix) {
+    return req(this.store('state').getAllKeys(IDBKeyRange.bound(prefix, prefix + '\uffff')));
+  }
+
+  /**
+   * State entries whose keys start with prefix, as [key, value] pairs: read PAGE at a time, each page its
+   * own request (thousands of songs' `u:` records in one read were one long structured clone at start).
+   */
   async stateEntries(prefix) {
-    const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
-    const store = this.store('state');
-    const [keys, values] = await Promise.all([req(store.getAllKeys(range)), req(store.getAll(range))]);
-    return keys.map((k, i) => [k, values[i]]);
+    const out = [];
+    let from = IDBKeyRange.bound(prefix, prefix + '\uffff');
+    for (;;) {
+      const store = this.store('state');
+      const [keys, values] = await Promise.all([req(store.getAllKeys(from, PAGE)), req(store.getAll(from, PAGE))]);
+      for (let i = 0; i < keys.length; i++) out.push([keys[i], values[i]]);
+      if (keys.length < PAGE) return out;
+      from = IDBKeyRange.bound(keys[keys.length - 1], prefix + '\uffff', true);
+    }
   }
 }
+
+const PAGE = 1000;

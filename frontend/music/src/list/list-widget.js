@@ -3,7 +3,7 @@
 // its own item scene (scene_aa when paused, scene_aa_playing when playing).
 import {idleWork} from '../view/idle-work.js';
 import {View, MeasureSpec} from '../view/view.js';
-import {FastLayout} from '../view/fast-layout.js';
+import {FastLayout, attachToView, isAttached} from '../view/fast-layout.js';
 import {SceneFastLayout, SceneRecord} from '../view/scene.js';
 import {animTime} from '../widgets/topnav.js';
 import {animateShade} from '../widgets/popup.js';
@@ -13,10 +13,10 @@ import {AAGeometry, geometryParams, dynamicDimensionReader} from './aa-geometry.
 import {StyledAttributes} from '../res/resources.js';
 import {GONE, VISIBLE, INVISIBLE} from '../res/values.js';
 import {STATE_PLAYING} from '../player/player.js';
-import {PowerList} from './power-list.js';
+import {PowerList, HEAD} from './power-list.js';
 import {MoveableToolbar, ANCHOR_BOTTOM, ANCHOR_FIXED_BOTTOM} from './moveable-toolbar.js';
 import {ListReorder} from './reorder.js';
-import {HomeSource, currentCategorySource, searchSource, playlistsSource, playlistSource, allSongsSource, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
+import {HomeSource, currentCategorySource, searchSource, playlistsSource, playlistSource, allSongsSource, allSongsOrderSteps, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
 import {SEARCH_CATS, searchMask} from '../widgets/search.js';
 import {recordSearch} from '../library/search-history.js';
 import {ListTransition, ZOOM, pageFx} from './list-transition.js';
@@ -26,6 +26,8 @@ import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {queueMenuItems} from '../widgets/up-next.js';
+import {downloadMenuItem, downloadRoom} from '../widgets/downloads.js';
+import {scrollMenuItems} from './menu-scroll.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
 import {keepPlace} from './relocate.js';
@@ -109,6 +111,37 @@ export class AAItemView extends SceneFastLayout {
       } else if (on && v.alpha === 0 && !this.ctx.tweens?.has(v)) v.alpha = 1;
     }
     box.setChecked(checked);
+  }
+
+  onMeasure(wSpec, hSpec) {
+    this.fitHandle();
+    super.onMeasure(wSpec, hSpec);
+  }
+
+  /**
+   * While the drag handle shows (a queued row in Up Next, a playlist's rows in selection), the title
+   * and the meta end before it instead of at the row's right edge, which the handle covers: their
+   * right side is attached to the handle in the scene's params now laid out (the handle's own
+   * padding is the gap), and back when it goes. Their boxes, padding included, end at the handle:
+   * layout_alignToContent lets a box's padding pass its attachment, so the margin gives that back.
+   */
+  fitHandle() {
+    const h = this._handle ??= this.findViewById('drag_handler') ?? false;
+    if (!h) return;
+    const on = h.visibility === VISIBLE;
+    for (const v of [this.title, this.meta]) {
+      const lp = v?.lp;
+      if (!lp || !isAttached(lp.attachRight) || !!lp.beforeHandle === on) continue;
+      if (on) {
+        lp.beforeHandle = {attach: lp.attachRight, margin: lp.rightMargin};
+        lp.attachRight = attachToView('drag_handler');
+        lp.rightMargin = lp.alignToContent & 0x10000 ? Math.round((v.contentInsets?.().right ?? v.paddingRight) * (lp.compensateScale || 1)) : 0;
+      } else {
+        lp.attachRight = lp.beforeHandle.attach;
+        lp.rightMargin = lp.beforeHandle.margin;
+        lp.beforeHandle = null;
+      }
+    }
   }
 
   /** DragHandler: a press starts the drag reorder of this row (om0.mo632). */
@@ -541,6 +574,8 @@ export class ListWidget extends FastLayout {
       if (msg === 'msg_app_setting_changed' && /^(search_track_titles_only|title_filename)$/.test(d?.key) && this.searching) this.showSearch();
     });
     ctx.listWidget = this;
+    // A refreshed library's All Songs order, made in idle slices before it shows (Library.replaceTracks).
+    ctx.orderSteps = tracks => allSongsOrderSteps(ctx, tracks);
     this.mode = 'aa';
     // Library mode: a PowerList over the same area, with a navigation stack.
     this.libList = new PowerList(ctx, this);
@@ -801,6 +836,8 @@ export class ListWidget extends FastLayout {
       if (c.id === 'resort' && !hide.has('resort')) c.setVisibility(VISIBLE);
       // Rename and Delete: a playlist's own (playlist-edit.js playlistMenuItems).
       if (c.id === 'pl_rename' || c.id === 'pl_delete') c.setVisibility(src?.playlist ? VISIBLE : GONE);
+      // Download: a playlist's, or an album page's (widgets/downloads.js).
+      if (c.id === 'pl_download') c.setVisibility(src?.playlist || src?.group?.kind === 'album' ? VISIBLE : GONE);
       if (!c.id && c.text === exportText) c.onClick = () => exportPlaylists(this.ctx);
     }
   }
@@ -2236,7 +2273,10 @@ export class ListWidget extends FastLayout {
     if (this._prepQueued || !globalThis.requestIdleCallback) return;
     this._prepQueued = true;
     // An idle job (view/idle-work.js): not within 300 ms of an input, nor while a transition or a scroll runs.
-    idleWork(this.ctx, 'prepare-track-list', [() => { this._prepQueued = false; this.prepareTrackList(); }]);
+    // The library's views and a screen of rows first, in slices (each was a long task inside it).
+    const ll = this.libList;
+    idleWork(this.ctx, 'prepare-track-list', [() => this.ctx.library?.warmSteps?.(), () => allSongsOrderSteps(this.ctx), () => ll.spareSteps?.('track', 1, HEAD), () => ll.spareSteps?.('track', 16),
+      () => { this._prepQueued = false; this.prepareTrackList(); }]);
   }
 
   /**
@@ -2343,6 +2383,8 @@ const ITEM_MENU = 'scene_item_menu';
 const HEADER_BUTTONS = ['shuffle_button', 'play_button', 'search_button', 'select_button'];
 const ART_ENTRY_KINDS = new Set(['album', 'artist', 'albumArtist', 'composer', 'genre', 'playlist']);
 const HUMAN_ENTRY_KINDS = new Set(['artist', 'albumArtist', 'composer']);
+// The item menu keeps this far (dp) from the visible area's top and bottom when its cap is the screen's.
+const MENU_EDGE_DP = 8;
 
 ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items_aa') {
   if (v.inMenu || this.menuItem) return;
@@ -2379,8 +2421,10 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     this.ctx.inflater.inflate(itemsLayout, items);
     // Deleting music files is out of scope (owner decision): the cover menu has no Delete.
     if (itemsLayout === 'merge_menu_items_aa') items.findViewById('delete')?.setVisibility(GONE);
-    // Play next, Add to queue, Up next and History for the playing song (widgets/up-next.js).
+    // Play Next, Add to Queue, Up Next and History for the playing song (widgets/up-next.js).
     if (itemsLayout === 'merge_menu_items_aa') queueMenuItems(this.ctx, items);
+    // Download, a row of the menu's own under them (widgets/downloads.js).
+    if (itemsLayout === 'merge_menu_items_aa') downloadMenuItem(this.ctx, items);
     // A playlist's Rename and Delete (shown for playlists only, prepareListMenu).
     if (itemsLayout === 'merge_menu_items_tracks') playlistMenuItems(this.ctx, items);
     items.walk(c => {
@@ -2409,11 +2453,16 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     r.recalc = 2;
     if (menuRec.lp?.height === -2 && menuRec.lp.width > 0) {
       const [, mh] = v.scenes.measureIn(ITEM_MENU, MeasureSpec.make(menuRec.lp.width, MeasureSpec.EXACTLY), MeasureSpec.make(ph.height, MeasureSpec.AT_MOST));
-      r.lp = Object.assign(Object.create(Object.getPrototypeOf(menuRec.lp)), menuRec.lp, {height: mh});
+      // A Download row (widgets/downloads.js) adds its own height to the menu's cap: nothing below it is
+      // cut off. The cap never passes the visible height (landscape); entries that then do not fit scroll.
+      const ins = ph.getInsets?.() ?? {top: 0, bottom: 0};
+      const visible = ph.height - ins.top - ins.bottom - 2 * Math.round(MENU_EDGE_DP * this.ctx.dpr);
+      r.lp = Object.assign(Object.create(Object.getPrototypeOf(menuRec.lp)), menuRec.lp, {height: mh, maxHeight: Math.min(menuRec.lp.maxHeight + downloadRoom(items), visible)});
     }
     this.menuItem.saved.set(ITEM_MENU, menuRec);
     map.set(ITEM_MENU, r);
   }
+  this.menuItem.unscroll = scrollMenuItems(v, items);
   ph.popup = {modal: true, close: () => this.closeItemMenu()};
   // The item menu is a GUI modal while open (om0 → t61: @id/popup_menu_item; F78).
   this.ctx.bus.post('bus_gui', 'cmd_gui_set_modal', this, {arg1: 'popup_menu_item'});
@@ -2447,6 +2496,7 @@ ListWidget.prototype.closeItemMenu = function () {
   v.scenes.go(m.prevScene, {duration: dur});
   v.itemScene = m.prevScene;
   ph.scenes.go('defaultScene', {duration: dur, onEnd: () => {
+    m.unscroll?.();
     ph.removeView(v);
     ph.popup = null;
     for (const [s, r] of m.saved) { if (!s) continue; if (r) v.sceneParams.set(s, r); else v.sceneParams.delete(s); }

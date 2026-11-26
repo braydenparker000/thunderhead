@@ -2,7 +2,8 @@
 // bytes from th/music/stream/track.js `keep`): a song whose stream read every byte is kept whole with no
 // download of its own, and playing it again makes no audio request (it opens as a blob URL, which the
 // player plays from the phone); a seek that left a gap keeps nothing; the 200 MB cap drops the song played
-// longest ago first. Fake caches and fetch; node only, no network.
+// longest ago first; a kept copy of another length than the catalogue's (a replaced file) is not used. Fake
+// caches and fetch; node only, no network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TrackReader } from '../frontend/th/music/stream/track.js';
@@ -120,4 +121,24 @@ test('the cap drops the song played longest ago first; playing one again makes i
   await played.clear();
   assert.equal(played.index.size, 0);
   assert.equal(caches.stores.has(PLAYED_CACHE), false);
+});
+
+test('a kept song of another length than the catalogue says (its file replaced, its id the same) is not used, and goes', async () => {
+  const caches = fakeCaches();
+  const cache = new AudioCache({ caches, storage: fakeStorage(), fetch: async () => { throw new Error('no download'); }, online: () => true });
+  await cache.ready;
+  assert.equal(await cache.keepPlayed(SONG, TONE, TONE.length), true);
+  // The catalogue's size agrees: it plays from the phone.
+  const local = await cache.open(SONG, { expected: TONE.length });
+  assert.match(local, /^blob:/);
+  cache.release(local);
+  // The file was replaced upstream (another size, the same URL): the old bytes are not played, and the copy goes,
+  // so the song streams again (and is kept again, whole).
+  assert.equal(await cache.open(SONG, { expected: TONE.length + 100 }), null);
+  assert.equal(cache.has(SONG), false);
+  assert.equal(caches.stores.get(PLAYED_CACHE).size, 0);
+  assert.equal(await cache.keepPlayed(SONG, new Uint8Array(TONE.length + 100).fill(1), TONE.length + 100), true);
+  assert.ok(await cache.played.open(SONG, { expected: TONE.length + 100 }), 'the new file is kept and used');
+  // A size the catalogue does not know (0) checks nothing.
+  assert.ok(await cache.played.open(SONG));
 });

@@ -19,7 +19,7 @@ const tabs = () => {
   return channel;
 };
 /** Kept at sign-out: code (`th-<build>`, `th-vendor`) and Music's catalogue (th/music/bridge.js), which holds
- * nothing its phone-only snapshot (`r2:index`) does not keep; wiped, a sign-in paid ~35 MB for it again. */
+ * nothing its phone-only snapshot (`r2:snap`) does not keep; wiped, a sign-in paid ~35 MB for it again. */
 const KEPT_CACHE = /^th-(\d+|vendor|music-catalog)$/;
 /** The ported apps' stores the account also holds (SIGN-IN.md §11.3): Podcasts' positions and follows
  * (and its feeds, Up Next and speed, which the account keeps too), Guitar's library and practice

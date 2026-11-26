@@ -5,6 +5,7 @@
 import {FastLayout} from './fast-layout.js';
 import {View, MeasureSpec} from './view.js';
 import {nestedDragOf} from '../widgets/sheet-drag.js';
+import {TOUCH_SLOP_DP} from '../gesture.js';
 import {register} from './inflater.js';
 import {GONE} from '../res/values.js';
 
@@ -86,7 +87,25 @@ export class ScrollingBehavior extends View {
       this.drag = {last: start.rootY, nested};
       return true;
     };
+    // A touch on the content that nothing in it takes (a hint, the gap between choices) is the scroll's, as
+    // Android's ScrollView takes it: without this the frame around (clickable) took it, and its own
+    // interceptors begin above this view, so the content never scrolled from there.
+    p.onPointerDown = e => {
+      if (max() <= 0) return false;
+      this.pending = e;
+      return true;
+    };
+    // While it scrolls, the views around may still take a gesture over (a sideways pager), but a dialog's
+    // frame drag leaves its vertical drags to it (sheet-drag.js), the scroll handing it what it cannot use.
+    Object.defineProperty(p, 'interceptible', {configurable: true, get: () => max() > 0});
     p.onPointerMove = e => {
+      const s = this.pending;
+      if (!this.drag && s) {
+        const slop = TOUCH_SLOP_DP * (this.ctx.dpr || 1);
+        if (Math.abs(e.rootX - s.rootX) < slop && Math.abs(e.rootY - s.rootY) < slop) return;
+        this.pending = null;
+        if (!p.onInterceptStart(s, e)) return;
+      }
       const d = this.drag;
       if (!d) return;
       const step = d.last - e.rootY;
@@ -96,7 +115,8 @@ export class ScrollingBehavior extends View {
       apply(prev + own);
       d.nested?.unconsumed(own - (this.scroll - prev), e.time);
     };
-    p.onPointerUp = e => { this.drag?.nested?.stop(e?.time ?? performance.now()); this.drag = null; };
+    p.onPointerUp = e => { this.pending = null; this.drag?.nested?.stop(e?.time ?? performance.now()); this.drag = null; };
+    p.onPointerCancel = p.onPointerUp;
     p.el.addEventListener('wheel', e => { if (max() > 0) { e.preventDefault(); apply(this.scroll + e.deltaY * this.ctx.dpr); } }, {passive: false});
     const layout = p.onLayout.bind(p);
     p.onLayout = (...args) => { layout(...args); apply(this.scroll); };

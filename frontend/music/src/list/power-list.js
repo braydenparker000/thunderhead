@@ -428,6 +428,17 @@ export class PowerList extends FastLayout {
     }));
   }
 
+  /** Steps that pool spare rows of a type (and role) until n are there, a row a step (prepareTrackList's idle job). */
+  *spareSteps(type, n, role = ROW) {
+    while ((this.pool.get(poolKey(type, role))?.length ?? 0) < n) {
+      const v = this.create(type, role);
+      this.adopt(v);
+      if (role === HEAD) for (const sc of HEAD_SCENES) v.loadBehaviorsFor(sc);
+      this.recycle(-1, v);
+      yield;
+    }
+  }
+
   recycle(i, v, under = false) {
     v.visibility = GONE;
     v.invalidate();

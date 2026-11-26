@@ -15,9 +15,10 @@ export const PARTS = /** @type {const} */ ([
   ['updates', 'Updates', 'arrow-clockwise'],
   ['api', 'Talking to Thunderhead', 'plugs-connected'],
 ]);
-/** Music's own pieces, counted apart and shown under Music: its catalogue (th/music/bridge.js) and its app's own files
- * (its page's and its worker's: music/sw.js, th/music/release.js) apart from the rest (waveforms, links). */
-export const MUSIC = /** @type {const} */ ([['music.songs', 'Songs'], ['music.covers', 'Covers'], ['music.catalog', 'Catalogue'], ['music.app', 'App files'], ['music.rest', 'The rest']]);
+/** Music's own pieces, counted apart and shown under Music: its catalogue (th/music/bridge.js), its app's own files
+ * (its page's and its worker's: music/sw.js, th/music/release.js) and the songs it saves to the phone's Downloads
+ * (th/music/downloads.js) apart from the rest (waveforms, links). */
+export const MUSIC = /** @type {const} */ ([['music.songs', 'Songs'], ['music.covers', 'Covers'], ['music.catalog', 'Catalogue'], ['music.app', 'App files'], ['music.downloads', 'Downloads'], ['music.rest', 'The rest']]);
 /** Every id a count may carry. */
 /** @type {string[]} */
 export const IDS = [...PARTS.map(([id]) => id).filter((id) => id !== 'music'), ...MUSIC.map(([id]) => id)];

@@ -86,8 +86,8 @@ test('the keyboard over Music in home: no resize reaches its window, the list en
   });
   const inFrame = (fn, arg) => page.evaluate(([f, a]) => new Function('w', 'a', `return (${f})(w, a)`)(document.querySelector('iframe.th-app').contentWindow, a), [fn.toString(), arg]);
   await until(() => inFrame((w) => w.document.activeElement?.classList.contains('cp-search-input') && !w.__cp.ctx.topNav.scenes.running), { message: 'search never took the field' });
-  // Results to scroll: every demo song and its album and artist rows hold an "a".
-  await inFrame((w) => w.__cp.ctx.bus.post('list', 'cmd_list_search_text', null, { string: 'a' }));
+  // Results to scroll: every demo song holds an "or" (a search takes two letters at least; one lists the search history).
+  await inFrame((w) => w.__cp.ctx.bus.post('list', 'cmd_list_search_text', null, { string: 'or' }));
   await until(() => inFrame((w) => [...w.__cp.ctx.listWidget.libList.active.keys()].some((i) => i >= 0)), { message: 'no results' });
 
   // The phone's keyboard, as Chrome applies home's ask now.

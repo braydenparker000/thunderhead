@@ -59,7 +59,7 @@ test('today and this month turn over at the owner’s local midnight, split by n
   assert.deepEqual(month.rows.slice(0, 2).map((r) => r.id), ['api', 'music']);
   const music = month.rows.find((r) => r.id === 'music');
   assert.deepEqual(music.split, [1000, 2000, 300]);
-  assert.deepEqual(music.pieces.map((p) => [p.name, p.split]), [['Songs', [1000, 2000, 0]], ['Covers', [0, 0, 300]], ['Catalogue', [0, 0, 0]], ['App files', [0, 0, 0]], ['The rest', [0, 0, 0]]]);
+  assert.deepEqual(music.pieces.map((p) => [p.name, p.split]), [['Songs', [1000, 2000, 0]], ['Covers', [0, 0, 300]], ['Catalogue', [0, 0, 0]], ['App files', [0, 0, 0]], ['Downloads', [0, 0, 0]], ['The rest', [0, 0, 0]]]);
   // The catalogue and the app's own files are Music's, each its own row.
   add(t, '2026-11-21', 'music.catalog', 0, 400);
   add(t, '2026-11-21', 'music.app', 1, 500);

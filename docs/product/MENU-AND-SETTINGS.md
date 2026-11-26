@@ -583,7 +583,7 @@ browser reported downloading for this site, counted and kept only on this phone
 ([DATA-METER.md](../engineering/DATA-METER.md)): Today and This month, each split Wi-Fi / Mobile data /
 Unknown; then This month by part, largest first (Home and the shell, Music, Podcasts, Astra, Photos,
 Study, Guitar, Updates, Talking to Thunderhead), a tap opening its split, Music's also as Songs, Covers,
-Catalogue, App files and The rest. Sizes are KB, MB or GB with one decimal. Not counted lists what the meter cannot see
+Catalogue, App files, Downloads and The rest. Sizes are KB, MB or GB with one decimal. Not counted lists what the meter cannot see
 (what the phone sends, films the browser plays straight from their host, the live connection, apps
 keeping their own files, and how many answers gave no size); a line says since when it counts. Reset
 asks first and starts again from now. The lead line says the phone's own data screen also counts other

@@ -21,16 +21,19 @@ export const WORDS = {
   severalThere: '%d of these songs are already in the playlists chosen.',
   removed1: 'Removed 1 song', removed: 'Removed %d songs', cleared: 'Cleared %s', deleted: 'Deleted %s', deletedN: 'Deleted %d playlists',
   saved: 'Order saved', addedTo: 'Added to %s',
-  empty: 'No songs yet. Hold a song and choose Add to playlist.',
+  empty: 'No songs yet. Select songs and choose Playlist.',
+  // The Playlists list, and Add to Playlist (list/sources.js, playlist-dialog.js), with none.
+  noPlaylists: 'No playlists yet.', noPlaylistsAdd: 'No playlists yet. Tap + to make one.',
 };
-const ICON = '@drawable/playlists_12dp';
+// The Undo bar's icon: the menus' playlist glyph (24 dp), which reads at the bar's size.
+const ICON = '@drawable/playlist_24dp';
 
 const str = (ctx, k, f = k) => ctx.res.stringByName(k) ?? f;
 const undo = (ctx, message, onUndo) => ctx.undoBar?.show(message, onUndo, {icon: ICON});
 
 /**
- * Rename and Delete at the end of a list header's menu (merge_menu_items_tracks), as its own
- * items are (?PopupMenuItem); shown for a playlist only (list-widget.js prepareListMenu).
+ * Rename, Delete and Download at the end of a list header's menu (merge_menu_items_tracks), as its own
+ * items are (?PopupMenuItem); shown for a playlist only, Download for an album page too (list-widget.js prepareListMenu).
  */
 export function playlistMenuItems(ctx, items) {
   if (!items || items.findViewById('pl_rename')) return;
@@ -40,6 +43,8 @@ export function playlistMenuItems(ctx, items) {
   }];
   ctx.inflater.inflateNode(node('pl_rename', str(ctx, 'rename', 'Rename'), '?rename_24dp'), items);
   ctx.inflater.inflateNode(node('pl_delete', str(ctx, 'delete', 'Delete'), '?delete_24dp'), items);
+  // Download (widgets/downloads.js): a playlist's, and an album page's too (prepareListMenu).
+  ctx.inflater.inflateNode(node('pl_download', 'Download', '@drawable/import_24dp'), items);
 }
 
 /** Asks a new playlist's name; onMade(playlist) once it is made (not on Cancel). */

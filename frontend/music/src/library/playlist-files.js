@@ -65,17 +65,20 @@ export function resolveEntry(library, path) {
   return best;
 }
 
+/** The M3U8 text of entries {path, rating} in their order (lc0); a playlist's, or a download's with relative names. */
+export function m3uText(entries) {
+  const lines = ['#EXTM3U'];
+  for (const {path, rating} of entries) if (path) lines.push('#EXT-X-RATING:' + (rating ?? 0), path);
+  return lines.join('\r\n') + '\r\n';
+}
+
 /** The M3U8 text of a playlist (lc0). */
 export function playlistText(playlists, pl) {
   const byId = playlists.library.byId;
-  const lines = ['#EXTM3U'];
-  for (const id of pl.ids) {
+  return m3uText(pl.ids.map(id => {
     const t = byId.get(id);
-    const path = t ? t.path || t.fileName || t.title : id.startsWith(UNRESOLVED) ? id.slice(UNRESOLVED.length) : null;
-    if (!path) continue;
-    lines.push('#EXT-X-RATING:' + (t?.rating ?? 0), path);
-  }
-  return lines.join('\r\n') + '\r\n';
+    return {path: t ? t.path || t.fileName || t.title : id.startsWith(UNRESOLVED) ? id.slice(UNRESOLVED.length) : null, rating: t?.rating};
+  }));
 }
 
 /** Downloads each playlist as <name>.m3u8 (file-based ones only with fileBased). */
