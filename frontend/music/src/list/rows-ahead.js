@@ -1,10 +1,11 @@
 // Rows bound ahead of a scroll (MUSIC.md §5.11 "Scrolling"): once the library's list has come to rest after a
 // finger or a fling moved it, rows beyond the screen are bound and laid out in idle time, a row's height a step
-// (view/idle-work.js), up to a screen in the way it last moved and a third of one the other way. They lie in the
+// (view/idle-work.js), up to a screen (at most MAX_AHEAD items) in the way it last moved and a third of that the
+// other way. They lie in the
 // list's content layer off screen (power-list.js), so the compositor has them drawn before they come into view,
 // and the next scroll shows them without binding, measuring or painting them in its frames. While it scrolls,
-// rows newly ahead are bound only while the frame has had less than BUDGET_MS of binding; the rest wait for the
-// next frame. Rows on screen are always bound in their frame. A new source starts with none ahead.
+// rows newly ahead are bound only while the frame has had less than BUDGET_MS of binding and a pooled view is
+// there to take; the rest wait for the next frame, or for idle time. Rows on screen are always bound in their frame. A new source starts with none ahead.
 import {idleWork} from '../view/idle-work.js';
 
 export const BUDGET_MS = 6;
@@ -28,14 +29,18 @@ export function rowsAhead(list, g, sy, first, last) {
   return r;
 }
 
-/** Binds the rows ahead not bound yet, nearest first in the way the list moves, while the frame's time lasts. */
+/**
+ * Binds the rows ahead not bound yet, nearest first in the way the list moves, while the frame's time lasts and
+ * a pooled view of the row's type is there (a frame never inflates a row off screen: idle time does).
+ */
 export function bindAhead(list, r, first, last, t0, place) {
-  const down = (list.lastDir ?? 1) > 0;
+  const down = (list.lastDir ?? 1) > 0, s = list.source;
   const runs = down ? [[last + 1, r.last, 1], [first - 1, r.first, -1]] : [[first - 1, r.first, -1], [last + 1, r.last, 1]];
   for (const [from, to, step] of runs) {
     for (let i = from; step > 0 ? i <= to : i >= to; i += step) {
       if (list.active.has(i)) continue;
       if (performance.now() - t0 > BUDGET_MS) { later(list); return; }
+      if (!list.idleAhead && !list.pool.get(s.typeAt?.(i) ?? s.itemType)?.length) return;
       place(i);
     }
   }
@@ -51,10 +56,14 @@ function later(list) {
   });
 }
 
+/** The rows ahead in the way it moved: a screen, or MAX_AHEAD items when fewer (small grid tiles: each one more
+ * view to keep and to lay out in every frame that changes the page). */
+export const MAX_AHEAD = 16;
+
 /** The list is at rest after a scroll: its margins grow in idle time, a row's height a step, to their target. */
 export function aheadAtRest(list) {
   if (!list.bindAhead || !list.source || !list.height) return;
-  const H = list.height, down = (list.lastDir ?? 1) > 0;
+  const g = list.geometry(), H = Math.min(list.height, Math.ceil(MAX_AHEAD / g.cols) * Math.max(1, g.itemH)), down = (list.lastDir ?? 1) > 0;
   list.aheadTarget = {up: down ? Math.round(H / 3) : H, down: down ? H : Math.round(H / 3), source: list.source};
   if (list._aheadJob) return;
   list._aheadJob = true;
@@ -68,7 +77,9 @@ export function aheadAtRest(list) {
       const step = Math.max(1, list.geometry().itemH || Math.round(56 * list.ctx.dpr));
       a.up = Math.min(t.up, a.up + step);
       a.down = Math.min(t.down, a.down + step);
-      list.placeItems();
+      // (Idle time may make the views it needs.)
+      list.idleAhead = true;
+      try { list.placeItems(); } finally { list.idleAhead = false; }
       yield;
     }
   }]).finally(() => { list._aheadJob = false; });
