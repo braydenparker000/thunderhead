@@ -136,7 +136,7 @@ const GROUP_SORT_FOR = {
  * (sections.js). A list without a sort kind has no sections (the plain thumb)
  * unless it gives its own order's (Singles, Possible duplicates).
  */
-function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0, defaultZoom = null}) {
+export function withOptions(src, list, {key, zoomKind, sortKind = null, defaultSort = 0, defaultZoom = null}) {
   applyZoom(src, list.host.substyle, zoomKind, key, defaultZoom);
   if (!sortKind) return src;
   const value = listOpts(key).sort ?? defaultSort;

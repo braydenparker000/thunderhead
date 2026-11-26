@@ -19,6 +19,6 @@ export const WORDS = {
   all: 'All', playlists: 'Playlists', albums: 'Albums', artists: 'Artists', songs: 'Songs', folders: 'Folders', new: 'New',
   seeAll: 'See all', liked: 'Liked songs', allMusic: 'All music',
   recentlyAdded: 'Recently added', mostPlayed: 'Most played lately', forgotten: 'Forgotten favourites',
-  recentlyPlayed: 'Recently played', yourPlaylists: 'Your playlists', topArtists: 'Your artists', newSongs: 'New songs',
+  recentlyPlayed: 'Recently played', yourPlaylists: 'Your playlists', yourAlbums: 'Your albums', topArtists: 'Your artists', newSongs: 'New songs',
   recent: 'Recent', name: 'Name', added: 'Added', nothingYet: 'Play something and it shows here.',
 };

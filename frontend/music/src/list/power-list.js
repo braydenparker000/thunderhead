@@ -665,6 +665,7 @@ export class PowerList extends FastLayout {
     let v = this.toolbarView;
     if (!bt || !s?.header || !(s.count > 0) || !this.width) {
       if (v && v.visibility !== GONE) { v.visibility = GONE; v.invalidate(); }
+      this.roomFor?.(s, null);
       return;
     }
     g ??= this.geometry();
@@ -700,6 +701,8 @@ export class PowerList extends FastLayout {
     v.alpha = alpha;
     v.scaleX = v.scaleY = 0.85 + 0.15 * f;
     v.invalidate();
+    // A list that keeps its rows clear of the toolbar (the v2 Home and Library: home/bottom-room.js).
+    this.roomFor?.(s, alpha > 0 ? {top, size, alpha} : null);
   }
 
   // Selection mode (cmd_list_toggle_selection_mode): items show their select
