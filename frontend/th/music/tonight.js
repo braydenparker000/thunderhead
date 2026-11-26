@@ -6,7 +6,7 @@
 // mix's songs (GET /v1/music/mixes/:id) become the queue through music.play_mix's own executor, so
 // the Queue sheet and its undo are the same, and it starts at once, the tap being the gesture.
 // Loaded by th/music/dj.js `installDj`, which the player runs.
-import { getJson, mount } from '../ported/arrangement.js';
+import { getJson, mount, seen } from '../ported/arrangement.js';
 import { EXECUTORS } from './intents.js';
 
 /** @param {any} ctx the player's context (its library) @param {any} player */
@@ -28,6 +28,13 @@ export function installTonight(ctx, player) {
       action: 'Play',
       go: () => play(String(a.payload.mix_id)),
     }),
-    (card) => document.body.append(card),
+    (card, a) => {
+      document.body.append(card);
+      // The v2 Home (music/src/home/install.js) takes the card into its rows; there this card is hidden
+      // and never comes on screen, so Home's own card reports it seen (home/tonight-row.js watchSeen).
+      ctx.tonightCard = card;
+      ctx.tonightSeen = () => seen(a);
+      ctx.bus?.post('bus_gui', 'msg_tonight_card', null, { card });
+    },
   );
 }

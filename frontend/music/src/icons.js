@@ -333,8 +333,17 @@ G.back_10s_text = {svg: line('M8 8.4A7 7 0 0 1 19.6 11.4', 1.4) + `<path d="${po
 G.forward_10s_text = {svg: line('M16 8.4A7 7 0 0 0 4.4 11.4', 1.4) + `<path d="${poly([[19.4, 8.8], [15, 5.6], [14.5, 10.9]], 0.3)}"/>` + tenText(7.6)};
 G.lyrics_dashed = {svg: '<g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">' +
   '<path d="M6.3 7.3H10.3M13.7 7.3H17.7M4.3 12H7.1M10.6 12H13.4M16.9 12H19.7M7.5 16.7H10.5M13.5 16.7H16.5"/></g>'};
+// The v2 navbar's Home and Library (home/navbar-v2.js), in the navbar glyphs' weight (bars and
+// blocks 3.4-4 units, the grid's 3.5-20.5 extent): a house with its door cut from the floor, and
+// a shelf of two upright books and one leaning on them. Plain, rounded and outlined like the others.
+const house = r => poly([[12, 2.8], [20.6, 10.2], [20.6, 21], [14.3, 21], [14.3, 15.4], [9.7, 15.4], [9.7, 21], [3.4, 21], [3.4, 10.2]], r);
+const leaning = r => poly([[13.7, 19.6], [17.1, 20.7], [21.4, 6.3], [18.0, 5.2]], r);
+G.home = house(0.5);
+G.home_rounded = house(1.7);
+G.library = rect(3.2, 3.5, 3.7, 17.2, 0.5) + rect(8.6, 3.5, 3.7, 17.2, 0.5) + leaning(0.5);
+G.library_rounded = rect(3.2, 3.5, 3.7, 17.2, 1.7) + rect(8.6, 3.5, 3.7, 17.2, 1.7) + leaning(1.5);
 // Light skins' outlined variants (*_stroke): the filled glyph's edge drawn as a line.
-for (const k of ['equ', 'equ_rounded', 'hamburger', 'hamburger_rounded', 'lists', 'lists_rounded', 'shuffle', 'repeat']) G['stroke_' + k] = {svg: outline(G[k], 1.3)};
+for (const k of ['equ', 'equ_rounded', 'hamburger', 'hamburger_rounded', 'lists', 'lists_rounded', 'shuffle', 'repeat', 'home', 'home_rounded', 'library', 'library_rounded']) G['stroke_' + k] = {svg: outline(G[k], 1.3)};
 G.stroke_search = {svg: '<circle cx="10" cy="10" r="6.1" fill="none" stroke="currentColor" stroke-width="1.5"/>' + outline(poly([[14.2, 15.9], [15.9, 14.2], [21, 19.3], [19.3, 21]], 0.9), 1.4)};
 G.vis_thin = rect(3.6, 9.5, 1.5, 5, 0.75) + rect(7.5, 6.5, 1.5, 11, 0.75) + rect(11.25, 3.5, 1.5, 17, 0.75) + rect(15, 6.5, 1.5, 11, 0.75) + rect(18.9, 9.5, 1.5, 5, 0.75);
 // Glyph extents per badge (reference *_alt measured in the harness), for the thumbs.
@@ -361,6 +370,8 @@ function fit(glyph, sx, sy, dx = 0) {
 const RULES = [
   [/^(all_songs|folders_hier|folders|albums_by_artist|albums|artists|album_artists|genres|years|composers|playlists|streams|queue|bookmarks|most_played|top_rated|low_rated|recently_played|recently_added|long_files|singles|possible_duplicates)(_thumb)?_alt$/, m => badge(m[1] === 'albums_by_artist' ? 'albums' : m[1])],
   [/^settings_close/, () => 'close'],
+  // The v2 navbar's own (navbar-v2.js names them after the button's drawable: cp_home_rounded_stroke ...).
+  [/^cp_(home|library)(_rounded)?(_stroke)?/, m => (m[3] ? 'stroke_' : '') + m[1] + (m[2] ?? '')],
   [/^(equ|hamburger|lists)(_rounded)?_stroke/, m => 'stroke_' + m[1] + (m[2] ?? '')],
   [/^search(_rounded)?_stroke/, () => 'stroke_search'],
   [/^shuffle_stroke/, () => 'stroke_shuffle'],

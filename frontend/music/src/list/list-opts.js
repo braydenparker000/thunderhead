@@ -1,5 +1,8 @@
 // List Options (dialog_ListOptsActivity): per list sort (with Reverse),
-// "View as" zoom level, Show Titles Only and Compact Header, saved per list.
+// "View as" zoom level, Show Titles Only and Compact Header, saved per list
+// kind; an entry's list (an album's songs, an artist's page, a playlist …)
+// keeps its own sort and zoom over its kind's (entry-opts.js), from List
+// Options and pinch zoom alike.
 // The option tables are the reference's (label, value, hint) triples per list
 // type; zoom levels map to item scene, columns and item size like the
 // reference (pd.P0 for categories and tracks, bk0.P0 for the library home;
@@ -15,6 +18,11 @@ import {FastRadioButton} from '../view/text.js';
 import {searchMask, setSearchMask, searchOrder, setSearchOrder} from '../widgets/search.js';
 import {KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
 import {SHELF_WORDS} from '../library/shelves.js';
+import {baseKey, ownOpts, putOpts, readOpts, touchOpts, writeOpts} from './entry-opts.js';
+import {limitApplies} from './stat-lists.js';
+
+// Max Items' note while it does not apply (a statistics list sorted another way).
+const LIMIT_OFF = 'Sorted another way, every song shows: nothing is cut.';
 
 const STORE = 'cp-list-opts';
 export const REVERSE = 0x40000000;
@@ -48,16 +56,26 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE) ?? '{}') ?? {}; } catch { return {}; }
 }
 
-/** The saved options for a list key: {sort, zoom, titlesOnly}. */
-export function listOpts(key) {
-  return load()[key] ?? {};
-}
-
-export function saveListOpts(key, patch) {
-  const all = load();
-  all[key] = {...(all[key] ?? {}), ...patch};
+function store(all) {
   try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* storage unavailable */ }
 }
+
+/**
+ * The saved options for a list key: {sort, zoom, titlesOnly}. An entry's key (entry-opts.js,
+ * "tracks:album@…") reads its own sort and zoom over its kind's.
+ */
+export function listOpts(key) {
+  return readOpts(load(), key);
+}
+
+/** Saves options for a list key: an entry's sort and zoom for that entry alone (entry-opts.js). */
+export function saveListOpts(key, patch) {
+  store(writeOpts(load(), key, patch));
+}
+
+/** What a key itself has saved (for putting back with restoreListOpts after a cancelled change). */
+export const savedListOpts = key => ownOpts(load(), key);
+export const restoreListOpts = (key, saved) => store(putOpts(load(), key, saved));
 
 /**
  * Item geometry for a zoom level: {scene, columns, itemHeight, gridExtra}
@@ -116,7 +134,7 @@ function levelGeometry(d, z, one) {
  */
 const DEFAULT_GROUP_ZOOM = {folders: 5, folders_hier: 3, albums: 5, albums_by_artist: 5, albumArtists: 5, playlists: 5, artists: 4, genres: 4, composers: 4, years: 0};
 export function defaultZoom(kind, key) {
-  const [scope, name] = key.split(':');
+  const [scope, name] = baseKey(key).split(':');
   if (kind === 'search') return 1;
   if (kind === 'tracks') return name === 'year' || name === 'bookmarks' ? 0 : 3;
   if (scope === 'cat') return DEFAULT_GROUP_ZOOM[name] ?? 0;
@@ -126,7 +144,9 @@ export function defaultZoom(kind, key) {
 
 /** Applies a list's saved zoom to a source (scene, columns, item size). */
 export function applyZoom(src, sub, kind, key, defaultLevel = null) {
-  const o = listOpts(key);
+  const all = load(), o = readOpts(all, key);
+  // An entry's own options are kept by use: opening it makes them the most recent.
+  if (touchOpts(all, key)) store(all);
   src.optsKey = key;
   src.zoomKind = kind;
   // Track list zooms saved before they took the category levels (zv 2) used the search levels.
@@ -134,8 +154,8 @@ export function applyZoom(src, sub, kind, key, defaultLevel = null) {
   src.zoomLevel = saved ?? defaultLevel ?? defaultZoom(kind, key);
   src.titlesOnly = !!o.titlesOnly;
   src.compactHeader = !!o.compactHeader;
-  let g = zoomGeometry(sub, kind, src.zoomLevel, src.titlesOnly || ONE_LINE_LISTS.has(key));
-  if (kind !== 'search' && ALT_GRID_LISTS.has(key)) g = {...g, ...altGrid(sub, src.zoomLevel)};
+  let g = zoomGeometry(sub, kind, src.zoomLevel, src.titlesOnly || ONE_LINE_LISTS.has(baseKey(key)));
+  if (kind !== 'search' && ALT_GRID_LISTS.has(baseKey(key))) g = {...g, ...altGrid(sub, src.zoomLevel)};
   src.itemScene = g.scene;
   src.itemScene1 = g.scene1 ?? null;
   src.columns = g.columns;
@@ -318,7 +338,8 @@ export function openListOptions(ctx, src, onChange, {fromSettings = false, onClo
   const sorts = src.sortKind ? SORTS[src.sortKind] : null;
   const zooms = ZOOMS[src.zoomKind];
   const title = (str(ctx, 'list_opts_s') ?? '%s').replace('%s', src.title || str(ctx, 'library'));
-  const change = patch => { saveListOpts(key, patch); onChange?.(); };
+  let limitState = null;
+  const change = patch => { saveListOpts(key, patch); limitState?.(); onChange?.(); };
   const d = openDialog(ctx, {
     style: 'dialog_ListOptsActivity', title, onClosed,
     buttons: {positive: str(ctx, 'close')},
@@ -346,10 +367,19 @@ export function openListOptions(ctx, src, onChange, {fromSettings = false, onClo
       if (src.limitable) {
         const g = d.find('limit_group');
         g.setVisibility(VISIBLE);
-        const cur = src.limit;
-        for (const r of radioGroup(g, r => change({limit: parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10)}))) {
-          r.setChecked(parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10) === cur);
-        }
+        const value = r => parseInt(String(r.tag).replace(/^\\?\s*/, ''), 10);
+        const made = radioGroup(g, r => change({limit: value(r)}));
+        // A statistics list sorted another way cuts nothing (stat-lists.js): Max Items shows as not
+        // applying, none picked, with a short note, until a sort by its own ranking (or a limit kept).
+        let note = null;
+        limitState = () => {
+          const on = !src.statList || limitApplies(src.statList, listOpts(key));
+          const cur = listOpts(key).limit ?? src.limit;
+          for (const r of made) { r.setEnabled(on); r.setChecked(on && value(r) === cur); }
+          if (!on && !note && made.length) note = addHint(ctx, g, made[0], LIMIT_OFF);
+          note?.setVisibility(on ? GONE : VISIBLE);
+        };
+        limitState();
       }
       // Min Duration (hi1, Long Files): 2..120 minutes; saved when the drag ends.
       if (src.minDurationMs !== undefined) {

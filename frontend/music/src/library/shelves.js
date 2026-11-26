@@ -1,7 +1,9 @@
 // The library's shelves (MUSIC.md §2.3, owner 2026-11-21): what Albums, Singles, Artists and
 // Possible duplicates list, and what an album's and an artist's page hold. Built once per library
 // change from the library's own album and artist groups (Library.grouped), never per row.
-// - an album is a release (an album group with an album tag) of ALBUM_MIN songs or more;
+// - an album is a release (an album group with an album tag) of ALBUM_MIN songs or more, in every
+//   list that shows albums (Albums, Albums by Artist, an entry's albums, search; owner audit
+//   2026-11-26); a shorter release's songs show as Singles wherever albums would;
 // - Singles: the songs of shorter releases and the songs with no album, by artist then title;
 // - Artists: artists with ARTIST_MIN songs or more, or an album of their own (its album artist is
 //   them, or one of them);
@@ -98,6 +100,23 @@ export function artistShelf(tracks, albumOf) {
     albums: [...albums].sort((a, b) => year(b) - year(a) || cmp(a.title, b.title)),
     singles: singles.sort((a, b) => cmp(a.title, b.title) || cmp(a.album, b.album)),
   };
+}
+
+/**
+ * An album artist's, genre's, composer's or year's albums from its songs: each album (as the
+ * shelves count them) holding any of them, with only those songs, in the order first met; and its
+ * other songs (shorter releases and no album, by title), as an artist's page has them.
+ */
+export function entryShelf(tracks, albumOf) {
+  const shares = new Map(), singles = [];
+  for (const t of tracks) {
+    const a = albumOf.get(t);
+    if (!a) { singles.push(t); continue; }
+    let s = shares.get(a);
+    if (!s) shares.set(a, s = {kind: 'album', title: a.title, artist: a.artist, artId: a.artId, tracks: []});
+    s.tracks.push(t);
+  }
+  return {albums: [...shares.values()], singles: singles.sort((a, b) => cmp(a.title, b.title) || cmp(a.album, b.album))};
 }
 
 /**

@@ -99,7 +99,8 @@ test('the named transitions run without a long frame and end where they ended be
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): the walk taps its Library and Equaliser screens, and the boxes are its own.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && !!window.__cp.ctx.feelLog, null, { timeout: 60_000 });
   // The likely next screens are built in idle time after start (view/prebuild.js; true at once before it).
   await until(() => page.evaluate(() => window.__cp.ctx.prebuilt?.done !== false), { message: 'the screens were never built' });

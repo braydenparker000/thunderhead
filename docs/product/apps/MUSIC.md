@@ -312,14 +312,40 @@ cover advances exactly one track; long-press opens home with the track attached.
   the strip beside it and moves along it is the rail's, a tap there still reaches the row
   (`list/scroller.js`, `input.js` `stripAt`). Month and year labels keep the letters' size, the column
   widening a little for them first (at most 14 dp), smaller only where they still do not fit. A list
-  that says it is empty (one quiet line) draws no rail.
+  that says it is empty (one quiet line) draws no rail, and an entry's albums with a "Singles" section
+  after them (an album artist's, genre's, composer's or year's) take the plain thumb: the albums' sort
+  field does not name the songs under Singles.
 - **Albums:** two-column grid of covers (radius 16) with title and artist under each. Sort: Title ·
   Artist · Year · Recently added.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
   ("12 songs").
 - **Genres:** list from the tags; genre names are taken as tagged, trimmed, case-merged.
-- **Recently added:** the 200 newest by `added_at`.
-- **Most played:** top 200 by plays (imported plus new).
+- **Statistics lists** (Most Played, Recently Played, Recently Added, Top Rated, Low Rated;
+  `list/stat-lists.js`, owner audit 2026-11-26): each keeps the songs its filter keeps and ranks
+  them its own way: plays (then the latest play), the latest play, the newest added, the best
+  rating (then the most recently rated or played), and for Low Rated the lowest rating first, then
+  the most recently rated or played. Max Items (200 unless chosen) cuts that ranking and nothing
+  else: sorted by the list's own ranking (the default; Reverse only turns it round) the list is the
+  top 200 in that ranking; sorted any other way it is every song the filter keeps, in that sort, with
+  no silent cut, unless the user chose a Max Items themselves, which then takes the top of the
+  ranking first ("the 500 most played, by title"). While nothing is cut (sorted another way, no Max
+  Items chosen), List Options shows Max Items disabled, none picked, with the note "Sorted another way,
+  every song shows: nothing is cut."
+- **List Options and pinch zoom belong to the list** (`list/entry-opts.js`, owner audit
+  2026-11-26): an entry's list (an album's songs, an artist's page, a genre's, album artist's,
+  composer's or year's albums, a playlist, a folder, a Folders Hierarchy level) keeps its own sort,
+  Reverse and "View as" level; re-sorting one album re-sorts that album only. A list with none of its
+  own takes its kind's (what all albums, all artists … had saved before this, kept as their
+  default). Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
+  Compact Header, Max Items and the rest stay per kind. Stored in `cp-list-opts`: the kind keys as
+  before (`tracks:album`, `sub:artist`, `cat:albums` …) and, under `"@"`, the entries' own
+  (`"tracks:album@kite weather|orchard lamps": {sort, zoom, zv}`; the id is a playlist's id, a
+  folder's path, an album's name and artist, else the entry's name), in order of last use, at most
+  300: the least recently used is dropped first. A level made again (a new sort, a zoom, a setting,
+  a library change) keeps its way back: Back's scroll, the open/close morph and the search results
+  it came from.
+- Folders Hierarchy's files have a sort (List Options; file name by default), per folder; its
+  folders stay by name.
 - Tapping a song plays it in the context of the list it is in (the list becomes the queue context).
 - A hold (450 ms) on a song or an entry does what the Select button does: selection mode with that
   row selected, one haptic tick (none with Haptics off, or on a phone that cannot vibrate). It never
@@ -333,7 +359,10 @@ The ported player's library lists, in its own row, header, grid and subhead styl
 the lists in `list/sources.js`):
 
 - **Albums** lists albums only: a release (album tag, keyed as before with `join_albums`) of 3 songs
-  or more. Albums by Artist, Album Artists, Genres, Composers, Years and search keep every release.
+  or more. The same rule holds everywhere an album shows (owner audit 2026-11-26): Albums by Artist,
+  an album artist's, genre's, composer's and year's albums, and search's Albums list only those; an
+  entry's shorter releases and songs with no album show under a "Singles" subhead after its albums
+  (as on an artist's page), and search finds them as songs.
 - **Singles** (new, beside Albums; badge of the category family): the songs of 1–2 song releases and
   the songs with no album, by artist then title. Its header counts them.
 - **Artists** lists artists with 5 songs or more or an album of their own (the album's album artist
@@ -353,6 +382,11 @@ the lists in `list/sources.js`):
   artist; then a "Singles" subhead and their other songs as rows (the All Artist Songs zoom), each
   with its release's name as the second line. A cover opens the whole album's page. The page has no
   sort of its own; header Play and Shuffle play every song of the artist.
+- **Every route opens the same page** (owner audit 2026-11-26): the playing song's artist, album,
+  genre or folder from its menu, the art item's second line or Info opens the page the library opens
+  for it (the artist's page, the album's page, the genre's albums, the Folders list's folder; Folders
+  Hierarchy for a folder unless `menu_nav_to_folders`), scrolled to the song's row (or the album
+  holding it), where the playing mark shows. A song not in the library keeps the flat list.
 - **Possible duplicates** (new, last, shown only when there are any): songs whose title and artist
   are equal once case, spacing and punctuation are left out ("feat.", "(Live)", "Remastered" still
   count as different), wherever they are. Each group is a subhead "title · artist · N" over ordinary
@@ -360,6 +394,50 @@ the lists in `list/sources.js`):
   deleted.
 - Singles and Possible duplicates are on for every saved home layout until unticked in List Options
   (`library_lists` bits 20 and 21; bit 22 marks a layout saved with them).
+- The classic home has no Queue or Recently played row, nor are they offered in its List Options
+  (owner, 2026-11-26): Up next and History in the playing song's menu took their place. Their lists
+  still open (the player's source list, Home's "See all", a start category saved before).
+
+#### 2.6.2 Home and Library: the layout (the default since 2026-11-26, owner-approved)
+
+The ported player's library has two layouts (`frontend/music/src/home/`, `switch.js`). The new one is
+the default; Settings › Lists › Look and feel › **Classic library layout** (`cp_classic_library`, off by
+default) brings back the classic one: the navbar's Library, Equaliser, Search, More and the category
+home of §2.6. The option applies at once, without a reload: the navbar is redressed and the library's
+first screen is made again where it is (shown, in place; under levels, which stay; built ahead, dropped
+and built again when shown), and what plays, the queue and the player's screens stay as they are
+(`home/install.js` `setLayout`). `?home2` forces the new layout and `?home1` the classic one for a page
+load (the demo page and the tests).
+
+- **The bar:** Home, Search, Library, More, the same buttons in the same bar (Home and Library with
+  glyphs of their own). Home and Library are two roots of the library screen: a tab's button from
+  elsewhere shows it where it was left; on its root it scrolls to the top; above the root it goes back
+  to it. Each root keeps its scroll per chip, and Back from a tab's root goes once to the tab before.
+- **Home:** the chips All, Playlists, Albums, Artists, New, then what the chip shows. All: six tiles of
+  what was played last (Liked songs first), the "tonight" mix as a card when there is one (§10.4; it
+  reports itself seen as the shell's card would, once most of it has been on screen with the library
+  shown), then the shelves Recently added, Most played lately, Forgotten favourites, Recently played
+  (song rows) and a decade or genre that changes each day. Each shelf is a header with "See all" over a
+  sideways strip of covers in the album grid's look. The other chips show their kind's tiles and shelves.
+- **Shelves' rules** (`home/rules.js`): liked is a song rated like; Forgotten favourites are liked or
+  played 5 times or more and last played 90 days ago or longer, newest forgotten first; Most played
+  lately counts the play history of the last 30 days (the songs' play counts while it holds fewer than
+  25 plays of that span); a playlist's recent is the later of its change and its songs' last play; the
+  rotating shelf is a decade on even days and a genre on odd days, the next one with four albums or more.
+- **Home's data** is built in idle slices (`home/data.js`) and kept until the library, a playlist, a
+  rating or the play history changes. The last result is also kept on the phone by reference
+  (`home/kept.js`, `cp-home-shelves`: song and playlist ids, albums by their songs, artists and genres
+  by the name the library groups them under), so a start shows the shelves at once; they are built again
+  in idle time and the new ones take the same rows with the scroll kept.
+- **Library:** one screen: the kind chips Playlists, Albums, Artists, Songs, Folders and a sort line
+  (Recent, Name, Added; a hold opens List Options) with a list or grid toggle, over the existing list of
+  that kind. Playlists starts with Liked songs and All music (All Songs), then the playlists, the most
+  recent first. Sort and view are the lists' own List Options values.
+- **Pinch zoom** on every Library list steps through the lists' own levels and is kept as List Options
+  keep it.
+- **The Equaliser** is a sheet: held on More and drawn up it rises with the finger from behind the mini
+  player; let go past a third (or flung) it opens, else it falls back. Back, a swipe down from its top or
+  another button closes it the same way; the menu sheet's Equaliser line raises it too.
 
 ### 2.7 Detail pages
 
@@ -1470,6 +1548,7 @@ small `/export/` page (owner OK needed, it deploys to the old repo). Full proced
 | Offline space | 256 MB … 4 GB | 512 MB |
 | Data saver | on/off | off (follows the browser's Data Saver when that is on) |
 | Keep playing when the list ends | on/off | on **[proposal]** |
+| Classic library layout (the player's Settings › Lists › Look and feel; §2.6.2) | on/off | off |
 | Playback log | opens §5.10 | — |
 
 Sound (EQ) is reached from Now Playing, not here, because it is used while listening.
@@ -1772,14 +1851,15 @@ No new button on the player or the mini-player. Everything uses the app's own di
   column beside it) and Add to Playlist "No playlists yet. Tap + to make one."; an empty Queue list
   shows "Nothing queued." (the same quiet line).
 - **Library home**: Streams and Bookmarks, which can hold nothing here, are neither shown nor
-  offered in List Options, whatever a saved setting says.
+  offered in List Options, whatever a saved setting says. Search has no Streams chip and its List
+  Options no Streams box (a saved category order with it drops it).
 
 Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs`.
 
 ## 22. Downloads (2026-11-26, owner's rulings)
 
-The owner's own files saved to the phone's Downloads, exactly as stored (the Opus file, its bytes
-unchanged). No new button on the player or the mini-player.
+The owner's own files saved to the phone's Downloads, as stored, with one addition: an Opus song
+carries its cover (below). No new button on the player or the mini-player.
 
 - **Where**: **Download** in the playing song's menu (a row of its own under the row of four, §20),
   on the selection toolbar of a list of songs (after Share), in a playlist's menu beside Rename and
@@ -1789,7 +1869,9 @@ unchanged). No new button on the player or the mini-player.
   few that are not Opus); several selected songs are one zip named after the list; a playlist is a zip
   named after it, its songs numbered in its stored order ("01 - Artist - Title.opus", as wide as the
   count needs) with a `.m3u8` listing them by those names (`playlist-files.js` `m3uText`); an album is a
-  zip "Album Artist - Album", numbered by disc and track as its page orders them. Names lose
+  zip "Album Artist - Album", numbered by disc and track as its page orders them, with the album's
+  cover beside them as `cover.jpg` (or `cover.png`, as stored; a playlist's zip has none: its songs
+  come from many albums). Names lose
   `\ / : * ? " < > |` and control characters, have their spaces collapsed and their ends trimmed, are cut
   at 120 characters before the extension, and alike ones (letter case aside) take " (2)"
   (`library/download-names.js`). Songs the library no longer has are left out and counted.
@@ -1808,8 +1890,29 @@ unchanged). No new button on the player or the mini-player.
   for playback. A song that fails is tried once more (from where it broke); failing again it is left
   out and the zip ends with `skipped.txt` naming what is missing. Its bytes count as Music's
   **Downloads** in Settings › Data use, not as Songs.
+- **Covers** (owner, 2026-11-26): the stored files carry no picture (covers are objects of their own,
+  `…/art/<id>`), so a downloaded song showed none in other players. Each Opus song is now saved with its
+  cover embedded in its OpusTags header as a `METADATA_BLOCK_PICTURE` comment (a FLAC picture block,
+  type 3 "front cover", its mime type, no description, its width, height and depth when its JPEG or PNG
+  header gives them, else 0), by `th/music/ogg-cover.js` as the song streams. The worker holds only the
+  song's header (to the end of OpusTags, at most 1 MiB: past it the song is saved as stored), writes the
+  tags packet again with every comment kept (a front cover already there is replaced, other pictures
+  kept), lays it on as many pages as it needs, and then moves each later page's sequence number on by
+  the pages added and makes its CRC again; the audio's bytes and granule positions are untouched, so it
+  plays exactly as stored. Anything that is not one Ogg Opus stream (several streams, a wrong CRC in the
+  head) is saved as stored; a page after the head that is not as it should be passes as it came, and so
+  does everything after it. The cover comes from the phone's covers (`claude-player-covers`, under
+  library.js's keys) when it is there, at no data; else through the bridge as the player's is, its bytes
+  counted as **Downloads**. An album's songs read it once. A stored cover up to 1 MiB goes in as it is;
+  a larger one is made a JPEG of at most 1,200 px on its long side (quality 0.9) where the worker can
+  draw, else goes in as it is. No cover (none stored, or one that does not load): the song as stored;
+  a cover never fails a download. One song's file then has its exact new length (the stored length and
+  what the header added, known before its first byte); a zip's entries have theirs in their data
+  descriptors as before. The size and the 200 MB ask count the songs only.
+- **Not Opus**: the few AAC, FLAC and MP3 songs are saved exactly as stored, with no cover added (no
+  cover is fetched for them).
 
-Tests: `tests/music-downloads.test.mjs`, `tests/music-downloads-browser.test.mjs`.
+Tests: `tests/music-downloads.test.mjs`, `tests/music-ogg-cover.test.mjs`, `tests/music-downloads-browser.test.mjs`.
 
 ## Not built
 

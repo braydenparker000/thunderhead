@@ -26,7 +26,8 @@ test('the library\'s start rows and the navbar\'s lines are built before the fir
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/music/?demo`);
+  // The classic layout (?home1): its category home is the start built ahead whose rows are compared.
+  await page.goto(`${base}/music/?demo&home1`);
   await page.waitForFunction(() => window.__cp?.ctx?.prebuilt?.done, null, { timeout: 60_000 });
   const ahead = await page.evaluate(() => {
     const { ctx } = window.__cp, lw = ctx.listWidget, ll = lw.libList, bar = ctx.navbar.container();

@@ -42,7 +42,8 @@ const IMPROVED = {
   'astra/src/main.js': ['/th/astra/open.js'],
   'podcasts/app.js': ['/th/podcasts/progress.js', '/th/ported/arrangement.js'],
   // Downloads (2026-11-26): songs, playlists and albums streamed to the phone's Downloads by Music's worker,
-  // each song fetched through the bridge's own answer (th/music/downloads.js, which loads th/music/zip-stream.js).
+  // each song fetched through the bridge's own answer (th/music/downloads.js, which loads th/music/zip-stream.js and,
+  // for the covers embedded in Opus songs, th/music/ogg-cover.js: neither is named by a Music file).
   'music/sw.js': ['/th/music/release.js', '/th/music/downloads.js'],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');

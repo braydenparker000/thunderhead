@@ -26,7 +26,8 @@ export const SEARCH_CATS = [
   {kind: 'composers', title: 'composers'},
   {kind: 'playlists', title: 'playlists'},
   {kind: 'songs', title: 'all_songs'},
-  {kind: 'streams', title: 'streams'},
+  // Streams are not offered (owner decision): no chip, no List Options box. It was the last
+  // category, so the saved masks' bits stay; a saved order with it drops it (searchOrder).
 ];
 
 export class ListSearchEditText extends FastTextView {
@@ -165,7 +166,8 @@ const ORDER_STORE = 'cp-search-order';
 export function searchOrder() {
   const n = SEARCH_CATS.length - 1;
   try {
-    const v = JSON.parse(localStorage.getItem(ORDER_STORE) ?? 'null');
+    let v = JSON.parse(localStorage.getItem(ORDER_STORE) ?? 'null');
+    if (Array.isArray(v) && v.length === n + 1) v = v.filter(i => i !== n);
     if (Array.isArray(v) && v.length === n && new Set(v).size === n && v.every(i => Number.isInteger(i) && i >= 0 && i < n)) return v;
   } catch { /* storage unavailable */ }
   return Array.from({length: n}, (_, i) => i);

@@ -56,6 +56,10 @@ const PLAIN_TYPES = new Set(['separator', 'history', 'clearHistory', 'emptyLine'
 
 // Scenes whose parts a prewarmed header row loads (merge_item_*header).
 const HEAD_SCENES = ['scene_header', 'scene_bottom_toolbar'];
+// Row views a source's own module makes (home/rows.js: the v2 home's chips, tiles and shelves): type -> (ctx) => view.
+// Such a view lays itself out in setItemScene(scene, w, h) and binds through the source's bindItem.
+export const ROW_VIEWS = new Map();
+
 // View roles, each with its own pool (obtain).
 export const ROW = 0, HEAD = 1, SUB = 2;
 const poolKey = (type, role) => (role === HEAD ? type + '#head' : role === SUB ? type + '#sub' : type);
@@ -266,7 +270,9 @@ export class PowerList extends FastLayout {
     const seps = (cols === 1 || split) && s.separators?.length ? s.separators : null;
     // The header and, under it, a subhead row (y62: the "All ... Songs" row) before the items.
     const headH = s.header ? s.headerHeight : 0, subH = s.subhead ? s.subhead.height : 0;
-    return {cols, colW, gap, itemH, seps, split, sepH: seps ? s.separatorHeight : 0, headH, subH, headerH: headH + subH, top: this.paddingTop, left: pl};
+    // Rows of their own heights (the v2 home): rowTops[i] is row i's top, rowTops[count] the end.
+    const free = s.rowTops ?? null;
+    return {cols, colW, gap, itemH, seps, split, free, sepH: seps ? s.separatorHeight : 0, headH, subH, headerH: headH + subH, top: this.paddingTop, left: pl};
   }
 
   /** Separator rows before item i (g.seps is sorted). */
@@ -278,6 +284,7 @@ export class PowerList extends FastLayout {
 
   /** Item i's top below the header. */
   itemTop(g, i) {
+    if (g.free) return g.free[Math.max(0, Math.min(i, g.free.length - 1))];
     const sp = g.split;
     if (sp && i >= sp.n) {
       const k = g.seps ? PowerList.sepsBefore(g.seps, i) : 0;
@@ -289,6 +296,7 @@ export class PowerList extends FastLayout {
   }
 
   itemHeightAt(g, i) {
+    if (g.free) return (g.free[i + 1] ?? g.free[i]) - g.free[i];
     if (g.split && i < g.split.n) return g.itemH;
     if (g.split && !g.seps) return g.split.rowH;
     if (!g.seps) return g.itemH;
@@ -304,6 +312,11 @@ export class PowerList extends FastLayout {
 
   /** The first item of the row at y below the header (rows above count; past the end, the count). */
   indexAtY(g, y) {
+    if (g.free) {
+      let lo = 0, hi = this.source.count;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (g.free[m] <= y) lo = m; else hi = m - 1; }
+      return lo;
+    }
     if (g.split && y < g.split.top) return Math.floor(y / g.itemH) * g.cols;
     if (!g.seps && !g.split) return Math.floor(y / g.itemH) * g.cols;
     let lo = g.split ? g.split.n : 0, hi = this.source.count;
@@ -315,7 +328,7 @@ export class PowerList extends FastLayout {
     const s = this.source;
     if (!s) return 0;
     const g = this.geometry();
-    const end = g.seps || g.split ? this.itemTop(g, s.count) : Math.ceil(s.count / g.cols) * g.itemH;
+    const end = g.free ? g.free[s.count] ?? 0 : g.seps || g.split ? this.itemTop(g, s.count) : Math.ceil(s.count / g.cols) * g.itemH;
     return g.top + g.headerH + end + this.paddingBottom;
   }
 
@@ -341,6 +354,13 @@ export class PowerList extends FastLayout {
 
   /** A new view of a type and role; clicks go to whichever list holds it. */
   create(type, role = ROW) {
+    const own = ROW_VIEWS.get(type);
+    if (own) {
+      const v = own(this.ctx);
+      v.listItemType = type;
+      v.poolKey = poolKey(type, role);
+      return v;
+    }
     if (type === 'emptyLine') {
       const e = this.ctx.inflater.inflateNode(EMPTY_ROW, null)[0];
       e.listItemType = type;
@@ -558,7 +578,7 @@ export class PowerList extends FastLayout {
         if (this.selectable) v.setSelection?.(false, false, false);
       } else {
         const col = this.itemColumn(g, i), row = !!g.split && i >= g.split.n;
-        x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = row ? s.rowScene : s.itemScene;
+        x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = s.sceneAt?.(i) ?? (row ? s.rowScene : s.itemScene);
         if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; }
         // A row without a second line takes the level's one-line scene (z62.L).
         const scene1 = row ? s.rowScene1 : s.itemScene1;
@@ -645,6 +665,7 @@ export class PowerList extends FastLayout {
     let v = this.toolbarView;
     if (!bt || !s?.header || !(s.count > 0) || !this.width) {
       if (v && v.visibility !== GONE) { v.visibility = GONE; v.invalidate(); }
+      this.roomFor?.(s, null);
       return;
     }
     g ??= this.geometry();
@@ -680,6 +701,8 @@ export class PowerList extends FastLayout {
     v.alpha = alpha;
     v.scaleX = v.scaleY = 0.85 + 0.15 * f;
     v.invalidate();
+    // A list that keeps its rows clear of the toolbar (the v2 Home and Library: home/bottom-room.js).
+    this.roomFor?.(s, alpha > 0 ? {top, size, alpha} : null);
   }
 
   // Selection mode (cmd_list_toggle_selection_mode): items show their select
@@ -694,7 +717,7 @@ export class PowerList extends FastLayout {
     switch (msg) {
       case 'cmd_list_toggle_selection_mode': this.setSelectionMode(!sel); break;
       case 'cmd_end_selection_mode': if (sel) this.setSelectionMode(false, false); break;
-      case 'cmd_list_select_all': if (sel) { for (let i = 0; i < this.source.count; i++) if (!this.source.isSeparator?.(i)) sel.add(i); this.selectionChanged(); } break;
+      case 'cmd_list_select_all': if (sel) { for (let i = 0; i < this.source.count; i++) if (!this.source.isSeparator?.(i) && !this.source.unselectable?.(i)) sel.add(i); this.selectionChanged(); } break;
       case 'cmd_list_select_none': if (sel) { sel.clear(); this.selectionChanged(); } break;
       case 'cmd_list_select_range': if (sel?.size) {
         const lo = Math.min(...sel), hi = Math.max(...sel);
@@ -750,6 +773,8 @@ export class PowerList extends FastLayout {
 
   toggleSelected(i) {
     const sel = this.selection;
+    // Rows a source keeps out of selection (the v2 Library's Liked songs and All music, home/library-source.js).
+    if (this.source?.unselectable?.(i)) return;
     if (sel.has(i)) sel.delete(i); else sel.add(i);
     this.selectionChanged();
   }

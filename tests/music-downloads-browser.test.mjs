@@ -1,16 +1,17 @@
 // Music's downloads in Chromium at phone size (MUSIC.md "Downloads", owner 2026-11-26), through the real
 // music/sw.js (th/music/downloads.js, its songs through th/music/bridge.js) over an invented library from a
 // mock new Worker and a mock bucket; no network, and the old Worker is never reached:
-// - a playlist's menu Download arrives as one zip named after it: its songs numbered in the stored order
-//   with their bytes as stored, its .m3u8, and skipped.txt for the song the library no longer has; a song
-//   kept on the phone costs no request, every other song exactly one; the bytes are counted as Downloads;
+// - a playlist's menu Download arrives as one zip named after it: its songs numbered in the stored order,
+//   each with its album's cover embedded and its audio pages as stored (tests/fixtures/ogg-read.mjs), its
+//   .m3u8, and skipped.txt for the song the library no longer has; a song kept on the phone costs no
+//   request, every other song exactly one; the bytes are counted as Downloads;
 // - while it runs, a second ask is refused (by the page, and by the worker);
 // - a menu opened just after the zip's line: the line never stands over the menu;
 // - over 200 MB (the catalogue's sizes, faked here) the confirm dialog asks first, and Cancel starts nothing;
-// - the playing song's menu Download arrives as "Artist - Title.opus" with its bytes as stored.
+// - the playing song's menu Download arrives as "Artist - Title.opus", its cover embedded, its audio as stored.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import zlib from 'node:zlib';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,15 +20,40 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { outlast, until } from './fixtures/waits.mjs';
 import { readZip } from './fixtures/zip-read.mjs';
+import { TAGS, tonePackets, writeOgg } from './fixtures/ogg-make.mjs';
+import { assertEmbedded } from './fixtures/ogg-read.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 180_000 };
 const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
 const TOKEN = `th1_${'A'.repeat(43)}abcdef`;
-const TONE = readFileSync(new URL('./fixtures/tone.opus', import.meta.url));
 const MB = 1024 * 1024;
 
-/** Invented songs: a real Opus file with bytes of their own at its end, so no two are alike. */
+/** A small PNG of one colour (the albums' invented covers). */
+function png(rgb) {
+  const chunk = (type, data) => {
+    const b = Buffer.alloc(12 + data.length);
+    b.writeUInt32BE(data.length, 0);
+    b.write(type, 4, 'latin1');
+    data.copy(b, 8);
+    b.writeUInt32BE(zlib.crc32(b.subarray(4, 8 + data.length)), 8 + data.length);
+    return b;
+  };
+  const ihdr = Buffer.from([0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0]);
+  const rows = Buffer.concat(Array.from({ length: 8 }, () => Buffer.from([0, ...Array.from({ length: 8 }, () => rgb).flat()])));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+}
+const COVERS = { 'Low Tide': png([30, 90, 160]), 'Sea Glass': png([40, 160, 120]) };
+/** A tiny Ogg Opus song of its own: the fixture's tone, with the song's own comments and serial number, so no two are alike. */
+const tone = tonePackets();
+const opus = (title, artist, i) => {
+  const comments = [`TITLE=${title}`, `ARTIST=${artist}`].map((c) => Buffer.from(c));
+  const tags = Buffer.concat([Buffer.from(TAGS.subarray(0, 16)), Buffer.from([comments.length, 0, 0, 0]), ...comments.flatMap((c) => [Buffer.from([c.length, 0, 0, 0]), c])]);
+  const total = tone.packets.reduce((n, p) => n + p.samples, 0);
+  return Buffer.from(writeOgg({ head: tone.head.bytes, tags, packets: tone.packets, serial: 0x1000 + i, endGranule: total - tone.packets.at(-1).discard }));
+};
+
+/** Invented songs. */
 const SONGS = [
   ['Morning Static', 'Cobalt Field', 'Low Tide', 1, 1],
   ['Paper Lanterns', 'Cobalt Field', 'Low Tide', 2, 1],
@@ -35,8 +61,7 @@ const SONGS = [
   ['Quiet Harbour', 'Juniper Gate', 'Sea Glass', 1, 1],
 ].map(([title, artist, album, track, disc], i) => {
   const hex = (i + 1).toString(16).padStart(64, String.fromCharCode(97 + i));
-  const bytes = Buffer.concat([TONE, Buffer.from(Array.from({ length: 4096 + i * 777 }, (_, k) => (k * (i + 3)) & 255))]);
-  return { id: `r2_native_${hex}`, title, artist, album, track, disc, bytes };
+  return { id: `r2_native_${hex}`, title, artist, album, track, disc, bytes: opus(title, artist, i), cover: COVERS[album] };
 });
 const [S1, S2, S3] = SONGS;
 const GONE = `r2_native_${'f'.repeat(64)}`;
@@ -59,7 +84,7 @@ before(async () => {
     if (url.pathname === '/v1/music/catalog') {
       const tracks = SONGS.map((s) => ({
         id: s.id, sha256: s.id.slice(10), size: s.bytes.length, audioKey: `native/audio/${s.id.slice(10)}.opus`, mimeType: 'audio/ogg',
-        path: `${s.title}.opus`, folder: 'Cloudflare R2/Invented', r2Identity: { size: s.bytes.length, etag: 'e1', lastModified: '2026-10-01T00:00:00.000Z' },
+        path: `${s.title}.opus`, folder: 'Cloudflare R2/Invented', coverKey: `native/art/${s.album}.png`, r2Identity: { size: s.bytes.length, etag: 'e1', lastModified: '2026-10-01T00:00:00.000Z' },
         metadata: { title: s.title, artist: s.artist, album: s.album, albumArtist: s.artist, track: s.track, disc: s.disc, dur: 200, codec: 'opus' },
       }));
       res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
@@ -73,6 +98,11 @@ before(async () => {
         res.end(JSON.stringify({ items, errors: [] }));
       });
       return;
+    }
+    const art = SONGS.find((s) => url.pathname === `/r2/${s.id}/art`);
+    if (art) {
+      res.writeHead(200, { ...cors, 'Content-Type': 'image/png', 'Content-Length': String(art.cover.length) });
+      return res.end(art.cover);
     }
     const song = SONGS.find((s) => url.pathname === `/r2/${s.id}`);
     if (song) {
@@ -233,7 +263,7 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   const zip = readZip(await saved(zipDl));
   const names = ['01 - Cobalt Field - Slow Orbit.opus', '02 - Cobalt Field - Morning Static.opus', '03 - Cobalt Field - Paper Lanterns.opus'];
   assert.deepEqual(zip.entries.map((e) => e.name), [...names, 'Road Trip Vol 1.m3u8', 'skipped.txt']);
-  for (const [i, s] of [S3, S1, S2].entries()) assert.ok(Buffer.from(zip.entries[i].data).equals(s.bytes), `${names[i]}: the bytes as stored`);
+  for (const [i, s] of [S3, S1, S2].entries()) assertEmbedded(zip.entries[i].data, s.bytes, s.cover, names[i]);
   assert.equal(Buffer.from(zip.entries[3].data).toString(), `#EXTM3U\r\n${names.map((n) => `#EXT-X-RATING:0\r\n${n}\r\n`).join('')}`);
   assert.match(Buffer.from(zip.entries[4].data).toString(), /1 song is no longer in the library/);
   await says('Saved, 1 song could not be added');
@@ -292,7 +322,7 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   await tap('download_song');
   const songDl = await one;
   assert.equal(songDl.suggestedFilename(), 'Cobalt Field - Morning Static.opus');
-  assert.ok(Buffer.from(await saved(songDl)).equals(S1.bytes), 'the song’s bytes as stored');
+  assertEmbedded(await saved(songDl), S1.bytes, S1.cover, 'the playing song');
   await says('Saved to Downloads');
 
   assert.deepEqual(oldCalls, [], 'nothing went to the old Worker');

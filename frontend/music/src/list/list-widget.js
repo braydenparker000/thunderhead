@@ -16,7 +16,7 @@ import {STATE_PLAYING} from '../player/player.js';
 import {PowerList, HEAD} from './power-list.js';
 import {MoveableToolbar, ANCHOR_BOTTOM, ANCHOR_FIXED_BOTTOM} from './moveable-toolbar.js';
 import {ListReorder} from './reorder.js';
-import {HomeSource, currentCategorySource, searchSource, playlistsSource, playlistSource, allSongsSource, allSongsOrderSteps, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
+import {HomeSource, currentCategorySource, rowOfTrack, searchSource, playlistsSource, playlistSource, allSongsSource, allSongsOrderSteps, groupTracksSource, folderLevelSource, homeCategory, categorySource as categoryListSource} from './sources.js';
 import {SEARCH_CATS, searchMask} from '../widgets/search.js';
 import {recordSearch} from '../library/search-history.js';
 import {ListTransition, ZOOM, pageFx} from './list-transition.js';
@@ -28,9 +28,9 @@ import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {queueMenuItems} from '../widgets/up-next.js';
 import {downloadMenuItem, downloadRoom} from '../widgets/downloads.js';
 import {scrollMenuItems} from './menu-scroll.js';
-import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
+import {openListOptions, ZOOMS, listOpts, savedListOpts, restoreListOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
-import {keepPlace} from './relocate.js';
+import {carryLevel, keepPlace} from './relocate.js';
 import {openResortDialog, REVERSE as RESORT_REVERSE} from '../widgets/resort-dialog.js';
 import {orderShown} from '../library/playlists.js';
 import {clearPlaylist, deletePlaylists, newPlaylist, playlistMenuItems, removeSongs, renamePlaylist, saveOrder} from '../widgets/playlist-edit.js';
@@ -51,11 +51,11 @@ const MENU_LONG_PRESS = [null, ['list', 'cmd_list_delete_dialog'], ['list', 'cmd
 
 /** Track item: a scene layout whose scene is chosen by the list (item scenes). */
 // Preferences that change the labels of bound rows.
-const LABEL_PREFS = ['title_filename', 'use_albumartist', 'use_albumartist_albumartists', 'hide_unknown_album', 'hide_unknown_artist', 'track_num_type', 'track_disc_meta'];
+const LABEL_PREFS = ['title_filename', 'use_albumartist', 'use_albumartist_albumartists', 'use_albumartist_albums', 'hide_unknown_album', 'hide_unknown_artist', 'track_num_type', 'track_disc_meta'];
 const labelsKey = ctx => LABEL_PREFS.map(k => ctx.pref?.(k)).join('|');
 // Preferences that change which rows a library list has or their order
 // (album keys, sort field, split categories): the shown lists are re-made.
-const LIST_PREFS = ['join_albums', 'no_sort_field', 'show_unsplit_cats', 'artists_split_chars', 'artists_split_ignore', 'composers_split_chars', 'genres_split_chars'];
+const LIST_PREFS = ['join_albums', 'no_sort_field', 'show_unsplit_cats', 'artists_split_chars', 'artists_split_ignore', 'composers_split_chars', 'genres_split_chars', 'hier_files_zoom', 'root_hier_immediate'];
 
 export class AAItemView extends SceneFastLayout {
   constructor(ctx, a) {
@@ -842,10 +842,14 @@ export class ListWidget extends FastLayout {
     }
   }
 
-  /** Replaces the shown source (after its data changed), keeping the scroll position. */
+  /**
+   * Replaces the shown source (after its data changed), keeping the scroll position and what the
+   * level carries from how it was opened (Back's scroll, morph and search results; relocate.js).
+   */
   replaceTop(src) {
     if (!src || !this.stack.length) return;
     const y = this.libList.scrollY;
+    carryLevel(this.stack[this.stack.length - 1], src);
     this.stack[this.stack.length - 1] = src;
     if (this.mode === 'list' && !this.searchShown) { this.libList.setSource(src); this.libList.scrollTo(y); }
   }
@@ -853,7 +857,7 @@ export class ListWidget extends FastLayout {
   /** Re-makes every list on the navigation stack, keeping the shown one's scroll position. */
   rebuildStack() {
     if (!this.stack.length) return;
-    for (let i = 0; i < this.stack.length - 1; i++) this.stack[i] = this.stack[i].rebuild?.() ?? this.stack[i];
+    for (let i = 0; i < this.stack.length - 1; i++) this.stack[i] = carryLevel(this.stack[i], this.stack[i].rebuild?.()) ?? this.stack[i];
     this.replaceTop(this.stack[this.stack.length - 1].rebuild?.());
   }
 
@@ -1006,17 +1010,28 @@ export class ListWidget extends FastLayout {
   openCurrent(kind, track = null) {
     // The track menu's Folders button opens the folder in Folders Hierarchy unless menu_nav_to_folders.
     if (kind === 'folder' && !this.ctx.pref('menu_nav_to_folders') && this.openHierFolder(track ?? this.ctx.player?.track)) return;
-    const src = currentCategorySource(this.ctx, this.libList, this.nav, kind, track);
+    // The page the library opens for it (sources.js libraryPageOf), at the song's row.
+    const t = track ?? this.ctx.player?.track;
+    const src = currentCategorySource(this.ctx, this.libList, this.nav, kind, t);
     if (!src) return;
     this.ctx.bus.post('bus_gui', 'cmd_nav_to_lib', this);
     if (!this.stack.length) this.openHome();
     this.stack.length = 1;
     this.open(src);
+    const row = rowOfTrack(src, t);
+    if (row < 0) return;
+    if (src.indexOfTrack?.(t) === row || src.tracks?.[row]?.id === t.id) this.libList.scrollToTrack(t);
+    else this.libList.scrollToIndex(row);
   }
 
   openHome() {
     this.stack = [];
-    this.open(new HomeSource(this.ctx, this.libList, this.nav));
+    this.open(this.homeSource());
+  }
+
+  /** The library's first level: the home, or the v2 layout's tab root (home/install.js sets rootSource). */
+  homeSource() {
+    return this.rootSource?.() ?? new HomeSource(this.ctx, this.libList, this.nav);
   }
 
   /**
@@ -1025,7 +1040,7 @@ export class ListWidget extends FastLayout {
    */
   openStart() {
     this.openHome();
-    const cat = homeCategory(+(this.ctx.pref('library_home') ?? -1));
+    const cat = this.rootSource ? null : homeCategory(+(this.ctx.pref('library_home') ?? -1));
     if (cat) this.open(categoryListSource(this.ctx, this.libList, this.nav, cat));
     this.startSource = this.stack[this.stack.length - 1];
   }
@@ -1878,7 +1893,7 @@ export class ListWidget extends FastLayout {
     const lib = this.ctx.library?.tracks, opts = listOpts('tracks:all'), key = JSON.stringify(opts) + '|' + (this.ctx.pref?.('no_sort_field') ? 1 : 0);
     const kept = this.allSongsKept;
     if (kept && kept.lib === lib && kept.key === key) return kept.stack.slice();
-    const stack = [new HomeSource(this.ctx, this.libList, this.nav), allSongsSource(this.ctx, this.libList, this.nav)];
+    const stack = [this.homeSource(), allSongsSource(this.ctx, this.libList, this.nav)];
     // (Orders that change as songs play or are rated, 5 to 7, are made fresh each time.)
     const sort = (opts.sort ?? 1) & ~REVERSE;
     this.allSongsKept = sort >= 5 && sort <= 7 ? null : {lib, key, stack};
@@ -1983,10 +1998,11 @@ export class ListWidget extends FastLayout {
     const at = levels.indexOf(src.zoomLevel);
     const level = at < 0 ? undefined : levels[at + (zoomIn ? 1 : -1)];
     if (level === undefined) return null;
-    const oldZoom = listOpts(key).zoom;
+    // What the list had saved itself (an entry's own zoom, or none: its kind's), put back on a cancel.
+    const old = savedListOpts(key);
     saveListOpts(key, {zoom: level, zv: 2});
-    const next = src.rebuild?.();
-    if (!next) { saveListOpts(key, {zoom: oldZoom, zv: 2}); return null; }
+    const next = carryLevel(src, src.rebuild?.());
+    if (!next) { restoreListOpts(key, old); return null; }
     // The middle visible item leads the new level.
     const geo = this.libList.geometry();
     const mid = Math.max(0, Math.floor((this.libList.scrollY + this.libList.height / 2 - geo.top - geo.headerH) / geo.itemH) * geo.cols);
@@ -2012,7 +2028,7 @@ export class ListWidget extends FastLayout {
         if (commit && src === this.searchSrc) this.searchSrc = next;
         else if (commit) this.stack[this.stack.length - 1] = next;
         else {
-          saveListOpts(key, {zoom: oldZoom, zv: 2});
+          restoreListOpts(key, old);
           this.libList.setSource(src);
           this.libList.scrollTo(scroll);
         }
@@ -2312,8 +2328,8 @@ export class ListWidget extends FastLayout {
     const ll = this.libList;
     if (this.mode !== 'aa' || this.trans || this.menuItem || this.searching || !this.width || ll.visibility !== GONE || this.stack.length) return false;
     // A start category would open a second level with its own history entry: built when opened, as before.
-    if (homeCategory(+(this.ctx.pref('library_home') ?? -1))) return false;
-    const home = new HomeSource(this.ctx, ll, this.nav);
+    if (!this.rootSource && homeCategory(+(this.ctx.pref('library_home') ?? -1))) return false;
+    const home = this.homeSource();
     this.stack = [home];
     ll.setSource(home);
     ll.visibility = INVISIBLE;

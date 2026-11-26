@@ -78,8 +78,13 @@ export function rebuildLevel(ctx, src) {
   if (src.node && !src.isRoot && !lib.folderTree?.().nodes.has(src.node.path)) return null;
   let fresh = null;
   try { fresh = src.rebuild(); } catch { return null; }
+  return carryLevel(src, fresh);
+}
+
+/** A level made again takes what the old one carried (CARRY); returns the new one (or null). */
+export function carryLevel(src, fresh) {
   if (!fresh) return null;
-  for (const k of CARRY) if (src[k] !== undefined) fresh[k] = src[k];
+  if (src && src !== fresh) for (const k of CARRY) if (src[k] !== undefined) fresh[k] = src[k];
   return fresh;
 }
 

@@ -172,6 +172,7 @@ export class Settings {
     if (name === 'oss') return ossScreen();
     const tree = this.ctx.res.entry('xml', name);
     if (name === 'audio_equ' && tree) return (this._equ ??= withHeadroomSwitch(tree));
+    if (name === 'library_lists' && tree) return (this._lists ??= withClassicSwitch(tree));
     if (name !== 'misc' || !tree) return tree;
     return (this._misc ??= withDataCategory(tree));
   }
@@ -1730,6 +1731,25 @@ function withHeadroomSwitch(tree) {
     'android:summary': 'Turns the music down before the equalizer by as much as the equalizer, tone and preamp boost, so the boost never clips. The amount shows in the Playback log.',
   }];
   const copy = [root[0], root[1], [...kids.slice(0, 1), row, ...kids.slice(1)]];
+  return nested ? [copy, ...tree.slice(1)] : copy;
+}
+
+/**
+ * Lists › Look and feel's Classic library layout (this app's own, cp_classic_library, off unless switched
+ * on; home/switch.js): the navbar and the library's first screen as they were before the v2 layout,
+ * applied at once without a reload (home/install.js setLayout). After Library List Options.
+ */
+function withClassicSwitch(tree) {
+  const nested = Array.isArray(tree[0]), root = nested ? tree[0] : tree, kids = root[2] ?? [];
+  const at = kids.findIndex(n => attr(n, 'key') === 'pref_look_and_feel');
+  if (at < 0) return tree;
+  const cat = kids[at], rows = cat[2] ?? [];
+  const row = ['com.maxmpz.audioplayer.preference.MultilineSwitchPreference', {
+    'android:title': 'Classic library layout', 'android:key': 'cp_classic_library', 'android:defaultValue': 'false',
+    'android:summary': 'Library, Equalizer, Search and More in the bar, and the library opens on its list of categories. Off: Home, Search, Library and More.',
+  }];
+  const after = rows.findIndex(n => attr(n, 'key') === 'library_list_opts') + 1;
+  const copy = [root[0], root[1], kids.map((n, i) => (i === at ? [cat[0], cat[1], [...rows.slice(0, after), row, ...rows.slice(after)]] : n))];
   return nested ? [copy, ...tree.slice(1)] : copy;
 }
 
