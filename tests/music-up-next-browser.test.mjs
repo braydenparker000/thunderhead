@@ -1,13 +1,17 @@
-// Up next and History in the real player, in Chromium at phone size (frontend/music/, owner
-// 2026-11-25): the playing song's menu (its three dots) opens Up next over the player with its three
-// sections; a swipe left takes a Next up row out and Undo puts it back in its place; Clear empties
-// Next up and Undo brings it back; a drag on a row's handle reorders; Back closes the window. A
+// Up Next and History in the real player, in Chromium at phone size (frontend/music/, owner
+// 2026-11-25): the playing song's menu (its three dots) opens Up Next over the player with its three
+// sections; a swipe left takes a Queued row out and Undo puts it back in its place; Clear empties
+// Queued and Undo brings it back; a drag on a row's handle reorders; Back closes the window. A
 // song that sounds 10 s is in History, and a tap there plays it. The demo songs (?demo, invented)
-// play on a virtual clock: no audio, no network.
+// play on a virtual clock: no audio, no network. At phone size (2026-11-26): a queued row's text ends
+// before its handle; a tap just after Back closed the window reaches what is under it; the Undo bar
+// follows a change of screen clear of the mini player, and sits at an open window's edge with room
+// below its last row; in landscape the playing song's menu scrolls to its last item.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (the demo songs)', timeout: 120_000 };
@@ -24,7 +28,7 @@ after(async () => {
   site?.close();
 });
 
-test('Up next: three sections, swipe out and Undo, Clear and Undo, reorder, Back; History plays a song heard', opts, async () => {
+test('Up Next: three sections, swipe out and Undo, Clear and Undo, reorder, Back; History plays a song heard', opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
@@ -70,12 +74,12 @@ test('Up next: three sections, swipe out and Undo, Clear and Undo, reorder, Back
   await page.waitForFunction(() => window.__cp.ctx.dialogs?.length === 1 && window.__cp.ctx.dialogs[0].list?.active.size > 4, null, { timeout: 10_000 });
   await settle();
 
-  // Now playing, Next up and Then.
+  // Now playing, Queued and Then.
   let r = await rows();
   const titles = r.map((x) => x.title);
-  assert.deepEqual(titles.slice(0, 6), ['Now playing', 'Northern Lights', 'Next up', 'Paper Satellites', 'Saltwater Static', 'A Very Long Song Title That Does Not Fit On One Line']);
+  assert.deepEqual(titles.slice(0, 6), ['Now playing', 'Northern Lights', 'Queued', 'Paper Satellites', 'Saltwater Static', 'A Very Long Song Title That Does Not Fit On One Line']);
   assert.ok(titles[6]?.startsWith('Then'), `then section: ${titles[6]}`);
-  assert.ok(r.slice(3, 6).every((x) => x.handle), 'Next up rows have their drag handle');
+  assert.ok(r.slice(3, 6).every((x) => x.handle), 'Queued rows have their drag handle');
 
   // A swipe left takes Saltwater Static out; Undo puts it back where it was.
   const row = r.find((x) => x.title === 'Saltwater Static');
@@ -91,11 +95,11 @@ test('Up next: three sections, swipe out and Undo, Clear and Undo, reorder, Back
   assert.deepEqual(await queued(), ['Paper Satellites', 'Saltwater Static', 'A Very Long Song Title That Does Not Fit On One Line']);
   await settle();
 
-  // Clear empties Next up in one tap (its quiet line shows); Undo brings the three back.
+  // Clear empties Queued in one tap (its quiet line shows); Undo brings the three back.
   await tap('clear');
   await page.waitForFunction(() => window.__cp.player.nextUp().length === 0);
   await settle();
-  assert.ok((await rows()).some((x) => x.title === 'Nothing queued. Hold a song and choose Play next.'));
+  assert.ok((await rows()).some((x) => x.title === 'Nothing queued. Select songs and choose Play Next.'));
   await tap('undo_action');
   await page.waitForFunction(() => window.__cp.player.nextUp().length === 3);
   await settle();
@@ -135,6 +139,116 @@ test('Up next: three sections, swipe out and Undo, Clear and Undo, reorder, Back
   await page.waitForFunction(() => window.__cp.player.track.title === 'Northern Lights');
   await page.goBack();
   await page.waitForFunction(() => !window.__cp.ctx.dialogs?.length);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Up Next at phone size: text before the handle, a tap just after Back, the Undo bar with the screen and at the window, the menu in landscape', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/music/?demo`);
+  await page.waitForFunction(() => window.__cp?.player?.queue?.length === 4 && window.__cp.ctx.listWidget?.items?.get(0), null, { timeout: 30_000 });
+
+  /** A view's box in CSS pixels: the cover's three dots ('cover-menu'), the open menu ('menu'), the Undo bar ('bar'), the
+   * window's frame ('window'), else a view by id. */
+  const box = (what) => page.evaluate((what) => {
+    const { ctx } = window.__cp;
+    const v = what === 'cover-menu' ? ctx.listWidget.items.get(0)?.findViewById('menu') : what === 'menu' ? ctx.listWidget.menuItem?.v
+      : what === 'bar' ? ctx.root.findViewById('undo_bar') : what === 'window' ? ctx.dialogs?.at(-1)?.find('dialog_frame') : ctx.root.findViewById(what);
+    if (!v || v.visibility !== 0 || !v.width) return null;
+    const r = v.el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  }, what);
+  const tap = async (what) => {
+    const b = await until(() => box(what), { message: `nothing to tap: ${what}` });
+    await page.mouse.click((b.left + b.right) / 2, (b.top + b.bottom) / 2);
+  };
+  /** The playing song's menu is open and still. */
+  const menuOpen = () => until(() => page.evaluate(() => {
+    const { ctx } = window.__cp, ph = ctx.root.findViewById('menu_placeholder'), v = ctx.root.findViewById('queue_up_next');
+    return !!ctx.listWidget.menuItem && !ph.scenes.running && v?.visibility === 0 && v.width > 0;
+  }), { message: 'the menu never opened' });
+  /** The window is open and still, with its rows. */
+  const windowOpen = () => until(() => page.evaluate(() => { const d = window.__cp.ctx.dialogs ?? []; return d.length === 1 && !d[0].host.scenes.running && d[0].list?.active.size > 4; }), { message: 'the window never opened' });
+  /** The Undo bar shows, still (in place, not sliding, not following a change). */
+  const barStill = () => until(() => page.evaluate(() => { const u = window.__cp.ctx.undoBar, f = u.frame; return !!u.current && f.visibility === 0 && f.alpha === 1 && !u.anim && !u.stopFollow; }), { message: 'the Undo bar never came to rest' });
+
+  // A queued row's title and meta end before its drag handle.
+  await page.evaluate(() => { const p = window.__cp.player; p.enqueue([p.queue[1], p.queue[2], p.queue[3]]); });
+  await tap('cover-menu');
+  await menuOpen();
+  await tap('queue_up_next');
+  await windowOpen();
+  const queued = await page.evaluate(() => {
+    const r = (v) => v.el.getBoundingClientRect();
+    return [...window.__cp.ctx.dialogs[0].list.active.values()].flatMap((row) => {
+      const h = row.findViewById?.('drag_handler');
+      if (!h || h.visibility !== 0) return [];
+      return [{ title: r(row.findViewById('title')).right, meta: r(row.findViewById('meta')).right, handle: r(h).left, metaText: row.findViewById('meta').text }];
+    });
+  });
+  assert.equal(queued.length, 3, 'three queued rows with their handle');
+  for (const q of queued) {
+    assert.ok(q.metaText, 'the row has its meta');
+    assert.ok(q.meta <= q.handle + 0.5, `the meta ends at ${q.meta}, left of the handle at ${q.handle}`);
+    assert.ok(q.title <= q.handle + 0.5, `the title ends at ${q.title}, left of the handle at ${q.handle}`);
+  }
+
+  // Clear: the Undo bar sits at the window's inner bottom edge, and the window's last row, scrolled to, ends above it.
+  await page.evaluate(() => {
+    for (const row of window.__cp.ctx.dialogs[0].list.active.values()) { const b = row.findViewById('line2'); if (b?.visibility === 0 && b.text === 'Clear') b.onClick(); }
+  });
+  await until(() => page.evaluate(() => window.__cp.player.nextUp().length === 0), { message: 'Clear emptied nothing' });
+  await barStill();
+  const atWindow = { bar: await box('bar'), window: await box('window') };
+  assert.ok(atWindow.bar.bottom <= atWindow.window.bottom + 0.5 && atWindow.bar.bottom >= atWindow.window.bottom - 24, `the bar at the window's edge: ${JSON.stringify(atWindow)}`);
+  await page.evaluate(() => { const l = window.__cp.ctx.dialogs[0].list; l.scrollTo(l.maxScroll()); });
+  const lastRow = await page.evaluate(() => {
+    const l = window.__cp.ctx.dialogs[0].list, last = l.active.get(l.source.count - 1);
+    return last ? last.el.getBoundingClientRect().bottom : null;
+  });
+  assert.ok(lastRow !== null && lastRow <= atWindow.bar.top, `the last row (${lastRow}) ends above the bar (${atWindow.bar.top})`);
+  await tap('undo_action');
+  await until(() => page.evaluate(() => window.__cp.player.nextUp().length === 3), { message: 'Undo did not bring them back' });
+
+  // Back closes the window; a tap 100 ms later reaches the cover's three dots under it (the closing window takes none).
+  await page.goBack();
+  await until(() => page.evaluate(() => !window.__cp.ctx.dialogs?.length), { message: 'Back did not close the window' });
+  await outlast(page, 100);
+  await tap('cover-menu');
+  await menuOpen();
+
+  // Play Next shows the Undo bar on the player (above its tabs); a change of screen to the library moves it above the
+  // mini player, not over it.
+  await tap('queue_play_next');
+  await barStill();
+  await page.evaluate(() => window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_lib'));
+  const mini = await until(() => page.evaluate(() => window.__cp.miniBox()), { message: 'the mini player never showed' });
+  await barStill();
+  const bar = await box('bar');
+  assert.ok(bar.bottom <= mini.top + 0.5 || bar.top >= mini.bottom - 0.5, `the bar ${JSON.stringify(bar)} clear of the mini player ${JSON.stringify(mini)}`);
+
+  // Landscape: the menu fits the screen, and its last item (Genre) scrolls into it.
+  await page.evaluate(() => window.__cp.ctx.undoBar.hide());
+  await page.evaluate(() => window.__cp.ctx.bus.post('bus_gui', 'cmd_nav_to_main'));
+  await page.setViewportSize({ width: 844, height: 390 });
+  await until(() => page.evaluate(() => { const { ctx } = window.__cp; return ctx.topNav?.nav === 'nav_main' && !ctx.topNav.scenes.running && ctx.root.width === Math.round(844 * ctx.dpr); }), { message: 'the player never came back in landscape' });
+  await tap('cover-menu');
+  await menuOpen();
+  const card = await box('menu');
+  assert.ok(card.top >= 0 && card.bottom <= 390, `the menu inside the screen: ${JSON.stringify(card)}`);
+  assert.ok((await box('genre')).bottom > card.bottom, 'Genre starts below the menu (it does not all fit)');
+  const from = await box('download_song');
+  const x = (from.left + from.right) / 2;
+  await page.mouse.move(x, from.top + 10);
+  await page.mouse.down();
+  for (let k = 1; k <= 12; k++) await page.mouse.move(x, from.top + 10 - k * 20);
+  await page.mouse.up();
+  const genre = await until(async () => { const g = await box('genre'); return g && g.bottom <= card.bottom + 0.5 && g; }, { message: 'Genre never scrolled into the menu' });
+  assert.ok(genre.top >= card.top, `Genre inside the menu: ${JSON.stringify(genre)} in ${JSON.stringify(card)}`);
+
   assert.deepEqual(errors, []);
   await context.close();
 });

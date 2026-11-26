@@ -292,12 +292,12 @@ cover advances exactly one track; long-press opens home with the track attached.
 ### 2.5 Queue sheet
 
 - A sheet over Now Playing (slow spatial spring), 90 % height, draggable to dismiss.
-- Sections, in order: **Now playing** (one row) · **Next up** (songs the owner queued) ·
+- Sections, in order: **Now playing** (one row) · **Queued** (songs the owner queued) ·
   **From *<context>*** (the rest of the album, playlist or mix) · **Suggested** (up to 3 faded rows
   from the mind, §10.4).
 - Each row: 48 px cover, title, artist, duration. Drag handle on the right (44 px).
-- Reorder by dragging the handle, or with the row's menu: Play next · Move up · Move down · Remove.
-- "Clear Next up" button at the head of that section when it has 2+ rows. It asks nothing (undo
+- Reorder by dragging the handle, or with the row's menu: Play Next · Move up · Move down · Remove.
+- "Clear" button at the head of Queued when it has 2+ rows. It asks nothing (undo
   toast for 5 s).
 
 ### 2.6 Library
@@ -308,7 +308,11 @@ cover advances exactly one track; long-press opens home with the track attached.
   composer or folder, the first letter of that field; years for a year sort; months for a date sort,
   with the month and day in the bubble; the plain thumb, without sections, where the sort has none
   (number sorts). Sort: Title (default) · Artist · Album · Recently added · Most played. The sort is
-  remembered.
+  remembered. The rail draws about 24 px wide but takes a touch 44 px wide: a touch that starts in
+  the strip beside it and moves along it is the rail's, a tap there still reaches the row
+  (`list/scroller.js`, `input.js` `stripAt`). Month and year labels keep the letters' size, the column
+  widening a little for them first (at most 14 dp), smaller only where they still do not fit. A list
+  that says it is empty (one quiet line) draws no rail.
 - **Albums:** two-column grid of covers (radius 16) with title and artist under each. Sort: Title ·
   Artist · Year · Recently added.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
@@ -382,9 +386,9 @@ The engine holds one **play order**: `[...history, current, ...nextUp, ...contex
 
 | Action | Effect |
 |---|---|
-| Tap a song in a list | Context = that list; current = the song; Next up is kept |
-| Play next | Insert at the end of the Play-next group at the head of Next up (so several "Play next"s play in the order chosen) |
-| Add to queue | Append to the end of Next up |
+| Tap a song in a list | Context = that list; current = the song; Queued is kept |
+| Play Next | Insert at the end of the Play Next group at the head of Queued (so several "Play Next"s play in the order chosen) |
+| Add to Queue | Append to the end of Queued |
 | Next | Advance one step in play order |
 | Previous | Position > 3 s → restart the track. Else → the previous track in history |
 | Context ends, repeat off | Suggested rows play if the owner has kept "Keep playing" on (default on **[proposal]**); else stop at the end |
@@ -405,7 +409,7 @@ Off · All (context loops) · One (track loops; Next still moves on; a track tha
 One moves to the next track rather than retrying forever).
 
 **Acceptance (unit, `node --test`):** queue operations over a 10-track fixture match a table of
-expected play orders for every action above, including "Play next" ×3, previous at 2.9 s and 3.1 s,
+expected play orders for every action above, including "Play Next" ×3, previous at 2.9 s and 3.1 s,
 shuffle with no repeat across 1,000 seeded runs.
 
 ---
@@ -1107,7 +1111,9 @@ step (ask first). Without it the EQ path outputs silence.
   it opens as a blob URL like an offline copy and needs no head. No download is ever made for it; a song
   whose stream skipped bytes with a seek is not kept, since filling the gap would cost one (it is kept
   next time it is played through). At most 200 MB, the song played longest ago out first; on by default
-  on every connection; Settings › On this phone › **Music · Songs played** clears it. Tested in
+  on every connection; Settings › On this phone › **Music · Songs played** clears it. A kept copy opens
+  only at the catalogue's size for its song (2026-11-26): one of another length (its file replaced
+  upstream under the same id) is dropped and the song streams again. Tested in
   `tests/music-played.test.mjs`.
 
 ### 7.3 Offline browsing and search
@@ -1280,7 +1286,7 @@ only once the Worker took it (else the next load sends it again). The Worker kee
 | `music.played` | The played threshold (§5.3) is crossed (this is what increments play count) | `music:<id>` | `{}` |
 | `music.rate` | Rating changes | `music:<id>` | `{rating: 0..5, from}` |
 | `music.search` | A search is committed (Enter or a result picked) | `null` | `{q, results: n, picked_ref, picked_tier, picked_rank}` |
-| `music.queue.edit` | Play next / Add to queue / remove / reorder | `music:<id>` | `{op}` |
+| `music.queue.edit` | Play Next / Add to Queue / remove / reorder | `music:<id>` | `{op}` |
 | `music.playlist.edit` | Create, rename, add, remove, reorder, delete | `music:playlist/<id>` | `{op, refs}` |
 | `music.mix.feedback` | Keep / Less like this / a why chip dismissed | `music:playlist/<id>` or `music:<id>` | `{op, recipe}` |
 | `music.offline` | Keep offline set or removed | ref | `{on}` |
@@ -1302,7 +1308,7 @@ returns `{result, undo}`.
 
 | Verb | Args | Does | Undo |
 |---|---|---|---|
-| `music.queue` | `{refs: [≤ 200], at: 'next'|'end'}` | Adds to Next up | `music.unqueue {refs, ids}` |
+| `music.queue` | `{refs: [≤ 200], at: 'next'|'end'}` | Adds to Queued | `music.unqueue {refs, ids}` |
 | `music.unqueue` | `{ids}` | Removes those queue entries | `music.queue` |
 | `music.play_playlist` | `{list_id, shuffle: 'off'|'shuffle'|'dj', start_ref?}` | Loads the list as context; plays if allowed (§10.3) | Restore the previous queue and position |
 | `music.create_playlist` | `{name, refs, kind: 'playlist'|'mix', why?, track_whys?, recipe?, refresh?}` | Creates it | `music.delete_playlist {list_id}` (allowed only while the owner hasn't edited it) |
@@ -1349,7 +1355,7 @@ sound.
 |---|---|---|
 | `music.note` | One line from the mind at the top of Mixes (Fraunces italic 15/22) | ≤ 120 characters; expires in 24 h; tap opens home with the note attached; swipe away = `music.mix.feedback {op: 'dismiss'}` |
 | `music.why` | A why chip on a track (Now Playing, mix rows) | Inter 500 12/16 pill, ≤ 60 characters visible; tap expands to the full line plus "Less like this"; rendered through `<th-why>` |
-| `music.suggest` | Up to 3 faded rows at the end of the queue | 55 % opacity, label "Suggested"; tap = accept (moves into Next up); swipe away = dismiss; never auto-play unless "Keep playing" is on and the context has ended |
+| `music.suggest` | Up to 3 faded rows at the end of the queue | 55 % opacity, label "Suggested"; tap = accept (moves into Queued); swipe away = dismiss; never auto-play unless "Keep playing" is on and the context has ended |
 | `briefing.music` | For the [Briefing](../BRIEFING.md): "New: 12 songs added" and a mix built overnight | At most 2 lines |
 
 Why text must be true and checkable ("Played most on rainy evenings" only if that's in the
@@ -1479,7 +1485,7 @@ Sound (EQ) is reached from Now Playing, not here, because it is used while liste
 3. Keyboard: Space play/pause; `J`/`L` −10/+10 s; Shift+←/→ previous/next; `/` focuses search.
 4. Track changes are announced through a polite `aria-live` region only while Music is visible
    ("Now playing: *Title* by *Artist*").
-5. Queue reordering has menu commands (Move up/down, Play next) besides dragging.
+5. Queue reordering has menu commands (Move up/down, Play Next) besides dragging.
 6. Targets ≥ 44 px; text in `rem`; contrast pairs from the design tokens pass WCAG 2.2 AA.
 7. Reduced motion: no cover swipe-follow (a crossfade instead), static level icon, sheets fade.
 8. Second-language titles are not marked `lang` per row (unknown per track); the UI chrome is `lang="en"`.
@@ -1691,29 +1697,39 @@ In Settings › Music, under the counts, **Picks to add** lists the picks still 
 
 **In a reply (2026-11-25).** When the mind offers a pick by its line, the line ends with `(pick:<MusicBrainz id>)` (`mind/skills/music.md`). The chat renderer (`frontend/th/chat/rich.js`, the token parsed as a `pick` part; `th/chat/pick.js` draws it) shows a small **Play** in its place, on home and in an older conversation alike (`th/convos/past.js` uses the same renderer). The playing is one module for both places (`frontend/th/music/preview.js`, loaded by a reply on its first tap): one preview at a time across Settings and chat, a second tap stops it, leaving the page or the button leaving the screen stops it, nothing plays without a tap, and a 404 reads "No preview for this one." beside the button. Only a lower-case UUID makes a button; any other text stays as it is.
 
-## 20. Up next and History (2026-11-25, owner's rulings)
+## 20. Up Next and History (2026-11-25, owner's rulings)
 
 No new button anywhere. The playing song's menu (the cover held, or its three dots) has a row of
-four at its top, in the selection bar's button style: **Play next**, **Add to queue**, **Up next**,
+four at its top, in the selection bar's button style: **Play Next**, **Add to Queue**, **Up Next**,
 **History** (`widgets/up-next.js`, added in code by `queueMenuItems`; the reference's menu is
-unchanged).
+unchanged; Title Case as Music's other menu items, 2026-11-26). Where the menu does not fit the
+screen (landscape) it is capped to the visible height and its items scroll inside it
+(`list/menu-scroll.js`); portrait is as it was.
 
-- **Up next** is the app's list dialog over the player (a bottom sheet; Back, a tap outside or a drag
-  down closes it): *Now playing* (the row marked as the playing row is), *Next up* (the songs queued
-  by hand and not played yet, in their order, each with its drag handle; Clear in the subhead's
-  button; empty: "Nothing queued. Hold a song and choose Play next."), then *Then, from <the list>*:
+- **Up Next** is the app's list dialog over the player (a bottom sheet; Back, a tap outside or a drag
+  down closes it): *Now playing* (the row marked as the playing row is), *Queued* (the songs queued
+  by hand and not played yet, in their order, each with its drag handle, the row's text ending before
+  it; Clear in the subhead's button; empty: "Nothing queued. Select songs and choose Play Next."),
+  then *Then, from <the list>*:
   the next 30 songs of the playing list in their real order (its order, shuffle or the DJ's plan,
-  `Player.ahead`), 30 more as the end shows. A tap plays a row now; a swipe left takes a Next up row
+  `Player.ahead`), 30 more as the end shows. A tap plays a row now; a swipe left takes a Queued row
   out, or passes over a list song this time round (`Player.skipOnce`). Rows slide to their new places.
 - **History**: the songs heard, newest first, with when ("2 min ago", "Yesterday 21:14"); a tap plays
   it (where it is in the playing list, else now, ahead of the queued songs). A play is written once it
   has sounded 10 s (`player/play-history.js`); one entry per play; at most 500; on this phone only.
 - **The Undo bar** (`widgets/undo-bar.js`, `ctx.undoBar.show(message, onUndo)`): the lower toast's
-  frame with Undo at its right, above the mini-player, 5 s, one at a time, also over a dialog. Clear,
-  a swipe, Play next / Add to queue (also from the selection bar) use it.
+  frame with Undo at its right, above the mini-player, 5 s, one at a time, also over a dialog. Clear
+  ("Queue cleared"), a swipe ("Removed from the queue", "Skipped this time"), Play Next / Add to Queue
+  ("Playing next", "Added to queue"; also from the selection bar) use it. It follows the screen while
+  it shows (a change of screen or of the window's size, a window opening or closing). Over an open
+  window of rows (Up Next, History) it sits at the window's inner bottom edge and the window's list
+  gets that much room at its end, so its last rows scroll clear of it. Its icon takes the title's colour; a long line takes two
+  lines, as the toast's title does.
+- **Closing**: a window or dialog takes no touch from the moment it starts to leave, so a tap just
+  after Back reaches what is under it (`dialog.js`, `input.js` `inert`).
 - **Queue rules** (`player/queue-moves.js`): queued songs play in the order chosen whatever the
   shuffle or the DJ (they order only the list; "Ignore Shuffle" is now always so); a song tapped
-  elsewhere, or search's Play / Shuffle, keeps them: they play after it; played ones leave Next up;
+  elsewhere, or search's Play / Shuffle, keeps them: they play after it; played ones leave Queued;
   the cover's and mini-player's pages show what Next and Previous really play (a queued song, a wrap).
   **Previous** (with "<< Button Resets Current Track", now on by default): after 5 s the song starts
   again; within them, the song heard before plays, pressed again the one before that; with no history,
@@ -1742,7 +1758,8 @@ No new button on the player or the mini-player. Everything uses the app's own di
 - **Re-Sort shows, Save keeps**: a choice in a playlist's Re-Sort shows it in that order and stores
   nothing; the order lasts while the playlist is open (Random keeps the order it drew). **Save this
   order** makes it the playlist's (with Undo). Rows drag (selection mode) only in the playlist's own
-  order. The Queue's Re-Sort is as before.
+  order. The Queue's Re-Sort is as before. Its choices are 44 px high, its hint is at the secondary
+  text size (14 sp), and its body scrolls when it does not fit above Close (2026-11-26).
 - **Duplicates**: adding songs a playlist holds asks *Add anyway* or *Skip duplicates* in the confirm
   dialog, saying how many are there; nothing is asked when none are; with **Don't Add Duplicates**
   (`pl_no_dups`) on they are skipped without asking.
@@ -1750,8 +1767,10 @@ No new button on the player or the mini-player. Everything uses the app's own di
   time, newest first, without moving the list (`dialog.js` `closeOnBack`).
 - **Counts agree**: the Playlists list's count and its "Number of tracks" sort both count the songs
   in the library; the Add to Playlist rows show each playlist's count and length. An empty playlist
-  shows "No songs yet. Hold a song and choose Add to playlist." in the hint text; its Play and
-  Shuffle do nothing.
+  shows "No songs yet. Select songs and choose Playlist." in the hint text; its Play and
+  Shuffle do nothing. With no playlists, the Playlists list shows "No playlists yet." (and no letter
+  column beside it) and Add to Playlist "No playlists yet. Tap + to make one."; an empty Queue list
+  shows "Nothing queued." (the same quiet line).
 - **Library home**: Streams and Bookmarks, which can hold nothing here, are neither shown nor
   offered in List Options, whatever a saved setting says.
 

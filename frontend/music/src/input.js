@@ -11,11 +11,16 @@ export const LONG_PRESS_MS = 400; // ViewConfiguration.getLongPressTimeout() def
 // Touch slop: ViewConfiguration's 8 dp; a gesture starts once either axis reaches it.
 const TAP_TIMEOUT_MS = 100; // ViewConfiguration.getTapTimeout()
 
-/** Deepest visible view under (x, y) that accepts touch. */
+/**
+ * Deepest visible view under (x, y) that accepts touch. A view that is `inert` (a dialog on its way
+ * out) takes none, nor does anything in it; one that clips its touches (`clipTouch`, a height: a
+ * scrolled menu's entries) gives none to children outside its box or below that height.
+ */
 function hitTest(view, x, y) {
-  if (view.visibility !== VISIBLE || view.alpha <= 0) return null;
+  if (view.visibility !== VISIBLE || view.alpha <= 0 || view.inert) return null;
   const l = localPoint(view, x, y);
   const inside = l.x >= 0 && l.y >= 0 && l.x < view.width && l.y < view.height;
+  if (view.clipTouch != null && (!inside || l.y >= view.clipTouch)) return null;
   if (view.children) {
     // Touches go to the children in reverse drawing order: higher Z first, then later children.
     const kids = zOrdered(view.children);
@@ -34,7 +39,7 @@ function hitTest(view, x, y) {
 
 /** The deepest visible view under a point, whether or not it takes touches. */
 function deepest(view, x, y) {
-  if (view.visibility !== VISIBLE || view.alpha <= 0) return null;
+  if (view.visibility !== VISIBLE || view.alpha <= 0 || view.inert) return null;
   const l = localPoint(view, x, y);
   if (l.x < 0 || l.y < 0 || l.x >= view.width || l.y >= view.height) return null;
   const kids = view.children ? zOrdered(view.children) : [];
@@ -62,6 +67,32 @@ function localPoint(v, x, y) {
     y = (y - py) / v.scaleY + py;
   }
   return {x, y};
+}
+
+/**
+ * A view whose touch reaches past its left edge (ctx.touchStrips: the list's rail, narrow to draw but
+ * a finger wide to take): the one whose strip holds the point, where the touch landed on what it
+ * serves (stripOver: its list, not anything laid over it). It only takes a touch over as an
+ * interceptor would (a move along it), so a tap there still reaches the row under it.
+ */
+function stripAt(ctx, p, hit) {
+  for (const s of ctx.touchStrips ?? []) {
+    const w = s.stripWidth ?? 0, over = s.stripOver;
+    if (w <= 0 || !over || s.touchable === false || !shownIn(ctx.root, s)) continue;
+    const l = toLocal(s, p.x, p.y);
+    if (l.y < 0 || l.y >= s.height || l.x < -w || l.x >= 0) continue;
+    for (let c = hit; c; c = c.parent) if (c === over) return s;
+  }
+  return null;
+}
+
+/** Whether a view is on screen (it and every parent up to the root shown, none inert). */
+function shownIn(root, v) {
+  for (; v; v = v.parent) {
+    if (v.visibility !== VISIBLE || v.alpha <= 0 || v.inert) return false;
+    if (v === root) return true;
+  }
+  return false;
 }
 
 function toLocal(view, x, y) {
@@ -131,6 +162,8 @@ export function installInput(ctx, container) {
     }
     const p = point(e);
     const hit = hitTest(ctx.root, p.x, p.y);
+    // The rail's strip beside it: first to see a move (stripAt).
+    const strip = hit ? stripAt(ctx, p, hit) : null;
     if (!hit) {
       // Nothing takes the touch, but the views under it still see it
       // (onInterceptTouchEvent): their drags and a second finger's pinch.
@@ -146,17 +179,17 @@ export function installInput(ctx, container) {
       active = {id: e.pointerId, view: hit, custom: true};
       // An interceptible view lets ancestors take a gesture over until it sets
       // disallowIntercept (requestDisallowInterceptTouchEvent).
-      if (hit.interceptible) {
+      if (hit.interceptible || strip) {
         hit.disallowIntercept = false;
-        const list = [];
-        for (let c = hit.parent; c; c = c.parent) if (typeof c.onInterceptStart === 'function') list.push(c);
+        const list = strip ? [strip] : [];
+        if (hit.interceptible) for (let c = hit.parent; c; c = c.parent) if (typeof c.onInterceptStart === 'function') list.push(c);
         if (list.length) Object.assign(active, {start: p, downTime: e.timeStamp, interceptors: list});
       }
       return;
     }
     let v = hit;
     while (v && !v.clickable && !v.longClickable) v = v.parent;
-    const interceptors = [];
+    const interceptors = strip ? [strip] : [];
     for (let c = (v ?? hit).parent; c; c = c.parent) if (typeof c.onInterceptStart === 'function') interceptors.push(c);
     if (!v || !v.state.enabled) {
       // Nothing clickable: the nearest gesture handler takes the stream.

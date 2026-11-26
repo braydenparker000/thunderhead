@@ -21,6 +21,11 @@ export const C_RESET_FULL_H = 0x10000000, C_RESET_FULL_V = 0x20000000, C_RESET_A
 const O_INSET_L = 0x10000000, O_INSET_T = 0x20000000, O_INSET_R = 0x40000000, O_INSET_B = 0x80000000 | 0;
 const O_PAD_L = 0x1000000, O_PAD_T = 0x2000000, O_PAD_R = 0x4000000, O_PAD_B = 0x8000000;
 
+/** An attachment to another view's facing edge (as layout_attachRight="@id/…" parses), for code that re-attaches a view. */
+export const attachToView = id => ({kind: VIEW, id});
+/** Whether an attachment holds that side (any kind but none). */
+export const isAttached = att => !!att && att.kind !== NONE;
+
 function parseAttach(a, name) {
   const r = a.idRef(name);
   if (r === undefined || r === null) return {kind: NONE};

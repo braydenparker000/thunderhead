@@ -21,9 +21,12 @@ export const WORDS = {
   severalThere: '%d of these songs are already in the playlists chosen.',
   removed1: 'Removed 1 song', removed: 'Removed %d songs', cleared: 'Cleared %s', deleted: 'Deleted %s', deletedN: 'Deleted %d playlists',
   saved: 'Order saved', addedTo: 'Added to %s',
-  empty: 'No songs yet. Hold a song and choose Add to playlist.',
+  empty: 'No songs yet. Select songs and choose Playlist.',
+  // The Playlists list, and Add to Playlist (list/sources.js, playlist-dialog.js), with none.
+  noPlaylists: 'No playlists yet.', noPlaylistsAdd: 'No playlists yet. Tap + to make one.',
 };
-const ICON = '@drawable/playlists_12dp';
+// The Undo bar's icon: the menus' playlist glyph (24 dp), which reads at the bar's size.
+const ICON = '@drawable/playlist_24dp';
 
 const str = (ctx, k, f = k) => ctx.res.stringByName(k) ?? f;
 const undo = (ctx, message, onUndo) => ctx.undoBar?.show(message, onUndo, {icon: ICON});

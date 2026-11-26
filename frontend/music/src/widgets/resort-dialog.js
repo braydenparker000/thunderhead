@@ -68,6 +68,8 @@ export function resortEntries(ctx, entries, value) {
 
 export const SAVE_ORDER = 'Save this order';
 const VIEW_HINT = 'The playlist shows in this order while it is open. Save this order to keep it.';
+// The hint's size (Settings_textAppearanceListItemSecondary's) and each choice's height (a touch target).
+const HINT_SIZE = '14.0sp', ROW_HEIGHT = '44.0dip';
 
 /**
  * Opens Re-Sort for a list: name (the title's %s), entries, hasAddedTime
@@ -101,10 +103,23 @@ export function openResortDialog(ctx, {name, entries, hasAddedTime = false, appl
       const group = d.find('song_sorting_group');
       if (!group) return;
       const radios = [], hint = str('resort_hint');
+      const hintSize = ctx.res.dimensionPixelSize(HINT_SIZE, d.theme), rowHeight = ctx.res.dimensionPixelSize(ROW_HEIGHT, d.theme);
       group.walk?.(v => {
         if (v instanceof FastRadioButton) radios.push(v);
-        // The hint says what a choice does: for a playlist, nothing permanent until saved.
-        else if (save && v.text === hint) v.setText(VIEW_HINT);
+        else if (v.text === hint) {
+          // The hint says what a choice does: for a playlist, nothing permanent until saved. It reads at
+          // the app's secondary text size (its settings' summaries), not the small hint size.
+          if (save) v.setText(VIEW_HINT);
+          v.textSize = hintSize;
+          v.updateFont?.();
+          v.requestLayout();
+        }
+        // Each choice (and Reverse) is a finger's height, its gap taken into it.
+        if (v instanceof FastCheckBox && v.lp) {
+          v.minHeight = rowHeight;
+          v.lp.bottomMargin = 0;
+          v.requestLayout();
+        }
       });
       for (const r of radios) {
         const tag = parseInt(String(r.tag ?? ''), 10);

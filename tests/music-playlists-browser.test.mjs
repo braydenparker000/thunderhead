@@ -4,7 +4,9 @@
 // Playlist's + asks the name ("Playlist 1" selected) and the songs held go straight into the new
 // playlist; Cancel makes none; songs already there are asked about (how many) and Skip duplicates
 // adds only the new one; Back closes a dialog and moves nothing else; a tap on a playlist's title
-// renames it; a song removed goes at once and Undo puts it back where it was.
+// renames it; a song removed goes at once and Undo puts it back where it was. With none yet, the Playlists
+// list, the Queue and Add to Playlist each say so in one quiet line; Re-Sort's choices are a finger's height
+// and its last one comes into view above Close.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -83,6 +85,23 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   const words = await page.evaluate(() => { const out = []; window.__cp.ctx.listWidget.libList.walk((v) => { if (v.visibility === 0 && typeof v.text === 'string') out.push(v.text); }); return out; });
   assert.ok(words.includes('All Songs') && !words.includes('Streams') && !words.includes('Bookmarks'), `the home's rows: ${words.join(' / ')}`);
 
+  // With none yet, the Playlists list and the empty Queue each say so in one quiet line (and the Playlists
+  // list draws no letter column beside it).
+  /** The library list's shown texts with a home category open (by its kind). */
+  const listOf = async (kind) => {
+    await page.evaluate(async (kind) => {
+      const { ctx } = window.__cp, lw = ctx.listWidget;
+      lw.openHome();
+      const m = await import('/music/src/list/sources.js');
+      lw.open(m.categorySource(ctx, lw.libList, lw.nav, lw.stack[0].items.find((c) => c.kind === kind)));
+    }, kind);
+    await atRest();
+    return page.evaluate(() => { const out = []; window.__cp.ctx.listWidget.libList.walk((v) => { if (v.visibility === 0 && typeof v.text === 'string' && v.text) out.push(v.text); }); return out; });
+  };
+  assert.ok((await listOf('playlists')).includes('No playlists yet.'), 'the Playlists list says it has none');
+  assert.notEqual(await page.evaluate(() => window.__cp.ctx.listScroller.mode), 2, 'no letter column beside the line');
+  assert.ok((await listOf('queue')).includes('Nothing queued.'), 'the Queue says it is empty');
+
   // Add to Playlist's +: the name dialog with "Playlist 1" selected; the two songs held go straight in.
   await page.evaluate(async () => {
     const { ctx } = window.__cp, lw = ctx.listWidget;
@@ -93,6 +112,7 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   const two = await page.evaluate(() => { const l = window.__cp.ctx.listWidget.libList; l.setSelectionMode(true); l.toggleSelected(0); l.toggleSelected(1); return l.selectedTracks().map((t) => t.id); });
   await page.evaluate(() => window.__cp.ctx.bus.post('list', 'cmd_list_add_to_pl_dialog', null, {}));
   await dialogUp();
+  assert.ok((await shownText()).includes('No playlists yet. Tap + to make one.'), 'Add to Playlist says how to make one');
   await tap({ in: 'dialog', id: 'add_to_pl_button' });
   await dialogUp(2);
   await until(() => page.evaluate(() => { const i = document.activeElement; return i instanceof HTMLInputElement && i.value === 'Playlist 1' && i.selectionStart === 0 && i.selectionEnd === 10; }), { message: 'the name field is not focused with "Playlist 1" selected' });
@@ -162,6 +182,35 @@ test('playlists: the home without empty rows, a new one named from Add to Playli
   await tap({ id: 'undo_action' });
   await until(async () => (await playlist('Sunday Mix')).ids.length === 3, { message: 'Undo did not bring it back' });
   assert.deepEqual((await playlist('Sunday Mix')).ids, was);
+
+  // Re-Sort: its choices are a finger's height, its hint at the secondary text size, and the last choice
+  // (Shuffle) is in view or comes into view when the body is dragged up, above Close.
+  await page.evaluate(() => window.__cp.ctx.bus.post('list', 'cmd_list_resort_dialog', null, {}));
+  await dialogUp();
+  const sortBox = (what) => page.evaluate((what) => {
+    const d = window.__cp.ctx.dialogs.at(-1), group = d.find('song_sorting_group');
+    let v = null;
+    if (what === 'last') group.walk((x) => { if (String(x.tag) === '9' && x.visibility === 0) v = x; });
+    else v = what === 'body' ? group.parent : d.find(what);
+    const r = v.el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, h: v.height / window.__cp.ctx.dpr, size: v.textSize };
+  }, what);
+  const choice = await sortBox('last');
+  assert.ok(choice.h >= 44, `a choice is ${choice.h} px high`);
+  const hint = await page.evaluate(() => { let t = null; window.__cp.ctx.dialogs.at(-1).find('song_sorting_group').walk((x) => { if (!t && x.text?.startsWith('The playlist shows')) t = x; }); return t.textSize / window.__cp.ctx.dpr; });
+  assert.ok(hint >= 13, `the hint is ${hint} px`);
+  const body = await sortBox('body');
+  if (choice.bottom > body.bottom) {
+    const x = 195, y = body.top + 60;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 30; k++) await page.mouse.move(x, y - k * 20);
+    await page.mouse.up();
+  }
+  const shown = await until(async () => { const c = await sortBox('last'); return c.bottom <= body.bottom + 0.5 && c.top >= body.top - 0.5 && c; }, { message: 'the last choice never came into view' });
+  assert.ok(shown.bottom <= (await sortBox('button1')).top, 'above Close');
+  await page.goBack();
+  await until(async () => (await dialogs()) === 0, { message: 'Back did not close Re-Sort' });
 
   assert.deepEqual(errors, []);
   await context.close();

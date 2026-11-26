@@ -94,10 +94,14 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
   function close(result, {animate = true} = {}) {
     if (dialog.closed) return;
     dialog.closed = true;
+    // From the moment it starts to leave it takes no touch: a tap goes to what is under it (input.js).
+    host.inert = true;
     clearTimeout(dialog.toastTimer);
     // Its history entry goes as it starts to leave (what follows navigates after it: afterBack).
     release?.();
     ctx.dialogs = ctx.dialogs.filter(d => d !== dialog);
+    // The Undo bar leaves the window's edge for the screen's place (widgets/undo-bar.js).
+    ctx.undoBar?.follow();
     const done = () => {
       decor.removeView(host);
       ctx.scheduleLayout();
@@ -134,6 +138,8 @@ export function openDialog(ctx, {style, title = '', buttons = {}, onButton = nul
   if (shim) { shim.alpha = 0; ctx.tween(shim, {alpha: 1}, animMs / 1000); }
   host.scenes.go('scene_dialog_in', {duration: animMs / 1000});
   ctx.scheduleLayout();
+  // An Undo bar showing stays above the window, at its edge (widgets/undo-bar.js).
+  ctx.undoBar?.follow();
   return dialog;
 }
 

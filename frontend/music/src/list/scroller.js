@@ -25,6 +25,9 @@ const MIN = -0x80000000;
 // The smallest label (dp): fewer labels are shown rather than smaller ones. The column widens by at
 // most MAX_WIDEN_DP for labels wider than it (months, years); a label fills at most FILL of it.
 const MIN_TEXT_DP = 7, MAX_WIDEN_DP = 14, FILL = 0.9;
+// The rail takes a finger this wide (dp) though it draws narrower: the strip left of it is its too
+// for a move along it (input.js stripAt), while a tap there still reaches the row.
+const TOUCH_DP = 44;
 
 export class ListScrollerView extends FastTextView {
   constructor(ctx, a) {
@@ -68,6 +71,17 @@ export class ListScrollerView extends FastTextView {
     this.azEl.className = 'ops';
     this.el.append(this.scrollEl, this.azEl);
     ctx.listScroller = this;
+    (ctx.touchStrips ??= new Set()).add(this);
+  }
+
+  /** The strip left of the rail that is its for a move along it, and what it lies over (input.js stripAt). */
+  get stripWidth() { return Math.max(0, Math.round(TOUCH_DP * (this.ctx.dpr || 1)) - this.width); }
+  get stripOver() { return this.list ?? null; }
+
+  /** A touch that starts in the strip and moves along the rail: the rail's, as a press on it is. */
+  onInterceptStart(start, now) {
+    if (Math.abs(now.rootY - start.rootY) <= Math.abs(now.rootX - start.rootX)) return false;
+    return this.onPointerDown(start);
   }
 
   onMeasure(wSpec, hSpec) {
@@ -118,14 +132,14 @@ export class ListScrollerView extends FastTextView {
     this.cell = avail / Math.max(1, this.shown.length + up);
     // A short column (a few years) keeps the alphabet's letter size (at least the smallest label), its cells taller.
     let size = Math.min(this.textScale * this.cell, Math.max(minText, (this.textScale * avail) / Math.max(1, this.chars.length + up)));
-    // Labels wider than the column: smaller text first, down to the smallest label; then a wider column.
+    // Labels wider than the column (months, years): the letters' size kept by a wider column first, then
+    // smaller text as far as it must, down to the smallest label.
     let extra = 0;
     const baseW = this.width - (this.measuredExtra ?? 0) - this.azPadL - this.azPadR;
     const widest = this.font && this.mode === 2 ? Math.max(0, ...this.labels.map(t => measureText(t, this.font, size))) : 0;
     if (baseW > 0 && widest > baseW * FILL) {
-      const shrunk = Math.max(Math.min(size, minText), (size * baseW * FILL) / widest);
-      extra = Math.min(MAX_WIDEN_DP * dpr, Math.max(0, Math.ceil((widest * shrunk) / size / FILL - baseW)));
-      size = shrunk;
+      extra = Math.min(MAX_WIDEN_DP * dpr, Math.ceil(widest / FILL - baseW));
+      size = Math.max(Math.min(size, minText), Math.min(size, (size * (baseW + extra) * FILL) / widest));
     }
     this.azTextSize = size;
     // Paint.ascent()/descent() approximated by the font's bounding metrics.

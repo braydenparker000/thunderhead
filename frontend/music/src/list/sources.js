@@ -66,6 +66,7 @@ import {shownEntries} from '../library/playlists.js';
 import {WORDS} from '../widgets/playlist-edit.js';
 import {sortedSteps, sortedTracks} from './sort-cache.js';
 import {SEARCH_TEXT} from './search-prep.js';
+import {WORDS as QUEUE_WORDS} from '../widgets/up-next.js';
 
 // The search categories after "All" (jj1.v1 order).
 const SEARCH_KINDS = SEARCH_CATS.slice(1);
@@ -355,6 +356,7 @@ export function categorySource(ctx, list, nav, cat) {
     // The reference's own selection menu for the Queue (Delete removes entries, Clear Queue beside Info).
     Object.defineProperty(src, 'selectionLayout', {value: 'merge_selection_menu_queue_items'});
     reorderable(src, map => ctx.player?.reorderQueue(map));
+    if (!src.tracks.length) emptyLine(src, QUEUE_WORDS.queueEmpty);
   }
   else if (STAT_LISTS[cat.kind]) {
     const stat = STAT_LISTS[cat.kind], o = listOpts('tracks:' + cat.kind);
@@ -1013,6 +1015,7 @@ export function playlistsSource(ctx, list, nav) {
   src.backDecor = 'item_top_text_back_decor';
   src.onItemClick = i => { const s2 = playlistSource(ctx, list, nav, src.groups[i]?.pl); if (s2) nav.open(s2); };
   src.rebuild = () => playlistsSource(ctx, list, nav);
+  if (!groups.length) emptyLine(src, WORDS.noPlaylists);
   return src;
 }
 
@@ -1051,14 +1054,17 @@ export function playlistSource(ctx, list, nav, pl, view = null) {
   return src;
 }
 
-/** An empty list's one row: a quiet line in the hint text (power-list.js EMPTY_ROW), not a song. */
+/** An empty list's one row: a quiet line in the hint text (power-list.js EMPTY_ROW), not a song or an entry. */
 function emptyLine(src, text) {
-  Object.defineProperty(src, 'count', {get: () => (src.tracks.length ? src.tracks.length : 1)});
-  src.typeAt = i => (src.tracks.length || i !== 0 ? undefined : 'emptyLine');
-  src.isSeparator = i => !src.tracks.length && i === 0;
+  const rows = () => src.groups ?? src.tracks;
+  Object.defineProperty(src, 'count', {get: () => rows().length || 1});
+  src.typeAt = i => (rows().length || i !== 0 ? undefined : 'emptyLine');
+  src.isSeparator = i => !rows().length && i === 0;
   const bind = src.bindItem.bind(src);
   src.bindItem = (v, i) => (src.isSeparator(i) ? v.findViewById('item_empty_list_text')?.setText(text) : bind(v, i));
-  src.sectionTitle = i => src.tracks[i]?.title;
+  src.sectionTitle = i => rows()[i]?.title;
+  // No rail over the line (a letter sort's column would stand beside nothing: power-list.js scrollerMode).
+  if (!rows().length) src.sections = null;
 }
 
 /**

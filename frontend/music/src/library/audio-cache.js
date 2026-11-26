@@ -127,10 +127,13 @@ export class AudioCache {
     return n;
   }
 
-  /** A blob URL for the stored copy of url (marked used), or null. Release it when the deck lets go. */
-  async open(url) {
+  /**
+   * A blob URL for the stored copy of url (marked used), or null. Release it when the deck lets go.
+   * `expected`: the song's size in the catalogue (0: unknown), which a song kept from playing it must have.
+   */
+  async open(url, {expected = 0} = {}) {
     await this.ready;
-    if (!this.index.has(url)) return this.openPlayed(url);
+    if (!this.index.has(url)) return this.openPlayed(url, expected);
     try {
       const r = await (await this.caches.open(CACHE)).match(url, {ignoreVary: true});
       if (!r) { this.index.delete(url); this.save(); return null; }
@@ -148,9 +151,9 @@ export class AudioCache {
     }
   }
 
-  /** A blob URL for the song kept from playing url, or null. */
-  async openPlayed(url) {
-    const blob = await this.played?.open(url);
+  /** A blob URL for the song kept from playing url (of `expected` bytes when that is known), or null. */
+  async openPlayed(url, expected = 0) {
+    const blob = await this.played?.open(url, {expected});
     if (!blob) return null;
     const local = URL.createObjectURL(blob);
     this.blobs.set(local, url);

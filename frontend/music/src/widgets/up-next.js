@@ -1,22 +1,22 @@
-// Up next and History (owner, 2026-11-25): two windows over the player, opened from the playing
+// Up Next and History (owner, 2026-11-25): two windows over the player, opened from the playing
 // song's menu (the cover held, or its three dots), where four items join the reference's
-// (queueMenuItems): Play next, Add to queue, Up next, History. No other button anywhere.
+// (queueMenuItems): Play Next, Add to Queue, Up Next, History. No other button anywhere.
 //
 // Each window is the app's list dialog (dialog_AlertDialogActivity_list, a bottom sheet: it enters
 // and leaves with the dialogs' scenes, a drag down or a tap outside closes it) with its rows as
 // the library's: track rows (item_track at scene_small, the cover thumb by thumbFor) under the
 // search's subheads (item_separator_button). Android Back closes it too (dialog.js closeOnBack).
 //
-// Up next, top to bottom:
+// Up Next, top to bottom:
 // - Now playing: one row, marked as the playing row is (its PlayingMark activated).
-// - Next up: the songs the owner queued and not played yet, in their order, each with its drag
+// - Queued: the songs the owner queued and not played yet, in their order, each with its drag
 //   handle (list/reorder.js); Clear in the subhead's button empties it at once. Nothing queued:
 //   one quiet line in the empty list's style.
 // - Then, from <the list>: what follows from the playing list in its real order (its order, its
 //   shuffle or the DJ's plan; Player.ahead), 30 rows, 30 more as the end comes into view.
 // A tap plays a row now (an entry plays the Queue from it; a "Then" song plays in the list). A
-// swipe left takes a Next up row out, or passes over a "Then" song this time round. Clear, a
-// swipe and Play next / Add to queue show the Undo bar (widgets/undo-bar.js).
+// swipe left takes a Queued row out, or passes over a "Then" song this time round. Clear, a
+// swipe and Play Next / Add to Queue show the Undo bar (widgets/undo-bar.js).
 //
 // History: the songs heard (player/play-history.js), newest first, each with when; a tap plays it.
 import {FastLayout} from '../view/fast-layout.js';
@@ -31,10 +31,11 @@ import {heardWhen} from '../player/play-history.js';
 import {prewarmWindows} from './queue-prewarm.js';
 
 export const WORDS = {
-  upNext: 'Up next', history: 'History', playNext: 'Play next', addToQueue: 'Add to queue',
-  nowPlaying: 'Now playing', nextUp: 'Next up', then: 'Then', thenFrom: 'Then, from %s', clear: 'Clear',
-  nothingQueued: 'Nothing queued. Hold a song and choose Play next.', nothingHeard: 'Nothing heard yet.',
-  cleared: 'Next up cleared', removed: 'Removed from Next up', skipped: 'Skipped this time',
+  upNext: 'Up Next', history: 'History', playNext: 'Play Next', addToQueue: 'Add to Queue',
+  nowPlaying: 'Now playing', nextUp: 'Queued', then: 'Then', thenFrom: 'Then, from %s', clear: 'Clear',
+  nothingQueued: 'Nothing queued. Select songs and choose Play Next.', nothingHeard: 'Nothing heard yet.',
+  cleared: 'Queue cleared', removed: 'Removed from the queue', skipped: 'Skipped this time',
+  queueEmpty: 'Nothing queued.', // the Queue list with nothing in it (list/sources.js)
 };
 const PAGE = 30;
 // The window's rows move to their new places over this (the reorder's settle time, list/reorder.js).

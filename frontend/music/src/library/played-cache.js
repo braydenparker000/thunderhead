@@ -6,7 +6,9 @@
 // PLAYED_BUDGET in all; the song played longest ago goes first. On by default, on every connection.
 // The index (URL → bytes, last play) lives in localStorage; Settings › On this phone clears it
 // (apps/settings/phone-stores.js). AudioCache (audio-cache.js) answers from it: a kept song plays as a
-// blob URL like an offline copy, and counts as one for heads, preloads and the stall guard.
+// blob URL like an offline copy, and counts as one for heads, preloads and the stall guard. A kept copy
+// is checked against the catalogue's size for its song as it opens: a file replaced upstream under the
+// same id (another length) is dropped, and the song streams again (and is kept again, whole).
 export const PLAYED_CACHE = 'claude-player-played';
 const STORE = 'cp-played-cache';
 export const PLAYED_BUDGET = 200 * 1024 * 1024;
@@ -54,15 +56,20 @@ export class PlayedCache {
     return n;
   }
 
-  /** The kept song at url as a Blob (marked played now), or null. */
-  async open(url) {
+  /**
+   * The kept song at url as a Blob (marked played now), or null. `expected`: its size in the catalogue
+   * (0: unknown); a copy of another length is stale (the file was replaced) and goes.
+   * @param {string} url @param {{expected?: number}} [o]
+   */
+  async open(url, {expected = 0} = {}) {
     await this.ready;
     if (!this.index.has(url)) return null;
+    if (expected > 0 && this.index.get(url).bytes !== expected) { await this.forget(url); return null; }
     try {
       const r = await (await this.caches.open(PLAYED_CACHE)).match(url, {ignoreVary: true});
       if (!r) { this.index.delete(url); this.save(); return null; }
       const blob = await r.blob();
-      if (!blob.size) { await this.forget(url); return null; }
+      if (!blob.size || (expected > 0 && blob.size !== expected)) { await this.forget(url); return null; }
       this.index.get(url).used = this.now();
       this.save();
       this.counts.plays++;

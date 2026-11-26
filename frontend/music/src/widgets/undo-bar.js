@@ -4,14 +4,18 @@
 // an Undo button where the upper toast has its close button. It slides up into place and back down
 // as the toast's scenes move it, over the toast's times (300 / 250 ms, the Animations setting
 // applied). One at a time: a new one takes the place of the one showing (whose undo then lapses),
-// and so does any other toast. It stands above an open dialog (Up next, History), so its undo can
-// be reached there too.
+// and so does any other toast. It stands above an open dialog (Up Next, History), so its undo can
+// be reached there too: at the window's inner bottom edge, the window's list given that much more
+// room at its end so its last rows scroll clear of the bar. It follows the screen while it shows: a
+// change of screen, of the window's size, or a window opening or closing places it again (follow).
+// Its icon takes the title's colour, as the toast's own (tinted) icons do.
 //
 // API (installed at startup as ctx.undoBar):
 //   ctx.undoBar.show(message, onUndo, {ms = 5000, icon = null, action = 'Undo'} = {})
 //     Shows the bar; onUndo() runs once if Undo is tapped before the bar goes. icon: a drawable
 //     value such as '?toast_queue'. Returns {hide()} for this bar (no effect once another shows).
 //   ctx.undoBar.hide()            Hides the bar now (its undo lapses).
+//   ctx.undoBar.follow()          Places the bar again until its place holds (dialog.js calls it).
 //   ctx.undoBar.queued(entries, next)
 //     "Playing next" / "Added to queue" for Queue entries just added (Player.enqueue returns
 //     them); Undo takes out those of them still waiting.
@@ -22,12 +26,17 @@ import {animTime} from './topnav.js';
 
 export const UNDO_MS = 5000;
 const IN_S = 0.3, OUT_S = 0.25;
+// Following a change: at least this long (a screen's or a window's scene), and until the place has held
+// for STILL_FRAMES frames; never longer than FOLLOW_MAX_MS.
+const FOLLOW_MIN_MS = 400, FOLLOW_MAX_MS = 2000, STILL_FRAMES = 3;
+// The gap (dp) between a window's last row and the bar over it.
+const ROW_GAP_DP = 8;
 
 /** The bar's views, as a layout of the reference's toast parts (inflated by the app's inflater). */
 const BAR = ['FastLayout', {'android:id': '@id/undo_bar', style: '?TopToastFrame_scene_expanded', 'android:importantForAccessibility': 'no'}, [
   ['FastTextView', {'android:id': '@id/icon', style: '?TopToastIcon'}],
   // The text keeps clear of the button (ACTION_DIP).
-  ['FastTextView', {'android:id': '@id/title', style: '?TopToastTitle', 'android:layout_marginRight': '64.0dip', 'android:maxLines': '1', 'android:ellipsize': 'end'}],
+  ['FastTextView', {'android:id': '@id/title', style: '?TopToastTitle', 'android:layout_marginRight': '64.0dip', 'android:maxLines': '2', 'android:ellipsize': 'end'}],
   ['TextView', {'android:id': '@id/line2', style: '?TopToastLine2', 'android:layout_marginRight': '64.0dip'}],
   // Where the upper toast has its close button (?TopUpperToastCloseButton), level with the text as
   // the icon is; the bar's whole right end takes its tap (UndoBar.build).
@@ -48,8 +57,12 @@ export class UndoBar {
     this.current = null;
     this.timer = 0;
     this.anim = null;
-    // Any other toast takes the bar's place.
-    ctx.bus.subscribe('bus_gui', msg => { if (msg === 'cmd_gui_show_toast' && this.current) this.hide(); });
+    // Any other toast takes the bar's place; a change of screen moves it.
+    ctx.bus.subscribe('bus_gui', msg => {
+      if (msg === 'cmd_gui_show_toast' && this.current) this.hide();
+      else if (msg === 'msg_nav_changed') this.follow();
+    });
+    if (typeof window !== 'undefined') window.addEventListener('resize', () => this.follow());
   }
 
   /** The host over the whole window (touches pass through it) and the bar in it, made once. */
@@ -63,6 +76,9 @@ export class UndoBar {
     this.frame = ctx.inflater.inflateNode(BAR, host)[0];
     this.frame.clickable = true;
     this.button = this.frame.findViewById('undo_action');
+    // The icon in the title's colour (the toast's icons are tinted ones; the menus' glyphs are not).
+    const iv = this.frame.findViewById('icon'), title = this.frame.findViewById('title');
+    if (iv && title?.textColor) iv.drawableTint = title.textColor;
     const undo = () => {
       const c = this.current;
       if (!c) return;
@@ -83,9 +99,6 @@ export class UndoBar {
     const ctx = this.ctx;
     if (!ctx.root || !ctx.inflater) return {hide() {}};
     this.build();
-    // Above everything shown now, a dialog opened since included.
-    const decor = ctx.root;
-    if (decor.children.at(-1) !== this.host) { decor.removeView(this.host); decor.addView(this.host); }
     // The toast showing goes (one at a time).
     ctx.bus.post('bus_gui', 'cmd_gui_close_toast', this);
     const f = this.frame, d = icon ? ctx.drawables.fromValue(icon, ctx.theme) : null;
@@ -110,24 +123,85 @@ export class UndoBar {
     // Slides up from where the toast's default scene keeps it (its 60 dp lower), fading in.
     if (!was) { f.alpha = 0; f.translationY = this.travel(); }
     this.move(0, 1, animTime(ctx, IN_S));
+    // Once it has its size (the room it makes in a window), and while a screen it came with settles.
+    this.follow();
     f.el?.setAttribute('role', 'status');
     return {hide: () => { if (this.current === bar) this.hide(); }};
   }
 
-  /** Above the mini-player where it shows (the library), else where the toast is (above the tabs). */
+  /**
+   * Above everything shown now (a window opened since included): over an open window of rows (Up
+   * Next, History) at its inner bottom edge, else above the mini-player where it shows (the library),
+   * else where the toast is (above the tabs; a dialog with buttons keeps them clear so). Returns the
+   * bottom margin it takes.
+   */
   place() {
-    const f = this.frame, lp = f.lp, root = this.ctx.root;
+    const f = this.frame, lp = f.lp, ctx = this.ctx, root = ctx.root;
+    if (root.children.at(-1) !== this.host) { root.removeView(this.host); root.addView(this.host); }
     this.baseBottom ??= lp.bottomMargin;
-    const nb = root.findViewById('navbar');
     const inset = this.host.getInsets?.().bottom ?? 0;
-    const top = nb && nb.visibility === VISIBLE ? nb.getLocationIn(null).y : null;
-    const want = top === null ? this.baseBottom : Math.max(this.baseBottom, root.height - inset - top);
-    if (lp.bottomMargin !== want) { lp.bottomMargin = want; f.requestLayout(); }
+    const top = ctx.dialogs?.at(-1), win = top?.list ? top.find('dialog_frame') : null;
+    let want;
+    if (win) want = Math.max(0, root.height - inset - (win.getLocationIn(null).y + win.height - win.paddingBottom));
+    else {
+      const nb = root.findViewById('navbar');
+      const top = nb && nb.visibility === VISIBLE ? nb.getLocationIn(null).y : null;
+      want = top === null ? this.baseBottom : Math.max(this.baseBottom, root.height - inset - top);
+    }
+    if (lp.bottomMargin !== want) { lp.bottomMargin = want; f.requestLayout(); ctx.scheduleLayout(); }
+    this.makeRoom(win ? top : null, want);
+    return want;
+  }
+
+  /**
+   * The open window's list (Up Next, History) gets the bar's height and a gap more room at its end
+   * while the bar covers its bottom, so its last rows scroll clear of the bar; the room goes with the
+   * bar or the window.
+   */
+  makeRoom(dialog, bottom) {
+    const list = this.current && dialog ? dialog.list ?? null : null;
+    const was = this.roomList;
+    if (was && was !== list) {
+      was.paddingBottom = was._undoPad0;
+      // A window on its way out keeps its size (it lays out afresh when it opens again).
+      if (!this.roomDialog?.closed) { was.requestLayout(); was.parent?.requestLayout(); }
+      this.roomList = this.roomDialog = null;
+    }
+    if (!list) return;
+    list._undoPad0 ??= list.paddingBottom;
+    const root = this.ctx.root, inset = this.host.getInsets?.().bottom ?? 0;
+    const barTop = root.height - inset - bottom - this.frame.height;
+    const covered = list.getLocationIn(null).y + list.height > barTop;
+    const pad = list._undoPad0 + (covered ? this.frame.height + Math.round(ROW_GAP_DP * this.ctx.dpr) : 0);
+    this.roomList = list;
+    this.roomDialog = dialog;
+    if (list.paddingBottom !== pad) { list.paddingBottom = pad; list.requestLayout(); list.parent?.requestLayout(); }
+  }
+
+  /** Places the bar again each frame while what is under it moves (a screen, a window), until it holds. */
+  follow() {
+    if (!this.current || !this.frame) return;
+    const t0 = performance.now();
+    let last = null, still = 0;
+    this.stopFollow?.();
+    this.stopFollow = this.ctx.onFrame(now => {
+      if (!this.current) { this.stopFollow = null; return false; }
+      const at = this.place();
+      still = at === last ? still + 1 : 0;
+      last = at;
+      const ms = now - t0;
+      if (ms < FOLLOW_MAX_MS && (ms < FOLLOW_MIN_MS || still < STILL_FRAMES)) return true;
+      this.stopFollow = null;
+      return false;
+    });
   }
 
   hide() {
     clearTimeout(this.timer);
     this.current = null;
+    this.stopFollow?.();
+    this.stopFollow = null;
+    this.makeRoom(null, 0);
     if (!this.frame || this.frame.visibility !== VISIBLE) return;
     this.move(this.travel(), 0, animTime(this.ctx, OUT_S), () => { this.frame.visibility = GONE; this.frame.invalidate(); });
   }
