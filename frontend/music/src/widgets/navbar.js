@@ -88,8 +88,11 @@ export class Navbar extends FastLayout {
       target: () => this.baseScene(),
       enabled: () => this.sheet,
       settled: commit => {
-        if (!commit) return;
+        if (!commit || !this.sheet) return;
         this.sheet = false;
+        // Closed by the drag, it stops being a modal as setSheet's close does (else the player's screen keeps
+        // its modal scene and home's pull, app.js miniBox, never comes back).
+        this.ctx.bus.post('bus_gui', 'cmd_gui_unset_modal', this, {arg1: 'navbar'});
         this.buttons?.findViewById('cmd_nav_more')?.setActivated(false);
       },
     });

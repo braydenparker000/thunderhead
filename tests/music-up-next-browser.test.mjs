@@ -204,12 +204,16 @@ test('Up Next at phone size: text before the handle, a tap just after Back, the 
   await barStill();
   const atWindow = { bar: await box('bar'), window: await box('window') };
   assert.ok(atWindow.bar.bottom <= atWindow.window.bottom + 0.5 && atWindow.bar.bottom >= atWindow.window.bottom - 24, `the bar at the window's edge: ${JSON.stringify(atWindow)}`);
-  await page.evaluate(() => { const l = window.__cp.ctx.dialogs[0].list; l.scrollTo(l.maxScroll()); });
-  const lastRow = await page.evaluate(() => {
-    const l = window.__cp.ctx.dialogs[0].list, last = l.active.get(l.source.count - 1);
-    return last ? last.el.getBoundingClientRect().bottom : null;
-  });
-  assert.ok(lastRow !== null && lastRow <= atWindow.bar.top, `the last row (${lastRow}) ends above the bar (${atWindow.bar.top})`);
+  // The list places its rows at once and writes them to the page on its next frame (view.js invalidate): the
+  // last row is read once it is placed at the end and written there (more rows may join as the end shows).
+  const lastRow = await until(() => page.evaluate(() => {
+    const l = window.__cp.ctx.dialogs[0].list;
+    if (l.scrollY < l.maxScroll()) l.scrollTo(l.maxScroll());
+    const last = l.active.get(l.source.count - 1);
+    if (!last || last._dirty || last._dom?.y !== last.top + last.translationY) return null;
+    return { bottom: last.el.getBoundingClientRect().bottom };
+  }), { message: 'the last row was never placed at the end' });
+  assert.ok(lastRow.bottom <= atWindow.bar.top, `the last row (${lastRow.bottom}) ends above the bar (${atWindow.bar.top})`);
   await tap('undo_action');
   await until(() => page.evaluate(() => window.__cp.player.nextUp().length === 3), { message: 'Undo did not bring them back' });
 
