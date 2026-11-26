@@ -8,7 +8,13 @@
 // be reached there too: at the window's inner bottom edge, the window's list given that much more
 // room at its end so its last rows scroll clear of the bar. It follows the screen while it shows: a
 // change of screen, of the window's size, or a window opening or closing places it again (follow).
-// Its icon takes the title's colour, as the toast's own (tinted) icons do.
+// Its icon takes the title's colour, as the toast's own (tinted) icons do. It never covers an open menu
+// (a popup's, the cover's or a header's item menu, the navbar sheet: each a GUI modal while open) and
+// never takes a tap meant for one. When one opens, a line that only says something and has been up
+// READ_MS goes at once; a line with Undo, and a line just shown (a download's "Saved to Downloads" may
+// come as the owner opens a menu), moves clear of the menu's box, above it or else below it. With no
+// room on either side it waits out of sight, and shows again for the rest of its time (READ_MS at
+// least) once the menus close: no line is lost before it could be read.
 //
 // API (installed at startup as ctx.undoBar):
 //   ctx.undoBar.show(message, onUndo, {ms = 5000, icon = null, action = 'Undo'} = {})
@@ -25,12 +31,16 @@ import {FastLayout} from '../view/fast-layout.js';
 import {animTime} from './topnav.js';
 
 export const UNDO_MS = 5000;
+/** A line that only says something and has been up this long may go when a menu opens: it has been read. */
+export const READ_MS = 1000;
 const IN_S = 0.3, OUT_S = 0.25;
 // Following a change: at least this long (a screen's or a window's scene), and until the place has held
 // for STILL_FRAMES frames; never longer than FOLLOW_MAX_MS.
 const FOLLOW_MIN_MS = 400, FOLLOW_MAX_MS = 2000, STILL_FRAMES = 3;
-// The gap (dp) between a window's last row and the bar over it.
+// The gap (dp) between a window's last row and the bar over it, and between the bar and an open menu.
 const ROW_GAP_DP = 8;
+// The GUI modals that are menus (popup.js, list-widget.js openItemMenu, navbar.js setSheet).
+const MENU_MODALS = new Set(['popup_menu', 'popup_menu_item', 'navbar']);
 
 /** The bar's views, as a layout of the reference's toast parts (inflated by the app's inflater). */
 const BAR = ['FastLayout', {'android:id': '@id/undo_bar', style: '?TopToastFrame_scene_expanded', 'android:importantForAccessibility': 'no'}, [
@@ -57,10 +67,13 @@ export class UndoBar {
     this.current = null;
     this.timer = 0;
     this.anim = null;
-    // Any other toast takes the bar's place; a change of screen moves it.
-    ctx.bus.subscribe('bus_gui', msg => {
+    // The menus open now, as the views whose boxes the bar keeps clear of.
+    this.menus = [];
+    // Any other toast takes the bar's place; a change of screen moves it; a menu opening sends it away.
+    ctx.bus.subscribe('bus_gui', (msg, src, d) => {
       if (msg === 'cmd_gui_show_toast' && this.current) this.hide();
       else if (msg === 'msg_nav_changed') this.follow();
+      else if ((msg === 'cmd_gui_set_modal' || msg === 'cmd_gui_unset_modal') && MENU_MODALS.has(d?.arg1)) this.menuModal(msg === 'cmd_gui_set_modal', src);
     });
     if (typeof window !== 'undefined') window.addEventListener('resize', () => this.follow());
   }
@@ -111,11 +124,20 @@ export class UndoBar {
     this.button.setVisibility(onUndo ? VISIBLE : GONE);
     // With no action (a line that only says something: Music's downloads), the text takes the button's room too.
     for (const v of [f.findViewById('title'), f.findViewById('line2')]) if (v?.lp) { v._mr ??= v.lp.rightMargin; v.lp.rightMargin = onUndo ? v._mr : 0; }
-    const bar = this.current = {message, onUndo, undone: false};
+    const now = performance.now(), bar = this.current = {message, onUndo, undone: false, shownAt: now, ends: now + ms};
+    const handle = {hide: () => { if (this.current === bar) this.hide(); }};
     clearTimeout(this.timer);
     this.timer = setTimeout(() => { if (this.current === bar) this.hide(); }, ms);
-    this.place();
+    this.parked = false;
     const was = f.visibility === VISIBLE;
+    // With a menu open the bar is placed at its new size (unseen until then: alpha 0 takes no tap).
+    if (this.menus.length) {
+      if (!was) { f.alpha = 0; f.visibility = VISIBLE; }
+      f.forceLayoutTree?.();
+      ctx.layoutRoot();
+    }
+    // No room clear of an open menu: the line waits out of sight until the menus close (place, park).
+    if (this.place() === null) { this.follow(); return handle; }
     f.visibility = VISIBLE;
     f.forceLayoutTree?.();
     f.requestLayout();
@@ -126,7 +148,52 @@ export class UndoBar {
     // Once it has its size (the room it makes in a window), and while a screen it came with settles.
     this.follow();
     f.el?.setAttribute('role', 'status');
-    return {hide: () => { if (this.current === bar) this.hide(); }};
+    return handle;
+  }
+
+  /** A menu opened or closed (src: the PopupLayout, the ListWidget showing its item menu, the Navbar). */
+  menuModal(open, src) {
+    const at = this.menus.indexOf(src);
+    if (!open) { if (at >= 0) this.menus.splice(at, 1); this.follow(); return; }
+    if (at < 0) this.menus.push(src);
+    // A line that only says something and has been read goes; any other moves clear (place).
+    const c = this.current;
+    if (c && !c.onUndo && !this.parked && performance.now() - c.shownAt >= READ_MS) this.hide(true);
+    else this.follow();
+  }
+
+  /** The boxes (root coordinates) of the menus open now. */
+  menuBoxes() {
+    const out = [];
+    for (const src of this.menus) {
+      const v = src.menuItem?.v ?? (typeof src.sheet === 'boolean' ? src.ext : src);
+      if (!v?.el || v.visibility !== VISIBLE || !v.width || !v.height) continue;
+      const {x, y} = v.getLocationIn(null);
+      out.push({x, y, w: v.width, h: v.height});
+    }
+    return out;
+  }
+
+  /**
+   * The bottom margin `want` moved so the bar keeps clear of every open menu: above the menu, else
+   * below it; null when neither has room. Where the bar is drawn counts: the margin takes up its slide
+   * (translationY), so it stands still clear of the menu while it slides in.
+   */
+  clearOfMenus(want, inset) {
+    const root = this.ctx.root, f = this.frame, h = f.height, gap = Math.round(ROW_GAP_DP * this.ctx.dpr);
+    const top = this.host.getInsets?.().top ?? 0, fx = f.getLocationIn(null).x, ty = f.translationY || 0;
+    for (let tries = 0, moved = true; moved && tries < 4; tries++) {
+      moved = false;
+      for (const m of this.menuBoxes()) {
+        const barTop = root.height - inset - want - h + ty;
+        if (barTop >= m.y + m.h || barTop + h <= m.y || fx >= m.x + m.w || fx + f.width <= m.x) continue;
+        if (m.y - gap - h >= top) want = root.height - inset - (m.y - gap) + ty;
+        else if (m.y + m.h + gap + h <= root.height - inset) want = root.height - inset - (m.y + m.h + gap + h) + ty;
+        else return null;
+        moved = true;
+      }
+    }
+    return want;
   }
 
   /**
@@ -148,6 +215,13 @@ export class UndoBar {
       const top = nb && nb.visibility === VISIBLE ? nb.getLocationIn(null).y : null;
       want = top === null ? this.baseBottom : Math.max(this.baseBottom, root.height - inset - top);
     }
+    if (this.menus.length && this.current) {
+      // (A bar out of sight keeps the size it last had; one never laid out is placed once it has one.)
+      if (f.height) want = this.clearOfMenus(want, inset);
+      else if (this.parked) want = null;
+      if (want === null) { this.park(); return null; }
+    }
+    if (this.parked) this.unpark();
     if (lp.bottomMargin !== want) { lp.bottomMargin = want; f.requestLayout(); ctx.scheduleLayout(); }
     this.makeRoom(win ? top : null, want);
     return want;
@@ -190,19 +264,66 @@ export class UndoBar {
       still = at === last ? still + 1 : 0;
       last = at;
       const ms = now - t0;
-      if (ms < FOLLOW_MAX_MS && (ms < FOLLOW_MIN_MS || still < STILL_FRAMES)) return true;
+      // While a menu is open the bar keeps clear of it however it moves.
+      if (this.menus.length || (ms < FOLLOW_MAX_MS && (ms < FOLLOW_MIN_MS || still < STILL_FRAMES))) return true;
       this.stopFollow = null;
       return false;
     });
   }
 
-  hide() {
+  /**
+   * No room clear of the open menus: the bar is out of sight at once (it takes no tap) and its line
+   * waits, its time stopped, to show again once there is room (unpark).
+   */
+  park() {
+    if (this.parked) return;
+    this.parked = true;
+    clearTimeout(this.timer);
+    const c = this.current;
+    c.left = Math.max(READ_MS, c.ends - performance.now());
+    this.makeRoom(null, 0);
+    this.anim?.();
+    this.anim = null;
+    this.frame.visibility = GONE;
+    this.frame.invalidate();
+    this.ctx.scheduleLayout();
+  }
+
+  /** Room again: the waiting line slides in for the rest of its time, as read from now. */
+  unpark() {
+    this.parked = false;
+    const c = this.current, f = this.frame, now = performance.now();
+    c.shownAt = now;
+    c.ends = now + c.left;
+    this.timer = setTimeout(() => { if (this.current === c) this.hide(); }, c.left);
+    f.visibility = VISIBLE;
+    f.alpha = 0;
+    f.translationY = this.travel();
+    f.forceLayoutTree?.();
+    f.requestLayout();
+    this.ctx.scheduleLayout();
+    this.move(0, 1, animTime(this.ctx, IN_S));
+  }
+
+  /** Hides the bar: sliding down, or at once (now) when it must not stand over a menu even while it goes. */
+  hide(now = false) {
+    // Over an open menu it never slides down across it.
+    if (this.menus.length) now = true;
     clearTimeout(this.timer);
     this.current = null;
+    this.parked = false;
     this.stopFollow?.();
     this.stopFollow = null;
     this.makeRoom(null, 0);
     if (!this.frame || this.frame.visibility !== VISIBLE) return;
+    if (now) {
+      this.anim?.();
+      this.anim = null;
+      this.frame.visibility = GONE;
+      this.frame.invalidate();
+      this.ctx.scheduleLayout();
+      return;
+    }
     this.move(this.travel(), 0, animTime(this.ctx, OUT_S), () => { this.frame.visibility = GONE; this.frame.invalidate(); });
   }
 

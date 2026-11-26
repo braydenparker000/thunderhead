@@ -5,6 +5,7 @@
 //   with their bytes as stored, its .m3u8, and skipped.txt for the song the library no longer has; a song
 //   kept on the phone costs no request, every other song exactly one; the bytes are counted as Downloads;
 // - while it runs, a second ask is refused (by the page, and by the worker);
+// - a menu opened just after the zip's line: the line never stands over the menu;
 // - over 200 MB (the catalogue's sizes, faked here) the confirm dialog asks first, and Cancel starts nothing;
 // - the playing song's menu Download arrives as "Artist - Title.opus" with its bytes as stored.
 import { test, before, after } from 'node:test';
@@ -145,8 +146,11 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   /** A view's centre: by id, the header's menu ('header-menu'), or the cover's three dots ('cover-menu'); only a view
    * shown with every view above it (a header the list has let go keeps its menu's entries, hidden with it in the pool),
    * and only where a tap reaches it (input.js hitTest): not under the Undo bar, which stands above everything for its
-   * 5 s and takes a tap itself, nor in a menu's end that its growing height still cuts off. */
+   * 5 s and takes a tap itself, nor in a menu's end that its growing height still cuts off. Read after the page's next
+   * frame, so two reads are always a frame apart (on a loaded runner a frame can take 150 ms, and two reads within one
+   * frame read alike while the view still moves). */
   const where = (what) => page.evaluate(async (what) => {
+    await new Promise((r) => requestAnimationFrame(() => r()));
     const { ctx } = window.__cp;
     const { hitTest } = await import('/music/src/input.js');
     const shown = (x) => { for (let p = x; p; p = p.parent) if (p.visibility !== 0) return false; return x.width > 0; };
@@ -183,6 +187,9 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   const says = (text) => until(async () => (await shownText()).includes(text), { message: `never said "${text}"` });
   const atRest = () => until(() => page.evaluate(() => { const lw = window.__cp.ctx.listWidget; return lw.mode === 'list' && !lw.trans && lw.libList.source === lw.stack[lw.stack.length - 1]; }), { message: 'the list never came to rest' });
   const dialogs = () => page.evaluate(() => window.__cp.ctx.dialogs?.length ?? 0);
+  /** One dialog open and come in: its enter scene (dialog.js, started as it opens) has ended, so its buttons are where
+   * a tap finds them. */
+  const dialogUp = () => until(() => page.evaluate(() => { const d = window.__cp.ctx.dialogs ?? []; return d.length === 1 && !d[0].host.scenes.running; }), { message: 'nothing was asked' });
   const saved = async (d) => { const path = join(dir, d.suggestedFilename()); await d.saveAs(path); return new Uint8Array(await readFile(path)); };
 
   // A song kept on the phone from playing it (library/played-cache.js): it costs no request.
@@ -246,8 +253,25 @@ test('downloads: a playlist as a numbered zip with its .m3u8, one at a time, the
   await atRest();
   const before = { downloads, asked: requests() };
   await tap('header-menu');
+  // The zip's line ("Saved, 1 song could not be added") never stands over the menu: gone if it had been up a second,
+  // else placed clear of it (read once the menu and the bar are at rest and drawn where they are laid out).
+  const atMenu = await until(() => page.evaluate(() => {
+    const { ctx } = window.__cp, u = ctx.undoBar, m = ctx.listWidget.menuItem, ph = ctx.root.findViewById('menu_placeholder');
+    if (!m || m.closing || ph.scenes.running || m.v.scenes?.running || u.anim) return null;
+    const f = u.frame;
+    if (!u.current || f.visibility !== 0) return { bar: null };
+    if (f.lp.bottomMargin !== u.place()) return null;
+    const drawn = (v) => { for (let p = v; p; p = p.parent) if (p._dirty || p._dom?.x !== p.left + p.translationX || p._dom?.y !== p.top + p.translationY) return false; return true; };
+    if (!drawn(f) || !drawn(m.v)) return null;
+    const r = (v) => { const b = v.el.getBoundingClientRect(); return { left: b.left, top: b.top, right: b.right, bottom: b.bottom }; };
+    return { bar: r(f), menu: r(m.v) };
+  }), { message: 'the menu and the bar never came to rest' });
+  if (atMenu.bar) {
+    const { bar, menu } = atMenu;
+    assert.ok(bar.bottom <= menu.top || bar.top >= menu.bottom || bar.right <= menu.left || bar.left >= menu.right, `the bar ${JSON.stringify(bar)} clear of the menu ${JSON.stringify(menu)}`);
+  }
   await tap('pl_download');
-  await until(async () => (await dialogs()) === 1, { message: 'nothing was asked' });
+  await dialogUp();
   await says('Cobalt Field - Low Tide: 3 songs, about 250 MB. Download?');
   await tap('button2');
   await until(async () => (await dialogs()) === 0, { message: 'Cancel did not close the question' });
