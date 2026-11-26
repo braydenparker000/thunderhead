@@ -1016,7 +1016,12 @@ export class ListWidget extends FastLayout {
 
   openHome() {
     this.stack = [];
-    this.open(new HomeSource(this.ctx, this.libList, this.nav));
+    this.open(this.homeSource());
+  }
+
+  /** The library's first level: the home, or the v2 layout's tab root (home/install.js sets rootSource). */
+  homeSource() {
+    return this.rootSource?.() ?? new HomeSource(this.ctx, this.libList, this.nav);
   }
 
   /**
@@ -1025,7 +1030,7 @@ export class ListWidget extends FastLayout {
    */
   openStart() {
     this.openHome();
-    const cat = homeCategory(+(this.ctx.pref('library_home') ?? -1));
+    const cat = this.rootSource ? null : homeCategory(+(this.ctx.pref('library_home') ?? -1));
     if (cat) this.open(categoryListSource(this.ctx, this.libList, this.nav, cat));
     this.startSource = this.stack[this.stack.length - 1];
   }
@@ -1878,7 +1883,7 @@ export class ListWidget extends FastLayout {
     const lib = this.ctx.library?.tracks, opts = listOpts('tracks:all'), key = JSON.stringify(opts) + '|' + (this.ctx.pref?.('no_sort_field') ? 1 : 0);
     const kept = this.allSongsKept;
     if (kept && kept.lib === lib && kept.key === key) return kept.stack.slice();
-    const stack = [new HomeSource(this.ctx, this.libList, this.nav), allSongsSource(this.ctx, this.libList, this.nav)];
+    const stack = [this.homeSource(), allSongsSource(this.ctx, this.libList, this.nav)];
     // (Orders that change as songs play or are rated, 5 to 7, are made fresh each time.)
     const sort = (opts.sort ?? 1) & ~REVERSE;
     this.allSongsKept = sort >= 5 && sort <= 7 ? null : {lib, key, stack};
@@ -2312,8 +2317,8 @@ export class ListWidget extends FastLayout {
     const ll = this.libList;
     if (this.mode !== 'aa' || this.trans || this.menuItem || this.searching || !this.width || ll.visibility !== GONE || this.stack.length) return false;
     // A start category would open a second level with its own history entry: built when opened, as before.
-    if (homeCategory(+(this.ctx.pref('library_home') ?? -1))) return false;
-    const home = new HomeSource(this.ctx, ll, this.nav);
+    if (!this.rootSource && homeCategory(+(this.ctx.pref('library_home') ?? -1))) return false;
+    const home = this.homeSource();
     this.stack = [home];
     ll.setSource(home);
     ll.visibility = INVISIBLE;

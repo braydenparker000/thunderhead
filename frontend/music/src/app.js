@@ -52,6 +52,7 @@ import {Access} from './library/access.js';
 import {installCategoryRestore} from './list/category-ref.js';
 import {prebuildLikely} from './view/prebuild.js';
 import {topViewport, visibleHeight} from './ui/viewport-top.js';
+import {homeV2} from './home/switch.js';
 import './list/list-widget.js';
 // The list's scroller and its rail (registered here: no module imports it for a name any more).
 import './list/scroller.js';
@@ -215,6 +216,8 @@ export async function boot() {
   player.installMediaSession();
   const library = await new Library(ctx).open();
   mark('library');
+  // The v2 library layout, when chosen (home/switch.js: the home_v2 setting, or ?home2).
+  if (homeV2(ctx)) (await import('./home/install.js')).installHomeV2(ctx);
   installHelp(ctx);
   // The Undo bar (ctx.undoBar), and Up next / History from the playing song's menu.
   installUndoBar(ctx);

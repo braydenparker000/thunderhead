@@ -28,6 +28,11 @@ export function installTonight(ctx, player) {
       action: 'Play',
       go: () => play(String(a.payload.mix_id)),
     }),
-    (card) => document.body.append(card),
+    (card) => {
+      document.body.append(card);
+      // The v2 Home (music/src/home/install.js) takes the card into its rows.
+      ctx.tonightCard = card;
+      ctx.bus?.post('bus_gui', 'msg_tonight_card', null, { card });
+    },
   );
 }
