@@ -318,8 +318,30 @@ cover advances exactly one track; long-press opens home with the track attached.
 - **Artists:** list with a round thumbnail made from the artist's first album cover, and a count
   ("12 songs").
 - **Genres:** list from the tags; genre names are taken as tagged, trimmed, case-merged.
-- **Recently added:** the 200 newest by `added_at`.
-- **Most played:** top 200 by plays (imported plus new).
+- **Statistics lists** (Most Played, Recently Played, Recently Added, Top Rated, Low Rated;
+  `list/stat-lists.js`, owner audit 2026-11-26): each keeps the songs its filter keeps and ranks
+  them its own way: plays (then the latest play), the latest play, the newest added, the best
+  rating (then the most recently rated or played), and for Low Rated the lowest rating first, then
+  the most recently rated or played. Max Items (200 unless chosen) cuts that ranking and nothing
+  else: sorted by the list's own ranking (the default; Reverse only turns it round) the list is the
+  top 200 in that ranking; sorted any other way it is every song the filter keeps, in that sort, with
+  no silent cut, unless the user chose a Max Items themselves, which then takes the top of the
+  ranking first ("the 500 most played, by title").
+- **List Options and pinch zoom belong to the list** (`list/entry-opts.js`, owner audit
+  2026-11-26): an entry's list (an album's songs, an artist's page, a genre's, album artist's,
+  composer's or year's albums, a playlist, a folder, a Folders Hierarchy level) keeps its own sort,
+  Reverse and "View as" level; re-sorting one album re-sorts that album only. A list with none of its
+  own takes its kind's (what all albums, all artists … had saved before this, kept as their
+  default). Category lists (All Songs, Albums, Artists …) keep their own as before. Show Titles Only,
+  Compact Header, Max Items and the rest stay per kind. Stored in `cp-list-opts`: the kind keys as
+  before (`tracks:album`, `sub:artist`, `cat:albums` …) and, under `"@"`, the entries' own
+  (`"tracks:album@kite weather|orchard lamps": {sort, zoom, zv}`; the id is a playlist's id, a
+  folder's path, an album's name and artist, else the entry's name), in order of last use, at most
+  300: the least recently used is dropped first. A level made again (a new sort, a zoom, a setting,
+  a library change) keeps its way back: Back's scroll, the open/close morph and the search results
+  it came from.
+- Folders Hierarchy's files have a sort (List Options; file name by default), per folder; its
+  folders stay by name.
 - Tapping a song plays it in the context of the list it is in (the list becomes the queue context).
 - A hold (450 ms) on a song or an entry does what the Select button does: selection mode with that
   row selected, one haptic tick (none with Haptics off, or on a phone that cannot vibrate). It never
@@ -333,7 +355,10 @@ The ported player's library lists, in its own row, header, grid and subhead styl
 the lists in `list/sources.js`):
 
 - **Albums** lists albums only: a release (album tag, keyed as before with `join_albums`) of 3 songs
-  or more. Albums by Artist, Album Artists, Genres, Composers, Years and search keep every release.
+  or more. The same rule holds everywhere an album shows (owner audit 2026-11-26): Albums by Artist,
+  an album artist's, genre's, composer's and year's albums, and search's Albums list only those; an
+  entry's shorter releases and songs with no album show under a "Singles" subhead after its albums
+  (as on an artist's page), and search finds them as songs.
 - **Singles** (new, beside Albums; badge of the category family): the songs of 1–2 song releases and
   the songs with no album, by artist then title. Its header counts them.
 - **Artists** lists artists with 5 songs or more or an album of their own (the album's album artist
@@ -353,6 +378,11 @@ the lists in `list/sources.js`):
   artist; then a "Singles" subhead and their other songs as rows (the All Artist Songs zoom), each
   with its release's name as the second line. A cover opens the whole album's page. The page has no
   sort of its own; header Play and Shuffle play every song of the artist.
+- **Every route opens the same page** (owner audit 2026-11-26): the playing song's artist, album,
+  genre or folder from its menu, the art item's second line or Info opens the page the library opens
+  for it (the artist's page, the album's page, the genre's albums, the Folders list's folder; Folders
+  Hierarchy for a folder unless `menu_nav_to_folders`), scrolled to the song's row (or the album
+  holding it), where the playing mark shows. A song not in the library keeps the flat list.
 - **Possible duplicates** (new, last, shown only when there are any): songs whose title and artist
   are equal once case, spacing and punctuation are left out ("feat.", "(Live)", "Remastered" still
   count as different), wherever they are. Each group is a subhead "title · artist · N" over ordinary
@@ -1772,7 +1802,8 @@ No new button on the player or the mini-player. Everything uses the app's own di
   column beside it) and Add to Playlist "No playlists yet. Tap + to make one."; an empty Queue list
   shows "Nothing queued." (the same quiet line).
 - **Library home**: Streams and Bookmarks, which can hold nothing here, are neither shown nor
-  offered in List Options, whatever a saved setting says.
+  offered in List Options, whatever a saved setting says. Search has no Streams chip and its List
+  Options no Streams box (a saved category order with it drops it).
 
 Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs`.
 
