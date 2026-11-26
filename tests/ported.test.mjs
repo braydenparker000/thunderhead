@@ -39,7 +39,9 @@ const IMPROVED = {
   'astra/src/ui/components.js': ['/th/ported/arrangement.js'],
   'astra/src/main.js': ['/th/astra/open.js'],
   'podcasts/app.js': ['/th/podcasts/progress.js', '/th/ported/arrangement.js'],
-  'music/sw.js': ['/th/music/release.js'],
+  // Downloads (2026-11-26): songs, playlists and albums streamed to the phone's Downloads by Music's worker,
+  // each song fetched through the bridge's own answer (th/music/downloads.js, which loads th/music/zip-stream.js).
+  'music/sw.js': ['/th/music/release.js', '/th/music/downloads.js'],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));

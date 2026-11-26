@@ -17,6 +17,7 @@ import {FastButton} from '../view/text.js';
 import {attachSceneParams, SceneRecord} from '../view/scene.js';
 import {animTime} from '../widgets/topnav.js';
 import {formatString} from '../widgets/sleeptimer.js';
+import {downloadButton} from '../widgets/downloads.js';
 
 const idOf = raw => (raw ? /^@\+?id\/(.+)$/.exec(raw)?.[1] ?? null : null);
 const shortTag = t => (t ?? '').slice((t ?? '').lastIndexOf('.') + 1);
@@ -52,6 +53,8 @@ export class SelectionMenuLayout extends FastLayout {
       for (const v of [...items.children]) items.removeView(v);
       this.bound = this.bound.filter(v => v.parent && v.parent !== items);
       this.ctx.inflater.inflate(layoutName, items);
+      // Download for songs (widgets/downloads.js), bound with the rest.
+      downloadButton(this.ctx, items, layoutName);
       this.bindTree(items);
     }
     this.isOpen = true;

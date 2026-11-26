@@ -42,6 +42,7 @@ import './widgets/cast.js';
 import {installHelp} from './widgets/help.js';
 import {installUndoBar} from './widgets/undo-bar.js';
 import {installUpNext} from './widgets/up-next.js';
+import {installDownloads} from './widgets/downloads.js';
 import {installMetaInfo} from './widgets/meta-info.js';
 import {openLyricsDialog} from './widgets/lyrics-dialog.js';
 import {installSubAAEditor} from './widgets/subaa-edit.js';
@@ -218,6 +219,7 @@ export async function boot() {
   // The Undo bar (ctx.undoBar), and Up next / History from the playing song's menu.
   installUndoBar(ctx);
   installUpNext(ctx);
+  installDownloads(ctx);
   installMetaInfo(ctx);
   installSubAAEditor(ctx);
   ctx.screenPrefs = installScreenPrefs(ctx);

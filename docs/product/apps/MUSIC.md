@@ -1742,6 +1742,41 @@ No new button on the player or the mini-player. Everything uses the app's own di
 
 Tests: `tests/music-playlists.test.mjs`, `tests/music-playlists-browser.test.mjs`.
 
+## 22. Downloads (2026-11-26, owner's rulings)
+
+The owner's own files saved to the phone's Downloads, exactly as stored (the Opus file, its bytes
+unchanged). No new button on the player or the mini-player.
+
+- **Where**: **Download** in the playing song's menu (a row of its own under the row of four, §20),
+  on the selection toolbar of a list of songs (after Share), in a playlist's menu beside Rename and
+  Delete, and in an album page's menu (`widgets/downloads.js`). The menus' height cap grows by that
+  row, so nothing below it is cut off.
+- **What arrives**: one song is its file, "Artist - Title.opus" (the catalogue's own extension for the
+  few that are not Opus); several selected songs are one zip named after the list; a playlist is a zip
+  named after it, its songs numbered in its stored order ("01 - Artist - Title.opus", as wide as the
+  count needs) with a `.m3u8` listing them by those names (`playlist-files.js` `m3uText`); an album is a
+  zip "Album Artist - Album", numbered by disc and track as its page orders them. Names lose
+  `\ / : * ? " < > |` and control characters, have their spaces collapsed and their ends trimmed, are cut
+  at 120 characters before the extension, and alike ones (letter case aside) take " (2)"
+  (`library/download-names.js`). Songs the library no longer has are left out and counted.
+- **The 200 MB ask**: over 200 MB in all (the catalogue's sizes) the confirm dialog asks "*Name*: N
+  songs, about X MB. Download?" (Download / Cancel); under it the download just starts. The Undo bar
+  says "Downloading *Name*…" (no Undo), and at the end "Saved to Downloads", "Saved, N songs could not
+  be added" or "Could not finish the download". Signed out: "Sign in to download." One at a time: "A
+  download is already running."
+- **How**: Music's worker streams it (`th/music/downloads.js`). The page posts the job (each song's
+  address and name, the file's name), then goes to `/music/download/<id>`; the worker answers that with
+  an attachment whose body it fills as the browser reads it, so the phone's own download notification
+  shows the progress and nothing is held in memory. A zip is stored (no compression), written as a
+  stream with data descriptors and ZIP64 when it passes 4 GiB or 65,535 entries
+  (`th/music/zip-stream.js`). Each song comes from the phone when a whole copy is there (kept from
+  playing it, or an offline copy: no data), else through the bridge's own answer, signed and refused as
+  for playback. A song that fails is tried once more (from where it broke); failing again it is left
+  out and the zip ends with `skipped.txt` naming what is missing. Its bytes count as Music's
+  **Downloads** in Settings › Data use, not as Songs.
+
+Tests: `tests/music-downloads.test.mjs`, `tests/music-downloads-browser.test.mjs`.
+
 ## Not built
 
 Sections once marked as proposals that are not built and not in PLAN.md; their full text is in

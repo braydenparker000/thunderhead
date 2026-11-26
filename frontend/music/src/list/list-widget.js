@@ -26,6 +26,7 @@ import {trackLyrics} from '../library/lrc.js';
 import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {queueMenuItems} from '../widgets/up-next.js';
+import {downloadMenuItem, downloadRoom} from '../widgets/downloads.js';
 import {openListOptions, ZOOMS, listOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
 import {keepPlace} from './relocate.js';
@@ -801,6 +802,8 @@ export class ListWidget extends FastLayout {
       if (c.id === 'resort' && !hide.has('resort')) c.setVisibility(VISIBLE);
       // Rename and Delete: a playlist's own (playlist-edit.js playlistMenuItems).
       if (c.id === 'pl_rename' || c.id === 'pl_delete') c.setVisibility(src?.playlist ? VISIBLE : GONE);
+      // Download: a playlist's, or an album page's (widgets/downloads.js).
+      if (c.id === 'pl_download') c.setVisibility(src?.playlist || src?.group?.kind === 'album' ? VISIBLE : GONE);
       if (!c.id && c.text === exportText) c.onClick = () => exportPlaylists(this.ctx);
     }
   }
@@ -2381,6 +2384,8 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     if (itemsLayout === 'merge_menu_items_aa') items.findViewById('delete')?.setVisibility(GONE);
     // Play next, Add to queue, Up next and History for the playing song (widgets/up-next.js).
     if (itemsLayout === 'merge_menu_items_aa') queueMenuItems(this.ctx, items);
+    // Download, a row of the menu's own under them (widgets/downloads.js).
+    if (itemsLayout === 'merge_menu_items_aa') downloadMenuItem(this.ctx, items);
     // A playlist's Rename and Delete (shown for playlists only, prepareListMenu).
     if (itemsLayout === 'merge_menu_items_tracks') playlistMenuItems(this.ctx, items);
     items.walk(c => {
@@ -2409,7 +2414,8 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     r.recalc = 2;
     if (menuRec.lp?.height === -2 && menuRec.lp.width > 0) {
       const [, mh] = v.scenes.measureIn(ITEM_MENU, MeasureSpec.make(menuRec.lp.width, MeasureSpec.EXACTLY), MeasureSpec.make(ph.height, MeasureSpec.AT_MOST));
-      r.lp = Object.assign(Object.create(Object.getPrototypeOf(menuRec.lp)), menuRec.lp, {height: mh});
+      // A Download row (widgets/downloads.js) adds its own height to the menu's cap: nothing below it is cut off.
+      r.lp = Object.assign(Object.create(Object.getPrototypeOf(menuRec.lp)), menuRec.lp, {height: mh, maxHeight: menuRec.lp.maxHeight + downloadRoom(items)});
     }
     this.menuItem.saved.set(ITEM_MENU, menuRec);
     map.set(ITEM_MENU, r);

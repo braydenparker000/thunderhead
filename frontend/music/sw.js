@@ -20,6 +20,9 @@
 // is only the name they and the offline copies carry: every request to it is answered here, none leaves the phone (§8).
 importScripts('/th/music/bridge.js');
 try { importScripts('/th/music/release.js'); } catch { /* without it, every file asks the network as before */ }
+// Downloads (owner, 2026-11-26): songs, playlists and albums saved to the phone's Downloads, streamed from here; their
+// route below. Loaded after the bridge, whose answer fetches each song.
+try { importScripts('/th/music/downloads.js'); } catch { /* without it, Music says the download could not finish */ }
 // The app's own files this worker fetches (its release's, and the network-first ones), counted as Music's app files in
 // Settings › Data use by their headers (th/data/worker.js, loaded by the bridge); the answer itself is untouched.
 const own = (req, init) => fetch(req, init).then(r => { self.thData?.count('music.app', r); return r; });
@@ -80,6 +83,8 @@ async function fromHead(req, h, a, b, e) {
 self.addEventListener('fetch', e => {
   const req = e.request;
   const url = new URL(req.url);
+  // A download the page asked for (th/music/downloads.js): its file, streamed.
+  if (self.thMusicDownloads?.handles(url)) { e.respondWith(self.thMusicDownloads.answer(e)); return; }
   // An open of the player (its page, or home's frame of it): which release is live, asked now.
   if (req.mode === 'navigate' && url.origin === self.location.origin) release?.check();
   // A song's range request that its head or tail covers.

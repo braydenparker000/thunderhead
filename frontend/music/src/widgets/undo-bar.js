@@ -96,6 +96,8 @@ export class UndoBar {
     f.findViewById('line2')?.setText('');
     this.button.setText(action);
     this.button.setVisibility(onUndo ? VISIBLE : GONE);
+    // With no action (a line that only says something: Music's downloads), the text takes the button's room too.
+    for (const v of [f.findViewById('title'), f.findViewById('line2')]) if (v?.lp) { v._mr ??= v.lp.rightMargin; v.lp.rightMargin = onUndo ? v._mr : 0; }
     const bar = this.current = {message, onUndo, undone: false};
     clearTimeout(this.timer);
     this.timer = setTimeout(() => { if (this.current === bar) this.hide(); }, ms);
