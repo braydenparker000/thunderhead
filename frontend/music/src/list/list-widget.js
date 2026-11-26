@@ -584,8 +584,6 @@ export class ListWidget extends FastLayout {
     this.mode = 'aa';
     // Library mode: a PowerList over the same area, with a navigation stack.
     this.libList = new PowerList(ctx, this);
-    // At rest after a scroll, it binds rows ahead in idle time (rows-ahead.js).
-    this.libList.bindAhead = true;
     this.libList.visibility = GONE;
     // Enough rows for a full page of each kind, twice (a page transition shows two lists).
     this.libList.prewarm({track: 32, text: 16}, {track: 3, text: 3});

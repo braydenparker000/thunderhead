@@ -155,7 +155,7 @@ export class Context {
       this._layoutPending = false;
       this.layoutRoot();
     }
-    if (this.scrolling.size) for (const s of this.scrolling) if (!s.scrollMoving()) { this.scrolling.delete(s); s.scrollRested?.(); }
+    if (this.scrolling.size) for (const s of this.scrolling) if (!s.scrollMoving()) this.scrolling.delete(s);
     if (this.root) {
       if (this.moving.size || this.scrolling.size) syncMoving(this);
       else { this.dirty.clear(); this.root.sync(); }

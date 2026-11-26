@@ -4,8 +4,7 @@
 // writes only the views that changed; what must not change with that: after drags and a fling of the Library's
 // Songs, of the Albums grid and of Home, each row shown is the one at its place, bound to its own song or album,
 // and its box on screen is where the list's own geometry puts it, the same as when the list is placed afresh at
-// that scroll; the rows bound ahead in idle time once it rests are off screen and the next drag shows them where
-// they belong. The scroll recorder: one entry a gesture, with the screen, the layout and frames, and the
+// that scroll. The scroll recorder: one entry a gesture, with the screen, the layout and frames, and the
 // session's summary in the playback log's state; nothing but counts and the screens' own names.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,8 +44,7 @@ function inventLibrary() {
 const shownRows = () => {
   const { ctx } = window.__cp, l = ctx.listWidget.libList, k = ctx.dpr;
   const box = l.el.getBoundingClientRect();
-  // (Rows bound ahead lie off screen, list/rows-ahead.js: only the rows on screen.)
-  return [...l.active].filter(([i, v]) => i >= 0 && v.visibility === 0 && !v.offScreen).sort((a, b) => a[0] - b[0]).map(([i, v]) => {
+  return [...l.active].filter(([i, v]) => i >= 0 && v.visibility === 0).sort((a, b) => a[0] - b[0]).map(([i, v]) => {
     const r = v.el.getBoundingClientRect(), want = l.itemRect(i);
     const text = (v.title?.text ?? v.findViewById?.('title')?.text ?? '') + '|' + (v.line2?.text ?? '');
     return { i, type: v.listItemType, text, at: [r.left - box.left, r.top - box.top], want: want ? [want.left / k, want.top / k] : null };
@@ -124,10 +122,12 @@ test('rows after drags and flings are the rows of their places, where the list p
   assert.ok(log.some((e) => e.rows > 0), 'the rows bound are counted');
 
   // The Albums grid, the same way.
-  await page.evaluate(() => { localStorage.setItem('cp-list-opts', JSON.stringify({ 'cat:albums': { zoom: 5 } })); window.__cp.ctx.libraryChip = 'albums'; window.__cp.ctx.homeTabs.go('library'); });
+  // (A tab's button on its own tab only scrolls it to the top: by Home, the Library comes back at the chip.)
+  await page.evaluate(() => { localStorage.setItem('cp-list-opts', JSON.stringify({ 'cat:albums': { zoom: 5 } })); window.__cp.ctx.libraryChip = 'albums'; window.__cp.ctx.homeTabs.go('home'); window.__cp.ctx.homeTabs.go('library'); });
   await atRest();
   await drag(200, 650, 250, 20);
   await drag(200, 700, 200, 4);
+  assert.equal(await page.evaluate(() => window.__cp.ctx.listWidget.libList.source.libraryChip), 'albums');
   const grid = await check('albums grid, flung');
   assert.ok(new Set(grid.map((r) => r.at[0])).size > 1, 'a grid: tiles side by side');
   assert.ok((await entries()).some((e) => e.screen === 'library-albums' && e.layout === 'grid'));

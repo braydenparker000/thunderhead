@@ -44,7 +44,7 @@ export function rowSong(list, v) {
 export function shownSongs(list) {
   const out = [];
   for (const [i, v] of list?.active ?? []) {
-    if (i < 0 || v.offScreen) continue;
+    if (i < 0) continue;
     const t = rowSong(list, v);
     if (t) out.push(t);
   }

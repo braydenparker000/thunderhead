@@ -15,7 +15,6 @@ import {colorToCss, argbAlpha} from '../res/values.js';
 import {nestedDragOf} from '../widgets/sheet-drag.js';
 import {signAhead, rowSong, shownSongs, SETTLE_MS} from '../player/sign-ahead.js';
 import {bound, screenOf} from '../ui/scroll-log.js';
-import {rowsAhead, bindAhead, aheadAtRest} from './rows-ahead.js';
 
 // Header buttons a list leaves out (they stay gone through its scenes):
 // search lists have no search-in-list button (applyEvenIfGone
@@ -147,7 +146,6 @@ export class PowerList extends FastLayout {
     this.active.clear();
     this.source = source;
     this.scrollY = 0;
-    this.ahead = null;
     this.resetOver();
     // The moveable toolbar takes the new layout at its next placement (om0.i).
     this.levelChanged = true;
@@ -204,8 +202,7 @@ export class PowerList extends FastLayout {
     // The first shown item is the first one (the header, or row 0 without one): yv0's toolbar_in_header.
     const g = s ? this.geometry() : null, y = this.scrollY - this.over;
     const first = !g || (g.headH ? y < g.top + g.headH : y < g.top + g.headerH + (g.itemH || 1));
-    const lastRow = s?.count ? this.active.get(s.count - 1) : null;
-    return {flags, endGap: max - this.scrollY, lastShown: !!lastRow && !lastRow.offScreen, first};
+    return {flags, endGap: max - this.scrollY, lastShown: !!s?.count && this.active.has(s.count - 1), first};
   }
 
   /** Tells the host the list moved its content by f px (PowerList.h0 → om0). */
@@ -588,7 +585,7 @@ export class PowerList extends FastLayout {
         this.host?.listLevelChanged?.(this);
       });
     }
-    const t0 = performance.now(), y0 = g.top + g.headerH - sy;
+    const y0 = g.top + g.headerH - sy;
     const want = this._want ??= new Set();
     want.clear();
     if (s.header && g.top + g.headH - sy > 0) want.add(-1);
@@ -597,21 +594,16 @@ export class PowerList extends FastLayout {
     const last = Math.min(s.count - 1, this.indexAtY(g, Math.max(0, sy + this.height - g.top - g.headerH)) + g.cols - 1);
     const spread = this.spreadFor(g, first, last);
     for (let i = first; i <= last; i++) want.add(i);
-    // Rows bound ahead, off screen (list/rows-ahead.js): those bound already stay.
-    const ahead = rowsAhead(this, g, sy, first, last);
-    if (ahead) for (let i = ahead.first; i <= ahead.last; i++) if (this.active.has(i)) want.add(i);
     for (const [i, v] of this.active) {
       if (!want.has(i) && !v.inMenu) { this.recycle(i, v); this.active.delete(i); }
     }
-    for (const i of want) this.placeOne(s, g, i, sy, y0, spread, i >= 0 && (i < first || i > last));
-    // The rest of the rows ahead, nearest first, while this frame's binding time lasts; the others next time.
-    if (ahead) bindAhead(this, ahead, first, last, t0, i => this.placeOne(s, g, i, sy, y0, spread, true));
+    for (const i of want) this.placeOne(s, g, i, sy, y0, spread);
     this.placeBackDecor();
     this.placeBottomToolbar(g);
   }
 
-  /** Binds (when new to it) and places the view of row i (-1 the header, SUBHEAD the subhead); `off`: a row ahead, off screen. */
-  placeOne(s, g, i, sy, y0, spread, off) {
+  /** Binds (when new to it) and places the view of row i (-1 the header, SUBHEAD the subhead). */
+  placeOne(s, g, i, sy, y0, spread) {
     if (this.active.get(i)?.inMenu) return;
     let v = this.active.get(i);
     const fresh = !v;
@@ -620,7 +612,6 @@ export class PowerList extends FastLayout {
       this.active.set(i, v);
     }
     v.listIndex = i;
-    v.offScreen = off;
     let x, y, w, h, scene;
     if (i === -1) {
       x = 0; y = g.top - sy; w = this.width; h = g.headH; scene = s.header.scene;
@@ -634,27 +625,23 @@ export class PowerList extends FastLayout {
     } else {
       const col = this.itemColumn(g, i), row = !!g.split && i >= g.split.n;
       x = col.x; y = y0 + this.itemTop(g, i); w = col.w; h = this.itemHeightAt(g, i); scene = s.sceneAt?.(i) ?? (row ? s.rowScene : s.itemScene);
-      const rebind = fresh || v._boundKey !== i;
-      if (rebind) { s.bindItem(v, i); v._boundKey = i; bound.rows++; }
+      if (fresh || v._boundKey !== i) { s.bindItem(v, i); v._boundKey = i; bound.rows++; }
       // A row without a second line takes the level's one-line scene (z62.L).
       const scene1 = row ? s.rowScene1 : s.itemScene1;
       if (scene1 && v.line2 && !v.line2.text) scene = scene1;
-      // A row ahead, bound and laid out as it is: only its place, for the next whole write (its place in the
-      // content, written already, does not change while the list scrolls).
-      if (off && !rebind && (v.itemScene ?? null) === (scene ?? null) && v.width === w && v.height === h && v.scaleY === 1 && v.alpha === 1) { v.translationX = x; v.translationY = y; return; }
       if (PLAIN_TYPES.has(v.listItemType)) {
         v.left = 0; v.top = 0;
         v.measure(MeasureSpec.make(w, MeasureSpec.EXACTLY), MeasureSpec.make(h, MeasureSpec.EXACTLY));
         v.layout(0, 0, w, h);
         v.translationX = x;
-        v.translationY = y + ((off ? null : spread?.(i))?.dy ?? 0);
+        v.translationY = y + (spread?.(i)?.dy ?? 0);
         v.invalidate();
         return;
       }
       if (this.selectable) v.setSelection?.(!!this.selection, !!this.selection?.has(i), !!s.reorderable);
     }
-    // Rows a drag reorder faded or scaled come back whole; overscroll spreads the shown rows (not those ahead).
-    const sp = i >= 0 && !off ? spread?.(i) : null;
+    // Rows a drag reorder faded or scaled come back whole; overscroll spreads the shown rows.
+    const sp = i >= 0 ? spread?.(i) : null;
     if (v.alpha !== 1 || v.scaleX !== 1) { v.alpha = 1; v.scaleX = 1; }
     v.scaleY = sp ? sp.scale : 1;
     if (sp) y += sp.dy;
@@ -919,11 +906,6 @@ export class PowerList extends FastLayout {
     this.placeItems();
     const shown = this.scrollY - this.over;
     if (shown !== prevShown) this.scrolled(prevShown - shown, true);
-  }
-
-  /** The list has come to rest after a finger or a fling moved it (Context.frame): rows ahead in idle time. */
-  scrollRested() {
-    aheadAtRest(this);
   }
 
   /** For the scroll recorder (ui/scroll-log.js): whether the list still moves, and what it shows. */
