@@ -9,7 +9,8 @@
 //   library no longer has are left out and counted (skipped.txt in the zip says so).
 // Covers (owner, 2026-11-26): each Opus song is saved with its cover embedded (the worker's th/music/ogg-cover.js),
 // the cover from the phone's own covers when it is there; an album's zip also carries the album's cover (cover.jpg
-// or cover.png); a song in another format is saved as stored. The size and the ask count the songs only.
+// or cover.png); a song in another format is saved as stored. A wide cover this phone shows as its square
+// (library/cover-fit.js) is embedded and added as that square: the job carries the square, the worker cuts it. The size and the ask count the songs only.
 // Names: library/download-names.js. Over ASK_BYTES in all (the catalogue's sizes), the confirm dialog asks
 // first; under it the download just starts. Music's worker streams the file (th/music/downloads.js): the
 // page posts it the job, then goes to its address, which the browser takes as a download with its own
@@ -20,6 +21,7 @@ import {albumName, cleanName, entryNames, extensionOf, songFile} from '../librar
 import {m3uText} from '../library/playlist-files.js';
 import {albumRows} from '../library/shelves.js';
 import {VISIBLE} from '../res/values.js';
+import {trackCrop} from '../library/cover-fit.js';
 
 export const WORDS = {
   download: 'Download', starting: 'Downloading %s…', saved: 'Saved to Downloads', failed: 'Could not finish the download',
@@ -56,7 +58,9 @@ const fetchable = t => typeof t?.src === 'string' && SONG.test(t.src);
 function coverOf(t) {
   if (typeof t?.artUrl !== 'string' || !t.artUrl) return null;
   const shared = t.coverKey ? new URL('covers/shared/' + encodeURIComponent(t.coverKey), location.href).href : null;
-  return {src: t.artUrl, keys: shared ? [shared, t.artUrl] : [t.artUrl]};
+  // A wide cover shown as its square on this phone goes as the square: the worker cuts it (library/cover-fit.js).
+  const crop = trackCrop(t);
+  return {src: t.artUrl, keys: shared ? [shared, t.artUrl] : [t.artUrl], ...(crop ? {crop} : {})};
 }
 const fileOf = (t, name) => ({src: t.src, name, size: +t.size || 0, type: t.mime || 'audio/ogg', art: extensionOf(t) === 'opus' ? coverOf(t) : null});
 
@@ -139,7 +143,7 @@ export function downloadMenuItem(ctx, items) {
 /** The height a shown Download row adds to its menu (list-widget.js openItemMenu raises the menu's cap by it). */
 export function downloadRoom(items) {
   let h = 0;
-  for (const id of ['download_song', 'pl_download']) {
+  for (const id of ['download_song', 'pl_download', 'cover_fit']) {
     const v = items?.findViewById(id);
     if (v && v.visibility === VISIBLE) h += v.measuredHeight || 0;
   }

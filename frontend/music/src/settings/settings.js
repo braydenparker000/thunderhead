@@ -14,6 +14,7 @@ import {formatString} from '../widgets/sleeptimer.js';
 import {iconSvg} from '../icons.js';
 import {TONE_DEFAULTS, TONE_RANGES} from '../dsp/dsp.js';
 import {unavailableNote} from './pref-status.js';
+import {withCropSwitch} from '../library/cover-fit.js';
 
 const STORE_KEY = 'cp-settings';
 const TAGS_KEY = 'cp-settings-tags';
@@ -173,6 +174,7 @@ export class Settings {
     const tree = this.ctx.res.entry('xml', name);
     if (name === 'audio_equ' && tree) return (this._equ ??= withHeadroomSwitch(tree));
     if (name === 'library_lists' && tree) return (this._lists ??= withClassicSwitch(tree));
+    if (name === 'aa' && tree) return (this._aa ??= withCropSwitch(tree));
     if (name !== 'misc' || !tree) return tree;
     return (this._misc ??= withDataCategory(tree));
   }

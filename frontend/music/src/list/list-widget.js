@@ -27,6 +27,7 @@ import {openAddToPlaylist} from '../widgets/playlist-dialog.js';
 import {openInfo, openAlbumArt} from '../widgets/info-dialog.js';
 import {queueMenuItems} from '../widgets/up-next.js';
 import {downloadMenuItem, downloadRoom} from '../widgets/downloads.js';
+import {coverFitItem, prepareCoverFit} from '../library/cover-fit.js';
 import {scrollMenuItems} from './menu-scroll.js';
 import {openListOptions, ZOOMS, listOpts, savedListOpts, restoreListOpts, saveListOpts, REVERSE} from './list-opts.js';
 import {homeOf} from './category-ref.js';
@@ -65,8 +66,10 @@ export class AAItemView extends SceneFastLayout {
     this.track = undefined;
     ctx.bus.subscribe('bus_data', (msg, src, d) => {
       if (msg === 'msg_data_track_rating_changed' && this.track && d?.track?.id === this.track.id) this.syncRating();
-      else if (msg === 'msg_data_art_changed' && this.track && d?.tracks?.some(x => x.id === this.track.id)) {
+      // (An entry's row, bound to its first song's cover, follows that song's: a cover shown cut or whole anew.)
+      else if (msg === 'msg_data_art_changed' && this.track && d?.tracks?.some(x => x.id === this.track.id || (this.track.group && x.artId && x.artId === this.track.artId))) {
         const t = this.track;
+        if (t.group) { t.art = null; t.thumb = null; }
         this.track = undefined;
         this.bind(t, this.numbered, this.aaList, this.labels);
       }
@@ -2443,6 +2446,8 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
     if (itemsLayout === 'merge_menu_items_aa') downloadMenuItem(this.ctx, items);
     // A playlist's Rename and Delete (shown for playlists only, prepareListMenu).
     if (itemsLayout === 'merge_menu_items_tracks') playlistMenuItems(this.ctx, items);
+    // Show Full Cover / Crop Cover: the playing song's, an album page's (library/cover-fit.js).
+    coverFitItem(this.ctx, items, itemsLayout);
     items.walk(c => {
       if (c === items || !c.clickable) return;
       const click = c.onClick?.bind(c);
@@ -2451,6 +2456,7 @@ ListWidget.prototype.openItemMenu = function (v, itemsLayout = 'merge_menu_items
   }
   // Every opening: the entries the shown list offers.
   if (items && itemsLayout !== 'merge_menu_items_aa') this.prepareListMenu(items);
+  prepareCoverFit(this.ctx, items, itemsLayout);
   // Item backgrounds are level-lists: the popup level shows the menu surface.
   const popupLevel = this.ctx.res.integer('@integer/ITEM_BG_LEVEL_POPUP', this.ctx.theme) ?? 16;
   if (v.background) { this.menuItem.bgLevel = v.background.level ?? 0; v.background.level = popupLevel; v._dom.bg = null; v.invalidate(); }

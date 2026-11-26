@@ -448,6 +448,38 @@ Album, artist, genre, playlist and mix pages share one layout: a header (cover o
 meta line, Play and Shuffle buttons), then the track list. An album lists by disc and track number;
 an artist page lists albums (grid) then "All songs".
 
+#### 2.7.1 Wide covers shown as their square (owner, 2026-11-26)
+
+Much of the owner's music has 16:9 thumbnails whose real cover is the square in the middle, the sides
+filler. Such a cover shows as a normal square cover everywhere: the 256 px thumbnails of lists and grids
+(made from the square of the full cover, so 256 × 256 of the centre), the player's full cover, the lock
+screen's MediaSession artwork, and downloads (the Opus songs' embedded cover and an album zip's
+`cover.jpg`). Nothing in the owner's storage changes; the phone decides, once per cover.
+
+- **The rule** (`library/cover-crop.js` `coverCrop`, pure, on a copy 64 px high): at least 1.3 times as
+  wide as high (16:9 and 4:3 alike); both side strips are filler: plain (each channel's spread ≤ 6),
+  a mirror of the picture next to them, the picture's edge columns smeared sideways, or a blur (detail
+  ≤ 0.4 of the centre's where the strip meets the picture at a clear edge or a step in detail); and a
+  centre with detail of its own. Otherwise the picture is genuinely wide and stays whole. The square is
+  centred, or placed at a clear vertical edge found within 5 % of the width of where it was expected (to
+  the sub-pixel, so an off-centre picture is cut exactly; a cut within 3 % of square is made square).
+- **Remembered** per cover in this phone's `cp-cover-fit` (`library/cover-fit.js`), keyed like the
+  cover caches (`cover:<coverKey>` when songs share a bucket cover, else the song's cover address):
+  aspect, the square, whether its sides are filler, and the owner's pick; at most 3,000 covers.
+- **Thumbnails:** the whole thumbnail stays in `claude-player-thumbs` as before; a cut cover's square
+  thumbnail is kept beside it (`covers/crop/<key>`, tagged `x-cover-crop` with the square it was cut to).
+  One made before this has no square thumbnail: the whole one is cut for now (soft) and shown at once,
+  then the sharp one is made in idle time from the full cover on the phone (`claude-player-covers`) and
+  swapped in, or, with no full cover there, when the cover is next read anyway (the player). Nothing is
+  downloaded for it.
+- **Override:** "Show Full Cover" / "Crop Cover" in the playing song's menu (under Download) and in an
+  album page's menu flips that cover (an album's covers) and keeps it on the phone. **Setting:** Settings ›
+  Album Art › Advanced Tweaks › "Crop wide covers to the centre" (`cp_crop_wide_covers`, on by default)
+  applies at once (every shown cover is bound again); a cover the owner picked a way for stays that way.
+- **Downloads:** the page passes the square with the job (`crop`, four fractions); Music's worker cuts the
+  cover with `createImageBitmap`/`OffscreenCanvas` (JPEG) before embedding it; without them it embeds the
+  cover whole.
+
 ### 2.8 Visual states of a row
 
 | State | Look |

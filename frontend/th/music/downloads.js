@@ -10,6 +10,8 @@
 // - Covers (owner, 2026-11-26): an Opus song is saved with its cover embedded (th/music/ogg-cover.js), so
 //   other players show it; the cover comes from the phone's covers (library.js) when it is there, else
 //   through the bridge, counted as Downloads. No cover, or one that does not load: the song as stored.
+//   A cover posted with `crop` (a wide cover the phone shows as its square) is cut to it first, where this
+//   worker can draw; where it cannot, the cover goes whole.
 //   One song's file has its new exact length; a zip entry's is in its data descriptor as before.
 // - The page then navigates to <scope>download/<id>. That navigation is answered here with an attachment
 //   (Content-Disposition, the name in UTF-8) whose body is filled as it is read: the browser's own download
@@ -62,7 +64,37 @@
     } catch {}
     if (!url || url.search || !s.thMusicBridge?.handles(url) || !ART.test(url.pathname)) return null;
     const keys = (Array.isArray(a.keys) ? a.keys : []).filter((k) => text(k, 2000) && URL.canParse?.(k) !== false).slice(0, 4);
-    return { src: url.href, keys: keys.length ? keys : [url.href] };
+    // The square a wide cover is shown as on the phone (music/src/library/cover-fit.js): x, y, w, h as fractions.
+    const c = a.crop;
+    const crop = Array.isArray(c) && c.length === 4 && c.every((v) => typeof v === 'number' && v >= 0 && v <= 1) && c[2] > 0 && c[3] > 0 && c[0] + c[2] <= 1.0001 && c[1] + c[3] <= 1.0001 ? c : null;
+    return { src: url.href, keys: keys.length ? keys : [url.href], ...(crop ? { crop } : {}) };
+  }
+
+  /** A cover cut to its square as a JPEG, where the worker can draw (createImageBitmap, OffscreenCanvas); else as it is. */
+  async function cropped(c, r) {
+    if (typeof s.OffscreenCanvas !== 'function' || typeof s.createImageBitmap !== 'function') return c;
+    try {
+      const bmp = await s.createImageBitmap(new Blob([c.bytes], c.mime ? { type: c.mime } : {}));
+      const W = bmp.width, H = bmp.height;
+      // Rounded inward, so none of the filler is kept, and within 3 % of square made square (as the phone cuts
+      // it, music/src/library/cover-crop.js cropPixels).
+      let sx = Math.max(0, Math.ceil(r[0] * W - 1e-6));
+      const sy = Math.max(0, Math.ceil(r[1] * H - 1e-6));
+      let w = Math.min(W, Math.floor((r[0] + r[2]) * W + 1e-6)) - sx;
+      const h = Math.min(H, Math.floor((r[1] + r[3]) * H + 1e-6)) - sy;
+      if (w < 1 || h < 1) return c;
+      if (w !== h && Math.abs(w - h) <= 0.03 * h && h <= W) {
+        sx = Math.min(W - h, Math.max(0, Math.round((r[0] + r[2] / 2) * W - h / 2)));
+        w = h;
+      }
+      const canvas = new s.OffscreenCanvas(w, h);
+      canvas.getContext('2d').drawImage(bmp, sx, sy, w, h, 0, 0, w, h);
+      bmp.close?.();
+      const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+      return { bytes: new Uint8Array(await blob.arrayBuffer()), mime: 'image/jpeg' };
+    } catch {
+      return c;
+    }
   }
 
   /** A job as posted, checked; null when anything in it is not as it must be. */
@@ -175,11 +207,12 @@
    * few kept: {bytes, mime, block} (block: the FLAC picture to embed), or null. Never throws.
    */
   function coverOf(a, j) {
-    const key = a.keys[0];
+    const key = a.crop ? `${a.keys[0]}#${a.crop.join()}` : a.keys[0];
     let p = j.covers.get(key);
     if (!p) {
       p = (async () => {
-        const c = await coverBytes(a, j);
+        const read = await coverBytes(a, j);
+        const c = read && a.crop ? await cropped(read, a.crop) : read;
         if (!c || !s.thOggCover) return c && { ...c, block: null };
         const fit = await s.thOggCover.fitCover(c.bytes, c.mime).catch(() => null);
         return { ...c, mime: s.thOggCover.imageInfo(c.bytes, c.mime).mime, block: fit ? s.thOggCover.pictureBlock(fit) : null };
@@ -403,5 +436,5 @@
     }
   }
 
-  s.thMusicDownloads = { handles, answer, start, checked, without, get job() { return job; } };
+  s.thMusicDownloads = { handles, answer, start, checked, without, cropped, get job() { return job; } };
 })();
