@@ -15,8 +15,6 @@ import { practiceLoop } from '/th/guitar/practice.js';
 
 const player = new Player();
 let open = null;
-// How long after the owner's own touch, wheel or key a scroll of the sheet still counts as his (GUITAR.md §9).
-const SCROLL_AFTER_INPUT_MS = 3000;
 export const readerOpen = () => !!open;
 
 export function openReader(song, { store, onclose, at = null }) {
@@ -32,7 +30,7 @@ class Reader {
     this.song = song; this.store = store; this.onclose = onclose; this.at = at;
     this.prefs = store.prefs;
     this.urls = []; this.geo = new Map(); this.manualScroll = 0; this.lastSystem = null; this.loopPick = null;
-    this.lastInteraction = performance.now(); this.lastInput = -Infinity;
+    this.lastInteraction = performance.now();
     this.build();
     this.practice = practiceLoop(this, player, { el, slider, toast });
     this.dismiss = pushLayer(() => this.close(false), '#play=' + encodeURIComponent(song.key));
@@ -82,15 +80,9 @@ class Reader {
     });
     this.wireSheet(); this.wireProgress(); this.wireKeys();
     this.practiceTimer = setInterval(() => this.tally(), 5000);
-    const touched = () => { this.input(); this.holdScreen(); };
+    const touched = () => { this.lastInteraction = performance.now(); this.holdScreen(); };
     for (const type of ['pointerdown', 'wheel', 'keydown']) this.root.addEventListener(type, touched, { passive: true });
-    // A scroll of the sheet is the owner's only while it follows his own input (a fling gliding on after
-    // the finger lifts, keys held down): the reader's own scrolling (follow() to the playing line, a
-    // re-render) is not a touch, so it never keeps the screen on.
-    this.scroller.addEventListener('scroll', () => {
-      if (performance.now() - this.lastInput > SCROLL_AFTER_INPUT_MS) return;
-      this.lastInteraction = performance.now(); this.holdScreen();
-    }, { passive: true });
+    this.scroller.addEventListener('scroll', touched, { passive: true });
     this.resizeObserver = new ResizeObserver(() => this.onResize());
     this.resizeObserver.observe(this.scroller);
     this.updateVoiceLabel(); this.updateSpeedLabel(); this.updateClick();
@@ -402,7 +394,7 @@ class Reader {
   // ----- input --------------------------------------------------------------
   wireSheet() {
     let down = null;
-    const mark = () => { this.manualScroll = performance.now(); this.input(); };
+    const mark = () => { this.manualScroll = performance.now(); this.lastInteraction = performance.now(); };
     this.scroller.addEventListener('wheel', mark, { passive: true });
     this.scroller.addEventListener('touchmove', mark, { passive: true });
     this.scroller.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
@@ -499,8 +491,6 @@ class Reader {
     this.root.classList.toggle('playing', on);
     this.holdScreen();
   }
-  /** The owner's own input (a touch, wheel, key, a drag on the sheet): what a scroll must follow to count. */
-  input() { this.lastInput = this.lastInteraction = performance.now(); }
   // The screen stays on while the reader is visible and playing, or touched in the last 90 s
   // (GUITAR.md §9); 90 s after the last touch with nothing playing, it is let go.
   wantsScreen() { return !this.closed && document.visibilityState === 'visible' && (player.playing || performance.now() - (this.lastInteraction ?? -Infinity) < 90000); }

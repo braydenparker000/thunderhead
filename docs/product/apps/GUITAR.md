@@ -521,10 +521,7 @@ while playing or with a touch, scroll or key in the last 90 s (harvested), and o
 
 As built (2026-11-21, `frontend/guitar/reader.js` `holdScreen`): any touch, scroll or key in the
 reader, play, pause and the page shown again check the rule; the lock is let go 90 s after the last
-input with nothing playing, when the reader closes, and when the page is hidden. Since 2026-11-26 a
-scroll of the sheet counts only within 3 s of the owner's own touch, wheel or key (a fling's glide):
-the reader's own scrolling (following the playing line, a re-render for a new width) is not a touch,
-so it never keeps the screen on past 90 s after the owner last touched it.
+input with nothing playing, when the reader closes, and when the page is hidden.
 
 **Acceptance:** browser test: playing → `wakeLock` held; pause and wait 90 s (fake clock) →
 released; hide → released and the mic (if on) stopped.
