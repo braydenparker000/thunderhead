@@ -175,11 +175,20 @@ test('rows after drags and flings are the rows of their places, where the list p
   assert.ok(new Set(grid.map((r) => r.at[0])).size > 1, 'a grid: tiles side by side');
   assert.ok((await entries()).some((e) => e.screen === 'library-albums' && e.layout === 'grid'));
 
-  // Home: down past its shelves.
+  // Home: down past its shelves. Its shelves are built in idle time (home/data.js warmHome: never within
+  // 300 ms of a touch nor while a list moves), so after the gestures above Home can still show what it had
+  // before this library came: the demo's few songs, too short to scroll (a fling from its foot moved it 0 → 0).
+  // It opens once its shelves are this library's.
+  await until(() => page.evaluate(() => {
+    const { ctx } = window.__cp, k = ctx.homeDataKept;
+    return !!k && k.tracks === ctx.library.tracks && !k.stale && !ctx.homeWarming;
+  }), { timeout: 30_000, message: "Home's shelves of this library were never built" });
   await page.evaluate(() => window.__cp.ctx.homeTabs.go('home'));
   await atRest();
+  const homeMax = await page.evaluate(() => { const l = window.__cp.ctx.listWidget.libList; return { max: l.maxScroll(), home: !!l.source?.isHomeV2 }; });
+  assert.ok(homeMax.home && homeMax.max > 0, `home is shown with room to scroll (${JSON.stringify(homeMax)})`);
   const home = await swipe(500, 4);
-  assert.ok(home.to.y > home.from.y, `home: the fling from y ${home.y0} moved it (scroll ${home.from.y} → ${home.to.y})`);
+  assert.ok(home.to.y > home.from.y, `home: the fling from y ${home.y0} moved it (scroll ${home.from.y} → ${home.to.y}, most ${homeMax.max})`);
   await check('home, flung', 2);
 
   // The session's summary goes with the playback batches: per screen, counts only.
