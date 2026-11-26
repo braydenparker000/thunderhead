@@ -40,13 +40,19 @@ function inventLibrary() {
   });
 }
 
-/** In the page: each row shown, with what it shows and where; and where the list's geometry puts it. */
+/** In the page: each row shown, with what it shows and where; and where the list's geometry puts it. A Home shelf
+ * (home/shelf.js) shows the covers in its `shown`, each by its place in the strip and whether it is bound to that
+ * place's own item: its children also hold the covers it keeps spare (gone, still bound to what they showed last),
+ * in the order they were made, so its first child's title is no reading of what it shows. */
 const shownRows = () => {
   const { ctx } = window.__cp, l = ctx.listWidget.libList, k = ctx.dpr;
   const box = l.el.getBoundingClientRect();
+  const titleOf = (v) => v.title?.text ?? v.findViewById?.('title')?.text ?? '';
+  const covers = (v) => [...v.shown].sort((a, b) => a[0] - b[0])
+    .map(([at, c]) => `${at}:${titleOf(c)}${c.visibility === 0 && c.record === v.row.items[at]?.record ? '' : ' (not its own)'}`).join(',');
   return [...l.active].filter(([i, v]) => i >= 0 && v.visibility === 0).sort((a, b) => a[0] - b[0]).map(([i, v]) => {
     const r = v.el.getBoundingClientRect(), want = l.itemRect(i);
-    const text = (v.title?.text ?? v.findViewById?.('title')?.text ?? '') + '|' + (v.line2?.text ?? '');
+    const text = v.shown instanceof Map ? 'shelf|' + covers(v) : titleOf(v) + '|' + (v.line2?.text ?? '');
     return { i, type: v.listItemType, text, at: [r.left - box.left, r.top - box.top], want: want ? [want.left / k, want.top / k] : null };
   });
 };
@@ -130,6 +136,7 @@ test('rows after drags and flings are the rows of their places, where the list p
     const rows = await page.evaluate(shownRows);
     assert.ok(rows.length >= least, `${what}: rows are shown`);
     for (const r of rows) assert.ok(near(r.at, r.want), `${what}: row ${r.i} at ${r.at}, the list puts it at ${r.want}`);
+    for (const r of rows) assert.ok(!r.text.includes('(not its own)'), `${what}: row ${r.i}'s covers are each its own place's: ${r.text}`);
     // The list placed afresh at the same scroll (its rows given back and taken again, the page written whole).
     await page.evaluate(() => {
       const { ctx } = window.__cp, l = ctx.listWidget.libList, y = l.scrollY;
