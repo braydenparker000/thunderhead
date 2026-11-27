@@ -60,7 +60,7 @@ export default class Component extends DCLogic {
       compare: 'BEFORE / AFTER · drag the line. Anywhere else, press and hold the photo to see it as imported.', history: 'HISTORY · tap a step to go back to it; the next edit starts a new branch from there. Undo steps back one.' });
     // a photo's own: the picture before any edit (with the crop it has now, so both halves show one scene: AUDIT.md 8.4), its scope, its history and its versions
     const first = real ? photo.versions()[0] : null, g = photo.geo(), beforeSrc = first && !zoomed && (split || S.holding) ? tile(`before:${JSON.stringify(g)}`, () => ({ ...first.st, geo: g }), 0, undefined, true) : '';
-    const sc = !S.hist || none ? null : real ? scope() : SCOPE;
+    const sc = !S.hist || none ? null : real ? scope(true, S.clip) : SCOPE;
     if (real) zoom.clip(sc && S.clip ? sc.clip : '');
     const past = real ? photo.history() : null;
     const stepList = none ? [] : past ? past.steps.map((s, i) => [s.name, s.val, i === past.at, i > past.at, () => photo.goto(i)]) : steps.map(([name, val], i) => [name, val, i === S.step, i > S.step, () => set({ step: i, ver: 1 })]);

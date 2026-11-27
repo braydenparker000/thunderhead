@@ -15,6 +15,7 @@ import { maskPipes, masks } from './mask.js';
 import { airOf } from './haze.js';
 import { noiseAt } from './noise.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
+import { spline } from './look.js';
 import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
 import { autoWhite, samples } from './autowhite.js';
@@ -35,8 +36,11 @@ function tables(pick, w) {
   if (p?.look) { u.look = [p.look.dims[0], p.look.dims[1], p.look.dims[2] || 1, add(p.look.d)]; u.flags |= 2 | (p.look.srgb ? 32 : 0); }
   if (p?.look2) { u.look2 = [p.look2.dims[0], p.look2.dims[1], p.look2.dims[2] || 1, add(p.look2.d)]; u.flags |= 128 | (p.look2.srgb ? 256 : 0); }
   if (p?.tone) {
+    // DNG cubic spline (fixes up to 4.37/255 linear-interpolation error on sparse DCP ProfileToneCurve knots).
     const pts = p.tone, n = pts.length / 2, out = new Float32Array(1024);
-    for (let k = 0, j = 0; k < 1024; k++) { const x = k / 1023; while (j < n - 2 && pts[(j + 1) * 2] < x) j++; const x0 = pts[j * 2], x1 = pts[j * 2 + 2]; out[k] = pts[j * 2 + 1] + (pts[j * 2 + 3] - pts[j * 2 + 1]) * Math.min(1, Math.max(0, (x - x0) / (x1 - x0 || 1))); }
+    const X = Array.from({ length: n }, (_, i) => pts[i * 2]), Y = Array.from({ length: n }, (_, i) => pts[i * 2 + 1]);
+    const fn = n >= 2 ? spline(X, Y) : null;
+    for (let k = 0; k < 1024; k++) out[k] = fn ? Math.max(0, Math.min(1, fn(k / 1023))) : k / 1023;
     u.tab[0] = add(out); u.flags |= 4;
   }
   if (pick?.table) { u.tab[1] = pick.table.n; u.tab[2] = add(pick.table.d); u.flags |= 8; }
@@ -170,33 +174,37 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     // wide: for a Display P3 file (wgsl.js `shown`). A look's own table and the point curve are made for sRGB's numbers: with either, sRGB's colours in P3's numbers
-    const wide = !more.wide ? 0 : (state.u.flags & 262144) || more.curve ? 8388608 : 4194304;
+    const wide = !more.wide ? 0 : (state.u.flags & 262144) || more.curve || more.luma ? 8388608 : 4194304;
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
     n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (img.meta.picture ? 2097152 : 0) | wide | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, more.grainSize || 1], 80);
-    if (more.dehaze && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }   // the haze's colour, once for each profile and white balance
+    const mList = more.masks || [];
+    const mTone = mList.some((m) => m.vals.Highlights || m.vals.Shadows || m.vals.Clarity);
+    const mFine = mList.some((m) => m.vals.Texture);
+    const mHaze = mList.some((m) => (m.vals.Dehaze || 0) > 0);
+    if ((more.dehaze || mHaze || mList.some((m) => m.vals.Dehaze)) && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }
     f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, more.cube ?? 1, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);
-    // the tools inside the colour table (grade.js): each is switched on by its rows being there
     if (more.mixer) { f.set(more.mixer, 104); n[55] |= 32768; }
     if (more.grade) { f.set(more.grade, 136); n[55] |= 65536; }
-    f[154] = more.chrome || 0; f[155] = more.chromeBlue || 0;   // Color Chrome and Chrome Blue, in grading's last row (wgsl.js colour)
+    f[154] = more.chrome || 0; f[155] = more.chromeBlue || 0;
     if (more.curve) { f.set(more.curve, 156); n[55] |= 131072; }
-    const lo = localRows(more.masks, geo, more.showMaskNo ?? -1, (more.baseEv ?? ev) + state.u.offset);   // the masks: laid on in the frame pass, not the table
+    if (more.luma) { f.set(more.luma, 908); n[55] |= 16777216; }
+    const lo = localRows(more.masks, geo, more.showMaskNo ?? -1, (more.baseEv ?? ev) + state.u.offset);
     if (lo) f.set(lo, 668);
-    f[683] = more.defringe || 0;   // for the full-size views' last pass (finish.js)
-    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join(), more.edge === false, more.chrome || 0, more.chromeBlue || 0, wide].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
+    f[683] = more.defringe || 0;
+    // curve, luma, and cube run per-pixel in finish() (never in bake()), so dragging them skips the 65^3 LUT rebake.
+    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.mixer?.join(), more.grade?.join(), more.edge === false, more.chrome || 0, more.chromeBlue || 0, wide].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine, true); bent = true; masked = fined = hazed = ''; }
     last.baked = baked !== key;
-    if (last.baked) {   // re-bake only when the profile or a control inside the table changed: a frame is then one table lookup
+    if (last.baked) {
       const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(Math.ceil(N / 4), Math.ceil(N / 4), Math.ceil(N / 4)); bp.end(); baked = key;
     }
-    // the tone mask: made when Highlights or Shadows first need it, and again only after the profile, the white balance or the rebuild changes
-    last.masked = Boolean(g[0] || g[1] || more.clarity || more.showMask) && more.mask !== false && masked !== lit;
+    last.masked = Boolean(g[0] || g[1] || more.clarity || mTone || more.showMask) && more.mask !== false && masked !== lit;
     if (last.masked) { mask.tone.run(enc); masked = lit; }
-    if (more.texture && fined !== lit) { mask.fine.run(enc); fined = lit; }   // the finer mask and the haze mask, likewise made when first needed
-    if ((more.dehaze || 0) > 0 && hazed !== lit) { mask.haze.run(enc); hazed = lit; }
+    if ((more.texture || mFine) && fined !== lit) { mask.fine.run(enc); fined = lit; }
+    if (((more.dehaze || 0) > 0 || mHaze) && hazed !== lit) { mask.haze.run(enc); hazed = lit; }
     const shown = more.screen !== false, fit = more.fit !== false;
     if (shown && fit && (canvas.width !== ow || canvas.height !== oh)) { canvas.width = ow; canvas.height = oh; }   // the canvas takes a crop's size when it is first shown
     if (fit) {

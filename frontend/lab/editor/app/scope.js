@@ -3,8 +3,8 @@
 // fitted photo's pixels, once each time it has changed and a board asks.
 import * as photo from './session.js';
 
-/** @typedef {{ r: string, g: string, b: string, lo: string, hi: string, clip: string, hills: Record<string, string> }} Scope `hills`: the same counts drawn in the curve board's box, for all three colours together (RGB) and each alone */
-let of = /** @type {unknown} */ (null), at = -1, busy = false, got = /** @type {Scope | null} */ (null);
+/** @typedef {{ r: string, g: string, b: string, lo: string, hi: string, clip: string, hills: Record<string, string> }} Scope `hills`: the same counts drawn in the curve board's box, for all three colours together (RGB), Luma, and each alone */
+let of = /** @type {unknown} */ (null), at = -1, clipAt = false, busy = false, got = /** @type {Scope | null} */ (null);
 
 /** One colour's counts as the area under a curve, in the design's 168 × 70 box (or from x0 to x1, `tall` high above y0). @param {Float64Array} n @param {number} top */
 function path(n, top, x0 = 8, x1 = 160, y0 = 66, tall = 60) {
@@ -12,37 +12,40 @@ function path(n, top, x0 = 8, x1 = 160, y0 = 66, tall = 60) {
   for (let i = 0; i < 256; i += 2) { let s = 0, c = 0; for (let k = Math.max(0, i - 3); k <= Math.min(255, i + 3); k++) { s += n[k]; c++; } d += ` L${(x0 + (i / 255) * (x1 - x0)).toFixed(1)} ${(y0 - Math.min(1, s / c / top) * tall).toFixed(1)}`; }
   return `${d} L${x1} ${y0}Z`;
 }
-/** @param {ImageData} im @returns {Promise<Scope>} */
-async function read(im) {
+/** @param {ImageData} im @param {boolean} wantClip @returns {Promise<Scope>} */
+async function read(im, wantClip) {
   const { data, width: w, height: h } = im, n = [new Float64Array(256), new Float64Array(256), new Float64Array(256)], Q = 4, cw = Math.ceil(w / Q), ch = Math.ceil(h / Q);
-  const over = new ImageData(cw, ch), o = new Uint32Array(over.data.buffer);
+  const over = wantClip ? new ImageData(cw, ch) : null, o = over ? new Uint32Array(over.data.buffer) : null;
   let lo = 0, hi = 0, all = 0;
   for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
     const i = (y * w + x) * 4, r = data[i], g = data[i + 1], b = data[i + 2], dark = Math.max(r, g, b) <= 1, bright = Math.max(r, g, b) >= 254;
     n[0][r]++; n[1][g]++; n[2][b]++; all++;
     if (dark) lo++; else if (bright) hi++;
-    if ((dark || bright) && x % Q === 0 && y % Q === 0) o[(y / Q) * cw + x / Q] = dark ? 0xe0ff6e3c : 0xe02a20e8;   // blue where black, red where a colour has run out (ABGR)
+    if (o && (dark || bright) && x % Q === 0 && y % Q === 0) o[(y / Q) * cw + x / Q] = dark ? 0xe0ff6e3c : 0xe02a20e8;
   }
-  let top = 1;   // the tallest column inside the ends, so a clipped spike doesn't flatten the rest
+  let top = 1;
   for (const c of n) for (let i = 4; i < 252; i++) top = Math.max(top, c[i]);
-  const cv = new OffscreenCanvas(cw, ch); /** @type {OffscreenCanvasRenderingContext2D} */ (cv.getContext('2d')).putImageData(over, 0, 0);
+  let clip = '';
+  if (over) { const cv = new OffscreenCanvas(cw, ch); /** @type {OffscreenCanvasRenderingContext2D} */ (cv.getContext('2d')).putImageData(over, 0, 0); clip = URL.createObjectURL(await cv.convertToBlob()); }
   const sum = n[0].map((v, i) => v + n[1][i] + n[2][i]), hill = (/** @type {Float64Array} */ c, /** @type {number} */ t) => path(c, t * 1.05, 14, 286, 286, 170);
   let most = 1; for (let i = 4; i < 252; i++) most = Math.max(most, sum[i]);
-  const pct = (/** @type {number} */ v) => `${((v / all) * 100).toFixed(1)}%`;
-  return { r: path(n[0], top * 1.05), g: path(n[1], top * 1.05), b: path(n[2], top * 1.05), lo: pct(lo), hi: pct(hi), clip: URL.createObjectURL(await cv.convertToBlob()), hills: { RGB: hill(sum, most), R: hill(n[0], top), G: hill(n[1], top), B: hill(n[2], top) } };
+  const rgbHill = hill(sum, most), pct = (/** @type {number} */ v) => `${((v / all) * 100).toFixed(1)}%`;
+  return { r: path(n[0], top * 1.05), g: path(n[1], top * 1.05), b: path(n[2], top * 1.05), lo: pct(lo), hi: pct(hi), clip, hills: { RGB: rgbHill, Luma: rgbHill, R: hill(n[0], top), G: hill(n[1], top), B: hill(n[2], top) } };
 }
 /** The scope of the photo as it is now: the last one made (null at first) until the new one is ready, when a change follows.
- * @param {boolean} [fresh] false: whatever was last made, without reading the photo again (while a finger is on a control) */
-export function scope(fresh = true) {
+ * @param {boolean} [fresh] false: whatever was last made, without reading the photo again (while a finger is on a control)
+ * @param {boolean} [wantClip] true: also PNG-encode the clipping overlay */
+export function scope(fresh = true, wantClip = false) {
   const p = photo.current(), s = photo.stamp();
-  if (p !== of) { of = p; at = -1; if (got) URL.revokeObjectURL(got.clip); got = null; }
-  if (fresh && p && !busy && at !== s) {
+  if (p !== of) { of = p; at = -1; clipAt = false; if (got?.clip) URL.revokeObjectURL(got.clip); got = null; }
+  const stale = at !== s || (wantClip && !clipAt);
+  if (fresh && p && !busy && stale) {
     busy = true;
-    photo.pixels().then((im) => (im && photo.current() === p ? read(im) : null)).then((sc) => {
+    photo.pixels().then((im) => (im && photo.current() === p ? read(im, wantClip) : null)).then((sc) => {
       busy = false;
-      if (!sc || photo.current() !== p) return;
-      if (got) URL.revokeObjectURL(got.clip);
-      got = sc; at = s; photo.events.dispatchEvent(new Event('change'));
+      if (!sc || photo.current() !== p) { if (sc?.clip) URL.revokeObjectURL(sc.clip); return; }
+      if (got?.clip) URL.revokeObjectURL(got.clip);
+      got = sc; at = s; clipAt = wantClip; photo.events.dispatchEvent(new Event('change'));
     }, () => { busy = false; at = s; });
   }
   return got;

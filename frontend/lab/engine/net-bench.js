@@ -80,7 +80,7 @@ export async function netBench(o = {}) {
     const info = { phase: /** @type {number[]} */ (phaseOf(k.meta)), black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, noise: k.meta.noise };
     const net = async (/** @type {'f16' | 'f32'} */ kd, /** @type {boolean | number[]} */ kept, /** @type {number} */ side) => { const n = await demosaicer(device, tex, info, side, side, { kind: kd, kept }); made.push(n); return n; };
     say('Compiling the network…');
-    const core = Math.max(96, Math.min(o.side || 984, 984));   // a window's own part is 984 pixels a side: one window, whole
+    const core = Math.max(96, Math.min(o.side || 978, 978));   // a window's own part is 978 pixels a side for v0.2.0 (1056 - 2*36 - 6)
     /** The whole window by a network, in one go: how long, and the picture. */
     const whole = async (/** @type {Awaited<ReturnType<typeof net>>} */ n) => {
       const enc = device.createCommandEncoder(), read = device.createBuffer({ size: core * core * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -129,7 +129,8 @@ export async function netBench(o = {}) {
     const r1 = (/** @type {number} */ v) => Math.round(v * 10) / 10, of = (/** @type {string} */ code, /** @type {string} */ name) => Number(new RegExp(`const ${name}: u32 = (\\d+)u`).exec(code)?.[1]) || 0;
     // what each pass is, and its work on a whole window in thousand millions of multiply-adds (its middle passes: a 3 x 3 or a 1 x 1 over the cells that are made)
     const ops = small.parts.exported, names = ops.map((op, j) => (of(op.code, 'CIN') && of(op.code, 'COUT') ? `${/const KK\b/.test(op.code) ? '3x3' : '1x1'} ${of(op.code, 'CIN')}>${of(op.code, 'COUT')}` : j === 0 ? 'first' : 'last'));
-    const cells = Math.min(176, Math.ceil((core + 66) / 6)) ** 2;   // the part of the window's 176 x 176 that is made (its own part and the context round it)
+    const tl = of(ops[0].code, 'TL') || 3, grid = Math.floor(N / tl), pad = 2 * small.parts.g.halo + 6;
+    const cells = Math.min(grid, Math.ceil((core + pad) / tl)) ** 2;
     const gmac = ops.map((op) => Math.round((of(op.code, 'CIN') * of(op.code, 'COUT') * (/const KK\b/.test(op.code) ? 9 : 1) * cells) / 1e7) / 100);
     // the CPU and the GPU at once: the heavy pass as this phone will run it from now on (the ways just kept)
     let two = null;

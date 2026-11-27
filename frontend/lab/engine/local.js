@@ -61,7 +61,7 @@ export function localRows(masks, g, show, base) {
       v('Exposure'), (v('Contrast') / 100) * 0.6, v('Highlights') / 100, v('Shadows') / 100,
       v('Whites') / 100, v('Blacks') / 100, v('Saturation') / 100, (v('Hue') / 100) * Math.PI,
       0.35 * temp + 0.1 * tint, -0.2 * tint, -0.35 * temp + 0.1 * tint, 0,
-      v('Texture') / 100, v('Clarity') / 100, v('Dehaze') / 100, v('Sharpness') / 100], o);
+      v('Clarity') / 100, v('Texture') / 100, v('Dehaze') / 100, v('Sharpness') / 100], o);
   });
   return out;
 }
@@ -69,7 +69,7 @@ export function localRows(masks, g, show, base) {
 /** The masks' part of the frame's shader (wgsl.js puts it before `main`; `lab` is grade.js's). */
 export const LOCAL = /* wgsl */ `
 // What the masks add at one place: exposure, contrast, highlights, shadows · whites, blacks, saturation, hue ·
-// white balance (stops on each colour) · texture, clarity, dehaze, sharpness · and how much of the mask being shown is here.
+// white balance (stops on each colour) · clarity, texture, dehaze, sharpness · and how much of the mask being shown is here.
 struct Local { a: vec4f, b: vec4f, wb: vec3f, fx: vec4f, show: f32 }
 @group(0) @binding(9) var brushed: texture_2d_array<f32>;   // the painted masks, a layer each (brush.js)
 fn painted(q: vec2f, layer: i32) -> f32 {
@@ -94,8 +94,12 @@ fn weigh(k: u32, q: vec2f, tone: vec3f) -> f32 {
 fn locals(spot: vec2f, c: vec3f) -> Local {
   var o = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
   let h = vec3f(dot(p.mh[0].xyz, vec3f(spot, 1.0)), dot(p.mh[1].xyz, vec3f(spot, 1.0)), dot(p.mh[2].xyz, vec3f(spot, 1.0)));
-  let v = lab(c * exp2(p.mi.z)); let tone = vec3f(clamp(v.x, 0.0, 1.0), v.yz / max(v.x, 1e-4));
-  for (var k = 0u; k < u32(p.mi.x); k++) {
+  let n = u32(p.mi.x);
+  var needTone = false;
+  for (var k = 0u; k < n; k++) { let kd = u32(p.mk[k * 7u].x); if (kd == 4u || kd == 5u) { needTone = true; break; } }
+  var tone = vec3f(0.0);
+  if (needTone) { let v = lab(c * exp2(p.mi.z)); tone = vec3f(clamp(v.x, 0.0, 1.0), v.yz / max(v.x, 1e-4)); }
+  for (var k = 0u; k < n; k++) {
     let w = weigh(k, h.xy / h.z, tone);
     if (f32(k) + 1.0 == p.mi.y) { o.show = w; }
     if (w <= 0.0) { continue; }

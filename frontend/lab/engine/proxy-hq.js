@@ -24,8 +24,8 @@ export const SIDE = 3 * TILE + 2 * REACH + 1;
 const sinc = (/** @type {number} */ x) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));
 const WEIGHTS = Array.from({ length: 2 * REACH + 1 }, (_, i) => sinc((i - REACH) / 3) * sinc((i - REACH) / 9));
 const SUM = WEIGHTS.reduce((s, w) => s + w, 0);
-/** The GPU memory making the copy again asks, its maker's included (a demosaic's buffers are about 36 bytes a pixel of `SIDE` squared), for a copy w x h. @param {number} w @param {number} h */
-export const need = (w, h) => w * h * 8 + SIDE * TILE * 48 + CHUNK + SIDE * SIDE * 36;
+/** The GPU memory making the copy again asks, its maker's included (a demosaic's buffers are about 52 bytes a pixel of `SIDE` squared), for a copy w x h. @param {number} w @param {number} h */
+export const need = (w, h) => w * h * 8 + SIDE * TILE * 48 + CHUNK + SIDE * SIDE * 52;
 
 // The shader is written plainly for the phones' graphics drivers (2026-11-17: the A35's chip reset half a second into
 // the first copy, at 254 of its 720 MB): no array or vector indexed by a number known only as it runs (the 17 taps each
@@ -75,7 +75,7 @@ fn colour(q: vec2i) -> vec3f {   // a site's colour as a mask: red, green or blu
   return select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), (((b.x + b.y) & 1) == 1) != (m.y == 1));
 }
 /** the sensor's: the demosaic's brightness, the colour of each colour's own sites round the copy pixel's middle, weighted
- * alike (sigma 0.82 sites, the decoder's box's spread) */
+ * alike (sigma 0.82 sites, the decoder's box's spread; 7x7 reaches >3.6 sigma) */
 @compute @workgroup_size(8, 8)
 fn tint(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= p.tile.z || i32(id.y) >= p.tile.w) { return; }
@@ -83,7 +83,7 @@ fn tint(@builtin(global_invocation_id) id: vec3u) {
   let v = vec3f(f32(a & 0xffffu), f32(a >> 16u), f32(b & 0xffffu));
   let c = vec2i(3 * (p.tile.x + i32(id.x)) + 1, 3 * (p.tile.y + i32(id.y)) + 1); let e = vec2i(textureDimensions(mos)) - 1;
   var s = vec3f(0.0); var w = vec3f(0.0);
-  for (var dy = -4; dy <= 4; dy++) { for (var dx = -4; dx <= 4; dx++) {
+  for (var dy = -3; dy <= 3; dy++) { for (var dx = -3; dx <= 3; dx++) {
     let q = clamp(c + vec2i(dx, dy), vec2i(0), e); let k = colour(q) * exp(-f32(dx * dx + dy * dy) / ${2 * 0.82 * 0.82});
     s += k * f32(textureLoad(mos, q, 0).r); w += k;
   } }
@@ -92,6 +92,18 @@ fn tint(@builtin(global_invocation_id) id: vec3u) {
   let u = vec3u(clamp(g * (yv / yg), vec3f(0.0), vec3f(65535.0)) + 0.5);
   outp[n] = u.x | (u.y << 16u); outp[n + 1u] = u.z | (b & 0xffff0000u);
 }`;
+
+/** @type {WeakMap<GPUDevice, Promise<GPUComputePipeline[]>>} */
+const compiled = new WeakMap();
+const pipes = (/** @type {GPUDevice} */ device) => {
+  let p = compiled.get(device);
+  if (!p) {
+    const module = device.createShaderModule({ code: SHADER });
+    p = Promise.all(['across', 'down', 'tint'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+    compiled.set(device, p);
+  }
+  return p;
+};
 
 /** Makes the editing copy (w x h, four 16-bit values a pixel) again into `dst`, from the photo's full resolution (W x H)
  * as `maker` makes it a rectangle at a time (demosaic.js `demosaicer` or picture.js `copier`, made for `SIDE` x `SIDE`),
@@ -107,8 +119,7 @@ fn tint(@builtin(global_invocation_id) id: vec3u) {
 export async function remake(device, dst, w, h, maker, W, H, alive = () => true, sensor = null, tile = TILE) {
   const done = doing('Building a sharper copy');
   let ended = mark('copy-compile');   // (each step marked as it begins and ends: the editor's reports say which one a reset came in)
-  const module = device.createShaderModule({ code: SHADER });
-  const [across, down, tint] = await Promise.all(['across', 'down', 'tint'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+  const [across, down, tint] = await pipes(device);
   ended();
   const bytes = w * h * 8, uni = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const none = sensor ? null : device.createTexture({ size: [1, 1], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING });

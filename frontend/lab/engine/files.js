@@ -33,9 +33,12 @@ export function reseed() { seed = SEED; }
  * @param {Uint16Array} px @param {Uint8Array} out */
 function eight(px, out) {
   let s = seed;
-  for (let i = 0; i < px.length; i++) {
+  for (let i = 0; i < px.length; i += 3) {
     s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
-    out[i] = (px[i] + ((s >>> 8) & 255)) / 257;
+    const d = (s >>> 8) & 255;
+    out[i] = (px[i] + d) / 257;
+    out[i + 1] = (px[i + 1] + d) / 257;
+    out[i + 2] = (px[i + 2] + d) / 257;
   }
   seed = s;
 }

@@ -70,14 +70,12 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
   assert.ok(r.off1 < r.off0 * 0.5, `each site comes back towards its own value (${r.off1} from ${r.off0})`);
   assert.ok(r.dark < 0.7 * r.bright, `the darkest fifth is given less of it than the lightest (${r.dark} and ${r.bright} of all of it)`);
   assert.ok(r.bright > 0.5, `the lightest fifth keeps most of it (${r.bright})`);
-  assert.ok(r.ops.length === 13 && r.ops.every((ms) => ms >= 0 && ms < 600_000), `cut, the network's eleven passes and place are timed apart (${r.ops.map(Math.round)})`);
+  assert.ok(r.ops.length === 15 && r.ops.every((ms) => ms >= 0 && ms < 600_000), `cut, the network's thirteen passes and place are timed apart (${r.ops.map(Math.round)})`);
   await page.close();
-  // Every pass another way, as a phone that found them all faster would run it (read in place; the 3 × 3 passes
-  // sixteen outputs at a time; one pixel and thirty-two outputs; a 2 × 2 block with eight outputs, and with four): a page that opens with that choice kept compiles
-  // and proves the network so, and makes the same picture.
+  // Every pass another way, as a phone that found them all faster would run it: a page that opens with that choice kept
+  // compiles and proves the network so, and makes the same picture as the Winograd default.
   let second = page;
-  // (two choices that between them run every way there is: a page each is a quarter of a minute on a software GPU)
-  for (const way of [[0, 1, 1, 3, 2, 3, 1, 4, 1, 3, 0], [0, 3, 3, 1, 5, 1, 3, 3, 3, 1, 0]]) {
+  for (const way of [[0, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 0], [0, 5, 4, 3, 2, 1, 5, 4, 3, 2, 1, 4, 0]]) {
     second = await browser.newPage({ viewport: { width: 412, height: 915 }, serviceWorkers: 'block' });
     second.on('pageerror', (e) => errors.push(e.message));
     await second.goto(`${base}/lab/engine/?readback`, { waitUntil: 'load' });
@@ -94,30 +92,27 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
       await read.mapAsync(GPUMapMode.READ);
       const u = new Uint32Array(read.getMappedRange());
       let apart = 0; for (let i = 0; i < n * n; i++) apart = Math.max(apart, Math.abs((u[i * 2] & 65535) - none[i * 3]), Math.abs((u[i * 2] >>> 16) - none[i * 3 + 1]), Math.abs((u[i * 2 + 1] & 65535) - none[i * 3 + 2]));
-      // The same window made for the screen, a part of a pass at a time (net-pace.js): the same to the last bit, in many
-      // submissions; a stop leaves it undone, and the window made whole afterwards is right again (its block is back at 0).
       const again = async () => { const e = device.createCommandEncoder(), b = device.createBuffer({ size: n * n * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }); e.copyBufferToBuffer(net.out, 0, b, 0, n * n * 8); device.queue.submit([e.finish()]); await b.mapAsync(GPUMapMode.READ); const v = new Uint32Array(b.getMappedRange().slice(0)); b.destroy(); return v; };
       const same = (/** @type {Uint32Array} */ v) => v.length === u.length && v.every((x, i) => x === u[i]);
       const took = [], all = await net.pace(0, 0, n, n, null, 1, 0, 0, { note: (ms) => took.push(ms) }), paced = same(await again());
       let asked = 0; const left = await net.pace(0, 0, n, n, null, 1, 0, 0, { stop: () => ++asked >= 3 });
       const e2 = device.createCommandEncoder(); net.run(e2, 0, 0, n, n, null, 1, 0, 0); device.queue.submit([e2.finish()]);
       const pace = { all, paced, parts: took.length, left, asked, whole: same(await again()) };
-      // a choice that cannot be right (a way that is not there, another kind of network, too few passes) is not used; all as exported is forgotten
-      const zero = new Array(11).fill(0), odd = [[0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1], 'x'].map((w) => { localStorage.setItem('th.net.tune', JSON.stringify({ v: 2, kind, way: w })); return T.chosen(kind, 11).join(''); });
-      localStorage.setItem('th.net.tune', JSON.stringify({ v: 1, kind, way })); odd.push(T.chosen(kind, 11).join(''));   // a choice kept for the ways as they were before
-      T.choose(kind, way); const wrongKind = T.chosen('f64', 11).join('');
+      const zero = new Array(13).fill(0), odd = [[0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1], 'x'].map((w) => { localStorage.setItem('th.net.tune', JSON.stringify({ v: 3, kind, way: w })); return T.chosen(kind, 13).join(''); });
+      localStorage.setItem('th.net.tune', JSON.stringify({ v: 2, kind, way })); odd.push(T.chosen(kind, 13).join(''));
+      T.choose(kind, way); const wrongKind = T.chosen('f64', 13).join('');
       T.choose(kind, zero);
       read.destroy(); net.destroy(); tex.destroy(); eng.dispose();
       return { pace, way: c.way, groups: c.g.ops.map((op) => op.groups[2]), proved: c.off, limit: N.PROOF, apart: apart / 65535, odd, wrongKind, left: localStorage.getItem('th.net.tune') };
     }, [r.none, way]);
     console.log(JSON.stringify(o));
     assert.deepEqual(o.way, way);
-    assert.deepEqual([1, 4, 7].map((j) => o.groups[j]), [1, 4, 7].map((j) => [18, 18, 9, 5, 18, 36][way[j]]), 'sixteen outputs at a time: half the dispatches; thirty-two: a quarter, rounded up; a 2 x 2 block: as exported, and twice with four outputs');
+    assert.deepEqual([1, 2, 3, 4, 5].map((j) => o.groups[j]), [1, 2, 3, 4, 5].map((j) => [2, 2, 4, 2, 8, 16][way[j]]), 'z-dispatches match the chosen way for OCB=32 layers');
     assert.ok(o.proved >= 0 && o.proved < o.limit / 4 && o.apart < 0.004, `with every pass another way the network proves itself and makes the same picture (off by ${o.proved}, apart by ${o.apart})`);
     assert.deepEqual([o.pace.all, o.pace.paced, o.pace.left, o.pace.asked, o.pace.whole], [true, true, false, 3, true], `made a part at a time it is the same picture; stopped, it is left, and the next whole one is right (${JSON.stringify(o.pace)})`);
-    assert.ok(o.pace.parts > 13, `in more submissions than it has passes (${o.pace.parts}): its sliced passes went a part at a time`);
-    assert.deepEqual([o.odd, o.wrongKind, o.left], [['00000000000', '00000000000', '00000000000', '00000000000'], '00000000000', null]);
-    if (way[1] !== 3) await second.close();
+    assert.ok(o.pace.parts > 15, `in more submissions than it has passes (${o.pace.parts}): its sliced passes went a part at a time`);
+    assert.deepEqual([o.odd, o.wrongKind, o.left], [['0000000000000', '0000000000000', '0000000000000', '0000000000000'], '0000000000000', null]);
+    if (way[1] !== 5) await second.close();
   }
   await second.close();
 });

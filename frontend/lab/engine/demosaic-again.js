@@ -33,7 +33,7 @@ fn again(@builtin(global_invocation_id) id: vec3u) {
   let q = d.at.xy - 4 + vec2i(id.xy); let k = colour(q);
   if (k == 1u) { return; }
   nearby(vec2f(q) + 0.5, 12.0);
-  let s = q + d.phase + 6; let m = s - (s / 3) * 3; let h = u32(m.y * 3 + m.x) * 6u; let wb = d.wb[k];
+  let s = q + d.phase + 6000; let m = s - (s / 3) * 3; let h = u32(m.y * 3 + m.x) * 6u; let wb = d.wb[k];
   var lo = 1e9; var hi = 0.0;
   for (var i = 0u; i < 6u; i++) { let v = raw(q + HEX[h + i]); lo = min(lo, v); hi = max(hi, v); }
   let mine = select(mix(estAt(q)[k], raw(q), trust(q, k)), raw(q), d.cen.w == 0.0) * wb;   // its own reading, where that was recorded here (fringing: demosaic.js)
@@ -47,36 +47,39 @@ fn again(@builtin(global_invocation_id) id: vec3u) {
   let n = ((id.y + 8u) * u32(d.at.z + 24) + id.x + 8u) * 2u;
   ways[n] = pack2x16float(w.xy); ways[n + 1u] = pack2x16float(w.zw);
 }
-// the picture at a place, once for each way: that way's green, red and blue by the first look's ratio to its
-// green (the site's own colour as read), on one scale, as brightness and two colour differences
-fn looks(x: vec2i) -> array<vec3f, 4> {
+// one way's YCbCr picture at x (avoids computing unused directions at neighbours)
+fn lookW(x: vec2i, w: u32) -> vec3f {
   let k = colour(x); let e = estAt(x); let own = select(mix(e[min(k, 2u)], raw(x), trust(x, k)), raw(x), d.cen.w == 0.0 || k == 1u);
-  let g4 = select(waysAt(x), vec4f(own), k == 1u);
-  var o: array<vec3f, 4>;
-  for (var w = 0; w < 4; w++) {
-    let g = g4[w]; let t = g / (e.g + 1e-5);
-    let red = select(e.r * t, own, k == 0u) * d.wb.x; let blue = select(e.b * t, own, k == 2u) * d.wb.z;
+  let g = select(waysAt(x)[w], own, k == 1u); let t = g / (e.g + 1e-5);
+  let red = select(e.r * t, own, k == 0u) * d.wb.x; let blue = select(e.b * t, own, k == 2u) * d.wb.z;
+  let y = 0.2627 * red + 0.678 * g + 0.0593 * blue;
+  return vec3f(y, (blue - y) * 0.56433, (red - y) * 0.67815);
+}
+@compute @workgroup_size(8, 8)
+fn bend2(@builtin(global_invocation_id) id: vec3u) {
+  let bw = d.at.z + 6;
+  if (i32(id.x) >= bw || i32(id.y) >= d.at.w + 6) { return; }
+  let q = d.at.xy - 3 + vec2i(id.xy);
+  nearby(vec2f(q) + 0.5, 12.0);
+  let k = colour(q); let e = estAt(q); let own = select(mix(e[min(k, 2u)], raw(q), trust(q, k)), raw(q), d.cen.w == 0.0 || k == 1u);
+  let g4 = select(waysAt(q), vec4f(own), k == 1u); var v = vec4f(0.0);
+  for (var w = 0u; w < 4u; w++) {
+    let g = g4[w]; let t0 = g / (e.g + 1e-5);
+    let red = select(e.r * t0, own, k == 0u) * d.wb.x; let blue = select(e.b * t0, own, k == 2u) * d.wb.z;
     let y = 0.2627 * red + 0.678 * g + 0.0593 * blue;
-    o[w] = vec3f(y, (blue - y) * 0.56433, (red - y) * 0.67815);
+    let c0 = vec3f(y, (blue - y) * 0.56433, (red - y) * 0.67815);
+    let t = 2.0 * c0 - lookW(q + WAY[w], w) - lookW(q - WAY[w], w);
+    v[w] = dot(t, t);
   }
-  return o;
+  bends[id.y * u32(bw) + id.x] = v;
 }
 @compute @workgroup_size(8, 8)
 fn level2(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= d.at.z + 4 || i32(id.y) >= d.at.w + 4) { return; }
-  let q = d.at.xy - 2 + vec2i(id.xy);
-  nearby(vec2f(q) + 0.5, 12.0);
-  var g: array<array<vec3f, 4>, 25>;
-  for (var j = 0; j < 5; j++) { for (var i = 0; i < 5; i++) { g[j * 5 + i] = looks(q + vec2i(i - 2, j - 2)); } }
-  var bend: array<vec4f, 9>;   // how much each way's picture bends along its own line, here and at the eight around
-  for (var j = 0; j < 3; j++) { for (var i = 0; i < 3; i++) {
-    let o = (j + 1) * 5 + i + 1; var v = vec4f(0.0);
-    for (var w = 0; w < 4; w++) { let st = WAY[w].y * 5 + WAY[w].x; let t = 2.0 * g[o][w] - g[o + st][w] - g[o - st][w]; v[w] = dot(t, t); }
-    bend[j * 3 + i] = v;
-  } }
-  let least = max(8.0 * min(min(bend[4].x, bend[4].y), min(bend[4].z, bend[4].w)), 1e-10);
+  let bw = u32(d.at.z + 6); let c = bends[(id.y + 1u) * bw + id.x + 1u];
+  let least = max(8.0 * min(min(c.x, c.y), min(c.z, c.w)), 1e-10);
   var n = vec4u(0u);
-  for (var i = 0; i < 9; i++) { n += vec4u(bend[i] <= vec4f(least)); }
+  for (var j = 0u; j < 3u; j++) { for (var i = 0u; i < 3u; i++) { n += vec4u(bends[(id.y + j) * bw + id.x + i] <= vec4f(least)); } }
   calm[(id.y + 8u) * u32(d.at.z + 20) + id.x + 8u] = n.x | (n.y << 8u) | (n.z << 16u) | (n.w << 24u);
 }
 @compute @workgroup_size(8, 8)

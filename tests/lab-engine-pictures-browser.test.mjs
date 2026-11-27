@@ -21,7 +21,7 @@ const TIGHT = { db: 0.011, grid: 0.00011 };
  * of 255 on average, then the share of pixels off by more than 1 and by more than 3. A tenth above what was
  * measured (0.25, 4.5 %, 0.16 % for the plain frame). The known photo is the worst there is for this: its made-up
  * camera sees many colours no screen shows, and those are the ones still read from the table (wgsl.js `fit`). */
-const LIMIT = { plain: [0.28, 0.05, 0.0018], bright: [0.55, 0.08, 0.0483], strong: [0.6, 0.097, 0.0229], toned: [0.33, 0.05, 0.0016] };
+const LIMIT = { plain: [0.28, 0.05, 0.0018], bright: [0.55, 0.08, 0.0483], strong: [0.6, 0.097, 0.027], toned: [0.33, 0.05, 0.0016] };   // strong >3: 2.43% measured with ProPhoto LUM in film() (mean improved to 0.496, >1 to 6.58%)
 let server, browser, base;
 
 before(async () => {
@@ -137,7 +137,7 @@ test('a full-size view and an export by the network: the same photo, a little ap
   assert.deepEqual(r.at, [240, 240]);
   assert.ok(r.light > 20, `the network's view is a picture (mean ${r.light.toFixed(1)} of 255)`);
   assert.ok(r.mean > 0.05 && r.mean < 6, `the two ways show the same photo, a little apart (${r.mean.toFixed(2)} levels on average, ${r.most} at most)`);
-  assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 13 });   // and, asked, one of the network's windows timed a pass at a time
+  assert.deepEqual(r.clock, { net: 1, gpu: true, steps: ['demosaic', 'noise', 'sharpen', 'warp', 'colour'], ops: 15 });   // and, asked, one of the network's windows timed a pass at a time
   assert.deepEqual(r.file, [240, 240, 240, 240, 'image/png']);
   // what the network was given: the photo and the context round its piece, once; in the export that carried on, only the band made again
   assert.ok(r.laid[0] > r.laid[2] && r.laid[0] < 2.5 * r.laid[2] && r.laid[1] > 0 && r.laid[1] < r.laid[0], `the network was given ${r.laid[0]} sensor pixels for a photo of ${r.laid[2]} (${r.laid[1]} for the band made again)`);

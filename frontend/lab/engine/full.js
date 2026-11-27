@@ -74,7 +74,7 @@ export async function full(e, img, mosaic) {
   const told = (() => {
     if (!sensor) return null;
     if (img.meta.noise) return /** @type {{ a: number[], b: number[] }} */ (img.meta.noise);
-    const own = sensorNoise(/** @type {number} */ (img.meta.iso) || 100), fit = fitNoise(sensor, W, H, /** @type {number} */ (img.meta.black), /** @type {number} */ (img.meta.white), phase, 3);
+    const own = sensorNoise(/** @type {number} */ (img.meta.iso) || 100, /** @type {number} */ (img.meta.dr) || 100), fit = fitNoise(sensor, W, H, /** @type {number} */ (img.meta.black), /** @type {number} */ (img.meta.white), phase, 3);
     const n = fit.ok && fit.a > 0.15 * own.a && fit.a < 3 * own.a ? fit : own;
     return { a: [n.a, n.a, n.a], b: [n.b, n.b, n.b] };
   })();
@@ -89,15 +89,16 @@ export async function full(e, img, mosaic) {
    * @param {boolean | 'twice' | 'once'} [best] true: the sensor's colours by the network (neural.js): truer and cleaner, and many
    *   times the work. Where the GPU will not have it, the view is made the usual way and says so (`net`, and `lost`: why). 'twice' and
    *   'once': the usual demosaic looking twice (Best) or once (Faster) whatever the photo is set to, for comparing them
-   * @param {boolean} [cpu] an export by the network: some of its windows made on the CPU's cores as well (net-cpu.js, `ahead`) */
-  const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false, cpu = false) => {
+   * @param {boolean} [cpu] an export by the network: some of its windows made on the CPU's cores as well (net-cpu.js, `ahead`)
+   * @param {number} [tta] 1 (default) or 4: 4-way D4 symmetry test-time augmentation for Starfish */
+  const view = async (maxW, maxH, canvas = null, readback = false, deep = false, best = false, cpu = false, tta = 1) => {
     const format = deep ? 'rgba16float' : 'rgba8unorm', [pipe, last] = await Promise.all([deepPipe(device), finishPipe(device, format)]), size = deep ? 8 : 4;
     // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
     // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
     let lost = '';   // why the network, asked for, is not what makes this view
     const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); lost = String(err?.message || err); return null; }) : null;
-    const team = net && cpu && deep ? await crew().catch((err) => { console.warn('the CPU does not help the network:', err); return null; }) : null, help = team ? helper(device, /** @type {any} */ (net), team) : null;
+    const team = net && cpu && deep && !(tta > 1) ? await crew().catch((err) => { console.warn('the CPU does not help the network:', err); return null; }) : null, help = team ? helper(device, /** @type {any} */ (net), team) : null;
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     // How much sensor a rectangle takes round what it draws on (warp.js `reach`). An export's piece by the network
     // needs less: noise reduction's neighbourhoods are not used (the network took the noise out), and the 12 pixels
@@ -119,7 +120,7 @@ export async function full(e, img, mosaic) {
     // What the Noise dial asks of the network (noise-fit.js `dialled`): how much noise it is told of, and how much grain is put back.
     const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), asked = (/** @type {number} */ dial) => { const d = dialled(dial, start); return /** @type {[number, number, number]} */ ([d.smooth, d.keep, d.quiet]); };
     const keptOf = (/** @type {Float32Array} */ f) => `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;   // the settings a rectangle's colours are made with
-    const dn = await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn.spare);
+    const dn = net ? null : await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn ? dn.spare : []);
     // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
     // turn of Noise or Sharpening then starts from the copy, not from the sensor again (the demosaic is most of the work).
     const aside = device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
@@ -153,6 +154,7 @@ export async function full(e, img, mosaic) {
     }
     async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw, /** @type {Rect} */ (made).ch, e.space); }
     async function halves() { return new Uint16Array((await bytes()).buffer); }
+    const sharpOpt = (/** @type {Rect} */ r) => ({ rx: r.rx, ry: r.ry, W, H, fNumber: /** @type {number} */ (img.meta.fNumber) || 0 });
     /** What makes a rectangle's colours from the sensor, a step at a time, by name (an export times them apart).
      * @param {Rect} r @param {Float32Array} f the frame's settings @returns {[string, (enc: GPUCommandEncoder) => void][]} */
     const steps = (r, f) => [
@@ -160,11 +162,11 @@ export async function full(e, img, mosaic) {
         // what the rectangle was made from: where on the sensor, and (the network) how much noise it was told of
         const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8;
         if (held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
-        if (given) given(enc); else if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
+        if (given) given(enc); else if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40), tta); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
         enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++;
       }],
-      ['noise', (enc) => { if (!net && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
-      ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98])],   // Sharpening: the lens's spread taken out (deconv.js)
+      ['noise', (enc) => { if (dn && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
+      ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], undefined, sharpOpt(r))],   // Sharpening: radial PSF + diffraction + halo suppression (deconv.js)
       ['warp', (enc) => bend.run(enc, e.gpu.geo(), { x: r.X, y: r.Y, scale: 1, w: r.cw, h: r.ch }, { x: r.rx, y: r.ry, scale: 1, w: r.rw, h: r.rh }, true, false, !!info.fringe)],   // the demosaic and the network (net-fringe.js) both lay red and blue on green's places
     ];
     /** The same work as `steps`, in parts small enough to hand the GPU one at a time, each its own submission and
@@ -177,12 +179,12 @@ export async function full(e, img, mosaic) {
       const list = /** @type {(() => Promise<boolean | void>)[]} */ ([]);
       if (held === key) list.push(one((enc) => { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; }));
       else {
-        if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), pace));
+        if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), pace, tta));
         else for (let k = 0; k < (usual.parts || 1); k++) list.push(one((enc) => usual.run(enc, r.rx, r.ry, r.rw, r.rh, spots, usual.parts ? k : undefined)));
         list.push(one((enc) => { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++; }));
       }
       list.push(one(noise));
-      if (f[96] > 0) for (let k = 0; k < crisp.parts; k++) list.push(one((enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], k)));
+      if (f[96] > 0) for (let k = 0; k < crisp.parts; k++) list.push(one((enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], k, sharpOpt(r))));
       list.push(one(warp));
       return list;
     };
@@ -265,7 +267,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; team?.end(); views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; team?.end(); views.splice(views.indexOf(hook), 1); dm.destroy(); dn?.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };

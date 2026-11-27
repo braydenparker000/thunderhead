@@ -57,13 +57,19 @@ struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in
 @group(0) @binding(4) var<storage, read_write> rgb: array<u32>;     // the result, two a pixel
 @group(0) @binding(5) var<storage, read_write> ways: array<u32>;    // green four ways (half floats, two u32 a pixel): the rectangle and 12 more each way
 @group(0) @binding(6) var<storage, read_write> calm: array<u32>;    // how level each way is (a byte each): the rectangle and 10 more each way
+@group(0) @binding(8) var<storage, read_write> bends: array<vec4f>;  // precomputed directional curvature for level / level2
 const OWN = 0.5;   // how far a red or blue site's own reading is trusted over what its neighbours say (measured: half gains 0.5 to 0.6 dB and costs next to no false colour; all of it gains 0.8 and costs 0.5 to 1 dB of colour)
 const CLIP = 0.97;   // a site this near the sensor's white has clipped (raw's own threshold for the editing copy)
-// a position off the frame reads the same colour's site one pattern (6 pixels) in
-fn fold(q: vec2i) -> vec2i { let n = vec2i(textureDimensions(mosaic)); return q + select(vec2i(0), vec2i(6), q < vec2i(0)) - select(vec2i(0), vec2i(6), q >= n); }
+// a position off the frame reads the same colour's site an integer number of patterns (6 pixels) in
+fn fold(q: vec2i) -> vec2i {
+  let n = vec2i(textureDimensions(mosaic)); var p = q;
+  if (p.x < 0) { p.x += ((-p.x + 5) / 6) * 6; } else if (p.x >= n.x) { p.x -= ((p.x - n.x + 6) / 6) * 6; }
+  if (p.y < 0) { p.y += ((-p.y + 5) / 6) * 6; } else if (p.y >= n.y) { p.y -= ((p.y - n.y + 6) / 6) * 6; }
+  return clamp(p, vec2i(0), n - 1);
+}
 fn own(q: vec2i) -> f32 { return (f32(textureLoad(mosaic, fold(q), 0).r) - d.black) * d.scale; }
 fn colour(q: vec2i) -> u32 {   // 0 red, 1 green, 2 blue
-  let s = q + d.phase + 6; let b = s / 3; let m = s - b * 3;
+  let s = q + d.phase + 6000; let b = s / 3; let m = s - b * 3;
   if (((m.x + m.y) & 1) == 0) { return 1u; }
   return select(0u, 2u, (((b.x + b.y) & 1) == 1) != (m.y == 1));
 }
@@ -134,7 +140,7 @@ fn guess(@builtin(global_invocation_id) id: vec3u) {
   nearby(vec2f(q) + 0.5, 12.0);
   var c = vec4f(raw(q));
   if (k != 1u) {
-    let s = q + d.phase + 6; let m = s - (s / 3) * 3; let h = u32(m.y * 3 + m.x) * 6u; let wb = d.wb[k];
+    let s = q + d.phase + 6000; let m = s - (s / 3) * 3; let h = u32(m.y * 3 + m.x) * 6u; let wb = d.wb[k];
     var lo = 1e9; var hi = 0.0;
     for (var i = 0u; i < 6u; i++) { let v = raw(q + HEX[h + i]); lo = min(lo, v); hi = max(hi, v); }
     let mine = c.x * wb;
@@ -149,21 +155,21 @@ fn guess(@builtin(global_invocation_id) id: vec3u) {
 }
 fn waysAt(q: vec2i) -> vec4f { let s = q - d.at.xy + 12; let n = u32(s.y * (d.at.z + 24) + s.x) * 2u; return vec4f(unpack2x16float(ways[n]), unpack2x16float(ways[n + 1u])); }
 @compute @workgroup_size(8, 8)
+fn bend1(@builtin(global_invocation_id) id: vec3u) {
+  let bw = d.at.z + 22;
+  if (i32(id.x) >= bw || i32(id.y) >= d.at.w + 22) { return; }
+  let q = d.at.xy - 11 + vec2i(id.xy); let g0 = waysAt(q); var v = vec4f(0.0);
+  for (var w = 0; w < 4; w++) { let t = 2.0 * g0[w] - waysAt(q + WAY[w])[w] - waysAt(q - WAY[w])[w]; v[w] = t * t; }
+  bends[id.y * u32(bw) + id.x] = v;
+}
+@compute @workgroup_size(8, 8)
 fn level(@builtin(global_invocation_id) id: vec3u) {
   let fw = d.at.z + 20;
   if (i32(id.x) >= fw || i32(id.y) >= d.at.w + 20) { return; }
-  let q = d.at.xy - 10 + vec2i(id.xy);
-  var g: array<vec4f, 25>;
-  for (var j = 0; j < 5; j++) { for (var i = 0; i < 5; i++) { g[j * 5 + i] = waysAt(q + vec2i(i - 2, j - 2)); } }
-  var bend: array<vec4f, 9>;   // how much each way's green bends along its own line, here and at the eight around
-  for (var j = 0; j < 3; j++) { for (var i = 0; i < 3; i++) {
-    let o = (j + 1) * 5 + i + 1; var v = vec4f(0.0);
-    for (var w = 0; w < 4; w++) { let st = WAY[w].y * 5 + WAY[w].x; let t = 2.0 * g[o][w] - g[o + st][w] - g[o - st][w]; v[w] = t * t; }
-    bend[j * 3 + i] = v;
-  } }
-  let least = max(8.0 * min(min(bend[4].x, bend[4].y), min(bend[4].z, bend[4].w)), 1e-10);
+  let bw = u32(d.at.z + 22); let c = bends[(id.y + 1u) * bw + id.x + 1u];
+  let least = max(8.0 * min(min(c.x, c.y), min(c.z, c.w)), 1e-10);
   var n = vec4u(0u);
-  for (var i = 0; i < 9; i++) { n += vec4u(bend[i] <= vec4f(least)); }
+  for (var j = 0u; j < 3u; j++) { for (var i = 0u; i < 3u; i++) { n += vec4u(bends[(id.y + j) * bw + id.x + i] <= vec4f(least)); } }
   calm[id.y * u32(fw) + id.x] = n.x | (n.y << 8u) | (n.z << 16u) | (n.w << 24u);
 }
 @compute @workgroup_size(8, 8)
@@ -240,12 +246,12 @@ export function phaseOf(meta) {
 
 /** @type {WeakMap<GPUDevice, Promise<GPUComputePipeline[]>>} */
 const made = new WeakMap();
-/** The eight passes, compiled once for a device, the first time full resolution is wanted. @param {GPUDevice} device */
+/** The ten passes, compiled once for a device, the first time full resolution is wanted. @param {GPUDevice} device */
 function pipes(device) {
   let p = made.get(device);
   if (!p) {
     const module = device.createShaderModule({ code: WGSL });
-    p = Promise.all(['gauss', 'guess', 'level', 'mean', 'fix', 'again', 'level2', 'pick'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+    p = Promise.all(['gauss', 'guess', 'bend1', 'level', 'mean', 'fix', 'again', 'bend2', 'level2', 'pick'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
     made.set(device, p);
   }
   return p;
@@ -254,8 +260,8 @@ function pipes(device) {
 /** Starts compiling the passes, so the first 100 % does not wait for them. @param {GPUDevice} device */
 export const compile = (device) => pipes(device);
 
-/** Makes rectangles of the photo at full resolution, each up to maxW × maxH sensor pixels. `run` adds the eight
- * passes to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
+/** Makes rectangles of the photo at full resolution, each up to maxW × maxH sensor pixels. `run` adds the passes
+ * to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
  * is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
  * @param {{ phase: number[], black: number, white: number, wb: number[], quick?: boolean, fringe?: null | { centre: number[], reach: number, table: Float32Array } }} info
@@ -263,7 +269,7 @@ export const compile = (device) => pipes(device);
  *   `quick`: the first look alone, about half the work (the owner's "Full-size detail: Faster")
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
-  const [gauss, guess, level, mean, fix, again, level2, pick] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
+  const [gauss, guess, bend1, level, mean, fix, again, bend2, level2, pick] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
   const SIZE = 352 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const cov = buf((Math.ceil(maxW / 3) + 8) * (Math.ceil(maxH / 3) + 8) * 16, GPUBufferUsage.STORAGE);
@@ -271,11 +277,12 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);   // (copied aside and back by full.js: what follows works in place)
   const ways = buf((maxW + 24) * (maxH + 24) * 8, GPUBufferUsage.STORAGE), flat = buf((maxW + 20) * (maxH + 20) * 4, GPUBufferUsage.STORAGE);
   const est = buf((maxW + 2 * REACH) * (maxH + 2 * REACH) * 8, GPUBufferUsage.STORAGE);
-  const all = [mosaic.createView(), ...[uni, cov, green, out, ways, flat, est].map((buffer) => ({ buffer }))];
-  // each pass is given just what it uses: mosaic 0, settings 1, directions 2, green 3, result 4, the four greens 5, how level 6, the first look 7
+  const bends = buf((maxW + 22) * (maxH + 22) * 16, GPUBufferUsage.STORAGE);
+  const all = [mosaic.createView(), ...[uni, cov, green, out, ways, flat, est, bends].map((buffer) => ({ buffer }))];
+  // each pass is given just what it uses: mosaic 0, settings 1, directions 2, green 3, result 4, ways 5, calm 6, est 7, bends 8
   const group = (/** @type {GPUComputePipeline} */ pipe, /** @type {number[]} */ uses) => ({ pipe, bind: device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: uses.map((binding) => ({ binding, resource: all[binding] })) }) });
-  const steps = [group(gauss, [0, 1, 2]), group(guess, [0, 1, 5]), group(level, [1, 5, 6]), group(mean, [0, 1, 3, 5, 6]), group(fix, [0, 1, 2, 3, 7]),
-    group(again, [0, 1, 5, 7]), group(level2, [0, 1, 5, 6, 7]), group(pick, [1, 4, 5, 6, 7])];
+  const steps = [group(gauss, [0, 1, 2]), group(guess, [0, 1, 5]), group(bend1, [1, 5, 8]), group(level, [1, 6, 8]), group(mean, [0, 1, 3, 5, 6]), group(fix, [0, 1, 2, 3, 7]),
+    group(again, [0, 1, 5, 7]), group(bend2, [0, 1, 5, 7, 8]), group(level2, [1, 6, 8]), group(pick, [1, 4, 5, 6, 7])];
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it @param {number} [only] this one of its `parts` steps alone (the screen's views give the GPU a step at a time: full.js) */
   const run = (enc, rx, ry, rw, rh, spots, only) => {
@@ -289,9 +296,9 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
     if (info.fringe) { f.set([...info.fringe.centre, 15 / info.fringe.reach, 1], 20); f.set(info.fringe.table, 24); }
     if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 88); }
     device.queue.writeBuffer(uni, 0, u);
-    const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
-    steps.forEach((s, k) => { if ((only !== undefined && k !== only) || (info.quick && (k === 5 || k === 6))) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again
+    const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 22, rh + 22], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 6, rh + 6], [rw + 4, rh + 4], [rw, rh]];
+    steps.forEach((s, k) => { if ((only !== undefined && k !== only) || (info.quick && (k === 6 || k === 7 || k === 8))) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again
     pass.end();
   };
-  return { out, run, parts: steps.length, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est]) b.destroy(); } };
+  return { out, run, parts: steps.length, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est, bends]) b.destroy(); } };
 }

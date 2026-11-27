@@ -14,8 +14,8 @@ import { SLICE_MS } from '../../engine/net-pace.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
-/** The GPU memory a full-size view w x h asks (measured: about 34 bytes a pixel of its square, 56 with Starfish's). @param {number} w @param {number} h */
-export const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2 * (net ? 56 : 34);
+/** The GPU memory a full-size view w x h asks: tile buffers (~48 B/px without denoiser for Starfish v0.2.0 + fixed network pool; ~50 B/px classic). @param {number} w @param {number} h */
+export const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2 * (net ? 48 : 50) + (net ? 72e6 : 0);
 
 /** Starfish for the zoom: `closer` its canvas, `place` lays it over the sensor rectangle it holds, `pace` and `parts`
  * the zoom's own (a part at a time, left when a finger comes down), `again` the zoom's way to try once more,

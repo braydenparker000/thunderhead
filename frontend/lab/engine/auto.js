@@ -29,7 +29,7 @@ export function spread(img, m, ev, at) {
   for (let y = STEP >> 1; y < h; y += STEP) {
     for (let x = STEP >> 1; x < w; x += STEP, n++) {
       const i = (y * w + x) * 4, s = Math.log2(Math.max(k[0] * p[i] + k[1] * p[i + 1] + k[2] * p[i + 2], 1 / 16384) / 0.18) + ev;
-      count[Math.min(BINS - 1, Math.max(0, Math.round(((p[i + 3] & 7 ? Math.min(s, WHITE + ev) : s) - LOW) * PER)))]++;
+      count[Math.min(BINS - 1, Math.max(0, Math.round(((p[i + 3] & 7 ? Math.max(s, WHITE + ev) : s) - LOW) * PER)))]++;
     }
   }
   const out = []; let seen = 0, b = 0;

@@ -3,7 +3,7 @@
 // profiles (a zip of DCPs, Adobe RGB tables and look XMPs) is loaded once, kept in this browser's own
 // storage (IndexedDB), never on the site, and turned into the list the profile picker shows.
 import { parseDcp, parseRgbTable } from './dcp.js';
-import { parseLook } from './look.js';
+import { parseLook, spline } from './look.js';
 
 /** Unzips a stored or deflated zip in the browser. @param {ArrayBuffer} buf @returns {Promise<Map<string, ArrayBuffer>>} */
 export async function unzip(buf) {
@@ -54,7 +54,13 @@ export async function catalogue(files, model) {
     if (base && label && tableFile && byName.has(base)) { list.push({ id: name, label, profile: byName.get(base), table: parseRgbTable(/** @type {ArrayBuffer} */ (files.get(tableFile))) }); continue; }
     const l = label ? null : await parseLook(text).catch(() => null), b = l && (dcps.find((p) => p.name === l.base && p.model === model) || byName.get(l.base));
     if (!l?.look || l.needs.length || !b) continue;
-    const curve = l.curve, tone = curve && b.tone ? b.tone.map((/** @type {number} */ y, /** @type {number} */ k) => (k % 2 ? curve(y) : y)) : b.tone;
+    const curve = l.curve;
+    let tone = b.tone;
+    if (curve && b.tone) {
+      const n = b.tone.length / 2, baseFn = spline(Array.from({ length: n }, (_, i) => b.tone[i * 2]), Array.from({ length: n }, (_, i) => b.tone[i * 2 + 1]));
+      tone = new Float32Array(65 * 2);
+      for (let i = 0; i < 65; i++) { const x = i / 64; tone[i * 2] = x; tone[i * 2 + 1] = curve(Math.max(0, Math.min(1, baseFn(x)))); }
+    }
     list.push({ id: name, label: l.name, profile: { ...b, name: l.name, look2: l.look, tone }, table: null });
   }
   // Adobe Color first (the base every edit starts from), then the film simulations in the camera's own order
