@@ -192,17 +192,19 @@ export function compile(device, kind = kindOf(device), kept = true) {
       const w0Raw = g.weights.get(0) || null;
       const held = g.sizes.map((size, id) => { const w = g.weights.get(id); if (!w) return /** @type {any} */ (null); const b = device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, w); return b; });
       g.weights.clear();
-      // Default fast path on v0.2.0: strip-sliced HWC4 Winograd F(2x2, 3x3) + 4-chunk head when no custom way[] is set.
+      // Default fast path on v0.2.0: strip-sliced HWC4 Winograd F(2x2, 3x3) + 4-chunk head (overrides legacy direct-way tune entries).
       let wino = /** @type {WinoState | null} */ (null), pipes = /** @type {GPUComputePipeline[]} */ ([]), off = -1;
-      if (kept === true && !way.some(Boolean) && isV02(g) && w0Raw) {
+      if (kept === true && isV02(g) && w0Raw) {
+        let wBuf = /** @type {GPUBuffer | null} */ (null);
         try {
-          const built = buildWeights(g, w0Raw), wBuf = device.createBuffer({ size: built.data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+          const built = buildWeights(g, w0Raw);
+          wBuf = device.createBuffer({ size: built.data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
           device.queue.writeBuffer(wBuf, 0, built.data);
           const wPipes = await compileWino(device, g, built.head);
           const cand = { pipes: wPipes, layers: built.layers, wBuf };
           off = await proof(device, g, null, cand, held);
           wino = cand;
-        } catch { wino = null; off = -1; }
+        } catch (err) { console.warn('Starfish Winograd fallback:', err); wBuf?.destroy(); wino = null; off = -1; }
       }
       if (!wino) {
         g.ops = picked();
@@ -295,5 +297,6 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   };
   /** @type {Parts} */
   const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1), at: lay };
-  return { out, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { winoRun?.destroy(); ttaRun.destroy(); out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); slots.forEach((s) => { s.uni.destroy(); s.valid.destroy(); }); } };
+  const spare = [bufs[3], bufs[4], ...(winoRun ? winoRun.spare : [])].filter(Boolean);
+  return { out, spare, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { winoRun?.destroy(); ttaRun.destroy(); out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); slots.forEach((s) => { s.uni.destroy(); s.valid.destroy(); }); } };
 }

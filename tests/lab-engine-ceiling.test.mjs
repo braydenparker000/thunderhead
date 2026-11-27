@@ -10,6 +10,8 @@ import { localRows } from '../frontend/lab/engine/local.js';
 import { sensorNoise } from '../frontend/lab/engine/noise-fit.js';
 import { crisp } from '../frontend/lab/engine/reduce.js';
 import { png, reseed } from '../frontend/lab/engine/files.js';
+import { paced } from '../frontend/lab/engine/net-pace.js';
+import { readFileSync } from 'node:fs';
 
 test('Fritsch-Carlson tangent clamping prevents overshoot on steep tone and luma curves', () => {
   const steep = [[0, 0], [0.49, 0.05], [0.51, 0.95], [1, 1]];
@@ -107,3 +109,49 @@ test('correlated RGB dither in png() keeps neutral grays strictly neutral (zero 
   const blob = await p.done();
   assert.ok(blob.size > 60 && blob.type === 'image/png');
 });
+
+test('WGSL carries local chroma-guided highlight reconstruction and 2-band multi-scale Clarity', () => {
+  assert.match(WGSL, /fn localChroma\(x: u32, y: u32\) -> vec3f/);
+  assert.match(WGSL, /0\.72 \* \(fBand - \(m - ev\)\) \+ 0\.28 \* \(l - fBand\)/);
+  const deconv = readFileSync(new URL('../frontend/lab/engine/deconv.js', import.meta.url), 'utf8');
+  assert.match(deconv, /fn sigmaAt\(q: vec2i\) -> vec2f/);
+  assert.match(deconv, /let sRad = 1\.15 \* d\.img\.w;/);
+});
+
+test('net-pace adaptively batches consecutive non-sliceable passes and stops immediately on touch', async () => {
+  const submits = [];
+  const dev = {
+    queue: {
+      writeBuffer() {},
+      submit(cmds) { submits.push(cmds[0]); },
+      async onSubmittedWorkDone() {},
+    },
+    createCommandEncoder() {
+      const dispatches = [];
+      return {
+        beginComputePass: () => ({
+          setPipeline() {}, setBindGroup() {},
+          dispatchWorkgroups(a, b, c) { dispatches.push([a, b, c]); },
+          end() {},
+        }),
+        finish: () => dispatches,
+      };
+    },
+  };
+  const passes = [
+    ...Array.from({ length: 12 }, (_, i) => [i, i, 4, 4, 1, false]),
+    ['head', 'head', 4, 4, 6, true],
+    ['place', 'place', 4, 4, 1, false],
+  ];
+  const ok = await paced(/** @type {any} */ (dev), /** @type {any} */ (passes), /** @type {any} */ ({}), { aim: 12 });
+  assert.equal(ok, true);
+  // 12 non-sliceable passes batched into <= 3 submits (3 + 6 + 3) instead of 12 individual submits
+  const nonSliceTotal = submits.slice(0, 3).reduce((n, d) => n + d.length, 0);
+  assert.equal(nonSliceTotal, 12, `batched into 3 submits: ${JSON.stringify(submits.map((d) => d.length))}`);
+  assert.ok(submits.length < 10, `total submits cut from 19 to ${submits.length}`);
+  // Stopping after first submit aborts cleanly
+  let n = 0;
+  const stopped = await paced(/** @type {any} */ (dev), /** @type {any} */ (passes), /** @type {any} */ ({}), { stop: () => ++n >= 1 });
+  assert.equal(stopped, false);
+});
+

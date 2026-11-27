@@ -9,13 +9,18 @@ import * as photo from './session.js';
 import { note } from './timings.js';
 import { tell } from './told.js';
 import { room } from '../../engine/gpu-memory.js';
-import { level, share, wait, went } from '../../engine/gentle.js';
+import { level, share, wait, waitIn, went } from '../../engine/gentle.js';
+import { doing } from '../../engine/work.js';
 import { SLICE_MS } from '../../engine/net-pace.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
-/** The GPU memory a full-size view w x h asks: tile buffers (~48 B/px without denoiser for Starfish v0.2.0 + fixed network pool; ~50 B/px classic). @param {number} w @param {number} h */
-export const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2 * (net ? 48 : 50) + (net ? 72e6 : 0);
+const CAP = 864;   // fits inside one Starfish v0.2.0 window (CORE = 978) with 0-byte sharpener scratch reuse (~122 MB total vs 289 MB uncapped)
+/** The GPU memory a full-size view w x h asks: Starfish shares its scratch planes with deconv (~24 B/px + 92 MB pool, capped at CAP); classic ~50 B/px. @param {number} w @param {number} h */
+export const viewMem = (w, h, net = false) => {
+  const cw = net ? Math.min(w, CAP) : w, ch = net ? Math.min(h, CAP) : h;
+  return (Math.sqrt(cw * ch * 1.6) + 32) ** 2 * (net ? 24 : 50) + (net ? 92e6 : 0);
+};
 
 /** Starfish for the zoom: `closer` its canvas, `place` lays it over the sensor rectangle it holds, `pace` and `parts`
  * the zoom's own (a part at a time, left when a finger comes down), `again` the zoom's way to try once more,
@@ -24,28 +29,71 @@ export const viewMem = (w, h, net = false) => (Math.sqrt(w * h * 1.6) + 32) ** 2
  *   pace: (mine: number, took: number[]) => { stop: () => boolean, note: (ms: number) => void },
  *   parts: (took: number[]) => Record<string, number>, again: (mine: number) => void, drop: () => void, busy: (n: number) => void }} z */
 export function starfish(z) {
-  let fine = /** @type {View | null} */ (null), fineOf = /** @type {Big | null} */ (null), fineCap = [0, 0], lostSaid = false;   // the network's view of the photo, and how much it holds
+  let fine = /** @type {View | null} */ (null), fineOf = /** @type {Big | null} */ (null), fineCap = [0, 0];
+  let lostSaid = false, memSaid = false, coolSaid = false;
   const letFine = () => { if (fine && fineOf === photo.whole()) fine.dispose(); fine = null; fineOf = null; fineCap = [0, 0]; };
   /** Makes Starfish's view of the sensor rectangle X, Y, w x h, while `mine()` (no newer job). @param {number} job @param {() => boolean} mine
    * @param {number} X @param {number} Y @param {number} w @param {number} h */
   async function finer(job, mine, X, Y, w, h) {
     const big = photo.whole();
     if (!big || photo.current()?.plain) return;   // a JPEG has no sensor data for the network
-    if (level('starfish')) { await wait('starfish'); if (!mine() || photo.whole() !== big) return; }   // (gentle.js: it was being made when the chip reset)
-    const t0 = performance.now(); let made = 0;   // how long the network's view took to make, when it had to be (the timings say: the first one of a photo compiles it unless that was done behind the photo, full.js)
-    if (!fine || fineOf !== big || fineCap[0] < w || fineCap[1] < h) {
-      letFine(); if (!room(viewMem(w, h, true))) z.drop();
-      if (!room(viewMem(w, h, true))) { note('fine', 0, { left: 1, memory: 1 }); return; }
-      fine = await big.view(w, h, null, false, false, true); fineOf = big; fineCap = [w, h]; made = performance.now() - t0;
+    // Never hang the "Loading Starfish" badge during a long GPU-reset cooldown (gentle.js)
+    if (level('starfish')) {
+      const ms = waitIn('starfish');
+      if (ms > 15_000) { if (!coolSaid) { coolSaid = true; tell('Starfish is resting after a GPU reset; showing standard detail'); } return; }
+      if (ms > 0) { await wait('starfish'); if (!mine() || photo.whole() !== big) return; }
     }
-    if (!fine.net || !mine()) { if (fine.lost && !lostSaid) { lostSaid = true; tell('Best quality cannot run on this phone just now: this is the standard view'); } return; }   // a GPU that will not have the network: the full-size view is all there is, and it is said, once
-    const began = performance.now(), took = /** @type {number[]} */ ([]), aim = SLICE_MS * share('starfish');   // each piece about a frame long; gentler, shorter
-    let im = /** @type {ImageData | null} */ (null), at = fine.at();
-    z.busy(1); try { await photo.alone(async () => { if (!mine() || !fine) return; await photo.settle(); at = await fine.region(X, Y, w, h, null, { ...z.pace(job, took), aim }); im = at && (await fine.read()); fine.rest(); }); } finally { z.busy(-1); }
-    if (!mine() || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...z.parts(took) }); z.again(job); return; }
-    z.closer.width = im.width; z.closer.height = im.height; /** @type {CanvasRenderingContext2D} */ (z.closer.getContext('2d', photo.space)).putImageData(im, 0, 0);
-    z.place(z.closer, at.X, at.Y, at.cw, at.ch); went('starfish');
-    note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...z.parts(took), ...(level('starfish') ? { level: level('starfish') } : {}) });
+    const cw = Math.min(CAP, Math.max(8, Math.round(w))), ch = Math.min(CAP, Math.max(8, Math.round(h)));
+    const sd = doing('Loading Starfish');
+    try {
+      const t0 = performance.now(); let made = 0;
+      if (!fine || fineOf !== big || fineCap[0] < cw || fineCap[1] < ch) {
+        letFine(); if (!room(viewMem(cw, ch, true))) z.drop();
+        if (!room(viewMem(cw, ch, true))) {
+          note('fine', 0, { left: 1, memory: 1 });
+          if (!memSaid) { memSaid = true; tell('Not enough GPU memory for Starfish at this zoom'); }
+          return;
+        }
+        fine = await big.view(cw, ch, null, false, false, true); fineOf = big; fineCap = [cw, ch]; made = performance.now() - t0;
+      }
+      if (!fine.net || !mine()) { if (fine.lost && !lostSaid) { lostSaid = true; tell('Best quality cannot run on this phone just now: this is the standard view'); } return; }
+      const began = performance.now(), took = /** @type {number[]} */ ([]), aim = SLICE_MS * share('starfish');
+      const [rw, rh] = fine.room(), rx0 = Math.max(0, Math.round(X)), ry0 = Math.max(0, Math.round(Y));
+      const allW = Math.max(8, Math.min(big.width - rx0, Math.round(w))), allH = Math.max(8, Math.min(big.height - ry0, Math.round(h)));
+      const ctx = /** @type {CanvasRenderingContext2D} */ (z.closer.getContext('2d', photo.space));
+      if (allW <= rw && allH <= rh) {
+        let im = /** @type {ImageData | null} */ (null), at = fine.at();
+        z.busy(1); try { await photo.alone(async () => { if (!mine() || !fine) return; await photo.settle(); at = await fine.region(rx0, ry0, allW, allH, null, { ...z.pace(job, took), aim }); im = at && (await fine.read()); fine.rest(); }); } finally { z.busy(-1); }
+        if (!mine() || !im || !at) { if (took.length) note('fine', performance.now() - began, { left: 1, ...z.parts(took) }); z.again(job); return; }
+        z.closer.width = im.width; z.closer.height = im.height; ctx.putImageData(im, 0, 0);
+        z.place(z.closer, at.X, at.Y, at.cw, at.ch); went('starfish');
+        note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...z.parts(took), ...(level('starfish') ? { level: level('starfish') } : {}) });
+        return;
+      }
+      // High-DPI 100 % viewport wider/taller than one Starfish window: tile center-outward and paint progressively
+      /** @type {{ x: number, y: number, tw: number, th: number, d: number }[]} */
+      const grid = [], cx = rx0 + allW / 2, cy = ry0 + allH / 2;
+      for (let ty = ry0; ty < ry0 + allH; ty += rh) {
+        const th = Math.min(rh, ry0 + allH - ty);
+        for (let tx = rx0; tx < rx0 + allW; tx += rw) {
+          const tw = Math.min(rw, rx0 + allW - tx);
+          grid.push({ x: tx, y: ty, tw, th, d: Math.hypot(tx + tw / 2 - cx, ty + th / 2 - cy) });
+        }
+      }
+      grid.sort((a, b) => a.d - b.d);
+      z.closer.width = allW; z.closer.height = allH; ctx.clearRect(0, 0, allW, allH);
+      let ok = true;
+      for (const g of grid) {
+        let im = /** @type {ImageData | null} */ (null), at = fine.at();
+        z.busy(1); try { await photo.alone(async () => { if (!mine() || !fine) return; await photo.settle(); at = await fine.region(g.x, g.y, g.tw, g.th, null, { ...z.pace(job, took), aim }); im = at && (await fine.read()); fine.rest(); }); } finally { z.busy(-1); }
+        if (!mine() || !im || !at) { ok = false; break; }
+        ctx.putImageData(im, at.X - rx0, at.Y - ry0);
+        z.place(z.closer, rx0, ry0, allW, allH);
+      }
+      if (!ok) { if (took.length) note('fine', performance.now() - began, { left: 1, ...z.parts(took) }); z.again(job); return; }
+      went('starfish');
+      note('fine', performance.now() - began, { px: allW * allH, ...(made ? { made } : {}), ...z.parts(took), ...(level('starfish') ? { level: level('starfish') } : {}) });
+    } finally { sd(); }
   }
   return { finer, letFine };
 }
