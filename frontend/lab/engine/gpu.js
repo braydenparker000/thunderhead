@@ -108,7 +108,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
   lay(); canvas.width = ow; canvas.height = oh;
   await device.queue.onSubmittedWorkDone();
   const uploadMs = performance.now() - t0;
-  const asShot = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
+  const wb0 = img.meta.wb, asShot = wb0?.[0] > 0 && wb0?.[1] > 0 && wb0?.[2] > 0 ? [wb0[1] / wb0[0], 1, wb0[1] / wb0[2]] : [0.5, 1, 0.6];
   let neutral = asShot, white = /** @type {null | { kelvin: number, tint: number }} */ (null), picked = /** @type {null | { profile: import('./dcp.js').Profile, table: any }} */ (null);
   // a picture (picture.js) has its tones already: its curve is straight, where a sensor's data with no profile gets a filmic one
   const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: img.meta.picture ? new Float32Array([0, 0, 1, 1]) : null, expOffset: 0, name: 'Camera matrix', model: '' };
@@ -173,8 +173,8 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     if (painted.sync(more.masks)) setProfile(picked);   // a first brush mask made the layers' texture: everything that binds it binds again
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
-    // wide: for a Display P3 file (wgsl.js `shown`). A look's own table and the point curve are made for sRGB's numbers: with either, sRGB's colours in P3's numbers
-    const wide = !more.wide ? 0 : (state.u.flags & 262144) || more.curve || more.luma ? 8388608 : 4194304;
+    // wide: Display P3 (4194304) stays wide-gamut for Point & Luma curves; only external sRGB .cube LUTs (262144) convert via sRGB (8388608).
+    const wide = !more.wide ? 0 : (state.u.flags & 262144) ? 8388608 : 4194304;
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
     n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.edge === false ? 1048576 : 0) | (img.meta.picture ? 2097152 : 0) | wide | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, more.grainSize || 1], 80);
@@ -236,7 +236,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     const b8 = new Uint8Array(b.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
     for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);
     b.unmap(); b.destroy();
-    return new ImageData(px, ow, oh);
+    return new ImageData(px, ow, oh, space);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
   const dispose = () => { gone = true; for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); crisp.destroy(); };

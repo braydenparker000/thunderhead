@@ -29,18 +29,22 @@ export const CLIP = 0.97 * 65535;  // where the editing copy marks a colour clip
 const planckUV = (/** @type {number} */ t) => [(0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1 + 8.42420235e-4 * t + 7.08145163e-7 * t * t),
   (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1 - 2.89741816e-5 * t + 1.61456053e-7 * t * t)];
 
+const loci = new WeakMap();
 /** The locus in the camera's own colours + CIE 1960 uv table, a mired at a time. @param {Profile} p */
 function locus(p) {
+  const hit = loci.get(p);
+  if (hit) return hit;
   const out = [];
   for (let m = VOTE[0] - 20; m <= VOTE[1] + 40; m++) {
     const k = 1e6 / m, a = neutralFor(p, k, 0), b = neutralFor(p, k, 10);
     const x = Math.log(a[0]), y = Math.log(a[2]);
     const [pu, pv] = planckUV(k), p0 = planckUV(k - 1), p1 = planckUV(k + 1);
     const du = p1[0] - p0[0], dv = p1[1] - p0[1], len = Math.hypot(du, dv) || 1;
-    const w = p.cm2 ? Math.min(1, Math.max(0, (1 / k - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1;
+    const w = p.cm2 && p.t1 !== p.t2 ? Math.min(1, Math.max(0, (1 / k - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1;
     const cm = p.cm2 ? p.cm1.map((v, i) => v * w + /** @type {number[]} */ (p.cm2)[i] * (1 - w)) : p.cm1;
     out.push({ m, x, y, tx: (Math.log(b[0]) - x) / 10, ty: (Math.log(b[2]) - y) / 10, pu, pv, nu: -dv / len, nv: du / len, icm: inv(cm) });
   }
+  loci.set(p, out);
   return out;
 }
 

@@ -25,7 +25,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var b = 0.0;   // the brightness round it, blurred (1 2 1 each way)
   for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { b += f32((2 - abs(i)) * (2 - abs(j))) * dot(textureLoad(src, clamp(q + vec2i(i, j), vec2i(0), n), 0).rgb, LUMA); } }
   let d = dot(c.rgb, LUMA) - b / 16.0;
-  let k = p.amount * smoothstep(p.floor, 2.0 * p.floor, abs(d));
+  let k = select(p.amount * smoothstep(p.floor, 2.0 * p.floor, abs(d)), p.amount, p.floor <= 0.0);
   textureStore(dst, q, vec4f(clamp(c.rgb + k * d, vec3f(0.0), vec3f(1.0)), c.a));
 }`;
 

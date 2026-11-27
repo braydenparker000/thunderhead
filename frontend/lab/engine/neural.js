@@ -110,12 +110,12 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= d.core.z || i32(id.y) >= d.core.w) { return; }
   let q = d.core.xy + vec2i(id.xy); let w = vec2u(q - d.at.xy); let p = w.y * WIN + w.x; let plane = WIN * WIN;
   var c3 = vec3f(f32(made[p]), f32(made[plane + p]), f32(made[2u * plane + p]));
-  let c = colour(q); let m = f32(mos[p]); let s = f32(sig[p]); let unclipped = own(q) < ${CLIP};
-  // Wiener high-SNR sensel anchor: preserves real sub-pixel detail (|m - c3[c]| > 1.5*s at SNR > 25)
-  // while leaking zero raw single-channel shot/read noise into shadows or flat midtones.
+  let c = colour(q); let m = f32(mos[p]); let s = f32(sig[p]); let unclipped = m < ${CLIP} * d.gain[c];
+  // WB-invariant Wiener high-SNR sensel anchor: preserves crisp sub-pixel detail across midtones AND bright base-ISO
+  // highlights (SNR > 25, dead-zone 1.5*s) while leaking zero single-channel noise into shadows.
   if (unclipped && m > 0.0) {
     let snr = m / max(s, 1e-6);
-    let gate = smoothstep(25.0, 60.0, snr) * exp(-((s / 0.005) * (s / 0.005)));
+    let gate = smoothstep(25.0, 60.0, snr);
     let diff = m - c3[c];
     c3[c] += gate * sign(diff) * max(abs(diff) - 1.5 * s, 0.0);
   }
@@ -127,8 +127,9 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
     c3 *= max(1.0 + d.na.w * snr * snr / (snr * snr + d.nb.w * d.nb.w) * z * sl / lum, 0.0);
   }
   c3 = c3 / d.gain.xyz;
-  var clip = 0u;   // which colours clipped at this pixel or beside it, as demosaic.js flags them
-  for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let s2 = q + vec2i(i, j); if (own(s2) >= ${CLIP}) { clip |= 1u << colour(s2); } } }
+  nearby(vec2f(q) + 0.5, 1.5);
+  var clip = 0u;   // which colours clipped at this pixel or beside it (honouring heal spots)
+  for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let s2 = q + vec2i(i, j); if (raw(s2) >= ${CLIP}) { clip |= 1u << colour(s2); } } }
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
   let r = q - d.rect.xy; let n = u32(r.y * d.rect.z + r.x) * 2u;
   rgb[n] = u.x | (u.y << 16u); rgb[n + 1u] = u.z | (clip << 16u);
@@ -256,7 +257,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   const noiseOf = () => info.noise || noiseAt(info.iso || 100), g1 = info.wb?.[1] || 1;
   let laid = 0;
   /** @returns {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][] & { vw: number, vh: number, pre: number }} */
-  const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0, tta = 1) => {
+  const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0, tta = 1, skipBody = false) => {
     const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly), noise = noiseOf();
     const vw = Math.min(WIN, Math.ceil((x0 + cw + HALO - wx) / 6) * 6), vh = Math.min(WIN, Math.ceil((y0 + ch + HALO - wy) / 6) * 6), s = slot(n);
     laid += vw * vh;
@@ -269,10 +270,10 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} */
     const pre = [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1, false, 0]];
     if (info.fringe) pre.push(...caRun(s.uni, vw, vh));
-    const inner = winoRun
+    const inner = skipBody ? [] : winoRun
       ? winoRun.passes(s.valid, vw, vh)
       : g.ops.map((op, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */ ([pipes[j], s.ops[j], op.groups[0], op.groups[1], op.groups[2], canSlice(op.code), j + 1]));
-    const body = tta > 1 ? ttaRun.wrap(s.valid, vw, vh, tta, inner) : inner;
+    const body = !skipBody && tta > 1 ? ttaRun.wrap(s.valid, vw, vh, tta, inner) : inner;
     /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */
     const post = [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1, false, g.ops.length + 1];
     return Object.assign([...pre, ...body, post], { vw, vh, pre: pre.length });

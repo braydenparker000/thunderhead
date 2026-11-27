@@ -16,7 +16,8 @@ export async function unzip(buf) {
     const method = v.getUint16(p + 10, true), size = v.getUint32(p + 20, true), nl = v.getUint16(p + 28, true), xl = v.getUint16(p + 30, true), cl = v.getUint16(p + 32, true);
     const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl)), local = v.getUint32(p + 42, true);
     const start = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true), raw = u8.slice(start, start + size);
-    if (!name.endsWith('/')) out.set(name.split('/').pop(), method === 0 ? raw.buffer : await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    const baseName = name.split('/').pop() || '';
+    if (!name.endsWith('/') && !name.includes('__MACOSX/') && !baseName.startsWith('._')) out.set(baseName, method === 0 ? raw.buffer : await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
     p += 46 + nl + xl + cl;
   }
   return out;
@@ -43,7 +44,7 @@ export async function catalogue(files, model) {
   const list = [], byName = new Map(), dcps = /** @type {import('./dcp.js').Profile[]} */ ([]);
   for (const [name, buf] of files) {
     if (!name.endsWith('.dcp')) continue;
-    const p = parseDcp(buf);
+    let p; try { p = parseDcp(buf); } catch { continue; }
     byName.set(p.name, p); dcps.push(p);
     list.push({ id: name, label: p.name.replace(/^Camera /, ''), profile: p, table: null });
   }
@@ -58,8 +59,8 @@ export async function catalogue(files, model) {
     let tone = b.tone;
     if (curve && b.tone) {
       const n = b.tone.length / 2, baseFn = spline(Array.from({ length: n }, (_, i) => b.tone[i * 2]), Array.from({ length: n }, (_, i) => b.tone[i * 2 + 1]));
-      tone = new Float32Array(65 * 2);
-      for (let i = 0; i < 65; i++) { const x = i / 64; tone[i * 2] = x; tone[i * 2 + 1] = curve(Math.max(0, Math.min(1, baseFn(x)))); }
+      tone = new Float32Array(129 * 2);
+      for (let i = 0; i < 129; i++) { const u = i / 128, x = u * u; tone[i * 2] = x; tone[i * 2 + 1] = curve(Math.max(0, Math.min(1, baseFn(x)))); }
     }
     list.push({ id: name, label: l.name, profile: { ...b, name: l.name, look2: l.look, tone }, table: null });
   }

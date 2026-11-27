@@ -111,9 +111,19 @@ export async function crew(n = Math.max(1, Math.min(6, (navigator.hardwareConcur
 
 const LIGHT = new Float32Array(65536);
 for (let i = 0; i < 65536; i++) { const e = (i >> 10) & 31, m = i & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? (m ? NaN : Infinity) : (1 + m / 1024) * 2 ** (e - 15); LIGHT[i] = i & 32768 ? -v : v; }
-const halfOf = (/** @type {Float32Array} */ a) => { const u = new Uint32Array(a.buffer, a.byteOffset, a.length), out = new Uint16Array(a.length);
-  for (let i = 0; i < a.length; i++) { const x = u[i], s = (x >>> 16) & 32768, e = ((x >>> 23) & 255) - 112, m = (x >>> 13) & 1023; out[i] = s | (e <= 0 ? 0 : e >= 31 ? 31744 : (e << 10) | m); }
-  return out; };
+const halfOf = (/** @type {Float32Array} */ a) => {
+  const u = new Uint32Array(a.buffer, a.byteOffset, a.length), out = new Uint16Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    const x = u[i], s = (x >>> 16) & 32768, e = ((x >>> 23) & 255) - 112, m = x & 0x7fffff;
+    if (e <= 0) {
+      if (e < -10) { out[i] = s; continue; }
+      const mant = (m | 0x800000) >>> (14 - e), round = ((m | 0x800000) >>> (13 - e)) & 1;
+      out[i] = s | (mant + round);
+    } else if (e >= 31) out[i] = s | (e === 143 && m ? 32256 : 31744);
+    else { const r = (m + 0xfff + ((m >>> 13) & 1)) >>> 13; out[i] = s | ((e << 10) + r); }
+  }
+  return out;
+};
 
 /** A window made by the CPU for the GPU's network (neural.js `demosaicer`).
  * @param {GPUDevice} device @param {any} net @param {Awaited<ReturnType<typeof crew>>} cpu */
@@ -123,7 +133,7 @@ export function helper(device, net, cpu) {
   /** @param {number} rx @param {number} ry @param {number} rw @param {number} rh @param {Float32Array | null} spots @param {number} smooth @param {number} keep @param {number} quiet */
   return async (rx, ry, rw, rh, spots, smooth, keep, quiet) => {
     if (rw > net.core || rh > net.core) return null;
-    const passes = net.parts.at(40 + (seq++ % 4), [rx, ry, rw, rh], rx, ry, spots, Math.max(0, smooth) ** 2, keep, quiet);
+    const passes = net.parts.at(40 + (seq++ % 4), [rx, ry, rw, rh], rx, ry, spots, Math.max(0, smooth) ** 2, keep, quiet, 1, true);
     const vh = passes.vh, vw = passes.vw, pre = passes.pre || 1, n = vh * win * wide;
     const back = device.createBuffer({ size: 2 * n, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
     for (let j = 0; j < pre; j++) { const [p, b, x, y, z] = passes[j]; pass.setPipeline(p); pass.setBindGroup(0, b); pass.dispatchWorkgroups(x, y, z); }

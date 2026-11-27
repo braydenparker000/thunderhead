@@ -123,9 +123,10 @@ export async function full(e, img, mosaic) {
     const dn = net ? null : await denoiser(device, dm.out);
     const spare = net ? net.spare.filter((b) => b.size >= dm.out.size / 2) : dn ? dn.spare : [];
     const crisp = await sharpener(device, dm.out, spare);
-    // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
-    // turn of Noise or Sharpening then starts from the copy, not from the sensor again (the demosaic is most of the work).
-    const aside = device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
+    if (gone) { team?.end(); dm.destroy(); dn?.destroy(); crisp.destroy(); throw new Error('the photo was closed'); }
+    // Noise reduction and sharpening work on the demosaiced rectangle in place, so screen views keep a copy aside:
+    // a turn of Noise or Sharpening starts from it. Exports (deep) never reuse a tile, so they skip the 13 MB buffer.
+    const aside = deep ? null : device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
     let held = '', given = /** @type {((enc: GPUCommandEncoder) => void) | null} */ (null);   // a rectangle's colours made by the CPU (`ahead`), laid in by `region`
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -163,9 +164,9 @@ export async function full(e, img, mosaic) {
       ['demosaic', (enc) => {
         // what the rectangle was made from: where on the sensor, and (the network) how much noise it was told of
         const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8;
-        if (held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
+        if (aside && held === key) { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; return; }
         if (given) given(enc); else if (net) net.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40), tta); else dm.run(enc, r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots);
-        enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++;
+        if (aside) { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; } stats.demosaic++;
       }],
       ['noise', (enc) => { if (dn && (f[100] > 0 || f[101] > 0)) dn.run(enc, r.rw, r.rh, e.gpu.noise, f[100], f[101]); }],   // the network took the noise out as it made the colours
       ['sharpen', (enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], undefined, sharpOpt(r))],   // Sharpening: radial PSF + diffraction + halo suppression (deconv.js)
@@ -179,11 +180,11 @@ export async function full(e, img, mosaic) {
       const one = (/** @type {(enc: GPUCommandEncoder) => void} */ run) => async () => { const t = performance.now(), enc = device.createCommandEncoder(); run(enc); device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone(); pace.note?.(performance.now() - t); };
       const key = `${r.rx},${r.ry},${r.rw},${r.rh},${net ? f[100] : ''}`, bytes = r.rw * r.rh * 8, spots = e.gpu.geo().spots, usual = /** @type {any} */ (dm), [, noise, , warp] = steps(r, f).map((s) => s[1]);
       const list = /** @type {(() => Promise<boolean | void>)[]} */ ([]);
-      if (held === key) list.push(one((enc) => { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; }));
+      if (aside && held === key) list.push(one((enc) => { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; }));
       else {
         if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), { ...pace, tta }));
         else for (let k = 0; k < (usual.parts || 1); k++) list.push(one((enc) => usual.run(enc, r.rx, r.ry, r.rw, r.rh, spots, usual.parts ? k : undefined)));
-        list.push(one((enc) => { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++; }));
+        if (aside) list.push(one((enc) => { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++; })); else stats.demosaic++;
       }
       list.push(one(noise));
       if (f[96] > 0) for (let k = 0; k < crisp.parts; k++) list.push(one((enc) => crisp.run(enc, r.rw, r.rh, info.wb, f[96], f[97], f[98], k, sharpOpt(r))));
@@ -260,10 +261,11 @@ export async function full(e, img, mosaic) {
       const f = new Float32Array(u);
       if (net && tta > 1 && !pace && !given && bind && (!fresh || cleaned !== keptOf(f))) {
         const t0 = performance.now(), key = `${r.rx},${r.ry},${r.rw},${r.rh},${f[100]}`, bytes = r.rw * r.rh * 8;
-        if (held === key) { const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); stats.kept++; }
+        if (aside && held === key) { const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); stats.kept++; }
         else {
           await net.runExport(r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40), tta, extra || {});
-          const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); held = key; stats.demosaic++;
+          if (aside) { const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); held = key; }
+          stats.demosaic++;
         }
         if (clock) clock.demosaic = (clock.demosaic || 0) + performance.now() - t0;
         for (const [name, run] of steps(r, f).slice(1)) await timed(name, run);
@@ -281,7 +283,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; team?.end(); views.splice(views.indexOf(hook), 1); dm.destroy(); dn?.destroy(); crisp.destroy(); bend.destroy(); aside.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; team?.end(); views.splice(views.indexOf(hook), 1); dm.destroy(); dn?.destroy(); crisp.destroy(); bend.destroy(); aside?.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };

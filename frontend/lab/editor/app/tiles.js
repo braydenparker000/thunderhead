@@ -18,7 +18,7 @@ export function tile(key, st, w, more, only = false) {
   if (now && !made.has(key) && !asked.has(key)) {
     asked.add(key);
     photo.picture(typeof st === 'function' ? st() : st, w, more).then((url) => {
-      if (of !== now || !url) { URL.revokeObjectURL(url); return; }
+      if (of !== now || !url) { if (url) URL.revokeObjectURL(url); if (of === now) asked.delete(key); return; }
       const kind = key.slice(0, key.indexOf(':') + 1);
       if (only) for (const [k, u] of made) if (k.startsWith(kind)) { URL.revokeObjectURL(u); made.delete(k); asked.delete(k); }
       made.set(key, url); photo.events.dispatchEvent(new Event('change'));

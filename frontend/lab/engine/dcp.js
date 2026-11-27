@@ -30,7 +30,7 @@ export function parseDcp(buf) {
     if (type === 2 || type === 1 || type === 7) val = new TextDecoder().decode(new Uint8Array(buf, at, count)).replace(/\0+$/, '');
     else if (type === 3) val = Array.from({ length: count }, (_, k) => u16(at + k * 2));
     else if (type === 4) val = Array.from({ length: count }, (_, k) => u32(at + k * 4));
-    else if (type === 10 || type === 5) val = Array.from({ length: count }, (_, k) => (type === 10 ? v.getInt32(at + k * 8, le) : u32(at + k * 8)) / (type === 10 ? v.getInt32(at + k * 8 + 4, le) : u32(at + k * 8 + 4)));
+    else if (type === 10 || type === 5) val = Array.from({ length: count }, (_, k) => { const d = type === 10 ? v.getInt32(at + k * 8 + 4, le) : u32(at + k * 8 + 4); return d ? (type === 10 ? v.getInt32(at + k * 8, le) : u32(at + k * 8)) / d : 0; });
     else if (type === 11) { val = new Float32Array(count); for (let k = 0; k < count; k++) val[k] = v.getFloat32(at + k * 4, le); }
     else continue;
     tags.set(tag, val);
@@ -108,7 +108,7 @@ const xyzToKelvin = (/** @type {number[]} */ xyz) => {
   return d > 0 ? uvToKelvin((4 * xyz[0]) / d, (6 * xyz[1]) / d) : 5000;
 };
 const blend = (/** @type {number[]} */ a, /** @type {number[] | null} */ b, /** @type {number} */ w) => (b ? a.map((x, k) => x * w + b[k] * (1 - w)) : a);
-const weightOf = (/** @type {Profile} */ p, /** @type {number} */ t) => (p.cm2 ? Math.min(1, Math.max(0, (1 / t - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1);
+const weightOf = (/** @type {Profile} */ p, /** @type {number} */ t) => (p.cm2 && p.t1 !== p.t2 ? Math.min(1, Math.max(0, (1 / t - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1);
 export function cameraToProPhoto(p, neutral) {
   const weight = (/** @type {number} */ t) => weightOf(p, t);
   let t = 5000;

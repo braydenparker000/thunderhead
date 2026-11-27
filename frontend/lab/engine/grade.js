@@ -141,12 +141,12 @@ fn smoothNoise(q: vec2f) -> f32 {
   return mix(mix(speck(g), speck(g + vec2i(1, 0)), u.x), mix(speck(g + vec2i(0, 1)), speck(g + vec2i(1, 1)), u.x), u.y);
 }
 fn grain(o: vec3f, spot: vec2f) -> vec3f {
-  let q1 = spot * p.noise.zw * 2.0 / p.chroma.w;
+  let q1 = (spot * p.noise.zw + select(vec2f(0.0), vec2f(0.23, 0.41), p.f.w >= 1.0)) * select(2.0, 1.73, p.f.w >= 1.0) / p.chroma.w;
   // Octave 2 rotated 37 degrees at 1.85x frequency breaks axis alignment and produces organic silver-halide clumping.
   let q2 = vec2f(0.7986355 * q1.x - 0.6018150 * q1.y, 0.6018150 * q1.x + 0.7986355 * q1.y) * 1.85 + vec2f(17.3, 41.9);
   let n = (0.72 * smoothNoise(q1) + 0.28 * smoothNoise(q2)) * 1.52;
   let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
-  return o + n * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
+  return o + n * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.58, p.f.w >= 1.0);
 }
 fn point(x: f32, k: u32) -> f32 { let f = clamp(x, 0.0, 1.0) * 127.0; let i = u32(f); let j = min(i + 1u, 127u); return mix(p.crv[i][k], p.crv[j][k], f - f32(i)); }
 fn lumaPoint(x: f32) -> f32 { let f = clamp(x, 0.0, 1.0) * 127.0; let i = u32(f); let j = min(i + 1u, 127u); return mix(p.luma[i >> 2u][i & 3u], p.luma[j >> 2u][j & 3u], f - f32(i)); }`;

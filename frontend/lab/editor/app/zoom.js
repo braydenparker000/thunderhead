@@ -242,6 +242,8 @@ let making2 = 0; const pace = (/** @type {number} */ mine, /** @type {number[]} 
 const parts = (/** @type {number[]} */ took) => (took.length ? { parts: took.length, part: Math.round(Math.max(...took)) } : {});
 const again1 = (/** @type {number} */ mine) => { if (mine === job && !g && !gliding()) settle(400); };   // a view left for an edit's waiting frame (no finger, no newer job) is made again once the frames stop
 const sf = starfish({ closer, place, pace, parts, again: again1, drop: () => { view?.dispose(); view = null; cap = 0; }, busy: (n) => { making2 += n; } }), letFine = sf.letFine;   // Starfish's view (zoom-fine.js)
+/** Releases zoom GPU views and cached tiles before a full-size export so 4 GB phones keep maximum memory headroom. */
+export function releaseViews() { job++; hide(); view?.dispose(); view = null; cap = 0; letFine(); forget(); }
 const FINE = 0.999, THIRD = 0.37;   // from 100 % the network makes what shows (the owner, 2026-11-12, having compared them: the network is best); under a third of the sensor's size the copy has the screen's pixels already, and a little over it is stretched under a tenth, which does not show (no tiles made for that)
 async function detail(/** @type {number} */ mine) {
   if (z > 1.02) performance.mark('th:map'); mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
@@ -263,7 +265,7 @@ async function detail(/** @type {number} */ mine) {
       const [rw, rh] = v.room(), w = Math.min(X1 - X + 2, rw), h = Math.min(Y1 - Y + 2, rh);   // strongly straightened, the view holds less than a screenful: its middle
       v.place(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h);
       // its colours are made first, a part at a time, and left if a finger comes down; the frame that follows only lays them out
-      let ok = false; own = true; making2++; try { await photo.alone(async () => { ok = mine === job && !!(await v.region(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h, null, pace(mine, []))); }); if (ok) await photo.frame(); } finally { own = false; making2--; }
+      let ok = false; own = true; making2++; try { await photo.alone(async () => { if (mine !== job) return; await photo.settle(); ok = mine === job && !!(await v.region(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h, null, pace(mine, []))); }); if (ok) await photo.frame(); } finally { own = false; making2--; }
       if (!ok) { if (mine !== job || g || gliding()) note('detail', 0, { left: 1 }); again1(mine); return; }
       if (mine !== job) return;
       still.style.display = 'none'; madeFor = stamp; went('detail'); done();

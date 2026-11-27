@@ -53,6 +53,7 @@ export function fitNoise(mosaic, W, H, black, white, phase, skip = 2) {
   for (const p of pts) {
     const n = p.length / 2; if (n < 40) continue;
     const vs = Array.from({ length: n }, (_, i) => p[2 * i + 1]).sort((u, v) => u - v), cut = vs[Math.floor(n * LOW)];
+    if (!(cut > 0)) continue;
     let xs = 0, m = 0; for (let i = 0; i < n; i++) if (p[2 * i + 1] <= cut) { xs += p[2 * i]; m++; }
     line.push([xs / m, cut / lowIs, n]);
   }
@@ -74,10 +75,10 @@ export function fitNoise(mosaic, W, H, black, white, phase, skip = 2) {
 
 /** What the sensor itself gives for the X-Trans V (X-E5, X-T5, X-H2: a full well near 22,900 electrons at ISO 125, the
  * second gain from ISO 500; photonstophotos' measurements), for a photo too busy or too dark to fit: a per effective
- * analog ISO (accounting for Fujifilm DR200/DR400 underexposure), and b from the read noise.
+ * analog ISO (accounting for Fujifilm DR200/DR400 underexposure and DR50 extended low ISO), and b from the read noise.
  * @param {number} iso @param {number} [dr] @returns {{ a: number, b: number }} */
 export function sensorNoise(iso, dr = 100) {
-  const eff = iso * 100 / Math.max(100, dr), a = eff / (125 * 22900), read = eff < 500 ? 2.5 : 1.25;
+  const eff = iso * 100 / Math.max(25, dr), a = eff / (125 * 22900), read = eff < 500 ? 2.5 : 1.25;
   return { a, b: (read * a) ** 2 };
 }
 

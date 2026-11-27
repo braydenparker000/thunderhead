@@ -145,7 +145,7 @@ fn guess(@builtin(global_invocation_id) id: vec3u) {
     for (var i = 0u; i < 6u; i++) { let v = raw(q + HEX[h + i]); lo = min(lo, v); hi = max(hi, v); }
     let mine = c.x * wb;
     let a = 0.6796875 * (raw(q + HEX[h + 1u]) + raw(q + HEX[h])) - 0.1796875 * (raw(q + 2 * HEX[h + 1u]) + raw(q + 2 * HEX[h]));
-    let b = 0.87109375 * raw(q + HEX[h + 3u]) + 0.13 * raw(q + HEX[h + 2u]) + 0.359375 * (mine - raw(q - HEX[h + 2u]) * wb);
+    let b = 0.87109375 * raw(q + HEX[h + 3u]) + 0.12890625 * raw(q + HEX[h + 2u]) + 0.359375 * (mine - raw(q - HEX[h + 2u]) * wb);
     let e = 0.640625 * raw(q + HEX[h + 4u]) + 0.359375 * raw(q - 2 * HEX[h + 4u]) + 0.12890625 * (2.0 * mine - (raw(q + 3 * HEX[h + 4u]) + raw(q - 3 * HEX[h + 4u])) * wb);
     let f = 0.640625 * raw(q + HEX[h + 5u]) + 0.359375 * raw(q - 2 * HEX[h + 5u]) + 0.12890625 * (2.0 * mine - (raw(q + 3 * HEX[h + 5u]) + raw(q - 3 * HEX[h + 5u])) * wb);
     c = clamp(select(vec4f(a, b, e, f), vec4f(b, a, f, e), m.y == 1), vec4f(lo), vec4f(hi));   // in the lone greens' rows the guesses lie the other way round
