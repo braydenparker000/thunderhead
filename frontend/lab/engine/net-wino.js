@@ -4,10 +4,10 @@
 // counts 15->64->64(x6)->128->128(x2)->27. Using SoA V/M [16, c4, nTiles] with workgroup_size(16, 4, 1) gives 100%
 // coalesced warp reads/writes, 100% uniform L1 weight broadcasts, 0% wasted threads on 64/128-ch layers, and ~38 live
 // 32-bit registers (strictly under Mali Valhall's 64-register spill cap) while preserving full f32 accumulation precision.
-// Strip-slicing V/M to STRIP_TILES=10 keeps scratch VRAM to ~14.4 MB (f16, still large enough for deconv spare reuse)
-// and makes every wGemm pass sliceable along p=0..15 so interactive UI never stalls on mobile GPUs.
+// Strip-slicing V/M to STRIP_TILES=4 keeps each Winograd slice to 180 KB (< Mali-G57's 256 KB L2 cache) and scratch
+// VRAM to ~5.76 MB (f16, while bufs[3]/bufs[4] still supply 23 MB spare reuse for deconv).
 
-const STRIP_TILES = 10;   // 10 Winograd tile rows = 20 packed rows = 60 sensor rows per strip (~7.2 MB/buf in f16)
+const STRIP_TILES = 4;    // 4 Winograd tile rows = 8 packed rows = 24 sensor rows per strip (~180 KB/slice in f16)
 const yieldUi = () => new Promise((r) => setTimeout(r, 0));
 
 /** IEEE-754 half float -> float32. @param {number} h */

@@ -45,7 +45,7 @@ fn clipped(v: f32, c: u32) -> bool { return v >= ${CA_CLIP} * d.gain[c]; }
 @group(0) @binding(0) var<uniform> d: D;
 @group(0) @binding(1) var<storage, read> mos: array<T>;
 @group(0) @binding(2) var<storage, read_write> b3: array<f32>;
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -71,7 +71,7 @@ fn cr(f: f32) -> vec4f {
   return vec4f(f * (-0.5 + f * (1.0 - 0.5 * f)), 1.0 + f * f * (-2.5 + 1.5 * f),
                f * (0.5 + f * (2.0 - 1.5 * f)), f * f * (-0.5 + 0.5 * f));
 }
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -99,7 +99,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 @group(0) @binding(1) var<storage, read> mos: array<T>;
 @group(0) @binding(2) var<storage, read> b4: array<f32>;
 @group(0) @binding(3) var<storage, read_write> b3: array<f32>;
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -136,7 +136,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 @group(0) @binding(0) var<uniform> d: D;
 @group(0) @binding(1) var<storage, read> b3: array<f32>;
 @group(0) @binding(2) var<storage, read_write> b4: array<f32>;
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -161,7 +161,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 @group(0) @binding(2) var<storage, read> sig: array<T>;
 @group(0) @binding(3) var<storage, read> b4: array<f32>;
 @group(0) @binding(4) var<storage, read_write> b3: array<f32>;
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -174,7 +174,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     if (trust < 1.0) {
       let cen = vec2i(i32(round(dk.x)), i32(round(dk.y)));
       let aOff = select(2u * PLANE, PLANE, c == 0u);
-      var num = 0.0; var numA = 0.0; var den = 0.0; var w2 = 0.0;
+      var num = 0.0; var numA = 0.0; var den = 0.0; var varS = 0.0;
       for (var dy = -3; dy <= 3; dy++) {
         for (var dx = -3; dx <= 3; dx++) {
           let o = cen + vec2i(dx, dy);
@@ -184,17 +184,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
           let off = vec2f(f32(o.x), f32(o.y)) - dk;
           let w = exp(-dot(off, off) * INV_2S2);
           let idx = u32(ry) * WIN + u32(rx);
-          let mq = f32(mos[idx]);
+          let mq = f32(mos[idx]); let sq = f32(sig[idx]);
           let a = select(b4[aOff + idx], 0.0, clipped(mq, c));
           num += w * (mq - a * b4[idx]);
-          numA += w * a; den += w; w2 += w * w;
+          numA += w * a; den += w; varS += w * w * sq * sq;
         }
       }
       if (den > 1e-12) {
         let moved = (num + numA * b4[3u * PLANE + p]) / den;
-        let nf = sqrt(w2) / den;
         outV = mix(moved, own, trust);
-        outS = outS * mix(nf, 1.0, trust);
+        outS = mix(sqrt(varS) / den, outS, trust);
       }
     }
   }
@@ -207,7 +206,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 @group(0) @binding(1) var<storage, read> b3: array<f32>;
 @group(0) @binding(2) var<storage, read_write> mos: array<T>;
 @group(0) @binding(3) var<storage, read_write> sig: array<T>;
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let x = i32(id.x); let y = i32(id.y);
   if (x >= d.at.z || y >= d.at.w) { return; }
@@ -246,7 +245,7 @@ export function caFixRunner(device, g, ca, bufs) {
   const pipes = [ca.green, ca.moved, ca.fit, ca.fitMean, ca.gather, ca.commit];
   /** @param {GPUBuffer} uni @param {number} vw @param {number} vh */
   return (uni, vw, vh) => {
-    const gx = Math.ceil(vw / 16), gy = Math.ceil(vh / 16), bgs = bgsFor(uni);
+    const gx = Math.ceil(vw / 8), gy = Math.ceil(vh / 8), bgs = bgsFor(uni);
     return pipes.map((p, i) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */ ([p, bgs[i], gx, gy, 1, false, 0]));
   };
 }

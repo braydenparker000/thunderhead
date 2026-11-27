@@ -256,6 +256,16 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   })());
   const noiseOf = () => info.noise || noiseAt(info.iso || 100), g1 = info.wb?.[1] || 1;
   let laid = 0;
+  const needsCa = (/** @type {number} */ wx, /** @type {number} */ wy, /** @type {number} */ vw, /** @type {number} */ vh) => {
+    const fr = info.fringe; if (!fr) return false;
+    const [cx, cy] = fr.centre, invR = 15 / fr.reach, tbl = fr.table;
+    for (const x of [wx, wx + vw]) for (const y of [wy, wy + vh]) {
+      const r = Math.hypot(x - cx, y - cy), t = Math.min(r * invR, 15), j = Math.min(Math.floor(t), 14), f = t - j;
+      const ax = tbl[j * 4] * (1 - f) + tbl[(j + 1) * 4] * f, ay = tbl[j * 4 + 1] * (1 - f) + tbl[(j + 1) * 4 + 1] * f;
+      if (r * Math.max(Math.abs(ax), Math.abs(ay)) >= 0.08) return true;
+    }
+    return false;
+  };
   /** @returns {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][] & { vw: number, vh: number, pre: number }} */
   const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0, tta = 1, skipBody = false) => {
     const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly), noise = noiseOf();
@@ -269,7 +279,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw, 0, 0]));
     /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} */
     const pre = [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1, false, 0]];
-    if (info.fringe) pre.push(...caRun(s.uni, vw, vh));
+    if (needsCa(wx, wy, vw, vh)) pre.push(...caRun(s.uni, vw, vh));
     const inner = skipBody ? [] : winoRun
       ? winoRun.passes(s.valid, vw, vh)
       : g.ops.map((op, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */ ([pipes[j], s.ops[j], op.groups[0], op.groups[1], op.groups[2], canSlice(op.code), j + 1]));
@@ -294,7 +304,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   const pace = async (rx, ry, rw, rh, spots, smooth, keep = 0, quiet = 0, o = {}) => {
     const k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2;
     for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) {
-      const passes = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet, o.tta || 1).map((p) => /** @type {import('./net-pace.js').Paced} */ ([p[0], p[1], p[2], p[3], p[4], !!p[5]]));
+      const passes = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet, o.tta || 1).map((p) => /** @type {import('./net-pace.js').Paced} */ ([p[0], p[1], p[2], p[3], p[4], !!p[5], p[6] || 0]));
       if (!(await paced(device, passes, slot(0).valid, o))) return false;
     }
     return true;

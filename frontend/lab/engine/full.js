@@ -98,7 +98,7 @@ export async function full(e, img, mosaic) {
     // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
     let lost = '';   // why the network, asked for, is not what makes this view
     const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, net = sensor && best === true ? await network(device, tex, info, side, side).catch((err) => { console.warn('the network is not used:', err); lost = String(err?.message || err); return null; }) : null;
-    const team = net && cpu && deep && !(tta > 1) ? await crew().catch((err) => { console.warn('the CPU does not help the network:', err); return null; }) : null, help = team ? helper(device, /** @type {any} */ (net), team) : null;
+    const team = net && cpu && deep ? await crew().catch((err) => { console.warn('the CPU does not help the network:', err); return null; }) : null, help = team ? helper(device, /** @type {any} */ (net), team) : null;
     const dm = net || (sensor ? await demosaicer(device, tex, typeof best === 'string' ? { ...info, quick: best === 'once' } : info, side, side) : await copier(device, tex, side, side));
     // How much sensor a rectangle takes round what it draws on (warp.js `reach`). An export's piece by the network
     // needs less: noise reduction's neighbourhoods are not used (the network took the noise out), and the 12 pixels
@@ -141,7 +141,7 @@ export async function full(e, img, mosaic) {
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
     /** A rectangle's colours made on the CPU while the GPU is at others: what `region` is then given (null where the CPU cannot). @param {number} X @param {number} Y @param {number} cw @param {number} ch */
-    const ahead = async (X, Y, cw, ch) => { const r = shape(X, Y, cw, ch), f = new Float32Array(e.gpu.settings()); return /** @type {NonNullable<typeof help>} */ (help)(r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40)); };
+    const ahead = async (X, Y, cw, ch) => { const r = shape(X, Y, cw, ch), f = new Float32Array(e.gpu.settings()); return /** @type {NonNullable<typeof help>} */ (help)(r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40), tta); };
     const self = { place, rest: () => { at = null; }, region, ahead: help ? ahead : null, helpers: team ? team.n : 0, read, halves, dispose, room: () => fit, at: () => at, net: !!net, lost, laid: () => (net ? net.laid : 0), ops: net ? (/** @type {number} */ side) => timed(net, side || undefined) : null, stats, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
