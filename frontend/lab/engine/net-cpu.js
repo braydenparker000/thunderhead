@@ -64,10 +64,18 @@ export async function layersOf() {
   return { layers, head: { w0: pw.slice(c(h, 'W0') * 4, (c(h, 'W0') + 36 * 736) * 4), w1: pw.slice(c(h, 'W1') * 4, (c(h, 'W1') + 49) * 4) } };
 }
 
+/** Copies a Float32Array into a SharedArrayBuffer when cross-origin isolated so worker startup avoids cloning weights N times. @param {Float32Array} a */
+const share = (a) => {
+  if (typeof SharedArrayBuffer === 'undefined') return a;
+  try { const s = new Float32Array(new SharedArrayBuffer(a.byteLength)); s.set(a); return s; } catch { return a; }
+};
+
 /** Workers on `n` of the CPU's cores, each with the network.
  * @param {number} [n] @param {number} [win] */
 export async function crew(n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 2)), win = 1056) {
-  const net = await layersOf(), fused = await WebAssembly.compileStreaming(fetch(new URL('./cpu/conv-fused.wasm', import.meta.url))).catch(() => null);
+  const net0 = await layersOf();
+  const net = { layers: net0.layers.map((l) => ({ ...l, w: share(l.w), b: share(l.b) })), head: { w0: share(net0.head.w0), w1: share(net0.head.w1) } };
+  const fused = await WebAssembly.compileStreaming(fetch(new URL('./cpu/conv-fused.wasm', import.meta.url))).catch(() => null);
   const module = fused || (await WebAssembly.compileStreaming(fetch(new URL('./cpu/conv.wasm', import.meta.url))));
   const rows = Math.ceil(win / S / n), pool = /** @type {Worker[]} */ ([]);
   try {
@@ -111,19 +119,30 @@ export async function crew(n = Math.max(1, Math.min(6, (navigator.hardwareConcur
 
 const LIGHT = new Float32Array(65536);
 for (let i = 0; i < 65536; i++) { const e = (i >> 10) & 31, m = i & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? (m ? NaN : Infinity) : (1 + m / 1024) * 2 ** (e - 15); LIGHT[i] = i & 32768 ? -v : v; }
-const halfOf = (/** @type {Float32Array} */ a) => { const u = new Uint32Array(a.buffer, a.byteOffset, a.length), out = new Uint16Array(a.length);
-  for (let i = 0; i < a.length; i++) { const x = u[i], s = (x >>> 16) & 32768, e = ((x >>> 23) & 255) - 112, m = (x >>> 13) & 1023; out[i] = s | (e <= 0 ? 0 : e >= 31 ? 31744 : (e << 10) | m); }
-  return out; };
+const halfOf = (/** @type {Float32Array} */ a) => {
+  const u = new Uint32Array(a.buffer, a.byteOffset, a.length), out = new Uint16Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    const x = u[i], s = (x >>> 16) & 32768, e = ((x >>> 23) & 255) - 112, m = x & 0x7fffff;
+    if (e <= 0) {
+      if (e < -10) { out[i] = s; continue; }
+      const mant = (m | 0x800000) >>> (14 - e), round = ((m | 0x800000) >>> (13 - e)) & 1;
+      out[i] = s | (mant + round);
+    } else if (e >= 31) out[i] = s | (e === 143 && m ? 32256 : 31744);
+    else { const r = (m + 0xfff + ((m >>> 13) & 1)) >>> 13; out[i] = s | ((e << 10) + r); }
+  }
+  return out;
+};
+const mapC = (/** @type {number} */ v, /** @type {number} */ lim, /** @type {number} */ flip) => { if (!flip) return v; const s = lim - 2 - v; return s < 0 ? s + 6 : s; };
 
-/** A window made by the CPU for the GPU's network (neural.js `demosaicer`).
+/** A window made by the CPU for the GPU's network (neural.js `demosaicer`), including Ultra 4x D4 TTA.
  * @param {GPUDevice} device @param {any} net @param {Awaited<ReturnType<typeof crew>>} cpu */
 export function helper(device, net, cpu) {
   const { g, bufs } = net.parts, wide = g.kind === 'f16' ? 2 : 4, win = g.win;
   let seq = 0;
-  /** @param {number} rx @param {number} ry @param {number} rw @param {number} rh @param {Float32Array | null} spots @param {number} smooth @param {number} keep @param {number} quiet */
-  return async (rx, ry, rw, rh, spots, smooth, keep, quiet) => {
+  /** @param {number} rx @param {number} ry @param {number} rw @param {number} rh @param {Float32Array | null} spots @param {number} smooth @param {number} keep @param {number} quiet @param {number} [tta] */
+  return async (rx, ry, rw, rh, spots, smooth, keep, quiet, tta = 1) => {
     if (rw > net.core || rh > net.core) return null;
-    const passes = net.parts.at(40 + (seq++ % 4), [rx, ry, rw, rh], rx, ry, spots, Math.max(0, smooth) ** 2, keep, quiet);
+    const passes = net.parts.at(40 + (seq++ % 4), [rx, ry, rw, rh], rx, ry, spots, Math.max(0, smooth) ** 2, keep, quiet, 1, true);
     const vh = passes.vh, vw = passes.vw, pre = passes.pre || 1, n = vh * win * wide;
     const back = device.createBuffer({ size: 2 * n, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
     for (let j = 0; j < pre; j++) { const [p, b, x, y, z] = passes[j]; pass.setPipeline(p); pass.setBindGroup(0, b); pass.dispatchWorkgroups(x, y, z); }
@@ -134,7 +153,33 @@ export function helper(device, net, cpu) {
     await back.mapAsync(GPUMapMode.READ);
     const raw = back.getMappedRange(), [mos, sig] = [0, n].map((o) => (wide === 4 ? new Float32Array(raw.slice(o, o + n)) : Float32Array.from(new Uint16Array(raw, o, n / 2), (h) => LIGHT[h])));
     back.unmap(); back.destroy();
-    const made = await cpu.run(mos, sig, vh, vw), plane = win * win;
+    const plane = win * win;
+    let made;
+    if (tta <= 1) made = await cpu.run(mos, sig, vh, vw);
+    else {
+      const modes = vw === vh ? [[0, 0, 0], [1, 0, 0], [0, 1, 1], [1, 1, 0]] : [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]];
+      const cnt = tta >= 4 ? 4 : 2, w = 1 / cnt, fm = new Float32Array(mos.length), fs = new Float32Array(sig.length);
+      made = new Float32Array(3 * plane);
+      for (let k = 0; k < cnt; k++) {
+        const [fx, fy, tr] = modes[k];
+        if (k > 0) {
+          for (let y = 0; y < vh; y++) for (let x = 0; x < vw; x++) {
+            const ax = mapC(x, vw, fx), ay = mapC(y, vh, fy);
+            let sx = ax, sy = ay;
+            if (tr) { sx = ay + 3; if (sx >= vw) sx -= 6; sy = ax; }
+            const d = y * win + x, s = sy * win + sx;
+            fm[d] = mos[s]; fs[d] = sig[s];
+          }
+        }
+        const cur = await cpu.run(k === 0 ? mos : fm, k === 0 ? sig : fs, vh, vw);
+        for (let y = 0; y < vh; y++) for (let x = 0; x < vw; x++) {
+          let ax = x, ay = y;
+          if (tr) { ax = y; ay = x - 3; if (ay < 0) ay += 6; }
+          const sx = mapC(ax, vw, fx), sy = mapC(ay, vh, fy), d = y * win + x, s = sy * win + sx;
+          made[d] += cur[s] * w; made[plane + d] += cur[plane + s] * w; made[2 * plane + d] += cur[2 * plane + s] * w;
+        }
+      }
+    }
     // Restore mos & sig alongside made so place() reads this exact window's mos/sig even when GPU ran other windows in between.
     return (/** @type {GPUCommandEncoder} */ enc2) => {
       const part = vh * win * wide, stage = device.createBuffer({ size: 5 * part, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE, mappedAtCreation: true }), room = stage.getMappedRange();

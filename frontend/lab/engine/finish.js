@@ -47,7 +47,20 @@ fn finish(@builtin(global_invocation_id) id: vec3u) {
     if (f.s.w > 0.0) {
       let fringe = max(min(o.r, o.b) - o.g, o.g - max(o.r, o.b));   // how purple, or how green
       let t = min(1.0, 1.5 * f.s.w) * smoothstep(0.04, 0.18, hi - lo) * smoothstep(0.01, 0.05, fringe);
-      o = mix(o, vec3f(dot(o, W)), t);
+      if (t > 0.0) {
+        // Neighbor-guided chroma replacement: borrows true edge color from unfringed neighbors instead of greying out.
+        let ol = dot(o, W); var cSum = vec3f(0.0); var wSum = 0.0;
+        for (var dy = -2; dy <= 2; dy++) { for (var dx = -2; dx <= 2; dx++) {
+          if (dx == 0 && dy == 0) { continue; }
+          let n = textureLoad(src, clamp(at + vec2i(dx, dy), vec2i(0), vec2i(f.size.xy) - 1), 0).rgb;
+          let nf = max(min(n.r, n.b) - n.g, n.g - max(n.r, n.b));
+          let nl = dot(n, W);
+          let wt = (1.0 - smoothstep(0.005, 0.03, nf)) * exp(-abs(nl - ol) * 8.0);
+          cSum += wt * (n - vec3f(nl)); wSum += wt;
+        } }
+        let rep = clamp(vec3f(ol) + select(vec3f(0.0), cSum / max(wSum, 1e-4), wSum > 0.05), vec3f(0.0), vec3f(1.0));
+        o = mix(o, rep, t);
+      }
     }
   }
   if (f.size.z != 0u) { o = dither(o, id.xy); }

@@ -104,6 +104,7 @@ export default class Component extends DCLogic {
   begin() {
     const room = this.plate.parentElement?.querySelector('[data-room]');
     if (room) this.stage.style.setProperty('--hold-room', `${parseFloat(getComputedStyle(room).height)}px`);
+    this._foot = this.foot();
     this.stage.classList.add('rolling'); dial(true);   // (the panel's own easing stops where it was going, so what is copied is where it rests)
     this.seg = { a: this.live, b: -1, dir: 0, s: 0, base: 0 }; this.from = this.live; this.near = this.live;
     this.copy(this.live); this.draw();
@@ -140,7 +141,7 @@ export default class Component extends DCLogic {
   }
   /** A still copy of the panel as it shows section `i`, cut to that section's height, in the window. */
   copy(i) {
-    const p = this.plate, top = parseFloat(getComputedStyle(p).top), c = p.cloneNode(true), foot = this.foot();
+    const p = this.plate, top = parseFloat(getComputedStyle(p).top), c = p.cloneNode(true), foot = this._foot || this.foot();
     c.setAttribute('aria-hidden', 'true'); c.inert = true; c.classList.remove('barrel');
     for (const el of c.querySelectorAll('[id]')) el.removeAttribute('id');
     const h = Math.max(60, Math.min(340, foot - top));
@@ -151,7 +152,7 @@ export default class Component extends DCLogic {
   foot() { const root = this.plate.parentElement; return parseFloat(getComputedStyle(root).height) || root.clientHeight || 915; }
   window() {
     if (this.win?.isConnected) return this.win;
-    const w = document.createElement('div'), shade = document.createElement('div'), framed = this.stage.parentElement?.id === 'frame', foot = this.foot();
+    const w = document.createElement('div'), shade = document.createElement('div'), framed = this.stage.parentElement?.id === 'frame', foot = this._foot || this.foot();
     w.className = 'barrel-copies'; w.setAttribute('aria-hidden', 'true'); w.style.height = `${foot}px`;
     shade.className = 'barrel-shade'; shade.setAttribute('aria-hidden', 'true'); shade.style.boxShadow = SHADOW;
     for (const el of framed ? [] : [w, shade]) Object.assign(el.style, { transformOrigin: '0 0', transform: this.stage.style.transform });   // a screen of the design on its own: the stage is what is fitted to the screen
@@ -162,7 +163,7 @@ export default class Component extends DCLogic {
     const seg = this.seg; if (!seg) return;
     if (!this.plate.isConnected) { this.end(); return; }   // its board went (another tool): nothing to land on
     const A = this.faces.get(seg.a), B = seg.dir ? this.faces.get(seg.b) : null; if (!A) return;
-    const foot = this.foot(), s = Math.min(seg.s, this.len(seg)), f = this.part(seg), up = seg.dir >= 0;
+    const foot = this._foot || this.foot(), s = Math.min(seg.s, this.len(seg)), f = this.part(seg), up = seg.dir >= 0;
     for (const [i, face] of this.faces) if (i !== seg.a && (!B || i !== seg.b)) face.el.style.display = 'none';
     Object.assign(A.el.style, { display: 'block', zIndex: up ? '1' : '2', transform: `translateY(${(up ? -s : s).toFixed(2)}px)` });   // the lower of the two lies over the other (its shadow on it)
     if (B) Object.assign(B.el.style, { display: 'block', zIndex: up ? '2' : '1', transform: `translateY(${(up ? B.h - s : s - A.h).toFixed(2)}px)` });

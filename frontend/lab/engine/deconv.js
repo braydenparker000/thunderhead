@@ -35,20 +35,23 @@ fn begin(@builtin(global_invocation_id) id: vec3u) {
 }
 fn alongGuess(q: vec2i) -> f32 {
   let sig = sigmaAt(q).x; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
-  var s = 0.0; var ws = 0.0;
-  for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * guess[at(q + vec2i(i, 0))]; ws += w; }
+  let step = exp(k); let step2 = step * step; var w = step; var mult = step * step2;
+  var s = guess[at(q)]; var ws = 1.0;
+  for (var i = 1; i <= r; i++) { s += w * (guess[at(q + vec2i(i, 0))] + guess[at(q - vec2i(i, 0))]); ws += 2.0 * w; w *= mult; mult *= step2; }
   return s / ws;
 }
 fn alongRatio(q: vec2i) -> f32 {
   let sig = sigmaAt(q).x; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
-  var s = 0.0; var ws = 0.0;
-  for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * ratio[at(q + vec2i(i, 0))]; ws += w; }
+  let step = exp(k); let step2 = step * step; var w = step; var mult = step * step2;
+  var s = ratio[at(q)]; var ws = 1.0;
+  for (var i = 1; i <= r; i++) { s += w * (ratio[at(q + vec2i(i, 0))] + ratio[at(q - vec2i(i, 0))]); ws += 2.0 * w; w *= mult; mult *= step2; }
   return s / ws;
 }
 fn down(q: vec2i) -> f32 {
   let sig = sigmaAt(q).y; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
-  var s = 0.0; var ws = 0.0;
-  for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * part[at(q + vec2i(0, i))]; ws += w; }
+  let step = exp(k); let step2 = step * step; var w = step; var mult = step * step2;
+  var s = part[at(q)]; var ws = 1.0;
+  for (var i = 1; i <= r; i++) { s += w * (part[at(q + vec2i(0, i))] + part[at(q - vec2i(0, i))]); ws += 2.0 * w; w *= mult; mult *= step2; }
   return s / ws;
 }
 @compute @workgroup_size(8, 8)
@@ -76,9 +79,9 @@ fn finish(@builtin(global_invocation_id) id: vec3u) {
   let u0 = seen[at(q + vec2i(0, -1))] - y0; let b0 = seen[at(q + vec2i(0, 1))] - y0;
   let d1 = seen[at(q + vec2i(-1, -1))] - y0; let d2 = seen[at(q + vec2i(1, 1))] - y0;
   let d3 = seen[at(q + vec2i(1, -1))] - y0; let d4 = seen[at(q + vec2i(-1, 1))] - y0;
-  let peak = (l0 * r0 > 0.0) || (u0 * b0 > 0.0) || (d1 * d2 > 0.0) || (d3 * d4 > 0.0);
   let span = hi - lo;
-  let bokeh = smoothstep(0.002, 0.012, span / max(y0, 1e-4));
+  let peak = (span > 0.006 * max(y0, 0.01)) && ((l0 * r0 > 0.0) || (u0 * b0 > 0.0) || (d1 * d2 > 0.0) || (d3 * d4 > 0.0));
+  let bokeh = smoothstep(0.002, 0.012, span / max(y0, 0.008));
   let margin = select(0.04 + 0.06 * d.k.w, 0.65 + 0.35 * d.k.w, peak) * span;
   let raw = y0 + d.k.z * bokeh * (guess[n] - y0);
   let clamped = clamp(raw, max(lo - margin, 1e-6), hi + margin);

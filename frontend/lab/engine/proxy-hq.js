@@ -76,15 +76,16 @@ fn colour(q: vec2i) -> vec3f {   // a site's colour as a mask: red, green or blu
 }
 /** the sensor's: the demosaic's brightness, the colour of each colour's own sites round the copy pixel's middle, weighted
  * alike (sigma 0.82 sites, the decoder's box's spread; 7x7 reaches >3.6 sigma) */
+const G7 = array<f32, 49>(${Array.from({ length: 49 }, (_, k) => { const dx = (k % 7) - 3, dy = Math.floor(k / 7) - 3; return Math.exp(-(dx * dx + dy * dy) / (2 * 0.82 * 0.82)).toFixed(8); }).join(', ')});
 @compute @workgroup_size(8, 8)
 fn tint(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= p.tile.z || i32(id.y) >= p.tile.w) { return; }
   let n = (u32(p.tile.y + i32(id.y)) * p.copy.x + u32(p.tile.x + i32(id.x))) * 2u; let a = outp[n]; let b = outp[n + 1u];
   let v = vec3f(f32(a & 0xffffu), f32(a >> 16u), f32(b & 0xffffu));
   let c = vec2i(3 * (p.tile.x + i32(id.x)) + 1, 3 * (p.tile.y + i32(id.y)) + 1); let e = vec2i(textureDimensions(mos)) - 1;
-  var s = vec3f(0.0); var w = vec3f(0.0);
+  var s = vec3f(0.0); var w = vec3f(0.0); var gi = 0u;
   for (var dy = -3; dy <= 3; dy++) { for (var dx = -3; dx <= 3; dx++) {
-    let q = clamp(c + vec2i(dx, dy), vec2i(0), e); let k = colour(q) * exp(-f32(dx * dx + dy * dy) / ${2 * 0.82 * 0.82});
+    let q = clamp(c + vec2i(dx, dy), vec2i(0), e); let k = colour(q) * G7[gi]; gi += 1u;
     s += k * f32(textureLoad(mos, q, 0).r); w += k;
   } }
   let g = max(s / max(w, vec3f(1e-9)) - p.black, vec3f(0.0)) * p.scale; let yv = dot(v, p.wb.xyz); let yg = dot(g, p.wb.xyz);

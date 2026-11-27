@@ -88,8 +88,8 @@ export const DITHER = /* wgsl */ `
 // triangular-spread offset of up to one level (the same on all three channels: no colour speckle), fading
 // to none at pure black and white.
 fn dither(o: vec3f, at: vec2u) -> vec3f {
-  var s = at.x * 1664525u + at.y * 22695477u + 1013904223u; s = (s ^ (s >> 16u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
-  let n = (f32(s & 0xffffu) - f32(s >> 16u)) / 65536.0;
+  let u = fract(0.5 + 0.754877666 * f32(at.x & 1023u) + 0.569840291 * f32(at.y & 1023u));
+  let n = select(sqrt(2.0 * u) - 1.0, 1.0 - sqrt(2.0 - 2.0 * u), u >= 0.5);
   return o + n * clamp(min(o, 1.0 - o) * 255.0, vec3f(0.0), vec3f(1.0)) / 255.0;
 }`;
 export const WGSL = /* wgsl */ `${HEAD}
@@ -101,6 +101,7 @@ export const WGSL = /* wgsl */ `${HEAD}
 @group(0) @binding(7) var fine: texture_2d<f32>;   // the finer mask, for Texture (mask.js)
 @group(0) @binding(8) var haze: texture_2d<f32>;   // how much of the air's light each area holds, for Dehaze
 const N = ${N}u;
+fn lutN() -> u32 { return select(N, 33u, (p.size.w & 33554432u) != 0u); }
 // the 3D table's input: log2 of linear ProPhoto over 16 stops, 2^-12 to 2^4, so shadows get as many points as
 // highlights: four cells a stop, with 1.0 (where the tone curve clips) on a point
 fn shape(c: vec3f) -> vec3f { return clamp((log2(max(c, vec3f(1e-9))) + 12.0) / 16.0, vec3f(0.0), vec3f(1.0)); }
@@ -110,7 +111,7 @@ fn at(i: vec3u) -> vec3f { return textureLoad(lutIn, i, 0).rgb; }
 // and a colour mixes only its own four corners, so greys mix only greys, and the creases the hue-preserving
 // steps make where two channels are equal (r=g, g=b, b=r) lie on the cuts, not inside a cell.
 fn lookup(c: vec3f) -> vec3f {
-  let g = shape(c) * f32(N - 1u); let i = min(vec3u(g), vec3u(N - 2u)); let f = g - vec3f(i);
+  let sz = lutN(); let g = shape(c) * f32(sz - 1u); let i = min(vec3u(g), vec3u(sz - 2u)); let f = g - vec3f(i);
   let ge = step(f.yzx, f.xyz); let lt = 1.0 - ge;               // x≥y, y≥z, z≥x, and the opposites
   let hi = vec3u(ge * lt.zxy); let lo = vec3u(lt * ge.zxy);   // the axis with the largest fraction; the smallest
   let mx = max(f.x, max(f.y, f.z)); let mn = min(f.x, min(f.y, f.z)); let md = f.x + f.y + f.z - mx - mn;
@@ -145,14 +146,16 @@ fn hsd(c: vec3f, d: vec4u, srgbV: bool) -> vec3f {
   let b = mix(mix(cell(d.w, d.xyz, h0, s0, v1), cell(d.w, d.xyz, h1, s0, v1), fh), mix(cell(d.w, d.xyz, h0, s1, v1), cell(d.w, d.xyz, h1, s1, v1), fh), fs);
   let e = mix(a, b, fv);
   x.x = x.x + e.x / 60.0; x.y = clamp(x.y * e.y, 0.0, 1.0);
-  if (srgbV && x.z <= 1.0) { x.z = dec(clamp(vv * e.z, 0.0, 1.0)); } else { x.z = x.z * e.z; }
+  if (srgbV) { let vOut = vv * e.z; x.z = select(dec(clamp(vOut, 0.0, 1.0)), dec(min(e.z, 1.0)) + (x.z - 1.0) * e.z, x.z > 1.0); } else { x.z = x.z * e.z; }
   return rgb(x);
 }
 fn curve(x: f32) -> f32 { let f = clamp(x, 0.0, 1.0) * 1023.0; let i = u32(floor(f)); let j = min(i + 1u, 1023u); return mix(t[p.tab.x + i], t[p.tab.x + j], f - floor(f)); }
-// Adobe's hue-preserving tone: the curve on the largest and smallest channel, the middle one in proportion
+// Adobe's hue-preserving tone: the curve on the largest and smallest channel, the middle one in proportion.
+// Highlights above 1.0 (e.g. DR200/DR400 headroom) extend smoothly above 1.0 into finish()'s hue-preserving roll-off.
+fn curveExt(x: f32) -> f32 { return select(curve(x), curve(1.0) + (x - 1.0) * 0.65, x > 1.0); }
 fn tone(c0: vec3f) -> vec3f {
-  let c = clamp(c0, vec3f(0.0), vec3f(1.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
-  let tx = curve(mx); let tn = curve(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-6);
+  let c = max(c0, vec3f(0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let tx = curveExt(mx); let tn = curveExt(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-6);
   return vec3f(tn + (c.r - mn) * k, tn + (c.g - mn) * k, tn + (c.b - mn) * k);
 }
 fn film(c: vec3f) -> vec3f { let y = dot(c, LUM); let ty = y / (1.0 + y * 0.6) * 1.6; return c * (ty / max(y, 1e-6)); }
@@ -196,10 +199,9 @@ fn tones(c0: vec3f, con: f32, wh: f32, bl: f32) -> vec3f {
 const SKIN = 0.5;                        // how much of Vibrance skin's hues are spared
 const SKIN_HUE = vec2f(0.530, 0.848);    // where skin sits: 58° in Oklab (light to dark skin runs 40°..76°)
 const KNEE = 0.75;                       // how near the edge a strengthened colour starts to ease off
-// How near a colour is to the strongest sRGB can show: 0 grey, 1 on the edge, more beyond it. The square
-// root allows for the tone curve to come, which strengthens colour.
+// How near a colour is to the strongest the active gamut (sRGB or Display P3) can show: 0 grey, 1 on the edge.
 fn near(c: vec3f) -> f32 {
-  let s = mv(p.o0, p.o1, p.o2, c); let mx = max(s.r, max(s.g, s.b)); let mn = min(s.r, min(s.g, s.b));
+  let s = shown(c); let mx = max(s.r, max(s.g, s.b)); let mn = min(s.r, min(s.g, s.b));
   if (mx <= 0.0) { return select(2.0, 0.0, mn >= 0.0); }
   return 1.0 - sign(mn) * sqrt(abs(mn) / mx);
 }
@@ -308,8 +310,9 @@ const LOW = 0.000244140625; const HIGH = 16.0;   // the table's own range (shape
 fn moved(c: vec3f, t: vec3f) -> vec3f { let y = max(sqrt(clamp(c, vec3f(LOW), vec3f(HIGH))) + t, vec3f(0.0)); return select(y * y, max(c + y * y - LOW, vec3f(0.0)), c < vec3f(LOW)); }
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
-  if (any(id >= vec3u(N))) { return; }
-  let c = unshape(vec3f(id) / f32(N - 1u));
+  let sz = lutN();
+  if (any(id >= vec3u(sz))) { return; }
+  let c = unshape(vec3f(id) / f32(sz - 1u));
   textureStore(lutOut, id, vec4f(sqrt(max(colour(c), vec3f(0.0))) - sqrt(c), 1.0));
 }
 ${DITHER}
@@ -336,9 +339,9 @@ ${LOCAL}
 // How bright a pixel is, in stops, for the tools that work by areas (Highlights, Shadows, Clarity, Texture, Dehaze).
 // A full-size view takes it over the three pixels each way that make one of the editing copy's, so those tools do
 // at full size exactly what the fitted photo showed, and leave the finest detail and the grain to Sharpening and Noise.
-fn lightAt(q: vec2i, c: vec3f) -> f32 {
+fn lightAt(q: vec2i, c: vec3f, wbScale: vec3f) -> f32 {
   var s = dot(c, LUM);
-  if ((p.size.w & 524288u) != 0u) { s = 0.0; for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let t = vec2u(clamp(q + vec2i(i, j), vec2i(0), vec2i(p.size.xy) - 1)); s += dot(pixel(t.x, t.y), LUM) / 9.0; } } }
+  if ((p.size.w & 524288u) != 0u) { s = 0.0; for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let t = vec2u(clamp(q + vec2i(i, j), vec2i(0), vec2i(p.size.xy) - 1)); s += dot(pixel(t.x, t.y) * wbScale, LUM) / 9.0; } } }
   return log2(max(s, FLOOR));
 }
 @compute @workgroup_size(8, 8)
@@ -348,11 +351,11 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var c = pixel(id.x, id.y);
   let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
   // what the masks add here to the photo's own exposure, highlights and shadows, and clarity, texture, dehaze
-  var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
-  if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx.xyz, vec3f(-1.0), vec3f(1.0)); c = c * exp2(lo.wb); }
+  var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0); var wbScale = vec3f(1.0);
+  if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx.xyz, vec3f(-1.0), vec3f(1.0)); wbScale = exp2(lo.wb); c = c * wbScale; }
   // Only compute the 3x3 luminance average when a local-tone tool is active (1.54x faster at full-res when idle).
   let needL = hi != 0.0 || sh != 0.0 || fx.x != 0.0 || fx.y != 0.0 || fx.z > 0.0 || (fl & 4096u) != 0u;
-  var l = 0.0; if (needL) { l = lightAt(vec2i(id.xy), c); }
+  var l = 0.0; if (needL) { l = lightAt(vec2i(id.xy), c, wbScale); }
   // Dehaze: an area holding a share d of the air's light lets 1 − d of the scene through; take the air's part out
   // and scale what is left back up. Less than none lays the air's colour over everything instead.
   if (fx.z > 0.0) { let t = max(1.0 - 0.65 * fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
@@ -385,7 +388,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var o = c;
   if ((fl & 16384u) == 0u) {
     // (finish is called once: its look and curve steps are long, and a GPU that lays out every branch pays for each copy)
-    if ((fl & 64u) != 0u) { o = colour(c); } else if ((fl & 8192u) != 0u) { o = moved(c, at(vec3u(shape(c) * f32(N - 1u) + 0.5))); } else { o = moved(c, lookup(c)); }
+    if ((fl & 64u) != 0u) { o = colour(c); } else if ((fl & 8192u) != 0u) { o = moved(c, at(vec3u(shape(c) * f32(lutN() - 1u) + 0.5))); } else { o = moved(c, lookup(c)); }
     o = finish(o);
   }
   o = mix(o, vec3f(0.91, 0.13, 0.16), 0.55 * lo.show);   // the mask being worked on, in red

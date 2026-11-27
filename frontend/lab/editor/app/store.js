@@ -15,10 +15,12 @@ const DB = 'th-editor';
  *   still be brought back (`remove`); `view`: the mark of the edit its kept picture was made from (`saveView`) */
 /** @typedef {Record<string, number | string>} Edit */
 
-const open = () => /** @type {Promise<IDBDatabase>} */ (new Promise((res, rej) => {
+let dbP = /** @type {Promise<IDBDatabase> | null} */ (null);
+const open = () => (dbP ||= new Promise((res, rej) => {
   const r = indexedDB.open(DB, 1);
   r.onupgradeneeded = () => { r.result.createObjectStore('photos', { keyPath: 'id' }); r.result.createObjectStore('edits'); };
-  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  r.onsuccess = () => { const d = r.result; d.onclose = () => { dbP = null; }; res(d); };
+  r.onerror = () => { dbP = null; rej(r.error); };
 }));
 /** @param {'photos' | 'edits'} store @param {(s: IDBObjectStore) => IDBRequest} fn */
 const tx = async (store, fn, mode = /** @type {IDBTransactionMode} */ ('readonly')) => {
@@ -101,6 +103,14 @@ export function embedded(buf) {
   const off = v.getUint32(84), len = v.getUint32(88);
   return off + len <= buf.byteLength ? new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }) : null;
 }
+/** Reads only the 92-byte RAF header and slices out the embedded JPEG without buffering an 85 MB RAF in RAM. @param {Blob} file */
+async function embeddedBlob(file) {
+  if (file.size < 92) return null;
+  const h = await file.slice(0, 92).arrayBuffer(), v = new DataView(h);
+  if (new TextDecoder().decode(new Uint8Array(h, 0, 8)) !== 'FUJIFILM') return null;
+  const off = v.getUint32(84), len = v.getUint32(88);
+  return off + len <= file.size ? new Blob([await file.slice(off, off + len).arrayBuffer()], { type: 'image/jpeg' }) : null;
+}
 
 const RAF = /\.raf$/i, JPEG = /\.jpe?g$/i;
 /** The name a photo's original is kept under. @param {string} id @param {Photo['kind']} [kind] */
@@ -118,7 +128,7 @@ async function copyIn(file, more = {}) {
   const id = crypto.randomUUID(), kind = JPEG.test(file.name) || file.type === 'image/jpeg' ? /** @type {const} */ ('jpeg') : undefined;
   let jpg = /** @type {Blob | null} */ (null);
   if (kind) { jpg = await reduced(file); await write('raw', orig(id, kind), file); }
-  else { const buf = await file.arrayBuffer(); jpg = embedded(buf); if (!jpg && more.source) throw new Error('not a RAF'); await write('raw', orig(id), buf); }
+  else { jpg = await embeddedBlob(file); if (!jpg && more.source) throw new Error('not a RAF'); await write('raw', orig(id), file); }
   if (jpg) { await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); await small(id, jpg); }
   const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg || new Blob()).slice(0, 1 << 17).arrayBuffer()));   // a JPEG's own Exif; a RAF's is in the camera's JPEG inside it
   /** @type {Photo} */
@@ -132,7 +142,7 @@ async function copyIn(file, more = {}) {
 async function adopt(id, name, file) {
   const kind = /\.jpg$/.test(name) ? /** @type {const} */ ('jpeg') : undefined;
   if (!kind && !/\.raf$/.test(name)) return false;   // a stack cannot be told from its file alone: it is left where it is
-  const jpg = kind ? await reduced(file) : embedded(await file.arrayBuffer());
+  const jpg = kind ? await reduced(file) : await embeddedBlob(file);
   if (!jpg) return false;
   await write('jpg', `${id}.jpg`, jpg); urls.set(id, URL.createObjectURL(jpg)); await small(id, jpg);
   const { at, ...made } = shot(new Uint8Array(await (kind ? file : jpg).slice(0, 1 << 17).arrayBuffer()));

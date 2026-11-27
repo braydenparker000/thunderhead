@@ -33,25 +33,26 @@ export default class Component extends DCLogic {
     const setPts = (next, s) => { if (real) { photo.picked.i = s; photo.setCurve(ch, next); } else this.setState({ curves: { ...this.state.curves, [ch]: next }, sel: s }); };
     const local = (e) => { const r = e.currentTarget.getBoundingClientRect(), k = r.width / 300 || 1; return [Math.max(0, Math.min(1, ((e.clientX - r.left) / k - 14) / 272)), Math.max(0, Math.min(1, (286 - (e.clientY - r.top) / k) / 272))]; };   // the page is scaled to the screen (boot.js)
     return {
-      hill: real ? scope(this.drag === null)?.hills[ch] || '' : 'M14 286 C40 280 52 230 74 236 S110 160 128 190 S170 120 190 150 S236 210 252 240 S280 270 286 286 Z',
+      hill: real ? scope(this.drag === null && !photo.dialing())?.hills[ch] || '' : 'M14 286 C40 280 52 230 74 236 S110 160 128 190 S170 120 190 150 S236 210 252 240 S280 270 286 286 Z',
       channel: ch, chanUp: ch === 'RGB' ? 'RGB · TONE CURVE' : ch === 'Luma' ? 'LUMA · TONE CURVE' : `${ch} CHANNEL`, ink, path, dots,
       readout: `In ${Math.round(pts[sel][0] * 255)} · Out ${Math.round(pts[sel][1] * 255)}`,
       down: (e) => {
         const [u, v] = local(e);
-        let best = -1, bd = 0.06;
+        let best = -1, bd = 0.06, curPts = pts;
         pts.forEach(([pu, pv], i) => { const d = Math.hypot(pu - u, pv - v); if (d < bd) { bd = d; best = i; } });
-        if (best < 0) { const next = [...pts, [u, v]].sort((a, b) => a[0] - b[0]); best = next.findIndex((p) => p[0] === u); setPts(next, best); } else { photo.picked.i = best; this.setState({ sel: best }); }
-        this.drag = best;
+        if (best < 0) { const next = [...pts, [u, v]].sort((a, b) => a[0] - b[0]); best = next.findIndex((p) => p[0] === u); curPts = next; setPts(next, best); } else { photo.picked.i = best; this.setState({ sel: best }); }
+        this.drag = { i: best, id: e.pointerId, pts: curPts };
         if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
       },
       move: (e) => {
-        if (this.drag === null) return;
-        const [u, v] = local(e), i = this.drag, cur = pts;
+        const d = this.drag; if (!d || e.pointerId !== d.id) return;
+        const [u, v] = local(e), i = d.i, cur = d.pts || pts;
         const lo = i === 0 ? 0 : cur[i - 1][0] + 0.02, hi = i === cur.length - 1 ? 1 : cur[i + 1][0] - 0.02;
         const next = cur.map((p, k) => (k === i ? [i === 0 || i === cur.length - 1 ? p[0] : Math.max(lo, Math.min(hi, u)), v] : p));
+        d.pts = next;
         setPts(next, i);
       },
-      up: () => { this.drag = null; },
+      up: (e) => { if (!this.drag || (e?.pointerId !== undefined && e.pointerId !== this.drag.id)) return; this.drag = null; this.setState({}); },
     };
   }
 }

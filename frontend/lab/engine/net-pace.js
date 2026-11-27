@@ -17,7 +17,7 @@ export const canSlice = (code) => code.includes('valid.z0');
 
 /** About how long a submission should take, ms: under a frame at 60 a second, so one is never missed for it. */
 export const SLICE_MS = 12;
-/** @typedef {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?]} Paced a pass, its bindings, its workgroups, and whether it can be run a part at a time */
+/** @typedef {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?]} Paced a pass, its bindings, its workgroups, whether sliceable, and optional layer key */
 /** Runs the passes in order, a part at a time, each part waited for. `stop` is asked after each: when it says
  * yes, the rest is left undone and false is given (what was written so far is of no use). How many blocks go in a
  * submission is found as it goes: more while they take under half the aim, fewer when over one and a half times.
@@ -27,15 +27,17 @@ export const SLICE_MS = 12;
 export async function paced(device, passes, valid, o = {}) {
   const z0 = (/** @type {number} */ z) => device.queue.writeBuffer(valid, 8, new Uint32Array([z]));
   const aim = o.aim || SLICE_MS;
-  const takes = /** @type {Map<GPUComputePipeline, number>} */ (new Map());
+  const takes = /** @type {Map<GPUComputePipeline, Map<number, number>>} */ (new Map());
+  const getTake = (/** @type {GPUComputePipeline} */ p, /** @type {number} */ k) => takes.get(p)?.get(k) || 0;
+  const setTake = (/** @type {GPUComputePipeline} */ p, /** @type {number} */ k, /** @type {number} */ v) => { let m = takes.get(p); if (!m) { m = new Map(); takes.set(p, m); } m.set(k, v); };
   const breathe = () => (typeof requestAnimationFrame === 'function' && (typeof document === 'undefined' || document.visibilityState === 'visible')
     ? new Promise((r) => requestAnimationFrame(() => r(undefined))) : null);
   let batch = 3, frameAt = performance.now();
   try {
     for (let i = 0; i < passes.length;) {
-      const [pipe, bind, a, b, c, can] = passes[i];
+      const [pipe, bind, a, b, c, can, lkey = 0] = passes[i];
       if (can) {
-        let take = Math.min(c, takes.get(pipe) || 1);
+        let take = Math.min(c, getTake(pipe, lkey) || 1);
         for (let z = 0; z < c;) {
           const n = Math.min(take, c - z), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
           z0(z);
@@ -46,11 +48,28 @@ export async function paced(device, passes, valid, o = {}) {
           o.note?.(ms);
           z += n;
           take = ms < aim / 2 ? Math.min(c, take * 2) : ms > aim * 1.5 ? Math.max(1, take >> 1) : take;
-          takes.set(pipe, take);
+          setTake(pipe, lkey, take);
           if (o.stop?.()) return false;
           if (performance.now() - frameAt >= aim) { const y = breathe(); if (y) { await y; if (o.stop?.()) return false; } frameAt = performance.now(); }
         }
         i++;
+      } else if (i + 2 < passes.length && passes[i + 1][5] && !passes[i + 2][5] && getTake(passes[i + 1][0], passes[i + 1][6] || 0) >= passes[i + 1][4]) {
+        // Fuse a whole Winograd strip [wIn, wGemm(full), wOut] into one submit once wGemm on this layer fits in 1 slice.
+        z0(0);
+        const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+        for (let q = 0; q < 3; q++) {
+          const [p2, b2, a2, b3, c2] = passes[i + q];
+          pass.setPipeline(p2); pass.setBindGroup(0, b2); pass.dispatchWorkgroups(a2, b3, c2);
+        }
+        pass.end();
+        const t = performance.now();
+        device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone();
+        const ms = performance.now() - t;
+        o.note?.(ms);
+        if (ms > aim * 1.5) setTake(passes[i + 1][0], passes[i + 1][6] || 0, Math.max(1, passes[i + 1][4] >> 1));
+        i += 3;
+        if (o.stop?.()) return false;
+        if (performance.now() - frameAt >= aim) { const y = breathe(); if (y) { await y; if (o.stop?.()) return false; } frameAt = performance.now(); }
       } else {
         const end = Math.min(passes.length, i + batch), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
         let j = i;

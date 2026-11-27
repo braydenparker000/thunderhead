@@ -1,7 +1,7 @@
 // @ts-check
 // The files an export writes: JPEG, PNG and 16-bit TIFF. Each takes the photo a few rows at a time and grows a
 // Blob, which the browser keeps, not the page: a 40 MP export never sits whole in the page's memory.
-import { block, entry } from './exif.js';
+import { block, blockForJpeg, entry } from './exif.js';
 import { p3Profile } from './icc.js';
 
 /** A file being written: `rows` takes the next n rows (sRGB, 16 bits a colour, three a pixel).
@@ -18,7 +18,7 @@ import { p3Profile } from './icc.js';
 /** The writer a Spec asks for, at w × h. @param {Spec} s @param {number} w @param {number} h @param {Band | null} band @returns {Writer} */
 export function writer(s, w, h, band) {
   const icc = s.wide ? p3Profile() : null;
-  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && block(s.kept), s.note, icc); }
+  if (s.fmt === 'JPEG') { if (!band) throw new Error('no JPEG encoder'); return jpeg(w, h, s.q, band, s.kept && blockForJpeg(s.kept), s.note, icc); }
   return s.fmt === 'PNG' ? png(w, h, s.kept && block(s.kept), s.note, icc) : tiff(w, h, s.kept, s.note, icc);
 }
 
@@ -29,16 +29,19 @@ const SEED = 0x9e3779b9;
 let seed = SEED;
 /** The dither starts again from the same place: an export calls it first, so its files hang only on the photo. */
 export function reseed() { seed = SEED; }
-/** 16 bits to 8, rounded up or down by chance in proportion, so a smooth sky doesn't band.
+/** 16 bits to 8 via correlated triangular-PDF (TPDF) dither: zero quantization variance modulation and strictly neutral grays.
  * @param {Uint16Array} px @param {Uint8Array} out */
 function eight(px, out) {
   let s = seed;
   for (let i = 0; i < px.length; i += 3) {
     s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
-    const d = (s >>> 8) & 255;
-    out[i] = (px[i] + d) / 257;
-    out[i + 1] = (px[i + 1] + d) / 257;
-    out[i + 2] = (px[i + 2] + d) / 257;
+    const d = 128 + ((s >>> 8) & 255) - ((s >>> 16) & 255);
+    for (let c = 0; c < 3; c++) {
+      const v = px[i + c];
+      if (v === 0) out[i + c] = 0;
+      else if (v === 65535) out[i + c] = 255;
+      else { const q = (v + d) / 257; out[i + c] = q <= 0 ? 0 : q >= 255 ? 255 : q; }
+    }
   }
   seed = s;
 }
@@ -147,19 +150,53 @@ export function png(w, h, exif, note, icc = null) {
   };
 }
 
-/** A TIFF, 16 bits a colour, not compressed, with the photo's Exif directories in its own, and the note as its
- * ImageDescription. @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @param {string} [note]
+/** Compresses one TIFF strip (little-endian 16-bit RGB with horizontal differencing Predictor=2) via zlib deflate.
+ * @param {Uint16Array} src @param {number} w @param {number} rows */
+async function deflateStrip(src, w, rows) {
+  const line = w * 3, diff = new Uint16Array(rows * line);
+  for (let r = 0; r < rows; r++) {
+    const base = r * line;
+    diff[base] = src[base]; diff[base + 1] = src[base + 1]; diff[base + 2] = src[base + 2];
+    for (let i = 3; i < line; i++) diff[base + i] = (src[base + i] - src[base + i - 3]) & 0xffff;
+  }
+  const cs = new CompressionStream('deflate'), wr = cs.writable.getWriter();
+  const out = new Response(cs.readable).arrayBuffer();
+  await wr.write(new Uint8Array(diff.buffer, diff.byteOffset, diff.byteLength));
+  await wr.close();
+  return new Uint8Array(await out);
+}
+
+/** A lossless 16-bit TIFF compressed with Adobe Deflate (Compression=8) + horizontal differencing (Predictor=2),
+ * cutting file size ~50% while keeping bit-exact 16-bit pixels, Exif, ICC profile, and ImageDescription.
+ * @param {number} w @param {number} h @param {import('./exif.js').Entry[] | null} carried @param {string} [note]
  * @param {Uint8Array | null} [icc] a colour profile (tag 34675) @returns {Writer} */
 export function tiff(w, h, carried, note, icc = null) {
-  const per = 64, strips = Math.ceil(h / per), ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284, 34675, ...(note ? [270] : [])];
-  const said = note ? Uint8Array.from([...ascii(note), 0]) : null, desc = [...(said ? [{ tag: 270, type: 2, count: said.length, data: said }] : []), ...(icc ? [{ tag: 34675, type: 7, count: icc.length, data: icc }] : [])];   // ASCII, ending in a zero; the profile as plain bytes
-  const head = (/** @type {number} */ at) => block((carried || []).filter((e) => !ours.includes(e.tag)).concat(desc,
-    entry(256, 4, [w]), entry(257, 4, [h]), entry(258, 3, [16, 16, 16]), entry(259, 3, [1]), entry(262, 3, [2]),   // size, bits, no compression, RGB
-    entry(273, 4, Array.from({ length: strips }, (_, i) => at + i * per * w * 6)), entry(274, 3, [1]), entry(277, 3, [3]), entry(278, 4, [per]),
-    entry(279, 4, Array.from({ length: strips }, (_, i) => Math.min(per, h - i * per) * w * 6)), entry(284, 3, [1])));
-  let blob = new Blob([head(head(0).length)]);
+  const per = 64, line = w * 3, ours = [256, 257, 258, 259, 262, 273, 274, 277, 278, 279, 284, 317, 531, 34675, 50341, ...(note ? [270] : [])];   // also strips JPEG-only YCbCrPositioning (531) & PrintIM (50341)
+  const said = note ? Uint8Array.from([...ascii(note), 0]) : null, desc = [...(said ? [{ tag: 270, type: 2, count: said.length, data: said }] : []), ...(icc ? [{ tag: 34675, type: 7, count: icc.length, data: icc }] : [])];
+  const chunks = /** @type {Blob[]} */ ([]), counts = /** @type {number[]} */ ([]);
+  let buf = new Uint16Array(per * line), have = 0;
+  const flush = async () => {
+    if (!have) return;
+    const z = await deflateStrip(buf, w, have);
+    chunks.push(new Blob([z])); counts.push(z.byteLength); have = 0;
+  };
+  const head = (/** @type {number} */ at) => {
+    const offs = []; let cur = at;
+    for (const c of counts) { offs.push(cur); cur += c; }
+    return block((carried || []).filter((e) => !ours.includes(e.tag)).concat(desc,
+      entry(256, 4, [w]), entry(257, 4, [h]), entry(258, 3, [16, 16, 16]), entry(259, 3, [8]), entry(262, 3, [2]),   // Deflate (8), RGB
+      entry(273, 4, offs), entry(274, 3, [1]), entry(277, 3, [3]), entry(278, 4, [per]),
+      entry(279, 4, counts), entry(284, 3, [1]), entry(317, 3, [2])));   // Horizontal differencing predictor (2)
+  };
   return {
-    async rows(px, n) { blob = new Blob([blob, px.subarray(0, n * w * 3)]); },
-    async done() { return new Blob([blob], { type: 'image/tiff' }); },
+    async rows(px, n) {
+      for (let at = 0; at < n;) {
+        const take = Math.min(n - at, per - have);
+        buf.set(px.subarray(at * line, (at + take) * line), have * line);
+        have += take; at += take;
+        if (have === per) await flush();
+      }
+    },
+    async done() { await flush(); return new Blob([head(head(0).length), ...chunks], { type: 'image/tiff' }); },
   };
 }

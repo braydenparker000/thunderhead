@@ -118,7 +118,7 @@ export default class Component extends DCLogic {
       photoTouch: m.kind === 'Brush' || real ? 'none' : 'auto', photoCursor: m.kind === 'Brush' || (real && mk.RANGE.includes(m.kind)) ? 'crosshair' : 'default',
       pDown: (e) => { if (real) return this.down(e, m, sel, has, { size: brushS / box[2] / zoom.mag(), feather: valOf('Feather') / 100, flow: valOf('Flow') / 100, erase: !!S.erase }); if (m.kind !== 'Brush') return; this.painting = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.paint(e, brushS); },
       pMove: (e) => { if (real) return this.move(e, sel); if (this.painting) this.paint(e, brushS); },
-      pUp: (e) => { this.painting = false; if (real && e?.type === 'pointerup') this.up(sel); this.grab = null; },
+      pUp: (e) => { this.painting = false; if (real && this.grab && e?.pointerId === this.grab.id) { if (e.type === 'pointerup') this.up(sel); this.grab = null; } else if (!real) this.grab = null; },
       list: masks.map((x, i) => ({ name: label(x), on: String(i === sel), weight: i === sel ? 600 : 500, bg: i === sel ? 'rgba(255,255,255,0.13)' : 'transparent', ink: i === sel ? '#f2efe8' : '#a6aab0',
         ring: i === sel ? 'inset 0 0 0 1px rgba(255,255,255,0.22)' : 'inset 0 0 0 1px rgba(255,255,255,0.07)',
         thumb: shapes[x.kind][2], count: edits(x) ? String(edits(x)) : '', countInk: i === sel ? '#e8202a' : '#a6b0bc',
@@ -137,24 +137,24 @@ export default class Component extends DCLogic {
    * linear one by an end (near either line) or whole, a radial one by its middle (to move) or its rim (to size, along
    * one axis when held near that axis's end). */
   down(e, m, sel, has, brush) {
-    const eng = photo.eng; if (!has || !eng) return;
+    const eng = photo.eng; if (!has || !eng || this.grab) return;
     const b = e.currentTarget.getBoundingClientRect(), u = (e.clientX - b.left) / b.width, v = (e.clientY - b.top) / b.height;
     this.grab = null;
     if (!m.a && m.kind !== 'Brush' && !mk.RANGE.includes(m.kind)) return;
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
     const q = eng.maskPoint(u, v), a = m.a; let hold;
     // a range's pick and a brush's first dab wait for the finger to move or lift: a second finger landing makes it a pinch (zoom.js), not a touch of the mask
-    if (mk.RANGE.includes(m.kind)) { this.grab = { kind: 'Range', u, v, x: e.clientX, y: e.clientY }; return; }
+    if (mk.RANGE.includes(m.kind)) { this.grab = { id: e.pointerId, kind: 'Range', u, v, x: e.clientX, y: e.clientY }; return; }
     if (m.kind === 'Brush') {   // the brush's size on the photo, in mask units where the finger is
       const e2 = eng.maskPoint(u + brush.size / 2, v), tip = { r: Math.hypot(e2[0] - q[0], e2[1] - q[1]), feather: brush.feather, flow: brush.flow, erase: brush.erase };
-      this.grab = { kind: 'Brush', tip, q, began: false }; return;
+      this.grab = { id: e.pointerId, kind: 'Brush', tip, q, began: false }; return;
     }
     if (m.kind === 'Linear') { const dx = a[2] - a[0], dy = a[3] - a[1], t = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / Math.max(1e-9, dx * dx + dy * dy); hold = t < 0.25 ? 'a' : t > 0.75 ? 'b' : 'both'; }
     else { const x = (q[0] - a[0]) / a[2], y = (q[1] - a[1]) / a[3]; hold = Math.hypot(x, y) < 0.7 ? 'move' : Math.abs(x) > 2.4 * Math.abs(y) ? 'x' : Math.abs(y) > 2.4 * Math.abs(x) ? 'y' : 'xy'; }
-    this.grab = { hold, q, a: [...a], kind: m.kind };
+    this.grab = { id: e.pointerId, hold, q, a: [...a], kind: m.kind };
   }
   move(e, sel) {
-    const g = this.grab, eng = photo.eng; if (!g || !eng) return;
+    const g = this.grab, eng = photo.eng; if (!g || !eng || e.pointerId !== g.id) return;
     if (zoom.pinching()) { this.grab = null; return; }
     if (g.kind === 'Range') { if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 10) this.grab = null; return; }
     const b = e.currentTarget.getBoundingClientRect(), q = eng.maskPoint((e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height);

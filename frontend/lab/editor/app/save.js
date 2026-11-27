@@ -12,6 +12,7 @@ import { CONFIG } from '/config.js';
 import { tick } from './haptic.js';
 import { noteLine } from './export-note.js';
 import { keep, keyOf, rowsKept, sweep } from './export-kept.js';
+import { releaseViews } from './zoom.js';
 
 /** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string, space?: string, ultra?: boolean }} Preset
  * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
@@ -43,7 +44,7 @@ export async function day() { const p = photo.current(); return p ? taken(await 
 function download(blob, name) {
   const a = document.createElement('a'), url = URL.createObjectURL(blob);
   a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  setTimeout(() => URL.revokeObjectURL(url), 15_000);
 }
 
 const MARK = 'th.editor.export';
@@ -57,8 +58,8 @@ const ultraPick = () => presets().some((x) => x.on && x.ultra);
 export function netWhy() { try { return prefOn('photos.neural', true) ? 'on' : 'off-setting'; } catch { return 'off-setting'; } }
 const netOn = () => netWhy() === 'on';
 /** What an export of the open photo is made from, as a short name (export-kept.js): the photo, its edit, its size, the
- * method, the editor's settings and the build. @param {boolean} best */
-const keyNow = (best) => { const p = photo.current(), big = photo.whole(); return keyOf({ id: p?.id, edit: photo.state(), size: [big?.width, big?.height], best, wide: widePick(), ultra: ultraPick(), set: Object.keys(localStorage).filter((k) => k.startsWith('th.s.photos.')).sort().map((k) => [k, localStorage.getItem(k)]), build: CONFIG.commit }); };
+ * method, the editor's settings and the build. @param {boolean} best @param {boolean} [wide] @param {boolean} [ultra] */
+const keyNow = (best, wide = widePick(), ultra = ultraPick()) => { const p = photo.current(), big = photo.whole(); return keyOf({ id: p?.id, edit: photo.state(), size: [big?.width, big?.height], best, wide, ultra, set: Object.keys(localStorage).filter((k) => k.startsWith('th.s.photos.')).sort().map((k) => [k, localStorage.getItem(k)]), build: CONFIG.commit }); };
 /** How much of the open photo's export is made already and kept (0 to 1): one that stopped carries on from there. */
 export async function madeAlready() { try { const big = photo.whole(); return big && netOn() && !photo.current()?.plain ? Math.min(1, (await rowsKept(await keyNow(true))) / big.height) : 0; } catch { return 0; } }
 /** What an export of the open photo says of how it was made, written into each file that carries metadata
@@ -105,6 +106,7 @@ export async function save(presets, progress, how = {}) {
   const best = netOn(), lock = await /** @type {any} */ (navigator).wakeLock?.request('screen').catch(() => null);   // the screen kept awake: a phone that sleeps takes the tab back
   try { localStorage.setItem(MARK, JSON.stringify({ id: p.id, name: p.name, net: best })); } catch { /* a private window */ }
   try { await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
+    releaseViews();   // reclaim 100 %/Starfish zoom GPU views + cached tiles (~120-170 MB) before full-size export
     const wide = presets.some((x) => x.space === 'Display P3'), ultra = best && !p.plain && presets.some((x) => x.ultra);   // Display P3 + optional 4x D4 TTA
     await photo.settle({ wide });
     // each file as plain data (engine/files.js `Spec`), so it can be written on the export's own thread
@@ -117,7 +119,7 @@ export async function save(presets, progress, how = {}) {
     // By the network where it is on (Settings > Photos > Editor), and then by nothing else: where it cannot run the
     // export is refused (engine/export.js `NoBest`). Its bands are kept as they are made, so one that stops (here,
     // or with the tab) carries on from there: at once, once, and after that at the next Save.
-    const held = best && !p.plain ? await keyNow(true).then(keep).catch(() => null) : null;
+    const held = best && !p.plain ? await keyNow(true, wide, ultra).then(keep).catch(() => null) : null;
     let files;
     try { for (let tries = 0; ; tries++) {
       try { files = await develop(big, jobsOf(), step, clock, best, { ...run, keep: held }); break; }
@@ -134,8 +136,8 @@ export async function save(presets, progress, how = {}) {
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
   Object.assign(helped, { cpu: clock.cpu || 0, parts: clock.parts || 0 });
-  const tta = best && !p.plain && presets.some((x) => x.ultra) ? 4 : 1;
-  exporting(saved.length ? 'done' : 'left'); note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...(clock.net ? { tta, wino: 2 } : {}), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
+  const tta = best && !p.plain && presets.some((x) => x.ultra) ? 4 : 1, savedPx = saved.reduce((n, f) => n + f.width * f.height, 0);
+  exporting(saved.length ? 'done' : 'left'); note('save', performance.now() - began, { files: saved.length, px: clock.net ? Math.max(savedPx, big.width * big.height) : savedPx, bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...(clock.net ? { tta, wino: 2 } : {}), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
   return saved;
 }
 

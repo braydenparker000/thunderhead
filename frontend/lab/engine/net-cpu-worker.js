@@ -12,11 +12,11 @@ const put = (/** @type {Float32Array} */ a) => { const p = x.room(a.length * 4 +
 let wake = /** @type {((h: { top: Float32Array | null, bottom: Float32Array | null }) => void) | null} */ (null);
 
 /** Exchanges top/bottom halo rows with neighbour strips and zeroes left/right border columns. */
-async function trade(/** @type {number} */ stage, /** @type {number} */ p, /** @type {number} */ cin, /** @type {number} */ h, /** @type {number} */ wv) {
-  const row = LW * cin, buf = f32(p, (h + 2) * row);
-  self.postMessage({ edge: stage, top: buf.slice(row + cin, row + cin + PW * cin), bottom: buf.slice(h * row + cin, h * row + cin + PW * cin) });
+async function trade(/** @type {number} */ stage, /** @type {number} */ p, /** @type {number} */ cin, /** @type {number} */ h, /** @type {number} */ wv, /** @type {number} */ wRun) {
+  const lw = wRun + 2, row = lw * cin, buf = f32(p, (h + 2) * row);
+  self.postMessage({ edge: stage, top: buf.slice(row + cin, row + cin + wRun * cin), bottom: buf.slice(h * row + cin, h * row + cin + wRun * cin) });
   const got = await new Promise((res) => { wake = res; });
-  for (const [r, v] of [[0, got.top], [h + 1, got.bottom]]) { const o = r * row + cin; if (v) buf.set(v, o); else buf.fill(0, o, o + PW * cin); }
+  for (const [r, v] of [[0, got.top], [h + 1, got.bottom]]) { const o = r * row + cin; if (v) buf.set(v, o); else buf.fill(0, o, o + wRun * cin); }
   for (let r = 0; r < h + 2; r++) {
     buf.fill(0, r * row, r * row + cin);
     buf.fill(0, r * row + (wv + 1) * cin, (r + 1) * row);
@@ -26,14 +26,15 @@ async function trade(/** @type {number} */ stage, /** @type {number} */ p, /** @
 /** Runs one strip of a window through Starfish v0.2.0 (`00_prep` -> 11 Winograd 3x3 layers -> `head64`). */
 async function strip(/** @type {{ a: number, b: number, hv: number, wv: number, vw: number, vh: number, r0: number, mos: Float32Array, sig: Float32Array }} */ j) {
   const { a, b, hv, wv, vw, vh, r0, mos, sig } = j, h = b - a, win = at.win, L = at.L;
+  const wRun = Math.min(PW, Math.ceil(wv / 8) * 8), lw = wRun + 2;
   let cur = at.A, other = at.B;
   {
-    const buf = f32(cur, (h + 2) * LW * 15);
+    const buf = f32(cur, (h + 2) * lw * 15);
     buf.fill(0);
     for (let r = 0; r < h + 2; r++) {
       const ly = a - 1 + r; if (ly < 0 || ly >= hv) continue;
       for (let lx = 0; lx < wv; lx++) {
-        const o = (r * LW + lx + 1) * 15, q = (ly % 2) * 2 + (lx % 2);
+        const o = (r * lw + lx + 1) * 15, q = (ly % 2) * 2 + (lx % 2);
         const m9 = ((9 >> q) & 1) !== 0, m6 = ((6 >> q) & 1) !== 0;
         const r0i = (ly * 3 - r0) * win + lx * 3, r1i = r0i + win, r2i = r1i + win;
         const m00 = mos[r0i], m01 = mos[r0i + 1], m02 = mos[r0i + 2];
@@ -50,24 +51,27 @@ async function strip(/** @type {{ a: number, b: number, hv: number, wv: number, 
   let stage = 0;
   for (let i = 0; i < L.length; i++) {
     const l = L[i];
-    if (i > 0) await trade(++stage, cur, l.cin, h, wv);
-    if (x.conv3r_wino(cur, l.wp, l.bp, other, at.S, l.cin, l.cout, h, PW, l.flags) !== 0) throw new Error(`layer ${i} refused`);
+    if (i > 0) await trade(++stage, cur, l.cin, h, wv, wRun);
+    if (x.conv3r_wino(cur, l.wp, l.bp, other, at.S, l.cin, l.cout, h, wRun, l.flags | 4) !== 0) throw new Error(`layer ${i} refused`);
     [cur, other] = [other, cur];
   }
   const last = L[L.length - 1].cout;   // 27 channels padded to 32 (3 colours x 3x3 pixel shuffle)
-  await trade(++stage, cur, last, h, wv);
-  const fh = h * S, rowI = (win + 2) * 5, inp = f32(at.I, (fh + 2) * rowI), src = f32(cur, (h + 2) * LW * last);
+  await trade(++stage, cur, last, h, wv, wRun);
+  const fh = h * S, rowI = (vw + 2) * 5, inp = f32(at.I, (fh + 2) * rowI), src = f32(cur, (h + 2) * lw * last);
   inp.fill(0);
   for (let r = 0; r < fh + 2; r++) {
     const Y = a * S - 1 + r; if (Y < 0 || Y >= vh) continue;
     const lr = Math.floor(Y / S) - (a - 1), sy = Y % S, mrow = (Y - r0) * win;
     for (let X = 0; X < vw; X++) {
-      const p = (lr * LW + Math.floor(X / S) + 1) * last, s = sy * S + (X % S), o = r * rowI + (X + 1) * 5;
+      const p = (lr * lw + Math.floor(X / S) + 1) * last, s = sy * S + (X % S), o = r * rowI + (X + 1) * 5;
       inp[o] = src[p + s]; inp[o + 1] = src[p + 9 + s]; inp[o + 2] = src[p + 18 + s]; inp[o + 3] = mos[mrow + X]; inp[o + 4] = sig[mrow + X];
     }
   }
-  if (x.head64(at.I, at.h0, at.h1, at.O, fh, win, (a * S) % 6, 0) !== 0) throw new Error('the head refused');
-  return f32(at.O, fh * win * 3).slice();
+  if (x.head64(at.I, at.h0, at.h1, at.O, fh, vw, (a * S) % 6, 0) !== 0) throw new Error('the head refused');
+  if (vw === win) return f32(at.O, fh * win * 3).slice();
+  const out = new Float32Array(fh * win * 3), raw = f32(at.O, fh * vw * 3);
+  for (let y = 0; y < fh; y++) out.set(raw.subarray(y * vw * 3, (y + 1) * vw * 3), y * win * 3);
+  return out;
 }
 
 self.onmessage = async (e) => {
@@ -79,7 +83,7 @@ self.onmessage = async (e) => {
       const rows = d.rows, win = d.win, L = d.layers.map((/** @type {Layer} */ l) => ({ ...l, wp: put(l.w), bp: put(l.b) }));
       const big = Math.max(...L.map((/** @type {Layer} */ l) => Math.max(l.cin, l.cout)));
       const room = (/** @type {number} */ n) => { const p = x.room(n * 4 + 16); if (!p) throw new Error('no room for a strip'); return p; };
-      at = { L, h0: put(d.head.w0), h1: put(d.head.w1), A: room((rows + 2) * LW * big), B: room((rows + 2) * LW * big), S: room(16 * big * 4), I: room((rows * S + 2) * (win + 2) * 5), O: room(rows * S * win * 3), rows, win };
+      at = { L, h0: put(d.head.w0), h1: put(d.head.w1), A: room((rows + 2) * LW * big), B: room((rows + 2) * LW * big), S: room(16 * big * 32), I: room((rows * S + 2) * (win + 2) * 5), O: room(rows * S * win * 3), rows, win };
       self.postMessage({ ready: true }); return;
     }
     const out = await strip(d);

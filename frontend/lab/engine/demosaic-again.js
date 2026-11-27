@@ -93,7 +93,7 @@ fn pick(@builtin(global_invocation_id) id: vec3u) {
     let take = vec4f(n >= vec4u(most));
     g = dot(waysAt(q), take) / (take.x + take.y + take.z + take.w);
   }
-  let t = g / (e.g + 1e-5); var c3 = vec3f(e.r * t, g, e.b * t);
+  let t = select(g / max(e.g, 1e-6), 1.0, abs(g - e.g) < 1e-7 || e.g < 1e-4); var c3 = vec3f(e.r * t, g, e.b * t);
   let me = colour(q); if (me != 1u) { c3[me] = mix(c3[me], e[me], ${KEEP}); }   // its own colour follows the new green by half
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
   let n = (id.y * u32(d.at.z) + id.x) * 2u; let m = (u32(id.y + ${REACH}u) * u32(d.at.z + ${2 * REACH}) + id.x + ${REACH}u) * 2u + 1u;

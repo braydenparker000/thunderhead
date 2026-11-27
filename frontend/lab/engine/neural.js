@@ -39,7 +39,7 @@ const made = new WeakMap();
 
 /** Reads the export: its graph, its passes and its weights. @param {'f16' | 'f32'} kind @returns {Promise<Graph>} */
 async function read(kind) {
-  const base = new URL(`${kind}/`, DIR), get = async (/** @type {string} */ f) => { const r = await fetch(new URL(f, base)); if (!r.ok) throw new Error(`the network's ${f} did not load`); return r; };
+  const base = new URL(`${kind}/`, DIR), get = async (/** @type {string} */ f) => { const u = new URL(f, base), r = await fetch(u).catch(() => fetch(u)); if (!r.ok) throw new Error(`the network's ${f} did not load`); return r; };
   const g = /** @type {Graph} */ ({ kind, win: 0, halo: 0, cfa: [], sizes: [], files: [], mosaic: 0, sigma: 0, output: 0, ops: [], weights: new Map() }), ops = [];
   for (const line of (await (await get('graph.txt')).text()).split('\n')) {
     const [what, ...v] = line.trim().split(/\s+/);
@@ -110,12 +110,12 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= d.core.z || i32(id.y) >= d.core.w) { return; }
   let q = d.core.xy + vec2i(id.xy); let w = vec2u(q - d.at.xy); let p = w.y * WIN + w.x; let plane = WIN * WIN;
   var c3 = vec3f(f32(made[p]), f32(made[plane + p]), f32(made[2u * plane + p]));
-  let c = colour(q); let m = f32(mos[p]); let s = f32(sig[p]); let unclipped = own(q) < ${CLIP};
-  // Wiener high-SNR sensel anchor: preserves real sub-pixel detail (|m - c3[c]| > 1.5*s at SNR > 25)
-  // while leaking zero raw single-channel shot/read noise into shadows or flat midtones.
+  let c = colour(q); let m = f32(mos[p]); let s = f32(sig[p]); let unclipped = m < ${CLIP} * d.gain[c];
+  // WB-invariant Wiener high-SNR sensel anchor: preserves crisp sub-pixel detail across midtones AND bright base-ISO
+  // highlights (SNR > 25, dead-zone 1.5*s) while leaking zero single-channel noise into shadows.
   if (unclipped && m > 0.0) {
     let snr = m / max(s, 1e-6);
-    let gate = smoothstep(25.0, 60.0, snr) * exp(-((s / 0.005) * (s / 0.005)));
+    let gate = smoothstep(25.0, 60.0, snr);
     let diff = m - c3[c];
     c3[c] += gate * sign(diff) * max(abs(diff) - 1.5 * s, 0.0);
   }
@@ -127,8 +127,9 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
     c3 *= max(1.0 + d.na.w * snr * snr / (snr * snr + d.nb.w * d.nb.w) * z * sl / lum, 0.0);
   }
   c3 = c3 / d.gain.xyz;
-  var clip = 0u;   // which colours clipped at this pixel or beside it, as demosaic.js flags them
-  for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let s2 = q + vec2i(i, j); if (own(s2) >= ${CLIP}) { clip |= 1u << colour(s2); } } }
+  nearby(vec2f(q) + 0.5, 1.5);
+  var clip = 0u;   // which colours clipped at this pixel or beside it (honouring heal spots)
+  for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let s2 = q + vec2i(i, j); if (raw(s2) >= ${CLIP}) { clip |= 1u << colour(s2); } } }
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
   let r = q - d.rect.xy; let n = u32(r.y * d.rect.z + r.x) * 2u;
   rgb[n] = u.x | (u.y << 16u); rgb[n + 1u] = u.z | (clip << 16u);
@@ -255,8 +256,18 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   })());
   const noiseOf = () => info.noise || noiseAt(info.iso || 100), g1 = info.wb?.[1] || 1;
   let laid = 0;
+  const needsCa = (/** @type {number} */ wx, /** @type {number} */ wy, /** @type {number} */ vw, /** @type {number} */ vh) => {
+    const fr = info.fringe; if (!fr) return false;
+    const [cx, cy] = fr.centre, invR = 15 / fr.reach, tbl = fr.table;
+    for (const x of [wx, wx + vw]) for (const y of [wy, wy + vh]) {
+      const r = Math.hypot(x - cx, y - cy), t = Math.min(r * invR, 15), j = Math.min(Math.floor(t), 14), f = t - j;
+      const ax = tbl[j * 4] * (1 - f) + tbl[(j + 1) * 4] * f, ay = tbl[j * 4 + 1] * (1 - f) + tbl[(j + 1) * 4 + 1] * f;
+      if (r * Math.max(Math.abs(ax), Math.abs(ay)) >= 0.08) return true;
+    }
+    return false;
+  };
   /** @returns {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][] & { vw: number, vh: number, pre: number }} */
-  const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0, tta = 1) => {
+  const lay = (/** @type {number} */ n, /** @type {number[]} */ [rx, ry, rw, rh], /** @type {number} */ x0, /** @type {number} */ y0, /** @type {Float32Array | null | undefined} */ spots, /** @type {number} */ k, keep = 0, quiet = 0, tta = 1, skipBody = false) => {
     const cw = Math.min(CORE, rx + rw - x0), ch = Math.min(CORE, ry + rh - y0), wx = snap(x0 - HALO, lx), wy = snap(y0 - HALO, ly), noise = noiseOf();
     const vw = Math.min(WIN, Math.ceil((x0 + cw + HALO - wx) / 6) * 6), vh = Math.min(WIN, Math.ceil((y0 + ch + HALO - wy) / 6) * 6), s = slot(n);
     laid += vw * vh;
@@ -268,11 +279,11 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     device.queue.writeBuffer(s.uni, 0, u); device.queue.writeBuffer(s.valid, 0, new Uint32Array([vh, vw, 0, 0]));
     /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} */
     const pre = [[cut, s.cut, Math.ceil(vw / 8), Math.ceil(vh / 8), 1, false, 0]];
-    if (info.fringe) pre.push(...caRun(s.uni, vw, vh));
-    const inner = winoRun
+    if (needsCa(wx, wy, vw, vh)) pre.push(...caRun(s.uni, vw, vh));
+    const inner = skipBody ? [] : winoRun
       ? winoRun.passes(s.valid, vw, vh)
       : g.ops.map((op, j) => /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */ ([pipes[j], s.ops[j], op.groups[0], op.groups[1], op.groups[2], canSlice(op.code), j + 1]));
-    const body = tta > 1 ? ttaRun.wrap(s.valid, vw, vh, tta, inner) : inner;
+    const body = !skipBody && tta > 1 ? ttaRun.wrap(s.valid, vw, vh, tta, inner) : inner;
     /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean, number]} */
     const post = [place, s.place, Math.ceil(cw / 8), Math.ceil(ch / 8), 1, false, g.ops.length + 1];
     return Object.assign([...pre, ...body, post], { vw, vh, pre: pre.length });
@@ -293,7 +304,7 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
   const pace = async (rx, ry, rw, rh, spots, smooth, keep = 0, quiet = 0, o = {}) => {
     const k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2;
     for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) {
-      const passes = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet, o.tta || 1).map((p) => /** @type {import('./net-pace.js').Paced} */ ([p[0], p[1], p[2], p[3], p[4], !!p[5]]));
+      const passes = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet, o.tta || 1).map((p) => /** @type {import('./net-pace.js').Paced} */ ([p[0], p[1], p[2], p[3], p[4], !!p[5], p[6] || 0]));
       if (!(await paced(device, passes, slot(0).valid, o))) return false;
     }
     return true;

@@ -70,7 +70,8 @@ export default class Component extends DCLogic {
       const looks = real ? photo.looks() : app ? [] : [{ id: 'p', label: 'Provia', asShot: true }, { id: 'v', label: 'Velvia' }, { id: 'c', label: 'Classic Chrome' }, { id: 'a', label: 'Acros', mono: true }], on = real ? photo.look() : 'p';
       const kinds = { All: () => true, Film: (l) => !/^Adobe/.test(l.label), Adobe: (l) => /^Adobe/.test(l.label), 'B&W': (l) => l.mono };
       chips = Object.keys(kinds).map((k) => ({ name: k, value: String(looks.filter(kinds[k]).length), on: k === S.kind, pick: () => set({ kind: k }) }));
-      tiles = looks.filter(kinds[S.kind] || kinds.All).map((l) => ({ name: l.label, on: l.id === on, tag: l.asShot ? 'AS SHOT' : '', src: real ? tile('look:' + l.id, { ...photo.state(), profile: l.id }, 168, { amount: 1 }) || photo.jpeg() : '', pick: () => real && photo.pickLook(l.id) }));
+      const rolling = !!document.getElementById('stage')?.classList.contains('rolling');
+      tiles = looks.filter(kinds[S.kind] || kinds.All).map((l) => ({ name: l.label, on: l.id === on, tag: l.asShot ? 'AS SHOT' : '', src: real ? (!rolling && tile('look:' + l.id, { ...photo.state(), profile: l.id }, 168, { amount: 1 })) || photo.jpeg() : '', pick: () => real && photo.pickLook(l.id) }));
       dialLabel = 'Amount'; ctl = 'Amount'; unit = '%';
     }
     const at = FACES.indexOf(face);
@@ -82,7 +83,7 @@ export default class Component extends DCLogic {
     const mode = face === 'Curve' ? 'curve' : face === 'Grading' && ZONES.includes(S.zone) ? 'wheel' : face === 'Profile' ? 'tiles' : 'dial', plateH = mode === 'curve' ? 340 : mode === 'wheel' ? 262 : 210;
     const cp = photo.curve()?.[S.chan] || [[0, 0], [1, 1]], ci = Math.min(photo.picked.i, cp.length - 1), inner = ci > 0 && ci < cp.length - 1;
     const lift = (by) => real && photo.setCurve(S.chan, (photo.curve()?.[S.chan] || [[0, 0], [1, 1]]).map((q, j, all) => (j === Math.min(photo.picked.i, all.length - 1) ? [q[0], Math.max(0, Math.min(1, q[1] + by / 255))] : q)));
-    const hold = (by) => () => { clearTimeout(this.rep); clearInterval(this.rep); this.held = false; this.rep = setTimeout(() => { this.held = true; lift(by); this.rep = setInterval(() => lift(by), 60); }, 380); };   // held, it keeps stepping;
+    const hold = (by) => () => { clearTimeout(this.rep); clearInterval(this.rep); this.held = false; this.rep = setTimeout(() => { if (this._host?.stale) return; this.held = true; lift(by); this.rep = setInterval(() => { if (this._host?.stale) { clearInterval(this.rep); return; } lift(by); }, 60); }, 380); };   // held, it keeps stepping;
     const tap = (by) => () => { if (!this.held) lift(by); this.held = false; };   // a tap steps once, on its click: a swipe begun on the key is the panel's, and steps nothing
     return {
       faces: FACES.map((f) => ({ label: f, count: counts[f] || 0 })), faceAt: at, pickFace: (i) => { photo.pickWhite(false); set({ face: FACES[i], wbMenu: false }); this._host?.el.querySelector('[role=toolbar]')?.scrollTo({ left: 0 }); },   // a new face's row starts from its beginning

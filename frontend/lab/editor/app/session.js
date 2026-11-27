@@ -151,12 +151,18 @@ export function custom() {
   cur.wb = cur.values.Temp === k && cur.values.Tint === t ? 'As shot' : 'Custom'; white();
 }
 
+let draftOn = false, bentFine = true;
+/** Interactive dial drag state: uses 33^3 draft LUT + fast present + draft optics while turning, snapping crisp on release. @param {boolean} on */
+export function setDraft(on) { if (on === draftOn) return; draftOn = on; if (!on && ready && eng && cur) draw(); }
+/** Whether a dial is currently held or coasting. */
+export const dialing = () => draftOn;
 /** One render with the photo's values. @param {Parameters<NonNullable<typeof eng>['render']>[2]} [more] */
 function paint(more) {
   performance.mark('th:frame'); const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
+  const draft = more?.draft ?? (draftOn && more?.screen !== false);
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)},${JSON.stringify(c.spots)}`;
-  if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, wide: wideScreen && more?.screen !== false, fitSharpen: true, ...more });
+  if (bent !== key || (!draft && !bentFine)) { bent = key; bentFine = !draft; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop, spots: c.spots, draft }); }   // Optics by hand, or the crop: the picture is laid out again
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { ...dials(v, c.curve), masks: c.masks, baseEv: c.shotEv, showMaskNo: masking && more?.screen !== false ? view.mask : -1, wide: wideScreen && more?.screen !== false, fitSharpen: true, draft, fast: draft && more?.screen !== false, ...more });
 }
 export const cover = (/** @type {() => boolean} */ f) => { covered = f; }, atFit = (/** @type {boolean} */ yes) => { if (yes !== fitNow) { fitNow = yes; if (ready) draw(true, true); } };   // atFit: zoom.js, zoomed in or out: drawn once, so the 100 % view's layer shows before the first edit there   // zoom.js: the 100 % view covers the window, so an edit draws it alone and the fitted photo under it once edits rest (AUDIT.md P.1)
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is @param {boolean} [all] the fitted photo too, covered or not */
@@ -188,6 +194,12 @@ async function small(w, also) {
     return await c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
   } finally { bm.close(); }
 }
+/** Encodes an already-sized ImageData (from GPU `thumbW` fast path) straight to a JPEG Blob. @param {ImageData} im */
+async function smallDirect(im) {
+  const c = new OffscreenCanvas(im.width, im.height);
+  /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).putImageData(im, 0, 0);
+  return await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+}
 /** The edit as it stands. @returns {hist.State} */
 export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo, curve: cur?.curve, cube: cur?.cube, masks: cur?.masks, spots: cur?.spots });
 const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null, curve: st.curve || null, cube: st.cube || '', masks: st.masks || [], spots: st.spots || [] }); };
@@ -195,7 +207,16 @@ const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { va
  * pixels wide; '' if the photo closes first. @param {hist.State | null} st @param {number} w @param {Parameters<typeof paint>[0]} [more] */
 export async function picture(st, w, more) {
   const me = cur; let url = '';
-  await alone(async () => { if (cur === me && eng && me) { await unseen(st, more); url = URL.createObjectURL(await small(w)); } });
+  await alone(async () => {
+    if (cur !== me || !eng || !me) return;
+    if (w > 0 && w <= 320 && eng.size()[0] > w) {
+      await unseen(st, { ...more, thumbW: w, draft: true });
+      url = URL.createObjectURL(await smallDirect(await eng.readThumb()));
+    } else {
+      await unseen(st, more);
+      url = URL.createObjectURL(await small(w));
+    }
+  });
   return url;
 }
 /** One frame off screen, of the edit `st` (null: the photo's own), always as cropped whatever board is up. The frame is
@@ -206,11 +227,17 @@ function unseen(st, more) {
   base = false;
   try { if (st) { put(st); applyProfile(); } return paint({ screen: false, ...more }); } finally { base = shown; if (st) { put(was); applyProfile(); } }
 }
-/** The fitted photo's pixels as it is now (the histogram's); null if the photo closes first. */
+/** The fitted photo's pixels as it is now (for clipping overlay); null if the photo closes first. */
 export async function pixels() {
   const me = cur; let im = /** @type {ImageData | null} */ (null);
   await alone(async () => { if (cur === me && eng && me) { await unseen(null); im = await eng.snapshot(); } });
   return im;
+}
+/** 3 KB GPU compute histogram of the photo as it is now (replaces 17.7 MB readback in scope.js). */
+export async function histogram() {
+  const me = cur; let h = /** @type {Awaited<ReturnType<NonNullable<typeof eng>['histogram']>> | null} */ (null);
+  await alone(async () => { if (cur === me && eng && me) { if (behind) await unseen(null); h = await eng.histogram(); } });
+  return h;
 }
 /** The crop (engine/crop.js; null for none), and the upright picture's size before it. */
 export const geo = () => cur?.geo || null;

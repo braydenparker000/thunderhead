@@ -72,8 +72,9 @@ export default class Component extends DCLogic {
     const start = { long: { size: 'Full', long: full }, q: { q: p.name === 'Small' ? 85 : 95 }, amt: { amt: 'Standard' }, meta: { meta: 'All' }, naming: { naming: 'Camera name' } };
     const chips = rows[S.group].map((o) => ({ name: o.name, value: o.value ?? '', on: !!o.on, pick: o.pick }));
     const W = S.working, on = P.filter((x) => x.on);
-    // how long it should take: this phone's own rate for the way it will be made, times the pixels of the files on
-    const baseEst = real ? estimate(this.past, why === 'on', on.reduce((n, x) => n + x.long * short(x), 0)) : null;
+    // how long it should take: this phone's own rate for the way it will be made, times the pixels of the files on (at least the full sensor when Starfish runs)
+    const outPx = on.reduce((n, x) => n + x.long * short(x), 0);
+    const baseEst = real ? estimate(this.past, why === 'on', why === 'on' && on.length ? Math.max(outPx, fw * fh) : outPx) : null;
     const whole = baseEst === null ? null : baseEst * (why === 'on' && p.ultra ? 4 : 1), guess = whole === null ? null : whole * (1 - S.made);
     const run = () => {
       if (!on.length || W) return;
