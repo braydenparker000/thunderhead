@@ -27,12 +27,15 @@ export const SLICE_MS = 12;
 export async function paced(device, passes, valid, o = {}) {
   const z0 = (/** @type {number} */ z) => device.queue.writeBuffer(valid, 8, new Uint32Array([z]));
   const aim = o.aim || SLICE_MS;
-  let batch = 3;   // one Winograd strip (wIn + wGemm + wOut) per submit to start; adapts to GPU speed
+  const takes = /** @type {Map<GPUComputePipeline, number>} */ (new Map());
+  const breathe = () => (typeof requestAnimationFrame === 'function' && (typeof document === 'undefined' || document.visibilityState === 'visible')
+    ? new Promise((r) => requestAnimationFrame(() => r(undefined))) : null);
+  let batch = 3, frameAt = performance.now();
   try {
     for (let i = 0; i < passes.length;) {
       const [pipe, bind, a, b, c, can] = passes[i];
       if (can) {
-        let take = 1;
+        let take = Math.min(c, takes.get(pipe) || 1);
         for (let z = 0; z < c;) {
           const n = Math.min(take, c - z), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
           z0(z);
@@ -43,7 +46,9 @@ export async function paced(device, passes, valid, o = {}) {
           o.note?.(ms);
           z += n;
           take = ms < aim / 2 ? Math.min(c, take * 2) : ms > aim * 1.5 ? Math.max(1, take >> 1) : take;
+          takes.set(pipe, take);
           if (o.stop?.()) return false;
+          if (performance.now() - frameAt >= aim) { const y = breathe(); if (y) { await y; if (o.stop?.()) return false; } frameAt = performance.now(); }
         }
         i++;
       } else {
@@ -61,6 +66,7 @@ export async function paced(device, passes, valid, o = {}) {
         i = j;
         batch = ms < aim / 2 ? Math.min(18, batch * 2) : ms > aim * 1.5 ? Math.max(1, batch >> 1) : batch;
         if (o.stop?.()) return false;
+        if (performance.now() - frameAt >= aim) { const y = breathe(); if (y) { await y; if (o.stop?.()) return false; } frameAt = performance.now(); }
       }
     }
     return true;

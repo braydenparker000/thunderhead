@@ -242,21 +242,33 @@ export async function full(e, img, mosaic) {
      * @param {number} X @param {number} Y @param {number} cw @param {number} ch @param {Record<string, number> | null} [clock]
      * @param {Pace | null} [pace] for the screen: the rectangle's colours are made a part at a time (`parts`), so the page is drawn in between
      *   and a touch is answered; when `pace.stop` says yes the rest is left undone and null is given
-     * @param {((enc: GPUCommandEncoder) => void) | null} [made] the rectangle's colours as the CPU made them (`ahead`) @returns {Promise<Rect | null>} */
-    async function region(X, Y, cw, ch, clock = null, pace = null, made = null) {
+     * @param {((enc: GPUCommandEncoder) => void) | null} [made] the rectangle's colours as the CPU made them (`ahead`)
+     * @param {{ signal?: AbortSignal, onStep?: (frac: number) => void } | null} [extra] @returns {Promise<Rect | null>} */
+    async function region(X, Y, cw, ch, clock = null, pace = null, made = null, extra = null) {
       const r = place(X, Y, cw, ch), u = e.gpu.settings();
       if (made) { fresh = false; given = made; }
-      try { return await drawn(r, u, clock, pace); } finally { given = null; }
+      try { return await drawn(r, u, clock, pace, extra); } finally { given = null; }
     }
-    /** @param {Rect} r @param {ArrayBuffer} u @param {Record<string, number> | null} clock @param {Pace | null} pace */
-    async function drawn(r, u, clock, pace) {
+    /** @param {Rect} r @param {ArrayBuffer} u @param {Record<string, number> | null} clock @param {Pace | null} pace
+     * @param {{ signal?: AbortSignal, onStep?: (frac: number) => void } | null} [extra] */
+    async function drawn(r, u, clock, pace, extra = null) {
       // timed a step at a time for an export's first pieces (`clock` gathers each step's ms): where the phone's time goes
       const timed = async (/** @type {string} */ name, /** @type {(enc: GPUCommandEncoder) => void} */ run) => {
         const t = performance.now(), one = device.createCommandEncoder(); run(one); device.queue.submit([one.finish()]); await device.queue.onSubmittedWorkDone();
         if (clock) clock[name] = (clock[name] || 0) + performance.now() - t;
       };
       const f = new Float32Array(u);
-      if (clock && bind && (!fresh || cleaned !== keptOf(f))) { for (const [name, run] of steps(r, f)) await timed(name, run); fresh = true; cleaned = keptOf(f); }
+      if (net && tta > 1 && !pace && !given && bind && (!fresh || cleaned !== keptOf(f))) {
+        const t0 = performance.now(), key = `${r.rx},${r.ry},${r.rw},${r.rh},${f[100]}`, bytes = r.rw * r.rh * 8;
+        if (held === key) { const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); stats.kept++; }
+        else {
+          await net.runExport(r.rx, r.ry, r.rw, r.rh, e.gpu.geo().spots, ...asked(f[100] * 40), tta, extra || {});
+          const enc0 = device.createCommandEncoder(); enc0.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); device.queue.submit([enc0.finish()]); await device.queue.onSubmittedWorkDone(); held = key; stats.demosaic++;
+        }
+        if (clock) clock.demosaic = (clock.demosaic || 0) + performance.now() - t0;
+        for (const [name, run] of steps(r, f).slice(1)) await timed(name, run);
+        fresh = true; cleaned = keptOf(f);
+      } else if (clock && bind && (!fresh || cleaned !== keptOf(f))) { for (const [name, run] of steps(r, f)) await timed(name, run); fresh = true; cleaned = keptOf(f); }
       if (pace && bind && (!fresh || cleaned !== keptOf(f))) {
         for (const part of parts(r, f, pace)) if ((await part()) === false || pace.stop?.()) return null;
         fresh = true; cleaned = keptOf(f);

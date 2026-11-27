@@ -39,7 +39,7 @@ const over = /** @type {HTMLImageElement} */ (make('img', `${LAYER}; inset: 0; i
 const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl')), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl'));   // zl: fades in, crisp pixels from 200 % (editor.css)
 const closer = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER, 'zl'));   // from 100 %: what shows, made by the network once the photo rests (`finer`)
 const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: none', 'glass'), pctEl = badgeLines(badge, () => { badge.style.display = z > 1.02 || loading() ? 'block' : 'none'; });
-const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
+const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none; background: rgba(16,18,20,0.88); border: 1px solid rgba(255,255,255,0.22); box-shadow: 0 10px 24px rgba(0,0,0,0.55)');
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
 map.append(mapImg, box);
 const home = make('div', 'position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; display: none');   // the photo's own layer, under the boards
@@ -151,7 +151,7 @@ export function clip(url) { if (over.getAttribute('src') !== url) over.src = url
 
 /* Gestures: one finger drags a zoomed photo, two pinch, two quick taps go to 100 % and back. */
 const pts = /** @type {Map<number, { x: number, y: number }>} */ (new Map());
-let g = /** @type {null | { pinch: boolean, two: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 };
+let g = /** @type {null | { pinch: boolean, two: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 }, box0 = /** @type {null | { left: number, top: number, s: number }} */ (null);
 function touch(/** @type {PointerEvent} */ e) {
   if (!win?.isConnected) return;
   // a gesture starts in the photo's window; on a tool board anywhere in the photo's room (the board's own layers lie over the window)
@@ -159,7 +159,8 @@ function touch(/** @type {PointerEvent} */ e) {
   hear(e, mine);
   if (e.type === 'pointerdown' && halt()) { hold(); apply(); settle(60); }   // a touch stops a glide where it is
   if (e.type === 'pointerdown' && !mine) return;
-  const r = slot.getBoundingClientRect(), s = r.width / f.W, at = { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s };
+  if (e.type === 'pointerdown' || !box0) { const r = slot.getBoundingClientRect(); box0 = { left: r.left, top: r.top, s: r.width / f.W || 1 }; }
+  const at = { x: (e.clientX - box0.left) / box0.s, y: (e.clientY - box0.top) / box0.s };
   const mid = () => { const [a, b = a] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
   const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; trail.length = 0; };   // two: two fingers were down at some point of this gesture
   if (e.type === 'pointerdown') {

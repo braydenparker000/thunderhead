@@ -15,11 +15,11 @@ import { SLICE_MS } from '../../engine/net-pace.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
-const CAP = 864;   // fits inside one Starfish v0.2.0 window (CORE = 978) with 0-byte sharpener scratch reuse (~122 MB total vs 289 MB uncapped)
-/** The GPU memory a full-size view w x h asks: Starfish shares its scratch planes with deconv (~24 B/px + 92 MB pool, capped at CAP); classic ~50 B/px. @param {number} w @param {number} h */
+const CAP = 944;   // fits inside one Starfish v0.2.0 window (CORE = 978) with STRIP_TILES=10 + 0-byte sharpener scratch reuse (~118 MB total)
+/** The GPU memory a full-size view w x h asks: Starfish shares its scratch planes with deconv (~24 B/px + 82 MB pool, capped at CAP); classic ~50 B/px. @param {number} w @param {number} h */
 export const viewMem = (w, h, net = false) => {
   const cw = net ? Math.min(w, CAP) : w, ch = net ? Math.min(h, CAP) : h;
-  return (Math.sqrt(cw * ch * 1.6) + 32) ** 2 * (net ? 24 : 50) + (net ? 92e6 : 0);
+  return (Math.sqrt(cw * ch * 1.6) + 32) ** 2 * (net ? 24 : 50) + (net ? 82e6 : 0);
 };
 
 /** Starfish for the zoom: `closer` its canvas, `place` lays it over the sensor rectangle it holds, `pace` and `parts`
@@ -70,13 +70,14 @@ export function starfish(z) {
         note('fine', performance.now() - began, { px: at.cw * at.ch, ...(made ? { made } : {}), ...z.parts(took), ...(level('starfish') ? { level: level('starfish') } : {}) });
         return;
       }
-      // High-DPI 100 % viewport wider/taller than one Starfish window: tile center-outward and paint progressively
+      // High-DPI 100 % viewport wider/taller than one Starfish window: balanced grid, painted center-outward
       /** @type {{ x: number, y: number, tw: number, th: number, d: number }[]} */
       const grid = [], cx = rx0 + allW / 2, cy = ry0 + allH / 2;
-      for (let ty = ry0; ty < ry0 + allH; ty += rh) {
-        const th = Math.min(rh, ry0 + allH - ty);
-        for (let tx = rx0; tx < rx0 + allW; tx += rw) {
-          const tw = Math.min(rw, rx0 + allW - tx);
+      const nx = Math.ceil(allW / rw), ny = Math.ceil(allH / rh), stepX = Math.ceil(allW / nx), stepY = Math.ceil(allH / ny);
+      for (let iy = 0; iy < ny; iy++) {
+        const ty = ry0 + iy * stepY, th = Math.min(stepY, ry0 + allH - ty);
+        for (let ix = 0; ix < nx; ix++) {
+          const tx = rx0 + ix * stepX, tw = Math.min(stepX, rx0 + allW - tx);
           grid.push({ x: tx, y: ty, tw, th, d: Math.hypot(tx + tw / 2 - cx, ty + th / 2 - cy) });
         }
       }

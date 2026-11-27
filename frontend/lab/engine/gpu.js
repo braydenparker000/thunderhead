@@ -93,13 +93,13 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
   let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0, gone = false;   // gone: disposed, perhaps while a frame was on its way
   const none = /** @type {any} */ (null);
-  let out = /** @type {GPUTexture} */ (none), flat = /** @type {GPUBuffer} */ (none), bend = /** @type {ReturnType<typeof warper>} */ (none), mask = /** @type {ReturnType<typeof masks>} */ (none), back = /** @type {GPUBuffer | null} */ (null);
+    let out = /** @type {GPUTexture} */ (none), shownTex = /** @type {GPUTexture} */ (none), flat = /** @type {GPUBuffer} */ (none), bend = /** @type {ReturnType<typeof warper>} */ (none), mask = /** @type {ReturnType<typeof masks>} */ (none), back = /** @type {GPUBuffer | null} */ (null);
   const lay = () => {
     const nw = Math.round(geo.ow / cell), nh = Math.round(geo.oh / cell);
     if (nw === ow && nh === oh) return false;
     for (const b of [flat, back]) b?.destroy(); out?.destroy(); mask?.destroy(); bend?.destroy();
     ow = nw; oh = nh; row = Math.ceil((ow * 4) / 256) * 256;
-    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });   // (read and written again by the fitted frame's sharpening: fit-sharp.js)
+    out = shownTex = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });   // (read by fit-sharp.js)
     flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }); bend = warper(device, bendP, src, flat);
     mask = masks(device, maskP, flat, uni, ow, oh);
     back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
@@ -203,16 +203,16 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     }
     last.masked = Boolean(g[0] || g[1] || more.clarity || mTone || more.showMask) && more.mask !== false && masked !== lit;
     if (last.masked) { mask.tone.run(enc); masked = lit; }
-    if ((more.texture || mFine) && fined !== lit) { mask.fine.run(enc); fined = lit; }
+    if ((more.texture || more.clarity || mFine || mTone) && more.mask !== false && fined !== lit) { mask.fine.run(enc); fined = lit; }
     if (((more.dehaze || 0) > 0 || mHaze) && hazed !== lit) { mask.haze.run(enc); hazed = lit; }
     const shown = more.screen !== false, fit = more.fit !== false;
     if (shown && fit && (canvas.width !== ow || canvas.height !== oh)) { canvas.width = ow; canvas.height = oh; }   // the canvas takes a crop's size when it is first shown
     if (fit) {
       const pass = enc.beginComputePass();
       pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(ow / 8), Math.ceil(oh / 8)); pass.end();
-      if (more.fitSharpen && (more.sharpen || 0) > 0) crisp.run(enc, out, ow, oh, /** @type {number} */ (more.sharpen), more.detail ?? 0.25);   // the editor's frames: Sharpening as the fitted photo shows it
-      if (ctx && shown) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
-      if (back && shown) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
+      shownTex = more.fitSharpen && (more.sharpen || 0) > 0 ? crisp.run(enc, out, ow, oh, /** @type {number} */ (more.sharpen), more.detail ?? 0.25) : out;   // direct present without extra 18 MB copy back to out
+      if (ctx && shown) enc.copyTextureToTexture({ texture: shownTex }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
+      if (back && shown) enc.copyTextureToBuffer({ texture: shownTex }, { buffer: back, bytesPerRow: row }, [ow, oh]);
     }
     if (shown) { for (const v of views) v.frame(enc, u); lastU = u; }
     device.queue.submit([enc.finish()]);
@@ -231,7 +231,7 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
   /** The last render's pixels, for the colour check. */
   const snapshot = async () => {
     const b = device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = device.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: out }, { buffer: b, bytesPerRow: row }, [ow, oh]); device.queue.submit([enc.finish()]);
+    enc.copyTextureToBuffer({ texture: shownTex }, { buffer: b, bytesPerRow: row }, [ow, oh]); device.queue.submit([enc.finish()]);
     await b.mapAsync(GPUMapMode.READ);
     const b8 = new Uint8Array(b.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
     for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);

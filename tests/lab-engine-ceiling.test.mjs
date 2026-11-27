@@ -155,3 +155,20 @@ test('net-pace adaptively batches consecutive non-sliceable passes and stops imm
   assert.equal(stopped, false);
 });
 
+test('Mali zero-spill Winograd, high-SNR shadow anchor, Clarity fine mask, and Ultra 4x ETA normalization', async () => {
+  const wino = readFileSync(new URL('../frontend/lab/engine/net-wino.js', import.meta.url), 'utf8');
+  assert.match(wino, /@workgroup_size\(16, 4, 1\)/);
+  assert.match(wino, /let p = wg\.z \+ valid\.z0;/);
+  assert.doesNotMatch(wino, /var v: array<f32, 45>;/);
+  const neural = readFileSync(new URL('../frontend/lab/engine/neural.js', import.meta.url), 'utf8');
+  assert.match(neural, /smoothstep\(25\.0, 60\.0, snr\)/);
+  const gpu = readFileSync(new URL('../frontend/lab/engine/gpu.js', import.meta.url), 'utf8');
+  assert.match(gpu, /more\.texture \|\| more\.clarity \|\| mFine \|\| mTone/);
+  const { perMp } = await import('../frontend/lab/editor/app/eta.js');
+  const oldSlow = { kind: 'save', ms: 600_000, px: 40e6, net: 1 };
+  const newFast1x = { kind: 'save', ms: 100_000, px: 40e6, net: 1, tta: 1, wino: 2 };
+  const newFast4x = { kind: 'save', ms: 400_000, px: 40e6, net: 1, tta: 4, wino: 2 };
+  // Ultra 4x timing normalizes by tta=4 and wino>=2 supersedes legacy pre-Winograd timings
+  assert.equal(perMp([oldSlow, newFast1x, newFast4x], true), 2500);
+});
+

@@ -235,20 +235,27 @@ const EDGE_KNEE = 0.9;
 // greens reach further. Linear ProPhoto in; linear in that space out, below nothing where it cannot show the colour.
 const WIDE = mat3x3f(${[0, 1, 2].flatMap((j) => SRGB_TO_P3.map((r) => r[j])).map((v) => v.toFixed(7)).join(', ')});
 fn shown(c: vec3f) -> vec3f { let s = mv(p.o0, p.o1, p.o2, c); if ((p.size.w & 4194304u) != 0u) { return WIDE * s; } return s; }
-fn fits(r: vec3f, l: f32, k: f32) -> bool { let s = shown(strong(r, l, k)); return min(s.r, min(s.g, s.b)) >= 0.0; }
 fn fit(c: vec3f) -> vec3f {
   let q = vec3f(dot(c, vec3f(0.7153289, 0.3529082, -0.0682371)), dot(c, vec3f(0.2743544, 0.6678509, 0.0577947)), dot(c, vec3f(0.1097542, 0.1862089, 0.7040370)));
   let r = sign(q) * pow(abs(q), vec3f(1.0 / 3.0)); let l = dot(r, vec3f(0.2104543, 0.7936178, -0.0040720));
-  if (fits(r, l, 4.0)) { return c; }   // nowhere near the edge
-  var lo = 0.0; var hi = 4.0;          // the largest multiple of this colour's strength that fits
-  for (var i = 0; i < 16; i++) { let mid = 0.5 * (lo + hi); if (fits(r, l, mid)) { lo = mid; } else { hi = mid; } }
-  let x = 1.0 / max(lo, 1e-4);         // how far out towards the edge it is: 1 on it
-  // 2097152: a picture (picture.js). Every colour it holds is one the screen shows, so none of them eases in: only
-  // what an edit pushes past the edge is brought back to it, and a picture nothing has moved comes out as it went in.
+  // 2097152: a picture (picture.js). Every colour it holds is one the screen shows, so none eases in past knee.
   let knee = select(EDGE_KNEE, 1.0, (p.size.w & 2097152u) != 0u);
+  let d = r - vec3f(l);
+  let c0 = shown(vec3f(1.7387399, -0.7070029, -0.0840634));
+  let c1 = shown(vec3f(-0.9884013, 1.9343162, -0.3575177));
+  let c2 = shown(vec3f(0.2496614, -0.2273134, 1.4415810));
+  var hi = 1.0 / knee;
+  let nh = vec3f(l) + d * hi; let mh = nh * nh * nh; let sh = c0 * mh.x + c1 * mh.y + c2 * mh.z;
+  if (min(sh.r, min(sh.g, sh.b)) >= 0.0) { return c; }   // well inside knee: untouched
+  var lo = 0.0;          // the largest multiple of this colour's strength that fits
+  for (var i = 0; i < 14; i++) {
+    let mid = 0.5 * (lo + hi); let nm = vec3f(l) + d * mid; let mm = nm * nm * nm;
+    let sm = c0 * mm.x + c1 * mm.y + c2 * mm.z;
+    if (min(sm.r, min(sm.g, sm.b)) >= 0.0) { lo = mid; } else { hi = mid; }
+  }
+  let x = 1.0 / max(lo, 1e-4);         // how far out towards the edge it is: 1 on it
   if (x <= knee) { return c; }
-  // (tanh is held to an argument it can take: past about 88 a GPU works it out as infinity over infinity, which is
-  // no number at all, and the colour came out black. With a picture's knee of 1 that was every colour past the edge.)
+  // (tanh is held to an argument it can take: past about 88 a GPU works it out as infinity over infinity.)
   return strong(r, l, lo * (knee + (1.0 - knee) * tanh(min((x - knee) / max(1.0 - knee, 1e-6), 20.0))));
 }
 ${TOOLS}
