@@ -85,9 +85,9 @@ export default class Component extends DCLogic {
       name, l: `${fx * 100}%`, t: `${fy * 100}%`, corner: fx !== 0.5 && fy !== 0.5, cursor: fx === 0.5 ? 'ns-resize' : fy === 0.5 ? 'ew-resize' : 'nwse-resize',
       il: fx ? 22 - 18 + 2 : 22 - 2, it: fy ? 22 - 18 + 2 : 22 - 2, bw: `${fy ? 0 : 3}px ${fx ? 3 : 0}px ${fy ? 3 : 0}px ${fx ? 0 : 3}px`,
       bl: fx === 0.5 ? 10 : fx ? 19 : 22, bt: fy === 0.5 ? 10 : fy ? 19 : 22, bwid: fx === 0.5 ? 24 : 3, bhgt: fy === 0.5 ? 24 : 3, bar: fx === 0.5 || fy === 0.5 ? 0.95 : 0,   // a side's mark: a short bar on the line
-      down: (e) => { e.stopPropagation(); this.corner = { x: e.clientX, y: e.clientY, c: { ...crop }, view }; this.setState({}); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      down: (e) => { e.stopPropagation(); if (this.corner) return; this.corner = { id: e.pointerId, x: e.clientX, y: e.clientY, c: { ...crop }, view }; this.setState({}); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
       move: (e) => {
-        const d = this.corner; if (!d) return;
+        const d = this.corner; if (!d || e.pointerId !== d.id) return;
         const c = d.c, dx = ((e.clientX - d.x) * q) / d.view.s, dy = ((e.clientY - d.y) * q) / d.view.s;
         let x0 = c.x, y0 = c.y, x1 = c.x + c.w, y1 = c.y + c.h;
         if (fx === 1) x1 = clamp(x1 + dx, x0 + LEAST, boxW); else if (fx === 0) x0 = clamp(x0 + dx, 0, x1 - LEAST);
@@ -99,7 +99,7 @@ export default class Component extends DCLogic {
         }
         set({ crop: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } });
       },
-      up: () => { this.corner = null; this.setState({}); },
+      up: (e) => { if (!this.corner || (e?.pointerId !== undefined && e.pointerId !== this.corner.id)) return; this.corner = null; this.setState({}); },
     }));
     // a finger inside the frame moves the photo under it; two zoom it (the frame keeps its shape, and stays inside the photo)
     const begin = () => { const p = [...this.pts.values()], mx = p.reduce((a, b) => a + b[0], 0) / p.length, my = p.reduce((a, b) => a + b[1], 0) / p.length; return { c: { ...crop }, mx, my, d: p.length > 1 ? Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) : 0, s: view.s }; };

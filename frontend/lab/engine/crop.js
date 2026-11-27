@@ -11,7 +11,7 @@
 /** @type {Crop} */
 export const NONE = { quarter: 0, flipH: false, flipV: false, angle: 0, vertical: 0, horizontal: 0, scale: 0, rect: null, aspect: 'Original', portrait: false };
 export const isNone = (/** @type {Crop | null | undefined} */ c) => !c || (!c.quarter && !c.flipH && !c.flipV && !c.angle && !c.vertical && !c.horizontal && !c.scale && !c.rect);
-const TILT = 0.18, EYE = 900, STAGE = [372, 500];   // degrees of tilt a step; the eye's distance and the stage, in the board's pixels
+const TILT = 0.18, EYE = 900, STAGE = [372, 613];   // degrees of tilt a step; the eye's distance and the stage, in the board's pixels
 
 const mul = (/** @type {number[]} */ a, /** @type {number[]} */ b) => [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c]));
 function inverse(/** @type {number[]} */ m) {

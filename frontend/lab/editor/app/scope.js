@@ -12,6 +12,16 @@ function path(n, top, x0 = 8, x1 = 160, y0 = 66, tall = 60) {
   for (let i = 0; i < 256; i += 2) { let s = 0, c = 0; for (let k = Math.max(0, i - 3); k <= Math.min(255, i + 3); k++) { s += n[k]; c++; } d += ` L${(x0 + (i / 255) * (x1 - x0)).toFixed(1)} ${(y0 - Math.min(1, s / c / top) * tall).toFixed(1)}`; }
   return `${d} L${x1} ${y0}Z`;
 }
+/** Builds Scope SVG paths from 256-bin R/G/B counts (from 3 KB GPU histogram or CPU clipping scan).
+ * @param {Float64Array[]} n @param {number} lo @param {number} hi @param {number} all @param {string} clip @returns {Scope} */
+function fromBins(n, lo, hi, all, clip) {
+  let top = 1;
+  for (const c of n) for (let i = 4; i < 252; i++) top = Math.max(top, c[i]);
+  const sum = n[0].map((v, i) => v + n[1][i] + n[2][i]), hill = (/** @type {Float64Array} */ c, /** @type {number} */ t) => path(c, t * 1.05, 14, 286, 286, 170);
+  let most = 1; for (let i = 4; i < 252; i++) most = Math.max(most, sum[i]);
+  const rgbHill = hill(sum, most), pct = (/** @type {number} */ v) => `${((v / Math.max(1, all)) * 100).toFixed(1)}%`;
+  return { r: path(n[0], top * 1.05), g: path(n[1], top * 1.05), b: path(n[2], top * 1.05), lo: pct(lo), hi: pct(hi), clip, hills: { RGB: rgbHill, Luma: rgbHill, R: hill(n[0], top), G: hill(n[1], top), B: hill(n[2], top) } };
+}
 /** @param {ImageData} im @param {boolean} wantClip @returns {Promise<Scope>} */
 async function read(im, wantClip) {
   const { data, width: w, height: h } = im, n = [new Float64Array(256), new Float64Array(256), new Float64Array(256)], Q = 4, cw = Math.ceil(w / Q), ch = Math.ceil(h / Q);
@@ -23,14 +33,9 @@ async function read(im, wantClip) {
     if (dark) lo++; else if (bright) hi++;
     if (o && (dark || bright) && x % Q === 0 && y % Q === 0) o[(y / Q) * cw + x / Q] = dark ? 0xe0ff6e3c : 0xe02a20e8;
   }
-  let top = 1;
-  for (const c of n) for (let i = 4; i < 252; i++) top = Math.max(top, c[i]);
   let clip = '';
   if (over) { const cv = new OffscreenCanvas(cw, ch); /** @type {OffscreenCanvasRenderingContext2D} */ (cv.getContext('2d')).putImageData(over, 0, 0); clip = URL.createObjectURL(await cv.convertToBlob()); }
-  const sum = n[0].map((v, i) => v + n[1][i] + n[2][i]), hill = (/** @type {Float64Array} */ c, /** @type {number} */ t) => path(c, t * 1.05, 14, 286, 286, 170);
-  let most = 1; for (let i = 4; i < 252; i++) most = Math.max(most, sum[i]);
-  const rgbHill = hill(sum, most), pct = (/** @type {number} */ v) => `${((v / all) * 100).toFixed(1)}%`;
-  return { r: path(n[0], top * 1.05), g: path(n[1], top * 1.05), b: path(n[2], top * 1.05), lo: pct(lo), hi: pct(hi), clip, hills: { RGB: rgbHill, Luma: rgbHill, R: hill(n[0], top), G: hill(n[1], top), B: hill(n[2], top) } };
+  return fromBins(n, lo, hi, all, clip);
 }
 /** The scope of the photo as it is now: the last one made (null at first) until the new one is ready, when a change follows.
  * @param {boolean} [fresh] false: whatever was last made, without reading the photo again (while a finger is on a control)
@@ -41,7 +46,10 @@ export function scope(fresh = true, wantClip = false) {
   const stale = at !== s || (wantClip && !clipAt);
   if (fresh && p && !busy && stale) {
     busy = true;
-    photo.pixels().then((im) => (im && photo.current() === p ? read(im, wantClip) : null)).then((sc) => {
+    const job = wantClip
+      ? photo.pixels().then((im) => (im && photo.current() === p ? read(im, true) : null))
+      : photo.histogram().then((h) => (h && photo.current() === p ? fromBins([h.r, h.g, h.b], h.lo, h.hi, h.all, '') : null));
+    job.then((sc) => {
       busy = false;
       if (!sc || photo.current() !== p) { if (sc?.clip) URL.revokeObjectURL(sc.clip); return; }
       if (got?.clip) URL.revokeObjectURL(got.clip);

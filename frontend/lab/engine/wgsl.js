@@ -101,6 +101,7 @@ export const WGSL = /* wgsl */ `${HEAD}
 @group(0) @binding(7) var fine: texture_2d<f32>;   // the finer mask, for Texture (mask.js)
 @group(0) @binding(8) var haze: texture_2d<f32>;   // how much of the air's light each area holds, for Dehaze
 const N = ${N}u;
+fn lutN() -> u32 { return select(N, 33u, (p.size.w & 33554432u) != 0u); }
 // the 3D table's input: log2 of linear ProPhoto over 16 stops, 2^-12 to 2^4, so shadows get as many points as
 // highlights: four cells a stop, with 1.0 (where the tone curve clips) on a point
 fn shape(c: vec3f) -> vec3f { return clamp((log2(max(c, vec3f(1e-9))) + 12.0) / 16.0, vec3f(0.0), vec3f(1.0)); }
@@ -110,7 +111,7 @@ fn at(i: vec3u) -> vec3f { return textureLoad(lutIn, i, 0).rgb; }
 // and a colour mixes only its own four corners, so greys mix only greys, and the creases the hue-preserving
 // steps make where two channels are equal (r=g, g=b, b=r) lie on the cuts, not inside a cell.
 fn lookup(c: vec3f) -> vec3f {
-  let g = shape(c) * f32(N - 1u); let i = min(vec3u(g), vec3u(N - 2u)); let f = g - vec3f(i);
+  let sz = lutN(); let g = shape(c) * f32(sz - 1u); let i = min(vec3u(g), vec3u(sz - 2u)); let f = g - vec3f(i);
   let ge = step(f.yzx, f.xyz); let lt = 1.0 - ge;               // x≥y, y≥z, z≥x, and the opposites
   let hi = vec3u(ge * lt.zxy); let lo = vec3u(lt * ge.zxy);   // the axis with the largest fraction; the smallest
   let mx = max(f.x, max(f.y, f.z)); let mn = min(f.x, min(f.y, f.z)); let md = f.x + f.y + f.z - mx - mn;
@@ -309,8 +310,9 @@ const LOW = 0.000244140625; const HIGH = 16.0;   // the table's own range (shape
 fn moved(c: vec3f, t: vec3f) -> vec3f { let y = max(sqrt(clamp(c, vec3f(LOW), vec3f(HIGH))) + t, vec3f(0.0)); return select(y * y, max(c + y * y - LOW, vec3f(0.0)), c < vec3f(LOW)); }
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
-  if (any(id >= vec3u(N))) { return; }
-  let c = unshape(vec3f(id) / f32(N - 1u));
+  let sz = lutN();
+  if (any(id >= vec3u(sz))) { return; }
+  let c = unshape(vec3f(id) / f32(sz - 1u));
   textureStore(lutOut, id, vec4f(sqrt(max(colour(c), vec3f(0.0))) - sqrt(c), 1.0));
 }
 ${DITHER}
@@ -386,7 +388,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var o = c;
   if ((fl & 16384u) == 0u) {
     // (finish is called once: its look and curve steps are long, and a GPU that lays out every branch pays for each copy)
-    if ((fl & 64u) != 0u) { o = colour(c); } else if ((fl & 8192u) != 0u) { o = moved(c, at(vec3u(shape(c) * f32(N - 1u) + 0.5))); } else { o = moved(c, lookup(c)); }
+    if ((fl & 64u) != 0u) { o = colour(c); } else if ((fl & 8192u) != 0u) { o = moved(c, at(vec3u(shape(c) * f32(lutN() - 1u) + 0.5))); } else { o = moved(c, lookup(c)); }
     o = finish(o);
   }
   o = mix(o, vec3f(0.91, 0.13, 0.16), 0.55 * lo.show);   // the mask being worked on, in red

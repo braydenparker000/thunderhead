@@ -62,22 +62,25 @@ export default class Component extends DCLogic {
       toolVerb: S.tool.toLowerCase(), viz: S.viz ? 'grayscale(1) contrast(3.2) brightness(1.1)' : 'none', patches, rings,
       status: S.viz ? 'Visualize · dust and spots stand out' : `${spots.length} spot${spots.length === 1 ? '' : 's'} · tap to ${S.tool.toLowerCase()} · drag a dashed circle to move its source`,
       pDown: (e) => {
+        if (this.drag || this.tap) return;
         const b = e.currentTarget.getBoundingClientRect(), [x, y] = at(e, b);
         const hit = spots.findIndex((p) => Math.hypot(p.sx - x, p.sy - y) < p.s / 2 + 8);
         if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
-        if (hit >= 0) { this.drag = { i: hit, b }; set({ sel: hit }); return; }
+        if (hit >= 0) { this.drag = { id: e.pointerId, i: hit, b }; set({ sel: hit }); return; }
         const near = spots.findIndex((p) => Math.hypot(p.x - x, p.y - y) < p.s / 2);
         if (near >= 0) return set({ sel: near });
-        if (real) { this.tap = { x, y, cx: e.clientX, cy: e.clientY }; return; }   // the spot is made when the finger lifts where it landed: a second finger makes it a pinch (zoom.js)
+        if (real) { this.tap = { id: e.pointerId, x, y, cx: e.clientX, cy: e.clientY }; return; }   // the spot is made when the finger lifts where it landed: a second finger makes it a pinch (zoom.js)
         const [sx, sy] = pickSource(x, y, size);
         set({ spots: spots.concat([{ x, y, sx, sy, s: size, tool: S.tool }]), sel: spots.length });
       },
       pMove: (e) => {
         if (real && zoom.pinching()) { this.drag = this.tap = null; return; }
-        if (this.tap && Math.hypot(e.clientX - this.tap.cx, e.clientY - this.tap.cy) > 10) this.tap = null;
-        const d = this.drag; if (!d) return; const [x, y] = at(e, d.b); if (real) return heal.moveSource(d.i, x / box[2], y / box[3]); this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
+        if (this.tap && e.pointerId === this.tap.id && Math.hypot(e.clientX - this.tap.cx, e.clientY - this.tap.cy) > 10) this.tap = null;
+        const d = this.drag; if (!d || e.pointerId !== d.id) return; const [x, y] = at(e, d.b); if (real) return heal.moveSource(d.i, x / box[2], y / box[3]); this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
       pUp: (e) => {
-        const t = this.tap; this.drag = this.tap = null;
+        if (this.drag && e?.pointerId === this.drag.id) this.drag = null;
+        if (!this.tap || e?.pointerId !== this.tap.id) return;
+        const t = this.tap; this.tap = null;
         if (real && t && e?.type === 'pointerup' && !zoom.pinching()) { const i = heal.add(S.tool, t.x / box[2], t.y / box[3], (8 + (S.vals.Size / 100) * 72) / box[2] / zoom.mag(), S.vals.Feather / 100, S.vals.Opacity / 100); if (i >= 0) set({ sel: i }); }   // a new spot takes the dial as last set
       },
       dialLabel: `${S.tool} · ${ctl}`, unit: ctl === 'Size' ? 'px' : '%', dialValue: val / 10 - 5, dialText: String(Math.round(ctl === 'Size' ? size : val)),

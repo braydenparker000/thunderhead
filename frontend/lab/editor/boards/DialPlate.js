@@ -14,6 +14,7 @@ import { DCLogic } from '../dc.js';
 import { tick } from '../app/haptic.js';
 import { moved } from '../app/moved.js';
 import { dial, info } from '../app/zoom.js';
+import { setDraft } from '../app/session.js';
 
 export default class Component extends DCLogic {
   constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; this.spin = 0; this.tapped = -1e9; }
@@ -52,10 +53,11 @@ export default class Component extends DCLogic {
     const run = (v0) => {   // degrees a millisecond, dying away
       let vel = v0, last = performance.now();
       const step = (now) => {
+        if (this._host?.stale) { stop(); dial(false); setDraft(false); return; }
         const dt = Math.min(40, now - last); last = now;
         const a = setAngle(this.state.angle + vel * dt); vel *= Math.exp(-dt / 320);
         this.spin = Math.abs(vel) < 0.012 || Math.abs(a) >= 180 ? 0 : requestAnimationFrame(step);
-        if (!this.spin) { this.setState({}); this.props.onhold?.(false); dial(false); rest(); }
+        if (!this.spin) { this.setState({}); this.props.onhold?.(false); dial(false); setDraft(false); rest(); }
       };
       this.spin = requestAnimationFrame(step);
     };
@@ -66,7 +68,7 @@ export default class Component extends DCLogic {
       wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); this.props.onhold?.(true); dial(true); moved(() => !!this.drag || !!this.spin, info().making, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
+      down: (e) => { stop(); this.props.onhold?.(true); dial(true); setDraft(true); moved(() => !!this.drag || !!this.spin, info().making, 'turn', { pct: info().pct }); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger
@@ -79,7 +81,7 @@ export default class Component extends DCLogic {
         if (e.type === 'pointerup' && d.far < 5 && e.timeStamp - d.t < 320) {   // a tap (a cancel is none: a swipe the panel took (boards/Barrel.js)): the second of two quick ones puts the value back where it starts
           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
         } else if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) return run(d.v);
-        this.props.onhold?.(false); dial(false); rest();
+        this.props.onhold?.(false); dial(false); setDraft(false); rest();
       },
       key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
     };
