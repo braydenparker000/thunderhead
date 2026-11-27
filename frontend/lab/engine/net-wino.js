@@ -439,6 +439,7 @@ export function winoRunner(device, g, wino, bufs) {
   };
   return {
     passes,
+    spare: [bufV, bufM],
     destroy: () => {
       bufV.destroy(); bufM.destroy();
       for (const s of slots.values()) { s.cPrep.destroy(); for (const b of [...s.cIn, ...s.cGm, ...s.cOu]) b.destroy(); }

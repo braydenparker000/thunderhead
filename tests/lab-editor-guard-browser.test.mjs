@@ -79,7 +79,7 @@ test('a job blamed for a reset hands the GPU half the pieces, grows back after t
     for (let i = 0; i < 9; i++) g.blame('copy'); out.most = g.level('copy');
     out.jobs = ['Building a sharper copy', 'Preparing Starfish', 'Loading Starfish', 'Loading full detail', ''].map(g.jobOf);
     await g.calm(); out.after = g.calmIn();
-    out.kept = JSON.parse(localStorage.getItem('th.editor.gentle.2')).jobs.starfish.level;
+    out.kept = JSON.parse(localStorage.getItem('th.editor.gentle.3')).jobs.starfish.level;
     // twice running: not tried again for a day; made whole once, tried again as soon as the while allows
     out.day = Math.round(g.waitIn('copy') / 3_600_000); g.went('copy'); out.again = g.waitIn('copy');
     return out;
@@ -130,13 +130,13 @@ test('the copy made again goes in smaller tiles on a phone whose chip reset maki
     const tiles = () => performance.getEntriesByName('th:copy', 'mark').length, k = known(720), eng = await engine(document.createElement('canvas'), k, true);
     const made = async () => { delete k.meta.copyMade; const n = tiles(), big = await full(eng, k, k.mosaic.slice()); return { big, tiles: tiles() - n, at: !!k.meta.copyMade }; };
     const a = await made(); a.big?.dispose();
-    localStorage.setItem('th.editor.gentle.2', JSON.stringify({ last: 0, jobs: { copy: { level: 2, ok: 0 } } }));   // two resets blamed on it, long ago
+    localStorage.setItem('th.editor.gentle.3', JSON.stringify({ last: 0, jobs: { copy: { level: 2, ok: 0 } } }));   // two resets blamed on it, long ago
     const b = await made(); b.big?.dispose();
     g.blame('none');   // a reset just now: the copy waits out the while, and the session hears of it then
     let told = -1; k.meta.onCopy = (/** @type {Uint16Array} */ c) => { told = c.length; };
     const c = await made();
     for (let i = 0; i < 600 && told < 0; i++) await new Promise((res) => setTimeout(res, 50));   // the calm, then the copy (7 s on a quiet software GPU, more on a busy one): up to 30 s
-    c.big?.dispose(); eng.dispose(); localStorage.removeItem('th.editor.gentle.2');
+    c.big?.dispose(); eng.dispose(); localStorage.removeItem('th.editor.gentle.3');
     return { usual: a.tiles, gentle: b.tiles, made: [a.at, b.at, c.at], told: told === k.proxy.length };
   });
   await page.close();

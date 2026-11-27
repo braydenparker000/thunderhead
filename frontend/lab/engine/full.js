@@ -68,7 +68,7 @@ export async function full(e, img, mosaic) {
   // (not while they go over, nor in the photo's first frames): read, compiled and proved once for the device, so the
   // first rest at 100 % only has to run it
   // (a while after a reset, later: gentle.js)
-  if (sensor && img.meta.net) setTimeout(async () => { await wait('prep'); await turn(); if (gone) return; const done = doing('Preparing Starfish'); compileNet(device).then(() => autoWays(device)).catch(() => {}).finally(done); }, 1500);   // and, once a browser, the fastest exact way of each of its passes chosen (net-auto.js)
+  if (sensor && img.meta.net) setTimeout(async () => { await wait('prep'); await turn(); if (gone) return; const done = doing('Preparing Starfish'); compileNet(device).then((n) => (n.wino ? null : autoWays(device))).catch(() => {}).finally(done); }, 1500);   // Winograd needs no direct-way tuning; autoWays runs only as fallback
   // How noisy a raw site is, for the network: as the photo says where it says (a made-up one), else read from the
   // photo's own flat places (noise-fit.js), held to within what this sensor can be; else the sensor's own figure.
   const told = (() => {
@@ -120,7 +120,9 @@ export async function full(e, img, mosaic) {
     // What the Noise dial asks of the network (noise-fit.js `dialled`): how much noise it is told of, and how much grain is put back.
     const start = Math.max(0, Math.min(40, 20 * Math.log2(info.iso / 400))), asked = (/** @type {number} */ dial) => { const d = dialled(dial, start); return /** @type {[number, number, number]} */ ([d.smooth, d.keep, d.quiet]); };
     const keptOf = (/** @type {Float32Array} */ f) => `${f[100]},${f[101]},${f[96]},${f[97]},${f[98]}`;   // the settings a rectangle's colours are made with
-    const dn = net ? null : await denoiser(device, dm.out), crisp = await sharpener(device, dm.out, dn ? dn.spare : []);
+    const dn = net ? null : await denoiser(device, dm.out);
+    const spare = net ? net.spare.filter((b) => b.size >= dm.out.size / 2) : dn ? dn.spare : [];
+    const crisp = await sharpener(device, dm.out, spare);
     // Noise reduction and sharpening work on the demosaiced rectangle in place, so it is kept aside as it was made: a
     // turn of Noise or Sharpening then starts from the copy, not from the sensor again (the demosaic is most of the work).
     const aside = device.createBuffer({ size: side * side * 8, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }), stats = { demosaic: 0, kept: 0 };
@@ -179,7 +181,7 @@ export async function full(e, img, mosaic) {
       const list = /** @type {(() => Promise<boolean | void>)[]} */ ([]);
       if (held === key) list.push(one((enc) => { enc.copyBufferToBuffer(aside, 0, dm.out, 0, bytes); stats.kept++; }));
       else {
-        if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), pace, tta));
+        if (net) list.push(() => net.pace(r.rx, r.ry, r.rw, r.rh, spots, ...asked(f[100] * 40), { ...pace, tta }));
         else for (let k = 0; k < (usual.parts || 1); k++) list.push(one((enc) => usual.run(enc, r.rx, r.ry, r.rw, r.rh, spots, usual.parts ? k : undefined)));
         list.push(one((enc) => { enc.copyBufferToBuffer(dm.out, 0, aside, 0, bytes); held = key; stats.demosaic++; }));
       }

@@ -10,7 +10,7 @@
 // left the A15 with no full-size pixels at all. Kept in localStorage, so a reset is remembered for every photo and
 // past a reload.
 
-const KEY = 'th.editor.gentle.2', MOST = 4, BACK = 3, MS = 120_000, DAY = 86_400_000;   // (.2: the copy's passes written again, 2026-11-17: what the phones learnt of the old ones is let go)
+const KEY = 'th.editor.gentle.3', MOST = 4, BACK = 3, MS = 120_000, DAY = 86_400_000;   // (.3: Starfish v0.2.0 + Winograd + shared VRAM; old v0.1 resets cleared)
 /** Ms after a reset during which work that can wait waits (`?calm=` sets it, the checks' way). */
 export const CALM = Number(new URLSearchParams(globalThis.location?.search || '').get('calm')) || MS;
 /** The badge's notes (work.js) and the job each names. */

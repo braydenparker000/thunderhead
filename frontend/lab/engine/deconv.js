@@ -16,12 +16,17 @@ struct D { at: vec4u,    // rw, rh, rx, ry (rectangle size + sensor origin)
 @group(0) @binding(5) var<storage, read_write> ratio: array<f32>;
 fn light(i: u32) -> f32 { let c = vec3f(f32(rgb[i] & 0xffffu), f32(rgb[i] >> 16u), f32(rgb[i + 1u] & 0xffffu)) / 65535.0; return max(0.25 * (c.r * d.wb.r + 2.0 * c.g + c.b * d.wb.b), 1e-6); }
 fn at(q: vec2i) -> u32 { let c = clamp(q, vec2i(0), vec2i(d.at.xy) - 1); return u32(c.y) * d.at.x + u32(c.x); }
-fn sigmaAt(q: vec2i) -> f32 {
-  if (d.img.w <= 0.0 || d.img.x <= 1.0 || d.img.y <= 1.0) { return d.img.z; }
+fn sigmaAt(q: vec2i) -> vec2f {
+  if (d.img.w <= 0.0 || d.img.x <= 1.0 || d.img.y <= 1.0) { return vec2f(d.img.z); }
   let h = 0.5 * d.img.xy;
   let v = (vec2f(f32(d.at.z) + f32(q.x), f32(d.at.w) + f32(q.y)) - h) / h;
-  let r2 = min(0.5 * dot(v, v), 1.0);
-  return d.img.z + d.img.w * r2;
+  let d2 = dot(v, v);
+  let r2 = min(0.5 * d2, 1.0);
+  let ux2 = select(0.5, v.x * v.x / max(d2, 1e-6), d2 > 1e-6);
+  let uy2 = 1.0 - ux2;
+  let sRad = 1.15 * d.img.w;
+  let sTan = 0.85 * d.img.w;
+  return vec2f(d.img.z + r2 * (sRad * ux2 + sTan * uy2), d.img.z + r2 * (sRad * uy2 + sTan * ux2));
 }
 @compute @workgroup_size(8, 8)
 fn begin(@builtin(global_invocation_id) id: vec3u) {
@@ -29,19 +34,19 @@ fn begin(@builtin(global_invocation_id) id: vec3u) {
   let i = id.y * d.at.x + id.x; let y = light(i * 2u); seen[i] = y; guess[i] = y;
 }
 fn alongGuess(q: vec2i) -> f32 {
-  let sig = sigmaAt(q); let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
+  let sig = sigmaAt(q).x; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
   var s = 0.0; var ws = 0.0;
   for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * guess[at(q + vec2i(i, 0))]; ws += w; }
   return s / ws;
 }
 fn alongRatio(q: vec2i) -> f32 {
-  let sig = sigmaAt(q); let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
+  let sig = sigmaAt(q).x; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
   var s = 0.0; var ws = 0.0;
   for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * ratio[at(q + vec2i(i, 0))]; ws += w; }
   return s / ws;
 }
 fn down(q: vec2i) -> f32 {
-  let sig = sigmaAt(q); let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
+  let sig = sigmaAt(q).y; let r = min(i32(ceil(sig * 3.0)), 6); let k = -0.5 / (sig * sig);
   var s = 0.0; var ws = 0.0;
   for (var i = -r; i <= r; i++) { let w = exp(k * f32(i * i)); s += w * part[at(q + vec2i(0, i))]; ws += w; }
   return s / ws;

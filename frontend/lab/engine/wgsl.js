@@ -44,26 +44,43 @@ const CELL = ${CELL}u;
 const LUM = vec3f(0.288, 0.712, 0.0);   // luminance of linear ProPhoto
 const FLOOR = 1.0 / 16384.0;            // the darkest luminance a logarithm is taken of
 fn mv(r0: vec4f, r1: vec4f, r2: vec4f, c: vec3f) -> vec3f { return vec3f(dot(r0.xyz, c), dot(r1.xyz, c), dot(r2.xyz, c)); }
-// Blown highlights (after darktable's "inpaint opposed"): a colour the sensor clipped is rebuilt from the
-// pixel's other two, white-balanced: the cube of their mean cube root, plus how far the photo's own colours
-// near its clipped areas sit from that (raw's chroma(), fading as more colours clip). Only ever raised; with
-// all three clipped they settle on neutral at the brightest. Without it a clipped sky turns pink: the green
-// clips first, and the white balance then lifts red and blue above it.
+// Blown highlights (local chroma-guided inpaint opposed): a colour the sensor clipped is rebuilt from the
+// pixel's other two, white-balanced, guided by nearby unclipped pixels' local colour offset (blending smoothly
+// into global p.chroma deep inside solid clipped areas). Zero extra reads on unclipped pixels (bits == 0).
+fn rawAt(x: u32, y: u32) -> vec4f {
+  let i = (y * p.size.x + x) * 2u; let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
+  return vec4f(vec3f(rg.x, rg.y, ba.x) * p.wb.w, f32((src[i + 1u] >> 16u) & 7u));
+}
 fn est(a: f32, b: f32) -> f32 { let m = 0.5 * (pow(max(a, 0.0), 1.0 / 3.0) + pow(max(b, 0.0), 1.0 / 3.0)); return m * m * m; }
-fn rebuild(raw: vec3f, bits: u32) -> vec3f {
-  var x = raw * p.wb.xyz; let ch = p.chroma.xyz * (0.5 * f32(3u - countOneBits(bits)));
-  for (var k = 0; k < 3; k++) {
-    if ((bits & 2u) != 0u) { x.g = max(x.g, est(x.r, x.b) + ch.g); }
-    if ((bits & 4u) != 0u) { x.b = max(x.b, est(x.r, x.g) + ch.b); }
-    if ((bits & 1u) != 0u) { x.r = max(x.r, est(x.g, x.b) + ch.r); }
+fn localChroma(x: u32, y: u32) -> vec3f {
+  let lim = vec2i(p.size.xy) - 1; var sum = vec3f(0.0); var n = 0.0;
+  for (var dy = -2; dy <= 2; dy += 2) {
+    for (var dx = -2; dx <= 2; dx += 2) {
+      if (dx == 0 && dy == 0) { continue; }
+      let q = vec2u(clamp(vec2i(i32(x) + dx, i32(y) + dy), vec2i(0), lim));
+      let s = rawAt(q.x, q.y);
+      if (u32(s.w) == 0u) {
+        let c = s.xyz * p.wb.xyz;
+        sum += c - vec3f(est(c.g, c.b), est(c.r, c.b), est(c.r, c.g));
+        n += 1.0;
+      }
+    }
   }
-  return x / p.wb.xyz;
+  return select(p.chroma.xyz, mix(p.chroma.xyz, sum / max(n, 1.0), n / (n + 2.0)), n > 0.0);
+}
+fn rebuild(raw: vec3f, bits: u32, x: u32, y: u32) -> vec3f {
+  var xw = raw * p.wb.xyz; let ch = localChroma(x, y) * (0.5 * f32(3u - countOneBits(bits)));
+  for (var k = 0; k < 3; k++) {
+    if ((bits & 2u) != 0u) { xw.g = max(xw.g, est(xw.r, xw.b) + ch.g); }
+    if ((bits & 4u) != 0u) { xw.b = max(xw.b, est(xw.r, xw.g) + ch.b); }
+    if ((bits & 1u) != 0u) { xw.r = max(xw.r, est(xw.g, xw.b) + ch.r); }
+  }
+  return xw / p.wb.xyz;
 }
 // one pixel of the editing copy: clipped colours rebuilt, then the camera matrix
 fn pixel(x: u32, y: u32) -> vec3f {
-  let i = (y * p.size.x + x) * 2u; let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
-  var raw = vec3f(rg.x, rg.y, ba.x) * p.wb.w; let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
-  if (bits != 0u && (p.size.w & 512u) == 0u) { raw = rebuild(raw, bits); }
+  let s = rawAt(x, y); var raw = s.xyz; let bits = u32(s.w);   // alpha: which colours clipped
+  if (bits != 0u && (p.size.w & 512u) == 0u) { raw = rebuild(raw, bits, x, y); }
   return max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
 }`;
 export const DITHER = /* wgsl */ `
@@ -338,9 +355,14 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (hi != 0.0 || sh != 0.0 || fx.x != 0.0 || (fl & 4096u) != 0u) {
     var m = l + ev;
     if ((fl & 2048u) == 0u) { m = area(id.xy, l) + ev; }
-    // Natural Clarity: tanh soft-clamp prevents harsh edge halos while keeping micro-contrast punchy.
-    let rawLocal = fx.x * select(0.6, 0.8, fx.x > 0.0) * (l + ev - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
-    let local = 0.65 * tanh(rawLocal / 0.65);
+    var local = 0.0;
+    if (fx.x != 0.0) {
+      // 2-band multi-scale Natural Clarity: emphasizes mid-scale structure (fine - coarse) over raw pixel noise.
+      var fBand = l; if ((fl & 2048u) == 0u) { fBand = areaOf(fine, 4.0, id.xy, l); }
+      let detail = 0.72 * (fBand - (m - ev)) + 0.28 * (l - fBand);
+      let rawLocal = fx.x * select(0.6, 0.8, fx.x > 0.0) * detail * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
+      local = 0.65 * tanh(rawLocal / 0.65);
+    }
     if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18), hi, sh) + local); }
   }
   // Shadow-guarded Texture: positive Texture tapers out below -3.5 EV so deep shadow noise is never amplified.

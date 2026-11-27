@@ -21,7 +21,7 @@ const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', ultr
 export const START = [{ ...base, name: 'Full', on: true, size: 'Full', long: 7728, q: 95 }, { ...base, name: 'Small', on: true, size: '2048', long: 2048, q: 85, sharpen: 'Screen', mark: true }];
 /** The export's two files as the owner last set them on this phone (the Export board keeps them here), or as they start. */
 export function presets() {
-  try { const p = JSON.parse(localStorage.getItem(KEPT) || 'null'); if (Array.isArray(p) && p.length === 2 && p.every((x) => x && typeof x.fmt === 'string' && x.long > 0 && x.q > 0)) return p.map((x, i) => ({ ...START[i], ...x })); } catch { /* nothing kept */ }
+  try { const p = JSON.parse(localStorage.getItem(KEPT) || 'null'); if (Array.isArray(p) && p.length === 2 && p.every((x) => x && typeof x.fmt === 'string' && x.long > 0 && x.q > 0)) return p.map((x, i) => ({ ...START[i], ...x, sharpen: x.sharpen === 'No sharpen' ? 'Off' : x.sharpen })); } catch { /* nothing kept */ }
   return START.map((x) => ({ ...x }));
 }
 /** @param {typeof START} list */

@@ -252,9 +252,9 @@ async function detail(/** @type {number} */ mine) {
     if (mine !== job || !v || !win) return;
     const X = Math.max(0, Math.floor(-(f.ox + tx) * q)), Y = Math.max(0, Math.floor(-(f.oy + ty) * q));
     const X1 = Math.min(f.fw, Math.ceil((f.W - f.ox - tx) * q)), Y1 = Math.min(f.fh, Math.ceil((f.H - f.oy - ty) * q));
-    const gentle = level('detail') > 0, fin = async () => {   // then Starfish's, from 100 %, the badge naming it
+    const gentle = level('detail') > 0, fin = async () => {   // then Starfish's, from 100 %, the badge naming it (managed inside zoom-fine.js)
       if (!(p >= FINE && prefOn('photos.neural', true))) { closer.style.display = 'none'; return; }
-      const sd = doing('Loading Starfish'); try { await sf.finer(mine, () => mine === job, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2); } catch (e) { console.warn('zoom network', e); } finally { sd(); }
+      try { await sf.finer(mine, () => mine === job, X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2); } catch (e) { console.warn('zoom network', e); }
     };
     if (p >= 0.999 && !gentle) {   // one pass, then Starfish's, however long it takes (the owner: no cap), the full detail showing meanwhile
       const r = slot.getBoundingClientRect(), dx = r.left * devicePixelRatio + (f.ox + tx) * k, dy = r.top * devicePixelRatio + (f.oy + ty) * k;

@@ -27,19 +27,39 @@ export const SLICE_MS = 12;
 export async function paced(device, passes, valid, o = {}) {
   const z0 = (/** @type {number} */ z) => device.queue.writeBuffer(valid, 8, new Uint32Array([z]));
   const aim = o.aim || SLICE_MS;
+  let batch = 3;   // one Winograd strip (wIn + wGemm + wOut) per submit to start; adapts to GPU speed
   try {
-    for (const [pipe, bind, a, b, c, can] of passes) {
-      let take = can ? 1 : c;
-      for (let z = 0; z < c;) {
-        const n = Math.min(take, c - z), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
-        if (can) z0(z);
-        pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, n); pass.end();
+    for (let i = 0; i < passes.length;) {
+      const [pipe, bind, a, b, c, can] = passes[i];
+      if (can) {
+        let take = 1;
+        for (let z = 0; z < c;) {
+          const n = Math.min(take, c - z), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+          z0(z);
+          pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, n); pass.end();
+          const t = performance.now();
+          device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone();
+          const ms = performance.now() - t;
+          o.note?.(ms);
+          z += n;
+          take = ms < aim / 2 ? Math.min(c, take * 2) : ms > aim * 1.5 ? Math.max(1, take >> 1) : take;
+          if (o.stop?.()) return false;
+        }
+        i++;
+      } else {
+        const end = Math.min(passes.length, i + batch), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+        let j = i;
+        while (j < end && !passes[j][5]) {
+          const [p2, b2, a2, b3, c2] = passes[j++];
+          pass.setPipeline(p2); pass.setBindGroup(0, b2); pass.dispatchWorkgroups(a2, b3, c2);
+        }
+        pass.end();
         const t = performance.now();
         device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone();
         const ms = performance.now() - t;
         o.note?.(ms);
-        z += n;
-        if (can) take = ms < aim / 2 ? Math.min(c, take * 2) : ms > aim * 1.5 ? Math.max(1, take >> 1) : take;
+        i = j;
+        batch = ms < aim / 2 ? Math.min(18, batch * 2) : ms > aim * 1.5 ? Math.max(1, batch >> 1) : batch;
         if (o.stop?.()) return false;
       }
     }
