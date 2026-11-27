@@ -48,7 +48,7 @@ export function fitSharpener(device) {
       const pass = enc.beginComputePass();
       pass.setPipeline(pipe); pass.setBindGroup(0, bg);
       pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
-      enc.copyTextureToTexture({ texture: tmp }, { texture: out }, [w, h]);
+      return tmp;
     },
     destroy() { tmp?.destroy(); uni.destroy(); bg = bgOut = bgTmp = null; },
   };

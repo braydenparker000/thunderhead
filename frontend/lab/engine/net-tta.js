@@ -108,10 +108,10 @@ export function ttaRunner(device, g, pipes, bufs) {
   };
 
   const FLIPS = [[0, 0], [1, 0], [0, 1], [1, 1]];
-  /** Wraps `netPasses` with 2x or 4x D4 symmetry TTA.
+  /** Wraps `netPasses` into per-orientation pass groups (one GPU submit per orientation so Ultra 4x never locks mobile GPUs).
    * @param {GPUBuffer} key @param {number} vw @param {number} vh @param {number} tta
    * @param {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} netPasses */
-  const wrap = (key, vw, vh, tta, netPasses) => {
+  const wrapGroups = (key, vw, vh, tta, netPasses) => {
     const n = tta >= 4 ? 4 : 2, w = 1 / n, s = ensure(key), gx = Math.ceil(vw / 16), gy = Math.ceil(vh / 16);
     const write = (/** @type {GPUBuffer} */ b, /** @type {number} */ fx, /** @type {number} */ fy, /** @type {number} */ clear) => {
       const ab = new ArrayBuffer(32), u = new Uint32Array(ab), f = new Float32Array(ab);
@@ -121,18 +121,26 @@ export function ttaRunner(device, g, pipes, bufs) {
     write(s.cfgs[0], 0, 0, 1);
     for (let k = 1; k < n; k++) write(s.cfgs[k], FLIPS[k][0], FLIPS[k][1], 0);
     write(s.cfgs[4], 0, 0, 0);
-    /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} */
-    const out = [[pipes.flipIn, s.bgSave, gx, gy, 1, false, 0]];
+    /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][][]} */
+    const groups = [];
     for (let k = 0; k < n; k++) {
-      if (k > 0) out.push([pipes.flipIn, s.bgFlip[k - 1], gx, gy, 1, false, 0]);
-      out.push(...netPasses);
-      out.push([pipes.accum, s.bgAcc[k], gx, gy, 1, false, 13]);
+      /** @type {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} */
+      const gList = [];
+      if (k === 0) gList.push([pipes.flipIn, s.bgSave, gx, gy, 1, false, 0]);
+      else gList.push([pipes.flipIn, s.bgFlip[k - 1], gx, gy, 1, false, 0]);
+      gList.push(...netPasses, [pipes.accum, s.bgAcc[k], gx, gy, 1, false, 13]);
+      if (k === n - 1) gList.push([pipes.flipIn, s.bgRest, gx, gy, 1, false, 13], [pipes.finish, s.bgFin, gx, gy, 1, false, 13]);
+      groups.push(gList);
     }
-    out.push([pipes.flipIn, s.bgRest, gx, gy, 1, false, 13], [pipes.finish, s.bgFin, gx, gy, 1, false, 13]);
-    return out;
+    return groups;
   };
+  /** Wraps `netPasses` with 2x or 4x D4 symmetry TTA as one flat list.
+   * @param {GPUBuffer} key @param {number} vw @param {number} vh @param {number} tta
+   * @param {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?][]} netPasses */
+  const wrap = (key, vw, vh, tta, netPasses) => wrapGroups(key, vw, vh, tta, netPasses).flat();
   return {
     wrap,
+    wrapGroups,
     destroy: () => {
       bakMos?.destroy(); bakSig?.destroy(); accBuf?.destroy();
       for (const s of slots.values()) for (const b of s.cfgs) b.destroy();

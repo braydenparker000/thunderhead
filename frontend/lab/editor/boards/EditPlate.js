@@ -74,7 +74,8 @@ export default class Component extends DCLogic {
       dialLabel = 'Amount'; ctl = 'Amount'; unit = '%';
     }
     const at = FACES.indexOf(face);
-    const wbs = real ? Object.keys(photo.WB).map((n) => [n, `${photo.wbKelvin(n).toLocaleString('en-US')} K`]) : app ? []
+    const wbOpen = S.wbMenu && face === 'Color';
+    const wbs = !wbOpen ? [] : real ? Object.keys(photo.WB).map((n) => [n, `${photo.wbKelvin(n).toLocaleString('en-US')} K`]) : app ? []
       : [['As shot', '5,450 K'], ['Auto', '5,210 K'], ['Daylight', '5,500 K'], ['Cloudy', '6,500 K'], ['Shade', '7,500 K'], ['Tungsten', '2,850 K'], ['Fluorescent', '3,800 K'], ['Flash', '5,500 K']];
     const wbNow = real ? real.wb : S.wb, live = real && ctl;
     // the panel is as tall as its face needs: the curve and a grading wheel take the dial's place and more, and the photo's room gives way

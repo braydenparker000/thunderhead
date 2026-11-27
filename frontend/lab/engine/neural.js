@@ -27,7 +27,7 @@ const CLIP = 0.97;   // demosaic.js's: a site this near the sensor's white has c
 
 /** @typedef {{ kind: 'f16' | 'f32', win: number, halo: number, cfa: number[], sizes: number[], files: (string | null)[], mosaic: number, sigma: number, output: number,
  *   ops: { code: string, binds: number[], groups: number[] }[], weights: Map<number, ArrayBuffer> }} Graph */
-/** @typedef {{ pipes: Awaited<ReturnType<typeof compileWino>>, layers: ReturnType<typeof buildWeights>['layers'], wBuf: GPUBuffer }} WinoState */
+/** @typedef {{ pipes: Awaited<ReturnType<typeof compileWino>>, layers: Awaited<ReturnType<typeof buildWeights>>['layers'], wBuf: GPUBuffer }} WinoState */
 /** The network compiled on a device: `exported` its passes as exported, `g.ops` the ones it runs (a phone's chosen ways, `way`), `off` how near its proof came.
  * @typedef {{ g: Graph, pipes: GPUComputePipeline[], wino: WinoState | null, caFix: Awaited<ReturnType<typeof compileCaFix>>, ttaPipes: Awaited<ReturnType<typeof compileTta>>,
  *   cut: GPUComputePipeline, place: GPUComputePipeline, held: GPUBuffer[], off: number, way: number[], exported: Graph['ops'] }} Net */
@@ -111,10 +111,13 @@ fn place(@builtin(global_invocation_id) id: vec3u) {
   let q = d.core.xy + vec2i(id.xy); let w = vec2u(q - d.at.xy); let p = w.y * WIN + w.x; let plane = WIN * WIN;
   var c3 = vec3f(f32(made[p]), f32(made[plane + p]), f32(made[2u * plane + p]));
   let c = colour(q); let m = f32(mos[p]); let s = f32(sig[p]); let unclipped = own(q) < ${CLIP};
-  // Sigma-gated measured-sensel anchor: preserves exact measured clean pixels (+0.64 dB clean / +1.09 dB green), vanishes at high ISO.
-  if (unclipped && m >= 0.0) {
-    let r = s / 0.003;
-    c3[c] = mix(c3[c], m, exp(-(r * r)));
+  // Wiener high-SNR sensel anchor: preserves real sub-pixel detail (|m - c3[c]| > 1.5*s at SNR > 25)
+  // while leaking zero raw single-channel shot/read noise into shadows or flat midtones.
+  if (unclipped && m > 0.0) {
+    let snr = m / max(s, 1e-6);
+    let gate = smoothstep(25.0, 60.0, snr) * exp(-((s / 0.005) * (s / 0.005)));
+    let diff = m - c3[c];
+    c3[c] += gate * sign(diff) * max(abs(diff) - 1.5 * s, 0.0);
   }
   // Grain: a share of what the network took from this site is put back, as brightness only (reading precomputed mos/sig directly).
   if (d.na.w > 0.0 && unclipped) {
@@ -197,7 +200,7 @@ export function compile(device, kind = kindOf(device), kept = true) {
       if (kept === true && isV02(g) && w0Raw) {
         let wBuf = /** @type {GPUBuffer | null} */ (null);
         try {
-          const built = buildWeights(g, w0Raw);
+          const built = await buildWeights(g, w0Raw);
           wBuf = device.createBuffer({ size: built.data.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
           device.queue.writeBuffer(wBuf, 0, built.data);
           const wPipes = await compileWino(device, g, built.head);
@@ -295,8 +298,35 @@ export async function demosaicer(device, mosaic, info, maxW, maxH, o = {}) {
     }
     return true;
   };
+  /** Runs an export piece cleanly one TTA orientation per GPU submit so Ultra 4x never locks mobile GPUs or stalls Cancel.
+   * @param {number} rx @param {number} ry @param {number} rw @param {number} rh @param {Float32Array | null} [spots] @param {number} [smooth]
+   * @param {number} [keep] @param {number} [quiet] @param {number} [tta] @param {{ signal?: AbortSignal, onStep?: (frac: number) => void }} [o] */
+  const runExport = async (rx, ry, rw, rh, spots, smooth, keep = 0, quiet = 0, tta = 1, o = {}) => {
+    const k = Math.max(0, smooth ?? info.smooth ?? 1) ** 2;
+    const wins = [];
+    for (let y0 = ry; y0 < ry + rh; y0 += CORE) for (let x0 = rx; x0 < rx + rw; x0 += CORE) wins.push([x0, y0]);
+    const total = wins.length * Math.max(1, tta);
+    let step = 0;
+    for (const [x0, y0] of wins) {
+      o.signal?.throwIfAborted();
+      const base = lay(0, [rx, ry, rw, rh], x0, y0, spots, k, keep, quiet, 1);
+      const pre = base.slice(0, base.pre), inner = base.slice(base.pre, -1), post = base[base.length - 1];
+      const groups = tta > 1 ? ttaRun.wrapGroups(slot(0).valid, base.vw, base.vh, tta, inner) : [inner];
+      for (let gi = 0; gi < groups.length; gi++) {
+        o.signal?.throwIfAborted();
+        const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+        const list = [...(gi === 0 ? pre : []), ...groups[gi], ...(gi === groups.length - 1 ? [post] : [])];
+        for (const [pipe, bind, a, b, c] of list) { pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(a, b, c); }
+        pass.end();
+        device.queue.submit([enc.finish()]);
+        await device.queue.onSubmittedWorkDone();
+        o.onStep?.(++step / total);
+        if (groups.length > 1) await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+  };
   /** @type {Parts} */
   const parts = { device, g, exported, pipes, bufs, unhalf, get valid() { return slot(0).valid; }, lay: (side = CORE) => lay(0, [0, 0, Math.min(CORE, maxW, side), Math.min(CORE, maxH, side)], 0, 0, null, 1), at: lay };
   const spare = [bufs[3], bufs[4], ...(winoRun ? winoRun.spare : [])].filter(Boolean);
-  return { out, spare, run, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { winoRun?.destroy(); ttaRun.destroy(); out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); slots.forEach((s) => { s.uni.destroy(); s.valid.destroy(); }); } };
+  return { out, spare, run, runExport, pace, parts, core: CORE, get laid() { return laid; }, destroy: () => { winoRun?.destroy(); ttaRun.destroy(); out.destroy(); bufs.forEach((b, id) => { if (!held[id]) b.destroy(); }); slots.forEach((s) => { s.uni.destroy(); s.valid.destroy(); }); } };
 }

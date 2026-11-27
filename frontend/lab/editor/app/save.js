@@ -134,7 +134,8 @@ export async function save(presets, progress, how = {}) {
   }); } finally { lock?.release?.().catch(() => {}); try { localStorage.removeItem(MARK); } catch { /* nothing was kept */ } }   // it ended, well or not, with the page alive
   if (clock.ops) try { localStorage.setItem(OPS, String(Date.now())); } catch { /* a private window */ }
   Object.assign(helped, { cpu: clock.cpu || 0, parts: clock.parts || 0 });
-  exporting(saved.length ? 'done' : 'left'); note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
+  const tta = best && !p.plain && presets.some((x) => x.ultra) ? 4 : 1;
+  exporting(saved.length ? 'done' : 'left'); note('save', performance.now() - began, { files: saved.length, px: saved.reduce((n, f) => n + f.width * f.height, 0), bytes: saved.reduce((n, f) => n + f.bytes, 0), kinds: presets.map((x) => x.fmt).join(' '), ...(clock.net ? { tta, wino: 2 } : {}), ...spent(clock), ...(clock.laid ? { laid: Math.round((100 * clock.laid) / (big.width * big.height)) } : {}) });   // laid: what the network was given, of the photo (100: no more than the photo)
   return saved;
 }
 

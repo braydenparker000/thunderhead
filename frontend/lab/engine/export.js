@@ -70,7 +70,8 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
       const lay = async (x, made = null) => {
         signal?.throwIfAborted();
         const w = Math.min(tw, sw - x), t0 = performance.now(), split = clock && pieces < SPLIT && !made ? (clock.split ??= {}) : null;
-        const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split, null, made), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
+        const sub = v.net && (how.tta || 1) > 1 ? { signal, onStep: (/** @type {number} */ frac) => progress?.((y + (n * (done + frac)) / xs.length) / sh) } : null;
+        const at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE, split, null, made, sub), t1 = performance.now(), half = await v.halves();   // at the picture's edge it is drawn from further in
         if (clock) { clock.gpu = (clock.gpu || 0) + t1 - t0; clock.read = (clock.read || 0) + performance.now() - t1; if (split) clock.splitPx = (clock.splitPx || 0) + at.cw * at.ch; } pieces++;
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
         if (v.net) progress?.((y + (n * ++done) / xs.length) / sh);   // (the network's pieces are large: said a piece at a time, not a band)

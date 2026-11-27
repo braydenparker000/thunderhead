@@ -241,7 +241,7 @@ export async function frame() { while (drawing) await sleep(8); await draw(false
 export function save(key, name, val) {
   clearTimeout(saveT);
   const me = cur, p = past;
-  if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
+  if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', { values: me.values, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots });
   clearTimeout(tileT); tileT = setTimeout(() => { keepTile(me)?.catch?.((err) => console.warn('tile not kept', err)); }, 1500);
   saveT = setTimeout(() => { if (me) store.saveEdit(me.id, record(me, p)).catch((err) => unsaved(me, err)); }, 400);
 }

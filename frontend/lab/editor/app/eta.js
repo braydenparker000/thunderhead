@@ -3,7 +3,7 @@
 // of the files it saved, `net` 1 when the network made it), and how long is left while one runs. Plain arithmetic,
 // nothing of the page: the Export board (boards/ExportPlate.js) says what it gives.
 
-/** @typedef {{ kind?: string, ms?: number, px?: number, net?: number, fell?: number, again?: number, held?: number }} Timing */
+/** @typedef {{ kind?: string, ms?: number, px?: number, net?: number, fell?: number, again?: number, held?: number, tta?: number, wino?: number }} Timing */
 
 /** How many of the last exports by a way the estimate is the median of. */
 export const LAST = 5;
@@ -12,8 +12,9 @@ export const LAST = 5;
  * exports by that way; null when it has none. An export cut off (no time), or one that carried on from bands kept
  * before (its time is not the whole photo's), says nothing of either. @param {Timing[]} timings oldest first @param {boolean} net */
 export function perMp(timings, net) {
-  const rates = timings.filter((t) => t && t.kind === 'save' && Number(t.ms) > 0 && Number(t.px) > 0 && !t.fell && !t.again && !t.held && !!t.net === net)
-    .slice(-LAST).map((t) => Number(t.ms) / (Number(t.px) / 1e6)).sort((a, b) => a - b);
+  const valid = timings.filter((t) => t && t.kind === 'save' && Number(t.ms) > 0 && Number(t.px) > 0 && !t.fell && !t.again && !t.held && !!t.net === net);
+  const fresh = net && valid.some((t) => (t.wino || 0) >= 2) ? valid.filter((t) => (t.wino || 0) >= 2) : valid;
+  const rates = fresh.slice(-LAST).map((t) => (Number(t.ms) / Math.max(1, Number(t.tta) || 1)) / (Number(t.px) / 1e6)).sort((a, b) => a - b);
   if (!rates.length) return null;
   const m = rates.length >> 1;
   return rates.length % 2 ? rates[m] : (rates[m - 1] + rates[m]) / 2;
