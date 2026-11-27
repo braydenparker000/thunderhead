@@ -15,7 +15,7 @@
       'laid', 'whole', 'chosen', 'floats', 'after', 'ways', 'apart', 'apartc', 'cpu1', 'cpun', 'fuse1', 'fusen', 'gpu1', 'tog', 'togn', 'togl',
       'shots', 'same', 'diff', 'offdb', 'offgrid', 'netdb', 'netndb',
       'frames', 'worst', 'slow', 'busy', 'parts', 'part', 'left', 'pct', 'steps', 'back', 'refit', 'rebuilt',
-      'mb', 'peakMb', 'budgetMb', 'since', 'level', 'tile', 'calm'].concat(['t', 'cores', 'memory', 'dpr', 'w', 'h', 'hidden', 'fails']));
+      'mb', 'peakMb', 'budgetMb', 'since', 'level', 'tile', 'calm'].concat(['t', 'cores', 'memory', 'dpr', 'w', 'h', 'hidden', 'fails', 'tta', 'wino']));
   /** Fractions, kept to four places (where on a photo the compare page was looked at, how far in). */
   const FRACTIONS = new Set(['x', 'y', 'zoom']);
   const MARKS = '(frame|part|tile|map|board|copy|long)', WAY = /^(classic|faster|network|camera|file)$/;
