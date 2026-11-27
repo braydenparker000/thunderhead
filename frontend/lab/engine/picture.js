@@ -7,22 +7,33 @@
 // colours are sRGB made linear, its white is the screen's, and its tones are left as they are (gpu.js keeps the
 // tone curve straight for `meta.picture`).
 import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
+import { XYZ_TO_P3 } from './icc.js';
 
 /** XYZ (D65) to linear sRGB: for a picture this stands where a camera's matrix does. */
 export const XYZ_TO_SRGB = [3.2404542, -1.5371385, -0.4985314, -0.969266, 1.8760108, 0.041556, 0.0556434, -0.2040259, 1.0572252];
 /** The longest side kept: what every GPU's textures hold (8192), in whole editing-copy pixels. */
 export const MOST = 8190;
 const LIN = Uint16Array.from({ length: 256 }, (_, v) => { const c = v / 255; return Math.round(65535 * (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); });
+/** Opens a 2D OffscreenCanvas in Display P3 when the browser supports it, else sRGB.
+ * @param {number} w @param {number} h @param {boolean} [read] @returns {{ c: OffscreenCanvas, g: OffscreenCanvasRenderingContext2D, cs: 'display-p3' | 'srgb' }} */
+function surface(w, h, read = false) {
+  const c = new OffscreenCanvas(w, h);
+  let g = /** @type {OffscreenCanvasRenderingContext2D | null} */ (null);
+  try { g = /** @type {OffscreenCanvasRenderingContext2D | null} */ (c.getContext('2d', { willReadFrequently: read, colorSpace: 'display-p3' })); } catch {}
+  if (!g) g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d', { willReadFrequently: read }));
+  const cs = g.getContextAttributes?.().colorSpace === 'display-p3' ? 'display-p3' : 'srgb';
+  return { c, g, cs };
+}
 
-/** Reads a picture file. Upright already (the browser applies the file's own orientation), in sRGB (the browser
- * converts a file in another colour space), and no larger than `most` on its longer side.
+/** Reads a picture file. Upright already (the browser applies the file's own orientation), in Display P3 when
+ * supported (preserving wide-gamut phone photos; else sRGB), and no larger than `most` on its longer side.
  * @param {Blob} blob @param {number} [most]
  * @returns {Promise<{ proxy: Uint16Array, width: number, height: number, meta: any, picture: ImageBitmap }>} `picture`: its own pixels, for full.js */
 export async function still(blob, most = MOST) {
   let bm = await createImageBitmap(blob);
   const k = Math.min(1, most / Math.max(bm.width, bm.height));
   if (k < 1) {   // larger than a texture holds: reduced once, through a canvas (which averages as it reduces)
-    const c = new OffscreenCanvas(Math.floor(bm.width * k), Math.floor(bm.height * k)), g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d'));
+    const { c, g } = surface(Math.floor(bm.width * k), Math.floor(bm.height * k));
     g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close(); bm = c.transferToImageBitmap();
   }
   const w = Math.floor(bm.width / 3), h = Math.floor(bm.height / 3);
@@ -30,18 +41,18 @@ export async function still(blob, most = MOST) {
   // The editing copy: each of its pixels the mean of 3 × 3 of the picture's, taken in linear light as the decoder
   // bins a sensor's (the browser's own reducing was measured: it kept all of a noisy sky's noise). A row or two at
   // the right and bottom are left off, so it is a whole third. Read a strip at a time: the picture is never held twice.
-  const ROWS = 64, W = w * 3, g = /** @type {OffscreenCanvasRenderingContext2D} */ (new OffscreenCanvas(W, ROWS * 3).getContext('2d', { willReadFrequently: true })), proxy = new Uint16Array(w * h * 4);
+  const ROWS = 64, W = w * 3, { g, cs } = surface(W, ROWS * 3, true), proxy = new Uint16Array(w * h * 4);
   for (let y0 = 0; y0 < h; y0 += ROWS) {
     const n = Math.min(ROWS, h - y0);
     g.drawImage(bm, 0, y0 * 3, W, n * 3, 0, 0, W, n * 3);
-    const px = g.getImageData(0, 0, W, n * 3).data;
+    const px = g.getImageData(0, 0, W, n * 3, { colorSpace: cs }).data;
     for (let y = 0; y < n; y++) for (let x = 0, o = (y0 + y) * w * 4; x < w; x++, o += 4) {
       let r = 0, gr = 0, b = 0;
       for (let j = 0; j < 3; j++) for (let i = (y * 3 + j) * W * 4 + x * 12, e = i + 12; i < e; i += 4) { r += LIN[px[i]]; gr += LIN[px[i + 1]]; b += LIN[px[i + 2]]; }
       proxy[o] = (r + 4) / 9; proxy[o + 1] = (gr + 4) / 9; proxy[o + 2] = (b + 4) / 9;
     }
   }
-  const meta = { make: '', model: '', picture: true, width: w, height: h, proxyWidth: w, proxyHeight: h, fullWidth: w * 3, fullHeight: h * 3, wb: [1, 1, 1, 0], xyzToCamD65: XYZ_TO_SRGB,
+  const meta = { make: '', model: '', picture: true, colorSpace: cs, width: w, height: h, proxyWidth: w, proxyHeight: h, fullWidth: w * 3, fullHeight: h * 3, wb: [1, 1, 1, 0], xyzToCamD65: cs === 'display-p3' ? XYZ_TO_P3 : XYZ_TO_SRGB,
     orientation: 'Normal', chroma: [0, 0, 0], black: 0, white: 65535, hot: 0, iso: 0, lens: null };
   return { proxy, width: w, height: h, meta, picture: bm };
 }
@@ -84,10 +95,10 @@ export function compile(device) {
 }
 
 /** The picture's pixels on the GPU: a texture the size of the picture's whole thirds.
- * @param {GPUDevice} device @param {ImageBitmap} picture @param {number} W @param {number} H */
-export function upload(device, picture, W, H) {
+ * @param {GPUDevice} device @param {ImageBitmap} picture @param {number} W @param {number} H @param {'srgb' | 'display-p3'} [colorSpace] */
+export function upload(device, picture, W, H, colorSpace = 'srgb') {
   const tex = device.createTexture({ size: [W, H], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
-  device.queue.copyExternalImageToTexture({ source: picture }, { texture: tex }, [W, H]);
+  device.queue.copyExternalImageToTexture({ source: picture }, { texture: tex, colorSpace }, [W, H]);
   return tex;
 }
 

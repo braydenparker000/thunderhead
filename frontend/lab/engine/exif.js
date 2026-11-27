@@ -114,6 +114,13 @@ export function block(es) {
   put(new DataView(b.buffer), b, es, 8);
   return b;
 }
+/** Builds a JPEG APP1 Exif block under the 65,500-byte JPEG segment limit, pruning bulky MakerNotes (0x927c) first instead of dropping all metadata. @param {Entry[]} es */
+export function blockForJpeg(es) {
+  const full = block(es);
+  if (full.length < 65500) return full;
+  const slim = es.map((e) => (e.tag === 0x8769 && e.sub ? { ...e, sub: e.sub.filter((s) => s.tag !== 0x927c) } : e));
+  return block(slim);
+}
 
 /** How far the camera pushes this RAF's sensor data to make its JPEG, as the DR number the developer adds back
  * (100: the usual; 200 a stop more), read from the RAF's own record of it (its raw header's tag 0x9650, the raw

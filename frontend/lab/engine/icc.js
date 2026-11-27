@@ -30,6 +30,8 @@ export function toXyz(s) {
 }
 /** Linear sRGB to linear Display P3: the last step of a frame made for a P3 file (wgsl.js). */
 export const SRGB_TO_P3 = mul(inverse(toXyz(P3)), toXyz(SRGB));
+/** XYZ (D65) to linear Display P3 (flattened 3x3 for wide-gamut imported pictures in picture.js). */
+export const XYZ_TO_P3 = inverse(toXyz(P3)).flat();
 
 /** Bradford's adaptation from one white to another (XYZ). @param {number[]} from @param {number[]} to @returns {M3} */
 export function bradford(from, to) {
@@ -38,9 +40,9 @@ export function bradford(from, to) {
 }
 
 const fixed = (/** @type {number} */ v) => Math.round(v * 65536) | 0;   // s15Fixed16
-/** A colour profile for Display P3, as bytes (about half a kilobyte): for a JPEG's APP2, a PNG's iCCP, a TIFF's tag 34675. */
-export function p3Profile() {
-  const chad = bradford(xyz(P3.w), D50), M = mul(chad, toXyz(P3)), enc = new TextEncoder();
+/** Builds an ICC v4.3 RGB matrix+parametric-TRC profile for `space` with description `name`. @param {typeof SRGB} space @param {string} name */
+function buildProfile(space, name) {
+  const chad = bradford(xyz(space.w), D50), M = mul(chad, toXyz(space)), enc = new TextEncoder();
   const mluc = (/** @type {string} */ text) => { const b = new DataView(new ArrayBuffer(28 + text.length * 2)); b.setUint32(0, 0x6d6c7563); b.setUint32(8, 1); b.setUint32(12, 12); b.setUint16(16, 0x656e); b.setUint16(18, 0x5553); b.setUint32(20, text.length * 2); b.setUint32(24, 28); for (let i = 0; i < text.length; i++) b.setUint16(28 + i * 2, text.charCodeAt(i)); return new Uint8Array(b.buffer); };
   const XYZ = (/** @type {number[]} */ v) => { const b = new DataView(new ArrayBuffer(20)); b.setUint32(0, 0x58595a20); v.forEach((x, i) => b.setInt32(8 + i * 4, fixed(x))); return new Uint8Array(b.buffer); };
   // the curve, as sRGB's: y = ((x + 0.055) / 1.055) ^ 2.4 from 0.04045 up, x / 12.92 below (a parametric curve, kind 3)
@@ -48,7 +50,7 @@ export function p3Profile() {
   const sf32 = (() => { const b = new DataView(new ArrayBuffer(44)); b.setUint32(0, 0x73663332); chad.flat().forEach((x, i) => b.setInt32(8 + i * 4, fixed(x))); return new Uint8Array(b.buffer); })();
   const col = (/** @type {number} */ j) => XYZ(M.map((r) => r[j]));
   /** @type {[string, Uint8Array][]} */
-  const tags = [['desc', mluc('Display P3')], ['cprt', mluc('No copyright, use freely')], ['wtpt', XYZ(D50)], ['rXYZ', col(0)], ['gXYZ', col(1)], ['bXYZ', col(2)], ['rTRC', para], ['gTRC', para], ['bTRC', para], ['chad', sf32]];
+  const tags = [['desc', mluc(name)], ['cprt', mluc('No copyright, use freely')], ['wtpt', XYZ(D50)], ['rXYZ', col(0)], ['gXYZ', col(1)], ['bXYZ', col(2)], ['rTRC', para], ['gTRC', para], ['bTRC', para], ['chad', sf32]];
   // one copy of the curve serves the three: each tag's data starts on a multiple of four
   const places = new Map(), blocks = /** @type {Uint8Array[]} */ ([]);
   let at = 128 + 4 + tags.length * 12;
@@ -58,7 +60,11 @@ export function p3Profile() {
   [2026, 1, 1, 0, 0, 0].forEach((x, i) => v.setUint16(24 + i * 2, x));   // a fixed date: the same bytes every time
   out.set(enc.encode('acsp'), 36); D50.forEach((x, i) => v.setInt32(68 + i * 4, fixed(x)));
   v.setUint32(128, tags.length);
-  tags.forEach(([name, data], i) => { out.set(enc.encode(name), 132 + i * 12); v.setUint32(136 + i * 12, places.get(data)); v.setUint32(140 + i * 12, data.length); });
+  tags.forEach(([tagName, data], i) => { out.set(enc.encode(tagName), 132 + i * 12); v.setUint32(136 + i * 12, places.get(data)); v.setUint32(140 + i * 12, data.length); });
   for (const b of blocks) out.set(b, places.get(b));
   return out;
 }
+/** A colour profile for Display P3, as bytes (about half a kilobyte): for a JPEG's APP2, a PNG's iCCP, a TIFF's tag 34675. */
+export const p3Profile = () => buildProfile(P3, 'Display P3');
+/** A colour profile for sRGB (IEC 61966-2-1), as bytes (~550 B). */
+export const srgbProfile = () => buildProfile(SRGB, 'sRGB IEC61966-2.1');
