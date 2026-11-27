@@ -183,8 +183,10 @@ export async function alone(job) {
 /** The photo as last rendered, `w` pixels wide (0: the editing copy's own size), as a JPEG; `also` is handed the frame whole. @param {number} w @param {(im: ImageData) => void} [also] */
 async function small(w, also) {
   const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, w ? { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' } : {}); also?.(im);
-  const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
-  return c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
+  try {
+    const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
+    return await c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
+  } finally { bm.close(); }
 }
 /** The edit as it stands. @returns {hist.State} */
 export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo, curve: cur?.curve, cube: cur?.cube, masks: cur?.masks, spots: cur?.spots });

@@ -7,7 +7,7 @@
 // a field of grass or a sunset is not grey on average). The camera's own white is a strong prior: a far answer
 // needs more votes, and the move is only part of the way unless many pixels agree. With too few agreeing, it keeps
 // the camera's white and says so. white.js has the measurement that made the prior this strong.
-import { neutralFor, whiteOf } from './dcp.js';
+import { inv, neutralFor, whiteOf } from './dcp.js';
 
 /** @typedef {import('./dcp.js').Profile} Profile */
 /** @typedef {{ kelvin: number, tint: number, neutral: number[], weak: boolean, share: number, found: null | { kelvin: number, tint: number } }} AutoWhite */
@@ -26,26 +26,44 @@ const WEAK = 0.06, SURE = 0.15;    // the agreeing share of the photo's pixels (
 const DARK = 0.03;                 // pixels darker than this share of the bright end are noise more than colour
 export const CLIP = 0.97 * 65535;  // where the editing copy marks a colour clipped (known.js, the decoder)
 
-/** The locus in the camera's own colours, a mired at a time: each light's log(R/G), log(B/G), and the step one
- * unit of tint makes there. @param {Profile} p */
+const planckUV = (/** @type {number} */ t) => [(0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1 + 8.42420235e-4 * t + 7.08145163e-7 * t * t),
+  (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1 - 2.89741816e-5 * t + 1.61456053e-7 * t * t)];
+
+/** The locus in the camera's own colours + CIE 1960 uv table, a mired at a time. @param {Profile} p */
 function locus(p) {
   const out = [];
-  for (let m = VOTE[0]; m <= VOTE[1]; m++) {
+  for (let m = VOTE[0] - 20; m <= VOTE[1] + 40; m++) {
     const k = 1e6 / m, a = neutralFor(p, k, 0), b = neutralFor(p, k, 10);
     const x = Math.log(a[0]), y = Math.log(a[2]);
-    out.push([m, x, y, (Math.log(b[0]) - x) / 10, (Math.log(b[2]) - y) / 10]);
+    const [pu, pv] = planckUV(k), p0 = planckUV(k - 1), p1 = planckUV(k + 1);
+    const du = p1[0] - p0[0], dv = p1[1] - p0[1], len = Math.hypot(du, dv) || 1;
+    const w = p.cm2 ? Math.min(1, Math.max(0, (1 / k - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1;
+    const cm = p.cm2 ? p.cm1.map((v, i) => v * w + /** @type {number[]} */ (p.cm2)[i] * (1 - w)) : p.cm1;
+    out.push({ m, x, y, tx: (Math.log(b[0]) - x) / 10, ty: (Math.log(b[2]) - y) / 10, pu, pv, nu: -dv / len, nv: du / len, icm: inv(cm) });
   }
   return out;
 }
 
-/** The light a colour would be under if it were grey, as mired and tint: the locus's nearest point, and the
- * distance across it. @param {number[][]} line from locus() @param {number} x log(R/G) @param {number} y log(B/G) */
-function lightOf(line, x, y) {
+/** Fast log-RGB prefilter + exact CIE 1960 uv projection onto the precomputed Planckian table.
+ * @param {ReturnType<typeof locus>} line @param {number} x @param {number} y @param {number} r @param {number} g @param {number} b */
+function project(line, x, y, r, g, b) {
   let best = 0, d = Infinity;
-  for (let i = 0; i < line.length; i += 8) { const e = (line[i][1] - x) ** 2 + (line[i][2] - y) ** 2; if (e < d) { d = e; best = i; } }
-  for (let i = Math.max(0, best - 8); i <= Math.min(line.length - 1, best + 8); i++) { const e = (line[i][1] - x) ** 2 + (line[i][2] - y) ** 2; if (e < d) { d = e; best = i; } }
-  const [m, lx, ly, tx, ty] = line[best];
-  return [m, ((x - lx) * tx + (y - ly) * ty) / (tx * tx + ty * ty)];
+  for (let i = 0; i < line.length; i += 8) { const e = (line[i].x - x) ** 2 + (line[i].y - y) ** 2; if (e < d) { d = e; best = i; } }
+  for (let i = Math.max(0, best - 8); i <= Math.min(line.length - 1, best + 8); i++) { const e = (line[i].x - x) ** 2 + (line[i].y - y) ** 2; if (e < d) { d = e; best = i; } }
+  const L = line[best], t0 = ((x - L.x) * L.tx + (y - L.y) * L.ty) / (L.tx * L.tx + L.ty * L.ty);
+  if (L.m <= VOTE[0] - 15 || L.m >= VOTE[1] + 15 || Math.abs(t0) > 2 * TINT) return null;
+  const M = L.icm;
+  const X = M[0] * r + M[1] * g + M[2] * b, Y = M[3] * r + M[4] * g + M[5] * b, Z = M[6] * r + M[7] * g + M[8] * b;
+  const den = X + 15 * Y + 3 * Z;
+  if (!(den > 0)) return null;
+  const u = (4 * X) / den, v = (6 * Y) / den;
+  let bi = best, bd = Infinity;
+  for (let i = Math.max(0, best - 24); i <= Math.min(line.length - 1, best + 24); i++) {
+    const e = (u - line[i].pu) ** 2 + (v - line[i].pv) ** 2;
+    if (e < bd) { bd = e; bi = i; }
+  }
+  const P = line[bi];
+  return [P.m, ((u - P.pu) * P.nu + (v - P.pv) * P.nv) * -3000];
 }
 
 /** Auto white balance. `rgb` holds the samples' linear camera colours, three to a sample (the editing copy's, as
@@ -69,9 +87,10 @@ export function autoWhite(rgb, asShot, p, o = {}) {
   for (let i = 0; i < n && top > 0; i++) {
     if (lum[i] < top * DARK || lum[i] < 16) continue;
     const bright = Math.min(1, lum[i] / top); all += bright;
-    const x = Math.log(rgb[i * 3] / rgb[i * 3 + 1]), y = Math.log(rgb[i * 3 + 2] / rgb[i * 3 + 1]), [m1, t1] = lightOf(line, x, y);
-    if (m1 <= VOTE[0] - 20 || m1 >= VOTE[1] + 20 || Math.abs(t1) > 2 * TINT) continue;   // far off: no need to read it exactly
-    const own = whiteOf(p, [Math.exp(x), 1, Math.exp(y)]), m = 1e6 / own.kelvin, t = own.tint;
+    const r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
+    const x = Math.log(r / g), y = Math.log(b / g), got = project(line, x, y, r, g, b);
+    if (!got) continue;
+    const [m, t] = got;
     if (m <= VOTE[0] || m >= VOTE[1] || Math.abs(t) > TINT) continue;
     const dm = (m - m0) / (m > m0 ? WARMER : BLUER), w = bright * Math.exp(-0.5 * (t / NEAR) ** 2) * Math.exp(-0.5 * dm * dm);
     votes.push([m, t, x, y, bright, w]);

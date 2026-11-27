@@ -35,13 +35,13 @@ test('one tap measures the network every way, judges the picture, keeps the ways
   assert.match(r.now, /^Done\./, r.now);
   const n = r.run;
   console.log(`# ${r.text.split('\n').join('\n# ')}`);
-  assert.equal(n.ms.length, 11);
-  assert.deepEqual(n.names, ['first', '3x3 37>144', '1x1 144>288', '1x1 288>288', '3x3 288>144', '1x1 144>288', '1x1 288>288', '3x3 288>144', '1x1 144>288', '1x1 288>108', 'last']);
+  assert.equal(n.ms.length, 13);
+  assert.deepEqual(n.names, ['first', '3x3 15>64', '3x3 64>64', '3x3 64>64', '3x3 64>64', '3x3 64>64', '3x3 64>64', '3x3 64>64', '3x3 64>128', '3x3 128>128', '3x3 128>128', '3x3 128>27', 'last']);
   // every way of every pass compiled, ran, and made what the exported pass makes (a software GPU's sums are exact)
   assert.deepEqual(n.tried.map((row) => row.map((t) => (t.ms >= 0 ? (t.rms === 0 ? 'same' : `off ${t.rms}`) : t.ms)).join(' ')),
-    ['-1 -1 -1 -1 -1', 'same same same same same', 'same -1 same -1 -1', 'same -1 same -1 -1', 'same same same same same', 'same -1 same -1 -1', 'same -1 same -1 -1', 'same same same same same', 'same -1 same -1 -1', 'same -1 same -1 -1', '-1 -1 -1 -1 -1']);
+    ['-1 -1 -1 -1 -1', ...Array(11).fill('same same same same same'), '-1 -1 -1 -1 -1']);
   // the ways tried together are the fastest of each pass, and only those clearly faster
-  assert.deepEqual(n.way.length, 11);
+  assert.deepEqual(n.way.length, 13);
   for (const [j, w] of n.way.entries()) if (w) assert.ok(n.tried[j][w - 1].ms < FASTER * n.ms[j], `pass ${j + 1}: ${n.tried[j][w - 1].ms} against ${n.ms[j]}`);
   assert.ok(n.whole.exported > 0 && n.whole.after > 0 && n.whole.full === null && n.picture.exported === null, 'no half floats here: the exported picture is itself the truth');
   if (n.way.some(Boolean)) {
@@ -63,12 +63,12 @@ test('one tap measures the network every way, judges the picture, keeps the ways
   assert.ok(r.timing.gpu1 > 0 && r.timing.tog > 0 && r.timing.togn >= 1 && r.timing.togl > 0, JSON.stringify(r.timing));
   // the report, the copy key, the run kept, and its numbers among the editor's timings
   assert.match(r.text, /^Thunderhead network test · .* · took \d+ s\nGPU: .*half floats no \(the network runs in f32\)\nOne window \(96 x 96, 0\.01 MP\), each time the least of 1:/);
-  assert.match(r.text, /\n +5 3x3 288>144 +[\d.]+( \| [\d.]+\*? \(0\)){5}\n/);
+  assert.match(r.text, /\n +9 3x3 64>128 +[\d.]+( \| [\d.]+\*? \(0\)){5}\n/);
   assert.match(r.text, /\nVerdict: /);
   assert.match(r.text, /\nThe CPU on the heavy pass's work \(\d+ cores?\), in thousand million multiply-adds a second:\n {2}multiply and add +1 core [\d.]+/);
   assert.equal(r.copy, false);
   assert.equal(r.last, n.at);
-  assert.deepEqual([r.timing.kind, r.timing.at, r.timing.op5 > 0, r.timing.alt5 > 0, r.timing.wid5 > 0, r.timing.one5 > 0, r.timing.blk5 > 0, r.timing.nar5 > 0, r.timing.alt1, r.timing.wid3, r.timing.blk3, r.timing.whole > 0, r.timing.cpu1 > 0], ['tune', n.at, true, true, true, true, true, true, -1, -1, -1, true, true]);
+  assert.deepEqual([r.timing.kind, r.timing.at, r.timing.op5 > 0, r.timing.alt5 > 0, r.timing.wid5 > 0, r.timing.one5 > 0, r.timing.blk5 > 0, r.timing.nar5 > 0, r.timing.alt1, r.timing.whole > 0, r.timing.cpu1 > 0], ['tune', n.at, true, true, true, true, true, true, -1, true, true]);
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -83,17 +83,17 @@ test('a browser\'s ways are chosen without anyone asking: the fastest exact way 
     const { known } = await import('/lab/engine/known.js'), { engine } = await import('/lab/engine/gpu.js'), N = await import('/lab/engine/neural.js'), A = await import('/lab/engine/net-auto.js'), T = await import('/lab/engine/net-tune.js');
     const eng = await engine(document.createElement('canvas'), known(240), true), device = eng.gpu.device, kind = device.features.has('shader-f16') ? 'f16' : 'f32';
     const first = await N.compile(device), driven = await A.autoWays(device);   // a browser driven by a test is left alone
-    const way = await A.autoWays(device, { force: true, side: 96, reps: 1 }), kept = T.chosen(kind, 11), mark = JSON.parse(localStorage.getItem('th.net.auto'));
+    const way = await A.autoWays(device, { force: true, side: 96, reps: 1 }), kept = T.chosen(kind, 13), mark = JSON.parse(localStorage.getItem('th.net.auto'));
     const again = await N.compile(device);   // compiled afresh with what was kept, and proved
     eng.dispose();
     return { driven, way, kept, mark: [mark.v, mark.ways, mark.kind === kind, mark.way], plain: first.way, proved: [again.off, N.PROOF], used: again.way, changed: first !== again };
   });
   console.log(`# chosen here: ${r.way.join('')}`);
   assert.equal(r.driven, null);
-  assert.ok(r.way.length === 11 && r.way[0] === 0 && r.way[10] === 0 && r.way.every((w) => Number.isInteger(w) && w >= 0 && w <= 5), `${r.way}`);
+  assert.ok(r.way.length === 13 && r.way[0] === 0 && r.way[12] === 0 && r.way.every((w) => Number.isInteger(w) && w >= 0 && w <= 5), `${r.way}`);
   assert.deepEqual(r.kept, r.way, 'what it chose is what is kept');
   assert.deepEqual(r.mark, [1, 5, true, r.way]);
-  assert.deepEqual(r.plain, new Array(11).fill(0));
+  assert.deepEqual(r.plain, new Array(13).fill(0));
   assert.deepEqual(r.used, r.way, 'and what the network is compiled with from then on');
   assert.ok(r.proved[0] >= 0 && r.proved[0] < r.proved[1] / 4, `proved with it (${r.proved[0]})`);
   assert.equal(r.changed, r.way.some(Boolean), 'compiled afresh only if something was chosen');

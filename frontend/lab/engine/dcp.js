@@ -84,15 +84,37 @@ const adapt = (/** @type {number[]} */ white) => { const a = apply(BRADFORD, whi
 /** The shot's colour temperature from its camera neutral (DNG spec: iterate on the interpolated ColorMatrix),
  * then the weight that blends the two calibrations, and the matrix from white-balanced camera RGB to linear
  * ProPhoto. @param {Profile} p @param {number[]} neutral camera RGB of a white object (1/WB multipliers, G = 1) */
+/* White balance as Temp and Tint (DNG SDK's convention): a colour temperature on the Planckian locus (CIE 1960
+   uv, Krystek's fit) and Tint as the offset across it, −3000 per unit of uv distance. */
+const planck = (/** @type {number} */ t) => [(0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1 + 8.42420235e-4 * t + 7.08145163e-7 * t * t),
+  (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1 - 2.89741816e-5 * t + 1.61456053e-7 * t * t)];
+const across = (/** @type {number} */ t) => { const a = planck(t - 1), b = planck(t + 1), du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv); return [-dv / l, du / l]; };
+/** Exact closest point on Krystek's CIE 1960 Planckian locus (fixes -138 K at 10,000 K / -686 K at 14,000 K McCamy drift). */
+function uvToKelvin(/** @type {number} */ u, /** @type {number} */ v) {
+  const dist2 = (/** @type {number} */ m) => { const [pu, pv] = planck(1e6 / m); return (u - pu) ** 2 + (v - pv) ** 2; };
+  let best = 200, bestD = Infinity;
+  for (let m = 20; m <= 600; m += 8) { const d = dist2(m); if (d < bestD) { bestD = d; best = m; } }
+  let lo = Math.max(20, best - 8), hi = Math.min(600, best + 8);
+  const phi = 0.6180339887498949;
+  let c = hi - phi * (hi - lo), d = lo + phi * (hi - lo), fc = dist2(c), fd = dist2(d);
+  for (let i = 0; i < 24; i++) {
+    if (fc < fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = dist2(c); }
+    else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = dist2(d); }
+  }
+  return Math.min(50000, Math.max(2000, 1e6 / (0.5 * (lo + hi))));
+}
+const xyzToKelvin = (/** @type {number[]} */ xyz) => {
+  const d = xyz[0] + 15 * xyz[1] + 3 * xyz[2];
+  return d > 0 ? uvToKelvin((4 * xyz[0]) / d, (6 * xyz[1]) / d) : 5000;
+};
 const blend = (/** @type {number[]} */ a, /** @type {number[] | null} */ b, /** @type {number} */ w) => (b ? a.map((x, k) => x * w + b[k] * (1 - w)) : a);
 const weightOf = (/** @type {Profile} */ p, /** @type {number} */ t) => (p.cm2 ? Math.min(1, Math.max(0, (1 / t - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1);
 export function cameraToProPhoto(p, neutral) {
   const weight = (/** @type {number} */ t) => weightOf(p, t);
   let t = 5000;
   for (let k = 0; k < 8; k++) {
-    const xyz = apply(inv(blend(p.cm1, p.cm2, weight(t))), neutral), s = xyz[0] + xyz[1] + xyz[2], x = xyz[0] / s, y = xyz[1] / s;
-    const nn = (x - 0.332) / (0.1858 - y);                        // McCamy's approximation
-    t = Math.min(50000, Math.max(2000, 449 * nn ** 3 + 3525 * nn ** 2 + 6823.3 * nn + 5520.33));
+    const xyz = apply(inv(blend(p.cm1, p.cm2, weight(t))), neutral);
+    t = xyzToKelvin(xyz);
   }
   const w = weight(t), d = [1 / neutral[0], 0, 0, 0, 1 / neutral[1], 0, 0, 0, 1 / neutral[2]];
   let camToXyz;
@@ -101,11 +123,6 @@ export function cameraToProPhoto(p, neutral) {
   return { kelvin: t, weight: w, matrix: mul(XYZ_TO_PROPHOTO, camToXyz) };
 }
 
-/* White balance as Temp and Tint (DNG SDK's convention): a colour temperature on the Planckian locus (CIE 1960
-   uv, Krystek's fit) and Tint as the offset across it, −3000 per unit of uv distance. */
-const planck = (/** @type {number} */ t) => [(0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1 + 8.42420235e-4 * t + 7.08145163e-7 * t * t),
-  (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1 - 2.89741816e-5 * t + 1.61456053e-7 * t * t)];
-const across = (/** @type {number} */ t) => { const a = planck(t - 1), b = planck(t + 1), du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv); return [-dv / l, du / l]; };
 /** The shot's white as Temp (K) and Tint. @param {Profile} p @param {number[]} neutral */
 export function whiteOf(p, neutral) {
   const { kelvin } = cameraToProPhoto(p, neutral), xyz = apply(inv(blend(p.cm1, p.cm2, weightOf(p, kelvin))), neutral);

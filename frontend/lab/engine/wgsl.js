@@ -6,7 +6,7 @@ import { LOCAL } from './local.js';
 import { SRGB_TO_P3 } from './icc.js';
 
 /** The frame's settings in bytes (struct P below). */
-export const USIZE = 3632;
+export const USIZE = 4144;
 
 export const N = 65;
 /** Editing-copy pixels per cell of the tone mask, each way (mask.js). */
@@ -20,7 +20,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
                  // 2048 Highlights and Shadows by the pixel's own brightness (no tone mask), 4096 show the tone mask,
                  // two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work,
                  // 32768 the mixer, 65536 grading, 131072 the point curve, 262144 a look's own table (cube.js),
-                 // and 524288 for a full-size view: its fourth value out is 1 + the masks' sharpness here)
+                 // 524288 for a full-size view: its fourth value out is 1 + the masks' sharpness here,
+                 // 16777216 Capture One-style Luma curve in luma[])
   hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
@@ -35,7 +36,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   mx: array<vec4f, 8>,     // the colour mixer: hue, saturation and brightness for each of its eight colours (grade.js)
   gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance, and Color Chrome and Chrome Blue (0..1, grade.js)
   crv: array<vec4f, 128>,  // the point curve: all three channels', then red's, green's, blue's, at 128 steps
-  mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56> };   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at (then defringe, for finish.js) · seven rows a mask
+  mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56>,   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at (then defringe, for finish.js) · seven rows a mask
+  luma: array<vec4f, 32> };   // Capture One-style Luma curve (128 floats packed in 32 vec4f, float offset 908)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -136,17 +138,16 @@ fn tone(c0: vec3f) -> vec3f {
   let tx = curve(mx); let tn = curve(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-6);
   return vec3f(tn + (c.r - mn) * k, tn + (c.g - mn) * k, tn + (c.b - mn) * k);
 }
-fn film(c: vec3f) -> vec3f { let y = dot(c, vec3f(0.2126, 0.7152, 0.0722)); let ty = y / (1.0 + y * 0.6) * 1.6; return c * (ty / max(y, 1e-6)); }
+fn film(c: vec3f) -> vec3f { let y = dot(c, LUM); let ty = y / (1.0 + y * 0.6) * 1.6; return c * (ty / max(y, 1e-6)); }
+fn tabAt(i: vec3u, n: u32) -> vec3f { let q = p.tab.z + ((i.x * n + i.y) * n + i.z) * 3u; return vec3f(t[q], t[q + 1u], t[q + 2u]); }
 fn tab(c: vec3f) -> vec3f {
   let n = p.tab.y; let a = clamp(mv(p.a0, p.a1, p.a2, c), vec3f(0.0), vec3f(1.0));
   let g = pow(a, vec3f(1.0 / 2.2)) * f32(n - 1u); let i = min(vec3u(floor(g)), vec3u(n - 2u)); let f = g - vec3f(i);
-  var acc = vec3f(0.0);
-  for (var k = 0u; k < 8u; k++) {
-    let o = vec3u(k & 1u, (k >> 1u) & 1u, (k >> 2u) & 1u); let w = select(1.0 - f, f, o == vec3u(1u));
-    let q = p.tab.z + (((i.x + o.x) * n + (i.y + o.y)) * n + (i.z + o.z)) * 3u;
-    acc += vec3f(t[q], t[q + 1u], t[q + 2u]) * w.x * w.y * w.z;
-  }
-  let lin = pow(acc, vec3f(2.2));
+  let ge = step(f.yzx, f.xyz); let lt = 1.0 - ge;
+  let hi = vec3u(ge * lt.zxy); let lo = vec3u(lt * ge.zxy);
+  let mx = max(f.x, max(f.y, f.z)); let mn = min(f.x, min(f.y, f.z)); let md = f.x + f.y + f.z - mx - mn;
+  let acc = tabAt(i, n) * (1.0 - mx) + tabAt(i + hi, n) * (mx - md) + tabAt(i + 1u - lo, n) * (md - mn) + tabAt(i + 1u, n) * mn;
+  let lin = pow(max(acc, vec3f(0.0)), vec3f(2.2));
   return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
 }
 // Contrast, Whites and Blacks are one curve over stops from middle grey, which stays where it is: Contrast is
@@ -253,14 +254,23 @@ fn colour(c0: vec3f) -> vec3f {
   if ((fl & 1048576u) == 0u && ((fl & 2097152u) == 0u || all(mv(p.o0, p.o1, p.o2, c0) >= vec3f(0.0)))) { c = fit(c); }
   return c;
 }
-// The last steps, which every pixel does for itself: to the screen's own colours, cut off at its range, encoded;
-// then a look's own table and the point curve. They are not in the table because the cut is a hard edge, and a
-// table read between its points blurs one: highlights blown to white came out tinted (244 of 255 in one colour
-// on up to 4 % of a photo a stop over, measured against the exact path) and a strong colour moved by up to 22 levels.
+// The last steps, which every pixel does for itself: to the screen's own colours, hue-preserving highlight roll-off, encoded;
+// then a look's own table and the point curve (RGB/R/G/B + Capture One Luma curve).
 fn finish(c: vec3f) -> vec3f {
-  let fl = p.size.w; let o = clamp(shown(c), vec3f(0.0), vec3f(1.0)); var e = select(1.055 * pow(o, vec3f(1.0 / 2.4)) - 0.055, 12.92 * o, o <= vec3f(0.0031308));
+  let fl = p.size.w; var s = max(shown(c), vec3f(0.0)); let mx = max(s.r, max(s.g, s.b));
+  if (mx > 1.0 && (fl & 1048576u) == 0u) {
+    let rolled = mix(s / mx, vec3f(1.0), (1.0 - exp(-0.8 * (mx - 1.0))) * 0.65 * smoothstep(1.0, 2.2, mx));
+    s = mix(clamp(s, vec3f(0.0), vec3f(1.0)), rolled, smoothstep(1.0, 1.6, mx));
+  }
+  let o = clamp(s, vec3f(0.0), vec3f(1.0)); var e = select(1.055 * pow(o, vec3f(1.0 / 2.4)) - 0.055, 12.92 * o, o <= vec3f(0.0031308));
   if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
+  if ((fl & 16777216u) != 0u) {
+    let y0 = dot(e, vec3f(0.2126, 0.7152, 0.0722)); let y1 = lumaPoint(y0);
+    let sc = select(y1 / y0, 1.0, y0 < 1e-4); let hi = max(e.r, max(e.g, e.b));
+    if (hi * sc > 1.0 && hi < 1.0) { e = mix(e, vec3f(1.0), clamp((y1 - y0) / max(1.0 - y0, 1e-4), 0.0, 1.0)); }
+    else { e = clamp(e * sc, vec3f(0.0), vec3f(1.0)); }
+  }
   // 8388608: a Display P3 file of a photo whose look has a table of its own, or a point curve. Both are made for
   // sRGB's numbers, so the picture is made as sRGB's and then written in P3's numbers: the same colours, none wider.
   if ((fl & 8388608u) != 0u) { let w = clamp(WIDE * vec3f(dec(e.r), dec(e.g), dec(e.b)), vec3f(0.0), vec3f(1.0)); e = vec3f(enc(w.r), enc(w.g), enc(w.b)); }
@@ -312,11 +322,13 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let w = p.size.x; let h = p.size.y; let fl = p.size.w;
   if (id.x >= w || id.y >= h) { return; }
   var c = pixel(id.x, id.y);
-  let l = lightAt(vec2i(id.xy), c);
   let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
   // what the masks add here to the photo's own exposure, highlights and shadows, and clarity, texture, dehaze
   var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
   if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx.xyz, vec3f(-1.0), vec3f(1.0)); c = c * exp2(lo.wb); }
+  // Only compute the 3x3 luminance average when a local-tone tool is active (1.54x faster at full-res when idle).
+  let needL = hi != 0.0 || sh != 0.0 || fx.x != 0.0 || fx.y != 0.0 || fx.z > 0.0 || (fl & 4096u) != 0u;
+  var l = 0.0; if (needL) { l = lightAt(vec2i(id.xy), c); }
   // Dehaze: an area holding a share d of the air's light lets 1 − d of the scene through; take the air's part out
   // and scale what is left back up. Less than none lays the air's colour over everything instead.
   if (fx.z > 0.0) { let t = max(1.0 - 0.65 * fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
@@ -326,12 +338,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (hi != 0.0 || sh != 0.0 || fx.x != 0.0 || (fl & 4096u) != 0u) {
     var m = l + ev;
     if ((fl & 2048u) == 0u) { m = area(id.xy, l) + ev; }
-    // Clarity: what the pixel adds to its area's brightness, in stops, made more or less; eased off in areas near black or white
-    let local = fx.x * select(0.6, 0.8, fx.x > 0.0) * (l + ev - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
+    // Natural Clarity: tanh soft-clamp prevents harsh edge halos while keeping micro-contrast punchy.
+    let rawLocal = fx.x * select(0.6, 0.8, fx.x > 0.0) * (l + ev - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
+    let local = 0.65 * tanh(rawLocal / 0.65);
     if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18), hi, sh) + local); }
   }
-  // Texture: the same against the finer mask, so it is the small detail that moves
-  if (fx.y != 0.0) { c = c * exp2(fx.y * select(0.7, 0.9, fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l))); }
+  // Shadow-guarded Texture: positive Texture tapers out below -3.5 EV so deep shadow noise is never amplified.
+  if (fx.y != 0.0) {
+    let guard = select(1.0, smoothstep(-6.0, -3.5, l + ev - log2(0.18)), fx.y > 0.0);
+    c = c * exp2(fx.y * select(0.7, 0.9, fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l)) * guard);
+  }
   // the masks' own contrast, whites and blacks (the photo's curve, laid on here alone), then their saturation and hue
   if (lo.a.y != 0.0 || lo.b.x != 0.0 || lo.b.y != 0.0) { c = tones(c, exp2(lo.a.y), lo.b.x, lo.b.y); }
   if (lo.b.z != 0.0 || lo.b.w != 0.0) { c = tinted(c, lo.b.z, lo.b.w); }

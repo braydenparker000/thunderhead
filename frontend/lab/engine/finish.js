@@ -26,19 +26,24 @@ fn finish(@builtin(global_invocation_id) id: vec3u) {
   let at = vec2i(id.xy); let px = textureLoad(src, at, 0); var o = px.rgb;
   let amount = f.s.x + 2.0 * (px.a - 1.0);   // the photo's sharpening, and the masks' here (the frame pass leaves 1 + theirs)
   if (amount != 0.0 || f.s.w > 0.0) {
-    let l = dot(o, W); let r = min(i32(ceil(f.s.y * 2.0)), 4); let k = -0.5 / (f.s.y * f.s.y);
-    var sum = 0.0; var ws = 0.0; var lo = l; var hi = l;
-    for (var y = -r; y <= r; y++) { for (var x = -r; x <= r; x++) {
-      let v = lum(at + vec2i(x, y)); let w = exp(k * f32(x * x + y * y)); sum += w * v; ws += w;
-      if (abs(x) <= 1 && abs(y) <= 1) { lo = min(lo, v); hi = max(hi, v); }
-    } }
-    var d = l - sum / ws;
-    if (amount > 0.0) {
-      let quiet = (1.0 - f.s.z) * 0.012;   // differences under this are left alone
-      d *= smoothstep(quiet * 0.5, quiet * 1.5 + 1e-6, abs(d));
-      let over = 0.02 + 0.10 * f.s.z;      // how far past its neighbours an edge may go
-      o += clamp(l + amount * d, lo - over, hi + over) - l;
-    } else if (amount < 0.0) { o -= d * min(1.0, -amount); }
+    let l = dot(o, W); var lo = l; var hi = l;
+    if (amount != 0.0) {
+      let r = min(i32(ceil(f.s.y * 2.0)), 4); let k = -0.5 / (f.s.y * f.s.y);
+      var sum = 0.0; var ws = 0.0;
+      for (var y = -r; y <= r; y++) { for (var x = -r; x <= r; x++) {
+        let v = lum(at + vec2i(x, y)); let w = exp(k * f32(x * x + y * y)); sum += w * v; ws += w;
+        if (abs(x) <= 1 && abs(y) <= 1) { lo = min(lo, v); hi = max(hi, v); }
+      } }
+      var d = l - sum / ws;
+      if (amount > 0.0) {
+        let quiet = (1.0 - f.s.z) * 0.012;   // differences under this are left alone
+        d *= smoothstep(quiet * 0.5, quiet * 1.5 + 1e-6, abs(d));
+        let over = 0.02 + 0.10 * f.s.z;      // how far past its neighbours an edge may go
+        o += clamp(l + amount * d, lo - over, hi + over) - l;
+      } else { o -= d * min(1.0, -amount); }
+    } else {
+      for (var y = -1; y <= 1; y++) { for (var x = -1; x <= 1; x++) { let v = lum(at + vec2i(x, y)); lo = min(lo, v); hi = max(hi, v); } }
+    }
     if (f.s.w > 0.0) {
       let fringe = max(min(o.r, o.b) - o.g, o.g - max(o.r, o.b));   // how purple, or how green
       let t = min(1.0, 1.5 * f.s.w) * smoothstep(0.04, 0.18, hi - lo) * smoothstep(0.01, 0.05, fringe);

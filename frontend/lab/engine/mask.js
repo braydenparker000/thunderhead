@@ -23,7 +23,7 @@ const wgsl = (o) => /* wgsl */ `${HEAD}
 const MC = ${o.cell}u;   // a cell's side, in pixels
 const R = ${o.r};        // how far an area reaches, in cells each way (the tone mask: 17 cells of 8, about 5 % of the long side)
 const SOFT = ${o.soft};     // the blur before the variance is taken, in cells each way: texture finer than this is no edge
-const EPS = 1.0;    // stops²: the variance at which the mask goes half-way from the area's mean to the pixel's own
+const EPS = 0.5;    // stops²: crisper edge preservation for Clarity and Highlights/Shadows without halo bleeding
 // a cell's brightness: log2 of its pixels' mean luminance
 @compute @workgroup_size(8, 8)
 fn down(@builtin(global_invocation_id) id: vec3u) {

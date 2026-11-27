@@ -51,7 +51,7 @@ export default class Component extends DCLogic {
       if (face === 'Color') chips.unshift({ name: 'WB', value: (real ? real.wb : app ? '' : S.wb), entry: true, aria: 'White balance', pick: () => set({ wbMenu: !S.wbMenu }) },
         { name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 9, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } });
     } else if (face === 'Curve') {
-      chips = ['RGB', 'R', 'G', 'B'].map((c) => ({ name: c, on: c === S.chan, pad: 12, pick: () => set({ chan: c }) })).concat([{ name: 'Reset', entry: true, pick: () => photo.setCurve() }]);
+      chips = ['RGB', 'Luma', 'R', 'G', 'B'].map((c) => ({ name: c, on: c === S.chan, pad: 10, pick: () => set({ chan: c }) })).concat([{ name: 'Reset', entry: true, pick: () => photo.setCurve() }]);
       dialLabel = 'Curve point';
       if (real) {   // the dial lifts or lowers the point last touched: finer than a finger on the curve
         const pts = photo.curve()?.[S.chan] || [[0, 0], [1, 1]], i = Math.min(photo.picked.i, pts.length - 1), [x, y] = pts[i];

@@ -34,19 +34,22 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 export function fitSharpener(device) {
   const pipe = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: SHADER }), entryPoint: 'main' } });
   const uni = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  let tmp = /** @type {GPUTexture | null} */ (null);
+  let tmp = /** @type {GPUTexture | null} */ (null), bg = /** @type {GPUBindGroup | null} */ (null), bgOut = /** @type {GPUTexture | null} */ (null), bgTmp = /** @type {GPUTexture | null} */ (null);
   return {
     /** @param {GPUCommandEncoder} enc @param {GPUTexture} out @param {number} w @param {number} h @param {number} sharpen Sharpening / 40 @param {number} detail 0..1 */
     run(enc, out, w, h, sharpen, detail) {
       if (!tmp || tmp.width !== w || tmp.height !== h) { tmp?.destroy(); tmp = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC }); }
+      if (!bg || bgOut !== out || bgTmp !== tmp) {
+        bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: out.createView() }, { binding: 1, resource: tmp.createView() }, { binding: 2, resource: { buffer: uni } }] });
+        bgOut = out; bgTmp = tmp;
+      }
       const u = new ArrayBuffer(16); new Uint32Array(u).set([w, h]); new Float32Array(u).set([STRENGTH * sharpen, 0.012 * (1 - Math.min(1, Math.max(0, detail)))], 2);
       device.queue.writeBuffer(uni, 0, u);
       const pass = enc.beginComputePass();
-      pass.setPipeline(pipe);
-      pass.setBindGroup(0, device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: out.createView() }, { binding: 1, resource: tmp.createView() }, { binding: 2, resource: { buffer: uni } }] }));
+      pass.setPipeline(pipe); pass.setBindGroup(0, bg);
       pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
       enc.copyTextureToTexture({ texture: tmp }, { texture: out }, [w, h]);
     },
-    destroy() { tmp?.destroy(); uni.destroy(); },
+    destroy() { tmp?.destroy(); uni.destroy(); bg = bgOut = bgTmp = null; },
   };
 }

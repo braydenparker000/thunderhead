@@ -89,12 +89,26 @@ export function crisp(out, ow, amount) {
   const row = (/** @type {Uint16Array} */ px) => { const l = new Float32Array(ow); for (let x = 0, i = 0; x < ow; x++, i += 3) l[x] = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; return { px, l }; };
   let above = /** @type {Row | null} */ (null), here = /** @type {Row | null} */ (null);
   const sharp = (/** @type {Row} */ a, /** @type {Row} */ b, /** @type {Row} */ c, /** @type {Uint16Array} */ to, /** @type {number} */ at) => {
+    const al = a.l, bl = b.l, cl = c.l, bpx = b.px;
     for (let x = 0; x < ow; x++) {
-      const x0 = x ? x - 1 : 0, x1 = x + 1 < ow ? x + 1 : x, l = b.l[x];
-      const n = [a.l[x0], a.l[x], a.l[x1], b.l[x0], b.l[x1], c.l[x0], c.l[x], c.l[x1]];
-      const blur = (4 * l + 2 * (n[1] + n[3] + n[4] + n[6]) + n[0] + n[2] + n[5] + n[7]) / 16, lo = Math.min(l, ...n) - OVER, hi = Math.max(l, ...n) + OVER;
-      const d = Math.min(hi, Math.max(lo, l + amount * (l - blur))) - l, i = x * 3, o = at + i;
-      to[o] = Math.min(65535, Math.max(0, Math.round(b.px[i] + d))); to[o + 1] = Math.min(65535, Math.max(0, Math.round(b.px[i + 1] + d))); to[o + 2] = Math.min(65535, Math.max(0, Math.round(b.px[i + 2] + d)));
+      const x0 = x ? x - 1 : 0, x1 = x + 1 < ow ? x + 1 : x, l = bl[x];
+      const n0 = al[x0], n1 = al[x], n2 = al[x1], n3 = bl[x0], n4 = bl[x1], n5 = cl[x0], n6 = cl[x], n7 = cl[x1];
+      const blur = (4 * l + 2 * (n1 + n3 + n4 + n6) + n0 + n2 + n5 + n7) * 0.0625;
+      let lo = l, hi = l;
+      if (n0 < lo) lo = n0; else if (n0 > hi) hi = n0;
+      if (n1 < lo) lo = n1; else if (n1 > hi) hi = n1;
+      if (n2 < lo) lo = n2; else if (n2 > hi) hi = n2;
+      if (n3 < lo) lo = n3; else if (n3 > hi) hi = n3;
+      if (n4 < lo) lo = n4; else if (n4 > hi) hi = n4;
+      if (n5 < lo) lo = n5; else if (n5 > hi) hi = n5;
+      if (n6 < lo) lo = n6; else if (n6 > hi) hi = n6;
+      if (n7 < lo) lo = n7; else if (n7 > hi) hi = n7;
+      const t = l + amount * (l - blur), lo2 = lo - OVER, hi2 = hi + OVER;
+      const d = (t < lo2 ? lo2 : t > hi2 ? hi2 : t) - l, i = x * 3, o = at + i;
+      const r = bpx[i] + d + 0.5, g = bpx[i + 1] + d + 0.5, bl2 = bpx[i + 2] + d + 0.5;
+      to[o] = r <= 0 ? 0 : r >= 65535 ? 65535 : r | 0;
+      to[o + 1] = g <= 0 ? 0 : g >= 65535 ? 65535 : g | 0;
+      to[o + 2] = bl2 <= 0 ? 0 : bl2 >= 65535 ? 65535 : bl2 | 0;
     }
   };
   return {

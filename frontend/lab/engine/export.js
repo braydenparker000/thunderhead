@@ -8,7 +8,7 @@ import { thread, work } from './export-thread.js';
 export { OUTPUT, crisp } from './reduce.js';
 
 const SPLIT = 4;   // an export's first pieces are timed a step at a time (full.js `region`), for the phone's own numbers
-const NET_SIDE = 966;   // a piece by the network, each way: with its edge, one of the network's windows whole (990 sensor pixels; full.js `room` takes the lens's reach off). Until 2026-11-14 a piece was 960 x 512, and with the lens's reach spilled a few pixels into a second window, which was made for them with all its context: the network was given about 1.4 times the photo
+const NET_SIDE = 954;   // a piece by the network, each way: with its edge (12 each side), one Starfish v0.2.0 window whole (978 sensor pixels; full.js `room` takes the lens's reach off)
 const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
 // straightened); and how far past a piece it is developed, so sharpening sees the same neighbours either side of a join
 
@@ -23,7 +23,8 @@ const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how
  * the JPEG encoder, `worker: false` keeps all its work on the page, `ops` times one of the network's windows a
  * pass at a time once the photo is made, as it is compiled here (`clock.ops`, in ms: net-tune.js `timed`), and `keep` holds the finished bands. (`ops` as a number: that many pixels of the window's side only, for a test on a slow GPU.)
  * `cpu`: false keeps the CPU's cores out of an export by the network (net-cpu.js); 'always' has them take a piece whenever one is left (a test).
- * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean | number, keep?: Keep | null, cpu?: boolean | 'always' }} How */
+ * `tta`: 1 (default) or 4 for 4-way D4 symmetry test-time augmentation in Starfish Ultra exports.
+ * @typedef {{ signal?: AbortSignal, encode?: import('./files.js').Band, worker?: boolean, ops?: boolean | number, keep?: Keep | null, cpu?: boolean | 'always', tta?: number }} How */
 /** An export asked for by the network that the network cannot make here: nothing is made in its place. */
 export class NoBest extends Error { constructor(/** @type {string} */ why) { super(`Best quality cannot run on this phone just now (${why}). Nothing was saved, and no lesser method was put in its place.`); this.name = 'NoBest'; } }
 
@@ -42,10 +43,10 @@ export async function develop(big, jobs, progress, clock = null, best = false, h
   const sw = big.width, sh = big.height, signal = how.signal;
   signal?.throwIfAborted();
   const off = how.worker !== false && jobs.every((j) => j.file) ? thread() : Promise.resolve(null);   // started while the GPU makes ready
-  // The network works a window of the sensor at a time (neural.js: 990 pixels of each 1056 are its own), so its pieces
+  // The network works a window of the sensor at a time (neural.js: 978 pixels of each 1056 are its own), so its pieces
   // are cut to sit in one window each and to fill it: the least of its work then goes on the context round a piece.
   const [wide, rows] = best && big.raw ? [NET_SIDE, NET_SIDE] : [TILE, BAND];   // (a picture with no sensor data is not the network's, whatever is asked)
-  const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best, how.cpu !== false).catch(async (err) => { (await off)?.terminate(); throw err; });
+  const v = await big.view(Math.min(sw, wide) + 2 * EDGE, rows + 2 * EDGE, null, false, true, best, how.cpu !== false, how.tta || 1).catch(async (err) => { (await off)?.terminate(); throw err; });
   if (v.lost) { const why = v.lost; v.dispose(); (await off)?.terminate(); throw new NoBest(why); }
   if (clock) { clock.net = v.net ? 1 : 0; clock.helpers = v.helpers || 0; }   // helpers: the CPU's cores at the network beside the GPU (net-cpu.js); `cpu`: the pieces they made
   let s = /** @type {import('./export-thread.js').Sink | null} */ (null);

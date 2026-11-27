@@ -78,6 +78,11 @@ struct G { out: vec4f,    // this pass's first pixel in the picture (x, y); pict
 fn word(q: vec2i, k: u32) -> u32 { let c = clamp(q, vec2i(0), vec2i(g.dims.zw) - 1); return src[(u32(c.y) * g.dims.z + u32(c.x)) * 2u + k]; }
 fn own(q: vec2i, colour: u32) -> f32 { if (colour == 2u) { return f32(word(q, 1u) & 0xffffu); } return f32((word(q, 0u) >> (16u * colour)) & 0xffffu); }
 ${mendWGSL('g.sp', 'g.mode.w')}
+fn own3(q: vec2i) -> vec3f {
+  let c = clamp(q, vec2i(0), vec2i(g.dims.zw) - 1); let i = (u32(c.y) * g.dims.z + u32(c.x)) * 2u;
+  let w0 = src[i]; let w1 = src[i + 1u];
+  return vec3f(f32(w0 & 0xffffu), f32(w0 >> 16u), f32(w1 & 0xffffu));
+}
 // one colour of one of the source's pixels: its own, or near a retouched spot what the spot puts there
 fn one(q: vec2i, colour: u32) -> f32 {
   var v = own(q, colour); if (near == 0u) { return v; }
@@ -85,16 +90,37 @@ fn one(q: vec2i, colour: u32) -> f32 {
   for (var i = 0u; i < g.mode.w; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, colour); if (k.x > 0.0) { v = mix(v, own(q + vec2i(g.sp[i * ${SPOT_ROWS}u + 1u].xy / g.src.z), colour) * k.y, k.x); } }
   return v;
 }
+fn one3(q: vec2i) -> vec3f {
+  var v = own3(q); if (near == 0u) { return v; }
+  let s = (vec2f(q) + 0.5) * g.src.z + g.src.xy;
+  for (var i = 0u; i < g.mode.w; i++) {
+    if ((near & (1u << i)) == 0u) { continue; }
+    let src3 = own3(q + vec2i(g.sp[i * ${SPOT_ROWS}u + 1u].xy / g.src.z));
+    for (var k = 0u; k < 3u; k++) { let m = spot(i, s, k); if (m.x > 0.0) { v[k] = mix(v[k], src3[k] * m.y, m.x); } }
+  }
+  return v;
+}
 fn cubic(t: f32) -> vec4f { let t2 = t * t; let t3 = t2 * t; return vec4f(-0.5 * t3 + t2 - 0.5 * t, 1.5 * t3 - 2.5 * t2 + 1.0, -1.5 * t3 + 2.0 * t2 + 0.5 * t, 0.5 * t3 - 0.5 * t2); }
-// one colour at a place on the sensor: between the four pixels around it, or (fine) a cubic through sixteen, held
-// between the brightest and darkest of the middle four so an edge doesn't ring
+// one colour at a place on the sensor: cubic through sixteen, held between the middle four so an edge doesn't ring
 fn sample(s: vec2f, colour: u32) -> f32 {
   let b = (s - g.src.xy) / g.src.z - 0.5; let i = vec2i(floor(b)); let f = b - floor(b);
-  let a = one(i, colour); let c = one(i + vec2i(1, 0), colour); let d = one(i + vec2i(0, 1), colour); let e = one(i + vec2i(1, 1), colour);
-  if (g.mode.z == 0u) { return mix(mix(a, c, f.x), mix(d, e, f.x), f.y); }
-  let wx = cubic(f.x); let wy = cubic(f.y); var sum = 0.0;
-  for (var y = 0; y < 4; y++) { var row = 0.0; for (var x = 0; x < 4; x++) { row += wx[x] * one(i + vec2i(x - 1, y - 1), colour); } sum += wy[y] * row; }
-  return clamp(sum, min(min(a, c), min(d, e)), max(max(a, c), max(d, e)));
+  let wx = cubic(f.x); let wy = cubic(f.y); var sum = 0.0; var lo = 1e9; var hi = -1e9;
+  for (var y = 0; y < 4; y++) { var row = 0.0; for (var x = 0; x < 4; x++) {
+    let v = one(i + vec2i(x - 1, y - 1), colour); row += wx[x] * v;
+    if ((x == 1 || x == 2) && (y == 1 || y == 2)) { lo = min(lo, v); hi = max(hi, v); }
+  } sum += wy[y] * row; }
+  return clamp(sum, lo, hi);
+}
+// all three colours at the same place: one load pair per pixel instead of three
+fn sample3(s: vec2f) -> vec3f {
+  let b = (s - g.src.xy) / g.src.z - 0.5; let i = vec2i(floor(b)); let f = b - floor(b);
+  if (g.mode.z == 0u) { return mix(mix(one3(i), one3(i + vec2i(1, 0)), f.x), mix(one3(i + vec2i(0, 1)), one3(i + vec2i(1, 1)), f.x), f.y); }
+  let wx = cubic(f.x); let wy = cubic(f.y); var sum = vec3f(0.0); var lo = vec3f(1e9); var hi = vec3f(-1e9);
+  for (var y = 0; y < 4; y++) { var row = vec3f(0.0); for (var x = 0; x < 4; x++) {
+    let v = one3(i + vec2i(x - 1, y - 1)); row += wx[x] * v;
+    if ((x == 1 || x == 2) && (y == 1 || y == 2)) { lo = min(lo, v); hi = max(hi, v); }
+  } sum += wy[y] * row; }
+  return clamp(sum, lo, hi);
 }
 @compute @workgroup_size(8, 8)
 fn warp(@builtin(global_invocation_id) id: vec3u) {
@@ -110,8 +136,9 @@ fn warp(@builtin(global_invocation_id) id: vec3u) {
   let k = mix(g.lens[j], g.lens[j + 1u], t - f32(j));
   let at = c + v * k.g;
   nearby(at, 6.0 * g.src.z);
-  var raw = vec3f(sample(at, 0u), sample(at, 1u), sample(at, 2u));
-  if (g.mode.z == 1u) { raw.r = sample(c + v * k.r, 0u); raw.b = sample(c + v * k.b, 2u); }   // 2: the demosaic has laid red and blue on green's places already
+  var raw: vec3f;
+  if (g.mode.z == 1u) { raw = vec3f(sample(c + v * k.r, 0u), sample(at, 1u), sample(c + v * k.b, 2u)); }
+  else { raw = sample3(at); }
   let n = vec2i(floor((at - g.src.xy) / g.src.z - 0.5));   // a colour the sensor clipped in any of the four pixels around stays marked
   let bits = ((word(n, 1u) | word(n + vec2i(1, 0), 1u) | word(n + vec2i(0, 1), 1u) | word(n + vec2i(1, 1), 1u)) >> 16u) & 7u;
   let o = vec3u(clamp(raw * (k.a * g.src.w), vec3f(0.0), vec3f(65535.0)) + 0.5);

@@ -45,13 +45,16 @@ export default class Component extends DCLogic {
     const est = (x) => (x.fmt === 'TIFF 16' ? mb((x.long * short(x) * 6) / 1e6) : '');   // 16-bit RGB: six bytes a pixel, whatever the picture
     const dims = (x) => (fw >= fh ? `${x.long} × ${short(x)}` : `${short(x)} × ${x.long}`), facts = (x) => [dims(x), est(x)].filter(Boolean).join(' · ');
     const fileName = (x) => { const stem = x.naming === 'Camera name' ? stem0 : x.naming === 'Date + number' ? (real ? `${S.day || 'photo'}_${(stem0.match(/\d+$/) || [stem0])[0]}` : '2026-11-09_0412') : 'Oldtown_012'; return `${stem}${x.name === 'Small' ? '_small' : ''}.${x.fmt === 'JPEG' ? 'jpg' : x.fmt === 'PNG' ? 'png' : 'tif'}`; };
+    const why = real && !real.plain ? netWhy() : 'off-setting';
     const rows = {
       Size: sizeList.map(([k, px]) => ({ name: k, value: String(px), on: p.size === k, pick: () => setP({ size: k, long: px }) }))
         .concat([{ name: 'Custom', value: p.size === 'Custom' ? String(p.long) : '', on: p.size === 'Custom', pick: () => { setP({ size: 'Custom' }); set({ ctl: 'long' }); } }]),
       Format: ['JPEG', 'PNG', 'TIFF 16'].map((f) => ({ name: f, on: p.fmt === f, pick: () => setP({ fmt: f }) }))
         .concat([{ name: 'Quality', value: p.fmt === 'JPEG' ? String(p.q) : '—', on: S.ctl === 'q', pick: () => set({ ctl: 'q' }) }, { name: 'Color space', value: p.space, pick: () => keepP(S.presets.map((x) => ({ ...x, space: p.space === 'sRGB' ? 'Display P3' : 'sRGB' }))) }]),   // one space for all of an export's files: they are cut from the same pieces (app/save.js)
-      Output: ['Off', 'Screen', 'Print'].map((s) => ({ name: s === 'Off' ? 'No sharpen' : s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
-        .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) }, real ? { name: 'Watermark', value: 'LATER', pick: () => {} } : { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
+      Output: ['Off', 'Screen', 'Print'].map((s) => ({ name: s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
+        .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) },
+          ...(!real || (!real.plain && why === 'on') ? [{ name: 'Ultra 4×', value: p.ultra ? 'ON' : 'OFF', on: !!p.ultra, pick: () => keepP(S.presets.map((x) => ({ ...x, ultra: !p.ultra }))) }] : []),
+          real ? { name: 'Watermark', value: 'LATER', pick: () => {} } : { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
       Info: [{ name: 'Metadata', value: p.meta, on: S.ctl === 'meta', pick: () => set({ ctl: 'meta' }) }, { name: 'Location', value: p.gps ? 'ON' : 'OFF', on: p.gps, pick: () => setP({ gps: !p.gps }) },
         { name: 'File name', value: p.naming, on: S.ctl === 'naming', pick: () => set({ ctl: 'naming' }) }],
     };
@@ -70,7 +73,8 @@ export default class Component extends DCLogic {
     const chips = rows[S.group].map((o) => ({ name: o.name, value: o.value ?? '', on: !!o.on, pick: o.pick }));
     const W = S.working, on = P.filter((x) => x.on);
     // how long it should take: this phone's own rate for the way it will be made, times the pixels of the files on
-    const why = real && !real.plain ? netWhy() : 'off-setting', whole = real ? estimate(this.past, why === 'on', on.reduce((n, x) => n + x.long * short(x), 0)) : null, guess = whole === null ? null : whole * (1 - S.made);
+    const baseEst = real ? estimate(this.past, why === 'on', on.reduce((n, x) => n + x.long * short(x), 0)) : null;
+    const whole = baseEst === null ? null : baseEst * (why === 'on' && p.ultra ? 4 : 1), guess = whole === null ? null : whole * (1 - S.made);
     const run = () => {
       if (!on.length || W) return;
       if (!real && app) return;   // nothing open: nothing to save

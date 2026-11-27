@@ -7,7 +7,7 @@
 import { WAYS, ways } from './net-ways.js';
 
 export { WAYS, ways };
-const KEY = 'th.net.tune', V = 2;   // the kept choice; V: raised when `ways` changes, so an old choice is not used for new code
+const KEY = 'th.net.tune', V = 3;   // the kept choice; V: raised when `ways` changes, so an old choice is not used for new code
 
 /** Which way this phone runs each pass, as last chosen here for this kind of network: a number a pass, 0 as
  * exported, else one of `ways` (all 0 where none was chosen, or nothing can be kept). @param {string} kind
@@ -19,7 +19,7 @@ export function chosen(kind, count) {
 /** Keeps the choice (all as exported: forgets it). @param {string} kind @param {number[]} way */
 export function choose(kind, way) { try { if (way.some(Boolean)) localStorage.setItem(KEY, JSON.stringify({ v: V, kind, way })); else localStorage.removeItem(KEY); } catch { /* nowhere to keep it: the passes run as exported */ } }
 
-/** @typedef {[GPUComputePipeline, GPUBindGroup, number, number, number]} Pass a pass with its bindings and how many workgroups it is dispatched over */
+/** @typedef {[GPUComputePipeline, GPUBindGroup, number, number, number, boolean?, number?]} Pass a pass with its bindings and how many workgroups it is dispatched over */
 /** Runs one pass and waits for the GPU to finish it. @param {GPUDevice} device @param {Pass} pass @returns {Promise<number>} ms */
 export async function once(device, [pipe, bind, a, b, c]) {
   const enc = device.createCommandEncoder(), pass = enc.beginComputePass(), t = performance.now();
@@ -28,11 +28,15 @@ export async function once(device, [pipe, bind, a, b, c]) {
   return performance.now() - t;
 }
 /** One window made a pass at a time as the network is compiled here, each waited for: how long each takes on this
- * GPU, in ms (cut, the network's passes in order, place). An export notes them, so the phone says where the time
- * goes in what it really runs. @param {{ parts: import('./neural.js').Parts }} net @param {number} [side] how much of the window is made (all of it; a test asks for less) */
+ * GPU, in ms (cut, the network's passes in order, place). Strip-sliced passes that share a stage index are summed.
+ * @param {{ parts: import('./neural.js').Parts }} net @param {number} [side] how much of the window is made (all of it; a test asks for less) */
 export async function timed(net, side) {
-  const p = net.parts, ms = [];
-  for (const pass of p.lay(side)) ms.push(await once(p.device, pass));
+  const p = net.parts, ms = /** @type {number[]} */ ([]);
+  for (const pass of p.lay(side)) {
+    const dt = await once(p.device, pass), st = pass[6];
+    if (typeof st === 'number') ms[st] = (ms[st] || 0) + dt;
+    else ms.push(dt);
+  }
   return ms;
 }
 
@@ -64,7 +68,8 @@ export async function tune(parts, o = {}) {
   const least = async (/** @type {() => Promise<number>} */ f) => { let best = Infinity; for (let r = 0; r < reps; r++) best = Math.min(best, await f()); return best; };
   try {
     for (const [j, op] of parts.exported.entries()) {
-      const others = ways(op), out = Number(/const COUT: u32 = (\d+)u/.exec(op.code)?.[1]) * 176 * 176 * wide, bytes = Math.min(g.sizes[op.binds[4]], out || Infinity), can = others.some(Boolean) && bytes > SPOT;
+      const others = ways(op), co = Number(/const COUT: u32 = (\d+)u/.exec(op.code)?.[1]) || 0, hh = Number(/const H: \w+ = (\d+)u?;/.exec(op.code)?.[1]) || 352, ww = Number(/const W: \w+ = (\d+)u?;/.exec(op.code)?.[1]) || 352;
+      const out = co * hh * ww * wide, bytes = Math.min(g.sizes[op.binds[4]], out || Infinity), can = others.some(Boolean) && bytes > SPOT;
       o.say?.(`The network's pass ${j + 1} of ${parts.exported.length}…`);
       const row = /** @type {Tried[]} */ ([]), kept = /** @type {GPUComputePipeline[]} */ ([]);
       for (let k = 0; k < WAYS; k++) {
