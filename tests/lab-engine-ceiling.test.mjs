@@ -172,3 +172,110 @@ test('Mali zero-spill Winograd, high-SNR shadow anchor, Clarity fine mask, and U
   assert.equal(perMp([oldSlow, newFast1x, newFast4x], true), 2500);
 });
 
+test('16-bit TIFF uses lossless Deflate + Horizontal Differencing (Predictor=2) and round-trips exact pixels', async () => {
+  const { tiff } = await import('../frontend/lab/engine/files.js');
+  const w = 16, h = 8, px = new Uint16Array(w * h * 3);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const o = (y * w + x) * 3;
+    px[o] = (x * 4096 + y * 512) & 0xffff;
+    px[o + 1] = ((x + y) * 2048 + 7) & 0xffff;
+    px[o + 2] = (65535 - x * 3000) & 0xffff;
+  }
+  const sink = tiff(w, h, null);
+  await sink.rows(px, h);
+  const bytes = new Uint8Array(await (await sink.done()).arrayBuffer());
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const ifdOff = dv.getUint32(4, true), n = dv.getUint16(ifdOff, true);
+  const tags = new Map();
+  for (let i = 0; i < n; i++) {
+    const at = ifdOff + 2 + i * 12;
+    tags.set(dv.getUint16(at, true), dv.getUint32(at + 8, true));
+  }
+  assert.equal(tags.get(259), 8, 'Compression tag 259 is Adobe Deflate (8)');
+  assert.equal(tags.get(317), 2, 'Predictor tag 317 is Horizontal Differencing (2)');
+  const stripOff = tags.get(273), stripLen = tags.get(279);
+  const dec = new Uint8Array(await new Response(new Blob([bytes.subarray(stripOff, stripOff + stripLen)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  const got = new Uint16Array(dec.buffer, dec.byteOffset, w * h * 3);
+  for (let y = 0; y < h; y++) {
+    const row = y * w * 3;
+    for (let i = 3; i < w * 3; i++) got[row + i] = (got[row + i] + got[row + i - 3]) & 0xffff;
+  }
+  assert.deepEqual([...got], [...px]);
+});
+
+test('blockForJpeg prunes oversized MakerNotes while preserving Exif, and icc exports srgbProfile + XYZ_TO_P3', async () => {
+  const { blockForJpeg } = await import('../frontend/lab/engine/exif.js');
+  const { srgbProfile, XYZ_TO_P3 } = await import('../frontend/lab/engine/icc.js');
+  const big = [
+    { tag: 0x010f, type: 2, count: 9, data: new TextEncoder().encode('FUJIFILM\0') },
+    {
+      tag: 0x8769, type: 4, count: 1, data: new Uint8Array(4),
+      sub: [
+        { tag: 0x829a, type: 5, count: 1, data: new Uint8Array([1, 0, 0, 0, 100, 0, 0, 0]) },
+        { tag: 0x927c, type: 7, count: 70000, data: new Uint8Array(70000) },
+      ],
+    },
+  ];
+  const blk = blockForJpeg(/** @type {any} */ (big));
+  assert.ok(blk && blk.length < 65500, `pruned Exif fits in APP1 (${blk?.length} B)`);
+  const srgb = srgbProfile();
+  assert.ok(srgb.length > 400 && new TextDecoder().decode(srgb.subarray(12, 24)) === 'mntrRGB XYZ ');
+  assert.equal(XYZ_TO_P3.length, 9);
+});
+
+test('lens.js supports independent per-table knots and smooth monotone cubic splines', async () => {
+  const { lensTable, fringeOf } = await import('../frontend/lab/engine/lens.js');
+  const lens = {
+    knots: [0.25, 0.5, 0.75, 1],
+    dist: [0.5, 1.8, 3.6, 5.2],
+    cKnots: [0.2, 0.5, 0.8, 1],
+    red: [-0.0004, -0.0012, -0.0021, -0.003],
+    blue: [0.0002, 0.0007, 0.0013, 0.002],
+    bKnots: [0.3, 0.6, 0.85, 1],
+    vig: [96, 88, 76, 62],
+  };
+  const tbl = lensTable(lens, 6000, 4000);
+  const fr = fringeOf(lens, 6000, 4000);
+  assert.ok(tbl && tbl.length === 256 && fr && fr.table.length === 64);
+  // Vignette gain increases monotonically from centre (r=0) to corner
+  for (let i = 1; i < 50; i++) assert.ok(tbl[i * 4 + 3] >= tbl[(i - 1) * 4 + 3] - 1e-5, `vignette gain monotonic at ${i}`);
+  // Red and blue fringe signs match input
+  assert.ok(fr.table[15 * 4] < -0.002 && fr.table[15 * 4 + 1] > 0.0015);
+});
+
+test('stack.js finerOf, gainOf, and soft HDR bracket feathering work cleanly without contour jumps', async () => {
+  const { finerOf, gainOf, summer } = await import('../frontend/lab/engine/stack.js');
+  assert.equal(finerOf(16383), 4);
+  assert.equal(finerOf(32767), 2);
+  assert.equal(finerOf(65535), 1);
+  // Empirical gain calibration recovers actual 4.18x exposure ratio when nominal was 4.0x
+  const w = 64, h = 64, a = new Uint16Array(w * h * 4), b = new Uint16Array(w * h * 4);
+  for (let i = 0; i < w * h; i++) { a[i * 4 + 1] = 4000 + (i % 1000); b[i * 4 + 1] = Math.round(a[i * 4 + 1] * 4.18); }
+  const g = gainOf(a, b, w, h, 4.0);
+  assert.ok(Math.abs(g - 4.18) < 0.01, `calibrated gain ${g}`);
+  // Soft HDR feathering produces monotonic smooth ramp with zero jump across the clip threshold
+  const n = 200, black = 100, clip = 14000, s = summer(n, black, clip, true, 4);
+  const f0 = Uint16Array.from({ length: n }, (_, i) => black + i * 25);
+  const f1 = Uint16Array.from({ length: n }, (_, i) => Math.min(16383, black + i * 100));
+  s.add(f0, 1); s.add(f1, 4);
+  const out = s.done();
+  for (let i = 1; i < n; i++) assert.ok(out[i] >= out[i - 1], `monotonic at ${i}: ${out[i - 1]} -> ${out[i]}`);
+});
+
+test('D4 90-degree transpose-shift (ay+3, ax) strictly preserves Fujifilm X-Trans 6x6 CFA colour layout', () => {
+  // Standard X-Trans 6x6 period: 0=R, 1=G, 2=B
+  const cfa = [
+    1, 2, 0, 1, 0, 2,
+    0, 1, 1, 2, 1, 1,
+    2, 1, 1, 0, 1, 1,
+    1, 0, 2, 1, 2, 0,
+    2, 1, 1, 0, 1, 1,
+    0, 1, 1, 2, 1, 1,
+  ];
+  for (let ay = 0; ay < 6; ay++) for (let ax = 0; ax < 6; ax++) {
+    const sx = (ay + 3) % 6, sy = ax % 6;
+    assert.equal(cfa[sy * 6 + sx], cfa[ay * 6 + ax], `CFA mismatch at (${ax},${ay}) -> (${sx},${sy})`);
+  }
+});
+
+

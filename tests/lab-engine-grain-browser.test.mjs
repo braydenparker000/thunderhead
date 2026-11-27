@@ -86,7 +86,7 @@ test('grain put back is brightness only, is the site\'s own, and stays out of th
       T.choose(kind, way);
       const tex = device.createTexture({ size: [n, n], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
       device.queue.writeTexture({ texture: tex }, k.mosaic, { bytesPerRow: n * 2 }, [n, n]);
-      const net = await N.demosaicer(device, tex, { phase: /** @type {number[]} */ (N.phaseOf(k.meta)), black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, noise: k.meta.noise }, n, n), c = await N.compile(device);
+      const picked = T.chosen(kind, 13), net = await N.demosaicer(device, tex, { phase: /** @type {number[]} */ (N.phaseOf(k.meta)), black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, noise: k.meta.noise }, n, n, { kept: picked }), c = await N.compile(device, kind, picked);
       const enc = device.createCommandEncoder(), read = device.createBuffer({ size: n * n * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
       net.run(enc, 0, 0, n, n, null, 1, 0, 0); enc.copyBufferToBuffer(net.out, 0, read, 0, n * n * 8); device.queue.submit([enc.finish()]);
       await read.mapAsync(GPUMapMode.READ);

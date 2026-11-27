@@ -39,7 +39,7 @@ const made = new WeakMap();
 
 /** Reads the export: its graph, its passes and its weights. @param {'f16' | 'f32'} kind @returns {Promise<Graph>} */
 async function read(kind) {
-  const base = new URL(`${kind}/`, DIR), get = async (/** @type {string} */ f) => { const r = await fetch(new URL(f, base)); if (!r.ok) throw new Error(`the network's ${f} did not load`); return r; };
+  const base = new URL(`${kind}/`, DIR), get = async (/** @type {string} */ f) => { const u = new URL(f, base), r = await fetch(u).catch(() => fetch(u)); if (!r.ok) throw new Error(`the network's ${f} did not load`); return r; };
   const g = /** @type {Graph} */ ({ kind, win: 0, halo: 0, cfa: [], sizes: [], files: [], mosaic: 0, sigma: 0, output: 0, ops: [], weights: new Map() }), ops = [];
   for (const line of (await (await get('graph.txt')).text()).split('\n')) {
     const [what, ...v] = line.trim().split(/\s+/);

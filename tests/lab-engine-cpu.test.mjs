@@ -31,11 +31,11 @@ test('a shape it does not take is refused', () => {
 test('conv3r_wino matches direct 3x3 conv with pre-act LeakyReLU, residual skip, and odd strip height', () => {
   const G = [[1, 0, 0], [0.5, 0.5, 0.5], [0.5, -0.5, 0.5], [0, 0, 1]];
   for (const name of ['conv', 'conv-fused']) {
-    for (const [cin, cout, h, w, flags] of [[15, 16, 5, 8, 0], [16, 16, 7, 16, 3], [16, 8, 4, 8, 1]]) {
+    for (const [cin, cout, h, w, flags] of [[15, 16, 5, 8, 0], [16, 16, 7, 16, 3], [16, 8, 4, 8, 1], [16, 16, 7, 16, 7], [15, 16, 5, 72, 5]]) {
       const x = new WebAssembly.Instance(build(name), {}).exports, mem = x.memory;
       const room = (n) => { const p = x.room(n * 4 + 16); return [p, () => new Float32Array(mem.buffer, p, n)]; };
       const [ip, getI] = room((h + 2) * (w + 2) * cin), [wp, getW] = room((cout / 8) * 16 * cin * 8);
-      const [bp, getB] = room(cout), [op, getO] = room((h + 2) * (w + 2) * cout), [sp] = room(16 * cin * 4);
+      const [bp, getB] = room(cout), [op, getO] = room((h + 2) * (w + 2) * cout), [sp] = room(16 * cin * (flags & 4 ? 32 : 4));
       const inp = getI(), wU = getW(), bias = getB(), filt = new Float32Array(cout * cin * 9);
       let s = 42; const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32 - 0.5) * 1.4;
       for (let y = 1; y <= h; y++) for (let col = 1; col <= w; col++) for (let c = 0; c < cin; c++) inp[(y * (w + 2) + col) * cin + c] = rnd();

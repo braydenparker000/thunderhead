@@ -14,26 +14,43 @@ export const XYZ_TO_SRGB = [3.2404542, -1.5371385, -0.4985314, -0.969266, 1.8760
 /** The longest side kept: what every GPU's textures hold (8192), in whole editing-copy pixels. */
 export const MOST = 8190;
 const LIN = Uint16Array.from({ length: 256 }, (_, v) => { const c = v / 255; return Math.round(65535 * (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); });
-/** Opens a 2D OffscreenCanvas in Display P3 when the browser supports it, else sRGB.
- * @param {number} w @param {number} h @param {boolean} [read] @returns {{ c: OffscreenCanvas, g: OffscreenCanvasRenderingContext2D, cs: 'display-p3' | 'srgb' }} */
-function surface(w, h, read = false) {
+/** Opens a 2D OffscreenCanvas in `want` colour space, falling back to sRGB if unsupported.
+ * @param {number} w @param {number} h @param {'display-p3' | 'srgb'} want @param {boolean} [read] @returns {{ c: OffscreenCanvas, g: OffscreenCanvasRenderingContext2D, cs: 'display-p3' | 'srgb' }} */
+function surface(w, h, want, read = false) {
   const c = new OffscreenCanvas(w, h);
   let g = /** @type {OffscreenCanvasRenderingContext2D | null} */ (null);
-  try { g = /** @type {OffscreenCanvasRenderingContext2D | null} */ (c.getContext('2d', { willReadFrequently: read, colorSpace: 'display-p3' })); } catch {}
+  if (want === 'display-p3') try { g = /** @type {OffscreenCanvasRenderingContext2D | null} */ (c.getContext('2d', { willReadFrequently: read, colorSpace: 'display-p3' })); } catch {}
   if (!g) g = /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d', { willReadFrequently: read }));
   const cs = g.getContextAttributes?.().colorSpace === 'display-p3' ? 'display-p3' : 'srgb';
   return { c, g, cs };
 }
+/** Probes whether an ImageBitmap actually carries colours outside sRGB so sRGB files avoid unnecessary 8-bit P3 re-quantization.
+ * @param {ImageBitmap} bm */
+function isWide(bm) {
+  const m = Math.max(bm.width, bm.height), s = Math.min(256, m);
+  const w = Math.max(1, Math.round((bm.width * s) / m)), h = Math.max(1, Math.round((bm.height * s) / m));
+  const { g, cs } = surface(w, h, 'display-p3', true);
+  if (cs !== 'display-p3') return false;
+  g.drawImage(bm, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h, { colorSpace: 'display-p3' }).data;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = LIN[px[i]], gr = LIN[px[i + 1]], b = LIN[px[i + 2]];
+    const sr = 1.22494 * r - 0.22494 * gr, sg = -0.042057 * r + 1.042057 * gr, sb = -0.019638 * r - 0.078636 * gr + 1.098274 * b;
+    if (sr < -400 || sg < -400 || sb < -400 || sr > 65935 || sg > 65935 || sb > 65935) return true;
+  }
+  return false;
+}
 
 /** Reads a picture file. Upright already (the browser applies the file's own orientation), in Display P3 when
- * supported (preserving wide-gamut phone photos; else sRGB), and no larger than `most` on its longer side.
+ * wide-gamut colours are present (else exact sRGB), and no larger than `most` on its longer side.
  * @param {Blob} blob @param {number} [most]
  * @returns {Promise<{ proxy: Uint16Array, width: number, height: number, meta: any, picture: ImageBitmap }>} `picture`: its own pixels, for full.js */
 export async function still(blob, most = MOST) {
   let bm = await createImageBitmap(blob);
+  const want = isWide(bm) ? 'display-p3' : 'srgb';
   const k = Math.min(1, most / Math.max(bm.width, bm.height));
   if (k < 1) {   // larger than a texture holds: reduced once, through a canvas (which averages as it reduces)
-    const { c, g } = surface(Math.floor(bm.width * k), Math.floor(bm.height * k));
+    const { c, g } = surface(Math.floor(bm.width * k), Math.floor(bm.height * k), want);
     g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close(); bm = c.transferToImageBitmap();
   }
   const w = Math.floor(bm.width / 3), h = Math.floor(bm.height / 3);
@@ -41,7 +58,7 @@ export async function still(blob, most = MOST) {
   // The editing copy: each of its pixels the mean of 3 × 3 of the picture's, taken in linear light as the decoder
   // bins a sensor's (the browser's own reducing was measured: it kept all of a noisy sky's noise). A row or two at
   // the right and bottom are left off, so it is a whole third. Read a strip at a time: the picture is never held twice.
-  const ROWS = 64, W = w * 3, { g, cs } = surface(W, ROWS * 3, true), proxy = new Uint16Array(w * h * 4);
+  const ROWS = 64, W = w * 3, { g, cs } = surface(W, ROWS * 3, want, true), proxy = new Uint16Array(w * h * 4);
   for (let y0 = 0; y0 < h; y0 += ROWS) {
     const n = Math.min(ROWS, h - y0);
     g.drawImage(bm, 0, y0 * 3, W, n * 3, 0, 0, W, n * 3);
