@@ -115,8 +115,8 @@ export function setPreview(db: Db, id: string, key: string, sha: string, at: num
 
 /** Photos deleted before `cutoff`, oldest first: what the purge takes this tick. */
 export const due = (db: Db, cutoff: number, limit: number) =>
-  db.all<{ id: string; drive_id: string | null; preview_key: string | null }>(
-    `SELECT id, drive_id, preview_key FROM photos WHERE deleted_at IS NOT NULL AND deleted_at < ?
+  db.all<{ id: string; drive_id: string | null; preview_key: string | null; format: string }>(
+    `SELECT id, drive_id, preview_key, format FROM photos WHERE deleted_at IS NOT NULL AND deleted_at < ?
      ORDER BY deleted_at LIMIT ?`,
     cutoff,
     limit,

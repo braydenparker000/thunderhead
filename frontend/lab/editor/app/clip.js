@@ -49,7 +49,10 @@ export async function pasteOn(ids, step) {
     if (photo.current()?.id === id && photo.ready) { paste(); await photo.saveNow(); done++; } else bad++;
     step(k + 1, ids.length);
   }
+  // the photo that was open, opened again whole: when it was the last one pasted on it is still the current one, but
+  // opened quick (no full-size pixels), so it is opened anew, or 100 % and export would wait on it until another opened
   if (was && was !== photo.current()?.id) await photo.open(was);
+  else if (was && ids.includes(was)) await photo.open(was, false, true);
   return { done, bad };
 }
 

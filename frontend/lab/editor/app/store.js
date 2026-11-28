@@ -60,6 +60,7 @@ export async function sweep(age = 3600e3) {
       const file = /** @type {File} */ (await h.getFile());
       if (Date.now() - file.lastModified < age) continue;
       if (folder === 'raw' && (await adopt(id, name, file).catch(() => false))) { known.add(id); back++; continue; }
+      if (folder === 'raw' && name.endsWith('.stk')) continue;   // a stack cannot be told from its file alone (adopt): it is left where it is, never deleted
       await d.removeEntry(name).catch(() => {});
     }
   }

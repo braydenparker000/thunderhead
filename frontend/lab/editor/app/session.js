@@ -257,7 +257,7 @@ export const stamp = () => gen;
 export const whole = () => big;
 /** Brings the engine's colour table and tone mask back to the photo as it is on screen: a look's tile or the
  * 100 % view's map may have drawn it another way since. For work that draws without a frame of its own (export). */
-export const settle = (/** @type {{ wide?: boolean }} */ more = {}) => paint({ fit: false, ...more });   // wide: for a Display P3 file's pieces (save.js): never left so for the screen
+export const settle = (/** @type {{ wide?: boolean }} */ more = {}) => paint({ fit: false, draft: false, ...more });   // wide: for a Display P3 file's pieces (save.js): never left so for the screen; never the dial's draft table, even while a dial still coasts
 export { jpegBand } from './decoder.js';
 /** The upright photo's size in sensor pixels. */
 export const shape = () => (ready && eng ? eng.size().map((v) => v * 3) : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
@@ -276,7 +276,7 @@ export function save(key, name, val) {
 const unsaved = (/** @type {NonNullable<typeof cur>} */ me, /** @type {unknown} */ err) => { console.warn('edit not saved', err); if (cur === me) say('This edit could not be saved on this phone. Free some space, then change something to try again.'); };
 const record = (/** @type {NonNullable<typeof cur>} */ me, /** @type {hist.Past | null} */ p) => ({ ...me.values, noise0: me.noise0 || 0, ...(me.start ? { start0: me.start } : {}), wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, push: 1, ...(p ? hist.dump(p) : {}) });
 /** Saves now what `save` would shortly, the tile too: for work that goes straight on to another photo (clip.js). */
-export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }
+export async function saveNow() { const me = cur; clearTimeout(saveT); clearTimeout(tileT); if (me && ready) { await store.saveEdit(me.id, record(me, past)); await keepTile(me); } }   // (not while it opens: its first-open starts are not set yet, and writing then made a new photo look edited)
 let tileT = 0;
 /** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported; the picture kept to show while it opens again (kept-view.js) is made from the same frame. */
 async function keepTile(/** @type {typeof cur} */ me) {
@@ -288,7 +288,7 @@ async function keepTile(/** @type {typeof cur} */ me) {
 /** Closes the open photo (it was deleted). */
 export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; opening.id = ''; img.removeAttribute('src'); place(); changed(); }
 // The graphics chip was reset under the photo: the edit kept and the photo opened again, gentler (reset.js, engine/gentle.js)
-addEventListener('th-gpu-lost', () => { const me = cur; if (me) reset({ id: me.id, began: opened, keep: () => store.saveEdit(me.id, record(me, past)), open: () => open(me.id, false, true), say: (s) => { if (cur === me) say(s); }, still: () => cur === me }); });
+addEventListener('th-gpu-lost', () => { const me = cur; if (me) reset({ id: me.id, began: opened, keep: () => (ready ? store.saveEdit(me.id, record(me, past)) : Promise.resolve()), open: () => open(me.id, false, true), say: (s) => { if (cur === me) say(s); }, still: () => cur === me }); });
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
 /** Back, or forward again, to a step: the edit as it stood then. @param {number} i */

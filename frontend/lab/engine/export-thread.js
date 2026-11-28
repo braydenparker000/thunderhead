@@ -59,9 +59,11 @@ export function work(w, sw, sh, outs, band, signal) {
       done.catch(() => {});   // a failure is heard by the push that waits on it, or by `done`
       pending.set(k, done);
       wk.postMessage({ band: half, n, k }, [half.buffer]);
-      // no more than maxAhead bands given and not done with: large 40 MP bands (>20 MB) cap at 1 to cut peak RAM
-      const maxAhead = half.byteLength > 20e6 ? 1 : AHEAD, old = pending.get(k + 1 - maxAhead);
-      pending.delete(k + 1 - maxAhead);
+      // no more than AHEAD bands given and not done with: the next is read back once the one before this is done.
+      // (A cap of one for bands over 20 MB was added on 2026-11-27, but read the band's length after it had moved,
+      // which is 0 here, so it never applied. It is not turned on unmeasured: on a phone it trades speed for memory.)
+      const old = pending.get(k + 1 - AHEAD);
+      pending.delete(k + 1 - AHEAD);
       if (old) await old;
     },
     done: async () => { const f = wait((res) => { files = res; }); wk.postMessage({ finish: true }); const got = await f; signal?.removeEventListener('abort', stop); wk.terminate(); return got; },

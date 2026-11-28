@@ -29,19 +29,18 @@ const SEED = 0x9e3779b9;
 let seed = SEED;
 /** The dither starts again from the same place: an export calls it first, so its files hang only on the photo. */
 export function reseed() { seed = SEED; }
-/** 16 bits to 8 via correlated triangular-PDF (TPDF) dither: zero quantization variance modulation and strictly neutral grays.
+/** 16 bits to 8, rounded up or down by chance in proportion, so a smooth sky doesn't band; the same chance for the
+ * three colours of a pixel, so greys stay grey. A value that is a whole 8-bit level (a JPEG with nothing moved) comes
+ * out as that level exactly. (A triangular spread tried on 2026-11-27 moved a quarter of such pixels by one level.)
  * @param {Uint16Array} px @param {Uint8Array} out */
 function eight(px, out) {
   let s = seed;
   for (let i = 0; i < px.length; i += 3) {
     s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
-    const d = 128 + ((s >>> 8) & 255) - ((s >>> 16) & 255);
-    for (let c = 0; c < 3; c++) {
-      const v = px[i + c];
-      if (v === 0) out[i + c] = 0;
-      else if (v === 65535) out[i + c] = 255;
-      else { const q = (v + d) / 257; out[i + c] = q <= 0 ? 0 : q >= 255 ? 255 : q; }
-    }
+    const d = (s >>> 8) & 255;
+    out[i] = (px[i] + d) / 257;
+    out[i + 1] = (px[i + 1] + d) / 257;
+    out[i + 2] = (px[i + 2] + d) / 257;
   }
   seed = s;
 }

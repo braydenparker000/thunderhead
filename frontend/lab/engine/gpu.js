@@ -168,8 +168,9 @@ export async function engine(canvas, img, readback = false, wideScreen = false) 
     if (painted.sync(more.masks)) setProfile(picked);   // a first brush mask made the layers' texture: everything that binds it binds again
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
-    // wide: Display P3 (4194304) stays wide-gamut for Point & Luma curves; only external sRGB .cube LUTs (262144) convert via sRGB (8388608).
-    const wide = !more.wide ? 0 : (state.u.flags & 262144) ? 8388608 : 4194304;
+    // wide: for a Display P3 file or screen (wgsl.js `shown`). A look's own table and the point and Luma curves are made for sRGB's
+    // numbers: with any of them, sRGB's colours in P3's numbers (8388608), so the screen and every file agree on what the curve did
+    const wide = !more.wide ? 0 : (state.u.flags & 262144) || more.curve || more.luma ? 8388608 : 4194304;
     const draftLut = !!more.draft && !more.exact;
     const thumbW = more.thumbW && more.thumbW > 0 && more.thumbW < ow ? Math.max(8, Math.round(more.thumbW)) : 0;
     const thumbH = thumbW ? Math.max(8, Math.round((thumbW * oh) / ow)) : 0;

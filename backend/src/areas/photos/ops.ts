@@ -175,6 +175,9 @@ export function reconcile(w: Writer, files: DriveFile[], tz: string, newId: (at:
   // name and size) is that photo, not a new one.
   const pending = files.length ? store.pending(w.db, L.pending_max) : [];
   for (const f of files.slice(0, L.reconcile_files)) {
+    // only photos, as a pick from Drive takes (pick.ts): the folder also holds the editor's edit backups
+    // (`<id>.thunderhead-edit.json`, lab/editor/app/backup.js), which are no photo and must never be one
+    if (photoFormat(f.name, f.mime) === 'other') continue;
     if (store.byDrive(w.db, f.id) || store.isGone(w.db, f.id)) continue;
     const mine = pending.findIndex((p) => p.name === f.name.slice(0, L.name_chars) && p.bytes === f.size);
     if (mine >= 0) {
@@ -216,7 +219,9 @@ export function purge(w: Writer, rows: ReturnType<typeof purgeDue>): void {
   store.purge(
     w.db,
     rows.map((r) => r.id),
-    rows.flatMap((r) => (r.drive_id ? [r.drive_id] : [])),
+    // a row that is no photo (an edit backup the Drive pass took in before it knew better) leaves its file in Drive:
+    // the file is the backup, and Drive's trash would lose it once emptied
+    rows.flatMap((r) => (r.drive_id && r.format !== 'other' ? [r.drive_id] : [])),
     w.at,
   );
   w.ledger({

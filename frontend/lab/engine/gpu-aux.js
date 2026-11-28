@@ -106,7 +106,7 @@ export function auxHelper(device, pipes) {
       sFlat?.destroy(); sOut?.destroy(); sBack?.destroy();
       tw = nw; th = nh; sRow = Math.ceil((tw * 4) / 256) * 256; fromGen = -1;
       sFlat = device.createBuffer({ size: tw * th * 8, usage: GPUBufferUsage.STORAGE });
-      sOut = device.createTexture({ size: [tw, th], format: 'rgba8unorm', usage: GPUBufferUsage.STORAGE_BINDING | GPUBufferUsage.COPY_SRC });
+      sOut = device.createTexture({ size: [tw, th], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });   // a texture's own flags (GPUBufferUsage has no STORAGE_BINDING: the frame could not be written, and every small tile came back empty)
       sBack = device.createBuffer({ size: sRow * th, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     }
     if (fromGen !== gen) {
